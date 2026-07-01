@@ -105,21 +105,25 @@ All logged-in staff can view the whole team's shifts for any week directly from 
 
 ### Navigation overhaul ✓ (v10.57–v10.71)
 
-A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navigation controls. Started on the original three pages (index, admin, paycalc); extended to operations at v10.99, settings at v11.06, and links at v12.07 — all six app pages now have it.
+A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navigation controls —
+started on index/admin/paycalc, extended to operations (v10.99), settings (v11.06), and links
+(v12.07); all six app pages now have it. Key shipped pieces:
+- `NAV_PAGES` page-switcher pills + `NAV_INFORMATION` (Huddle/Circular/Newsletter) + Guides section.
+- Sign-out button and notification 🔔/🔕 bell moved to the drawer footer (`onSignOut` callback per
+  page; push logic stays in `notif.js`).
+- Header back buttons removed from admin/paycalc (duplicate paradigm) → return via the Calendar pill;
+  headers switched to `1fr auto 1fr` grid for true-centred branding.
+- Hardening: double-init guard, Tab focus trap, coming-soon lightbox focus restoration.
+- **Huddle notification-tap PDF fix (v10.71):** a tap carries no user activation, so `window.open`
+  was pop-up-blocked and `location.href` broke standalone mode. `_triggerAutoOpen()` renders an
+  in-overlay "📄 Open Huddle" button; the tap IS a real gesture → opens as a Custom Tab over the
+  intact PWA. (Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".)
 
-- **v10.57** — `nav-panel.js` module added. Burger `☰` button in the first three page headers. `NAV_PAGES` drives the page-switcher pill row (current page omitted). `NAV_INFORMATION` drives the always-open Information section (Workplace: Daily Huddle, Weekly Retail Circular, Railcard Guide; Staff Travel: FIP Guide). Coming-soon lightbox placeholder added.
-- **v10.59** — Sign-out button moved from page headers to nav panel footer. `initNavPanel({ onSignOut })` pattern — each page passes its own callback.
-- **v10.61** — Notification bell 🔔/🔕 added to nav panel footer. States: on / off-default / off-lapsed / denied / unsupported. All push logic stays in `notif.js`; nav-panel.js owns only the UI.
-- **v10.63** — Header back buttons removed from `admin.html` and `paycalc.html` (duplicate nav paradigm; conflicted visually with the grid layout). Navigation back to the calendar is now via the nav panel's Calendar pill.
-- **v10.64** — Nationality flags added to nav panel footer. Optional `flags: ['🇬🇧', '🇳🇬']` array on a `teamMembers` entry; `nav-panel.js` looks up the logged-in member and renders up to 2 emoji between the name and the bell. **⚠️ Historical only — this feature was removed at v12.22** (footer now shows an initials avatar via `avatarInitials`/`avatarHue`; see "Profile photo / avatar" below). There is no `flags` field on `teamMembers` today and no flag-rendering code in `nav-panel.js`. The v10.64/v10.65/v10.67 entries below describe removed code.
-- **v10.65** — Flags hidden on Windows (flag emoji render as two-letter codes on Windows). Detection uses `navigator.userAgentData?.platform ?? navigator.platform` with a `navigator.userAgent` fallback.
-- **v10.66** — `admin.html` / `paycalc.html` headers switched to CSS grid (`1fr auto 1fr`). `<div class="app-header-brand">` wrapper holds icon + title in the `auto` centre column. Equal `1fr` side columns guarantee true geometric centring regardless of burger/badge width asymmetry.
-- **v10.67** — All remaining CEA members given flags arrays (UK flag by default; heritage flags where known).
-- **v10.68** — `justify-self: start` added to `.btn-burger` — pins burger to the left edge of its `1fr` grid column (was floating centre after the grid switch).
-- **v10.69** — Nav panel hardening: double-init guard (`burger.dataset.navPanelInit`); Tab/Shift+Tab focus trap while panel is open; coming-soon lightbox focus restoration (`_csReturnFocus`); keydown listener cleanup moved to start of `_closeComingSoon()` to prevent listener leak.
-- **v10.71** — Huddle push notification PDF fix. Notification taps carry no transient user activation — `window.open('_blank')` was blocked as a pop-up, and `location.href` to the cross-origin Storage URL broke standalone mode (Android wrapped the app in browser chrome). Fix: `_triggerAutoOpen()` now renders an in-overlay "📄 Open Huddle" button; tapping it IS a real gesture, `window.open` opens the PDF as a Custom Tab over the intact standalone app, and Back returns cleanly.
+(The v10.64–v10.67 nationality-flags feature was **removed at v12.22** — the footer now shows an
+initials avatar; there is no `flags` field on `teamMembers` today. See "Profile photo / avatar".)
 
-**Key design outcome:** The nav panel replaced the need for a bottom navigation bar (see "UX experiments" below). Cross-page navigation is clean without occupying fixed screen space.
+**Key design outcome:** the nav panel removed the need for a bottom navigation bar (see "UX
+experiments"). Cross-page navigation is clean without occupying fixed screen space.
 
 ---
 
@@ -139,61 +143,32 @@ Progress on the four v11 security tasks. Authoritative current status and the re
 
 `railcard-guide.html` — a standalone at-work reference sheet for staff checking and selling railcard-discounted tickets at the gateline. Linked from the nav panel (Guides section, via `NAV_GUIDES` in `nav-panel.js`) — the old admin.html link was dropped in the v10.57–v10.71 nav overhaul. JS in `railcard-guide.js` (print + chip-bar nav); static page, served network-first.
 
-- **v10.30–v10.33**: Initial guide added, collapse/lightbox interaction fixes.
-- **v10.34–v10.40**: Rewritten as a quick-glance at-work sheet — colour-coded stripe per card (green / amber / red morning rule), weekend-and-bank-holiday rule banner, page-wide plain-English pass.
-- **v10.41–v10.45**: Research-backed accuracy overhaul against official 2026 sources. Chiltern-specific callouts on Network area (valid to Banbury/Kings Sutton), Gold Card (covers the whole Chiltern route incl. Birmingham — the 12th card), Senior and Family & Friends (Network-area morning-peak rules). Two Together, Veterans, Jobcentre Plus corrected.
-- **v10.46**: Scannable labelled-row layout (Save / When / Who), GroupSave section, and a Save-as-PDF button (`window.print()` with `@media print` rules).
-- **v10.47–v10.48**: GroupSave validity time made specific (after 09:30 Mon–Fri; ScotRail's "any time" change does not apply to Chiltern), season-ticket guidance added (standard railcards do **not** discount season tickets — only Jobcentre Plus and 16-17 Saver do; Gold Card is itself a season-ticket benefit), and the July/August minimum-fare waiver flagged per card (16-25, HM Forces, Veterans waived; 26-30 not).
+Built over v10.30–v10.48: from an initial guide to a quick-glance at-work sheet (colour-coded
+morning-rule stripe, weekend/BH banner), then a research-backed accuracy overhaul against official
+2026 sources (Network area, Gold Card, Senior/Family & Friends peak rules, GroupSave, season-ticket
+exceptions, the July/August minimum-fare waiver list). Card-by-card factual detail lives in
+`.claude/rules/guide-pages.md`.
 
 **Key design decisions:**
 - Each card is self-contained — its exact time rule lives in its own **When** row so staff never have to cross-reference a key
 - Accuracy verified per card against the relevant official railcard site (nationalrail.co.uk and the individual card sites), re-checked May 2026
 - Static HTML, no module — kept deliberately simple as a low-frequency reference page
 
-### Cross-page consistency pass ✓ (v11.70–v11.88)
+### Cross-page / navy-chrome / typography consistency passes ✓ (v11.64–v11.88)
 
-A second polish pass focused on making the four sub-pages (admin, paycalc, operations, settings) and the calendar read as one consistent family. No new features — spacing and typography only.
-
-- **v11.70–v11.76** — Header title optically centred (absolute-positioned `.app-header-brand` / `.header h1`, decoupled from badge width — the iOS/Material nav-bar pattern); admin badge standardised to solid gold; header→first-card gap tightened to 4px and inter-card gaps unified at 12px across the sub-pages; white-card padding standardised (`11px 16px` header, `12px 16px` body).
-- **v11.77–v11.79** — Typography scale standardised on the `shared.css --type-*` tokens. Card-header `h2` settled at 13px/700 on all four sub-pages; `.hint` at 12px; form labels at `--type-small` (12px); inputs/selects at `--type-medium` (16px — also prevents iOS focus-zoom); primary action buttons (`.btn-action`/`.btn-primary`/`.btn-save`) at 15px; `body` base at `--type-body` (14px). Genuinely distinct components (nav pills, dense roster-review rows, badges) intentionally keep their own sizes. Body bottom padding reduced from `max(20px, safe-area)` to `max(10px, safe-area)` to trim the navy floor on Android phones without a gesture bar.
-- **v11.80–v11.81** — Calendar `.header` padding brought into line with the sub-pages' `.app-header` at every breakpoint (16px 20px / 14px 18px / 10px 12px); the header→controls margin was then trimmed (16→8px) to absorb the extra height the taller bar added, keeping the nav buttons the same visual distance from the title.
-- **v11.82** — Nav drawer head→pills gap reduced 36→22px (head bottom padding 18→10px, body top padding 18→12px) so the page pills sit closer to the drawer header.
-- **v11.84** — Shared CSS components (card-header, collapsible, btn-action, btn-primary, btn-secondary, btn-card-tips, tips lightbox) extracted from page-inline `<style>` blocks and consolidated into `shared.css`. All transitions tokenised to `--dur-fast`/`--ease-standard`; hardcoded `scale(0.98)` press effect in operations.html replaced with `var(--press-scale)`.
-- **v11.85** — Guide brand palette (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`) moved from each guide page's `:root` into `guide-shell.css :root`. 23 inline `style=` attributes in `paycalc.html` extracted to named utility classes in `paycalc.css`. Team View key-dot spans switched from inline `style=` to `.tv-key-dot--*` modifier classes in `index.css`.
-- **v11.86** — `admin.css` 1024–1399px stacked layout now correctly hides `.col-pills` and `.col-time` on inactive rows. Settings and Operations print blocks show a "not designed for printing" message via `body::before` instead of a blank page.
-- **v11.87** — SW offline document fallback extended: `operations.html` and `settings.html` added to routing chain (previously both fell back to `index.html`).
-- **v11.88** — Stale comments cleaned across 10 JS/CSS files: old filename references (`admin-huddle.js`), wrong page attributions, provenance notes ("Extracted from admin-app.js at vX.YZ"), and drifting cross-file line numbers.
-
-### Comprehensive UI polish ✓ (v11.64)
-
-A full line-by-line CSS audit across all five stylesheets (`index.css`, `admin.css`, `paycalc.css`, `shared.css`, `guide-shell.css`) with fixes for iOS, Android, desktop, and print.
-
-**Motion tokens applied throughout:**
-- All hardcoded `cubic-bezier(0.4, 0, 0.2, 1)` animation values replaced with the shared motion vocabulary tokens (`--ease-standard`, `--dur-fast`, `--dur-base`) so timing is consistent and controlled from one place.
-- All `scale(0.94)` press effects replaced with `scale(var(--press-scale))` so the `@media (prefers-reduced-motion)` override in `shared.css` correctly suppresses them (previously the hardcoded scale bypassed the override).
-
-**Focus and accessibility fixes:**
-- `.decimal-hrs-input:focus` (paycalc) was `outline: none` with no visible replacement — keyboard users had no focus indicator. Replaced with `:focus-visible` + gold ring (`border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25)`) matching every other input.
-
-**Touch affordances (guide-shell.css):**
-- `.btn-back` gained `min-width: 44px; min-height: 44px; display: inline-flex; align-items: center` (44×44 tap target per iOS HIG).
-- `.btn-pdf:hover` moved inside `@media (hover: hover) and (pointer: fine)` so touch devices don't get sticky hover states; `.btn-back:active` and `.btn-pdf:active` added for tactile feedback on tap.
-
-**Hardcoded colours replaced with design tokens:**
-- `#fff9f9` → `var(--error-bg)` (roster conflict row background)
-- `#c0392b` → `var(--error-red)` (AL balance at zero)
-- `#111` → `var(--text-dark)` (huddle viewer body text)
-
-### Navy header — unified chrome across all pages ✓ (v11.69)
-
-The floating card header (white background, drop shadow, rounded corners) was replaced with a transparent navy chrome on all five pages. Since the body canvas is already navy and theme-color is navy, the old light card created a visual seam at the top of every page. Removing the card chrome makes the header flow continuously from the OS status bar — matching the nav drawer and login overlay that were unified at v11.54.
-
-- All pages: `.header` / `.app-header` — `background`, `box-shadow`, `border-radius` removed
-- Burger button and h1 flipped to `white` throughout; comment cleaned up
-- Brand icon sized up to 32px, `border-radius: 7px`, dark shadow removed — matches `.nav-panel-icon` exactly
-- Admin badge: was navy-on-navy (invisible) → now raised chip (`rgba(255,255,255,0.09)` fill, hairline border, gold text) — mirrors the drawer's Admin pill treatment
-- Print resets added: `background: white !important` on `.header` / `.app-header`, `color: var(--primary-blue) !important` on h1 and burger — navy would print solid ink without these
-- ROADMAP "Full-bleed navy header" entry updated from "reverted" to shipped; icon blocker (white fringe, white ring) was resolved by the icon processing changes in the same session
+A series of completed CSS-only polish passes making the calendar + 4 sub-pages read as one family
+(no behaviour change; the actual token rules live in `.claude/rules/css-tokens.md`):
+- **Comprehensive UI audit (v11.64):** motion tokens + `scale(var(--press-scale))` applied
+  throughout (so the reduced-motion override works); `:focus-visible` gold rings on all inputs;
+  44×44 touch targets on guide buttons; hardcoded hex → design tokens.
+- **Navy header — unified chrome (v11.69):** the white card header (background/shadow/radius)
+  replaced by transparent navy chrome on all pages so the header flows from the OS status bar and
+  matches the navy canvas/drawer; burger + h1 flipped white; admin badge → raised gold chip; print
+  resets force white bg + navy ink (navy would print as solid ink otherwise).
+- **Cross-page consistency (v11.70–v11.88):** optically-centred header title (decoupled from badge
+  width); standardised card padding/gaps; typography settled on the `--type-*` scale (inputs stay
+  ≥16px to block iOS focus-zoom); shared components extracted to `shared.css`; SW offline fallback
+  extended to operations/settings; stale code comments cleaned across 10 files.
 
 ### Huddle DOCX flow rework ✓ (v11.66)
 
@@ -205,37 +180,35 @@ Viewer code hardened to match: `calendar-huddle-viewer.js` now uses simple `if (
 
 ### Pay reminder infrastructure fix ✓ (v11.65)
 
-`sendPayReminderNotification` (scheduled Cloud Function, daily 08:00 London) had never fired because its Cloud Scheduler job was never created. Two root causes:
-
-- The `FIREBASE_SERVICE_ACCOUNT` lacked `roles/cloudscheduler.admin` — Firebase silently failed to create the scheduler job on every deploy. Fixed by adding the role in GCP IAM.
-- A stale `us-central1` deployment record (from the function's first deployment before the region was pinned to `europe-west2`) blocked all subsequent deploys with a 404 on cleanup. Fixed by deleting the old function manually from Firebase Console.
-
-Schedule format also hardened from `'every day 08:00'` (App Engine cron) to `'0 8 * * *'` (standard Unix cron, better supported by firebase-functions v2). A try/catch wrapper ensures runtime errors are explicitly logged. Force-run on 31 May 2026 confirmed the function executes and correctly skips non-cutoff days. First live test: **27 June 2026** (cutoff for the 3 Jul payday).
+`sendPayReminderNotification` (scheduled daily 08:00 London) had never fired — its Cloud Scheduler
+job was never created. Two root causes, both fixed: the deploy service account lacked
+`roles/cloudscheduler.admin` (Firebase silently failed to create the job every deploy); and a stale
+`us-central1` deployment record (from before the region was pinned to `europe-west2`) blocked deploys
+with a 404 on cleanup. Schedule also hardened to Unix cron (`0 8 * * *`). First live test **27 June
+2026** (cutoff for the 3 Jul payday).
 
 ### CSS extraction and infrastructure hardening ✓ (v12.01–v12.05)
 
-Refactoring and security hardening with no end-user visible behaviour change.
-
-- **v12.01** — `operations.css` and `settings.css` extracted from inline `<style>` blocks into external CSS files, completing the extraction that began at v11.41 (`index.css`, `admin.css`, `paycalc.css`).
-- **v12.04** — Guide page styles extracted to `guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip.css` — every page now uses `<link rel="stylesheet">` rather than inline `<style>` blocks. DOMPurify self-hosted at `./purify.es.mjs` (v3.4.8) — CDN import replaced; `<link rel="modulepreload">` in `index.html`; SW caches it network-first. Security headers added to `firebase.json`: `Strict-Transport-Security`, `Cross-Origin-Opener-Policy`, expanded `Permissions-Policy`. `normaliseSurname()` extracted to `firebase-client.js` (shared implementation for Auth password derivation). `PAGE_FALLBACKS` array in `service-worker.js` replaces long ternary chain in offline routing. Cultural calendar admin banner upgraded: `warnIfCulturalCalendarMissingYear()` now returns missing dataset names — a ⚠️ urgent banner appears year-round if data is missing, not just in Nov/Dec. ESLint and Firebase SDK version consistency checks added to the pre-commit hook. `@media (prefers-reduced-motion: reduce)` guards added for `sync-pulse` and `pulse-confirm` CSS animations.
-- **v12.05** — Firestore `overrides` read auth requirement reverted. v12.04 required anonymous Firebase Auth for calendar reads — more complexity than value (anyone can obtain an anonymous token as easily as the app does). Intentionally left open; decision and trade-offs documented in `KNOWN_LIMITATIONS.md` and commented in `firestore.rules`.
+No end-user-visible behaviour change: all page + guide CSS extracted from inline `<style>` into
+external files; DOMPurify self-hosted (`./purify.es.mjs` v3.4.8, CDN import removed); security headers
+added to `firebase.json` (HSTS, COOP, expanded Permissions-Policy); `normaliseSurname()` shared from
+`firebase-client.js`; ESLint + Firebase-SDK-version checks added to the pre-commit hook.
+- **v12.05 decision:** the v12.04 requirement for anonymous Firebase Auth on calendar `overrides`
+  reads was **reverted** — more complexity than value (anyone can mint an anonymous token as easily
+  as the app). Left open; trade-offs in KNOWN_LIMITATIONS.md + commented in `firestore.rules`.
 
 ### Links design workspace ✓ (v12.06–v12.47)
 
 A 28-line rotating link design tool for Marylebone station. Accessible only to `CONFIG.LINKS_DESIGNERS` (currently G. Miller and S. Silva, added v12.33). Flagged beta — a working sketch for agreeing the pattern before the final link is built.
 
-**What was built:**
-- **v12.06–v12.07** — Initial Links page (`links.html` / `links-app.js` / `links.css`): auth guard, Firestore load/save to `linkDesigns/combined-28`, 28-line grid editable via per-cell dropdown (Line + staff name columns), early/late coverage bar chart, collapsible cards, nav panel integration.
-- **v12.33** — Beta marker (gold-outline chip + `#betaLightbox` first-visit notice following canonical lightbox lifecycle); S. Silva added to `LINKS_DESIGNERS`; `deploy-pages.yml` workflow added for GitHub Pages.
-- **v12.37** — Print layout (A4 landscape grid + coverage); sticky day headers at ≥1024px using `overflow: clip` (not `hidden`) on the card to avoid creating a scroll container; concurrency guard: `saveChanges()` re-reads `updatedAt` and names the other designer before overwriting; `loadFailed` flag to distinguish a Firestore error from "no design yet".
-- **v12.39** — Full redesign: staff names removed (the design is patterns-only, "Line 1"–"Line 28" — who goes on which line is a separate decision made after patterns are agreed); paint-mode brush bar (arm a shift chip, then single-click cells to fill — no dropdown required; Escape or re-tap to disarm); Design Checks card (weekends off, short turnarounds <12h across the circular rotation, longest consecutive-days stretch, early/late/spare balance); auto-generator rebuilt as slot-based targets (see v12.40 entry); `links-design.js` extracted as pure-maths module.
-- **v12.40** — Slot-based generator: one row per distinct shift time, each with separate **Mon–Fri / Sat / Sun** headcount targets (the real roster genuinely differs on all three day classes); generator seeded from the current roster via `buildRosterTargets()` so designers start from what today's roster provides; rotating-window algorithm guarantees forward body-clock rotation (a person's week only moves later — never a late finish followed by an early start). Hourly coverage heat map: hour-by-hour on-duty headcount replacing the early/late bar chart; intensity buckets `heat-b0`–`heat-b5`; red `0` flags a coverage gap inside a staffed span; SP column for spares. `links-design.test.mjs` added — covering all pure-maths functions.
-- **v12.41** — Vacant-lines model removed: "lines 23–27 are vacant placeholders" (`VACANT_FROM`) dropped. All 28 lines are now editable rotating rows.
-- **v12.42** — Fixed-line model removed: "line 28 is C. Reen's fixed link" (`FIXED_POS`, the separator row, non-editable cells) dropped. In a rotating link everyone passes through every line — an all-rest line is an unfinished pattern, not a vacancy. C. Reen's adjusted shifts are handled as overrides on the base roster (the normal mechanism), not inside this designer. `ROTATING_LINES = 28`. Design checks and amber `.row-unfilled` marker flag any line that is entirely rest days.
-- **v12.43** — Generator-only model: "Initialise from current rosters" and "↺ Reset patterns from current rosters" buttons removed (`buildDefaultDesign`, `normalisePattern`, `initFromRosters`, `resetFromRosters` all deleted). The auto-generator is now the only entry point for creating a new design — it reads Mon–Fri/Sat/Sun headcount targets and produces a complete 28-line rotation. When no design exists, the generator card auto-expands so designers don't have to discover it collapsed.
-- **v12.44–v12.45** — Load-failure fix (template-literal apostrophe SyntaxError); stale `.row-unfilled` marker updated in-place by `applyShift()`; merged `buildShiftOptions()`; `weekendsOffPct` moved into `runDesignChecks()`; `.sr-only` promoted to `shared.css`.
-- **v12.46** — Multi-design + compare: `linkDesigns` becomes a collection of named documents `{ name, patterns, updatedAt, updatedBy }`; legacy `combined-28` auto-migrated to "Design 1" on first load. Design picker (+ New / ⎘ Duplicate / ✎ Rename / ✕ Delete), ⇔ Compare mode with gold-outline cell diffs (side-by-side ≥1024px, stacked on phones). Card order changed to Grid → Generator → Coverage → Checks. 44px touch targets on coarse-pointer devices.
-- **v12.47** — Cross-platform review fixes: picker chips restructured (`<div>` wrapping separate buttons — nested `<button>`s are force-closed by the HTML parser, silently breaking the markup); compare columns keep `overflow-x:auto` on desktop (two 560px tables can't share an 1100px container); main grid stays rendered-but-screen-hidden in compare mode so print always outputs the active design; print-only `#printDesignName` label; `touch-action: manipulation` on cells/brush chips (rapid paint taps triggered double-tap zoom on iOS/Android); duplicate forks the live in-memory patterns (unsaved edits included); designs sorted by name with last-active remembered in localStorage; `alert()` removed from delete guard.
+**What was built (v12.06–v12.47):** initial grid + Firestore load/save and nav integration (v12.06–07);
+beta marker + first-visit notice (v12.33); print layout + sticky headers + concurrency guard (v12.37);
+the v12.39 full redesign (patterns-only "Line 1–28", paint-mode brush bar, Design Checks card,
+`links-design.js` pure-maths module); slot-based generator + hourly coverage heat map (v12.40);
+removal of the vacant-lines (v12.41) and fixed-line (v12.42) models so all 28 lines are normal
+rotating rows; generator-only creation (v12.43); and multi-design + ⇔ compare (v12.46–47, with the
+`<div>`-wrapped picker chips — nested `<button>`s are force-closed by the parser). Full current
+architecture: `.claude/rules/links-design.md`.
 
 **Key design decisions:**
 - **Patterns-only documents** — removing staff names decoupled the pattern-design decision from the assignment decision. Each design document stores `{ name, patterns, updatedAt, updatedBy }` only (multi-design collection since v12.46; the legacy `linkDesigns/combined-28` singleton is auto-migrated on first load and then ignored); legacy `meta` from older saves is silently dropped on next write.
@@ -286,32 +259,14 @@ availability. Eight smoke tests verified: calendar renders + member dropdown + n
 a regression guard for the `initTipsLightbox` wiring), operations auth redirect, and links
 auth redirect.
 
-**Why they were removed (v12.75):** The Playwright Chromium binary cannot be downloaded
-in the current development environment (CDN blocked). Tests could be listed but not run,
-which meant fixes to the test suite couldn't be verified locally before pushing to CI.
-When the tests needed updating (e.g. after the settings-page tips fix in v12.73 added a
-new test), maintaining them became a push-and-pray workflow with no local iteration loop.
+(The suite was removed v12.75–v13.94 when the Chromium binary couldn't be downloaded in the dev
+environment — tests could be listed but not run, so fixes were push-and-pray. Now moot: the
+pre-installed browser closed that gap. Full removed/restored history: KNOWN_LIMITATIONS.md →
+"E2E smoke tests".)
 
-**When bringing them back — ask Gareth to discuss the options first.** The key decision is
-whether Playwright + Chromium is the right tool, or whether a different approach covers the
-same defects more cheaply:
-- **jsdom-based DOM tests (e.g. Happy-DOM + Vitest or Node test runner)** — no browser
-  binary needed; can test nav-panel injection, overlay lifecycle, session wiring, and
-  module imports without a CDN dependency at all. Faster and locally runnable.
-- **Puppeteer** — uses a system Chromium or Chromium embedded in the package; different
-  binary story to Playwright.
-- **Playwright with a pre-installed system Chromium** (e.g. `apt-get install chromium`)
-  rather than its own `--with-deps` install, which is what fails.
-- **Cypress** — bundled Electron browser; different install model.
-
-Whatever tool is chosen: keep the Firebase CDN stub approach. The `e2e/fixtures.js`
-pattern was sound — intercepting the CDN at the network layer before any page load is the
-right way to decouple page-load correctness from Firebase availability, and any E2E tool
-that supports request interception can implement the same thing.
-
-The full test code is preserved in the git history on branch
-`claude/review-claude-md-mKJbK` at commit just before v12.75. The history is
-documented in KNOWN_LIMITATIONS.md → "E2E smoke tests — REMOVED v12.75, RESTORED v13.95".
+**Whatever E2E tool is ever chosen, keep the Firebase CDN-stub approach** (`e2e/fixtures.js`):
+intercepting the CDN at the network layer before any page load is the right way to decouple
+page-load correctness from Firebase availability — any tool with request interception can do it.
 
 ---
 
@@ -356,9 +311,7 @@ A member's optional profile photo — a circular badge in the nav-drawer footer 
 - The **display + storage + cross-device-sync layer is good, well-factored code** worth keeping regardless — the shared painter (`avatar.js`), the Storage-object + Firestore-pointer model (`firebase-client.js`), and the 3-layer sync (cache → Firestore refresh → live events).
 - The **interactive editor is gold-plated for a non-vital feature.** It is ~350 of the feature's ~700 JS lines — canvas crop geometry, a Pointer-Events pinch/pan state machine, dpr-aware rendering, and a `ResizeObserver` refit. It is the highest-risk, hardest-to-maintain, untested part of the whole app, protecting a badge that renders at **26px**. At that size an off-centre face is invisible, so the precise reframing it buys is largely wasted, and it is the one chunk the owner cannot realistically debug unaided.
 
-**Two ways to simplify if kept but trimmed (cheaper than a full revert):**
-1. **Auto centre-crop (drop the editor entirely).** The `centreImage()` + `exportBlob()` core already produces a good centred square; deleting the gestures/slider/`ResizeObserver`/`setZoom`/`clampPos` removes ~300 lines and keeps the full value (choose a photo → it appears → remove it).
-2. **Slider-zoom only (drop pan + pinch).** Keep `setZoom` driven by the slider, delete the Pointer-Events block — removes the bug-prone gesture state machine (~120 lines) while keeping zoom.
+_(The "simplify instead of remove" options are moot — the feature was fully removed at v12.22. The full-revert checklist below is the live record for a clean restoration.)_
 
 **Full-revert checklist (back to no avatar feature at all):**
 - **Delete files:** `avatar.js`, `settings-avatar.js`.
@@ -407,12 +360,7 @@ Adding a persistent nav bar introduces two layout problems with no navigational 
 
 **Note:** Team Week View (v8.22) is an in-page view within the calendar — it does not replace cross-page navigation between Calendar / Pay / Admin.
 
-**Implementation notes (already written, can be restored):**
-- CSS lives in shared.css — `.bottom-nav`, `.bottom-nav-item`, `.bottom-nav-icon`
-- Each page needs `<nav class="bottom-nav">` before `</body>` with the active item marked
-- Body needs `padding-bottom: calc(64px + env(safe-area-inset-bottom))` on mobile only
-- Hidden on desktop (≥768px) via `display: none` in the base rule; shown via `@media (max-width: 767px)` block
-- Print: `display: none !important` already in the media query
+_(Implementation-notes restore-kit dropped — this is a "do not revisit" idea; recover from git history if the case ever changes.)_
 
 ### Glanceable summary strip
 **Status:** Prototyped at v7.66, reverted — adds clutter above the calendar
@@ -442,46 +390,7 @@ On a phone the calendar itself is the primary information — the strip adds a l
 - All data sources are already imported — no new dependencies needed
 
 ### Full-bleed navy header (calendar page)
-**Status:** ✓ Shipped at v11.69 — see "Navy header — unified chrome across all pages" entry above. Implemented as transparent/canvas chrome (not negative-margin full-bleed) unified across all 5 pages. Icon blocker resolved by the icon processing changes in the same session.
-
-The calendar header (`.header`) was redesigned to bleed edge-to-edge with a navy background, matching the nav drawer and creating a single continuous navy band across the top of the page. The idea was to give the calendar page a stronger visual identity — the drawer already opens as navy, so extending that colour into the header would feel cohesive rather than abrupt.
-
-**What was built (v11.59):**
-- `.header` loses its white card surface (`background: var(--surface)`) and becomes `background: var(--primary-blue)`
-- Burger and h1 flipped to `color: white`
-- `.title-icon` box-shadow removed (shadow on a navy field is invisible)
-- Full-bleed achieved via negative margins that cancel the body's safe-area side padding at every breakpoint, with the header restoring its own internal padding — the panel's own content stays at the same 16px–48px inset as the cards below it
-
-**Why it was held back:**
-- The `.title-icon` brand icon is currently an image sized for a white/card background. On navy it needs either a white-circle version or the icon itself redesigned — shipping the current icon on a navy strip looks rough.
-- The overall composition needs more review: border between the header strip and the first card below it, how the today-button gold contrasts on navy, and whether the month/year text weight reads cleanly at all sizes.
-
-**When to revisit:**
-- After the brand icon has been updated to a version that reads clearly on navy (ideally a white circular background or a reversed variant)
-- Review the full composition in context — nav drawer open/close, today button, month jump, the controls card directly below
-
-**Implementation notes (already written, can be restored):**
-- The core CSS pattern for full-bleed at the main body breakpoints (≤599px body has 16px side padding; 600–1039px uses `clamp(20px, 3vw, 48px)`):
-  ```css
-  /* Inside index.css .header */
-  background: var(--primary-blue);
-  margin-left: calc(-1 * max(16px, env(safe-area-inset-left)));
-  margin-right: calc(-1 * max(16px, env(safe-area-inset-right)));
-  padding-left: max(16px, env(safe-area-inset-left));
-  padding-right: max(16px, env(safe-area-inset-right));
-  border-radius: 0;
-  box-shadow: none;
-
-  @media (min-width: 600px) {
-    margin-left: calc(-1 * max(clamp(20px, 3vw, 48px), env(safe-area-inset-left)));
-    margin-right: calc(-1 * max(clamp(20px, 3vw, 48px), env(safe-area-inset-right)));
-    padding-left: max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-    padding-right: max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
-  }
-  ```
-- `.header h1 { color: white; }` and `.btn-burger { color: white; }` (override the navy text colour from the card version)
-- Print reset: `@media print { .header { background: white !important; } .header h1, .btn-burger { color: var(--primary-blue) !important; } }`
-- `.title-icon { box-shadow: none; }` — shadow is invisible on navy, remove it
+**✓ Shipped at v11.69** — see the "Navy header — unified chrome" bullet under "Cross-page / navy-chrome / typography consistency passes" above. Implemented as transparent/canvas chrome (not negative-margin full-bleed), unified across all 5 pages; the icon-on-navy blocker was resolved by the icon processing in the same session. (No longer a held-back experiment; the earlier full-bleed CSS restore-kit was dropped as dead once this shipped.)
 
 ### Calendar cell type hierarchy
 **Status:** Built at v11.57, reverted — needs more consideration before shipping.
@@ -500,20 +409,10 @@ The calendar day cell has two competing elements: the `.day-number` (date) and t
 - Review the calendar grid in real daily use with both sizes side by side — compare scanning for a specific date vs identifying shift patterns across a week.
 - If revisting: consider whether a middle position (e.g. 16px/600) is a better balance than the full step down to 14px/500.
 
-**Implementation notes (already written, can be restored):**
-```css
-/* index.css */
-.day-number {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-mid);
-}
-
-.calendar-day:active .shift-badge {
-  transform: scale(var(--press-scale)); /* was scale(0.94) — use token for reduced-motion */
-}
-```
-Note: the press-scale fix alone (`scale(0.94)` → `scale(var(--press-scale))`) is a clean independent change with no visual effect at default settings — it just ensures the `@media (prefers-reduced-motion)` override in `shared.css` correctly suppresses the press animation on that element too.
+**Implementation notes:** shrink `.day-number` to 14px/500/`--text-mid`. The independent press-scale
+fix (`scale(0.94)` → `scale(var(--press-scale))`) is a clean no-visual-change tidy that lets the
+`prefers-reduced-motion` override suppress the badge press too — shippable on its own. (Full CSS in
+git if revisited.)
 
 ---
 
@@ -706,17 +605,10 @@ Once Stages 2–4 are live and staff have had adequate time to migrate:
 
 ## Dependency maintenance — firebase-admin v14
 
-`firebase-admin@14` is the current major release and resolves 9 moderate vulnerabilities
-in the transitive `uuid` dependency. Upgrade is blocked until `firebase-functions` adds
-v14 to its peer dependency range (all v7.x releases declare `^11 || ^12 || ^13` only). The
-Node 22 runtime that firebase-admin v14 requires is already in place (`functions/package.json`).
-
-**Practical risk is low** — the uuid buffer-bounds bug is not reachable via Firebase's
-internal usage patterns. See KNOWN_LIMITATIONS.md for the full detail and the step-by-step
-upgrade checklist.
-
-**Watch:** `npm outdated` in `functions/` — when `firebase-functions` bumps its peer range
-to include v14, the upgrade can proceed.
+`firebase-admin@14` clears the 9 moderate transitive `uuid` advisories but is blocked until
+`firebase-functions` widens its peer range to include v14 (practical risk low — the uuid bug isn't
+reachable via Firebase's usage). **Watch** `npm outdated` in `functions/`; full detail + the
+step-by-step upgrade checklist live in **KNOWN_LIMITATIONS.md**.
 
 ---
 
@@ -755,54 +647,23 @@ to include v14, the upgrade can proceed.
 
 ---
 
-## Security project — per-member override write isolation (scoped June 2026, not yet started)
+## Security project — per-member override write isolation
 
-Make `firestore.rules` require `request.auth.token.name == memberName` (admin bypass) for
-`overrides` writes, so a signed-in staff member can only write their own overrides — not anyone
-else's. Currently the rule is `request.auth != null` only (any authenticated session, including
-the anonymous fallback, can write any member's overrides). This is Tier 2 item #1 from the June
-2026 security review and Stage 3 of the password-security plan; it was tried at v10.72 and
-**suspended at v10.94 after a production outage** (post-mortem: KNOWN_LIMITATIONS.md → "The four
-v11 security tasks" → task #2).
+**Now BUILT (permissive) and tracked in `SECURITY_RELEASE_PLAN.md` (phase B2) — this section is a
+pointer, not the live plan.** Make `overrides` writes require the member's own `name` claim (with
+admin + manager bypass) so a signed-in member can only write their own overrides. Tried at v10.72,
+**suspended at v10.94 after a production outage** (post-mortem: KNOWN_LIMITATIONS.md task #2), then
+rebuilt as the three-tier permissive rule **B2 (built v14.53)**; the strict cutover is **B3**.
 
-**Why it is now much more doable than the v10.94 suspension implies:**
-- The Firestore emulator suite already exists (`firestore.rules.test.mjs`, all 9 collections incl.
-  analytics, `npm run test:rules`, gates every rules deploy) — the "Phase 7 prerequisite" is
-  effectively in place.
-- Both outage root-cause bugs are fixed: `setupRosterAuth` now sets the `name` claim (v10.88),
-  and the page-load Firebase Auth session is reliably established (v10.93).
-- The exact rule pattern is **already live and tested in production** on `staffContact`
-  (`firestore.rules` — `request.auth.token.name == memberName || request.auth.token.admin == true`).
-  This is the same mechanism applied to a second collection, not an unproven design.
+Two load-bearing facts that survive here so they aren't lost when reading the roadmap alone:
+- **The admin/manager bypass is load-bearing, not optional.** Admin + managers write overrides for
+  *other* members constantly (AL/sick on their behalf; every `source:'roster_import'` upload). The
+  rule must keep `|| admin || manager` or roster upload and on-behalf booking break.
+- **The one real rollout risk is cached tokens, not code.** A valid 30-day session carries a token
+  minted before the claim existed; a strict rule would fail its writes until re-auth — essentially
+  the v10.94 outage. B3 handles this with the permissive→strict `CLAIM_EPOCH` token-refresh sweep.
 
-**The one real remaining risk is rollout, not code — cached tokens.** A staff member with a valid
-30-day localStorage session carries a Firebase token minted *before* the `name` claim existed.
-The moment a rule requiring `token.name == memberName` deploys, every such session's writes fail
-until that person signs out and back in to mint a fresh token. That cached-token lockout is
-essentially what the v10.94 outage was. Any rollout must force/await a token refresh for all
-active sessions before (or as) the rule goes live.
-
-**Note on the admin bypass — it is load-bearing, not optional.** Admin (G. Miller) writes
-overrides for *other* members constantly: staff AL/sick booked on their behalf, and every
-roster-upload override (`source: 'roster_import'`) is written from the admin's session for many
-different members. The rule must keep `|| request.auth.token.admin == true` or roster upload and
-admin booking break.
-
-**Staged plan (do in this order):**
-1. **Branch-safe (no deploy):** add the per-member `overrides` write rule + emulator tests proving
-   both the isolation (member A cannot write member B's override) *and* the admin bypass (admin can
-   write anyone's; roster-import path still works). Fully reversible; pushing the branch does not
-   deploy (deploy-rules.yml runs on merge to `main`).
-2. **Claims audit (needs Firebase Console):** confirm `setupRosterAuth` sets `name` for *every*
-   active account, then run "Set up accounts" so all claims exist server-side.
-3. **Token-refresh rollout:** pick a low-traffic window; force/await a re-auth for all active
-   sessions (transitional rule or forced re-auth) so no one is left on a pre-claim cached token.
-4. **Verify before merge:** a non-admin staff member can write their own AL/sick; admin can still
-   write for others and roster upload still saves; *then* merge to `main` to deploy.
-
-Steps 1 and 4 are code/test work Claude can do on the branch. Steps 2–3 need the owner (Console +
-a chosen window when a brief staff re-auth is acceptable). Recommendation when picked up: do step 1
-first so the change is written and proven before any production window is chosen.
+Full staged plan, deploy runbook, and the B3 strict step: **`SECURITY_RELEASE_PLAN.md` → B2/B3**.
 
 ---
 
@@ -816,33 +677,16 @@ Roughly ordered by value-to-effort.
 
 ### Next maintenance release (bug-class) — ✓ SHIPPED (v14.23–v14.28)
 
-All nine items shipped across v14.23–v14.28, each with tests:
+All shipped with tests across v14.23–v14.28: push-subscription auth race (shared `calendarAuthReady`);
+VAPID rotation (unsubscribe-before-subscribe); orphaned-Storage cleanup on repeat Huddle uploads;
+paycalc namespace ownership prompt (no silent first-loader claim); Huddle download-URL validation
+(`isSafeStorageUrl`, bucket-narrowed); overlapping Sunday-correction deletion (`computePeriodDeleteIds`);
+tightened Firestore field schemas (overrides/push-sub/analytics); roster-parse empty-after-filter
+check; file-signature (magic-byte) checks. Plus the v14.26 delta: `getSession()` expiry now signs
+Firebase out too, pinned roster-transition tests, and the Calendar duplicate-retry-listener fix.
 
-- **Push-subscription auth race** ✓ — shared `calendarAuthReady` promise; the error reporter, usage
-  counter, and push renewal/enable all await it before writing (v14.23).
-- **VAPID rotation** ✓ — `notif.js` now unsubscribes the old key before subscribing the new one (v14.23).
-- **Repeat Huddle uploads orphan Storage files** ✓ — `ingestHuddle` reads the previous `storagePath`,
-  uploads, writes metadata, deletes the new object on metadata failure, then deletes the previous
-  object on success (v14.23). Browser-admin Huddle deletion deliberately stays server-only.
-- **Paycalc namespace migration** ✓ (v14.25, hardened v14.27) — silent first-loader claim replaced by
-  a one-time ownership prompt; keys are classified by known member slug so another member's namespace
-  is never claimed/cleared. Tested in `paycalc-migrations.test.mjs`.
-- **Validate Huddle download URLs** ✓ — shared `isSafeStorageUrl`, later narrowed to the project
-  bucket (`/v0/b/myb-roster…` · `/myb-roster…`) (v14.23, v14.28).
-- **Overlapping Sunday-correction deletion** ✓ — pure `computePeriodDeleteIds` keeps a Sunday
-  correction a neighbouring AL/sick range still needs (v14.24).
-- **Tighten Firestore field schemas** ✓ — overrides `hasOnly` + `YYYY-MM-DD` date + bounded `HH:MM`
-  time, `createdAt` required; push-sub nested `keys` `hasOnly`; analytics shape pinned (id pattern,
-  known page ids, int counts) (v14.24, v14.28). **Two sub-parts deferred:** Chiltern work-email
-  DOMAIN on `staffContact` (needs the confirmed domain) and the `storagePath` prefix check (low value).
-- **Roster-parse empty-after-filter check** ✓ — second non-empty check after known-member filtering (v14.23).
-- **File-signature (magic-byte) checks** ✓ — `%PDF-` / ZIP-DOCX signature; reject extension/content
-  mismatch (v14.23).
-
-Also shipped from the v14.26 delta review: `isSafeStorageUrl` bucket-narrowing (above), `getSession()`
-expiry now signs out of Firebase too, pinned K. Jedlinski / S. Boyle / B. Khalil roster-transition
-tests, HR/absence context removed from public roster source, and the Calendar duplicate-retry-listener
-fix.
+**Deferred sub-parts of the schema work:** the Chiltern work-email DOMAIN check on `staffContact`
+(now **done, v14.97**) and the `storagePath` prefix check (low value, still open).
 
 ### Dedicated security release (the big authorisation project)
 
@@ -875,24 +719,19 @@ These are interlocking and should ship as one planned release, not piecemeal:
   then enforce Firestore → Storage → browser-called Functions. (Note: a separate "considered and
   declined" assessment for the *current* threat model is in KNOWN_LIMITATIONS.md; revisit if the app
   is advertised more widely or becomes official infrastructure.)
-- **Workload Identity Federation** — replace the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON written
-  to `/tmp/key.json` with keyless GitHub OIDC/WIF. Deferred as a dedicated change because a faulty
-  migration could stop all deploy workflows.
+- **Workload Identity Federation** ✓ **DONE (A2, v14.93)** — all 3 deploy workflows authenticate via
+  keyless GitHub OIDC/WIF; the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON key + GitHub secret are
+  both deleted. See SECURITY_RELEASE_PLAN.md → Appendix A2.
 - **Header-capable staff hosting** — the GitHub Pages staff URL can't receive Firebase Hosting's
   security headers (CSP etc.); migrate to Firebase Hosting or a header-capable custom domain when
   auth is redesigned or the app is officially adopted.
 
-### Documentation accuracy fixes (cheap)
+### Documentation accuracy fixes ✓ (v14.37–v14.38)
 
-- ✓ **Docs corrected (v14.38)** — `pushSubscriptions` delete rule allows *any* authenticated identity
-  that knows the doc id. AI_MAP already noted this; CLAUDE.md now states it explicitly too, so no doc
-  overclaims owner/admin-only. The remaining work is to *tighten the rule itself*, which is folded into
-  the per-member isolation phase (B2) in `SECURITY_RELEASE_PLAN.md` — not a standalone doc fix.
-- ✓ **Docs corrected (v14.37)** — the bearer-URL read distinction (Firestore metadata read is open;
-  the Storage object is reached via a tokenised bearer download URL that bypasses Storage rules) is now
-  stated in `storage.rules` and the `circulars`/`huddles` rule comments.
-- ✓ Resolved — the Storage test comment implied Admin-SDK Huddle cleanup that didn't exist;
-  `ingestHuddle` now prunes the previous object (v14.23), so the described cleanup is real.
+Done: the `pushSubscriptions` delete posture (any authenticated identity that knows the doc id) and
+the bearer-URL read distinction (open Firestore metadata read; Storage object reached via a tokenised
+URL that bypasses Storage rules) are now stated accurately in the docs + rule comments. The remaining
+*rule* tightening is folded into SECURITY_RELEASE_PLAN.md B2 — not a doc fix.
 
 ---
 
@@ -992,58 +831,21 @@ lazy-import Firebase, and restructures the calendar init to paint first, then dy
 
 A phased plan to make the codebase easier to maintain and extend without introducing a build system or framework. Each phase is self-contained and safe to defer. Phases are ordered by value-to-effort ratio.
 
-### Phase 0 — Safety net ✓ Done (v13.72)
-
-- `npm run lint` (ESLint on root JS/MJS) and `npm run check` (lint + test) scripts in `package.json`
-- Three silent `catch(() => {})` blocks in `firebase-client.js` upgraded to `console.warn` so Storage errors surface in DevTools and the Operations Error Log
-- `import-graph.test.mjs` — DFS-based circular import detector across all root ES modules
-- Dead CSS token test in `sw-asset-check.test.mjs` — custom properties defined in `:root` but never used via `var()`
-- Firestore cross-reference test in `sw-asset-check.test.mjs` — every collection used in `firebase-client.js` must have an entry in `firestore.rules`
-- `.github/pull_request_template.md` — cloud-backed feature completion checklist (Firestore rules, SW asset lists, version bump, no silent catches, docs)
-- KNOWN_LIMITATIONS.md — silent-catch audit decisions documented so the rationale survives the next session
-
-### Phase 1 — Lightweight type hints ✓ (v13.84)
-
-- **`// @ts-check`** — present on every root JS module (two config files intentionally excluded: `eslint.config.js`, `service-worker.js`).
-- **`COLLECTIONS` constant in `firebase-client.js`** ✓ (v13.75) — `COLLECTIONS` object added; `sw-asset-check.test.mjs` updated to parse it.
-- **Roster data integrity tests** ✓ — `roster-data.test.mjs` asserts valid `currentWeek` range, `startDate instanceof Date`, and `rosterChanges` sorted ascending.
-
-### Phase 2 — Session/bootstrap consolidation ✓ (v13.74)
-
-Completed. `sessionReady` (Promise) and `resolveSession()` are exported from `session.js`; the `window._mybSession` global has been removed. Page coordinators call `resolveSession(session)`; feature modules `import { sessionReady }` and `await sessionReady`. See KNOWN_LIMITATIONS.md for the migration note.
-
-### Phase 3 — Point-of-use decision comments ✓ (v13.85)
-
-Added `// Rule: see CLAUDE.md — "…"` one-liners at each surprising business-logic enforcement site:
-- `getBaseShift()` in `roster-data.js` — `isChristmasRD` ordering
-- `shouldReplaceOverride()` in `override-utils.js` — manual-beats-import precedence
-- All four Sunday-enforcement layers in `admin-overrides.js` (pill disable, bulk-bar skip, `recordRangeOverrides` filter) and `calendar-renderer.js` (sick-override display suppression)
-
-### Phase 4 — Test coverage for DOM wiring ✓ (v13.84)
-
-`nav-panel.test.mjs`, `overlay.test.mjs`, and `session.test.mjs` exist and run in CI. Covers: nav-panel injection and pill rendering, overlay lifecycle (open/close, focus trap, `transitionend` fallback), session constants and self-heal logic.
-
-### Phase 5 — ESLint as a devDependency ✓ (v13.77)
-
-Completed. `eslint` (v10) added to `devDependencies` alongside the existing `@eslint/js` and `globals` packages; flat config already in `eslint.config.js`. `npm run lint` and `npm run check` work on a clean checkout without a globally-installed ESLint. CI workflows updated to run `npm ci` + `npm run check`.
-
-### Phase 6 — File-size refactoring ✓ (v13.82–v13.86)
-
-Split large coordinator files into focused sub-modules. Ordered by day-to-day impact:
-
-**calendar-app.js** ✓ Complete (v13.82–v13.86)
-Eight sub-modules extracted over v13.82–v13.86: `calendar-renderer.js`, `calendar-overrides.js`, `calendar-member.js`, `calendar-state.js`, `calendar-swipe.js` (v13.82–v13.83), then `calendar-al-lightbox.js`, `calendar-initial-fetch.js`, `calendar-keyboard.js` (v13.86). Coordinator dropped from 1,950 → ~670 lines.
-
-**paycalc-app.js** ✓ Complete (v13.x–v13.86)
-`paycalc-settings.js`, `paycalc-periods.js`, `paycalc-roster-hint.js`, `paycalc-hpp.js`, `paycalc-backpay.js` (earlier), then `paycalc-lightboxes.js` (v13.86). Coordinator dropped from ~1,950 → ~1,270 lines. `calculate()` stays in coordinator and is passed as a callback to modules that need to trigger it (avoids circular imports).
-
-### Phase 7 — Firestore emulator test suite ✓ Done
-
-`firestore.rules.test.mjs` + `storage.rules.test.mjs` cover every collection (150+ tests via
-`npm run test:rules`, run on the Firebase emulator and gated in `deploy-rules.yml` before any rules
-ship). Run as a dedicated command rather than folded into `npm test` (which needs no emulator binary).
-This was the prerequisite for the password-security stages and the per-member write-isolation
-project — now satisfied.
+**Phases 0–7 ✓ complete (v13.72–v13.86)** — the codebase-hygiene track, all shipped:
+- **0 Safety net** — `npm run lint`/`check`; `import-graph.test.mjs` (circular-import detector);
+  dead-CSS-token + Firestore-cross-reference tests in `sw-asset-check.test.mjs`; PR template.
+- **1 Type hints** — `// @ts-check` on every root module; `COLLECTIONS` constant; roster-data
+  integrity tests.
+- **2 Session consolidation** — `sessionReady`/`resolveSession()` replace the `window._mybSession`
+  global.
+- **3 Decision comments** — `// Rule: see CLAUDE.md — "…"` at each surprising enforcement site
+  (Christmas-RD ordering, manual-beats-import, the Sunday layers).
+- **4 DOM-wiring tests** — `nav-panel.test.mjs`, `overlay.test.mjs`, `session.test.mjs`.
+- **5 ESLint devDependency** — clean-checkout `npm run check`.
+- **6 File-size refactor** — `calendar-app.js` 1,950→~670 and `paycalc-app.js` ~1,950→~1,270 via
+  focused sub-modules (`calculate()` stays in the coordinator, passed as a callback to avoid cycles).
+- **7 Firestore emulator suite** — `firestore.rules.test.mjs` + `storage.rules.test.mjs` (gated in
+  `deploy-rules.yml`); the prerequisite for the password + write-isolation work.
 
 ### Phase 8 — Password security (Stages 2–5)
 
@@ -1066,35 +868,18 @@ suspended at v10.94) is a **separate** security project — see "Security projec
 override write isolation" below and KNOWN_LIMITATIONS.md task #2. It is *not* a stage of the
 password plan; earlier drafts of this section conflated the two.
 
-### Phase 9 — TypeScript zero-diagnostic baseline ✓ (all sub-phases complete June 2026)
+### Phase 9 — TypeScript zero-diagnostic baseline ✓ (9a–9c complete, June 2026)
 
-**Initial survey (June 2026, before Phase 9a — historical):** `typescript` 6.0.3 installed as a devDependency; `// @ts-check` on every root module; `jsconfig.json` had `checkJs: false` and `strict: false`; `npx tsc --noEmit` produced **~570 errors** in two tiers:
-
-| Error code | Count | Category |
-|-----------|-------|----------|
-| TS2339 | 514 (84%) | DOM property access on `HTMLElement` — `.value`, `.disabled`, `.dataset`, etc. |
-| TS2322 | 26 | Type mismatch — number assigned to string field, function signature mismatch |
-| TS2363/2362 | 11 | Arithmetic on untyped operand |
-| TS2554 | 7 | Wrong argument count |
-| TS2307 | 4 | Cannot resolve Firebase CDN `import()` URL |
-| TS2304 | 3 | Cannot find name (out-of-scope variable) |
-| Other | ~6 | Structural mismatches, misc |
-
-Top files by error count: `admin-overrides.js` 102 · `admin-app.js` 85 · `paycalc-app.js` 61 · `admin-roster-upload.js` 38 · `operations-app.js` 30 · `links-app.js` 28 · `settings-app.js` 25.
-
----
-
-#### Phase 9a — Fix substantive errors, add CI gate ✓ (completed June 2026)
-
-Set `"checkJs": true` in `jsconfig.json`; fixed all 57 non-DOM errors (TS2307 Firebase CDN imports suppressed with targeted `// @ts-ignore` on the CDN import lines in `firebase-client.js` — the only acceptable suppressions, consistent with the no-bundler architecture; TS2322/2554/2363/2304 resolved with JSDoc annotations and runtime-safe guards); added fail-closed `scripts/typecheck.mjs` CI gate (trusts `result.error || result.status !== 0`, not a stdout regex — avoids false-pass when tsc fails to launch). Zero non-DOM errors enforced from this point; the 514 TS2339 DOM errors remained as the open tier going into 9b.
-
-#### Phase 9b — DOM element casts ✓ (completed June 2026)
-
-All 489 TS2339 errors resolved with JSDoc `/** @type {HTMLXxxElement} */` casts. The typecheck CI gate now enforces zero errors of any kind (not just non-DOM errors). 33 files updated; 8 induced TS2322 `number`→`string` assignments also corrected. Phase 9c is now unblocked.
-
-#### Phase 9c — `strict: true` ✓ (completed June 2026)
-
-`"strict": true` added to `jsconfig.json`. All 1560 errors across 46 files resolved: null-safety (`!` non-null assertions and `if (!el) return` guards), implicit-any parameters (`@param {any}` JSDoc), implicit-any variables (`/** @type {any} */` annotations), object-indexing (`/** @type {Record<string, any>} */` casts), and `unknown`-typed catch bindings (`/** @type {any} */` casts on `err`). No `// @ts-ignore` suppressions — all fixes are explicit type annotations or runtime-safe guards. 446 tests pass. Phase 9d (replacing `any` casts with precise types) is now unblocked.
+Progressively hardened `tsc --noEmit` (via `// @ts-check` + `jsconfig.json`) from ~570 errors to
+zero, enforced by the fail-closed `scripts/typecheck.mjs` CI gate:
+- **9a** — `checkJs: true`; fixed all 57 non-DOM errors (the only suppressions are targeted
+  `// @ts-ignore` on the Firebase CDN `import()` lines in `firebase-client.js`, unavoidable in a
+  no-bundler setup).
+- **9b** — all DOM `.value`/`.dataset`/etc. errors resolved with JSDoc `/** @type {HTMLXxxElement} */`
+  casts (33 files); gate now enforces zero errors of any kind.
+- **9c** — `strict: true`; null-safety guards + implicit-any annotations across 46 files; **no**
+  `// @ts-ignore` — all explicit annotations or runtime-safe guards.
+- **9d** (replace `any` casts with precise types) — unblocked, not started.
 
 ## Deferred backlog (from the v14.96 external review)
 
