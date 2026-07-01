@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: June 2026 — v15.00 · Updated every 0.10 version*
+*Last updated: July 2026 — v15.10 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -448,31 +448,26 @@ Each ships as its own small commit with a version bump, so any one can be revert
 
 ---
 
-## First-run onboarding usability (scoped — from the UX + v15.07 reviews) — not started
+## First-run onboarding usability (from the UX + v15.07 reviews) — SHIPPED v15.10–v15.12
 
-Small, high-value first-use fixes for a brand-new, non-technical staff member. Independently
-shippable; each its own commit + version bump. Surfaced by the in-house "for dummies" UX review and
-confirmed by the external v15.07 review (H1/H2/M3). All are copy / first-run-state changes — **no**
-data-model or auth change.
+Small, high-value first-use fixes for a brand-new, non-technical staff member. All copy /
+first-run-state changes — no data-model or auth change.
 
-1. **First-run "choose your name" state (H1) — highest value.** A fresh user (no saved member, no
-   session) currently sees the default member's (`CONFIG.DEFAULT_MEMBER_NAME` = G. Miller) calendar
-   with no cue it isn't theirs — they may trust the wrong shifts. Fix: show a neutral
-   "👋 Choose your name to see your shifts" state and **do not render a real person's roster** until a
-   name is picked. Touch points: the default-member fallback in `calendar-member.js` + `calendar-app.js`
-   render. Keep existing saved-member behaviour unchanged.
-2. **Sign-in password helper (H2).** The login overlay doesn't tell a first-timer the initial-password
-   convention. Add one line under the password field — *"Initial password: your surname in lowercase,
-   no spaces."* — wired via `aria-describedby` on the input. **No security cost** (the password isn't a
-   secret; protection is Firebase rate-limiting + Firestore rules). Touch point: `login-overlay.js`
-   (shared across all 5 protected pages).
-3. **Pay Calculator first-use reframe (M3).** The setup banner reads like a mandatory payroll form
-   before any result shows. Reframe to *"Check these look right for you"*, default what's safe (grade
-   rate / pension / standard tax code) so a believable estimate shows immediately, and elevate
-   **"Fill from calendar"** as the suggested first action. Copy-led, low risk.
-
-**Sequencing:** ship 1 + 2 together (the two first-use trip-hazards, both small); 3 as a follow-up.
-Owner decides the exact wording before build.
+1. **First-run "choose your name" state (H1) — ✓ SHIPPED v15.11.** A fresh visitor (no saved member
+   AND no session) previously saw the default member's roster with no cue it wasn't theirs. Now
+   `isFirstRun()` (calendar-member.js) drives a "👋 Choose your name to see your shifts" prompt —
+   guarded at the top of `renderCalendar()` so every render path (init, initial-fetch re-render, swipe)
+   respects it; the dropdown leads with a "— Choose your name —" placeholder. Picking a name renders
+   normally and is one-time. Distinct from the stale-member banner path.
+2. **Sign-in password helper (H2) — ✓ SHIPPED v15.10.** A helper line under the login password field
+   ("Initial password: your surname in lowercase, no spaces."), wired via `aria-describedby`. Shared
+   overlay → all 5 protected pages. Not a secret (protection is rate-limiting + rules).
+3. **Pay Calculator first-use reframe (M3) — (a) copy ✓ SHIPPED v15.12; (b) optional follow-up.**
+   (a) The setup banner was reworded from "Enter your…" to "👋 Estimate your take-home — we've filled
+   in the usual defaults; check your hourly rate and tax code, then **Fill from calendar** to add your
+   hours" (JS-set + static). **(b) not done (optional):** a first-visit "▶ Start here → Fill from
+   calendar" affordance near the roster-hint bar for extra emphasis — pick up only if the reframe
+   alone doesn't land.
 
 ---
 

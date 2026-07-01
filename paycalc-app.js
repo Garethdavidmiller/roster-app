@@ -309,7 +309,7 @@ export function init() {
       // Settings confirmation check for this tax year.
       const tyConfirmed = lsGet(settingsKey(ty));
       // Always keep the title current so the hardcoded HTML default never shows stale text.
-      /** @type {HTMLElement} */ (document.getElementById('setupBannerTitle')).textContent = `👋 Set up for ${ty.label}`;
+      /** @type {HTMLElement} */ (document.getElementById('setupBannerTitle')).textContent = `👋 Estimate your take-home for ${ty.label}`;
       if (tyConfirmed) {
         // Confirmed — hide banner, update card header hint with saved values.
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
@@ -319,7 +319,7 @@ export function init() {
         /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
       } else {
         /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
-          `Enter your <strong>hourly rate</strong> and <strong>tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
+          `We've filled in the usual defaults — <strong>check your hourly rate and tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
         // Auto-open settings once per session per TY — only for returning users (new users
         // already see the settings card open). Show the in-card notice for returning users.
