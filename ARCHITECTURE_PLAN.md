@@ -443,9 +443,11 @@ The optimistic-start idea was dropped as no-benefit. Separate + revertible.
 
 ## Appendix: Phase 9 — Remove the post-login reload (in-place sign-in) — scoped v14.80; BUILT v14.81–83 (flag-gated, default OFF)
 
-**Status (v14.83; per-page flag v14.85): all five coordinators BUILT behind the per-page
-`CONFIG.INPLACE_LOGIN` object (`{ operations, links, paycalc, admin, settings }`, all default false →
-today's reload, unchanged). Per-page (not one global switch) so a page can be enabled, watched live,
+**Status (v14.83; per-page flag v14.85; ROLLOUT STARTED v15.07): all five coordinators BUILT behind
+the per-page `CONFIG.INPLACE_LOGIN` object (`{ operations, links, paycalc, admin, settings }`).
+**paycalc is now ENABLED (v15.07)** — the first rollout page (login confirmed stable: freeze fixed
+v14.75, B1 re-enabled v14.98); the other four remain `false` (today's reload) pending the App-speed
+read. Per-page (not one global switch) so a page can be enabled, watched live,
 and rolled back in isolation — and because it is NOT the B1 risk class (it changes only post-sign-in
 rendering, with a `reload()` fallback, never whether auth succeeds). Operations/Links/Paycalc landed v14.81–82 (re-invoke `init()`); Admin/Settings
 v14.83.** Admin/Settings are branch-style (no `init()` to re-invoke), so their signed-in body was
@@ -458,8 +460,8 @@ wired unconditionally at module load, now read the logged-in user via a live `ge
 marker is preserved (set on both paths) so the email-check behaviour is identical either way. Every
 in-place `onSuccess` falls back to `reload()` if `init()`/`initAuthorised()` throws. Coverage: 5 e2e
 no-reload tests (one per coordinator) + the whole suite passing with the flag OFF proves equivalence.
-Remaining: flip the flag ON in production after the login changes are confirmed stable, validating one
-coordinator at a time in a private window.
+Remaining: with paycalc enabled (v15.07), watch the Operations App-speed "Signing in" data + a
+private-window check, then enable the next page (operations → links → admin → settings), one at a time.
 
 
 
