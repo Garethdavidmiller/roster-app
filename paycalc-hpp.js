@@ -14,7 +14,7 @@ import {
   getTaxYearForOffset, getLondonAllowanceForPeriod,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
-import { getGrade, getLoggedMember, getEffectiveContr, getProRateFactor } from './paycalc-settings.js';
+import { getGrade, getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { periodKey, hppEstKey, hppActualKey, readPayslipActuals } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
@@ -158,16 +158,26 @@ export function calcHPP(bpVarAmount, bpPNum) {
   if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
   else         lsDel(hppEstKey(ty));
 
-  if (pCount === 0) {
-    if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
+  // Back pay counts toward this year's variable pay (added to totalVar above) even when the lump-sum
+  // period has no hours entered — so it can make hpp > 0 while pCount is still 0. Show the figure in
+  // that case too, otherwise the card reads '£–' while the (persisted) estimate is silently added to
+  // the January payslip — an invisible number the user can't see the source of.
+  const bpInThisYear = bpVarAmount > 0 && periods.some(/** @param {any} p */ p => p.num === bpPNum);
+  if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
+  if (pCount === 0 && !bpInThisYear) {
     if (amountEl) amountEl.textContent = '£–';
     if (basisEl)  basisEl.textContent  = 'Enter hours across your periods above to calculate';
   } else {
-    if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
     if (amountEl) amountEl.textContent = fmt(hpp);
-    if (basisEl)  basisEl.textContent  = usingActuals
-      ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
-      : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
+    if (basisEl) {
+      if (pCount === 0 && bpInThisYear) {
+        basisEl.textContent = `Back pay lump sum in ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
+      } else {
+        basisEl.textContent = usingActuals
+          ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
+          : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
+      }
+    }
   }
 
   const noteEl = document.getElementById('hppNote');
@@ -218,8 +228,10 @@ export function updatePriorHpp(ty) {
       }, 0);
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     } else {
-      const _hppGrade = getGrade();
-      const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
+      // Use the PRIOR year's stored rate, not the current grade default — after an April pay award
+      // the prior year's rate is lower, so the grade default over-estimated last year's variable pay
+      // (and this figure is persisted + added to the January payslip).
+      const rate = getStoredRateForYear(priorTy);
       let _priorVar = 0;
       _priorPeriods.forEach(/** @param {any} p */ p => {
         try {

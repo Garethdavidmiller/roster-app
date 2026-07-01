@@ -268,7 +268,10 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     if (baseCode === '0T' || baseCode === 'S0T') return 0;
     const km = baseCode.match(/^[SC]?K(\d+)$/);
     if (km) return -(parseInt(km[1]) * 10 / P_YR); // K code: negative allowance
-    const nm = baseCode.match(/^[SC]?(\d+)L$/);
+    // L, M, N and T all encode the allowance the same way: (code number × 10). The suffix only says
+    // WHY (L standard, M marriage-allowance recipient, N transferor, T other adjustments) — it does
+    // not change the arithmetic. Matching only 'L' silently gave M/N/T codes the full £12,570 default.
+    const nm = baseCode.match(/^[SC]?(\d+)[LMNT]$/);
     if (nm) return parseInt(nm[1]) * 10 / P_YR;
     return pa;
   }
@@ -284,7 +287,11 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // Verified against G. Miller payslips P20 (01/08/2025) and P28 (26/09/2025).
     const taxable = Math.floor(Math.max(0, amount - scaledPa));
     if (isScottish) return calcBandedTax(taxable, SCOT.bands, scale || 1);
-    const basicBand = Math.max(0, TAX.b * (scale || 1) - Math.max(0, scaledPa));
+    // The basic-rate LIMIT is a fixed £37,700 of taxable income (= standard threshold TAX.b minus
+    // standard PA), regardless of the code's own allowance. Deriving it as (TAX.b − thisCode'sPA)
+    // was only correct for 1257L; a 0T (PA 0) or K code (negative PA) got a too-wide 20% band, taxing
+    // income at 20% that should have been 40%.
+    const basicBand = Math.max(0, (TAX.b - TAX.pa)) * (scale || 1);
     const highBand  = Math.max(0, TAX.h - TAX.b) * (scale || 1);
     if      (taxable <= basicBand)            return taxable * TAX.r20;
     else if (taxable <= basicBand + highBand) return basicBand * TAX.r20 + (taxable - basicBand) * TAX.r40;

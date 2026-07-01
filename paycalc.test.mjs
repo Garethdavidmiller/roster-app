@@ -272,6 +272,35 @@ describe('computeTax', () => {
     assert.ok(tax > stdTax, `K500 (${tax}) should tax more than 1257L (${stdTax})`);
   });
 
+  test('N code (marriage allowance transferred out) → less allowance, more tax than 1257L', () => {
+    // 1131N gives a £11,310 allowance vs 1257L's £12,570 — the digits×10 rule, not the default PA.
+    const sacGross = 1500; // above both per-period allowances
+    const { tax: nTax }   = computeTax(sacGross, '1131N', T25);
+    const { tax: stdTax } = computeTax(sacGross, '1257L', T25);
+    const expectedN = Math.floor(sacGross - 11310 / P_YR) * 0.20;
+    approx(nTax, expectedN, '1131N tax');
+    assert.ok(nTax > stdTax, `1131N (${nTax}) should tax more than 1257L (${stdTax})`);
+  });
+
+  test('M code (marriage allowance received) → more allowance, less tax than 1257L', () => {
+    const sacGross = 1500;
+    const { tax: mTax }   = computeTax(sacGross, '1383M', T25);
+    const { tax: stdTax } = computeTax(sacGross, '1257L', T25);
+    const expectedM = Math.floor(sacGross - 13830 / P_YR) * 0.20;
+    approx(mTax, expectedM, '1383M tax');
+    assert.ok(mTax < stdTax, `1383M (${mTax}) should tax less than 1257L (${stdTax})`);
+  });
+
+  test('0T high earner: basic-rate band is the fixed £37,700 (not 50,270 − 0)', () => {
+    // Cumulative to period 13 with cumGross £45,000 and no allowance (0T). The 20% band is the fixed
+    // £37,700 of taxable income; the £7,300 above it is 40%. The old (TAX.b − allowance) formula gave
+    // a £50,270 band and taxed the whole £45,000 at 20%.
+    const sacGross = 5000, ytdPay = 40000;
+    const { tax } = computeTax(sacGross, '0T', T25, { ytdPay, ytdTax: 0, periodN: 13 });
+    const expected = 37700 * 0.20 + (45000 - 37700) * 0.40;
+    approx(tax, expected, '0T 40% boundary', 1);
+  });
+
   test('W1 suffix → non-cumulative even when YTD values provided', () => {
     const opts = { ytdPay: 5000, ytdTax: 500, periodN: 5 };
     const { tax: cumTax, usingCumulative: isCum } = computeTax(1200, '1257L', T25, opts);

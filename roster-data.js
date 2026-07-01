@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '15.20';
+export const APP_VERSION = '15.21';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -857,6 +857,10 @@ export function parseSmartFloat(v) {
     const cleaned = String(v)
         .replace(/[‐-―−−]/g, '-')
         .replace(/[‘’]/g, "'")
+        // Strip thousands separators (commas) and any £ sign so a payslip figure pasted verbatim
+        // as "23,456.78" or "£1,234.56" parses correctly — parseFloat stops at the first comma,
+        // silently turning "23,456.78" into 23 (badly corrupting YTD-based cumulative PAYE).
+        .replace(/[,£]/g, '')
         .trim();
     return parseFloat(cleaned) || 0;
 }

@@ -639,6 +639,12 @@ test('parseSmartFloat: unparseable string returns 0', () => {
     assert.equal(parseSmartFloat('abc'), 0);
 });
 
+test('parseSmartFloat: strips thousands separators and £ sign (payslip figures pasted verbatim)', () => {
+    assert.equal(parseSmartFloat('23,456.78'), 23456.78);
+    assert.equal(parseSmartFloat('£1,234.56'), 1234.56);
+    assert.equal(parseSmartFloat('1,000'), 1000);
+});
+
 test('parseSmartFloat: iOS smart minus is normalised so parseFloat succeeds', () => {
     // U+2212 MINUS SIGN — raw parseFloat('−5') returns NaN; the strip fixes it.
     assert.equal(parseSmartFloat('−5'), -5);

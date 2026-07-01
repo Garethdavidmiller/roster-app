@@ -382,6 +382,7 @@ Grade/contracted-hours helpers and settings persistence for `paycalc.html` (v13.
 - `getEffectiveContr(p)` / `getProRateFactor(p)` — pro-rated helpers (full period if `noProRate`)
 - `getPensionDefault(pObj)` — period-aware pension default for the current grade
 - `updateRateForPeriod(ty)` / `updateYtdForTaxYear(ty)` — load stored rate and YTD figures into form fields; called from coordinator's `onPeriodChange`
+- `getStoredRateForYear(ty)` — pure accessor for a specific tax year's stored hourly rate (falls back to the legacy single-rate key, then grade default); used by `updateRateForPeriod` and the prior-year HPP estimate so a past year isn't computed at the current (post-award) rate (v15.21)
 - `settingsKey(ty)` — per-tax-year localStorage key for the confirmed flag
 - `saveSettings()` — persists all settings fields; does not set confirmed flag
 - `confirmSettings(calculate)` — saves, marks confirmed, collapses card; calls `calculate` callback (passed by coordinator to avoid circular dep)
