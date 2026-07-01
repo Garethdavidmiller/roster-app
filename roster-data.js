@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '15.06';
+export const APP_VERSION = '15.07';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -87,8 +87,9 @@ export const CONFIG = {
     // today's behaviour and can never lock anyone out. Recommended order: paycalc/operations first,
     // admin last (highest-traffic, most-wired). Each coordinator reads ONLY its own key.
     // ⚠️ KILL-SWITCH: set any key back to `false` to instantly restore that page's reload path.
-    //   Keep all OFF until login is confirmed stable in production.
-    INPLACE_LOGIN:                    { operations: false, links: false, paycalc: false, admin: false, settings: false },
+    //   ROLLOUT: paycalc enabled first (v15.07) — login confirmed stable (freeze fixed v14.75,
+    //   B1 re-enabled v14.98). Watch the Operations App-speed "Signing in" data before enabling the next.
+    INPLACE_LOGIN:                    { operations: false, links: false, paycalc: true, admin: false, settings: false },
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
