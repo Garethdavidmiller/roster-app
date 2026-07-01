@@ -276,17 +276,19 @@
 
         .pay-period-strip {
             display: none; /* shown by JS when session exists */
-            font-size: 13px; color: var(--text-mid);
+            /* On the navy body canvas — must use on-navy (light) text, not the card greys. */
+            font-size: 13px; color: rgba(255, 255, 255, 0.85);
             text-align: center; padding: 2px 12px 8px;
         }
         .pay-period-link {
-            color: var(--primary-blue); text-decoration: none; font-weight: 600;
+            color: var(--accent-gold); text-decoration: none; font-weight: 600;
         }
         @media (hover: hover) and (pointer: fine) {
             .pay-period-link:hover { text-decoration: underline; }
         }
         .swipe-hint {
-            text-align: center; font-size: 11px; color: var(--text-light);
+            /* On the navy body canvas — on-navy (light) text, not the card greys. */
+            text-align: center; font-size: 11px; color: rgba(255, 255, 255, 0.7);
             padding: 2px 12px 8px; opacity: 1;
             transition: opacity 0.4s ease;
             pointer-events: none; user-select: none;
@@ -297,7 +299,8 @@
         .notif-prompt {
             display: flex; align-items: center; justify-content: space-between;
             gap: 8px; padding: 6px 12px 8px;
-            font-size: 12px; color: var(--text-mid);
+            /* On the navy body canvas — must use on-navy (light) text, not the card greys. */
+            font-size: 12px; color: rgba(255, 255, 255, 0.85);
         }
         .notif-prompt-text { flex: 1; }
         .notif-prompt-enable {
@@ -313,7 +316,7 @@
         }
         .notif-prompt-dismiss {
             background: none; border: none; padding: 8px 10px;
-            font-size: 18px; color: var(--text-faint); cursor: pointer;
+            font-size: 18px; color: rgba(255, 255, 255, 0.65); cursor: pointer;
             touch-action: manipulation; flex-shrink: 0; line-height: 1;
             min-height: 44px;
         }
