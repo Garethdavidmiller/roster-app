@@ -790,6 +790,16 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
   are now served instantly from the version-pinned cache and refreshed in the background; HTML
   stays network-first. This is the biggest perceived-load win for the common case (returning
   installed-PWA staff). Verify on a real device once (online → instant; offline → reload still works).
+- **Batch 4 (v14.94) — paycalc modulepreload (collapse the deepest waterfall).** `paycalc.html`
+  declares its whole static import graph (~32 local modules **+ the 3 gstatic Firebase SDK URLs**)
+  as `<link rel="modulepreload">` so the browser fetches everything in parallel from first HTML
+  parse instead of discovering it file-by-file (paycalc has the deepest graph → the worst cold-load
+  waterfall). `modulepreload` only fetches/compiles — no behaviour change. This is the one place
+  Batch 1's "don't eager-preload the SDK URLs" caveat is reversed **because** it is now safe:
+  `sw-asset-check.test.mjs` guards the list against paycalc's real transitive graph AND against the
+  SDK version pinned in `firebase-client.js`, so it can't silently drift. Scoped to paycalc only
+  (the slowest page); other pages keep the plain graph. **Let this settle** (watch the Operations
+  App-speed data) before the deferred lazy-Firebase pass below.
 
 ### Deferred — lazy-load the Firebase SDK off the calendar's first paint
 
