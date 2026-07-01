@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v14.99 -->
+<!-- MYB Roster — Admin v15.06 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -16,7 +16,7 @@
     <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-    <title>MYB Roster — Admin</title>
+    <title>Marylebone Roster — Admin</title>
 
     <!-- Preload the self-hosted Inter typeface so it's ready before first paint (crossorigin is required even same-origin for fonts) -->
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -52,7 +52,7 @@
         <!-- Confirm view — shown when an email is already stored -->
         <div id="emailCheckConfirmView" hidden>
             <div class="login-app-name">Your work email</div>
-            <div class="login-subtitle">Is this still your address for password recovery?</div>
+            <div class="login-subtitle">Is this still your address for password reset?</div>
             <p id="emailCheckStoredEmail" class="email-check-current"></p>
             <button type="button" id="emailCheckYesBtn">Yes, that's correct →</button>
             <button id="emailCheckChangeBtn" type="button" class="email-check-change">Use a different email</button>
@@ -61,7 +61,7 @@
         <!-- Add / edit view — shown when no email stored, or after "Use a different email" -->
         <div id="emailCheckEditView" hidden>
             <div class="login-app-name">Add your work email</div>
-            <div class="login-subtitle">Used for password recovery — not shared with anyone else.</div>
+            <div class="login-subtitle">Used for password reset — not shared with anyone else.</div>
             <div class="login-field">
                 <label for="emailCheckInput">Work email address</label>
                 <input type="email" id="emailCheckInput"
@@ -94,7 +94,7 @@
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-        <div class="lightbox-badge">Admin panel</div>
+        <div class="lightbox-badge">Admin</div>
 <a href="./guide.html" target="_blank" rel="noopener" class="lightbox-bug-link">📖 View quick guide</a>
         <a href="./index.html" class="lightbox-bug-link">📅 View staff roster</a>
         <a id="adminBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
@@ -154,8 +154,8 @@
     <div class="col-main">
     <div class="card">
         <div class="card-header">
-            <h2>Record a Shift <button type="button" class="btn-card-tips" data-card="change-shift" aria-label="Tips for recording a shift" title="Tips for recording a shift">?</button></h2>
-            <span class="hint">Tap any day to choose a type and save — or tick multiple days and use Apply to ticked days below. To book several days of annual leave at once, use the Annual Leave card.</span>
+            <h2>Change a Shift <button type="button" class="btn-card-tips" data-card="change-shift" aria-label="Tips for changing a shift" title="Tips for changing a shift">?</button></h2>
+            <span class="hint">Tap any day to set what was worked (shift, RDW, rest day, etc.) and save — or tick several days and use Apply to ticked days below. To book several days of annual leave at once, use the Annual Leave card.</span>
         </div>
         <div class="card-body">
 
@@ -288,7 +288,7 @@
     <div class="card" id="record-sick-days">
         <div class="card-header card-collapsible-header" id="sickToggleHeader">
             <h2><span aria-hidden="true">🪑</span> Record Absence <button type="button" class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence" title="Tips for recording absence">?</button></h2>
-            <span class="hint">Mark days when a team member isn't in — visible to all staff in the calendar</span>
+            <span class="hint">Mark days when a staff member isn't in — visible to all staff in the calendar</span>
             <span class="collapse-chevron" id="sickChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="sickBody">

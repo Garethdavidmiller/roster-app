@@ -1,0 +1,72 @@
+name: Workflow Lint
+
+# Why this exists (KNOWN_LIMITATIONS / external review L2):
+# The Tests workflow (e2e.yml) and the three deploy workflows all PATH-FILTER their
+# push triggers — e2e.yml `paths-ignore: .github/**`, the deploy workflows only fire
+# on their own code paths. That is deliberate (a CI/doc-only edit shouldn't spin up
+# the full unit + Playwright suite). But it left a blind spot: a push that touches
+# ONLY workflow files got NO CI feedback on a branch, so a malformed workflow YAML
+# (bad indentation, a missing `jobs:` key, a broken `on:` block) could merge unnoticed
+# and only fail the NEXT time it was supposed to run — i.e. at deploy time.
+#
+# This job closes that gap with the minimum possible surface: it runs ONLY when a
+# workflow file changes, and validates every workflow file. It uses the runner's
+# pre-installed Python (PyYAML) rather than a third-party action or a `curl | bash`
+# installer, keeping to this repo's "pin/self-contained, no remote scripts" rule.
+
+on:
+  push:
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Validate workflow YAML
+        run: |
+          python3 - <<'PY'
+          import sys, glob, yaml
+
+          any_failed = False
+          for path in sorted(glob.glob('.github/workflows/*.yml') +
+                             glob.glob('.github/workflows/*.yaml')):
+              errors = []
+              try:
+                  with open(path) as f:
+                      doc = yaml.safe_load(f)
+              except yaml.YAMLError as e:
+                  print(f'::error file={path}::YAML parse error: {e}')
+                  any_failed = True
+                  continue
+
+              if not isinstance(doc, dict):
+                  print(f'::error file={path}::top level is not a mapping')
+                  any_failed = True
+                  continue
+
+              # PyYAML parses the bare `on:` key as Python boolean True (YAML 1.1),
+              # so accept either spelling.
+              if 'on' not in doc and True not in doc:
+                  errors.append('missing `on:` trigger block')
+              if 'jobs' not in doc or not isinstance(doc.get('jobs'), dict) or not doc['jobs']:
+                  errors.append('missing or empty `jobs:` block')
+
+              if errors:
+                  any_failed = True
+                  for msg in errors:
+                      print(f'::error file={path}::{msg}')
+              else:
+                  print(f'ok: {path}')
+
+          sys.exit(1 if any_failed else 0)
+          PY

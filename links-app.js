@@ -1412,7 +1412,7 @@ export function init() {
     // ============================================
     (function () {
         const about = initAboutLightbox({
-            appLabel: 'MYB Roster Links',
+            appLabel: 'Marylebone Roster — Links',
             bugLinkId: 'linksBugReportLink',
             getUserName: () => currentUser,
         });

@@ -164,7 +164,7 @@ export function initHuddleViewer() {
                 // returns to the clean app. (The button click here is itself a real
                 // gesture, so window.open is allowed.)
                 body.innerHTML = '<div class="huddle-open-prompt">'
-                    + '<p>Today’s Huddle is ready.</p>'
+                    + '<p>The latest Huddle is ready.</p>'
                     + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn">📄 Open Huddle</button>'
                     + '</div>';
                 openViewer();
@@ -176,7 +176,7 @@ export function initHuddleViewer() {
                     if (isSafeStorageUrl(huddle.storageUrl)) {
                         window.open(huddle.storageUrl, '_blank', 'noopener');
                     } else {
-                        body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact your manager.</p>';
+                        body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact the admin.</p>';
                     }
                 });
                 openBtn?.focus();

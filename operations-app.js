@@ -398,7 +398,7 @@ export function init() {
                 if (notAdded.length === 0) {
                     const done = document.createElement('p');
                     done.className = 'email-count-done';
-                    done.textContent = `✓ All ${gradeLabel} have added their work email${grade ? '' : ' — ready for the next step'}.`;
+                    done.textContent = `✓ All ${gradeLabel} have added their work email${grade ? '' : ' — ready for when password reset is switched on'}.`;
                     listContainer.appendChild(done);
                 } else {
                     const missingLabel = document.createElement('p');
@@ -665,7 +665,7 @@ export function init() {
     // ============================================
     (function () {
         const about = initAboutLightbox({
-            appLabel: 'MYB Roster Operations',
+            appLabel: 'Marylebone Roster — Operations',
             bugLinkId: 'opsBugReportLink',
             getUserName: () => currentUser,
         });
@@ -698,7 +698,7 @@ export function init() {
             'weekly-circular': {
                 title: 'Weekly Retail Circular',
                 sections: [{ items: [
-                    { icon: '📰', html: 'Upload the weekly Retail Circular PDF — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
+                    { icon: '📰', html: 'Upload the Weekly Retail Circular PDF — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
                     { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
                     { icon: '📅', html: 'Set the date to the week the circular covers — usually the Friday it was issued' },
                     { icon: '🤖', html: 'In a future update this will upload automatically, like the Huddle' },
@@ -740,7 +740,7 @@ export function init() {
                 title: 'Work Email Progress',
                 sections: [
                     { heading: 'What it\'s for', items: [
-                        { icon: '🔑', html: 'Staff save their work email to enable <strong>password recovery</strong> in a future update — nothing uses it right now. It\'s Stage 1 of the password security project.' },
+                        { icon: '🔑', html: 'Staff save their work email so they can <strong>reset a forgotten password</strong> in a future update — nothing uses it right now.' },
                         { icon: '🔒', html: 'Each person can only see their <strong>own email</strong>. As admin you can see all of them.' },
                     ]},
                     { heading: 'How it works', items: [
@@ -765,7 +765,7 @@ export function init() {
                 ],
             },
             'page-speed': {
-                title: 'App speed',
+                title: 'App Speed',
                 sections: [
                     { heading: 'What it shows', items: [
                         { icon: '⚡', html: 'How long pages took to <strong>open</strong> for staff this month, grouped into <strong>Quick</strong> (under 1s), <strong>A moment</strong> (1–3s) and <strong>Slow</strong> (over 3s)' },
@@ -784,7 +784,7 @@ export function init() {
                 title: 'Error Log',
                 sections: [
                     { heading: 'What it captures', items: [
-                        { icon: '🐛', html: 'Uncaught JS errors from <strong>any authenticated page</strong> (admin, pay calculator, operations, settings) — across all users\' sessions, not just yours' },
+                        { icon: '🐛', html: 'Errors the app ran into on <strong>any signed-in page</strong> (admin, pay calculator, operations, settings) — across all staff, not just you' },
                         { icon: '⎘', html: 'Tap <strong>⎘ Copy</strong> on any error to copy all details (message, page, app version, browser) formatted for diagnosis' },
                     ]},
                     { heading: 'Resolving errors', items: [
@@ -871,14 +871,14 @@ export function init() {
 
                 const copyBtn = document.createElement('button');
                 copyBtn.className = 'btn-action btn-secondary error-copy-btn';
-                copyBtn.textContent = '⎘ Copy for Claude';
+                copyBtn.textContent = '⎘ Copy details';
                 copyBtn.addEventListener('click', () => {
                     navigator.clipboard.writeText(_formatForClaude(err)).then(() => {
                         copyBtn.textContent = '✓ Copied';
-                        setTimeout(() => { copyBtn.textContent = '⎘ Copy for Claude'; }, 2000);
+                        setTimeout(() => { copyBtn.textContent = '⎘ Copy details'; }, 2000);
                     }).catch(() => {
                         copyBtn.textContent = '✗ Copy failed';
-                        setTimeout(() => { copyBtn.textContent = '⎘ Copy for Claude'; }, 2000);
+                        setTimeout(() => { copyBtn.textContent = '⎘ Copy details'; }, 2000);
                     });
                 });
                 actions.appendChild(copyBtn);
@@ -1018,7 +1018,7 @@ export function init() {
 
             const note = document.createElement('p');
             note.className = 'usage-note';
-            note.textContent = 'Anonymous counts only — never who did what. Your own (admin) loads are excluded.';
+            note.textContent = 'Anonymous — we never record who. Your own (admin) loads are excluded.';
             content.appendChild(note);
 
         } catch (e) {
@@ -1132,7 +1132,7 @@ export function init() {
             rows.className = 'speed-rows';
             const head = document.createElement('div');
             head.className = 'speed-row speed-row--dual speed-dual-head';
-            head.innerHTML = '<span></span><span class="speed-dual-label">appears</span><span class="speed-dual-label">ready</span><span></span>';
+            head.innerHTML = '<span></span><span class="speed-dual-label">Appears</span><span class="speed-dual-label">Ready</span><span></span>';
             rows.appendChild(head);
 
             allPages.forEach(pg => {
@@ -1185,15 +1185,15 @@ export function init() {
                 body.appendChild(subhead('📄', 'Opening pages'));
                 body.appendChild(noteLine('Two moments when a page opens — when it first appears on screen, then when it’s fully ready to use.'));
                 body.appendChild(subMilestone('✨', 'First appears'));
-                body.appendChild(verdictBanner(perfVerdict(w.fcp.overall, 'fcp'), w.fcp.overall, w.fcp.total, 'page views', windowLabel));
+                body.appendChild(verdictBanner(perfVerdict(w.fcp.overall, 'fcp'), w.fcp.overall, w.fcp.total, 'page opens', windowLabel));
                 body.appendChild(subMilestone('✅', 'Fully ready'));
-                body.appendChild(verdictBanner(perfVerdict(w.pages.overall, 'pages'), w.pages.overall, w.pages.total, 'page loads', windowLabel));
+                body.appendChild(verdictBanner(perfVerdict(w.pages.overall, 'pages'), w.pages.overall, w.pages.total, 'page opens', windowLabel));
 
                 if (w.fcp.total || w.pages.total) body.appendChild(dualRows(w.fcp.byPage, w.pages.byPage, w.month));
 
                 const note = document.createElement('p');
                 note.className = 'usage-note';
-                note.textContent = 'Speeds are how long the app took to respond. Your own (admin) loads are excluded. Anonymous — never who.';
+                note.textContent = 'Speeds are how long the app took to respond. Your own (admin) loads are excluded. Anonymous — we never record who.';
                 body.appendChild(note);
             };
 

@@ -223,7 +223,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     function setStatus(msg) { statusEl.textContent = msg; statusEl.classList.toggle('visible', !!msg); }
     function startStatusProgress() {
         setStatus('Checking your sign-in…');
-        _statusTimers.push(setTimeout(() => setStatus('Still checking your secure session…'), 1500));
+        _statusTimers.push(setTimeout(() => setStatus('Still checking — almost there…'), 1500));
         _statusTimers.push(setTimeout(() => setStatus('Still working — this can happen after an app update or on weak signal.'), 4000));
     }
     function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setStatus(''); }

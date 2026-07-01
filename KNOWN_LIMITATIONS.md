@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: June 2026 — v14.90 · Updated every 0.10 version*
+*Last updated: June 2026 — v15.00 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -539,3 +539,18 @@ appear in DevTools and the Operations Error Log.
 | `firebase-client.js:_pruneOldDocs` | Individual Storage file delete inside prune loop | `.catch(() => {})` | `.catch(e => console.warn('[pruneOldDocs] ...', e))` |
 | `firebase-client.js:uploadCircular` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadCircular] rollback ...', e))` |
 | `firebase-client.js:uploadNewsletter` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadNewsletter] rollback ...', e))` |
+
+---
+
+## Time-boxed maintenance (deadlines, not bugs)
+
+Scheduled maintenance with real-world deadlines (rescued from the retired `REVIEW_TODO.md`, v15.06).
+Not defects — things that must be done *before* a future date.
+
+- **Paycalc period selector ends ~P62 (≈ March 2027).** Before April 2027, extend `TAX_YEARS` +
+  `FIRST_OFFSET`/`LAST_OFFSET` + the tax thresholds in `paycalc-calc.js` (documented rollover task)
+  so the period selector keeps advancing into 2027/28.
+- **Override collection scale.** Define an archival strategy before the `overrides` collection
+  reaches ~5000 documents (query cost + client cache size). A watch item — no action needed yet.
+- **`MAX_YEAR` 2030 → 2032** before the end of 2028 (update the lunar / bank-holiday data first).
+- **2026/27 pay rates** — see "2026/27 pay rates not confirmed" above (update `GRADES` when the award lands).

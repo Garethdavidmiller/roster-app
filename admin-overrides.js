@@ -453,7 +453,7 @@ export function updateSaveBtn() {
         if (total > 0) {
             const parts = [];
             if (saveCount) parts.push(`${saveCount} day${saveCount > 1 ? 's' : ''} to save`);
-            if (delCount)  parts.push(`${delCount} override${delCount > 1 ? 's' : ''} to remove`);
+            if (delCount)  parts.push(`${delCount} change${delCount > 1 ? 's' : ''} to remove`);
             hint.textContent = `Ready — ${parts.join(', ')}`;
         } else {
             hint.textContent = 'Select a type on at least one day, then tap Save changes';
@@ -624,7 +624,7 @@ export async function executeSave(toSave, toDelete = []) {
 
     await sessionReady;
     if (!auth.currentUser) {
-        _showError('Your session has expired — please sign out and sign back in.');
+        _showError('Session expired — please sign out and sign back in.');
         return;
     }
 
@@ -674,8 +674,8 @@ export async function executeSave(toSave, toDelete = []) {
     } catch (err) {
         console.error('[Admin] Save failed:', err);
         _showError((/** @type {any} */ (err))?.code === 'permission-denied'
-            ? "Couldn't save — your session may have expired. Try signing out and back in."
-            : 'Could not save — check your connection and try again.');
+            ? "Couldn't save — your session may have expired. Please sign out and sign back in."
+            : "Couldn't save — check your connection and try again.");
     } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }
         updateSaveBtn();
@@ -787,7 +787,7 @@ export function renderTable() {
             <td><input type="checkbox" class="row-select" data-id="${eid}" aria-label="Select ${ename} ${edate}"></td>
             <td style="white-space:nowrap;font-weight:600">${formatDisplay(o.date)}</td>
             <td>${ename}</td>
-            <td><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${isLegacyType ? '<span class="legacy-pill">legacy</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
+            <td><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${isLegacyType ? '<span class="legacy-pill">old format</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
             <td style="font-family:monospace;font-size:12px">${escapeHtml(o.value)}${o.note ? `<span class="override-note" title="${escapeHtml(o.note)}">${escapeHtml(o.note)}</span>` : ''}</td>
             <td><button class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}">Edit</button></td>
             <td><button class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}">Delete</button></td>`;

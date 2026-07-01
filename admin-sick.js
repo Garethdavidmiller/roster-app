@@ -75,7 +75,7 @@ function updateSickPreview() {
 
     if (dates === null) {
         sickPreview.className = 'al-preview sick-preview error';
-        sickPreview.textContent = '"Last absence day" must be on or after "First absence day".';
+        sickPreview.textContent = 'The end date must be on or after the start date.';
         sickSaveBtn.disabled = true;
         return;
     }

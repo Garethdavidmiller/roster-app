@@ -186,32 +186,23 @@ Formalise it as a load-bearing comment so future maintainers (human or AI) can't
 
 ## Phased migration
 
-### Phase 0 — Characterisation tests first (safety net) — ✅ IDENTITY + CLAIM LAYERS DONE (v14.57)
-Pin **current intended** behaviour *before* changing structure. Matrix: no / expired / valid local
-session; Firebase already same-user / different-user (shared-device switch) / anonymous / none;
-named sign-in success / transient-fail / permanent-fail; `ENFORCE_NAMED_SESSION` on/off; admin /
-manager / designer claim present / missing / stale.
-- Pin **intended** behaviour, **not** known bugs: the Operations-card hang and the
-  degraded inconsistencies are defects to fix in migration, not behaviour to lock in.
-- **Status:** the net was already ~90% in place from the B0/B1/B2 test discipline. As of v14.57:
-  - **Identity layer (`session.test.mjs`, 43 tests) — COMPLETE.** Whole matrix pinned:
-    getSession (none / invalid-JSON / absolute-expired / version-stale / idle-expired / valid-fresh /
-    1ms-edge / **missing-lastActivity NaN edge** / refreshes-lastActivity / **no-signOut-on-passive-
-    expiry**); ensureFirebaseSession (reuse-named / sign-in / self-heal / anon-fallback / all-fail /
-    replace-anon / **replace-different-member shared-device switch**); flag-ON (named-success /
-    user-not-found-no-heal / invalid-cred-no-anon / matching-reused); ensureNamedSession (flag-off
-    passthrough / flag-on success / persistent-no-retry / transient-then-fail / **transient-then-
-    recover**). The two bolded `lastActivity` and transient-recover cases were the only genuine gaps,
-    added v14.57.
-  - **Claim layer (`firestore.rules.test.mjs`) — COMPLETE** via the B2 3-tier tests
-    (staff / manager / admin / no-name write + delete isolation; this is the "claim present/missing"
-    characterisation — claims are token/rules-level, not in `session.js`).
-  - **Page-policy layer — partial, by design.** The per-page enforcement matrix is pinned by the
-    10 flag-ON e2e tests (admin/settings re-show login, operations/links redirect, paycalc soft).
-    Deeper *unit* characterisation of each coordinator's policy outcome only becomes possible once
-    that coordinator is wrapped in a testable `init()` — so it **rolls in per coordinator during
-    Track 3 (Phases 4–7)**, not up front. This is the documented two-part split, now resolved:
-    nothing further is needed before Phase 1.
+### Phase 0 — Characterisation tests first (safety net) — ✅ DONE (v14.57)
+Pin **current intended** behaviour *before* changing structure — and **not** known bugs (the
+Operations-card hang and the degraded inconsistencies are defects to fix in migration, not to lock
+in). The matrix covers: no/expired/valid local session; Firebase same-user / different-user
+(shared-device switch) / anonymous / none; named sign-in success / transient-fail / permanent-fail;
+`ENFORCE_NAMED_SESSION` on/off; admin/manager/designer claim present/missing/stale. Three layers:
+- **Identity (`session.test.mjs`, 43 tests) — COMPLETE.** getSession expiry edges (incl. the
+  **missing-`lastActivity` NaN edge** and **no-signOut-on-passive-expiry**), ensureFirebaseSession
+  (reuse / sign-in / self-heal / anon-fallback / **replace-different-member shared-device switch**),
+  the flag-ON paths, and ensureNamedSession (incl. **transient-then-recover**). The two bolded
+  `lastActivity`/transient-recover cases were the only genuine gaps, added v14.57.
+- **Claim layer (`firestore.rules.test.mjs`) — COMPLETE** via the B2 3-tier tests (staff / manager /
+  admin / no-name write + delete isolation — claims are token/rules-level, not in `session.js`).
+- **Page-policy layer — partial by design:** the per-page matrix is pinned by the 10 flag-ON e2e
+  tests (admin/settings re-show login, operations/links redirect, paycalc soft); deeper
+  per-coordinator unit characterisation rolls in as each is wrapped in a testable `init()` during
+  Track 3 (Phases 4–7).
 
 ### Phase 1 — Pure reducer (`auth-state-core.js`) — ✅ DONE (v14.58)
 The functional core: `reduceAuthState(prev, event) → next` + `INITIAL_STATE` + `AUTH_STATUSES`. No
@@ -607,78 +598,24 @@ known-good baseline rather than stacking onto an unverified one.
 
 ---
 
-## Appendix: Phase 10 — Remove the duplicate post-login `ensureNamedSession` — scoped v14.86
+## Appendix: Phase 10 — Remove the duplicate post-login `ensureNamedSession` — scoped v14.86 (LOW PRIORITY, likely drop)
 
-The v14.83 login review's "next major latency improvement after removing reload": after an in-place
-sign-in, the login overlay establishes the named session, then the coordinator's authorised body
-**immediately calls `ensureNamedSession` again** (operations-app.js:81, links:92, admin:1598,
-settings:1598-equiv, paycalc's `_initErrorReporting`). The proposal: have the overlay pass its
-**confirmed** auth result into `onSuccess`, and let the page resolve `sessionReady` from that known
-result instead of re-confirming.
+After an in-place sign-in the coordinator's authorised body immediately calls `ensureNamedSession`
+again (the overlay just established the session). The idea: have the overlay pass its **confirmed**
+auth result into `onSuccess` and resolve `sessionReady` from that instead of re-confirming.
 
-### ⚠️ Read this first — the cost/benefit changed after v14.84
-The latency this would save is **now largely already captured** by the `auth.currentUser` fast path
-(v14.84, session.js): on the in-place path the overlay's sign-in set `auth.currentUser` **in the same
-page context**, so the second `ensureNamedSession` → `ensureFirebaseSession` hits the synchronous
-fast path (`auth.currentUser` matches → return immediately, no `onAuthStateChanged` wait, no network).
-So the "duplicate auth" is already a **synchronous near-noop**, not a second round trip. What remains
-to be saved is only: one redundant store dispatch (`RESOLVE_START`→`NAMED`), the `_fbIdentity`
-reset/re-set, and a couple of microtasks — **microscopic**. The genuine remaining value is
-**not latency** but: (a) eliminating a theoretical stale-completion race on `_fbIdentity`/the store,
-and (b) contract cleanliness. Weigh that against the risk below before building.
+**Cost/benefit changed after v14.84 — mostly not worth building.** The `auth.currentUser` fast path
+(v14.84) already makes the second `ensureNamedSession` a **synchronous near-noop** on the in-place path
+(`auth.currentUser` matches → returns immediately, no `onAuthStateChanged`, no network). What remains
+to save is microscopic (one store dispatch + a couple of microtasks); the only genuine value is
+contract cleanliness + removing a *theoretical* stale-completion race on `_fbIdentity`/the store.
 
-### Mechanism (if built)
-1. **`runNamedSignIn`** already computes `named` (login-overlay.js:61) but returns only `{ ok }`.
-   Return `{ ok, named }`.
-2. **`attempt()`** passes it on: `await onSuccess(name, { named, authConfirmed: true })`. (Backwards-
-   compatible — existing `onSuccess(name)` callbacks ignore the 2nd arg.)
-3. **Coordinator in-place path** uses it instead of re-confirming:
-   - `resolveSession(true)` directly (the session is active — the overlay just confirmed it in this
-     same page context), **skipping** `ensureNamedSession(currentUser)` and the B1 `.then` re-check.
-
-### Why skipping is safe ONLY on the in-place path
-- `auth.currentUser` is already live (same page, just signed in) → no need to restore/establish.
-- The store (`getAuthSnapshot`) **already reflects `named`** — the overlay's `ensureNamedSession`
-  dispatched it on this same page's store. So the B1 re-check (`requirePage(getAuthSnapshot(),…)==='login'`)
-  would *pass* anyway; skipping it is redundant-removal, not a behaviour change.
-- Under `ENFORCE_NAMED_SESSION` ON, `onSuccess` only fires when `runNamedSignIn` returned `ok:true`,
-  which under enforce **means `named`** — so "auth confirmed named" is guaranteed when we get here.
-- The **reload path and the already-signed-in load path are untouched** — they genuinely need
-  `ensureNamedSession` (fresh page / cold restore), so they keep calling it. The optimisation applies
-  *only* to the in-place `onSuccess` entry.
-
-### The hard part — the two coordinator styles differ
-- **Branch-style (admin, settings)** — EASY. `onSuccess` already calls `initAuthorised()` directly, so
-  thread the result: `onSuccess: (name, auth) => initAuthorised({ authConfirmed: auth })`, and inside
-  `initAuthorised`, `if (opts.authConfirmed) resolveSession(true); else { const a = ensureNamedSession(currentUser); resolveSession(a); a.then(b1check); }`.
-- **init-wrapped (operations, links, paycalc)** — HARDER. `onSuccess` is `() => init()` (re-invokes the
-  whole coordinator). To pass the auth result, `init` must accept a param threaded down to the
-  authorised body: `onSuccess: (name, auth) => init({ authConfirmed: auth })`. That widens `init()`'s
-  signature and the `*-boot.js` call stays `init()` (no arg) — workable but more churn, for the same
-  near-zero latency gain. **Recommendation: do NOT touch the init-wrapped ones** — the fast path
-  already covers them and the re-invoke threading isn't worth it. If built at all, do **admin + settings
-  only** (where it's a clean `initAuthorised(opts)` change).
-
-### Risk
-- Touches the **one-shot `sessionReady`** (resolve `true` instead of the `ensureNamedSession` promise)
-  and **B1 enforcement** (skips a re-check) — both load-bearing. Mitigated by: the change is confined
-  to the in-place `onSuccess` entry (reload/returning paths unchanged), and it's behind the per-page
-  `INPLACE_LOGIN` flag (off in prod).
-- New failure mode to test: a page that resolves `sessionReady(true)` but whose `auth.currentUser`
-  somehow isn't live → a write would fail `request.auth`. Can't happen on the in-place path
-  (`saveSession` + the overlay's `ensureNamedSession` both completed before `onSuccess`), but the test
-  must assert it.
-
-### Test plan
-- Unit: `runNamedSignIn` returns `{ ok, named }` for each branch (named, anonymous-with-flag-off,
-  enforce-fail). DOM-free, extends `login-overlay.test.mjs`.
-- e2e: admin/settings in-place sign-in still renders + writes work (extend the existing no-reload
-  tests to also perform a Firestore-touching action and assert no `auth/session-expired`).
-- Assert `ensureNamedSession` is **not** called a second time on the in-place path (spy/count), and
-  **is** called on the reload + already-signed-in paths.
-
-### Recommendation & sequencing
-**Low priority.** Do it only **after** in-place login is enabled and proven live (per the review), and
-even then treat it as optional polish — scope it to **admin + settings**, skip the init-wrapped trio.
-If the live in-place experience already feels instant (likely, given the fast path), this can be
-**dropped** with no real loss. Strictly after Phase 9 is live; independent of B1/B3.
+**If ever built:** scope it to **admin + settings only** (branch-style — a clean `initAuthorised(opts)`
+change where `onSuccess` already calls it directly); do **NOT** touch the init-wrapped trio
+(operations/links/paycalc) — the fast path already covers them and threading the auth result through
+`init()`/`*-boot.js` isn't worth the churn. It is safe **only on the in-place `onSuccess` path**
+(the reload + already-signed-in paths genuinely need `ensureNamedSession` for a cold restore and stay
+untouched). Because it touches the one-shot `sessionReady` (resolve `true` directly) and the B1
+re-check — both load-bearing — it stays behind the per-page `INPLACE_LOGIN` flag and the tests must
+assert no write ever hits a non-live `auth.currentUser`. **Strictly after Phase 9 is live; if the
+in-place experience already feels instant, drop it with no real loss.**

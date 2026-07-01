@@ -1,26 +1,18 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: in progress. Created v14.38. **B1 ENABLED v14.42** (`CONFIG.ENFORCE_NAMED_SESSION = true`)
-after the owner confirmed every active account is provisioned and the list matches current staff —
-write pages now require the member's own named session; kill-switch revert is a one-line flip back
-to false. A3 (doc-only) + B0 (identity signal) shipped v14.38–v14.39.
-B1.1 (remove anonymous fallback + browser account-creation) shipped v14.40; B1.2 (per-page
-enforcement) shipped v14.41; the flag-ON e2e coverage shipped v14.41 too (10 tests proving the
-per-page matrix) — all behind the default-OFF `CONFIG.ENFORCE_NAMED_SESSION` kill-switch, so
-production behaviour is unchanged until the flag is flipped. **B1 is now code-complete and tested;
-the only remaining step before enabling is the OWNER provisioning audit** (Operations → Set up
-accounts + private-window role check), then flip the flag. See "Appendix: B1 detailed scope".
-**B2 scope corrected v14.51** after a tier sweep: the original "`name == memberName` + admin bypass"
-ignored the **Management tier** (6 managers who edit staff data on behalf and would have been
-silently locked out), wrongly treated `linkDesigns` as member-owned (it is keyed by design name;
-designer S. Silva is a CEA), and assumed `pushSubscriptions` carries an owner identity (it does
-not). B2 now introduces a **`manager: true` claim** and a three-tier override rule (incl. delete);
-see "The identity tiers the rules must respect" and the rewritten B2/B3/B4 phases.
-**B2 BUILT v14.53** (branch, not deployed): `setupRosterAuth` sets the `manager` claim for
-`MANAGER_NAMES`; `firestore.rules` enforces the permissive 3-tier override isolation (create/update/
-delete) + bounded date validation; `linkDesigns` deliberately left open; `pushSubscriptions`
-unchanged. 13 new emulator tests (3-tier matrix, delete, date denial) — full `test:rules` suite
-green (173). **Before it can be relied upon, see the B2 deploy runbook below.**\*
+*Status: in progress (created v14.38). **Current state (as of v15.06):***
+- *Track A — **A2 Workload Identity Federation ✓ DONE (v14.93)** (keyless OIDC deploys; SA JSON key +
+  secret deleted — see Appendix A2); A3 doc-only ✓ DONE (v14.38); A1 firebase-admin waits on upstream.*
+- *Track B — B0 identity signal ✓ DONE (v14.39); **B1 named-session enforcement ✓ ENABLED** (v14.42,
+  rolled back during the v14.72 login freeze, **re-enabled v14.98** after the freeze was fixed and B1
+  exonerated — see LOGIN_INCIDENT.md); **B2 per-member override isolation BUILT + DEPLOYED permissive**
+  (v14.53: the 3-tier `name || admin || manager || !name` rule + `manager` claim in `setupRosterAuth`,
+  incl. delete + bounded date validation; `linkDesigns` left open; 173 rules tests green); **B3 — the
+  strict cutover (drop the `!name` escape) — is the next step** (still permissive today).*
+- *Tracks C (password) + D (App Check) — not started.*
+
+*This is the master **ordering + go/no-go** doc; the detailed designs live in ROADMAP.md /
+KNOWN_LIMITATIONS.md and are NOT duplicated here. Not version-stamped; not a runtime asset.*
 
 This is the **master sequencing and risk document** for the deferred security work. The
 detailed designs already live elsewhere and are NOT duplicated here — this file ties them
@@ -182,57 +174,32 @@ Each phase: **Goal · Who · Risk · Mitigation · Rollback · Go/no-go gate.**
 - **Rollback:** revert the `functions/package.json` bump; functions redeploy from the prior lockfile.
 - **Gate:** `npm outdated` in `functions/` shows `firebase-functions` peering `^14`. Until then, do not start.
 
-### A2 — Workload Identity Federation (retire the long-lived SA JSON)
-- **Goal:** replace `FIREBASE_SERVICE_ACCOUNT` JSON (written to `/tmp/key.json` in CI) with
-  keyless GitHub OIDC/WIF.
-- **Who:** Owner (GCP Workload Identity Pool + provider + binding); Claude edits the workflow YAML.
-- **Risk:** a faulty federation config **stops all deploy workflows** (hosting, functions, rules).
-- **Mitigation:** migrate **one** workflow first (rules — lowest frequency); keep the
-  `FIREBASE_SERVICE_ACCOUNT` secret in place as a fallback until all three are proven on WIF;
-  only then delete the secret and rotate the old key.
-- **Rollback:** revert the workflow to the secret-based auth step (secret still present).
-- **Gate:** the migrated workflow completes a real deploy via OIDC with no SA JSON in the job.
+### A2 — Workload Identity Federation ✓ DONE (v14.93)
+Retired the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON for keyless GitHub OIDC/WIF on all 3 deploy
+workflows; the SA JSON key + GitHub secret are both deleted. The mitigations that got there safely
+(migrate one workflow first, keep the secret as fallback until proven, delete the key last) and the
+one security invariant that still constrains any future change — the `assertion.repository` provider
+condition — are recorded in **Appendix: A2** below.
 
 ### A3 — doc-only accuracy fixes ✓ DONE (v14.38)
-- **Goal:** make the docs state the actual posture; defer any *rule* change to B2.
-- **Who:** Claude. **Status: done, doc-only, no rule changed.**
-- **What was done:**
-  - `pushSubscriptions` **delete** posture: the rule is `request.auth != null` (any authenticated
-    identity that knows the doc id can delete). AI_MAP already noted this; CLAUDE.md now states it
-    explicitly too, so no doc overclaims owner/admin-only. The id is a SHA-256 of the endpoint, so
-    exploitation needs the endpoint — low risk. **Tightening the rule is folded into B2** (it is a
-    rule change with the same silent-failure class, and must not break the legitimate
-    `deletePushSubscription` unsubscribe path — so it belongs with the emulator-test work, not here).
-  - Bearer-URL read distinction for huddle/circular/newsletter Storage — done in the v14.37 L1 pass
-    (`storage.rules` + rule comments). ROADMAP "Documentation accuracy fixes" updated to reflect both.
-- **Why it is NOT a "phase 1":** ordering by easiness conflated a free doc edit with a real rule
-  change. Only the doc edit was free; the rule edit moved to B2. **B0 is the first substantive phase.**
+Doc-only, no rule changed: the `pushSubscriptions` **delete** posture (`request.auth != null` — any
+authenticated id that knows the doc id) is now stated in CLAUDE.md, and the bearer-URL read
+distinction in `storage.rules` comments. **The rule-tighten this implied is folded into B2** (same
+silent-failure class; must not break the legitimate `deletePushSubscription` unsubscribe path) —
+there is no standalone A3 rule step. **B0 is the first substantive phase.**
 
-### B0 — `ensureFirebaseSession` hardening (FOUNDATION)
-Split into two safe increments (same discipline as A3 — don't bundle a zero-risk change with a
-behavioural one):
-
-**B0 (observability) — ✓ DONE (v14.39).** `ensureFirebaseSession` now records and exposes whether
-it established the member's **named** account or only the **anonymous** fallback:
-`getFirebaseIdentity()` → `'named'|'anonymous'|'none'`, `firebaseSessionIsNamed()`,
-`getFirebaseAuthError()`. **No runtime behaviour change** — the anonymous fallback still happens,
-so nothing regresses. `firebaseSessionIsNamed()` is the exact signal B2 needs. 7 unit tests in
-`session.test.mjs` cover named reuse, email/password sign-in, self-heal create, anonymous fallback,
-total failure, and stale-session (anonymous / other-member) replacement. The `window._mybAuthError`
-writes are now `typeof window` guarded so the path is node-testable. (Also fixed stale AI_MAP text
-that still described the reverted v14.28 `_endSession` behaviour.)
-
-**B0-enforce — folded into B1.** The behavioural half (refuse to proceed on a claim-less session /
-prompt re-login instead of writing silently) is multi-page UX that belongs with B1's named-session
-separation. Doing it before B1 would either regress (silent write loss with no prompt) or require
-B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
-- **Why first:** the B0 signal is the prerequisite for B1, B2 and C3 (also the documented Stage-3
-  prerequisite — ROADMAP → Password Stage 3, "ensureFirebaseSession rework").
-- **Risk (of the enforce half, in B1):** over-aggressive blocking could break the **calendar's**
-  legitimate anonymous reads — but the calendar uses `calendarAuthReady`, not `ensureFirebaseSession`,
-  so the split is automatic; leave the calendar bootstrap untouched.
-- **Rollback:** B0 is purely additive (new exports); revert `session.js` to drop them.
-- **Gate:** ✓ unit tests prove the identity is reported correctly for every path; full suite + e2e green.
+### B0 — `ensureFirebaseSession` hardening (FOUNDATION) ✓ DONE (v14.39)
+**B0 (observability):** `ensureFirebaseSession` now exposes whether it established the member's
+**named** account or only the **anonymous** fallback — `getFirebaseIdentity()` → `'named'|'anonymous'
+|'none'`, `firebaseSessionIsNamed()`, `getFirebaseAuthError()`. **No runtime behaviour change** (the
+fallback still happens); `firebaseSessionIsNamed()` is the exact signal B1/B2 consume. 7 unit tests
+in `session.test.mjs`.
+- **B0-enforce was folded into B1** (refusing to proceed on a claim-less session is multi-page UX
+  that belongs with B1's named-session separation).
+- **Why first:** the B0 signal is the prerequisite for B1, B2, and C3 (also the ROADMAP Password
+  Stage-3 `ensureFirebaseSession` rework).
+- **Leave the calendar bootstrap untouched** — the calendar reads via `calendarAuthReady`, not
+  `ensureFirebaseSession`, so its legitimate anonymous public reads are automatically unaffected.
 
 ### B1 — named-session separation + remove browser account-creation
 > **Detailed scope: see "Appendix: B1 detailed scope" at the foot of this file** — call-site map,
@@ -467,14 +434,15 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
 
 - [x] A3 — doc-only accuracy ✓ (v14.38: pushSubscriptions delete posture stated; bearer-URL notes confirmed; rule-tighten moved into B2)
 - [x] B0 (observability) — ✓ (v14.39: named-vs-anonymous identity exposed + tested; no behaviour change). Enforce half folded into B1.
-- [ ] A2 — Workload Identity Federation (one workflow first)
-- [x] B1 — named-session separation + remove browser account-creation. **ENABLED v14.42**
-      (`CONFIG.ENFORCE_NAMED_SESSION = true`) after the owner provisioning audit. Revert = flip back
-      to false. Watch for any "bounced to re-login and can't get back in" reports in the first days.
-- [~] B2 — per-member override isolation (permissive, **3-tier: name/admin/manager**, incl. delete)
+- [x] A2 — Workload Identity Federation ✓ **DONE (v14.93)** — keyless OIDC on all 3 workflows; the
+      SA JSON key + `FIREBASE_SERVICE_ACCOUNT` secret are both deleted (Appendix A2).
+- [x] B1 — named-session separation + remove browser account-creation. **ENABLED v14.42**, rolled
+      back during the v14.72 login freeze, **RE-ENABLED v14.98** after the freeze was fixed and B1
+      exonerated (LOGIN_INCIDENT.md). Revert = flip `ENFORCE_NAMED_SESSION` back to false (one line).
+- [x] B2 — per-member override isolation (permissive, **3-tier: name/admin/manager**, incl. delete)
       + `setupRosterAuth` `manager` claim + `linkDesigns`/`pushSubscriptions` decisions + emulator tests.
-      **BUILT v14.53** (branch; 173 rules tests green). Not deployed — see the B2 deploy runbook
-      (re-provision + manager token refresh required before the rule is relied upon).
+      **BUILT + DEPLOYED permissive (v14.53)** (173 rules tests green); managers re-provisioned per the
+      B2 deploy runbook. **B3 is the strict tighten** (drop the `!('name' in token)` escape).
 - [~] B3 — claims audit + permissive→strict token-refresh rollout (**re-provision the manager claim too**).
       **Client sweep BUILT v14.71** (`CONFIG.CLAIM_EPOCH` + `refreshClaimsIfStale()`, 6 tests) — the
       deterministic token-refresh mechanism. **Remaining (owner-gated):** re-provision audit, pick a
@@ -491,186 +459,73 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
 
 ---
 
-## Appendix: B1 detailed scope (scoped v14.39, not yet implemented)
+## Appendix: B1 detailed scope (implemented v14.40–41; ENABLED v14.98)
 
 B1 turns the B0 *signal* (`firebaseSessionIsNamed()`) into *enforcement*: the write pages stop
 accepting a claim-less session, anonymous auth is confined to the public Calendar, and the client
 stops self-creating Firebase accounts. B1 ships **while the Firestore rules are still
-`request.auth != null`** (B2's strict rule comes later), so **B1 cannot lock anyone out via
-rules** — its only lockout surface is client-side and reversible with a one-line flag flip. That
-makes B1 the safe precursor that *removes the claim-less write sessions* B2 would otherwise reject.
+`request.auth != null`**, so **B1 cannot lock anyone out via rules** — its only lockout surface is
+client-side and reversible with the one-line kill-switch. It is the safe precursor that removes the
+claim-less write sessions B2 would otherwise reject.
 
-### Why B1 is much lower risk than B2/B3
-- No rule changes ship in B1 — a regression is a client-JS revert, not a Firestore rollback.
-- In steady state almost nobody hits the anonymous fallback today: named sign-in succeeds for any
-  provisioned member. The fallback only fires for an *unprovisioned* account, a password mismatch
-  (no custom passwords exist yet), or a disabled provider (misconfig). So once provisioning is
-  confirmed, B1's availability impact is ~nil.
-- The whole enforcement sits behind a kill-switch (below).
+**The three coordinated changes (DONE, gated behind `CONFIG.ENFORCE_NAMED_SESSION`):**
+- **B1.1 (v14.40)** — `ensureFirebaseSession` drops the anonymous fallback + the self-heal
+  `createUserWithEmailAndPassword`; a failed named sign-in returns `false`/`_fbIdentity='none'`.
+- **B1.2 (v14.41)** — each write page enforces per the matrix below via `ensureNamedSession`
+  (transient-only retry). Flag-ON e2e proves it (`enforceNamedSession(page)` + `__E2E.failSignIn`).
+- **B1.3** — remove browser-side account creation + the provisioning prerequisite (below).
 
-### The three coordinated changes
-
-**B1.1 — `ensureFirebaseSession`: delete the anonymous fallback and the self-heal account creation.**
-Because the function is write-pages-only, on a failed named sign-in it now returns `false` /
-`_fbIdentity = 'none'` with the error code (B0 already tracks identity). No `signInAnonymously`, no
-`createUserWithEmailAndPassword`. **Useful consequence:** the boolean return regains a crisp meaning
-— `true` ⇔ named session active — so most of B1.2 is simply "stop ignoring the return value."
-
-**B1.2 — Enforce a named session on each write page** (consume the boolean / `firebaseSessionIsNamed()`).
-Current call sites and the change each needs:
-
-| File | Today | B1 change |
-|------|-------|-----------|
-| `admin-app.js:159` (login `attempt`) | `await ensureFirebaseSession(name)` — **result ignored**, reloads anyway | gate: on `false`, show the login error (don't `saveSession`/reload) |
-| `admin-app.js:1634` (returning init) | `resolveSession(ensureFirebaseSession(currentUser))` fire-and-forget | await + on non-named show the login overlay (local session alone no longer suffices) |
-| `settings-app.js:137` (login) | checks `authOk` but only `console.warn`s | gate: on `false`, block + show error |
-| `settings-app.js:51` (returning) | fire-and-forget | await + gate to overlay |
-| `operations-app.js:43` | fire-and-forget (page already redirects non-admins) | await + on non-named, clear session → redirect to admin login |
-| `links-app.js:47` | fire-and-forget (already redirects non-designers) | await + on non-named, clear session → redirect to admin login |
-| `paycalc-app.js:1297` | fire-and-forget | **SOFT** — log the degraded identity; do NOT block (see matrix) |
-
-**Per-page enforcement matrix — strength matches what the page WRITES** (the key refinement; the
-plan's blanket "Pay requires a named session" was too strong):
+**Per-page enforcement matrix — strength matches what the page WRITES** (load-bearing — the
+coordinators + `auth-policy.js` consume exactly this; the blanket "Pay requires a named session" was
+too strong):
 
 | Page | Writes isolated/admin data? | Enforcement |
 |------|------------------------------|-------------|
 | admin | Yes — `overrides` for all members; admin ops | **Hard** — overlay, block the app |
 | operations | Yes — admin-only huddle/circular/newsletter/roster/auth writes | **Hard** — redirect to admin login |
-| settings | Yes — `staffContact` (already needs the `name` claim) | **Hard** — overlay, block writes |
+| settings | Yes — `staffContact` (needs the `name` claim) | **Hard** — overlay, block writes |
 | links | Yes — `linkDesigns` | **Hard** — redirect to admin login |
-| paycalc | **No** — only `clientErrors`/`analytics` (non-isolated, accept any auth) | **Soft** — log only; the calculator is localStorage-based and must keep working |
+| paycalc | **No** — only `clientErrors`/`analytics` (non-isolated) | **Soft** — log only; the calculator is localStorage-based and must keep working |
 
-**B1.3 — Remove browser-side account creation** (the `createUser` removal in B1.1) **+ provisioning
-prerequisite.** Owner runs "Set up accounts" and reconciles against `teamMembers` so every active
-member (incl. managers) has a server account *before* B1 enables. `/new-starter` already lists "Set
-up accounts" — strengthen its wording to **mandatory before the new starter's first login** (the
-client no longer self-heals). Admin break-glass (reset to surname default) stays as recovery until
-self-service recovery (C4) lands.
+**Provisioning prerequisite (B1.3):** every active member (incl. managers) must have a server account
+via Operations → "Set up accounts" **before** B1 enables — the client no longer self-heals. Admin
+break-glass (reset to surname default) stays as recovery until self-service recovery (C4) lands;
+`/new-starter` marks "Set up accounts" mandatory before a new starter's first login.
 
-### Re-auth UX (the real design question)
-When a returning user has a valid *local* session but the *named Firebase* session can't be
-established, reuse the existing login overlay, pre-filled with their name, and branch on
-`getFirebaseAuthError()`:
-- **Transient** (`network-request-failed` / timeout): auto-retry once or twice; if still failing,
-  "Couldn't reach sign-in — check your connection" + a Retry button. Do **not** force a full
-  re-login or clear the local session (so paycalc's offline calculator keeps working).
-- **Persistent** (`invalid-credential` / `user-not-found` / `operation-not-allowed`): "Couldn't
-  sign you in — ask your manager to reset your access" (break-glass). Re-entering the same password
-  would just fail again.
+**Re-auth UX** when a returning user has a valid *local* session but the *named Firebase* session
+can't be established (reuse the login overlay pre-filled with their name; branch on
+`getFirebaseAuthError()`):
+- **Transient** (`network-request-failed`/timeout): auto-retry once or twice, then "Couldn't reach
+  sign-in — check your connection" + Retry. Do **not** clear the local session (paycalc stays offline-usable).
+- **Persistent** (`invalid-credential`/`user-not-found`/`operation-not-allowed`): "Couldn't sign you
+  in — ask your manager to reset your access" (break-glass) — the same password would just fail again.
 
-### Kill-switch (the single most important mitigation)
-Gate all B1 enforcement behind one flag (e.g. `CONFIG.ENFORCE_NAMED_SESSION` in `roster-data.js`).
-Ship **default-off**, verify in a fresh private window across every role (admin, manager, CEA, CES,
-dispatcher, links designer) **and** a deliberately-unprovisioned account, then flip on in a low-traffic
-check. If anything locks out, flip off — a one-line deploy, no rules involved. (Verify on the live
-URLs in a private window, never an installed phone.)
-
-### Testing
-- **Unit** (`session.test.mjs`): the B0 tests asserting an `'anonymous'` outcome are rewritten to
-  assert `'none'` + `false` (no fallback); add a "no self-heal on `user-not-found`" test; named-success
-  paths unchanged.
-- **e2e**: extend `e2e/fixtures.js` so sign-in can be configured to fail, then assert admin/settings
-  show the login overlay, operations/links redirect to admin, and **paycalc still renders the
-  calculator** (soft path). Today the fixture always resolves sign-in, so this is new fixture work.
-- **Manual**: private-window matrix above + the unprovisioned-account re-auth message.
-
-### Files touched (estimate)
-`session.js` (−~20 lines: drop fallback/create), `session.test.mjs`, `admin-app.js`,
-`settings-app.js`, `operations-app.js`, `links-app.js`, `paycalc-app.js` (soft), `roster-data.js`
-(kill-switch flag), `e2e/fixtures.js` + `e2e/smoke.spec.js`, `.claude/skills/new-starter/SKILL.md`
-(provisioning wording), and docs (CLAUDE.md Auth section, AI_MAP, KNOWN_LIMITATIONS' "localStorage
-session forgeable" + anonymous-fallback entries, this plan).
-
-### Owner decisions before enabling
-1. **Provisioning audit** — confirm every active account exists server-side (the gating prerequisite).
-2. **Re-auth aggressiveness** — auto-retry count; keep-vs-clear local session on persistent failure.
-3. **Kill-switch default** — recommend ship-off → verify → enable.
-4. **Paycalc soft vs hard** — recommendation: **soft** (don't block a localStorage tool on Firebase auth).
-
-### Sub-phase order + go/no-go
-1. **B1.1** ✓ DONE (v14.40) — `session.js` gates the self-heal account creation and the anonymous
-   fallback behind `CONFIG.ENFORCE_NAMED_SESSION` (default **false** = today's behaviour exactly).
-   When true: no `createUser`, no anonymous fallback; a failed named sign-in returns `false`/`'none'`.
-   11 unit tests across both flag states (4 new for the flag-on path assert `createUser`/anonymous are
-   NOT called). No production behaviour change until the flag is flipped.
-2. **B1.2** ✓ DONE (v14.41) — per-page gating behind the same kill-switch (default-off). New
-   `ensureNamedSession(name)` helper (transient-only retry via `isTransientAuthError`, then returns
-   whether the named session is genuinely active; flag-off → passes through unchanged). Wired into
-   all five pages per the matrix: admin/settings show the login overlay (login path shows an inline
-   error and routes persistent failures to admin break-glass); operations/links clear + redirect to
-   admin; **paycalc soft (log only, never blocks)**. 5 new unit tests for the helper + retry logic.
-   All gating is `if (CONFIG.ENFORCE_NAMED_SESSION && !named)`, so flag-off is verified unchanged by
-   the existing e2e. **Flag-ON e2e coverage shipped (v14.41):** `enforceNamedSession(page)` in
-   `e2e/fixtures.js` rewrites roster-data.js to flip the switch on, and `window.__E2E.failSignIn`
-   forces sign-in to fail — 10 tests prove admin/settings re-show the login overlay (despite a valid
-   local session), operations/links redirect to admin, and paycalc still renders (soft).
-   **Only remaining before enabling:** the owner provisioning audit (Operations → Set up accounts) +
-   a private-window role check, then flip the flag.
-3. **Owner**: provisioning audit + `/new-starter` wording.
-4. **Verify** in a private window across the role matrix + an unprovisioned account.
-5. **Enable** the flag (low-traffic check; client-side reversible) — then it's ready for B2.
-- **Gate to start B2:** B1 enabled and stable for a few days with no re-auth complaints, so no
-  claim-less write sessions remain when B2's strict rule lands.
+**Kill-switch (the single most important mitigation):** all B1 enforcement is gated behind
+`CONFIG.ENFORCE_NAMED_SESSION` (`roster-data.js`). Revert = flip to false, one-line deploy, no rules
+involved. Verify on the live URLs in a private window across every role (admin/manager/CEA/CES/
+dispatcher/designer) **and** a deliberately-unprovisioned account — never an installed phone.
 
 ---
 
-## Appendix: A2 — Workload Identity Federation runbook (scoped v14.93)
+## Appendix: A2 — Workload Identity Federation ✓ COMPLETE (v14.93)
 
-**Goal:** retire the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON key (today: `echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/key.json` in all 3 deploy workflows) and authenticate CI with **short-lived GitHub OIDC tokens** instead — so there is no standing, full-project credential sitting in GitHub secrets.
+**What it did:** retired the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON key (previously
+`echo … > /tmp/key.json` in all 3 deploy workflows) for **short-lived GitHub OIDC tokens** — no
+standing full-project deploy credential remains in GitHub. All 3 workflows use
+`google-github-actions/auth` (pinned `v2.1.13`, commit `c200f369`) with the provider + SA written
+directly in each YAML (they aren't secrets) and job `permissions: { contents: read, id-token: write }`.
+The old SA JSON key AND the `FIREBASE_SERVICE_ACCOUNT` secret are both deleted; a deploy from `main`
+was confidence-checked with the key gone. It was de-risked by migrating one workflow (rules) first
+and keeping the secret as a fallback until all three were proven, then deleting the key last.
 
-**Why it matters:** the SA JSON is a long-lived key with Hosting/Functions/Rules deploy rights. If it ever leaks (a careless log, a forked PR, a compromised action) it's a project compromise until manually rotated. WIF tokens last minutes and are cryptographically scoped to **this repo**. Isolated change — touches CI only, no app/runtime code, fully reversible.
+**As-built config:** pool `github-pool`, provider `github-provider`, project number `532910998075`,
+SA `github-deploy@myb-roster.iam.gserviceaccount.com`.
 
-### What the OWNER does (GCP Console / gcloud) — one-time
-Needs: the project **number** (not id) and the SA email — the `client_email` inside the current `FIREBASE_SERVICE_ACCOUNT` secret JSON (e.g. `github-deployer@myb-roster.iam.gserviceaccount.com` or the `firebase-adminsdk-…` SA). Keep its existing deploy roles — WIF changes only *how* it's authenticated, not *what* it can do.
-1. Enable APIs (usually already on): `iamcredentials.googleapis.com`, `sts.googleapis.com`.
-2. Create a **Workload Identity Pool**, e.g. `github-pool`.
-3. Create an **OIDC Provider** in it, e.g. `github-provider`:
-   - Issuer: `https://token.actions.githubusercontent.com`
-   - Attribute mapping: `google.subject=assertion.sub`, `attribute.repository=assertion.repository`
-   - **Attribute CONDITION (the security boundary — do NOT skip):** `assertion.repository == 'Garethdavidmiller/roster-app'`
-4. Let the GitHub principal impersonate the SA — grant on the SA:
-   `roles/iam.workloadIdentityUser` to
-   `principalSet://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-pool/attribute.repository/Garethdavidmiller/roster-app`
-5. Hand back two NON-secret values (store as GitHub repo *Variables*): the provider resource name
-   `projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-pool/providers/github-provider`, and the SA email.
-
-### What CLAUDE does (workflow YAML) — after the pool exists
-Per workflow, add job `permissions: { contents: read, id-token: write }` and replace the "Write service account key" step with:
-```yaml
-- uses: google-github-actions/auth@<pinned-sha>   # v2
-  with:
-    workload_identity_provider: ${{ vars.WIF_PROVIDER }}
-    service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
-```
-The auth action writes a short-lived credential file and exports `GOOGLE_APPLICATION_CREDENTIALS`, which `firebase deploy` already honours — so the deploy step itself is unchanged (just drop the `GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json` line).
-
-### Cutover sequence (de-risked — one workflow first)
-**STATUS: COMPLETE — all 5 steps done. WIF is live on all three workflows; merged to `main`; the old SA JSON key AND the `FIREBASE_SERVICE_ACCOUNT` GitHub secret are both deleted (deploys confidence-checked with the key gone). No standing full-project deploy credential remains in GitHub.**
-Implementation note: the provider resource name and SA email are written **directly in each
-workflow YAML** (they are not secrets), rather than via the two repo Variables the draft suggested —
-simpler, and keeps the whole config visible in the workflow file. Pool `github-pool`, provider
-`github-provider`, project number `532910998075`, SA `github-deploy@myb-roster.iam.gserviceaccount.com`,
-`google-github-actions/auth` pinned to `v2.1.13` (commit `c200f369`). The `assertion.repository ==
-'Garethdavidmiller/roster-app'` condition is set on the provider.
-
-1. ✅ Owner built the pool/provider/binding (+ granted `github-deploy` the deploy roles).
-2. ✅ Migrated **`deploy-rules.yml` only**, secret kept in place.
-3. ✅ `workflow_dispatch` rules deploy succeeded via OIDC (whole run green, no `/tmp/key.json`).
-4. ✅ Migrated `deploy-hosting.yml` + `deploy-functions.yml`; each proven green via `workflow_dispatch`
-   from the WIF branch (auth step + deploy step both green; functions needed the gen2 role set —
-   Cloud Functions/Run/Build/Artifact Registry/Eventarc/Scheduler/Secret Manager/Service Account User).
-5. ✅ Merged to `main`; owner **deleted the old SA JSON key in GCP AND the `FIREBASE_SERVICE_ACCOUNT`
-   GitHub secret**, and re-ran a deploy from `main` with the key gone (green). No standing full-project
-   deploy credential remains in GitHub — the security win is fully realised. **A2 complete.**
-
-### Risks & mitigations
-| Risk | Mitigation |
-|------|-----------|
-| Misconfig stops **all** deploys | One workflow first; secret kept as fallback; revert the YAML step to roll back instantly |
-| **Provider created without the repo condition** → ANY GitHub repo could impersonate the SA (serious exposure) | The `attribute.repository == '…/roster-app'` condition is mandatory; the impersonation binding is also scoped to the repo's principalSet |
-| `id-token: write` added to the job | Required for OIDC; scoped to the job, standard |
-| Functions deploy needs Cloud Build/Run/Artifact Registry roles | No change — WIF swaps the auth mechanism, not the SA's roles (which already work today) |
-| Using PROJECT_ID where PROJECT_NUMBER is required | WIF resource names use the numeric project **number** — easy to get wrong |
-| Old key left active after cutover (defeats the purpose) | The final rotate/delete is an explicit step 5, not optional |
-
-**Gate to start:** owner has created the pool + provider (with the repo condition) + binding and supplied the two Variables. **Until then, do NOT touch the workflow YAML** — migrating before the pool exists would break deploys.
+**The one security invariant that still constrains any future change — do NOT lose it:** the provider
+carries the attribute **condition `assertion.repository == 'Garethdavidmiller/roster-app'`**, and the
+`roles/iam.workloadIdentityUser` impersonation binding is scoped to the same repo's `principalSet`.
+**Without the repo condition, ANY GitHub repo could impersonate the SA** (full-project compromise) —
+any change to the pool/provider/binding must preserve it. (Functions deploy also needs the gen2 role
+set on the SA — Cloud Functions/Run/Build/Artifact Registry/Eventarc/Scheduler/Secret Manager/Service
+Account User — unchanged by WIF, which swaps only the auth mechanism, not the SA's roles. WIF resource
+names use the numeric project **number**, not the id.)

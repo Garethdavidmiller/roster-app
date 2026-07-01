@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v14.99 -->
+<!-- MYB Roster — Pay Calculator v15.06 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -22,7 +22,7 @@
   <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-  <title>MYB Roster — Pay Calculator</title>
+  <title>Marylebone Roster — Pay Calculator</title>
   <link rel="stylesheet" href="./paycalc.css">
 
   <!--
@@ -217,7 +217,7 @@
     <div class="summary" id="summary"></div>
     <div class="bp-active-banner" id="bpActiveBanner" style="display:none"></div>
     <div class="payslip-note" id="payslipNote" style="display:none">
-      ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so your payslip's gross figure will be lower than the total above. This is normal.
+      ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so your payslip's gross figure (your pay before tax) will be lower than the total above. This is normal.
     </div>
     <div id="absenceCaveat" class="payslip-note" style="display:none">
       ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not reconcile line-for-line with your payslip.
@@ -248,13 +248,13 @@
       <!-- ROSTER SUGGESTION CARD: shown when the logged-in member has special shifts this period -->
       <div class="roster-card" id="rosterHintBar" style="display:none">
         <div class="roster-card-header">
-          <span class="roster-card-title">From your roster</span>
+          <span class="roster-card-title">From your calendar</span>
           <span class="roster-state-badge" id="rosterStateBadge"></span>
         </div>
         <div class="roster-rows" id="rosterRows"></div>
         <p class="roster-card-note" id="rosterHintText">Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are already included in basic pay. Check against what you actually worked.</p>
         <div class="roster-card-actions">
-          <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from my roster</button>
+          <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from calendar</button>
           <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
         </div>
         <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
@@ -488,14 +488,14 @@
       <div class="field">
         <div class="field-pair">
           <div class="field-col">
-            <div class="field-eyebrow" id="ytdPayLabel">Taxable pay — year to date</div>
+            <div class="field-eyebrow" id="ytdPayLabel">Taxable Pay — Year to Date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
               <input type="text" id="ytdPay" aria-labelledby="ytdPayLabel" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
           <div class="field-col">
-            <div class="field-eyebrow" id="ytdTaxLabel">Tax deducted — year to date</div>
+            <div class="field-eyebrow" id="ytdTaxLabel">Tax Paid — Year to Date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
               <input type="text" id="ytdTax" aria-labelledby="ytdTaxLabel" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -671,7 +671,7 @@
 
   <!-- DISCLAIMER -->
   <div class="disclaimer">
-    ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app uses a cumulative PAYE-style estimate — usually closer to payroll, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button type="button" class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button>
+    ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app works out tax the way payroll does — adding up the whole year so far — usually closer to your real payslip, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button type="button" class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button>
   </div>
 
 
@@ -716,13 +716,13 @@
 
 
 <!-- YTD notice lightbox — shown once when the user first opens a period mid-year -->
-<div id="noticeYtdLightbox" class="lb-overlay" role="dialog" aria-label="Enter your YTD figures" aria-modal="true">
+<div id="noticeYtdLightbox" class="lb-overlay" role="dialog" aria-label="Enter your Year to Date figures" aria-modal="true">
   <div id="noticeYtdContent" class="lb-content notice-lb-content">
     <button id="noticeYtdClose" class="lb-close" type="button" aria-label="Close">✕</button>
     <div class="notice-badge notice-badge--pay">💷 Pay</div>
-    <div class="lightbox-app-name">Enter your YTD figures</div>
+    <div class="lightbox-app-name">Enter your Year to Date figures</div>
     <div class="notice-date">Posted 6 Apr 2026</div>
-    <p class="notice-body">For accurate tax estimates this year, enter your <strong>YTD Gross Pay</strong> and <strong>YTD Tax Paid</strong> from your latest payslip in <strong>⚙️ Your Settings</strong> below.</p>
+    <p class="notice-body">For accurate tax estimates this year, copy your <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> from the Year to Date box on your latest payslip into <strong>⚙️ Your Settings</strong> below.</p>
   </div>
 </div>
 
@@ -745,7 +745,7 @@
     <button id="dataOwnerClose" class="lb-close" type="button" aria-label="Decide later">✕</button>
     <div class="notice-badge notice-badge--pay">💷 Pay</div>
     <div class="lightbox-app-name">Is this your pay data?</div>
-    <p class="notice-body">This device already has saved Pay Calculator data (tax code, YTD figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it will move into your account. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
+    <p class="notice-body">This device already has saved Pay Calculator data (tax code, Year to Date figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it will move into your account. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
     <button id="dataOwnerMine" class="btn-action btn-primary" type="button">Yes, it&rsquo;s mine</button>
     <button id="dataOwnerFresh" class="btn-action btn-secondary" type="button">No &mdash; start fresh</button>
   </div>

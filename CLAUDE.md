@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v14.90 · Updated every 0.10 version*
+*Last updated: June 2026 — v15.00 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `14.90` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `15.00` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -218,7 +218,7 @@ roster-app/
 ├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs
 ├── SECURITY_RELEASE_PLAN.md ← master sequencing/risk plan for the deferred security release (per-member isolation, named sessions, App Check, password retirement, WIF, firebase-admin bump). Not version-stamped; not a runtime asset.
 ├── ARCHITECTURE_PLAN.md     ← auth/session consolidation plan (Track 1: identity state machine + page-auth policy map, behaviour-preserving, lands before B3) + supporting refactors (testable coordinators, roster-data split) and the MILLER_ACTUALS privacy decision. Companion to SECURITY_RELEASE_PLAN.md. Not version-stamped; not a runtime asset.
-├── LOGIN_INCIDENT.md        ← ⚠️ OPEN incident log for the v14.72–74 login freeze/slowness. Records what is rolled back (B1 `ENFORCE_NAMED_SESSION=false`, B3 sweep `CLAIM_EPOCH=0`) vs still live (B2), the diagnosis, and the re-enable checklist. READ THIS before touching login/auth or re-enabling B1/B3. Not version-stamped.
+├── LOGIN_INCIDENT.md        ← incident log for the v14.72–74 login freeze/slowness — RESOLVED (freeze fixed v14.75; B1 re-enabled v14.98). Records the diagnosis, the current auth-flag state (B1 `ENFORCE_NAMED_SESSION=true`; B2 live permissive; B3 strict sweep still off, `CLAIM_EPOCH=0`), and the re-enable checklist. READ THIS before touching login/auth or starting the B3 strict cutover. Not version-stamped.
 ├── override-utils.test.mjs            ← tests for override-utils.js
 ├── roster-data.test.mjs    ← tests for roster-data.js
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
@@ -616,6 +616,26 @@ UX experiments tried and reverted, plus future capabilities: **see `ROADMAP.md`*
 **Do-not-change UI labels (Claude-relevant):**
 - **Admin button label** — "Admin" = administration, not administrator. Intentional. Do not rename.
 - **Shift type count** — 8 types in admin selector. Consider merging before adding more.
+
+### Staff-facing wording conventions
+
+Applies to **all user-visible copy** (cards, hints, tips, lightboxes, error banners, notifications) — not to code identifiers, data values, or comments.
+
+**"the admin" vs "your manager" — who a staff member is told to contact:**
+- **App / account matters → "the admin".** Anything about the app itself or a staff member's account: password reset, who can read a saved work email, a technical failure (roster won't display, a Huddle link is broken, data won't load). The admin (developer/app owner) fixes these.
+- **Work / operational matters → "your manager".** Anything about the roster as work: booking annual leave, recording absence, shift changes, general rota queries. The manager owns these.
+- Rationale: staff can't fix app faults by asking a line manager, and the admin isn't the right contact for an AL request. Matching the contact to the problem is the whole point. When in doubt, ask: *"is this a broken-app problem or a work problem?"*
+- Note on data access: only the **owner + admin** can read a `staffContact` work email (Firestore rules) — a manager cannot — so "only you and the admin can see this email" is the factually correct phrasing, not "your manager".
+
+**Canonical terms (use these exact forms in visible copy; established in the v15.05 wording sweep):**
+- **"Change a Shift"** — never "override", "Recording a Shift Change", or "shift override" (the word "override" stays in code/data only).
+- **"Absent" / "record an absence"** — never "sick"/"sickness" in UI copy (the reason is never stored — GDPR). The internal data value `SICK` and ids are fine.
+- **"Year to Date"** — always spelled out, never bare "YTD". The two payslip figures are exactly **"Taxable Pay"** and **"Tax Paid"** (never "Gross Pay" for the YTD figure). See `.claude/rules/paycalc.md` → payslip line names.
+- **"Fill from calendar" / "From your calendar" / "Replace with calendar values"** — the paycalc pre-fill reads the *calendar* function, not the base roster; do not reword to "roster".
+- **"password reset (not available yet)"** — one phrasing for the future feature; never "recovery" or "coming soon".
+- **App name "Marylebone Roster"** — the on-screen name everywhere (incl. bug-report `appLabel` as "Marylebone Roster — <Page>"). "MYB …" survives only in the iOS home-screen `apple-mobile-web-app-title` meta and line-2 HTML comments.
+- **Documents:** "Daily Huddle" (proper noun), "Weekly Retail Circular", "Marylebone Newsletter".
+- **Tone:** calm and factual — no exclamation marks, no marketing voice (mirrors `.claude/rules/notifications.md`).
 
 ---
 

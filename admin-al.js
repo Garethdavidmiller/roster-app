@@ -90,7 +90,7 @@ function updateAlPreview() {
 
     if (dates === null) {
         alPreview.className = 'al-preview error';
-        alPreview.textContent = '"To" date must be on or after "From" date.';
+        alPreview.textContent = 'The end date must be on or after the start date.';
         alSaveBtn.disabled = true;
         return;
     }
