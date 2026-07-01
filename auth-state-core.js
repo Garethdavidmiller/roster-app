@@ -17,7 +17,8 @@
  * "forbidden" on Operations, so `needsLogin` / `forbidden` are POLICY decisions
  * (`requirePageAuth`, Phase 3), never states here.
  *
- * Behaviour-preserving: this module is not wired into anything yet (Phase 1). It maps
+ * Now live (since the v14.98 B1 re-enable): consumed via the store (`auth-state.js`)
+ * → the write coordinators, fed by `session.js`. It maps
  * 1:1 onto the outcomes pinned by the Phase-0 characterisation tests
  * (`session.test.mjs`): a named sign-in → `named`; the flag-off anonymous fallback →
  * `anonymous`; a transient blip → `degraded` (retryable); a persistent named failure →
