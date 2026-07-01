@@ -35,17 +35,25 @@ export function getDefaultMemberIndex() {
     return idx !== -1 ? idx : 0;
 }
 
+// Captured at MODULE LOAD — before ANY code can call getSelectedMemberIndex() (which clears a
+// stale removed-member key). ES modules evaluate once, before the importer's body runs, so this
+// snapshot reliably reflects "did a saved member exist when the page loaded". It is what keeps a
+// cleared-stale fallback DISTINCT from a true first run. (H1)
+const _hadSavedMemberAtStart = !!lsGet('myb_roster_selected_member');
+
 /**
- * True only for a brand-new visitor: NO saved member AND NO signed-in session.
- * Distinct from the stale-member case (saved-but-removed → getSelectedMemberIndex sets
- * `_staleMemberName` and falls back to default). Consumed by calendar-app.js to show a
- * "choose your name" prompt instead of rendering the default member's roster, which a new
- * user could mistake for their own. Once they pick a name it's saved and this returns false
- * forever after. (Onboarding H1.)
+ * True only for a brand-new visitor: NEVER had a saved member (at load) AND none now AND no
+ * signed-in session. Consumed by calendar-app.js to show a "choose your name" prompt instead of
+ * rendering the default member's roster (which a new user could mistake for their own). Once they
+ * pick a name it's saved and this returns false forever after.
+ *
+ * A returning user whose saved member was REMOVED had a key at load, so `_hadSavedMemberAtStart`
+ * is true and this stays false — they keep the old behaviour (default calendar + "no longer in the
+ * roster" banner), not the prompt. (Onboarding H1.)
  * @returns {boolean}
  */
 export function isFirstRun() {
-    return !lsGet('myb_roster_selected_member') && !getSession()?.name;
+    return !_hadSavedMemberAtStart && !lsGet('myb_roster_selected_member') && !getSession()?.name;
 }
 
 /** @returns {number} */

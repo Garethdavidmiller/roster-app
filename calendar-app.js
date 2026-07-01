@@ -510,7 +510,7 @@ try {
 
             const about = initAboutLightbox({
                 appLabel: 'Marylebone Roster',
-                getUserName: () => (/** @type {any} */ (getCurrentMember()))?.name || 'Not selected',
+                getUserName: () => isFirstRun() ? 'Not selected' : ((/** @type {any} */ (getCurrentMember()))?.name || 'Not selected'),
                 onOpen() {
                     // Swap content based on current view mode
                     const inTeam = teamView.isTeamViewMode();
@@ -665,6 +665,10 @@ function stampPrintDate() {
     const header = document.querySelector('.header');
     if (!header) return;
     header.setAttribute('data-print-date', `Printed: ${now}`);
+    // First run (no member picked yet): don't stamp a default member onto the print header —
+    // this also runs on `beforeprint`, so without the guard it would re-add the name that
+    // showFirstRunPrompt() cleared. (H1)
+    if (isFirstRun()) { header.removeAttribute('data-member-name'); return; }
     header.setAttribute('data-member-name', (/** @type {any} */ (getCurrentMember())).name);
 }
 stampPrintDate();

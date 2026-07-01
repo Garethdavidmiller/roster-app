@@ -89,11 +89,25 @@ test('calendar: first run (no saved member, not signed in) shows the choose-your
     await expect(page.locator('.first-run-prompt')).toBeVisible();
     await expect(page.locator('.calendar-day')).toHaveCount(0);
     await expect(page.locator('#teamMemberSelect option').first()).toHaveText('— Choose your name —');
+    // No default member leaked onto the print header (stampPrintDate + beforeprint must respect first run).
+    expect(await page.locator('.header').getAttribute('data-member-name'),
+        'first run must not stamp a member on the print header').toBeNull();
     // Picking a name renders the real calendar and clears the prompt (index 0 is the placeholder).
     await page.locator('#teamMemberSelect').selectOption({ index: 1 });
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('.first-run-prompt')).toHaveCount(0);
     expect(errors, 'Uncaught JS exceptions on first-run calendar').toHaveLength(0);
+});
+
+test('calendar: a removed saved member falls back to the calendar + stale banner, NOT the first-run prompt', async ({ page }) => {
+    // Saved member that no longer exists in the roster (e.g. a leaver who was removed).
+    await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'Z. Nonexistent'));
+    await page.goto('/');
+    // Regression: this must render the fallback (default) calendar, not the choose-your-name prompt —
+    // the stale case had a saved member at load, so it's not a true first run.
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.first-run-prompt')).toHaveCount(0);
+    await expect(page.locator('#errorBanner')).toContainText('no longer in the roster');
 });
 
 test('calendar: member dropdown is populated by JS from teamMembers', async ({ page }) => {
