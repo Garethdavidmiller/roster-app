@@ -797,9 +797,13 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
   waterfall). `modulepreload` only fetches/compiles — no behaviour change. This is the one place
   Batch 1's "don't eager-preload the SDK URLs" caveat is reversed **because** it is now safe:
   `sw-asset-check.test.mjs` guards the list against paycalc's real transitive graph AND against the
-  SDK version pinned in `firebase-client.js`, so it can't silently drift. Scoped to paycalc only
-  (the slowest page); other pages keep the plain graph. **Let this settle** (watch the Operations
-  App-speed data) before the deferred lazy-Firebase pass below.
+  SDK version pinned in `firebase-client.js`, so it can't silently drift. **paycalc is the only page
+  with the FULL graph + SDK-URL preload** (its graph is the deepest/slowest). The calendar
+  (`index.html`) has a lighter 4-module preload of its top-level entry modules only (`calendar-app`,
+  `nav-panel`, `roster-data`, `firebase-client` — **no** SDK URLs); the four write pages rely on
+  `preconnect` alone. There is **no plan to make the full/SDK preload universal** — each page's SDK
+  preload would need its own drift guard first (the Batch 1 reason). **Let this settle** (watch the
+  Operations App-speed data) before the deferred lazy-Firebase pass below.
 
 ### Deferred — lazy-load the Firebase SDK off the calendar's first paint
 
