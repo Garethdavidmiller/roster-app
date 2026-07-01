@@ -447,13 +447,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
                 let state;
                 if (!existing || !isManual) {
-                    // No override, or only a previous import — compare PDF vs base roster first
-                    if (normParsed === normBase) {
+                    // No override, or only a previous import.
+                    if (existing && !isManual && normRest(existing.value) === normParsed) {
+                        state = 'COVERED';  // previous import already equals the PDF — nothing to re-approve
+                    } else if (normParsed === normBase && !existing) {
+                        // PDF matches base AND there is no override to clean up — genuinely nothing to do.
                         state = 'MATCH';
-                    } else if (existing && !isManual &&
-                               (normRest(existing.value) === normParsed)) {
-                        state = 'COVERED';  // matches the previous import — nothing to re-approve
                     } else {
+                        // PDF differs from base, OR a stale differing import must be reverted/replaced.
+                        // The latter is the correction case: a prior bad import whose day now matches
+                        // base must NOT classify as MATCH, or the stale override would survive forever
+                        // (nothing gets written/deleted). As a DIFF, approving it deletes the old import
+                        // (replaceId) and writes the corrected value.
                         state = 'DIFF';
                     }
                 } else {

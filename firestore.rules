@@ -218,7 +218,11 @@ service cloud.firestore {
         request.resource.data.userAgent is string &&
         request.resource.data.userAgent.size() <= 150 &&
         request.resource.data.resolved == false &&
-        request.resource.data.timestamp is timestamp;
+        // Force the SERVER timestamp (serverTimestamp() resolves to request.time). Previously any
+        // client value passed, so a flood of shape-valid junk could be BACKDATED to corrupt triage
+        // in the admin Error Log. (Volume/abuse is the eventual App Check control — Track D — but
+        // pinning the timestamp closes the forgery vector now.)
+        request.resource.data.timestamp == request.time;
       allow read, update, delete: if
         request.auth != null && request.auth.token.admin == true;
     }

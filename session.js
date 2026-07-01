@@ -237,6 +237,12 @@ export async function ensureFirebaseSession(name, _gen) {
     // must not be reused — sign out and re-authenticate under the correct identity.
     if (existing) {
         if (!existing.isAnonymous && existing.email === nameToEmail(name)) return commit('named', true);
+        // Identity mismatch → sign the stale session out before re-authenticating. But gen-guard this
+        // side effect (like commit/recordError/the reset above): a SUPERSEDED retry that resumes here
+        // after a newer attempt already won would otherwise sign out the WINNER's freshly-established
+        // named session on the shared `auth`, leaving the store reading 'named' while auth.currentUser
+        // is null (silent permission-denied writes). If superseded, abort touching shared auth.
+        if (!fresh()) return commit('none', false);
         await firebaseSignOut(auth);
     }
 

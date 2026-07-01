@@ -87,7 +87,9 @@ export function init() {
       // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
       // path is never less robust than the reload path (the overlay is already torn down by then).
       const onSuccess = ROSTER_CONFIG.INPLACE_LOGIN.paycalc
-          ? () => { try { init(); } catch { window.location.reload(); } }
+          // Reload (fresh overlay) rather than re-invoke init() into a soft-lock if saveSession
+          // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
+          ? () => { try { if (!getSession()?.name) { window.location.reload(); return; } init(); } catch { window.location.reload(); } }
           : () => window.location.reload();
       initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess });
       return;

@@ -8,7 +8,7 @@
  * Edit here for: sync chip appearance, retry behaviour, initial fetch range.
  */
 
-import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, monthKey, fetchOverridesForRange } from './calendar-overrides.js';
+import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange } from './calendar-overrides.js';
 import { formatISO } from './roster-data.js';
 
 /**
@@ -25,11 +25,12 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
   // ensureOverridesCached() from issuing redundant per-month fetches
   // if renderCalendar() fires while the initial query is in flight.
   setInitialFetchInProgress(true);
-  addFetchedMonths([
+  const _initialMonthKeys = [
     monthKey(prev.getFullYear(), prev.getMonth()),
     monthKey(now.getFullYear(),  now.getMonth()),
     monthKey(next.getFullYear(), next.getMonth()),
-  ]);
+  ];
+  addFetchedMonths(_initialMonthKeys);
 
   /** @type {HTMLButtonElement|null} */
   let syncChip = null;
@@ -147,6 +148,11 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       if (_origGen !== _fetchGen) return;
       syncResolved = true;
       console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
+      // Release the 3 pre-claimed months so ensureOverridesCached() can re-fetch them on a later
+      // render/navigation. Without this they stay marked fetched forever and their overrides never
+      // load for the session — and the retry chip below only exists inside `.calendar-header`, which
+      // is absent in team-view and first-run, leaving those states with NO recovery path at all.
+      _initialMonthKeys.forEach(clearFetchedMonth);
       // A renderCalendar() call between the fetch start and the catch (e.g. from
       // visibilitychange) rebuilds the calendar header, detaching the chip from the
       // DOM. Re-create it if the reference is stale (null or disconnected).

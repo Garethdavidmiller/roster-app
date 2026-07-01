@@ -860,7 +860,10 @@ async function _handleDelete(e) {
     btn.disabled = true;
     btn.textContent = '…';
     try {
-        await deleteDoc(doc(db, COLLECTIONS.overrides, btn.dataset.id ?? ''));
+        // Wrap in writeWithClaimRetry so a just-provisioned manager on a pre-`manager`-claim token
+        // self-heals (force-refresh + retry once) instead of a hard permission-denied — parity with
+        // the executeSave / recordRangeOverrides / bulk-delete write paths.
+        await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.overrides, btn.dataset.id ?? '')));
         _allOverrides = _allOverrides.filter(o => o.id !== btn.dataset.id);
         renderTable();
         _onAfterSave();

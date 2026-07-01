@@ -163,7 +163,12 @@ export function buildRangePicker(prefix) {
     function commit() {
         fromInput.value = fromISO;
         toInput.value   = toISO;
-        if (toISO) toInput.dispatchEvent(new Event('change'));
+        // Always notify listeners — including when `to` is cleared (restarting a range by tapping a
+        // new start after a complete range). Firing only when `toISO` is set left the consumer's
+        // preview and save-button-disabled state stale from the previous range, so the still-enabled
+        // Record button silently no-opped on the now-incomplete range. The consumer's handler treats
+        // an empty range as zero working days (button disabled, preview cleared).
+        toInput.dispatchEvent(new Event('change'));
         updateChips();
         render();
     }

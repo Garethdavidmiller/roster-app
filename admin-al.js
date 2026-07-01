@@ -160,11 +160,16 @@ alSaveBtn.addEventListener('click', async () => {
     const memberObj = teamMembers.find(m => m.name === member);
     if (!confirmedOverLimit) {
         const memberOvByDate = buildMemberDateMap(member);
-        // Mirror recordRangeOverrides: exclude Sundays, existing RD overrides, and base rest days
+        // Mirror recordRangeOverrides EXACTLY: exclude Sundays; if an override exists, follow it
+        // (worked iff it is not a rest shift); otherwise fall back to the base shift. The previous
+        // version fell through to the base test even when a NON-rest override (e.g. RDW) existed, so a
+        // base-RD day with an RDW override was excluded here but INCLUDED by recordRangeOverrides — the
+        // entitlement check then counted fewer days than were actually booked, letting a booking slip
+        // over the cap without the over-limit confirm.
         const workingDates = dates.filter(d => {
             if (isSunday(d)) return false;
             const ov = memberOvByDate.get(d);
-            if (ov && isRestShift((/** @type {any} */ (ov)).value)) return false;
+            if (ov) return !isRestShift((/** @type {any} */ (ov)).value);
             const base = getBaseShift(/** @type {any} */ (memberObj), new Date(d + 'T12:00:00'));
             return !isRestShift(base);
         });

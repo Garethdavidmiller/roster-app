@@ -15,7 +15,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail } from './roster-data.js';
-import { db, doc, writeBatch, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
+import { db, doc, writeBatch, writeWithClaimRetry, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage } from './auth-policy.js';
@@ -1083,9 +1083,13 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     btn.disabled    = true;
     btn.textContent = '…';
     try {
-        const batch = writeBatch(db);
-        deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
-        await batch.commit();
+        // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's period delete
+        // self-heals via writeWithClaimRetry — parity with the other override write paths.
+        await writeWithClaimRetry(async () => {
+            const batch = writeBatch(db);
+            deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
+            await batch.commit();
+        });
         setAllOverrides(getAllOverrides().filter(o => !idSet.has(o.id)));
         renderTable();
         updateALBanner();

@@ -138,8 +138,11 @@ function extractAIJson(text) {
 
 // ── Column header → day index mapping ───────────────────────────────────────
 
-/** Maps day-name column headers (any case) to week index (0 = Sunday, 6 = Saturday). */
-const HEADER_TO_INDEX = {
+// Maps day-name column headers (any case) to week index (0 = Sunday, 6 = Saturday).
+// Null-prototype so a raw AI-supplied header that names an inherited Object property
+// ('constructor', 'toString', 'hasOwnProperty') resolves to undefined and is rejected as an
+// unrecognised header, rather than returning a truthy function that bypasses the guards below.
+const HEADER_TO_INDEX = Object.assign(Object.create(null), {
     'sun': 0, 'sunday': 0,
     'mon': 1, 'monday': 1,
     'tue': 2, 'tues': 2, 'tuesday': 2,
@@ -147,7 +150,7 @@ const HEADER_TO_INDEX = {
     'thu': 4, 'thur': 4, 'thurs': 4, 'thursday': 4,
     'fri': 5, 'friday': 5,
     'sat': 6, 'saturday': 6,
-};
+});
 
 /**
  * Map AI column headers to ISO date strings for the given week.
@@ -189,8 +192,18 @@ function mapColumnHeadersToDates(columnHeaders, dates) {
  */
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
+    const seenMembers = new Set();
     for (const entry of parsedMembers) {
         if (typeof entry.memberName !== 'string' || !entry.memberName.trim()) continue;
+        // Skip a repeated member (e.g. a two-page roster that lists someone on both pages, or an AI
+        // hallucinated duplicate). Two rows for the same member would render duplicate review rows and,
+        // on save, write the same date/member override doc twice with nondeterministic last-write-wins.
+        const memberKey = entry.memberName.trim();
+        if (seenMembers.has(memberKey)) {
+            console.warn(`[parseRosterPDF] Duplicate member "${memberKey}" in AI output — keeping the first, skipping the repeat`);
+            continue;
+        }
+        seenMembers.add(memberKey);
 
         // Default all dates to RD — covers any day the AI skips entirely
         const shifts = {};
