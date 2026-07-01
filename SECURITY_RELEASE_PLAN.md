@@ -339,15 +339,18 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
   another member's; a **manager** writes AND deletes another member's AL/sick (on-behalf works) but
   is still blocked from huddle/circular/newsletter/roster/auth; **admin** still writes for others;
   roster upload still saves — *then* tighten to strict.
-- **Optional independent hardening (v15.07 review H3):** today the only force-refresh on a stale-claim
-  `permission-denied` is `adminReadWithRetry` (admin *reads*); there is **no write-side equivalent**,
-  and `refreshClaimsIfStale` no-ops while `CLAIM_EPOCH == 0`. So a newly-provisioned or claim-changed
-  **manager** can appear signed in yet hit `permission-denied` on an on-behalf override *write* until
-  their token naturally refreshes (or they sign out/in; admin break-glass covers anything urgent). The
-  clean fix is the `CLAIM_EPOCH` sweep at cutover (above). As a **smaller safety net beforehand**, an
-  override write that fails `permission-denied` for a live named user could `getIdToken(true)` once and
-  retry once (mirroring `adminReadWithRetry`). **Do NOT bump `CLAIM_EPOCH` in the same release as a UX
-  rollout** (paycalc in-place login is mid-rollout) — separate the variables. See LOGIN_INCIDENT.md.
+- **Independent hardening (v15.07 review H3) — ✓ DONE (v15.18):** the write-side equivalent of
+  `adminReadWithRetry` now exists — `writeWithClaimRetry(writeFn)` in `firebase-client.js`
+  force-refreshes the token once and retries once on a stale-claim `permission-denied` with a live
+  user. Wired into all three `admin-overrides.js` override write paths (`executeSave` shift changes,
+  `recordRangeOverrides` AL/absence, and the override-list bulk delete); each passes a re-runnable
+  build-and-commit thunk because a `WriteBatch` can't be re-committed. So a newly-provisioned or
+  claim-changed **manager** who hits `permission-denied` on an on-behalf write self-heals immediately
+  instead of being told to sign out/in. 3 tests in `admin-overrides.test.mjs`. This is a safety net
+  that is **independent of — and does not replace —** the `CLAIM_EPOCH` sweep at the actual cutover
+  (`refreshClaimsIfStale` still no-ops while `CLAIM_EPOCH == 0`). **Do NOT bump `CLAIM_EPOCH` in the
+  same release as a UX rollout** (in-place login just completed at v15.17) — separate the variables.
+  See LOGIN_INCIDENT.md.
 
 ### B4 — server-owned roster/role lists
 - **Goal:** `setupRosterAuth` stops trusting the member/admin lists sent by the client; move to
