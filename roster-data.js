@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '15.08';
+export const APP_VERSION = '15.09';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -87,10 +87,12 @@ export const CONFIG = {
     // today's behaviour and can never lock anyone out. Recommended order: paycalc/operations first,
     // admin last (highest-traffic, most-wired). Each coordinator reads ONLY its own key.
     // ⚠️ KILL-SWITCH: set any key back to `false` to instantly restore that page's reload path.
-    //   ROLLOUT: paycalc (v15.07) then operations (v15.08) — login confirmed stable (freeze fixed
-    //   v14.75, B1 re-enabled v14.98). operations is admin-only (tiny blast radius). Next: links, then
-    //   admin/settings last. Watch the Operations App-speed "Signing in" data between each.
-    INPLACE_LOGIN:                    { operations: true, links: false, paycalc: true, admin: false, settings: false },
+    //   ROLLOUT: paycalc (v15.07), operations (v15.08), links (v15.09) — the three init-wrapped
+    //   coordinators. Login confirmed stable (freeze fixed v14.75, B1 re-enabled v14.98). NOTE:
+    //   ops/links are reached already-signed-in (their pill is hidden when signed out), so their
+    //   in-place path rarely fires — paycalc is the real validation, and it works. admin + settings
+    //   (branch-style, all-staff) are LAST — do a genuine multi-day watch before each.
+    INPLACE_LOGIN:                    { operations: true, links: true, paycalc: true, admin: false, settings: false },
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };

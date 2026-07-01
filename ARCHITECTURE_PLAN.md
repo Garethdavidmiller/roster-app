@@ -593,8 +593,10 @@ directly, and `admin-app.js` gets simpler. (Update CLAUDE.md's "Work email check
 5. **Settings** + the `refreshNavIdentity` nav-panel API (last; the only shared-module addition).
 6. Flip `INPLACE_LOGIN.<page>` on **one page at a time**, each proven live before the next; once all
    are stable, delete the flag + the dead reload paths. **▶ Live rollout status: paycalc ON (v15.07),
-   operations ON (v15.08); next = links → admin → settings** (admin/settings last). Between each:
-   watch the Operations App-speed "Signing in" data + a private-window role check.
+   operations ON (v15.08), links ON (v15.09) — the init-wrapped trio done; next = admin → settings**
+   (branch-style, all-staff — LAST). NOTE: ops/links are reached already-signed-in, so their in-place
+   path rarely fires — paycalc is the real validation (it works). Before admin/settings: a genuine
+   multi-day watch for "stuck after login" reports (App-speed "Signing in" is too sparse to rely on).
 
 **Dependency note:** independent of B1/B3 (works with `ENFORCE_NAMED_SESSION` either state). Best done
 **after** the owner confirms the v14.79–80 login changes are stable in production, so this builds on a
