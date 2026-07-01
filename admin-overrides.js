@@ -100,6 +100,8 @@ export function buildMemberDateMap(memberName) {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+/** Guard so initOverrides wires its delegated listeners only once (see initOverrides). */
+let _listenersWired = false;
 /**
  * Wire up all event listeners for the Change a Shift section.
  * Must be called once from admin-app.js after the DOM is ready.
@@ -123,9 +125,18 @@ export function initOverrides({ currentUser, currentIsAdmin, showSuccess, showEr
     _markChanged    = markChanged;
     _onEditRow      = onEditRow;
 
-    _initBulkBar();
-    _initOverridesTable();
-    _initTimeInputs();
+    // Wire the delegated listeners ONCE. initOverrides can be called twice on the in-place login path
+    // (an optimistic 'allow' init, then again from showAdminLogin's onSuccess after B1 clears an
+    // unconfirmable session). The table/bulk-bar listeners are delegated on stable containers and read
+    // module state (_currentUser etc.) at event time — which the re-assignment above keeps fresh — so
+    // attaching them a second time would double-fire every click (e.g. a single Delete tap would arm
+    // AND execute, bypassing the two-tap confirm). Identity still refreshes on every call; wiring does not.
+    if (!_listenersWired) {
+        _listenersWired = true;
+        _initBulkBar();
+        _initOverridesTable();
+        _initTimeInputs();
+    }
 }
 
 // ── WEEK GRID ─────────────────────────────────────────────────────────────────

@@ -97,12 +97,15 @@ export function isSafeStorageUrl(url) {
     try {
         const parsed = new URL(url);
         if (parsed.protocol !== 'https:') return false;
-        // Narrowed to THIS project's bucket (covers both myb-roster.appspot.com and
-        // myb-roster.firebasestorage.app) so a malformed/compromised write can't point a
-        // Huddle/Circular button at an unrelated Google Storage object. Firebase download
-        // URLs are …/v0/b/<bucket>/o/<path>; GCS URLs are storage.googleapis.com/<bucket>/<path>.
-        if (parsed.hostname === 'firebasestorage.googleapis.com') return parsed.pathname.startsWith('/v0/b/myb-roster');
-        if (parsed.hostname === 'storage.googleapis.com')         return parsed.pathname.startsWith('/myb-roster');
+        // Narrowed to THIS project's buckets so a malformed/compromised write can't point a
+        // Huddle/Circular button at an unrelated Google Storage object. Firebase download URLs are
+        // …/v0/b/<bucket>/o/<path>; GCS URLs are storage.googleapis.com/<bucket>/<path>. The bucket
+        // segment MUST be anchored with a trailing '/' — a bare prefix ('/myb-roster') would also
+        // match an attacker-registered global bucket named 'myb-rosterX' (GCS bucket names are
+        // globally unique and unclaimed variants can be registered), defeating the whole check.
+        const BUCKETS = ['myb-roster.appspot.com', 'myb-roster.firebasestorage.app'];
+        if (parsed.hostname === 'firebasestorage.googleapis.com') return BUCKETS.some(b => parsed.pathname.startsWith(`/v0/b/${b}/`));
+        if (parsed.hostname === 'storage.googleapis.com')         return BUCKETS.some(b => parsed.pathname.startsWith(`/${b}/`));
         return false;
     } catch (_) { return false; }
 }

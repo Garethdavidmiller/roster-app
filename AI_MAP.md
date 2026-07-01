@@ -520,6 +520,7 @@ Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by
 Shared slide-out navigation panel — imported by all six app pages.
 - `initNavPanel({ currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, onLogoClick })` — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
   - **Double-init guard:** checks `burger.dataset.navPanelInit` at the top — returns early if already initialised. Safe to call on every page render.
+- `resetNavPanel()` (v15.19) — tears down an initialised panel (removes injected DOM, clone-replaces the burger to drop its listeners, clears the guard + module state) so a later `initNavPanel()` rebuilds it with a fresh identity. Used on admin's in-place B1-teardown path, where the drawer was optimistically wired with a stale identity before the session was cleared and re-entered as a different user.
   - `isAdmin: true` enables the Operations pill (hidden from non-admins). `isLinksDesigner: true` enables the Links pill.
   - `onLogoClick` — called when the drawer brand button is tapped; each page passes `() => openAboutLightbox?.()` to open the About lightbox.
 - `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay / Operations / Links); admin-only and links-designer-only pills filtered by flags. Current page omitted from the pill row.

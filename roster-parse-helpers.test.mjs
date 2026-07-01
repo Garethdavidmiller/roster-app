@@ -107,6 +107,13 @@ describe('normaliseShift', () => {
     test('garbage string → RD', () => {
         assert.equal(normaliseShift('XYZZY'), 'RD');
     });
+    test('valid leading time with a trailing code → extracts the time (not silently dropped to RD)', () => {
+        assert.equal(normaliseShift('06:00-12:00 GER'), '06:00-12:00');
+        assert.equal(normaliseShift('0600-1200 CEA16'), '06:00-12:00');
+    });
+    test('trailing content after an OUT-OF-RANGE leading time still → RD', () => {
+        assert.equal(normaliseShift('29:00-12:00 GER'), 'RD');
+    });
     test('night shift time', () => {
         assert.equal(normaliseShift('22:00-06:00'), '22:00-06:00');
     });

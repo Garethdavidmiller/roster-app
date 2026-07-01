@@ -63,6 +63,18 @@ function normaliseShift(raw) {
         return `${match[1].padStart(2, '0')}:${match[2]}-${match[3].padStart(2, '0')}:${match[4]}`;
     }
 
+    // A value that STARTS with a valid time range but has trailing content — e.g. "06:00-12:00 GER"
+    // (a real worked shift annotated with a depot/notes code), which the anchored regex above rejects.
+    // Extract the leading time rather than defaulting to 'RD': if the member's base shift is also RD,
+    // an 'RD' here would classify as MATCH and silently drop a genuine worked shift from the roster.
+    // The extracted shift is still shown in the review table (surfaced as a DIFF when it differs from
+    // base). Genuinely unrecognised values (no valid leading time) still fall through to 'RD' below.
+    const lead = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})\b/);
+    if (lead && validHHMM(lead[1], lead[2]) && validHHMM(lead[3], lead[4])) {
+        console.warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
+        return `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
+    }
+
     console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — defaulting to RD`);
     return 'RD';
 }

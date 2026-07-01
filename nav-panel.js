@@ -140,6 +140,33 @@ export function archiveNotice({ id, title, section, date, body }) {
 }
 
 /**
+ * Tear down an already-initialised nav panel so initNavPanel() can rebuild it from scratch with a
+ * different identity. initNavPanel self-guards (burger.dataset.navPanelInit) and _inject APPENDS its
+ * DOM (a second call would duplicate the drawer), so there is otherwise no way to refresh the footer
+ * name / admin pills after the panel is wired. Used on the admin in-place B1-teardown path, where the
+ * nav was optimistically wired with a stale identity before the session was cleared and re-entered.
+ * Removes the injected DOM, drops the burger's listeners (via clone-replace) and clears the guard.
+ */
+export function resetNavPanel() {
+    if (_panelOpen) unlockBodyScroll();
+    ['navPanel', 'navPanelOverlay', 'navComingSoonLightbox', 'navNoticesLightbox']
+        .forEach(id => document.getElementById(id)?.remove());
+    const burger = document.getElementById('navMenuBtn');
+    if (burger) {
+        // Clone-replace drops every listener wired in the previous initNavPanel; removing the guard
+        // attribute lets the next initNavPanel treat the fresh burger as un-initialised.
+        const fresh = /** @type {HTMLElement} */ (burger.cloneNode(true));
+        fresh.removeAttribute('data-nav-panel-init');
+        fresh.setAttribute('aria-expanded', 'false');
+        burger.replaceWith(fresh);
+    }
+    _panelOpen = false;
+    _historyPushed = false;
+    _comingSoonOpen = false;
+    _noticesOpen = false;
+}
+
+/**
  * Initialise the navigation panel for the current page.
  * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, onLogoClick?: (() => void)|null }} opts
  *   onLogoClick — opens the page's existing About/version lightbox when the

@@ -25,7 +25,7 @@ import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { initNavPanel } from './nav-panel.js';
+import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { lockBodyScroll, unlockBodyScroll, initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -1610,7 +1610,13 @@ function initAuthorised() {
     // session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag OFF →
     // resolves 'named'/'anonymous' to 'allow', so this never fires (unchanged).
     _adminAuth.then(() => {
-        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); showAdminLogin(); }
+        // B1: this optimistic 'allow' init turned out to be an unconfirmable session → clear it and
+        // re-show the login overlay in place. resetNavPanel() first: the optimistic pass already wired
+        // the nav drawer with the (stale) identity (line ~1690, decision was 'allow'), and initNavPanel
+        // self-guards against re-wiring, so without a reset an in-place re-login as a DIFFERENT user
+        // would leave the previous member's name + admin pill in the drawer. Reset tears down the
+        // injected nav DOM + clears the guard so initAuthorised's wireNavPanel() rebuilds it fresh.
+        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); resetNavPanel(); showAdminLogin(); }
     });
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');

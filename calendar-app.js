@@ -720,6 +720,13 @@ const calendarAuthReady = authReady
 //   - If permission already granted: silently renew/migrate subscription (VAPID key rotation check)
 //   - If permission not yet asked: show one-off prompt strip on the calendar
 (function initNotifications() {
+    // Guard support FIRST. notifSupported() folds in the `'Notification' in window` check and the
+    // iOS-standalone rule, so in a plain iOS Safari tab (where the Notification global is absent)
+    // we return before ever touching `Notification.permission` — reading it unguarded threw a
+    // ReferenceError at module top level, aborting the rest of the module (nav panel, error
+    // reporter, keyboard nav). Do not reorder this below the permission checks.
+    if (!notifSupported()) return;
+
     // Already granted — getNotifState() handles VAPID rotation and keeps the
     // subscription fresh. Early-return avoids showing the prompt.
     if (Notification.permission === 'granted') {
@@ -727,8 +734,6 @@ const calendarAuthReady = authReady
         return;
     }
 
-    // notifSupported() folds in the iOS-standalone rule — no prompt in a plain browser tab.
-    if (!notifSupported()) return;
     if (Notification.permission === 'denied') return;
     if (lsGet('myb_notif_prompt_done')) return;
 
