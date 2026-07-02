@@ -766,7 +766,7 @@ export function init() {
                 title: 'Usage',
                 sections: [
                     { heading: 'What it shows', items: [
-                        { icon: '👥', html: '<strong>Accounts active</strong> — how many individual staff accounts have signed in this calendar month and over the last 30 days' },
+                        { icon: '👥', html: '<strong>Accounts active</strong> — how many individual staff accounts <strong>used the app</strong> this calendar month and over the last 30 days. Simply opening the app counts — a saved session doesn\'t need a fresh sign-in, so this is normally higher than the sign-in count on App Speed' },
                         { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened this month' },
                     ]},
                     { heading: 'Privacy', items: [
@@ -781,6 +781,7 @@ export function init() {
                     { heading: 'What it shows', items: [
                         { icon: '⚡', html: 'How long pages took to <strong>open</strong> for staff this month, grouped into <strong>Quick</strong> (under 1s), <strong>A moment</strong> (1–3s) and <strong>Slow</strong> (over 3s)' },
                         { icon: '📄', html: 'The bar for each page shows the mix — a page with a lot of red is opening slowly for some staff' },
+                        { icon: '🔑', html: '<strong>Signing in</strong> counts only <strong>fresh sign-ins</strong> — normally fewer than the accounts on the Usage card, because most staff open the app on a saved session without signing in again' },
                     ]},
                     { heading: 'How to read it', items: [
                         { icon: '🟢', html: 'Mostly green is healthy. A page is usually slower on a <strong>weak phone signal</strong> or right after an <strong>app update</strong> (the first load rebuilds the cache)' },
@@ -1187,6 +1188,7 @@ export function init() {
 
                 // Section 1 — Signing in (a distinct journey).
                 body.appendChild(subhead('🔑', 'Signing in'));
+                body.appendChild(noteLine('Only fresh sign-ins are timed — normally fewer than the accounts on the Usage card, since a saved session opens the app without signing in again.'));
                 body.appendChild(verdictBanner(perfVerdict(w.login.overall, 'login'), w.login.overall, w.login.total, 'sign-ins', windowLabel));
                 if (w.login.total) body.appendChild(overallBar(w.login.overall));
 
