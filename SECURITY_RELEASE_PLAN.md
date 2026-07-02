@@ -567,9 +567,13 @@ admin edits others' ✓; roster upload saves ✓.
       deterministic token-refresh mechanism. **Write-side stale-claim retry net BUILT v15.18**
       (`writeWithClaimRetry`, all three override write paths). **Full cutover runbook STAGED** (exact
       rule diff + reworked/added rules tests + ordered steps + rollback) — see "B3 cutover runbook"
-      above. **Remaining (owner-gated, in the window):** re-provision (done once as a warm-up; re-run
-      in-window), bump `CLAIM_EPOCH`→2 + let the sweep run, apply the staged strict rule + tests on a
-      fresh branch, verify the private-window matrix, THEN deploy.
+      above. **Progress:** managers re-provisioned (warm-up runs ~1–2 Jul 2026); **`CLAIM_EPOCH`
+      ARMED → 2 at v15.33** (the pre-cutover sweep — set to 2 because 1 shipped in v14.71 then was
+      hotfixed to 0 in v14.72, so some devices hold `myb_claim_epoch=1`). **Remaining (owner-gated):**
+      health-check the v15.33 hosting deploy in a private window → let the sweep settle ~3–7 days of
+      normal use (force-sign-out stragglers) → re-run Set up accounts in-window → apply the staged
+      strict rule + tests (`B3_STRICT_CUTOVER.HELD.md`) on a fresh branch → verify the private-window
+      matrix → THEN deploy the strict rule (a SEPARATE deploy from this sweep).
 - [ ] B4 — server-owned role lists (**admin + manager + designer**, all generated server-side)
 - [ ] C2 — email verification
 - [ ] C4 — forgotten-password reset

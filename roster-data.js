@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '15.32';
+export const APP_VERSION = '15.33';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -69,10 +69,14 @@ export const CONFIG = {
     // auto-refresh. Gated per-device by localStorage `myb_claim_epoch`; a force-refresh is a no-op
     // when the token is already current, so bumping is harmless. Bump again immediately before the
     // B3 strict-rule cutover so every active token carries its correct-tier claim first.
-    // ⚠️ DISABLED (0) alongside the B1 kill-switch (v14.72) to remove the forced token refresh as a
-    //   variable while diagnosing the login freeze. `refreshClaimsIfStale` no-ops when epoch is 0.
-    //   Restore to 1 (or bump) when re-enabling the B3 sweep.
-    CLAIM_EPOCH:                      0,
+    // Was DISABLED (0) alongside the B1 kill-switch (v14.72) while diagnosing the login freeze.
+    //   ARMED (2) at v15.33 to run the B3 pre-cutover token sweep: managers were re-provisioned
+    //   (Jul 2026), so this forces every active device to pick up its correct-tier claim on next
+    //   open. Set to 2 — NOT 1 — because 1 already shipped once (v14.71) so some devices recorded
+    //   `myb_claim_epoch=1`; only a value above every previously-shipped epoch re-sweeps them all.
+    //   This is the SWEEP, deployed hosting-only and separate from the strict rule; let it settle
+    //   ~3–7 days before the strict cutover. See SECURITY_RELEASE_PLAN.md → B3 + B3_STRICT_CUTOVER.HELD.md.
+    CLAIM_EPOCH:                      2,
     // In-place sign-in (ARCHITECTURE_PLAN.md → "Phase 9 — Remove the post-login reload"). When a
     // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the
     // overlay's onSuccess does `window.location.reload()` and the reloaded page re-runs init. ON
