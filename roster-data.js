@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '15.41';
+export const APP_VERSION = '15.42';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -692,7 +692,7 @@ export function getShiftClass(timeStr) {
     if (timeStr === 'RDW')   return 'rdw-day';
     if (timeStr === 'AL')    return 'al-day';
     if (timeStr === 'SICK')  return 'sick-day';
-    // Training / Induction / Assessment (OTHER_PLAN.md) — one bronze family class
+    // The Other family — Training / Induction / Assessment (OTHER_PLAN.md) — one leaf-green class
     // for every grammar form ('TRG', 'IND RDW', 'ASSESS 08:00-16:00', ...).
     if (isOtherValue(timeStr)) return 'other-day';
     if (!SHIFT_TIME_REGEX.test(timeStr)) {

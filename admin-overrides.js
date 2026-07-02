@@ -247,7 +247,7 @@ export function buildWeekGridInto(container, dateStr) {
                     <button type="button" class="other-flavour-btn" data-flavour="IND" aria-pressed="false">Induction</button>
                     <button type="button" class="other-flavour-btn" data-flavour="ASSESS" aria-pressed="false">Assessment</button>
                 </span>
-                <label class="trg-rdw-label"><input type="checkbox" class="other-rdw-cb"> Rest day (RDW)</label>
+                <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"> Rest day (RDW)</label>
                 <span class="other-opts-hint">Times optional — blank pays the default (base shift, or 8h RDW)</span>
             </div>`;
 
