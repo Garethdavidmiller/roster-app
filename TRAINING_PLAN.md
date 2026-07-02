@@ -1,7 +1,9 @@
 # TRAINING_PLAN.md — Training / Induction / Assessment days
 
-*Status: SPEC LOCKED (Jul 2026, all decisions confirmed by Gareth) — **Step 1 (Foundation) BUILT at v15.34**;
-steps 2–5 (display, pay engine, admin entry, guides) outstanding.
+*Status: **BUILT — all 5 steps complete** (foundation v15.34 · display v15.35 · pay engine v15.36 ·
+admin entry v15.37 · guides/docs v15.38). Verify live in a private window after deploy (375px badge
+fit + a real roster upload with a training day), then this file can be archived — the shipped
+behaviour is documented in CLAUDE.md, AI_MAP.md, OPERATIONS_REFERENCE.md and .claude/rules/paycalc.md.
 Working spec for the feature; delete or archive once shipped and documented in CLAUDE.md.
 Not version-stamped; not a runtime asset.*
 

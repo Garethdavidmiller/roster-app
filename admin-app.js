@@ -137,6 +137,7 @@ let openAboutLightbox = null;
                     { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift; use for spare-week confirmations, changed shift times, and swaps with colleagues' },
                     { icon: '💼', html: '<strong>RDW</strong> — rest day worked; use when someone works a full shift on their rest day' },
                     { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day back to a rest day' },
+                    { icon: '🎓', html: '<strong>Training</strong> — a training, induction or assessment day. Pick the type, tick "Rest day (RDW)" if it\'s on a rest day, and add times if you know them — blank times pay the default (the base shift, or 8 hours RDW)' },
                 ]},
             ],
         },
