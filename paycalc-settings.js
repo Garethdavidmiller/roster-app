@@ -246,9 +246,22 @@ export function loadSettings() {
   if (!done) {
     setSettingsCardOpen(true);
   } else {
-    // Mark all tax years confirmed if the global setup flag was already set (v1.13+)
-    CONFIG.TAX_YEARS.forEach(ty => {
-      if (!lsGet(settingsKey(ty))) lsSet(settingsKey(ty), '1');
-    });
+    // One-time legacy migration (was: run on EVERY load). Users who completed setup
+    // before per-tax-year confirmation tracking existed have SK.setup but no per-year
+    // flags — mark the tax years that exist NOW as confirmed so they aren't re-prompted
+    // for a year they already effectively set up.
+    //
+    // Guarded so it runs ONCE per member: a tax year ADDED LATER must NOT be swept up
+    // here, so its "👋 New tax year" setup banner appears the first time the member opens
+    // a period in it. Pay rates change every April, so silently carrying the old year's
+    // rate into a new one risked a stale-rate calculation with no prompt to review it.
+    // (Re-running on every load was what defeated the banner the UI copy already promises.)
+    const migratedKey = `${pcPrefix()}setup_years_migrated`;
+    if (!lsGet(migratedKey)) {
+      CONFIG.TAX_YEARS.forEach(ty => {
+        if (!lsGet(settingsKey(ty))) lsSet(settingsKey(ty), '1');
+      });
+      lsSet(migratedKey, '1');
+    }
   }
 }
