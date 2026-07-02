@@ -227,6 +227,7 @@ roster-app/
 ├── surname-parity.test.mjs ← asserts normaliseSurname (firebase-client.js) and nameToPassword (functions/roster-parse-helpers.js) stay in sync (behavioural + source-equivalence); part of test:hygiene
 ├── import-graph.test.mjs   ← detects circular imports across all root ES modules (regex-based, no build step)
 ├── admin-overrides.test.mjs ← tests for getEffectiveShift, validateShiftRules, buildMemberDateMap (--experimental-test-module-mocks)
+├── admin-roster-upload.test.mjs ← tests for shiftValueToOverrideType (parsed value → override type, incl. training + Sunday block) (--experimental-test-module-mocks)
 ├── nav-panel.test.mjs      ← tests for isNoticeExpired, archiveNotice, initNavPanel DOM guard (--experimental-test-module-mocks)
 ├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname, refreshClaimsIfStale (--experimental-test-module-mocks)
 ├── login-overlay.test.mjs  ← tests for runNamedSignIn: the sign-in core commits the local session ONLY after auth resolves (timeout/throw/enforce-fail → no save), enforce on/off, transient-vs-persistent messages (--experimental-test-module-mocks)
@@ -469,9 +470,11 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 ```
 date         "YYYY-MM-DD"
 memberName   Must match teamMembers[n].name exactly — one char mismatch = silent failure
-type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick"
+type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick" | "training"
              Legacy (still in data, not creatable): "allocated" | "overtime" | "swap"
-value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick
+value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
+             training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS", optional rest-day
+             marker, optional actual times (see TRAINING_PLAN.md; grammar single-source: override-utils.js)
 note         Free text — "" if none. Field must always be present.
 source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths
 createdAt    Firestore server timestamp

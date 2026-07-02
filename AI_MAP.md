@@ -25,7 +25,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `calendar-huddle-viewer.js` |
 | Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
 | Team Week View — initTeamView (grid, navigation, Firestore fetch, toggle) | `calendar-team-view.js` |
-| Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds | `override-utils.js` |
+| Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds; training value grammar + pay resolver | `override-utils.js` |
 | Body scroll lock, overlay history, focus trap, lightbox lifecycle, card collapse (lockBodyScroll, trapFocus, createLightbox, initCardCollapse, etc.) | `overlay.js` |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
@@ -335,7 +335,8 @@ The Weekly Roster Upload pipeline.
 - `initRosterUpload(opts)` — called by `operations-app.js` after session guard passes
 - `computeCellStates()` — classifies each day: MATCH / DIFF / CONFLICT / COVERED / REMOVE_IMPORT / UNREADABLE
 - `renderReviewTable()` — per-person card list with approve/skip
-- `shiftDisplay()`, `shiftValueToOverrideType()` — display and type helpers
+- `shiftDisplay()` — badge display helper (module scope)
+- `shiftValueToOverrideType(value, baseShift, date)` — parsed value → override `type`; **module-scope + EXPORTED (v15.34)** so it is unit-testable (`admin-roster-upload.test.mjs`). Maps the training grammar → `'training'`; Sunday AL/SICK/training → `'correction'` (the Sunday block).
 - **UNREADABLE (v15.30):** when `normaliseShift` (functions) can't parse a non-empty cell it returns a `UNKNOWN|<raw>` sentinel instead of defaulting to `RD` (which, when the base is also RD, silently dropped a real shift as a MATCH). `computeCellStates` maps the sentinel to a skip-only `UNREADABLE` row — surfaced in review, counted in the summary label, but never written (the save path only writes DIFF/CONFLICT). The admin fixes the source PDF and re-uploads, or records the shift manually.
 
 ### `paycalc-app.js`
@@ -557,6 +558,7 @@ Override priority, member-start, and shift-classification helpers — shared by 
 - `isBeforeMemberStart(member, date)` — returns true if `date` is before the member's `startDate`; used to suppress overrides before a member joined. Always call this — never inline the date comparison.
 - `isRestShift(shift)` — returns true if the shift is `'RD'` or `'OFF'`. Use everywhere instead of repeating the two-value check. Imported by `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-app.js`.
 - `computePeriodDeleteIds(allOverrides, { type, memberName, start, end })` (v14.24) — returns the override doc IDs to delete when re-saving an AL/absence range, including overlapping Sunday `correction/RD` overrides, so a re-save can't leave a stale Sunday correction behind. Pure; used by the admin save paths.
+- **Training family (v15.34, TRAINING_PLAN.md):** `TRAINING_FLAVOURS` (TRG/IND/ASSESS → badge word `Train`/`Ind`/`Assess` + full word `Training`/`Induction`/`Assessment`), `TRG_RDW_DEFAULT_MINS` (480 — the 8h training-rest-day default), `isTrainingValue(v)` / `parseTrainingValue(v)` (the value grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]` — client single source; a deliberate recognition-grammar duplicate lives in `functions/roster-parse-helpers.js`), and `resolveTrainingPay(parsed, baseValue)` — THE pay mapping in one place: `{mode:'rdw', mins}` (explicit RDW flag or rest-day base; actual times or the 8h default) | `{mode:'timed', time}` (rostered day with actual times — engine applies the base-cap + excess→OT split) | `{mode:'as-base'}` (pay exactly as the base shift). Display deliberately does NOT resolve — it shows the 🎓 badge.
 - Covered by `override-utils.test.mjs`
 
 ### `railcard-guide.js`

@@ -130,3 +130,101 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
         .map(o => o.id);
     return [...leaveIds, ...correctionIds];
 }
+
+// ── TRAINING / INDUCTION / ASSESSMENT (TRAINING_PLAN.md) ──────────────────────
+// One override type ('training') whose value uses a human-readable grammar that
+// mirrors the roster's own language:
+//
+//   value := FLAVOUR [" RDW"] [" HH:MM-HH:MM"]
+//   FLAVOUR := "TRG" | "IND" | "ASSESS"
+//
+// Examples: 'TRG' · 'IND RDW' · 'ASSESS 08:00-16:00' · 'TRG RDW 08:00-16:00'.
+// " RDW" marks a training rest-day (explicitly written on the roster as "TRG RDW");
+// the optional time range is the trainer's ACTUAL hours, entered manually by the
+// admin (roster uploads never carry times). This module is the client-side single
+// source for the grammar; a deliberate duplicate of the RECOGNITION grammar (the
+// looser roster-word aliases) lives in functions/roster-parse-helpers.js —
+// Cloud Functions are CommonJS and cannot import this module (same accepted
+// pattern as normaliseSurname). If the grammar changes, update both.
+
+/** Badge (short) and full display words per training flavour. Badge word shows in the
+ *  calendar-cell badge next to 🎓; full word is used on tap (day detail / tooltip / aria). */
+export const TRAINING_FLAVOURS = {
+    TRG:    { badge: 'Train',  full: 'Training'   },
+    IND:    { badge: 'Ind',    full: 'Induction'  },
+    ASSESS: { badge: 'Assess', full: 'Assessment' },
+};
+
+/** Default duration credited to a training REST-DAY (TRG RDW) when no actual times are
+ *  recorded: 8 hours, pre-filled into the pay calculator's RDW bucket for the member to
+ *  correct to the real hours (confirmed by Gareth, Jul 2026). Single source — never inline 480. */
+export const TRG_RDW_DEFAULT_MINS = 480;
+
+// Anchored full-string grammar. Time range is bounded HH:MM (00-23 / 00-59) so an
+// impossible time can never ride in on a training value.
+const _TRAINING_RE = /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/;
+
+/**
+ * True when a stored override/shift value is a training-family value (any flavour,
+ * with or without the RDW marker and optional times).
+ * @param {any} v
+ * @returns {boolean}
+ */
+export function isTrainingValue(v) {
+    return typeof v === 'string' && _TRAINING_RE.test(v);
+}
+
+/**
+ * Parse a training value into its parts, or null when it isn't one.
+ * @param {any} v
+ * @returns {{ flavour: 'TRG'|'IND'|'ASSESS', rdw: boolean, time: string|null } | null}
+ */
+export function parseTrainingValue(v) {
+    if (typeof v !== 'string') return null;
+    const m = v.match(_TRAINING_RE);
+    if (!m) return null;
+    return {
+        flavour: /** @type {'TRG'|'IND'|'ASSESS'} */ (m[1]),
+        rdw:     !!m[2],
+        time:    m[3] ? m[3].trim() : null,
+    };
+}
+
+/**
+ * Duration of an HH:MM-HH:MM range in minutes; overnight ranges wrap past midnight.
+ * @param {string} time
+ * @returns {number}
+ */
+function _shiftMins(time) {
+    const [st, en] = time.split('-');
+    const [sh, sm] = st.split(':').map(Number);
+    const [eh, em] = en.split(':').map(Number);
+    let mins = (eh * 60 + em) - (sh * 60 + sm);
+    if (mins <= 0) mins += 24 * 60;
+    return mins;
+}
+
+/**
+ * Resolve how a training day PAYS (TRAINING_PLAN.md — the pay mapping, in one place).
+ * Display deliberately does NOT use this — it shows the 🎓 badge; only pay consumers
+ * (paycalc-roster-suggestions.js) resolve training to the day underneath it.
+ *
+ * Modes:
+ *   'rdw'     — a training rest-day: explicit " RDW" flag OR (belt-and-braces) the base
+ *               is itself a rest day. mins = actual times when recorded, else the 8h
+ *               default (TRG_RDW_DEFAULT_MINS). All hours stay RDW — never split into OT.
+ *   'timed'   — a rostered day with actual times recorded: classify like a shift
+ *               override (the existing base-cap + excess→overtime split applies).
+ *   'as-base' — a rostered day, no times: pay exactly as the base shift (the member is
+ *               never paid less than their rostered shift, even if training runs short).
+ *
+ * @param {{ flavour: string, rdw: boolean, time: string|null }} parsed  from parseTrainingValue()
+ * @param {string} baseValue  the member's base roster shift for that date
+ * @returns {{ mode: 'rdw', mins: number } | { mode: 'timed', time: string } | { mode: 'as-base' }}
+ */
+export function resolveTrainingPay(parsed, baseValue) {
+    const rdw = parsed.rdw || isRestShift(baseValue);
+    if (rdw) return { mode: 'rdw', mins: parsed.time ? _shiftMins(parsed.time) : TRG_RDW_DEFAULT_MINS };
+    if (parsed.time) return { mode: 'timed', time: parsed.time };
+    return { mode: 'as-base' };
+}

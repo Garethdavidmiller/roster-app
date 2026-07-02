@@ -1,6 +1,7 @@
 # TRAINING_PLAN.md — Training / Induction / Assessment days
 
-*Status: SPEC LOCKED (Jul 2026, all decisions confirmed by Gareth) — build not started.
+*Status: SPEC LOCKED (Jul 2026, all decisions confirmed by Gareth) — **Step 1 (Foundation) BUILT at v15.34**;
+steps 2–5 (display, pay engine, admin entry, guides) outstanding.
 Working spec for the feature; delete or archive once shipped and documented in CLAUDE.md.
 Not version-stamped; not a runtime asset.*
 
@@ -64,10 +65,11 @@ Examples: `TRG` · `IND` · `ASSESS` · `TRG RDW` · `TRG 08:00-16:00` · `TRG R
 - `TRAINING_FLAVOURS = { TRG: {badge:'Train', full:'Training'}, IND: {badge:'Ind', full:'Induction'}, ASSESS: {badge:'Assess', full:'Assessment'} }`
 - `isTrainingValue(v)` / `parseTrainingValue(v)` → `{ flavour, rdw, time|null }` or `null`
 - `TRG_RDW_DEFAULT_MINS = 480` (the 8h default — one place)
-- `resolveOverrideShift(override, baseValue)` → the *effective shift for pay*: training resolves
-  per the pay mapping below; every other type returns `override.value`. **This helper is the
-  spine** — training is the only override that means “fall back to the base”, the inverse of
-  every other type, and this keeps that rule in exactly one place.
+- `resolveTrainingPay(parsed, baseValue)` → the pay mapping as a discriminated union —
+  `{mode:'rdw', mins}` | `{mode:'timed', time}` | `{mode:'as-base'}` (as built at v15.34; the plan's
+  earlier `resolveOverrideShift` name was refined — a single string return couldn't express the
+  8h-default RDW case). **This helper is the spine** — training is the only override that means
+  “fall back to the base”, the inverse of every other type, and this keeps that rule in one place.
 
 A deliberate duplicate of the recognition grammar lives server-side in
 `functions/roster-parse-helpers.js` (CommonJS cannot import browser ES modules — same accepted
