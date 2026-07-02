@@ -427,15 +427,21 @@ export function getSession() {
 /**
  * Persist a new session for the named user (30-day absolute expiry, idle clock starts now).
  * @param {string} name
+ * @returns {boolean} true if the session actually persisted; false when storage is blocked
+ *   (e.g. iOS Safari Private Browsing — lsSet swallows the SecurityError, so nothing is written).
+ *   The caller (runNamedSignIn) fails the sign-in cleanly on false instead of proceeding to a
+ *   reload loop where Firebase is signed in but getSession() forever returns null.
  */
 export function saveSession(name) {
     const now = Date.now();
-    lsSet(AUTH_KEY, JSON.stringify({
+    const payload = JSON.stringify({
         name,
         ver:          SESSION_VER,
         expiry:       now + SESSION_MS,
         lastActivity: now,
-    }));
+    });
+    lsSet(AUTH_KEY, payload);
+    return lsGet(AUTH_KEY) === payload;
 }
 
 /** Clear the session from localStorage AND sign out of Firebase Auth. This is the

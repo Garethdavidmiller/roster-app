@@ -51,7 +51,7 @@ function withTimeout(promise, ms) {
  * @param {object} deps
  * @param {boolean} deps.enforce                            CONFIG.ENFORCE_NAMED_SESSION
  * @param {() => Promise<boolean>} deps.ensureNamedSession  pre-bound to the member name
- * @param {() => void} deps.saveSession                     pre-bound to the member name
+ * @param {() => boolean} deps.saveSession                  pre-bound to the member name; returns false if storage is blocked
  * @param {() => void} deps.clearSession
  * @param {() => (string|null|undefined)} deps.getAuthError
  * @param {(code: any) => boolean} deps.isTransient
@@ -73,7 +73,14 @@ export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession,
                 ? 'Couldn’t reach sign-in — check your connection and try again.'
                 : 'Couldn’t complete sign-in. Ask your manager to set up your account.' };
     }
-    saveSession();              // commit ONLY now that auth has genuinely resolved
+    // Commit ONLY now that auth has genuinely resolved. If the write is swallowed (storage blocked —
+    // iOS Private Browsing), fail cleanly: without the local session every page re-check returns null,
+    // so an in-place re-init or reload would just loop back to this overlay. Sign back out (clearSession)
+    // so we don't strand a signed-in Firebase identity with no app session, and tell the user why.
+    if (!saveSession()) {
+        clearSession();
+        return { ok: false, error: 'This browser is blocking storage. Turn off Private Browsing, or open the installed app, then sign in again.' };
+    }
     return { ok: true };
 }
 
