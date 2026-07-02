@@ -439,6 +439,7 @@
         .pill-annual_leave { color: oklch(43.0% 0.1010 182.5deg);  } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
         .pill-sick         { color: var(--absence-text);            } .pill-sick.active         { background: var(--absence);  border-color: var(--absence);  }
         .pill-correction   { color: oklch(44.0% 0.1741 64.1deg);   } .pill-correction.active   { background: var(--orange);   border-color: var(--orange);   }
+        .pill-training     { color: var(--trg);                      } .pill-training.active     { background: var(--trg);      border-color: var(--trg);      }
         .pill-swap         { color: var(--blue-sky); } .pill-swap.active  { background: var(--blue-sky); border-color: var(--blue-sky); }
         /* Legacy pill colours — used for old Saved Changes records only, no active buttons */
         .pill-allocated    { color: var(--green);    }
@@ -941,6 +942,7 @@
         .lpill-annual_leave { background: var(--al-light);     color: var(--al-deep);  }
         .lpill-sick         { background: var(--absence-light); color: var(--absence); }
         .lpill-correction   { background: var(--orange-light); color: var(--correction-text); }
+        .lpill-training     { background: var(--trg-light);    color: var(--trg);      }
         /* Legacy list-pill colours — old Saved Changes records keep their original styling */
         .lpill-allocated    { background: var(--green-light);  color: var(--green);    }
         .lpill-overtime     { background: var(--ot-light);     color: var(--ot);       }
@@ -1848,3 +1850,36 @@
     transition: color 0.12s;
 }
 @media (hover: hover) and (pointer: fine) { .email-check-back:hover { color: var(--text-dark); } }
+
+/* ── Training sub-controls (TRAINING_PLAN.md) — flavour + RDW tick, shown while the
+   Training pill is active. Composed into FLAVOUR[" RDW"][" HH:MM-HH:MM"] on save. ── */
+.trg-opts {
+    grid-column: 1 / -1;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 6px 8px;
+    background: var(--trg-light);
+    border-radius: var(--radius-sm, 6px);
+    font-size: var(--type-small);
+}
+.trg-opts[hidden] { display: none; }
+.trg-flavour-group { display: inline-flex; gap: 4px; }
+.trg-flavour-btn {
+    font-size: 11px; font-weight: 700;
+    padding: 3px 10px; border-radius: 20px;
+    border: 1.5px solid var(--trg);
+    background: white; color: var(--trg);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.trg-flavour-btn.active { background: var(--trg); color: white; }
+.trg-rdw-label {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-weight: 600; color: var(--trg);
+    cursor: pointer; white-space: nowrap;
+}
+.trg-rdw-label input { accent-color: var(--trg); }
+.trg-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: 11px; }
+@media print {
+    .lpill-training { background: var(--trg-light) !important; color: var(--trg) !important; }
+    .trg-opts { display: none !important; }
+}

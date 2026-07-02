@@ -297,7 +297,7 @@ Sick Days Recording section (extracted v9.93).
 ### `admin-overrides.js`
 The Change a Shift module. Owns the week grid and override list entirely.
 - `TYPES` — type metadata object (label, pill, fixed, fixedValue). `pill` is the short button label used in both the per-row grid and the bulk bar.
-- `PILL_TYPES` — ordered array of type keys for both pill lists (`['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction']`). Single source of truth — `renderWeekGrid()` generates per-row pills from this; `admin-app.js` generates bulk-bar pills from this at init. Never duplicate the list. (v13.48)
+- `PILL_TYPES` — ordered array of type keys for both pill lists (`['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction', 'training']`). Single source of truth — `renderWeekGrid()` generates per-row pills from this; `admin-app.js` generates bulk-bar pills from this at init. Never duplicate the list. (v13.48; `training` added v15.37 — `TYPES.training` is `timesOptional: true` (time inputs shown, blank = valid → pay defaults) and activating it reveals the per-row `.trg-opts` sub-controls: flavour Train/Ind/Assess + an RDW tick pre-ticked on rest-day bases; the save collector in admin-app.js composes the grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`; `validateShiftRules` validates the time part of a timed training and skips untimed ones; Sunday training is blocked at pill/bulk/collect layers.)
 - `initOverrides(opts)` — called once by `admin-app.js` after login; receives callbacks
 - `renderWeekGrid()` — generates per-row type pills from `PILL_TYPES`
 - `loadOverrides()` / `renderTable()` — Saved Changes list
