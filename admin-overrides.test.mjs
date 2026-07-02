@@ -28,13 +28,19 @@ let _failNextCommits = 0;
 
 // Faithful copy of firebase-client.writeWithClaimRetry so recordRangeOverrides exercises the real
 // retry wiring in tests (the true function can't be imported — firebase-client.js pulls the CDN).
+// Mirrors the real helper's error-preservation: if the token refresh itself fails, the ORIGINAL
+// permission-denied is re-thrown (not the refresh error) so callers key their message on err.code.
 async function mockWriteWithClaimRetry(writeFn) {
     try {
         return await writeFn();
     } catch (err) {
         const user = mockAuth.currentUser;
         if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
-            await user.getIdToken(true);
+            try {
+                await user.getIdToken(true);
+            } catch {
+                throw err;                     // preserve the original permission-denied
+            }
             return await writeFn();
         }
         throw err;
@@ -439,6 +445,30 @@ describe('recordRangeOverrides — stale-claim retry', () => {
         // One forced refresh only — no retry loop, so a genuine authorisation denial isn't masked.
         assert.deepEqual(refreshCalls, [true], 'exactly one forced token refresh, then the denial stands');
         assert.equal(getAllOverrides().length, 0, 'nothing is written when both attempts fail');
+    });
+
+    test('when the token refresh itself fails, the ORIGINAL permission-denied is preserved (not the refresh error) and the write is not retried', async () => {
+        let refreshCalls = 0;
+        mockAuth.currentUser = {
+            uid: 'mgr',
+            // Refresh blows up (offline/flaky) — its network error must NOT replace the permission-denied.
+            getIdToken: async () => { refreshCalls++; throw new Error('network-request-failed'); },
+        };
+        // Count commit attempts via _failNextCommits: first commit throws permission-denied; if the
+        // helper wrongly retried after a failed refresh, a second commit would run.
+        _failNextCommits = 1;
+        const _origLen = getAllOverrides().length;
+        await assert.rejects(
+            () => recordRangeOverrides({
+                type: 'annual_leave', value: 'AL',
+                memberName: 'G. Miller', dates: ['2026-06-15'], changedBy: 'S. Stewart',
+            }),
+            /** @param {any} err */ err => err?.code === 'permission-denied' && !/network/.test(err?.message ?? ''),
+        );
+        assert.equal(refreshCalls, 1, 'exactly one refresh attempt');
+        // _failNextCommits stays at 0 (consumed by the single first commit); had it retried, it would
+        // have attempted a second commit that (with the counter at 0) would have SUCCEEDED and written.
+        assert.equal(getAllOverrides().length, _origLen, 'no write lands — the failed refresh aborts before any retry');
     });
 });
 

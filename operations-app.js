@@ -121,7 +121,14 @@ export function init() {
         } catch (err) {
             const user = auth.currentUser;
             if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
-                await user.getIdToken(true);   // force refresh → pick up the admin claim
+                // If the refresh itself fails (offline/flaky), do NOT let its network error replace the
+                // original permission-denied — mirrors writeWithClaimRetry so the card's catch keys its
+                // silent-fallback message on the genuine error, not a spurious connectivity one.
+                try {
+                    await user.getIdToken(true);   // force refresh → pick up the admin claim
+                } catch {
+                    throw err;                     // preserve the original permission-denied
+                }
                 return await readFn();          // retry once with the fresh token
             }
             throw err;
