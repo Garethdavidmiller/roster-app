@@ -372,6 +372,14 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
 
 #### B3 cutover runbook (staged, pre-window — nothing here is deployed)
 
+> **Exact, line-verified patch:** `B3_STRICT_CUTOVER.HELD.md` (repo root) holds the ready-to-apply
+> `firestore.rules` diff AND the `firestore.rules.test.mjs` rework, verified against the live files
+> at v15.32. It is a `.md` (the strict rules live in fenced text, so nothing deploys). Apply it on a
+> fresh window-time branch. The steps below are the surrounding overview; that file is the patch.
+> **Note the test rework is broader than a naive "create tests" swap:** the whole `describe('overrides')`
+> field-validation block uses `staffDb()` (no-name), which strict denies — every one must move to
+> `namedDb('G. Miller')`, and the no-name escape test flips to `assertFails` (+ a delete mirror).
+
 Everything below is **HELD**. It must NOT be committed to `firestore.rules` on any branch you will
 merge before the window — merging to `main` runs `deploy-rules.yml` and ships the rule LIVE. Apply it
 on a **fresh branch cut at window time**, in this order. (The write-side retry net, v15.18, is already
