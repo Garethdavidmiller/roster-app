@@ -199,6 +199,14 @@ export function getRosterSuggestion(p, member) {
     //             existing base-cap + excess→overtime split applies unchanged below.
     //   as-base → no times: pay exactly as the base shift (weekday → contracted basic,
     //             Sat/BH/Boxing → that day's premium bucket; never less than the shift).
+    // ABSENCE = FULL PAY (owner, Jul 2026): a sick/absent day (incl. HA hospital appointments
+    // and OD long-term-sick markings) pays exactly as the day underneath — a rostered Saturday/
+    // BH keeps its premium at base hours; a weekday contributes nothing extra (basic pay already
+    // covers it); a BASE REST DAY contributes nothing at all (the overpay guard for blanket
+    // Mon–Fri OD weeks). AL is deliberately NOT changed — leave pay is payroll's own mechanism.
+    if (ov && ov.type === 'sick') {
+      effValue = baseValue; effType = null;
+    }
     const _otherParsed = ov && ov.type === 'other' ? parseOtherValue(ov.value) : null;
     let _otherFromOv = null;   // null = not a training day; boolean = fromOv override below
     if (_otherParsed) {
@@ -246,7 +254,7 @@ export function getRosterSuggestion(p, member) {
       const dow      = cur.getDay(); // 0 = Sun, 6 = Sat
       const isBoxing = cur.getMonth() === 11 && cur.getDate() === 26;
       const isBH     = !isBoxing && _isDateBH(cur);
-      const fromOv   = _otherFromOv !== null ? _otherFromOv : !!ov;
+      const fromOv   = _otherFromOv !== null ? _otherFromOv : (ov && ov.type === 'sick' ? false : !!ov);
 
       // Pre-compute base duration to cap rostered hours and detect overtime
       // when admin extends a shift beyond the base roster.

@@ -485,7 +485,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // Bilingual roster uses 'OFF' for rest days; AI always returns 'RD'.
                 // Treat them as identical for all comparison purposes.
                 const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
-                const normParsed = normRest(sundaySafe);
+                // Absence on a BASE REST DAY normalises to RD (owner, Jul 2026): full-pay absence
+                // only applies to days the member was rostered to work. This is the overpay guard
+                // for blanket Mon–Fri "OD" markings on long-term sick members — rest days inside
+                // the blanket classify MATCH (never written), and a STALE imported absence on a
+                // rest day becomes REMOVE_IMPORT on re-upload (deleted, nothing written).
+                const restSafe   = (normRest(sundaySafe) === 'SICK' && normRest(baseShift) === 'RD')
+                    ? 'RD' : sundaySafe;
+                const normParsed = normRest(restSafe);
                 const normBase   = normRest(baseShift);
 
                 let state;
@@ -526,10 +533,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 states.set(key, {
                     state,
                     parsedShift,
-                    // What the row DISPLAYS as the incoming value. Differs from parsedShift only on
-                    // a Sunday whose AL/SICK/Other value was normalised to RD — the save path writes
-                    // the correction/RD, so the row must show RD, not a value that won't be saved.
-                    displayShift: sundaySafe,
+                    // What the row DISPLAYS as the incoming value. Differs from parsedShift only
+                    // where a value was normalised to RD (Sunday AL/SICK/Other, or absence on a base
+                    // rest day) — the row must show what will actually be saved.
+                    displayShift: restSafe,
                     baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
