@@ -29,9 +29,11 @@ export const TYPES = {
     correction:   { label: 'Set as Rest Day',  pill: 'Rest Day', fixed: true,  fixedValue: 'RD' },
     sick:         { label: 'Absent',           pill: 'Absent',   fixed: true,  fixedValue: 'SICK' },
     // Training / Induction / Assessment (TRAINING_PLAN.md). NOT fixed — the time inputs show —
-    // but timesOptional: blank times are VALID (pay defaults apply: base shift on a rostered
+    // but times are OPTIONAL: blank is VALID (pay defaults apply: base shift on a rostered
     // day, 8h RDW on a training rest-day). Value is composed at save time from the row's
     // flavour buttons + RDW tick + optional times: FLAVOUR[" RDW"][" HH:MM-HH:MM"].
+    // `timesOptional` is DESCRIPTIVE metadata — consumers branch on type === 'training'
+    // explicitly (collector, validateShiftRules, prefill); keep it for the next such type.
     training:     { label: 'Training',         pill: 'Training', fixed: false, timesOptional: true },
     // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
     allocated:    { label: 'Allocated shift',  fixed: false },
@@ -1179,9 +1181,21 @@ export function validateShiftRules(toSave, memberName) {
             adjDate.setDate(adjDate.getDate() + delta);
             const adjISO   = formatISO(adjDate);
             let adjShift = getEffectiveShift(memberName, adjISO, toSave);
-            // Adjacent training values: only a TIMED training constrains the rest gap.
+            // Adjacent training values: a TIMED training constrains via its actual times; an
+            // untimed as-base training constrains via its BASE shift (the member attends those
+            // hours); only an untimed training REST-day is exempt (its hours are unknowable here).
             const _adjTrg = parseTrainingValue(adjShift);
-            if (_adjTrg) { if (!_adjTrg.time) return; adjShift = _adjTrg.time; }
+            if (_adjTrg) {
+                if (_adjTrg.time) {
+                    adjShift = _adjTrg.time;
+                } else if (_adjTrg.rdw) {
+                    return;
+                } else {
+                    const _adjMember = teamMembers.find(m => m.name === memberName);
+                    adjShift = _adjMember ? getBaseShift(_adjMember, new Date(adjISO + 'T12:00:00')) : '';
+                    if (parseTrainingValue(adjShift) || isRestShift(adjShift)) return;
+                }
+            }
             if (!adjShift || !adjShift.includes('-')) return;
             const [adjStart, adjEnd] = adjShift.split('-');
             if (delta === -1) {

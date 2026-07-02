@@ -76,7 +76,7 @@ export function createDayCell(/** @type {any} */ date, /** @type {any} */ shift,
     return `
         <div class="day-number">${date.getDate()}</div>
         ${badge}
-        ${isWorkedDay && !permanentShift && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
+        ${isWorkedDay && (!permanentShift || shift === 'RDW' || isTrg) && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
     `;
 }
 
@@ -178,6 +178,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // for Dec 25, while Dec 26 (Boxing Day) can still become RDW for overtime.
         let overrideNote = '';
         let rdwTime = '';
+        let trgDerivedRdw = false;   // training on a rest-day base — RDW even without the flag
         const dateStr = formatISO(currentDate);
         {
             const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
@@ -199,8 +200,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
                     // the BASE shift time (rostered-day training happens during your shift) →
                     // blank (e.g. spare-week training: badge only).
                     const _t = /** @type {any} */ (parseTrainingValue(override.value));
-                    rdwTime = _t.time ?? ((_t.rdw || isRestShift(shift)) ? 'RDW'
-                        : (/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shift) ? shift : ''));
+                    trgDerivedRdw = _t.rdw || isRestShift(shift);
+                    rdwTime = _t.time ?? (trgDerivedRdw ? 'RDW'
+                        : (/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(shift) ? shift : ''));
                     shift = override.value;
                     overrideNote = override.note;
                 } else {
@@ -227,7 +229,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
             : shift === 'RDW'   ? 'Rest day worked'
             // Training: the FULL word on tap/tooltip/aria (badge carries the short word).
             : _trgParsed ? TRAINING_FLAVOURS[_trgParsed.flavour].full
-                + ((_trgParsed.rdw || rdwTime === 'RDW') ? ' — Rest Day Worked' : '')
+                + ((_trgParsed.rdw || trgDerivedRdw) ? ' — Rest Day Worked' : '')
                 + (_trgParsed.time ? ` ${_trgParsed.time}` : '')
             : SHIFT_KIND_LABELS[getShiftKind(shift, member)]
                 + (member.permanentShift ? '' : ` ${shift}`);

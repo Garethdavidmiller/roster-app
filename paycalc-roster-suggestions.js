@@ -202,23 +202,36 @@ export function getRosterSuggestion(p, member) {
     let _trgFromOv = null;   // null = not a training day; boolean = fromOv override below
     if (_trgParsed) {
       if (cur.getDay() === 0) {
-        // Sunday training cannot exist (blocked at every write layer); ignore a legacy doc.
-        cur.setDate(cur.getDate() + 1);
-        continue;
+        // Sunday training cannot exist (blocked at every write layer). A legacy/out-of-band doc
+        // falls back to the BASE shift — matching the display layers, which suppress the override
+        // and show the base. (Skipping the whole day would silently DROP a worked base Sunday's
+        // 1.5× hours from the suggestion while the calendar still showed them.)
+        effValue = baseValue; effType = null; _trgFromOv = false;
+      } else {
+        const _pay = resolveTrainingPay(_trgParsed, baseValue);
+        if (_pay.mode === 'rdw') {
+          // Route the rest-day-worked minutes by the DAY, mirroring a plain rdw override:
+          // Boxing Day (26 Dec) is ALWAYS 3× (confirmed payroll rule — the box bucket), a bank
+          // holiday pays as BH overtime ("Bank Holiday Overtime 1.25"), anything else is RDW.
+          const _mins     = _pay.mins;
+          const _labelTxt = _trgParsed.time ?? `${TRG_RDW_DEFAULT_MINS / 60}h default — adjust to actual`;
+          const _isBoxingT = cur.getMonth() === 11 && cur.getDate() === 26;
+          if (_isBoxingT) {
+            boxMins += _mins; boxCount++;
+            days.push({ date: new Date(cur), shift: _labelTxt, type: 'box', source: 'override' });
+          } else if (_isDateBH(cur)) {
+            bhOtMins += _mins; bhOtCount++;
+            days.push({ date: new Date(cur), shift: _labelTxt, type: 'bhOt', source: 'override' });
+          } else {
+            rdwMins += _mins; rdwCount++;
+            days.push({ date: new Date(cur), shift: _labelTxt, type: 'rdw', source: 'override' });
+          }
+          cur.setDate(cur.getDate() + 1);
+          continue;
+        }
+        if (_pay.mode === 'timed') { effValue = _pay.time;  effType = 'shift'; _trgFromOv = true; }
+        else                       { effValue = baseValue;  effType = null;    _trgFromOv = false; }
       }
-      const _pay = resolveTrainingPay(_trgParsed, baseValue);
-      if (_pay.mode === 'rdw') {
-        rdwMins += _pay.mins; rdwCount++;
-        days.push({
-          date: new Date(cur),
-          shift: _trgParsed.time ?? `${TRG_RDW_DEFAULT_MINS / 60}h default — adjust to actual`,
-          type: 'rdw', source: 'override',
-        });
-        cur.setDate(cur.getDate() + 1);
-        continue;
-      }
-      if (_pay.mode === 'timed') { effValue = _pay.time;  effType = 'shift'; _trgFromOv = true; }
-      else                       { effValue = baseValue;  effType = null;    _trgFromOv = false; }
     }
 
     if (effValue && effValue.includes('-') && effValue.includes(':')) {

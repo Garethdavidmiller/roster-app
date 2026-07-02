@@ -285,6 +285,15 @@ describe('createDayCell', () => {
         assert.ok(!html.includes('badge-early'), 'permanentShift badge must not override training');
     });
 
+    test('training hours slot shows for permanentShift members too (RDW/training exempt from the gate)', () => {
+        // Fixed-roster members (permanentShift) normally show no time line — but for training
+        // the hours slot is the only cell-level carrier of the times/RDW detail.
+        const html = createDayCell(JAN_1, 'TRG RDW', 'early', true, 'RDW');
+        assert.ok(html.includes('<div class="shift-time">RDW</div>'), 'hours slot visible despite permanentShift');
+        const html2 = createDayCell(JAN_1, 'RDW', 'early', true, '09:00-17:00');
+        assert.ok(html2.includes('09:00-'), 'RDW time also visible despite permanentShift (consistency fix)');
+    });
+
     test('training never leaks its raw value into the hours slot', () => {
         // Spare-week training: no base time to show → side-channel empty → badge only.
         const html = createDayCell(JAN_1, 'TRG', undefined, true, '');
