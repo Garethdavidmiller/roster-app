@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v15.40
+// MYB Roster — Service Worker v15.41
 // Strategy:
 //   HTML documents (navigations)
 //               → Network-first: a returning user always lands on the freshest
@@ -13,16 +13,17 @@
 //                 independent of which JS version is cached.
 //   Icons, fonts, manifest → Cache-first: stable assets served instantly; fetched on miss.
 //
-// self.skipWaiting() on install activates the new SW immediately.
+// self.skipWaiting() on install activates the new SW immediately — install does
+// NOTHING else (v15.41: precache moved to a detached post-activation warm-up, so
+// activation is never held behind ~90 re-fetches; see the install handler note).
 // self.clients.claim() makes the new SW take control of all open tabs at once.
-// Together these mean updates go live on the current tab without a manual reload
-// in most cases — but the app also sends SKIP_WAITING on the rare edge case
-// where a waiting SW needs a nudge.
+// Together these mean an update lands within moments of opening the app — the
+// app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 //
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '15.40';
+const APP_VERSION = '15.41';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -183,50 +184,66 @@ const ICON_ASSETS = [
 ];
 
 // ============================================
-// INSTALL — pre-cache all assets
+// INSTALL — activate immediately; precache happens AFTER activation (see below)
 // ============================================
-self.addEventListener("install", event => {
-    console.log(`[SW ${APP_VERSION}] Installing`);
-    // skipWaiting here (not inside event.waitUntil) so the new SW activates
-    // immediately — without waiting for pre-caching to finish. Precaching populates the
-    // new version's cache so the stale-while-revalidate JS/CSS path serves instantly;
-    // it must not delay activation, hence skipWaiting runs first.
+// ⚠ THE UPDATE-LAG FIX (v15.41). Precaching used to run inside install's
+// event.waitUntil — and despite the early skipWaiting() call, a service worker
+// CANNOT leave the 'installing' state until install's waitUntil settles. That
+// held every update hostage to ~90 no-cache re-fetches: on a phone the new
+// version took seconds-to-minutes to activate, and only THEN did the
+// controllerchange reload fire — so the app abruptly reloaded itself long
+// after staff had started using it ("the app updates with a lot of lag").
+// Now install finishes instantly → activate → claim → the reload lands within
+// moments of opening the app, and the cache is warmed in the background.
+self.addEventListener("install", () => {
+    console.log(`[SW ${APP_VERSION}] Installing (instant — precache deferred to post-activation)`);
     self.skipWaiting();
-    // event.waitUntil keeps the SW alive while background pre-caching completes.
-    // allSettled means a single 404 / network blip on one file does not abort the
-    // whole install; failures are logged and the fetch handler re-fetches on demand.
-    event.waitUntil((async () => {
-        const cache = await caches.open(CACHE_NAME);
-        const precache = asset => fetch(new Request(asset, { cache: 'no-cache' }))
-            .then(res => { if (res.ok) return cache.put(asset, res); })
-            .catch(err => console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err));
-        await Promise.allSettled(CORE_ASSETS.map(precache));
-        await Promise.allSettled([...SUPPLEMENTARY_ASSETS, ...FONT_ASSETS, ...ICON_ASSETS].map(precache));
-        console.log(`[SW ${APP_VERSION}] Pre-cached`);
-    })());
 });
 
+/** Warm the new version's cache. Runs DETACHED after activation (never inside a
+ *  waitUntil — install's would delay activation; activate's would block every
+ *  fetch until it finished, hanging the freshly-reloaded page). allSettled means
+ *  a single 404 / network blip skips that file; the SWR fetch path re-fetches
+ *  any miss on demand, so precache is an optimisation, not a correctness need.
+ *  Old-version caches are deleted ONLY after the warm-up completes — until then
+ *  the SWR path can still fall back to the previous version's copy if the
+ *  network drops mid-transition (offline-first holds through the window). If
+ *  the browser kills the SW mid-warm-up, leftover old caches are swept by the
+ *  next version's warm-up instead — storage cost, never breakage. */
+async function warmCacheAndSweepOld() {
+    const cache = await caches.open(CACHE_NAME);
+    const precache = asset => fetch(new Request(asset, { cache: 'no-cache' }))
+        .then(res => { if (res.ok) return cache.put(asset, res); })
+        .catch(err => console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err));
+    await Promise.allSettled(CORE_ASSETS.map(precache));
+    await Promise.allSettled([...SUPPLEMENTARY_ASSETS, ...FONT_ASSETS, ...ICON_ASSETS].map(precache));
+    console.log(`[SW ${APP_VERSION}] Pre-cached`);
+    const cacheNames = await caches.keys();
+    await Promise.all(
+        cacheNames
+            // Only prune THIS app's old version caches (myb-roster-v*). Scoping the
+            // delete by prefix means we never clobber a cache owned by something else
+            // sharing the origin, instead of deleting every non-current cache.
+            .filter(name => name.startsWith('myb-roster-v') && name !== CACHE_NAME)
+            .map(name => {
+                console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
+                return caches.delete(name);
+            })
+    );
+}
+
 // ============================================
-// ACTIVATE — delete old caches, claim all open tabs
+// ACTIVATE — claim all open tabs IMMEDIATELY; cache warm-up runs detached
 // ============================================
+// waitUntil holds ONLY the (instant) claim: functional events (fetch) are queued
+// until activate's waitUntil settles, so putting the precache here would hang
+// the freshly-reloaded page's every request until ~90 files finished. The
+// warm-up + old-cache sweep run as a detached promise instead — the post-claim
+// reload's own fetch traffic keeps the SW alive while it completes.
 self.addEventListener("activate", event => {
-    console.log(`[SW ${APP_VERSION}] Activating`);
-    event.waitUntil((async () => {
-        const cacheNames = await caches.keys();
-        await Promise.all(
-            cacheNames
-                // Only prune THIS app's old version caches (myb-roster-v*). Scoping the
-                // delete by prefix means we never clobber a cache owned by something else
-                // sharing the origin, instead of deleting every non-current cache.
-                .filter(name => name.startsWith('myb-roster-v') && name !== CACHE_NAME)
-                .map(name => {
-                    console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
-                    return caches.delete(name);
-                })
-        );
-        console.log(`[SW ${APP_VERSION}] Claiming all clients`);
-        return self.clients.claim();
-    })());
+    console.log(`[SW ${APP_VERSION}] Activating — claiming clients`);
+    event.waitUntil(self.clients.claim());
+    warmCacheAndSweepOld().catch(err => console.warn(`[SW ${APP_VERSION}] cache warm-up failed:`, err));
 });
 
 // ============================================
@@ -341,7 +358,11 @@ self.addEventListener("fetch", event => {
                 try { event.waitUntil(network); } catch (_e) { /* event already settled */ }
                 return cached;
             }
-            return (await network) || Response.error();
+            // Cold current-version cache AND network failed: fall back to ANY cached copy
+            // (caches.match searches every cache, incl. the previous version's — which the
+            // warm-up deliberately keeps until the new cache is fully populated). This keeps
+            // the app offline-usable during the brief post-update transition window.
+            return (await network) || (await caches.match(event.request)) || Response.error();
         })());
     } else {
         // Cache-first: icons/manifest served from cache instantly, fetched if missing

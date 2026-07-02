@@ -289,6 +289,7 @@ npm run test:e2e
 ```
 
 **Service worker caching:**
+- **Update lifecycle (v15.41):** install does ONLY `skipWaiting()`; activate does ONLY `clients.claim()`; the ~90-file precache runs as a DETACHED post-activation warm-up, and old-version caches are deleted only after it completes (the SWR path falls back to any cached copy meanwhile). Never move the precache back into install's or activate's `waitUntil` — install's held every update behind ~90 no-cache fetches (the "app updates with a lot of lag" complaint: the controllerchange reload landed seconds-to-minutes after staff had started using the old version), and activate's would queue every fetch of the freshly-reloaded page behind the warm-up.
 - Network-first: HTML documents (navigations) — freshest entry point when online, cache fallback offline
 - Stale-while-revalidate: all JS + CSS (v14.18) — served instantly from cache, refreshed in the background. Code freshness is preserved by the version-bump → new SW → new cache lifecycle (each deploy precaches fresh assets and the new SW claims immediately); roster DATA is always live from Firestore regardless of cached JS version
 - Cache-first: icons, fonts, `manifest.json` — stable assets
