@@ -163,17 +163,27 @@ surface to debug when something goes silent.
 Each phase: **Goal · Who · Risk · Mitigation · Rollback · Go/no-go gate.**
 "Claude" = branch + test work; "Owner" = Firebase/GCP Console or a chosen production window.
 
-### A1 — firebase-admin v14 (clears 9 moderate advisories)
+### A1 — clear the transitive `uuid` advisories in `functions/` ✓ DONE (v15.32-era, uuid override)
 - **Goal:** remove the transitive `uuid` advisories in `functions/`.
-- **Who:** Claude (mechanical), owner deploys.
-- **Status:** externally blocked — `firebase-functions@7.x` peers `^11||^12||^13`. Not a
-  readiness gap; a wait.
-- **Risk:** v14 dropped the legacy `admin.firestore` namespace → `FieldValue` import path
-  changes; an unaudited call site breaks a Cloud Function at runtime.
-- **Mitigation:** follow the step list in KNOWN_LIMITATIONS → "firebase-admin upgrade to v14";
-  test all three functions (ingestHuddle, parseRosterPDF, setupRosterAuth) pre-deploy.
-- **Rollback:** revert the `functions/package.json` bump; functions redeploy from the prior lockfile.
-- **Gate:** `npm outdated` in `functions/` shows `firebase-functions` peering `^14`. Until then, do not start.
+- **Resolution (chosen):** a scoped **`overrides: { "uuid": "^11.1.1" }`** in `functions/package.json`,
+  keeping firebase-admin at the supported **`^13.10.0`**. `npm audit --omit=dev` → **0 vulnerabilities**
+  (was 9 moderate). Module-load smoke test passed (uuid, @google-cloud/storage, gaxios, teeny-request,
+  firebase-admin all `require()` cleanly; namespaced `admin.firestore/storage/auth/messaging` intact);
+  `npm run test:functions` 103/103 green.
+- **Why NOT firebase-admin v14 (the original plan):** two blockers made the v14 route both unnecessary
+  and unsafe — (1) `firebase-functions@7.x` peers firebase-admin `^11||^12||^13`, so v14 violates the
+  peer; (2) v14 drops the legacy `admin.firestore` namespace that `index.js` uses throughout
+  (`admin.firestore.FieldValue.serverTimestamp()`, `admin.storage()`, `admin.auth()`), which would
+  break the functions at runtime. Empirically, bumping to v14.1.0 also cleared only 2 of 9 advisories —
+  the `uuid` chain persists under `@google-cloud/storage`, so v14 didn't even meet the goal.
+- **Why the override is safe:** advisory GHSA-w5hq-g745-h8pq (moderate) is a missing buffer bounds
+  check in uuid **v3/v5/v6 when a `buf` arg is provided**; the Google libs call `uuid.v4()` (random, no
+  `buf`), so the flaw was never reachable — the override just removes audit noise. uuid's `v4()` API is
+  unchanged v9→v11, and v11 keeps CJS `require` support (smoke-tested).
+- **Rollback:** remove the `overrides` block; functions redeploy from the prior lockfile (reinstates
+  uuid 9.x and the accepted-but-unreachable advisory).
+- **Follow-up:** drop the override once `@google-cloud/storage` ships `uuid >= 11.1.1` upstream
+  (`npm ls uuid` in `functions/` will then show it without "overridden").
 
 ### A2 — Workload Identity Federation ✓ DONE (v14.93)
 Retired the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON for keyless GitHub OIDC/WIF on all 3 deploy
