@@ -220,7 +220,7 @@ describe('computePeriodDeleteIds', () => {
 
 describe('isOtherValue / parseOtherValue — value grammar', () => {
     it('accepts every flavour, bare', () => {
-        for (const f of ['TRG', 'IND', 'ASSESS']) {
+        for (const f of ['TRG', 'IND', 'ASSESS', 'TEAM']) {
             assert.equal(isOtherValue(f), true, f);
             assert.deepEqual(parseOtherValue(f), { flavour: f, rdw: false, time: null });
         }
@@ -229,6 +229,7 @@ describe('isOtherValue / parseOtherValue — value grammar', () => {
     it('accepts the RDW marker', () => {
         assert.deepEqual(parseOtherValue('TRG RDW'),    { flavour: 'TRG',    rdw: true, time: null });
         assert.deepEqual(parseOtherValue('ASSESS RDW'), { flavour: 'ASSESS', rdw: true, time: null });
+        assert.deepEqual(parseOtherValue('TEAM RDW'),   { flavour: 'TEAM',   rdw: true, time: null });
     });
 
     it('accepts actual times, with and without RDW', () => {
@@ -237,8 +238,10 @@ describe('isOtherValue / parseOtherValue — value grammar', () => {
     });
 
     it('rejects non-training values, malformed grammar, and impossible times', () => {
+        // 'TEAM DAY' is the ROSTER label; the stored value is always the single-token 'TEAM'
+        // (the parser converts "Team Day" → "TEAM"), so 'TEAM DAY' is not a valid stored value.
         for (const v of ['RD', 'SPARE', 'AL', 'SICK', 'RDW', '06:00-14:00', 'RDW TRG',
-                         'TRAINING', 'trg', 'TRG BAD', 'TRGRDW', 'TRG  RDW', 'ASS',
+                         'TRAINING', 'trg', 'TRG BAD', 'TRGRDW', 'TRG  RDW', 'ASS', 'TEAM DAY',
                          'TRG 25:00-30:00', 'TRG RDW 08:00', '', null, undefined, 42]) {
             assert.equal(isOtherValue(v), false, String(v));
             assert.equal(parseOtherValue(v), null, String(v));
@@ -252,6 +255,8 @@ describe('isOtherValue / parseOtherValue — value grammar', () => {
         assert.equal(OTHER_FLAVOURS.IND.full,     'Induction');
         assert.equal(OTHER_FLAVOURS.ASSESS.badge, 'Assess');
         assert.equal(OTHER_FLAVOURS.ASSESS.full,  'Assessment');
+        assert.equal(OTHER_FLAVOURS.TEAM.badge,   'Team');
+        assert.equal(OTHER_FLAVOURS.TEAM.full,    'Team Day');
     });
 });
 
