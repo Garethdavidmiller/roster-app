@@ -116,10 +116,12 @@ export function calcBackPay() {
   let grandVarTotal = 0;
   let pCount        = 0;
 
-  // Upper cap: the "paid in" period when selected, otherwise TODAY's period — without a default cap,
-  // a future period the user once opened (autosave writes a record on any input) would add its full
-  // contracted-hours component to the lump sum for work not yet done.
-  const _capPNum = bpPNum || currentPeriodNum();
+  // Upper cap for accrual = the EARLIER of the selected "paid in" period and today's period. Back pay
+  // only accrues for periods already WORKED under the old rate; the "paid in" period is just when the
+  // lump lands and can be in the FUTURE. Capping at min(bpPNum, current) stops a future paid-in
+  // selection — or an unselected one — from adding contracted rate-diff for weeks not yet worked
+  // (a period the user merely opened autosaves a record, so it can't be excluded by emptiness alone).
+  const _capPNum = Math.min(bpPNum || Infinity, currentPeriodNum());
   periods.forEach(/** @param {any} p */ p => {
     try {
       if (fromPNum && p.num < fromPNum) return;

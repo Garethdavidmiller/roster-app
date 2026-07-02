@@ -41,9 +41,11 @@ export const NI_BY_YEAR = {
 // Student loan thresholds by tax year — HMRC publishes these each April.
 export const SL_BY_YEAR = {
   '2025/26': {
-    plan1:   { t: 24990/P_YR, r: 0.09 },
-    plan2:   { t: 27295/P_YR, r: 0.09 },
-    plan4:   { t: 31395/P_YR, r: 0.09 }, // Scotland
+    // Confirmed against GOV.UK "Repaying your student loan" / SL3 2025-26 tables (checked Jul 2026).
+    // These were previously the 2024/25 figures (24990/27295/31395) — thresholds rise each April.
+    plan1:   { t: 26065/P_YR, r: 0.09 },
+    plan2:   { t: 28470/P_YR, r: 0.09 },
+    plan4:   { t: 32745/P_YR, r: 0.09 }, // Scotland
     plan5:   { t: 25000/P_YR, r: 0.09 },
     postgrad:{ t: 21000/P_YR, r: 0.06 },
   },

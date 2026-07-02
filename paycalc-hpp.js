@@ -229,10 +229,11 @@ export function updatePriorHpp(ty) {
       }, 0);
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     } else {
-      // Use the PRIOR year's stored rate, not the current grade default — after an April pay award
-      // the prior year's rate is lower, so the grade default over-estimated last year's variable pay
-      // (and this figure is persisted + added to the January payslip).
-      const rate = getStoredRateForYear(priorTy);
+      // The PRIOR year's stored per-year rate, else the grade default. Pass useLegacyFallback=false
+      // so an absent per-year rate does NOT fall through to the legacy SK.rate (the last-saved rate):
+      // after an April award that key holds the NEW rate, which would over-price last year's variable
+      // pay in this persisted, January-payslip-bound estimate.
+      const rate = getStoredRateForYear(priorTy, false);
       let _priorVar = 0;
       _priorPeriods.forEach(/** @param {any} p */ p => {
         try {

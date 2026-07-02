@@ -721,7 +721,13 @@ export function init() {
       const grossWithBp = gross + _bpThisPeriod + _hppForPeriod;
 
       // Pension — salary sacrifice: deducted from gross before tax and NI are calculated.
-      const pension    = numVal('pensionAmt');
+      // A BLANK field means "use this period's default" (matching the null convention in
+      // readFormData/loadPeriodData), NOT £0 — otherwise clearing the field to retype it would show
+      // take-home momentarily inflated by the whole pension amount. A typed "0" still means opted-out.
+      const _pField    = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
+      const pension    = (_pField && _pField.value.trim() !== '')
+          ? numVal('pensionAmt')
+          : (_curP ? parseFloat((getPensionDefault(_curP) * getProRateFactor(_curP)).toFixed(2)) : getPensionDefault());
       const pensionWarn = document.getElementById('pensionWarn');
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
       const sacGross   = Math.max(0, grossWithBp - pension);

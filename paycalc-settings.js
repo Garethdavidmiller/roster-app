@@ -86,16 +86,23 @@ export function getPensionDefault(pObj) {
  * the grade default. Use this wherever a SPECIFIC tax year's rate is needed (e.g. the prior-year HPP
  * estimate) — reading the live `hourlyRate` field or the current grade default gives the wrong year's
  * rate after an April pay award.
+ *
+ * `useLegacyFallback` (default true) controls the middle leg — the legacy single `SK.rate` key. That
+ * key holds the LAST-SAVED rate (not year-specific), so it is the right migration fallback when
+ * loading a rate into the field, but WRONG for a PRIOR year's estimate: after an award it would price
+ * last year at the new rate. Callers estimating a specific past year (updatePriorHpp) pass `false` so
+ * an absent per-year rate falls straight through to the grade default instead.
  * @param {any} ty
+ * @param {boolean} [useLegacyFallback=true]
  * @returns {number}
  */
-export function getStoredRateForYear(ty) {
+export function getStoredRateForYear(ty, useLegacyFallback = true) {
   /** @type {Record<string, any>} */
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted'); }
   const g = getGrade();
   return rates[ty.label]
-      || parseFloat(lsGet(SK.rate) ?? '')
+      || (useLegacyFallback ? parseFloat(lsGet(SK.rate) ?? '') : 0)
       || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
 }
 
@@ -174,7 +181,11 @@ export function confirmSettings(calculate) {
   if (existingRaw) {
     try {
       const d = JSON.parse(existingRaw);
-      d.pension = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value) || 0;
+      // Blank field → null (loadPeriodData re-applies the period default), NOT 0. Coercing blank to
+      // 0 here persisted a permanent £0 pension for the period — the same overstatement the
+      // readFormData/calculate null convention closes. A typed "0" is a genuine opt-out and is kept.
+      const _pRaw = /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value.trim();
+      d.pension = _pRaw === '' ? null : (parseFloat(_pRaw) || 0);
       lsSet(periodKey(pNum), JSON.stringify(d));
     } catch {}
   }
