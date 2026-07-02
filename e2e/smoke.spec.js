@@ -807,3 +807,37 @@ test('in-place sign-in: settings initialises (work-email card + nav identity) wi
     await expect(page).toHaveURL(/settings\.html$/);
     expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
 });
+
+// ── ADMIN TOUCH LAYOUT — no horizontal blowout when a pill with hours is selected ──
+// Regression: on TOUCH devices (pointer: coarse) the bulk-bar time inputs' intrinsic
+// min-width (~180px each, unshrinkable without min-width: 0) stretched the whole page
+// to ~585px inside a ~393px viewport the moment a pill with hours (Shift/RDW/Other)
+// was selected — clipping the header, member bar, and every card at the right edge.
+// Desktop never showed it (the coarse-pointer stylesheet block doesn't apply), which
+// is why this must assert element widths on the Pixel-5 project, not desktop.
+test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    // The bulk path that reproduced the blowout: tick Mon–Fri, choose Other (a pill
+    // with hours — reveals the bulk time inputs), apply (reveals per-row time inputs
+    // and the Other sub-controls on five rows).
+    await page.locator('#bulkSelMonFri').click();
+    await page.locator('#bulkTypePills .pill-other').click();
+    await page.locator('#bulkApplyBtn').click();
+    await page.waitForTimeout(200);
+
+    const m = await page.evaluate(() => {
+        let max = 0, worst = '';
+        document.querySelectorAll('body *').forEach(el => {
+            const w = el.getBoundingClientRect().width;
+            if (w > max) { max = w; worst = `${el.tagName}.${String(el.className).split(' ')[0]}`; }
+        });
+        return { max: Math.round(max), innerW: window.innerWidth, worst };
+    });
+    // +6px tolerance: a known, invisible ~4px residue at exactly 393px (real devices are
+    // 393–430px CSS). The bug this guards against was a ~190px (+49%) blowout.
+    expect(m.max, `widest element ${m.worst} at ${m.max}px vs viewport ${m.innerW}px`)
+        .toBeLessThanOrEqual(m.innerW + 6);
+});
