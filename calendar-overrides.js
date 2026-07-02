@@ -43,6 +43,14 @@ export function addFetchedMonths(keys) { keys.forEach(k => fetchedMonths.add(k))
 export function clearFetchedMonth(key) { fetchedMonths.delete(key); }
 
 /**
+ * Invalidate the month → shift-types memo. Callers that write directly into `rosterOverridesCache`
+ * WITHOUT going through fetchOverridesForRange (which clears it) must call this, or the month legend
+ * (getShiftTypesInMonth) serves a stale type set — e.g. an AL cell shows on the grid but the
+ * "Annual Leave" legend item stays hidden after returning from Team Week View.
+ */
+export function clearShiftTypesCache() { shiftTypesMonthCache.clear(); }
+
+/**
  * @param {number} year
  * @param {number} month - 0-indexed
  * @returns {string}

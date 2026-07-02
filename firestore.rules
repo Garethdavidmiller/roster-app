@@ -95,7 +95,7 @@ service cloud.firestore {
         // createdAt is written by every path (serverTimestamp); changedBy only by the
         // manual/AL/sick paths — validate its type when present without requiring it.
         request.resource.data.createdAt is timestamp &&
-        (!request.resource.data.keys().hasAny(['changedBy']) || request.resource.data.changedBy is string) &&
+        (!request.resource.data.keys().hasAny(['changedBy']) || (request.resource.data.changedBy is string && request.resource.data.changedBy.size() <= 100)) &&
         // ── Per-member write isolation (B2, PERMISSIVE interim form) ──────────────────────
         // A staff member may write only their OWN override (token.name == the doc's memberName).
         // Two load-bearing bypasses: ADMIN writes for everyone (AL/sick on behalf + every
@@ -218,7 +218,11 @@ service cloud.firestore {
         request.resource.data.userAgent is string &&
         request.resource.data.userAgent.size() <= 150 &&
         request.resource.data.resolved == false &&
-        request.resource.data.timestamp is timestamp;
+        // Force the SERVER timestamp (serverTimestamp() resolves to request.time). Previously any
+        // client value passed, so a flood of shape-valid junk could be BACKDATED to corrupt triage
+        // in the admin Error Log. (Volume/abuse is the eventual App Check control — Track D — but
+        // pinning the timestamp closes the forgery vector now.)
+        request.resource.data.timestamp == request.time;
       allow read, update, delete: if
         request.auth != null && request.auth.token.admin == true;
     }

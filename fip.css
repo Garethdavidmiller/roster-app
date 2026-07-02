@@ -16,6 +16,8 @@
     --yellow-bdr: #d4a800;
     --blue-bg:    #e3f2fd;
     --blue-text:  #1565c0;
+    --red-bdr:    #f5c0c0;
+    --blue-bdr:   #90caf9;
     --warn-text:  #7a5500;
 }
 
@@ -108,8 +110,8 @@ details[id], div[id] { scroll-margin-top: 68px; }
     margin-bottom: 10px;
 }
 .box-yellow { background: var(--yellow-bg); border: 1px solid var(--yellow-bdr); }
-.box-red    { background: var(--red-bg);    border: 1px solid #f5c0c0; }
-.box-blue   { background: var(--blue-bg);   border: 1px solid #90caf9; }
+.box-red    { background: var(--red-bg);    border: 1px solid var(--red-bdr); }
+.box-blue   { background: var(--blue-bg);   border: 1px solid var(--blue-bdr); }
 .box strong { display: block; font-size: 13px; margin-bottom: 4px; }
 
 /* ── Eurostar pricing ────────────────────── */

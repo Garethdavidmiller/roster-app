@@ -97,12 +97,15 @@ export function isSafeStorageUrl(url) {
     try {
         const parsed = new URL(url);
         if (parsed.protocol !== 'https:') return false;
-        // Narrowed to THIS project's bucket (covers both myb-roster.appspot.com and
-        // myb-roster.firebasestorage.app) so a malformed/compromised write can't point a
-        // Huddle/Circular button at an unrelated Google Storage object. Firebase download
-        // URLs are …/v0/b/<bucket>/o/<path>; GCS URLs are storage.googleapis.com/<bucket>/<path>.
-        if (parsed.hostname === 'firebasestorage.googleapis.com') return parsed.pathname.startsWith('/v0/b/myb-roster');
-        if (parsed.hostname === 'storage.googleapis.com')         return parsed.pathname.startsWith('/myb-roster');
+        // Narrowed to THIS project's buckets so a malformed/compromised write can't point a
+        // Huddle/Circular button at an unrelated Google Storage object. Firebase download URLs are
+        // …/v0/b/<bucket>/o/<path>; GCS URLs are storage.googleapis.com/<bucket>/<path>. The bucket
+        // segment MUST be anchored with a trailing '/' — a bare prefix ('/myb-roster') would also
+        // match an attacker-registered global bucket named 'myb-rosterX' (GCS bucket names are
+        // globally unique and unclaimed variants can be registered), defeating the whole check.
+        const BUCKETS = ['myb-roster.appspot.com', 'myb-roster.firebasestorage.app'];
+        if (parsed.hostname === 'firebasestorage.googleapis.com') return BUCKETS.some(b => parsed.pathname.startsWith(`/v0/b/${b}/`));
+        if (parsed.hostname === 'storage.googleapis.com')         return BUCKETS.some(b => parsed.pathname.startsWith(`/${b}/`));
         return false;
     } catch (_) { return false; }
 }
@@ -152,7 +155,15 @@ export async function writeWithClaimRetry(writeFn) {
     } catch (err) {
         const user = auth.currentUser;
         if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
-            await user.getIdToken(true);   // force refresh → pick up the newly-set claim
+            // Force a token refresh to pick up a newly-set claim, then retry once. If the refresh
+            // itself fails (offline/flaky), do NOT let its network error REPLACE the original
+            // permission-denied — the caller keys its user-facing message on `err.code`, so a genuine
+            // authorisation denial must not be reported to staff as a connectivity problem.
+            try {
+                await user.getIdToken(true);   // force refresh → pick up the newly-set claim
+            } catch {
+                throw err;                     // preserve the original permission-denied
+            }
             return await writeFn();          // retry once with the fresh token
         }
         throw err;
@@ -253,6 +264,9 @@ export async function assertFileSignature(file, expectedType) {
     if (expectedType === 'docx' && !isZipSig) throw new Error('SIGNATURE_MISMATCH');
 }
 
+/** Firestore error codes that warrant a single retry — transient service unavailability only. */
+const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal']);
+
 /**
  * Upload a Huddle file (PDF or Word .docx) for a given date.
  *
@@ -295,8 +309,8 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
     let storageUrl;
     try {
         await uploadBytes(storageRef, file, { contentType: mimeType });
-        // Permanent tokenised (bearer) URL — never expires. (Cloud-Function ingest uses a
-        // 1-year signed URL; both work, the lifetime difference is intentional.)
+        // Permanent tokenised (bearer) URL — never expires. (The Cloud-Function ingest path also
+        // uses a permanent download token; both are permanent within the 3-month retention window.)
         storageUrl = await getDownloadURL(storageRef);
         /** @type {Record<string, any>} */
         const firestoreDoc = {
@@ -304,9 +318,22 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
             uploadedAt: serverTimestamp(), uploadedBy,
         };
         if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
-        await setDoc(doc(db, COLLECTIONS.huddles, date), firestoreDoc);
+        // Retry setDoc once on a RETRIABLE code before treating it as a real failure. A
+        // deadline-exceeded/unavailable can be raised AFTER the server actually committed, so blindly
+        // rolling back would delete the file out from under a committed huddles doc. The date-keyed
+        // setDoc is idempotent — a re-issue of a genuinely-committed write just succeeds (no rollback),
+        // which resolves the commit-ambiguous case (mirrors _uploadPdf).
+        try {
+            await setDoc(doc(db, COLLECTIONS.huddles, date), firestoreDoc);
+        } catch (setErr) {
+            const e = /** @type {any} */ (setErr);
+            if (!_RETRIABLE_FIRESTORE_CODES.has(e?.code)) throw setErr;
+            console.warn(`[uploadHuddle] setDoc attempt 1 failed (${e?.code}) — retrying once`);
+            await new Promise(r => setTimeout(r, 2000));
+            await setDoc(doc(db, COLLECTIONS.huddles, date), firestoreDoc);
+        }
     } catch (err) {
-        // Old file is unaffected — roll back the new upload on any failure.
+        // Old file is unaffected — roll back the new upload on a non-retriable failure.
         deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn('[uploadHuddle] rollback failed:', e));
         throw err;
     }
@@ -366,9 +393,6 @@ async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, delete
             }
         }));
 }
-
-/** Firestore error codes that warrant a single retry — transient service unavailability only. */
-const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal']);
 
 /**
  * Upload a PDF to Firebase Storage and upsert a metadata document in Firestore.

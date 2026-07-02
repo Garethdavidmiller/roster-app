@@ -69,7 +69,9 @@ export function init() {
         // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
         // path is never less robust than the reload path (the overlay is already torn down by then).
         const onSuccess = CONFIG.INPLACE_LOGIN.links
-            ? () => { try { init(); } catch { window.location.reload(); } }
+            // Reload (fresh overlay) rather than re-invoke init() into a soft-lock if saveSession
+            // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
+            ? () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } }
             : () => window.location.reload();
         initLoginOverlay({ pageLabel: 'Links', onSuccess });
         if (!CONFIG.INPLACE_LOGIN.links) resolveSession(false);
@@ -415,9 +417,13 @@ export function init() {
         try {
             await deleteDoc(doc(db, COLLECTIONS.linkDesigns, id));
             designs = designs.filter(x => x.id !== id);
-            if (id === compareDesignId) { compareDesignId = null; compareMode = false; }
+            // Exit compare mode if the compare target was deleted OR the delete drops below the 2
+            // designs compare needs. Deleting the ACTIVE design (not the compare target) while
+            // comparing used to leave compareMode true with <2 designs — a self-compare with the
+            // editable grid hidden and both compare controls disabled = soft-lock until reload.
+            if (id === compareDesignId || designs.length < 2) { compareDesignId = null; compareMode = false; }
             if (id === activeDesignId) _activateDesign(designs[0]);
-            else { renderDesignPicker(); renderCompare(); }
+            else { renderDesignPicker(); renderGrid(); renderCompare(); }
         } catch (err) {
             console.error('[Links] Delete failed:', err);
         }

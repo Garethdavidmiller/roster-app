@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '15.18';
+export const APP_VERSION = '15.22';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -221,11 +221,14 @@ function countDispatcherBankHolidaysWorked(member, year, overrides) {
     const NON_WORKED = new Set(['RD', 'OFF', 'SPARE', 'AL', 'SICK']);
     const bankHolidays = getBankHolidays(year);
 
-    // Build a quick date → value lookup for this member's overrides
+    // Build a date → winning-override lookup for this member, applying shouldReplaceOverride
+    // precedence (manual beats roster_import; within a class, newer createdAt wins). A plain
+    // last-in-array-wins map let a stale roster_import shadow a manual RDW on a bank-holiday date,
+    // miscounting the dispatcher's lieu-day entitlement depending on Firestore result order.
     const overrideMap = new Map();
     for (const o of overrides) {
         if (o.memberName === member.name && o.date) {
-            overrideMap.set(o.date, o.value);
+            if (shouldReplaceOverride(overrideMap.get(o.date), o)) overrideMap.set(o.date, o);
         }
     }
 
@@ -242,7 +245,7 @@ function countDispatcherBankHolidaysWorked(member, year, overrides) {
         // 'RD' from the base roster even when a dispatcher is scheduled to work. A lieu day
         // for Boxing Day is only counted when an RDW override is recorded for that date.
         const shift = overrideMap.has(dateStr)
-            ? overrideMap.get(dateStr)
+            ? overrideMap.get(dateStr).value
             : getBaseShift(member, bh);
 
         if (!NON_WORKED.has(shift)) lieuDays++;
@@ -280,6 +283,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
 import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js';
+import { shouldReplaceOverride } from './override-utils.js';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
@@ -857,6 +861,10 @@ export function parseSmartFloat(v) {
     const cleaned = String(v)
         .replace(/[‐-―−−]/g, '-')
         .replace(/[‘’]/g, "'")
+        // Strip thousands separators (commas) and any £ sign so a payslip figure pasted verbatim
+        // as "23,456.78" or "£1,234.56" parses correctly — parseFloat stops at the first comma,
+        // silently turning "23,456.78" into 23 (badly corrupting YTD-based cumulative PAYE).
+        .replace(/[,£]/g, '')
         .trim();
     return parseFloat(cleaned) || 0;
 }
@@ -969,7 +977,7 @@ if (typeof location !== 'undefined' &&
  */
 export function getMembersForGrade(grade) {
     if (!grade) return [];
-    if (grade === 'Management') return teamMembers.filter(m => m.managerOnly);
+    if (grade === 'Management') return teamMembers.filter(m => m.managerOnly && !m.hidden);
     return teamMembers.filter(m => m.role === grade && !m.hidden && !m.managerOnly);
 }
 

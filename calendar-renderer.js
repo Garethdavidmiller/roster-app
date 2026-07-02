@@ -14,7 +14,7 @@ import {
     isSameDay, isBankHoliday, isChristmasDay, isEasterSunday,
     isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge,
     getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday,
-    SWIPE_THRESHOLD, SWIPE_VELOCITY, getPaydaysAndCutoffs,
+    SWIPE_THRESHOLD, SWIPE_VELOCITY, getPaydaysAndCutoffs, escapeHtml,
 } from './roster-data.js';
 import { isBeforeMemberStart } from './override-utils.js';
 import { getCurrentMember } from './calendar-member.js';
@@ -66,8 +66,10 @@ export function createDayCell(/** @type {any} */ date, /** @type {any} */ shift,
         badge = getShiftBadge(shift);
     }
     const displayTime = shift === 'RDW' ? rdwTime : shift;
-    // Word-break after the hyphen so "06:20-14:20" breaks as "06:20-" / "14:20" on narrow cells.
-    const displayTimeHtml = displayTime ? displayTime.replace('-', '-<wbr>') : '';
+    // Escape the override value BEFORE inserting the intentional <wbr> — the value can be an
+    // unvalidated legacy/Admin-SDK Firestore value, and this goes into innerHTML (the team view
+    // escapes the same field). Word-break after the hyphen so "06:20-14:20" wraps as "06:20-"/"14:20".
+    const displayTimeHtml = displayTime ? escapeHtml(displayTime).replace('-', '-<wbr>') : '';
     return `
         <div class="day-number">${date.getDate()}</div>
         ${badge}

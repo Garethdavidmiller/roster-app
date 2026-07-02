@@ -90,11 +90,14 @@ function _shiftISODate(dateStr, deltaDays) {
  * worked Sunday share ONE correction doc. When deleting one range, that correction must
  * be kept if a REMAINING AL/sick override still spans the Sunday.
  *
- * "Still spans" is detected by a remaining leave override on the adjacent Saturday
- * (Sunday − 1) or Monday (Sunday + 1): a range covering a Sunday always carries leave on
- * at least one adjacent day, because the Sunday itself never carries AL/sick. The previous
- * logic looked for an AL/sick record ON the Sunday — which never exists — so it always
- * deleted the correction, stripping it from an overlapping range that still needed it.
+ * "Still spans" is detected by a remaining leave override within TWO days either side of the
+ * Sunday (Fri/Sat before, Mon/Tue after). The Sunday itself never carries AL/sick, and the
+ * immediately-adjacent Saturday is often a base rest day (so no leave override is written there
+ * either) — a range that ENDS on the Sunday then has its nearest surviving leave on the Friday,
+ * two days back. Checking only ±1 day therefore missed it and wrongly deleted the shared
+ * correction, resurrecting the worked Sunday shift in the MIDDLE of a member's remaining leave.
+ * (An earlier bug looked for an AL/sick record ON the Sunday — which never exists — and deleted
+ * the correction every time.)
  *
  * @param {Array<{id:string,memberName:string,date:string,type:string,value:string}>} allOverrides
  * @param {{type:string, memberName:string, start:string, end:string}} range  type is 'annual_leave' | 'sick'; start/end inclusive YYYY-MM-DD
@@ -111,10 +114,14 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
                 (o.type === 'annual_leave' || o.type === 'sick') && !leaveIds.has(o.id))
             .map(o => o.date)
     );
+    // A surviving range covers the Sunday iff it has a leave override within 2 days either side
+    // (±1 = Sat/Mon, ±2 = Fri/Tue for when the adjacent rest day carries no leave). Keep the shared
+    // correction in that case; only delete it when nothing surviving spans the Sunday.
+    const _spansSunday = (/** @type {string} */ sundayISO) =>
+        [-2, -1, 1, 2].some(off => remainingLeaveDates.has(_shiftISODate(sundayISO, off)));
     const correctionIds = allOverrides
         .filter(o => inRange(o) && o.type === 'correction' && o.value === 'RD' && _isSundayISO(o.date) &&
-            !remainingLeaveDates.has(_shiftISODate(o.date, -1)) &&
-            !remainingLeaveDates.has(_shiftISODate(o.date, 1)))
+            !_spansSunday(o.date))
         .map(o => o.id);
     return [...leaveIds, ...correctionIds];
 }

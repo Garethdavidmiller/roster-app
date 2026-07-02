@@ -17,11 +17,11 @@ import {
   RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset,
 } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, _setSelectPeriod } from './paycalc-periods.js';
 import { getEffectiveContr, getProRateFactor } from './paycalc-settings.js';
 import { lsGet } from './ls.js';
 import { SK, periodKey } from './paycalc-migrations.js';
-import { isDataEmpty, _decodeHours } from './paycalc-hpp.js';
+import { _decodeHours } from './paycalc-hpp.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
 
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
@@ -52,9 +52,12 @@ export function prefillBackPay() {
   const newLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
   if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
   if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
-  // Auto-select April — Chiltern's pay anniversary is always 1 April
+  // Auto-select April — Chiltern's pay anniversary is always 1 April. Use _setSelectPeriod (sets
+  // option.selected), NOT `.value = …`: this select is populated with <optgroup>s, and iOS Safari
+  // ignores a direct `.value` assignment on an optgroup select, so the default never applied there —
+  // leaving fromPNum 0 → awardTy null → the tax-year fence removed → an inflated lump sum.
   const fromSel = /** @type {HTMLSelectElement} */ (document.getElementById('backPayFrom'));
-  if (fromSel && !fromSel.value) fromSel.value = String(48 + ty.first);
+  if (fromSel && !fromSel.value) _setSelectPeriod(fromSel, 48 + ty.first);
   return calcBackPay();
 }
 
@@ -121,10 +124,13 @@ export function calcBackPay() {
       // in the following year — don't apply 2025/26 rate diff to 2026/27 work).
       if (awardTy && getTaxYearForOffset(p.num - 48) !== awardTy) return;
       const raw = lsGet(periodKey(p.num));
-      if (!raw) return;
+      if (!raw) return;   // never-visited period — conservatively excluded (we can't assume it was worked)
       const d = JSON.parse(raw);
-      if (isDataEmpty(d)) return;
-
+      // Do NOT skip an "empty" (no special hours) period: a normal contracted week still owes the
+      // contracted-hours rate diff on a rate award — dropping it lost the LARGEST component
+      // (≈ effContr × rateDiff per period) with no field the user could fill to include it. For an
+      // empty period _decodeHours returns zeros, so ratePay below reduces to exactly that contracted
+      // component + the London diff, and the variable portion is zero.
       const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
       // Cap sat/BH hours as calculate() does — back-pay must reflect actual gross paid.
       const _bpEffContr = getEffectiveContr(p);

@@ -81,16 +81,28 @@ export function getPensionDefault(pObj) {
 // ── PER-TAX-YEAR RATE ─────────────────────────────────────────────────────────
 // Loads the stored rate for the given tax year into the hourly rate field.
 // Falls back to the legacy single rate, then to the current grade's default.
-/** Load the stored rate for the given tax year into the hourly rate field. */
-/** @param {any} ty */
-export function updateRateForPeriod(ty) {
+/**
+ * Stored hourly rate for a tax year (pure — no DOM). Falls back to the legacy single-rate key, then
+ * the grade default. Use this wherever a SPECIFIC tax year's rate is needed (e.g. the prior-year HPP
+ * estimate) — reading the live `hourlyRate` field or the current grade default gives the wrong year's
+ * rate after an April pay award.
+ * @param {any} ty
+ * @returns {number}
+ */
+export function getStoredRateForYear(ty) {
   /** @type {Record<string, any>} */
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted'); }
-  const g     = getGrade();
-  const rate  = rates[ty.label]
-             || parseFloat(lsGet(SK.rate) ?? '')
-             || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
+  const g = getGrade();
+  return rates[ty.label]
+      || parseFloat(lsGet(SK.rate) ?? '')
+      || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
+}
+
+/** Load the stored rate for the given tax year into the hourly rate field. */
+/** @param {any} ty */
+export function updateRateForPeriod(ty) {
+  const rate = getStoredRateForYear(ty);
   /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value = rate.toFixed(2);
   // Update label to show which tax year this rate applies to
   const lbl = document.getElementById('rateYearLabel');

@@ -38,7 +38,11 @@ export function initCalendarLightboxes() {
     onOpen:   () => loadALStats(),
   });
 
+  // Generation token: a slow load for member A resolving after the user switched to member B (and
+  // reopened) must not overwrite B's figures with A's. Each call takes the next gen; a stale one bails.
+  let _alLoadGen = 0;
   async function loadALStats() {
+    const myGen   = ++_alLoadGen;
     const member  = getCurrentMember();
     const year    = getDisplayYear();
     const yearStr = String(year);
@@ -72,6 +76,7 @@ export function initCalendarLightboxes() {
         )),
         new Promise((_, reject) => setTimeout(() => reject(new Error('AL load timeout')), 15_000)),
       ]);
+      if (myGen !== _alLoadGen) return;   // a newer load started while this was in flight — discard
       snap.forEach(/** @param {any} d */ d => {
         const data = d.data();
         if (data.memberName !== /** @type {any} */ (member).name) return;
@@ -99,6 +104,7 @@ export function initCalendarLightboxes() {
         }
       }
     } catch (e) {
+      if (myGen !== _alLoadGen) return;   // a newer load superseded this one — don't clobber its result
       console.error('[AL lightbox] Failed:', e);
       takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
       if (breakdownEl) breakdownEl.hidden = true;

@@ -294,27 +294,17 @@ exports.ingestHuddle = onRequest(
 
             await file.save(fileBuffer, { contentType: mimeType });
 
-            // Prefer a time-limited signed URL (v4, 1 year). Falls back to a
-            // permanent download token if the service account lacks the
-            // iam.serviceAccountTokenCreator role needed to sign URLs.
-            let storageUrl;
-            try {
-                // 1-year expiry: after 365 days this URL returns 403. Staff viewing an
-                // archive huddle older than one year will see an access error. The
-                // Firestore document remains, but the file itself must be re-uploaded.
-                const [signedUrl] = await file.getSignedUrl({
-                    version: 'v4',
-                    action:  'read',
-                    expires: Date.now() + 365 * 24 * 60 * 60 * 1000,
-                });
-                storageUrl = signedUrl;
-            } catch (signErr) {
-                console.warn('[ingestHuddle] getSignedUrl unavailable, falling back to download token:', signErr.message);
-                const downloadToken = crypto.randomUUID();
-                await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: downloadToken } });
-                const encodedPath = encodeURIComponent(storagePath);
-                storageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
-            }
+            // Use a permanent download-token URL scoped to the retention window. We deliberately do
+            // NOT use a v4 signed URL: GCS caps v4 expiry at 7 DAYS, so the old 365-day request threw
+            // on every ingest and silently fell through to this same token path anyway — and a real
+            // 7-day URL would 403 on huddles still within the 3-month retention window. Reads on the
+            // huddles collection are open (matching the calendar's no-auth model) and huddles
+            // auto-prune at 3 months (pruneOldHuddles), so a token URL that lives for the retention
+            // window is the correct fit. The bucket segment matches isSafeStorageUrl's allowlist.
+            const downloadToken = crypto.randomUUID();
+            await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: downloadToken } });
+            const encodedPath = encodeURIComponent(storagePath);
+            const storageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
 
             // ---- Convert DOCX to HTML for in-app viewing ----
             // mammoth converts the Word document to clean HTML at upload time so the
@@ -1186,6 +1176,11 @@ exports.setupRosterAuth = onRequest(
         // unvalidated `members` array later) so a single bad entry can't throw during
         // orphan removal and abort it.
         const activeEmails = new Set();
+        // Maps a derived login email → the first member string that produced it, so two entries that
+        // normalise to the SAME email (a typo/duplicate in the roster list — e.g. 'G. Miller' vs a
+        // stray 'G . Miller') can be detected. setCustomUserClaims REPLACES all claims, so processing
+        // the second colliding entry would wipe the first's tier (an admin could silently lose admin).
+        const seenEmails = new Map();
 
         // Create accounts for all current members, then (re)apply custom claims.
         for (const name of members) {
@@ -1203,6 +1198,14 @@ exports.setupRosterAuth = onRequest(
                 console.error(`[setupRosterAuth] Name derivation failed for "${name}": ${err.message}`);
                 continue;
             }
+            // Reject a collision: keep the FIRST occurrence's account + claims intact and surface the
+            // duplicate as a failure rather than silently overwriting (which could strip admin/manager).
+            if (seenEmails.has(email)) {
+                failed.push(`${name} (duplicate login ${email}, already used by "${seenEmails.get(email)}" — fix the roster list)`);
+                console.error(`[setupRosterAuth] Email collision: "${name}" derives ${email}, already claimed by "${seenEmails.get(email)}"`);
+                continue;
+            }
+            seenEmails.set(email, name);
             // Derivation succeeded — this is an active member; never orphan-disable it.
             activeEmails.add(email);
             let uid;

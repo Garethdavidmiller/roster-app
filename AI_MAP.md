@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v15.10 · Updated every 0.10 version*
+*Last updated: July 2026 — v15.20 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -147,6 +147,7 @@ Firestore override cache for `index.html` — extracted from `calendar-app.js` a
 - `fetchOverridesForRange(startStr, endStr)` — Firestore date-range query; populates cache, warns on duplicates, clears `shiftTypesMonthCache`
 - `ensureOverridesCached(year, month, renderFn)` — no-op if already fetched; fires background fetch then calls `renderFn()` on success (coordinator provides callback with teamView + member-change guards)
 - `getShiftTypesInMonth(member, year, month)` — memoised `Set<string>` of shift types appearing in a month; used by `updateLegend()`
+- `clearShiftTypesCache()` — invalidate that memo; callers writing straight into `rosterOverridesCache` (Team Week View's fetch) must call it or the month legend serves a stale type set (v15.22)
 - `monthKey(year, month)` — `"YYYY-MM"` key string for the `fetchedMonths` Set
 - `_initialFetchInProgress` — exported live binding; coordinator reads it to skip competing fetches during the initial 3-month load
 - `setInitialFetchInProgress(v)`, `addFetchedMonths(keys)`, `clearFetchedMonth(key)` — setters called by the coordinator's initial IIFE
@@ -382,6 +383,7 @@ Grade/contracted-hours helpers and settings persistence for `paycalc.html` (v13.
 - `getEffectiveContr(p)` / `getProRateFactor(p)` — pro-rated helpers (full period if `noProRate`)
 - `getPensionDefault(pObj)` — period-aware pension default for the current grade
 - `updateRateForPeriod(ty)` / `updateYtdForTaxYear(ty)` — load stored rate and YTD figures into form fields; called from coordinator's `onPeriodChange`
+- `getStoredRateForYear(ty)` — pure accessor for a specific tax year's stored hourly rate (falls back to the legacy single-rate key, then grade default); used by `updateRateForPeriod` and the prior-year HPP estimate so a past year isn't computed at the current (post-award) rate (v15.21)
 - `settingsKey(ty)` — per-tax-year localStorage key for the confirmed flag
 - `saveSettings()` — persists all settings fields; does not set confirmed flag
 - `confirmSettings(calculate)` — saves, marks confirmed, collapses card; calls `calculate` callback (passed by coordinator to avoid circular dep)
@@ -520,6 +522,7 @@ Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by
 Shared slide-out navigation panel — imported by all six app pages.
 - `initNavPanel({ currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, onLogoClick })` — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
   - **Double-init guard:** checks `burger.dataset.navPanelInit` at the top — returns early if already initialised. Safe to call on every page render.
+- `resetNavPanel()` (v15.19) — tears down an initialised panel (removes injected DOM, clone-replaces the burger to drop its listeners, clears the guard + module state) so a later `initNavPanel()` rebuilds it with a fresh identity. Used on admin's in-place B1-teardown path, where the drawer was optimistically wired with a stale identity before the session was cleared and re-entered as a different user.
   - `isAdmin: true` enables the Operations pill (hidden from non-admins). `isLinksDesigner: true` enables the Links pill.
   - `onLogoClick` — called when the drawer brand button is tapped; each page passes `() => openAboutLightbox?.()` to open the About lightbox.
 - `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay / Operations / Links); admin-only and links-designer-only pills filtered by flags. Current page omitted from the pill row.

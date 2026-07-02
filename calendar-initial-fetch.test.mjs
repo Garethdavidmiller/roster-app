@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 let _fetchImpl        = () => Promise.resolve();
 let _progressHistory  = [];   // calls to setInitialFetchInProgress
 let _addMonthsHistory = [];   // calls to addFetchedMonths
+let _clearMonthsHistory = []; // calls to clearFetchedMonth
 let _fakeFetchInProgress = false;
 
 mock.module('./calendar-overrides.js', {
@@ -25,6 +26,7 @@ mock.module('./calendar-overrides.js', {
         _initialFetchInProgress:    false,
         setInitialFetchInProgress(v) { _progressHistory.push(v); _fakeFetchInProgress = v; },
         addFetchedMonths(keys)       { _addMonthsHistory.push([...keys]); },
+        clearFetchedMonth(key)       { _clearMonthsHistory.push(key); },
         monthKey:                    (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`,
         fetchOverridesForRange:      (...args) => _fetchImpl(...args),
     },
@@ -106,6 +108,7 @@ function setupDOM() {
 beforeEach(() => {
     _progressHistory     = [];
     _addMonthsHistory    = [];
+    _clearMonthsHistory  = [];
     _fakeFetchInProgress = false;
     _fetchImpl           = () => Promise.resolve();
     setupDOM();
@@ -252,6 +255,16 @@ describe('failure path', () => {
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         await flushAsync();
         assert.ok(!_calGrid._classes.has('calendar-fetching'));
+    });
+
+    test('releases the 3 pre-claimed months on failure so they can be re-fetched later', async () => {
+        _fetchImpl = () => Promise.reject(new Error('fail'));
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        // The same three month keys added up-front must be cleared, or ensureOverridesCached would
+        // short-circuit them forever (no retry chip exists in team-view/first-run).
+        assert.deepEqual(new Set(_clearMonthsHistory), new Set(_addMonthsHistory[0]));
+        assert.equal(_clearMonthsHistory.length, 3);
     });
 });
 

@@ -63,6 +63,18 @@ function normaliseShift(raw) {
         return `${match[1].padStart(2, '0')}:${match[2]}-${match[3].padStart(2, '0')}:${match[4]}`;
     }
 
+    // A value that STARTS with a valid time range but has trailing content — e.g. "06:00-12:00 GER"
+    // (a real worked shift annotated with a depot/notes code), which the anchored regex above rejects.
+    // Extract the leading time rather than defaulting to 'RD': if the member's base shift is also RD,
+    // an 'RD' here would classify as MATCH and silently drop a genuine worked shift from the roster.
+    // The extracted shift is still shown in the review table (surfaced as a DIFF when it differs from
+    // base). Genuinely unrecognised values (no valid leading time) still fall through to 'RD' below.
+    const lead = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})\b/);
+    if (lead && validHHMM(lead[1], lead[2]) && validHHMM(lead[3], lead[4])) {
+        console.warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
+        return `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
+    }
+
     console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — defaulting to RD`);
     return 'RD';
 }
@@ -126,8 +138,11 @@ function extractAIJson(text) {
 
 // ── Column header → day index mapping ───────────────────────────────────────
 
-/** Maps day-name column headers (any case) to week index (0 = Sunday, 6 = Saturday). */
-const HEADER_TO_INDEX = {
+// Maps day-name column headers (any case) to week index (0 = Sunday, 6 = Saturday).
+// Null-prototype so a raw AI-supplied header that names an inherited Object property
+// ('constructor', 'toString', 'hasOwnProperty') resolves to undefined and is rejected as an
+// unrecognised header, rather than returning a truthy function that bypasses the guards below.
+const HEADER_TO_INDEX = Object.assign(Object.create(null), {
     'sun': 0, 'sunday': 0,
     'mon': 1, 'monday': 1,
     'tue': 2, 'tues': 2, 'tuesday': 2,
@@ -135,7 +150,7 @@ const HEADER_TO_INDEX = {
     'thu': 4, 'thur': 4, 'thurs': 4, 'thursday': 4,
     'fri': 5, 'friday': 5,
     'sat': 6, 'saturday': 6,
-};
+});
 
 /**
  * Map AI column headers to ISO date strings for the given week.
@@ -177,8 +192,18 @@ function mapColumnHeadersToDates(columnHeaders, dates) {
  */
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
+    const seenMembers = new Set();
     for (const entry of parsedMembers) {
         if (typeof entry.memberName !== 'string' || !entry.memberName.trim()) continue;
+        // Skip a repeated member (e.g. a two-page roster that lists someone on both pages, or an AI
+        // hallucinated duplicate). Two rows for the same member would render duplicate review rows and,
+        // on save, write the same date/member override doc twice with nondeterministic last-write-wins.
+        const memberKey = entry.memberName.trim();
+        if (seenMembers.has(memberKey)) {
+            console.warn(`[parseRosterPDF] Duplicate member "${memberKey}" in AI output — keeping the first, skipping the repeat`);
+            continue;
+        }
+        seenMembers.add(memberKey);
 
         // Default all dates to RD — covers any day the AI skips entirely
         const shifts = {};
@@ -298,10 +323,14 @@ function isPayCutoffDay(date) {
     const FIRST_PAYDAY_MS = Date.UTC(2026, 1, 13, 12, 0, 0); // 13 Feb 2026, noon UTC
     const INTERVAL_DAYS   = 28;
     const MS_PER_DAY      = 86_400_000;
+    // Rebuild the intended CALENDAR day at noon UTC from the input's local components. The caller
+    // builds `date` with the local-timezone `new Date(y, m, d)`, so mixing its raw getTime() with
+    // setUTCHours could land the +6-day candidate on the wrong UTC day on a non-UTC runtime and make
+    // the 28-day modulo miss (silently stopping cutoff reminders). This makes it TZ-independent.
+    const dayNoonUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
     // Cutoff is 6 days before payday (Saturday before a Friday)
-    const candidate = new Date(date.getTime() + 6 * MS_PER_DAY);
-    candidate.setUTCHours(12, 0, 0, 0);
-    const diff = candidate.getTime() - FIRST_PAYDAY_MS;
+    const candidate = dayNoonUtc + 6 * MS_PER_DAY;
+    const diff = candidate - FIRST_PAYDAY_MS;
     // Use abs so the 28-day cycle is detected in both directions from the anchor.
     // The original `if (diff < 0) return false` guard incorrectly excluded Jan 10
     // (6 days before the Jan 16 payday, one cycle before the Feb 13 anchor).

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v15.10 · Updated every 0.10 version*
+*Last updated: July 2026 — v15.20 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `15.10` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `15.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -212,7 +212,7 @@ roster-app/
 ├── guide.html / paycalc-guide.html / railcard-guide.html / fip.html ← printable guides (via nav panel)
 ├── railcard-guide.js       ← JS for railcard-guide.html: print, chip-bar navigation
 ├── guide-print.js          ← shared print button for guide.html and paycalc-guide.html
-├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
+├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512 · icon-badge.png (monochrome notification badge, 96px)
 ├── fonts/
 │   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)
 ├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs
@@ -480,7 +480,7 @@ createdAt    Firestore server timestamp
 **huddles**
 ```
 date         "YYYY-MM-DD" — also the document ID
-storageUrl   Permanent tokenised download URL (manual upload) or 1-year signed URL (Cloud Function ingest)
+storageUrl   Permanent tokenised download URL (both manual upload and Cloud Function ingest — the ingest path uses a download token, NOT a signed URL: GCS caps v4 signed-URL expiry at 7 days, too short for the 3-month retention window)
 storagePath  Firebase Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf" — versioned suffix
              prevents overwriting the old file before Firestore commits; absent on docs written before
              versioned paths — uploadHuddle/pruneOldHuddles fall back to "huddles/{date}.{fileType}"

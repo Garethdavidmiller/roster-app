@@ -87,7 +87,9 @@ export function init() {
       // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
       // path is never less robust than the reload path (the overlay is already torn down by then).
       const onSuccess = ROSTER_CONFIG.INPLACE_LOGIN.paycalc
-          ? () => { try { init(); } catch { window.location.reload(); } }
+          // Reload (fresh overlay) rather than re-invoke init() into a soft-lock if saveSession
+          // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
+          ? () => { try { if (!getSession()?.name) { window.location.reload(); return; } init(); } catch { window.location.reload(); } }
           : () => window.location.reload();
       initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess });
       return;
@@ -411,7 +413,11 @@ export function init() {
         peer: +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent,
         slSkip:   /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked,
         otherAdj: (() => { const _r = Math.abs(numVal('otherAdj') || 0); return _adjNegative ? -_r : _r; })(),
-        pension:  numVal('pensionAmt') || 0,
+        // A BLANK pension field must persist as null (→ caller re-applies the period default), not 0.
+        // Coercing blank to 0 (the old `|| 0`) permanently stored £0 if autosave fired while the field
+        // was transiently empty (e.g. cleared to retype), overstating take-home by ~£147. A typed "0"
+        // still stores 0 (a genuine salary-sacrifice opt-out — see writeFormData's `!= null` restore).
+        pension:  (() => { const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt')); return (_el && _el.value.trim() !== '') ? (numVal('pensionAmt') || 0) : null; })(),
       };
     }
 

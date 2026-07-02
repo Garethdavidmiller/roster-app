@@ -15,7 +15,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail } from './roster-data.js';
-import { db, doc, writeBatch, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
+import { db, doc, writeBatch, writeWithClaimRetry, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage } from './auth-policy.js';
@@ -25,7 +25,7 @@ import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { initNavPanel } from './nav-panel.js';
+import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { lockBodyScroll, unlockBodyScroll, initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -788,37 +788,38 @@ saveBtn.addEventListener('click', async () => {
     const alInBatch = toSave.filter(e => e.type === 'annual_leave');
     if (alInBatch.length > 0) {
         const member      = /** @type {any} */ (teamMembers.find(m => m.name === memberName));
-        // Use the year of the AL dates being saved, not the current calendar year
-        const yearStr     = alInBatch[0].date.substring(0, 4);
-        const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
-        // Count existing AL for this year, excluding days being overwritten (they're replaced, not added)
         const overwriteDates  = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
-        // Also exclude days being purely deleted in this same batch (no replacement entry)
         const deletedALDates  = new Set(
             getAllOverrides()
                 .filter(o => toDelete.includes(o.id) && o.type === 'annual_leave')
                 .map(o => o.date)
         );
-        // Sundays are uncontracted — exclude from entitlement counts
-        const existingAL = getAllOverrides().filter(o =>
-            o.memberName === memberName &&
-            o.type       === 'annual_leave' &&
-            o.date       && o.date.startsWith(yearStr) &&
-            !overwriteDates.has(o.date) &&
-            !deletedALDates.has(o.date) &&
-            !isSunday(o.date)
-        ).length;
-        const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
-        const projectedTotal = existingAL + newALDates.length;
-        if (projectedTotal > entitlement) {
-            const over = projectedTotal - entitlement;
-            showALConfirm(
-                `${memberName} will be ${over} day${over !== 1 ? 's' : ''} over their AL entitlement`,
-                `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
-                toSave,
-                toDelete
-            );
-            return;
+        // Check EVERY calendar year the batch touches, not just the first entry's — a week grid
+        // spanning New Year (Dec/Jan) writes AL into two years, each with its own entitlement.
+        const years = [...new Set(alInBatch.map(e => e.date.substring(0, 4)))];
+        for (const yearStr of years) {
+            const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
+            // Sundays are uncontracted — exclude from entitlement counts
+            const existingAL = getAllOverrides().filter(o =>
+                o.memberName === memberName &&
+                o.type       === 'annual_leave' &&
+                o.date       && o.date.startsWith(yearStr) &&
+                !overwriteDates.has(o.date) &&
+                !deletedALDates.has(o.date) &&
+                !isSunday(o.date)
+            ).length;
+            const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
+            const projectedTotal = existingAL + newALDates.length;
+            if (projectedTotal > entitlement) {
+                const over = projectedTotal - entitlement;
+                showALConfirm(
+                    `${memberName} will be ${over} day${over !== 1 ? 's' : ''} over their ${yearStr} AL entitlement`,
+                    `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
+                    toSave,
+                    toDelete
+                );
+                return;
+            }
         }
     }
 
@@ -1083,9 +1084,13 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     btn.disabled    = true;
     btn.textContent = '…';
     try {
-        const batch = writeBatch(db);
-        deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
-        await batch.commit();
+        // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's period delete
+        // self-heals via writeWithClaimRetry — parity with the other override write paths.
+        await writeWithClaimRetry(async () => {
+            const batch = writeBatch(db);
+            deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
+            await batch.commit();
+        });
         setAllOverrides(getAllOverrides().filter(o => !idSet.has(o.id)));
         renderTable();
         updateALBanner();
@@ -1294,7 +1299,7 @@ function applyPermissions() {
     const sickHint = document.querySelector('#sickToggleHeader .hint');
     const savedHint = document.querySelector('#overridesToggleHeader .hint');
     if (alHint)    alHint.textContent   = 'Select a date range — rest days and Sundays are skipped automatically';
-    if (sickHint)  sickHint.textContent = 'Record your own absence days — sickness, family, or any other reason';
+    if (sickHint)  sickHint.textContent = 'Record your own absence days — for any reason';
     if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
     // Auto-open the Annual Leave card — most staff visit here primarily to book AL
@@ -1340,7 +1345,7 @@ function stampAdminPrintHeader() {
     const weekLabel = document.getElementById('weekNavLabel')?.textContent || '';
     const now       = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
     const printHeaderEl = document.getElementById('printHeader');
-    if (printHeaderEl) printHeaderEl.innerHTML = `MYB Roster — ${escapeHtml(member)}<span class="print-sub">Week: ${escapeHtml(weekLabel)} · Printed: ${escapeHtml(now)}</span>`;
+    if (printHeaderEl) printHeaderEl.innerHTML = `Marylebone Roster — ${escapeHtml(member)}<span class="print-sub">Week: ${escapeHtml(weekLabel)} · Printed: ${escapeHtml(now)}</span>`;
 }
 stampAdminPrintHeader();
 window.addEventListener('beforeprint', stampAdminPrintHeader);
@@ -1610,7 +1615,13 @@ function initAuthorised() {
     // session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag OFF →
     // resolves 'named'/'anonymous' to 'allow', so this never fires (unchanged).
     _adminAuth.then(() => {
-        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); showAdminLogin(); }
+        // B1: this optimistic 'allow' init turned out to be an unconfirmable session → clear it and
+        // re-show the login overlay in place. resetNavPanel() first: the optimistic pass already wired
+        // the nav drawer with the (stale) identity (line ~1690, decision was 'allow'), and initNavPanel
+        // self-guards against re-wiring, so without a reset an in-place re-login as a DIFFERENT user
+        // would leave the previous member's name + admin pill in the drawer. Reset tears down the
+        // injected nav DOM + clears the guard so initAuthorised's wireNavPanel() rebuilds it fresh.
+        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); resetNavPanel(); showAdminLogin(); }
     });
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');

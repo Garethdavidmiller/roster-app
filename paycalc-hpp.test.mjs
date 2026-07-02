@@ -40,6 +40,7 @@ mock.module('./paycalc-settings.js', {
         getLoggedMember:   () => null,
         getEffectiveContr: () => 140,
         getProRateFactor:  () => _proRateFactorVal,
+        getStoredRateForYear: () => 20.74,
     },
 });
 

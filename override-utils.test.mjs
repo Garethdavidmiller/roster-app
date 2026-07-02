@@ -178,6 +178,27 @@ describe('computePeriodDeleteIds', () => {
         assert.ok(!ids.includes('c21'), 'correction kept because an adjacent sick override remains');
     });
 
+    it('keeps the shared Sunday correction when the surviving range reaches it only via Friday (Saturday is base-RD)', () => {
+        // Delete range A = [Sun 21 .. Wed 24] (leave Mon–Wed). A surviving range B ends on the same
+        // Sunday but its Saturday (20th) is a base rest day, so B's nearest surviving leave is Fri 19
+        // — two days before the Sunday. A ±1 check would miss it and wrongly delete the shared
+        // correction, resurrecting the worked Sunday shift mid-leave.
+        const rangeA = [
+            { id: 'a22', memberName: M, date: '2026-06-22', type: 'annual_leave', value: 'AL' },
+            { id: 'a23', memberName: M, date: '2026-06-23', type: 'annual_leave', value: 'AL' },
+            { id: 'a24', memberName: M, date: '2026-06-24', type: 'annual_leave', value: 'AL' },
+        ];
+        const rangeBFriday = [
+            { id: 'b18', memberName: M, date: '2026-06-18', type: 'annual_leave', value: 'AL' },
+            { id: 'b19', memberName: M, date: '2026-06-19', type: 'annual_leave', value: 'AL' }, // Fri — Sat 20 is base-RD, no leave
+        ];
+        const ids = computePeriodDeleteIds(
+            [...rangeA, ...rangeBFriday, sunCorrection],
+            { type: 'annual_leave', memberName: M, start: '2026-06-21', end: '2026-06-24' });
+        assert.ok(!ids.includes('c21'), 'shared Sunday correction must survive — range B still spans it via Friday');
+        assert.deepEqual(new Set(ids), new Set(['a22', 'a23', 'a24']));
+    });
+
     it('ignores other members and out-of-range dates', () => {
         const all = [
             ...range1AL,

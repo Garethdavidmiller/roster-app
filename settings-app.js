@@ -67,7 +67,9 @@ if (_access.decision === 'login') {
     // mid-wiring (never less robust than reload). Don't resolveSession(false) when in-place, or the
     // one-shot sessionReady is poisoned before initAuthorised can resolve it true.
     const onSuccess = CONFIG.INPLACE_LOGIN.settings
-        ? () => { try { initAuthorised(); } catch { window.location.reload(); } }
+        // Reload (fresh overlay) rather than run initAuthorised() with a null identity if saveSession
+        // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
+        ? () => { try { if (!getSession()) { window.location.reload(); return; } initAuthorised(); } catch { window.location.reload(); } }
         : () => window.location.reload();
     initLoginOverlay({ pageLabel: 'Settings', onSuccess });
     if (!CONFIG.INPLACE_LOGIN.settings) resolveSession(false); // fulfil sessionReady on the non-auth path
