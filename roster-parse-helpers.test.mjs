@@ -159,15 +159,24 @@ describe('normaliseShift', () => {
         assert.equal(normaliseShift('Assessment'), 'ASSESS');
         assert.equal(normaliseShift('ASSESSMENTS'), 'ASSESS');
     });
-    test('training rest-day marker preserved, either order → canonical "FLAVOUR RDW"', () => {
+    test('team day words → TEAM (the one multi-word roster label; "Team Day")', () => {
+        assert.equal(normaliseShift('Team Day'), 'TEAM');
+        assert.equal(normaliseShift('TEAM DAY'), 'TEAM');
+        assert.equal(normaliseShift('team day'), 'TEAM');
+        assert.equal(normaliseShift('Team'), 'TEAM');
+        assert.equal(normaliseShift('Team  Day'), 'TEAM');   // OCR double-space tolerated
+    });
+    test('training/team rest-day marker preserved, either order → canonical "FLAVOUR RDW"', () => {
         assert.equal(normaliseShift('TRG RDW'), 'TRG RDW');
         assert.equal(normaliseShift('Training RDW'), 'TRG RDW');
         assert.equal(normaliseShift('RDW TRG'), 'TRG RDW');
         assert.equal(normaliseShift('IND RDW'), 'IND RDW');
         assert.equal(normaliseShift('ASSESS RDW'), 'ASSESS RDW');
+        assert.equal(normaliseShift('Team Day RDW'), 'TEAM RDW');
+        assert.equal(normaliseShift('RDW Team Day'), 'TEAM RDW');
     });
-    test('training values never become UNKNOWN (they were UNREADABLE before v15.34)', () => {
-        for (const v of ['TRG', 'Training', 'Induction', 'Assessment', 'TRG RDW']) {
+    test('training/team values never become UNKNOWN (they were UNREADABLE before v15.34)', () => {
+        for (const v of ['TRG', 'Training', 'Induction', 'Assessment', 'TRG RDW', 'Team Day', 'TEAM']) {
             assert.ok(!normaliseShift(v).startsWith('UNKNOWN|'), v);
         }
     });

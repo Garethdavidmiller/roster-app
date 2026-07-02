@@ -274,7 +274,7 @@ export function buildWeekGridInto(container, dateStr) {
             const otherPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-other'));
             if (otherPill) {
                 otherPill.disabled = true;
-                otherPill.title    = 'Other days (training, induction, assessment) cannot be recorded on a Sunday — Sundays are not contracted days';
+                otherPill.title    = 'Other days (training, induction, assessment, team days) cannot be recorded on a Sunday — Sundays are not contracted days';
                 otherPill.setAttribute('aria-label', 'Other — unavailable on Sundays (not a contracted day)');
             }
         }

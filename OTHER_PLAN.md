@@ -1,4 +1,4 @@
-# OTHER_PLAN.md — the "Other" day family (Training / Induction / Assessment; Meetings / Union duties later)
+# OTHER_PLAN.md — the "Other" day family (Training / Induction / Assessment / Team Day; Meetings / Union duties later)
 
 *Status: **BUILT** (v15.34–v15.38) and **EVOLVED into the "Other" family at v15.40** (pre-deploy, so
 the rename was free — no data migration). Verify live in a private window after deploy (375px badge
@@ -109,20 +109,21 @@ mirrors the roster's own language:
 
 ```
 value := FLAVOUR [ " RDW" ] [ " HH:MM-HH:MM" ]
-FLAVOUR := "TRG" | "IND" | "ASSESS"
+FLAVOUR := "TRG" | "IND" | "ASSESS" | "TEAM"
 ```
 
-Examples: `TRG` · `IND` · `ASSESS` · `TRG RDW` · `TRG 08:00-16:00` · `TRG RDW 08:00-16:00`
+Examples: `TRG` · `IND` · `ASSESS` · `TEAM` · `TRG RDW` · `TRG 08:00-16:00` · `TRG RDW 08:00-16:00`
 
-- Value reads exactly like the roster → debuggable by eye in the Saved Changes list.
+- Value reads exactly like the roster → debuggable by eye in the Saved Changes list. (`TEAM` is
+  the stored sentinel for the roster's multi-word label "Team Day"; added v15.51.)
 - One Firestore rules clause validates the whole grammar (bounded time regex, RE2 full-string):
-  `type == 'other' && value.matches('(TRG|IND|ASSESS)( RDW)?( ([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9])?')`
+  `type == 'other' && value.matches('(TRG|IND|ASSESS|TEAM)( RDW)?( ([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9])?')`
 - All other override fields (`note`, `source`, `createdAt`, `changedBy`) unchanged; the `hasOnly`
   field allowlist unchanged. Per-member isolation / delete rules are type-agnostic — no change.
 
 **Single sources of truth (new, in `override-utils.js`** — pure module, already imported by
 `roster-data.js`, no cycle):
-- `OTHER_FLAVOURS = { TRG: {badge:'Train', full:'Training'}, IND: {badge:'Ind', full:'Induction'}, ASSESS: {badge:'Assess', full:'Assessment'} }`
+- `OTHER_FLAVOURS = { TRG: {badge:'Train', full:'Training'}, IND: {badge:'Ind', full:'Induction'}, ASSESS: {badge:'Assess', full:'Assessment'}, TEAM: {badge:'Team', full:'Team Day'} }`
 - `isOtherValue(v)` / `parseOtherValue(v)` → `{ flavour, rdw, time|null }` or `null`
 - `OTHER_RDW_DEFAULT_MINS = 480` (the 8h default — one place)
 - `resolveOtherPay(parsed, baseValue)` → the pay mapping as a discriminated union —
@@ -147,6 +148,7 @@ pattern as `normaliseSurname`; if the grammar changes, update both).
 | TRG / TRAINING / TRAIN | `TRG` |
 | INDUCTION / IND | `IND` |
 | ASSESSMENT / ASSESSMENTS / ASSESS | `ASSESS` |
+| TEAM DAY / TEAM DAYS / TEAM (the one multi-word label; captured token whitespace-collapsed before lookup) | `TEAM` |
 | any of the above + RDW (either order: “TRG RDW”, “RDW TRG”) | `<FLAVOUR> RDW` |
 
 - A training cell **with times** in the PDF is unexpected (roster never sets times) → falls to

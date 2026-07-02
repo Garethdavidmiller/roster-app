@@ -136,9 +136,9 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
 // mirrors the roster's own language:
 //
 //   value := FLAVOUR [" RDW"] [" HH:MM-HH:MM"]
-//   FLAVOUR := "TRG" | "IND" | "ASSESS"
+//   FLAVOUR := "TRG" | "IND" | "ASSESS" | "TEAM"
 //
-// Examples: 'TRG' · 'IND RDW' · 'ASSESS 08:00-16:00' · 'TRG RDW 08:00-16:00'.
+// Examples: 'TRG' · 'IND RDW' · 'ASSESS 08:00-16:00' · 'TRG RDW 08:00-16:00' · 'TEAM'.
 // " RDW" marks a training rest-day (explicitly written on the roster as "TRG RDW");
 // the optional time range is the trainer's ACTUAL hours, entered manually by the
 // admin (roster uploads never carry times). This module is the client-side single
@@ -153,6 +153,7 @@ export const OTHER_FLAVOURS = {
     TRG:    { badge: 'Train',  full: 'Training'   },
     IND:    { badge: 'Ind',    full: 'Induction'  },
     ASSESS: { badge: 'Assess', full: 'Assessment' },
+    TEAM:   { badge: 'Team',   full: 'Team Day'   },
 };
 
 /** Default duration credited to a training REST-DAY (TRG RDW) when no actual times are
@@ -162,7 +163,7 @@ export const OTHER_RDW_DEFAULT_MINS = 480;
 
 // Anchored full-string grammar. Time range is bounded HH:MM (00-23 / 00-59) so an
 // impossible time can never ride in on a training value.
-const _OTHER_RE = /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/;
+const _OTHER_RE = /^(TRG|IND|ASSESS|TEAM)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/;
 
 /**
  * True when a stored override/shift value is a training-family value (any flavour,
@@ -177,14 +178,14 @@ export function isOtherValue(v) {
 /**
  * Parse a training value into its parts, or null when it isn't one.
  * @param {any} v
- * @returns {{ flavour: 'TRG'|'IND'|'ASSESS', rdw: boolean, time: string|null } | null}
+ * @returns {{ flavour: 'TRG'|'IND'|'ASSESS'|'TEAM', rdw: boolean, time: string|null } | null}
  */
 export function parseOtherValue(v) {
     if (typeof v !== 'string') return null;
     const m = v.match(_OTHER_RE);
     if (!m) return null;
     return {
-        flavour: /** @type {'TRG'|'IND'|'ASSESS'} */ (m[1]),
+        flavour: /** @type {'TRG'|'IND'|'ASSESS'|'TEAM'} */ (m[1]),
         rdw:     !!m[2],
         time:    m[3] ? m[3].trim() : null,
     };

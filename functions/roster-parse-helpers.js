@@ -55,14 +55,16 @@ function normaliseShift(raw) {
     // base-rest-day normalisation happen client-side in computeCellStates, same as SICK.
     if (s === 'HA' || s === 'OD') return 'SICK';
 
-    // Training / Induction / Assessment (OTHER_PLAN.md). Roster words collapse to the
-    // canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
-    // marks a training rest-day and is preserved as the canonical " RDW" suffix. These
-    // cells never carry times (the trainer sets them later) — a timed variant falls
-    // through to UNKNOWN below and surfaces as an UNREADABLE review row, never mis-saved.
+    // Training / Induction / Assessment / Team Day (OTHER_PLAN.md). Roster words collapse
+    // to the canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
+    // marks a rest-day and is preserved as the canonical " RDW" suffix. These cells never
+    // carry times (the trainer/manager sets them later) — a timed variant falls through to
+    // UNKNOWN below and surfaces as an UNREADABLE review row, never mis-saved. "Team Day" is
+    // the one multi-word roster label (appears exactly as "Team Day"); its captured token is
+    // whitespace-collapsed before the lookup so OCR double-spacing can't miss the table.
     // Deliberate duplicate of the client grammar in override-utils.js (CommonJS cannot
     // import browser ES modules — same accepted pattern as nameToPassword).
-    const trgMatch = s.match(/^(?:RDW\s+)?(TRG|TRAINING|TRAIN|IND(?:UCTION)?|ASSESS(?:MENTS?)?)(?:\s+(RDW))?$/);
+    const trgMatch = s.match(/^(?:RDW\s+)?(TRG|TRAINING|TRAIN|IND(?:UCTION)?|ASSESS(?:MENTS?)?|TEAM(?:\s+DAYS?)?)(?:\s+(RDW))?$/);
     if (trgMatch) {
         // Explicit alias → sentinel table (NOT first-letter dispatch, which would silently map any
         // future alias added to the regex without a table entry onto the wrong flavour).
@@ -70,8 +72,9 @@ function normaliseShift(raw) {
             TRG: 'TRG', TRAINING: 'TRG', TRAIN: 'TRG',
             IND: 'IND', INDUCTION: 'IND',
             ASSESS: 'ASSESS', ASSESSMENT: 'ASSESS', ASSESSMENTS: 'ASSESS',
+            TEAM: 'TEAM', 'TEAM DAY': 'TEAM', 'TEAM DAYS': 'TEAM',
         };
-        const flavour = FLAVOUR_LOOKUP[trgMatch[1]];
+        const flavour = FLAVOUR_LOOKUP[trgMatch[1].replace(/\s+/g, ' ')];
         const rdw = /^RDW\s/.test(s) || !!trgMatch[2];
         return rdw ? `${flavour} RDW` : flavour;
     }
