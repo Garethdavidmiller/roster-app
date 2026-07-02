@@ -7,8 +7,9 @@
   rolled back during the v14.72 login freeze, **re-enabled v14.98** after the freeze was fixed and B1
   exonerated — see LOGIN_INCIDENT.md); **B2 per-member override isolation BUILT + DEPLOYED permissive**
   (v14.53: the 3-tier `name || admin || manager || !name` rule + `manager` claim in `setupRosterAuth`,
-  incl. delete + bounded date validation; `linkDesigns` left open; 173 rules tests green); **B3 — the
-  strict cutover (drop the `!name` escape) — is the next step** (still permissive today).*
+  incl. delete + bounded date validation; `linkDesigns` deliberately left at `request.auth != null`
+  per owner decision Jul 2026 — see B2; 173 rules tests green); **B3 — the strict cutover (drop the
+  `!name` escape) — is the next step** (still permissive today).*
 - *Tracks C (password) + D (App Check) — not started.*
 
 *This is the master **ordering + go/no-go** doc; the detailed designs live in ROADMAP.md /
@@ -238,14 +239,13 @@ in `session.test.mjs`.
     create/update, or isolation on writes is pointless (anyone could still delete anyone's data).
 - **Goal (`linkDesigns`) — NOT member-isolated.** Link designs are keyed by **design name, not
   member**, so `token.name == memberName` is meaningless, and the designer **S. Silva is a CEA**
-  (no admin/manager claim). Member-name isolation does not fit this collection. **Decision needed
-  (owner):** either (a) **leave `linkDesigns` at `request.auth != null`** — its current rule, whose
-  comment already says "per-designer isolation is not needed here"; the real access control is the
+  (no admin/manager claim). Member-name isolation does not fit this collection. **Decision (owner,
+  Jul 2026): (a) — leave `linkDesigns` at `request.auth != null`.** The real access control is the
   client redirect on `CONFIG.LINKS_DESIGNERS`, and the blast radius is one niche internal design
-  tool — **recommended**; or (b) add a dedicated **`linksDesigner: true`** claim for the
-  `LINKS_DESIGNERS` names and gate writes on `admin || linksDesigner`. Do **not** fold `linkDesigns`
-  into the override member-name model. (Recommendation: (a) — defer the designer claim unless/until
-  the workspace opens to more people.)
+  tool. Revisit only if the workspace opens to more people — at which point option (b) (a dedicated
+  **`linksDesigner: true`** claim for the `LINKS_DESIGNERS` names, gating writes on
+  `admin || linksDesigner`) is the intended upgrade, best folded into B4's server-owned role lists
+  (see B4). Do **not** fold `linkDesigns` into the override member-name model either way.
 - **Goal (date validation hardening) — folded in from an external v14.51 review.** The `overrides`
   date rule validates *shape* only (`matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')`), so an impossible date
   like `2026-99-99` or `2026-02-31` passes; the `circulars`/`newsletters` date rules are weaker
