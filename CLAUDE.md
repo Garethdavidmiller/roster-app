@@ -472,7 +472,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 ```
 date         "YYYY-MM-DD"
 memberName   Must match teamMembers[n].name exactly — one char mismatch = silent failure
-type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick" | "training"
+type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick" | "other"
              Legacy (still in data, not creatable): "allocated" | "overtime" | "swap"
 value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
              training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS", optional rest-day

@@ -378,6 +378,55 @@ describe('getRosterSuggestion — training days', () => {
     assert.equal(s.rdwCount, 0, 'must not land in the 1.25× RDW bucket');
   });
 
+  test('NEVER-LESS floor: timed training that ran SHORT of a BH shift still pays the full shift', () => {
+    // Easter Monday, base 12:00-19:00 (7h); training ran only 12:00-16:00 (4h). Decision 5:
+    // never paid less than the rostered shift — the bh bucket must hold 7h, not 4h.
+    _setOverridesForTest(new Map([
+      ['2026-04-06', { type: 'other', value: 'TRG 12:00-16:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-06'), cReen);
+    assert.ok(s);
+    assert.equal(s.bhCount, 1);
+    assert.equal(s.bhH, 7, 'floored at the base shift, not the short training duration');
+    assert.equal(s.bhOtCount, 0);
+  });
+
+  test('training on a ROSTERED SATURDAY, no times → sat bucket at base hours (spec table row)', () => {
+    // L. Springer base Sat 2026-04-04 = 13:30-21:00 (7h30).
+    _setOverridesForTest(new Map([
+      ['2026-04-04', { type: 'other', value: 'IND', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-04'), lSpringer);
+    assert.ok(s);
+    assert.equal(s.satCount, 1);
+    assert.equal(s.satH, 7);
+    assert.equal(s.satM, 30);
+    assert.equal(s.rdwCount + s.otCount, 0);
+  });
+
+  test('NEVER-LESS floor on a rostered Saturday: short timed training pays the full 7h30', () => {
+    _setOverridesForTest(new Map([
+      ['2026-04-04', { type: 'other', value: 'TRG 13:30-17:30', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-04'), lSpringer);
+    assert.ok(s);
+    assert.equal(s.satCount, 1);
+    assert.equal(s.satH, 7);
+    assert.equal(s.satM, 30, 'floored — 4h of training on a 7h30 Saturday still pays 7h30');
+    assert.equal(s.otCount, 0);
+  });
+
+  test('rdwDefaulted flag: true for an untimed rest-day default, false when actual times exist', () => {
+    _setOverridesForTest(new Map([
+      ['2026-04-11', { type: 'other', value: 'TRG RDW', _ts: 1, _manual: true }],
+    ]));
+    assert.equal(getRosterSuggestion(period('2026-04-11'), cReen).rdwDefaulted, true);
+    _setOverridesForTest(new Map([
+      ['2026-04-11', { type: 'other', value: 'TRG RDW 09:00-17:00', _ts: 1, _manual: true }],
+    ]));
+    assert.equal(getRosterSuggestion(period('2026-04-11'), cReen).rdwDefaulted, false);
+  });
+
   test('TRG RDW on a BANK HOLIDAY → bhOt bucket (mirrors a plain rdw override on a BH)', () => {
     // Inject a BH on 2026-04-11 (Sat, C. Reen base RD) via the test hook.
     _addBhDateForTest(2026, '2026-04-11');

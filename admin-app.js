@@ -772,7 +772,12 @@ saveBtn.addEventListener('click', async () => {
             // defaults apply (base shift on a rostered day, 8h RDW on a training rest-day) —
             // but a half-filled or malformed pair is still an error.
             const flavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour || 'TRG';
-            const rdw     = (/** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb')))?.checked ? ' RDW' : '';
+            // Rest-day base FORCES the RDW marker regardless of the tick: the pay engine and both
+            // display layers derive RDW-ness from a rest-day base anyway (belt-and-braces — as-base
+            // would pay £0), so storing 'TRG' for such a day would just make the saved value lie
+            // about the behaviour the app honours. The tick still governs worked-base days.
+            const _rdwTicked = (/** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb')))?.checked;
+            const rdw     = (_rdwTicked || row.dataset.baseIsRd === '1') ? ' RDW' : '';
             const s = (/** @type {HTMLInputElement} */ (row.querySelector('.day-start'))).value.trim();
             const e = (/** @type {HTMLInputElement} */ (row.querySelector('.day-end'))).value.trim();
             let time = '';
@@ -820,7 +825,7 @@ saveBtn.addEventListener('click', async () => {
         toSave.push({ memberName, date, type, value, note, existingId: row.dataset.existingId || null });
     });
 
-    if (errors.length)                    return showError('Missing times — ' + errors.join(' · '));
+    if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
     if (!toSave.length && !toDelete.length) return showError('No changes to save.');
 
     // Validate shift duration and rest-gap rules

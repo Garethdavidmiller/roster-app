@@ -1872,12 +1872,12 @@
     transition: background 0.15s, color 0.15s;
 }
 .other-flavour-btn.active { background: var(--other); color: white; }
-.trg-rdw-label {
+.other-rdw-label {
     display: inline-flex; align-items: center; gap: 5px;
     font-weight: 600; color: var(--other);
     cursor: pointer; white-space: nowrap;
 }
-.trg-rdw-label input { accent-color: var(--other); }
+.other-rdw-label input { accent-color: var(--other); }
 .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: 11px; }
 @media print {
     .lpill-other { background: var(--other-light) !important; color: var(--other) !important; }

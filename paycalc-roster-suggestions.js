@@ -175,6 +175,7 @@ export function getRosterSuggestion(p, member) {
   let satMins = 0, sunMins = 0, bhMins = 0, bhOtMins = 0, otMins = 0, boxMins = 0, rdwMins = 0;
   let satCount = 0, sunCount = 0, bhCount = 0, bhOtCount = 0, otCount = 0, boxCount = 0, rdwCount = 0;
   let satFromOv = false, sunFromOv = false, bhFromOv = false, boxFromOv = false;
+  let rdwDefaulted = false;   // true when a defaulted (untimed) Other rest-day contributed 8h to the totals
   const days = [];
 
   const cur = new Date(p.start);
@@ -216,6 +217,7 @@ export function getRosterSuggestion(p, member) {
           const _mins     = _pay.mins;
           const _labelTxt = _otherParsed.time ?? `${OTHER_RDW_DEFAULT_MINS / 60}h default — adjust to actual`;
           const _isBoxingT = cur.getMonth() === 11 && cur.getDate() === 26;
+          if (!_otherParsed.time) rdwDefaulted = true;   // an 8h ESTIMATE is in the totals — surfaced on the hint row
           if (_isBoxingT) {
             boxMins += _mins; boxCount++;
             days.push({ date: new Date(cur), shift: _labelTxt, type: 'box', source: 'override' });
@@ -257,6 +259,12 @@ export function getRosterSuggestion(p, member) {
         baseMins = (beh * 60 + bem) - (bsh * 60 + bsm);
         if (baseMins <= 0) baseMins += 24 * 60;
       }
+      // NEVER-LESS floor (OTHER_PLAN.md decision 5): a timed Other day that ran SHORT of the
+      // rostered shift still pays the FULL shift. Without this, the shift-override split below
+      // (Math.min(mins, baseMins) on the Sat/BH branches) credited only the training duration —
+      // e.g. training 12:00-16:00 on a base Saturday 13:30-21:00 suggested 4h sat instead of 7.5h.
+      // Over-runs are unaffected (mins > baseMins); weekdays were already safe (excess-only).
+      if (_otherFromOv === true && baseWorked && mins < baseMins) mins = baseMins;
 
       if (isBoxing) {
         boxMins += mins; boxCount++;
@@ -360,7 +368,7 @@ export function getRosterSuggestion(p, member) {
     satFromOv, sunFromOv, bhFromOv,
     // bhOtFromOv is always true: BH overtime only arises from an explicit override on a BH day,
     // never from the base roster alone. rdwFromOv likewise — base roster never schedules RDW.
-    bhOtFromOv: true, boxFromOv, rdwFromOv: true,
+    bhOtFromOv: true, boxFromOv, rdwFromOv: true, rdwDefaulted,
     memberName: member.name,
     days: days.sort((a, b) => +a.date - +b.date),
   };

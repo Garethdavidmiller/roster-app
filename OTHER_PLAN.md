@@ -55,7 +55,7 @@ calculator (`peerDays`). That is a different feature; keep all copy distinct.
 
 | # | Decision | Answer |
 |---|----------|--------|
-| 1 | Family colour | **Bronze** — one new token pair `--trg` / `--other-light` (all three flavours share it) |
+| 1 | Family colour | **Bronze** — one new token pair `--trg` / `--trg-light` (as-was) (all three flavours share it) |
 | 2 | Badge | 🎓 + short flavour word: **Train** / **Ind** / **Assess** |
 | 3 | Hours slot (where a time normally shows) | The **time** (base shift time, or actual times when entered) — or the word **RDW** for a training rest-day with no times |
 | 4 | Tap on the day (day-detail / tooltip / aria) | The **full word**: “Training” / “Induction” / “Assessment” (+ “ — Rest Day Worked” when RDW, + times when known) |

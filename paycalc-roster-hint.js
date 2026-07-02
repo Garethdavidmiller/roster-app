@@ -41,7 +41,10 @@ function fmtH(h, m) {
  * @param {any} cat
  * @param {any} fromOv
  */
-function _confBadge(cat, fromOv) {
+function _confBadge(cat, fromOv, rdwDefaulted = false) {
+  // A defaulted Other rest-day means the RDW figure INCLUDES an 8h guess — never let the row
+  // claim "Recorded change" for a number that is an estimate the member must correct.
+  if (cat === 'rdw' && rdwDefaulted)  return { text: 'Includes an 8h estimate — check', cls: 'conf-possible' };
   if (cat === 'ot' || cat === 'bhOt') return { text: 'Possible overtime', cls: 'conf-possible' };
   if (cat === 'rdw' || fromOv)        return { text: 'Recorded change',   cls: 'conf-recorded' };
   return null;
@@ -202,7 +205,7 @@ export function updateRosterHint() {
       const enteredMins = (hv === '' && mv === '') ? null
         : (parseInt(hv) || 0) * 60 + (parseInt(mv) || 0);
 
-      const conf     = _confBadge(r.cat, r.fromOv);
+      const conf     = _confBadge(r.cat, r.fromOv, s.rdwDefaulted);
       const confHtml = conf ? `<span class="conf-badge ${conf.cls}">${conf.text}</span>` : '';
 
       let rowClass, totalText, metaText, arrowHtml, ariaLabel;
