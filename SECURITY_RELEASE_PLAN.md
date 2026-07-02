@@ -1,15 +1,17 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: in progress (created v14.38). **Current state (as of v15.06):***
+*Status: in progress (created v14.38). **Current state (as of v15.32):***
 - *Track A — **A2 Workload Identity Federation ✓ DONE (v14.93)** (keyless OIDC deploys; SA JSON key +
-  secret deleted — see Appendix A2); A3 doc-only ✓ DONE (v14.38); A1 firebase-admin waits on upstream.*
+  secret deleted — see Appendix A2); A3 doc-only ✓ DONE (v14.38); **A1 ✓ DONE (v15.32)** — the `uuid`
+  advisories were cleared with a scoped `uuid` override on the supported firebase-admin `^13`, NOT the
+  v14 bump the plan originally assumed (v14 breaks the peer range + the namespaced API — see A1).*
 - *Track B — B0 identity signal ✓ DONE (v14.39); **B1 named-session enforcement ✓ ENABLED** (v14.42,
   rolled back during the v14.72 login freeze, **re-enabled v14.98** after the freeze was fixed and B1
   exonerated — see LOGIN_INCIDENT.md); **B2 per-member override isolation BUILT + DEPLOYED permissive**
   (v14.53: the 3-tier `name || admin || manager || !name` rule + `manager` claim in `setupRosterAuth`,
   incl. delete + bounded date validation; `linkDesigns` deliberately left at `request.auth != null`
-  per owner decision Jul 2026 — see B2; 173 rules tests green); **B3 — the strict cutover (drop the
-  `!name` escape) — is the next step** (still permissive today).*
+  per owner decision Jul 2026 — see B2; full Firestore + Storage rules suite green); **B3 — the strict
+  cutover (drop the `!name` escape) — is the next step** (still permissive today).*
 - *Tracks C (password) + D (App Check) — not started.*
 
 *This is the master **ordering + go/no-go** doc; the detailed designs live in ROADMAP.md /
@@ -69,21 +71,24 @@ B-track phase reference them.
 | Tier | Source list | Firebase claim they must carry | What they legitimately write |
 |------|-------------|-------------------------------|------------------------------|
 | **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
-| **Management** | `CONFIG.MANAGER_NAMES` (6 names) | **`{ manager: true, name }`** ← does not exist yet | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
+| **Management** | `CONFIG.MANAGER_NAMES` (6 names) | **`{ manager: true, name }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
 | **Staff** | everyone else | `{ name }` | Only their **own** overrides (`token.name == memberName`) |
 | *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva']`) | *cross-cuts the above* — S. Silva is a **CEA**, not a manager | `linkDesigns` (designs are **not** member-owned) |
 
-**Today:** only `ADMIN_NAMES` is sent to `setupRosterAuth` as `adminMembers`, so only G. Miller
-carries `admin: true`. Managers carry just `{ name }`; the *client* (`admin-app.js`
-`applyPermissions`) grants them full edit access, but **the Firestore rules cannot tell a manager
-from ordinary staff.** That is fine while the rule is `request.auth != null`, and a silent lockout
-the moment a rule needs a claim. So:
+**The gap B2 closed (pre-v14.53):** originally only `ADMIN_NAMES` was sent to `setupRosterAuth` as
+`adminMembers`, so only G. Miller carried `admin: true`; managers carried just `{ name }`. The
+*client* (`admin-app.js` `applyPermissions`) granted them full edit access, but **the Firestore
+rules could not tell a manager from ordinary staff** — fine while the rule was `request.auth != null`,
+but a silent lockout the moment a rule needed a claim. B2 (v14.53) shipped the fix; it is now live in
+`setupRosterAuth` (managers get `manager: true`) and in the permissive isolation rule. The three
+design points that flowed from this, still governing B3/B4:
 
-- **B2 introduces a `manager: true` claim** (set by `setupRosterAuth` for `MANAGER_NAMES`) and the
-  override/Links rules check `name == memberName || admin == true || manager == true`. The
-  master-admin-only collections (huddles, circulars, newsletters, roster upload, auth setup) stay
-  `admin == true` only — do **not** grant managers `admin: true`, which would let them reach those
-  APIs directly and dissolve the very tier separation `MANAGER_NAMES` exists to enforce.
+- **B2 introduced the `manager: true` claim** (set by `setupRosterAuth` for `MANAGER_NAMES`) and the
+  override rule checks `name == memberName || admin == true || manager == true`. (`linkDesigns` was
+  deliberately left at `request.auth != null` — see B2 — so the "Links rules" are not part of this
+  check.) The master-admin-only collections (huddles, circulars, newsletters, roster upload, auth
+  setup) stay `admin == true` only — do **not** grant managers `admin: true`, which would let them
+  reach those APIs directly and dissolve the very tier separation `MANAGER_NAMES` exists to enforce.
 - **B3's claims audit + token-refresh sweep must cover all three tiers** — a manager on a token
   minted before the `manager` claim existed is rejected by the strict rule exactly like a staff
   member on a pre-`name` token.
@@ -101,7 +106,7 @@ surface to debug when something goes silent.
 
 ```
   Track A — standalone infra (any time, parallelisable)
-    A1 firebase-admin v14 ........ (blocked on upstream peer range; mechanical when freed)
+    A1 uuid advisories ✓ DONE .... (uuid override on firebase-admin ^13; did NOT need the v14 bump)
     A2 Workload Identity Fed ..... (isolated CI change; SA-JSON kept as fallback during cutover)
     A3 doc-only accuracy ✓ DONE .. (pushSubscriptions delete posture + bearer-URL notes; rule-tighten → B2)
 
@@ -154,7 +159,9 @@ surface to debug when something goes silent.
 5. **B4** — server-owned roster/role lists.
 6. **C2 → C4 → C3 → C5** — password release.
 7. **D1 → D2** — App Check monitor-then-enforce, once B is stable.
-8. **A1** — firebase-admin v14 whenever `firebase-functions` widens its peer range.
+8. **A1 ✓ DONE (v15.32)** — `uuid` advisories cleared via a scoped override on firebase-admin `^13`
+   (the v14 bump was neither needed nor safe — it breaks the `firebase-functions` peer range and the
+   namespaced API `index.js` uses; see A1). Standalone, done out of band.
 
 ---
 
@@ -212,11 +219,12 @@ in `session.test.mjs`.
 - **Leave the calendar bootstrap untouched** — the calendar reads via `calendarAuthReady`, not
   `ensureFirebaseSession`, so its legitimate anonymous public reads are automatically unaffected.
 
-### B1 — named-session separation + remove browser account-creation
+### B1 — named-session separation + remove browser account-creation ✓ ENABLED (v14.42; re-enabled v14.98)
 > **Detailed scope: see "Appendix: B1 detailed scope" at the foot of this file** — call-site map,
 > the soft/hard per-page enforcement matrix, re-auth UX, the kill-switch, and the testing plan.
-- **Goal:** anonymous auth confined to the public Calendar read path; Admin/Operations/Links/
-  Settings/Pay require a genuine named session. Stop the client auto-creating Firebase accounts
+- **Goal:** anonymous auth confined to the public Calendar read path; Admin/Operations/Links/Settings
+  require a genuine named session (**Pay stays SOFT** — it writes no isolated data, so it only logs;
+  see the enforcement matrix). Stop the client auto-creating Firebase accounts
   (`createUserWithEmailAndPassword` self-heal) once server provisioning is the source of truth.
 - **Who:** Claude (branch), owner confirms all accounts exist server-side first.
 - **Dependency:** removing client account-creation needs reliable server provisioning
@@ -230,7 +238,7 @@ in `session.test.mjs`.
 - **Rollback:** re-enable the self-heal create path (kept behind a single flag during rollout).
 - **Gate:** every active `teamMembers` account verified present server-side; break-glass reset tested.
 
-### B2 — per-member override + Links write isolation (the headline gap)
+### B2 — per-member override write isolation (the headline gap) ✓ BUILT + DEPLOYED permissive (v14.53)
 > **Read "The identity tiers the rules must respect" first.** The original one-line scope here
 > ("`overrides`/`linkDesigns` require `name == memberName` with an admin bypass") was wrong in three
 > ways, each a silent lockout: it ignored the **manager** tier, it assumed `linkDesigns` is
@@ -508,13 +516,13 @@ admin edits others' ✓; roster upload saves ✓.
 
 | Decision | Blocks | Notes |
 |----------|--------|-------|
-| Confirmed Chiltern **work-email domain** | staffContact domain validation; C2/C4 email recovery | Deferred in v14.24 for exactly this reason (lockout risk if wrong). |
+| ~~Confirmed Chiltern **work-email domain**~~ | ~~staffContact domain validation~~; C2/C4 email recovery | **✓ RESOLVED (v14.97): `chilternrailways.co.uk`** — `CONFIG.WORK_EMAIL_DOMAIN` (single source) + `isChilternWorkEmail()` in `roster-data.js`, enforced client-side AND in `firestore.rules`. (Was deferred in v14.24 for lockout risk.) Still confirm it's the right domain before C2/C4 email *recovery* relies on it. |
 | Email relay choice — Power Automate vs Firebase Trigger Email | C2, C4 | Power Automate relay already exists (Huddle ingest). |
 | Code expiry / retry-rate-limit policy | C2, C4 | 10-minute expiry + 3-attempt lockout is the documented default. |
 | A low-traffic **re-auth window** | B3 | The single highest-risk step; pick when a brief staff re-login is acceptable. **The window must re-provision + refresh tokens for the 6 managers too** (new `manager` claim) — not just staff. |
-| `linkDesigns` isolation: leave open vs. add a `linksDesigner` claim | B2 | Recommendation: leave at `request.auth != null` (designs aren't member-owned; S. Silva is a CEA; client redirect on `LINKS_DESIGNERS` is the real control). |
+| ~~`linkDesigns` isolation: leave open vs. add a `linksDesigner` claim~~ | ~~B2~~ | **✓ DECIDED (Jul 2026): leave at `request.auth != null`** (designs aren't member-owned; S. Silva is a CEA; client redirect on `LINKS_DESIGNERS` is the real control). Upgrade path → B4 if the tool opens up. |
 | `pushSubscriptions` delete: keep `request.auth != null` vs. add a stored owner field | B2 | Recommendation: keep as-is (no member identity on the doc; the id already requires knowing the endpoint). |
-| GCP **Workload Identity Pool** setup | A2 | Owner GCP work; Claude does the workflow YAML. |
+| ~~GCP **Workload Identity Pool** setup~~ | ~~A2~~ | **✓ DONE (v14.93)** — pool/provider/binding built with the repo-scoped `assertion.repository` condition (Appendix A2). |
 | reCAPTCHA Enterprise provider | D1/D2 | Required before App Check can attest. |
 | Is the app **official Chiltern infrastructure**? | App Check priority; header-capable hosting | If yes, App Check and Firebase-Hosting-only (drop github.io) rise in priority. |
 
@@ -524,7 +532,8 @@ admin edits others' ✓; roster upload saves ✓.
 
 - **Do not** ship per-member isolation as a hard cutover. Use the permissive→strict migration.
 - **Do not** enforce App Check and roll out isolation in the same window.
-- **Do not** bundle WIF or the firebase-admin bump into the authz release.
+- **Do not** bundle the Track-A infra work (WIF/A2, the functions `uuid` fix/A1) into the authz
+  release — different failure domains. (Both are now done, shipped standalone as intended.)
 - **Do not** retire the surname password (C5) before the ≥90% migration metric.
 - **Do not** remove the calendar's anonymous read/bootstrap when hardening
   `ensureFirebaseSession` — that path is a deliberate public-read surface.
@@ -551,7 +560,7 @@ admin edits others' ✓; roster upload saves ✓.
       exonerated (LOGIN_INCIDENT.md). Revert = flip `ENFORCE_NAMED_SESSION` back to false (one line).
 - [x] B2 — per-member override isolation (permissive, **3-tier: name/admin/manager**, incl. delete)
       + `setupRosterAuth` `manager` claim + `linkDesigns`/`pushSubscriptions` decisions + emulator tests.
-      **BUILT + DEPLOYED permissive (v14.53)** (173 rules tests green); managers re-provisioned per the
+      **BUILT + DEPLOYED permissive (v14.53)** (Firestore + Storage rules suite green); managers re-provisioned per the
       B2 deploy runbook. **B3 is the strict tighten** (drop the `!('name' in token)` escape).
 - [~] B3 — claims audit + permissive→strict token-refresh rollout (**re-provision the manager claim too**).
       **Client sweep BUILT v14.71** (`CONFIG.CLAIM_EPOCH` + `refreshClaimsIfStale()`, 6 tests) — the
@@ -568,7 +577,10 @@ admin edits others' ✓; roster upload saves ✓.
 - [ ] C5 — retire surname password (irreversible; gated on ≥90% migrated)
 - [ ] D1 — App Check monitor-first
 - [ ] D2 — App Check enforce (Firestore → Storage → Functions)
-- [ ] A1 — firebase-admin v14 (when upstream peer range allows)
+- [x] A1 — `uuid` advisories cleared ✓ **DONE (v15.32)** via a scoped `uuid` override on firebase-admin
+      `^13` (0 vulnerabilities; smoke + `test:functions` green). The v14 bump the plan originally
+      assumed was neither needed nor safe (breaks the `firebase-functions` peer range + the namespaced
+      API). Drop the override when `@google-cloud/storage` ships `uuid >= 11.1.1` upstream.
 
 ---
 
@@ -594,11 +606,16 @@ too strong):
 
 | Page | Writes isolated/admin data? | Enforcement |
 |------|------------------------------|-------------|
-| admin | Yes — `overrides` for all members; admin ops | **Hard** — overlay, block the app |
-| operations | Yes — admin-only huddle/circular/newsletter/roster/auth writes | **Hard** — redirect to admin login |
-| settings | Yes — `staffContact` (needs the `name` claim) | **Hard** — overlay, block writes |
-| links | Yes — `linkDesigns` | **Hard** — redirect to admin login |
+| admin | Yes — `overrides` for all members; admin ops | **Hard** — in-place login overlay, block the app |
+| operations | Yes — admin-only huddle/circular/newsletter/roster/auth writes | **Hard** — in-place login overlay (was: redirect to admin login, until in-place login / Phase 9, v14.45+); a signed-in NON-admin is still redirected to `admin.html` (access control, not a login divert) |
+| settings | Yes — `staffContact` (needs the `name` claim) | **Hard** — in-place login overlay, block writes |
+| links | Yes — `linkDesigns` | **Hard** — in-place login overlay (was: redirect to admin login, until Phase 9) |
 | paycalc | **No** — only `clientErrors`/`analytics` (non-isolated) | **Soft** — log only; the calculator is localStorage-based and must keep working |
+
+> **Mechanism note (Phase 9, v15.16–17):** all five pages now show the **shared in-place login overlay**
+> (`login-overlay.js`, gated by `CONFIG.INPLACE_LOGIN` — all `true`) rather than redirecting; on success
+> the coordinator re-inits in place (or reloads on the B1 stale-session path — see admin-app.js). The
+> Hard/Soft *strength* above is unchanged; only the divert mechanism was replaced.
 
 **Provisioning prerequisite (B1.3):** every active member (incl. managers) must have a server account
 via Operations → "Set up accounts" **before** B1 enables — the client no longer self-heals. Admin
