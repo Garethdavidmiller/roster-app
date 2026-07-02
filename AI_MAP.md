@@ -334,7 +334,7 @@ Staff Firebase Auth account setup (admin only).
 The Weekly Roster Upload pipeline.
 - `initRosterUpload(opts)` — called by `operations-app.js` after session guard passes
 - `computeCellStates()` — classifies each day: MATCH / DIFF / CONFLICT / COVERED / REMOVE_IMPORT / UNREADABLE
-- `renderReviewTable()` — per-person card list with approve/skip
+- `renderReviewTable()` — per-person card list. Presentation reworked v15.52: a plain-language **outcome summary** ("what Save will do" — updated / cleared / needs-your-choice / couldn't-read) above the list; each change row carries a **Save tick** (was a Save/Skip toggle button) + an action tag (Update / Clear old / Your choice / Not saved); conflicts are an inline **Keep yours / Use new roster** choice (was Manual / PDF) with no separate top conflict banner; the Save button shows a live count. State machine + `chosen` model unchanged.
 - `shiftDisplay()` — badge display helper (module scope)
 - `shiftValueToOverrideType(value, baseShift, date)` — parsed value → override `type`; **module-scope + EXPORTED (v15.34)** so it is unit-testable (`admin-roster-upload.test.mjs`). Maps the training grammar → `'other'`; Sunday AL/SICK/training → `'correction'` (the Sunday block).
 - **UNREADABLE (v15.30):** when `normaliseShift` (functions) can't parse a non-empty cell it returns a `UNKNOWN|<raw>` sentinel instead of defaulting to `RD` (which, when the base is also RD, silently dropped a real shift as a MATCH). `computeCellStates` maps the sentinel to a skip-only `UNREADABLE` row — surfaced in review, counted in the summary label, but never written (the save path only writes DIFF/CONFLICT). The admin fixes the source PDF and re-uploads, or records the shift manually.

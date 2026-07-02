@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Operations v15.51 -->
+<!-- MYB Roster — Operations v15.52 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -166,21 +166,14 @@
                 <!-- Step 2: Review (hidden until parsing completes) -->
                 <div id="rosterReviewSection">
 
-                    <div id="rosterConflictBanner" class="roster-conflict-banner" role="alert" aria-live="polite">
-                        <span class="roster-conflict-icon">⚠</span>
-                        <div class="roster-conflict-text">
-                            <strong id="rosterConflictTitle"></strong>
-                            <p id="rosterConflictDetail"></p>
-                        </div>
-                    </div>
-
                     <p id="rosterReviewLabel" class="roster-review-label"></p>
+
+                    <div id="rosterOutcome" class="roster-outcome" role="status" aria-live="polite"></div>
 
                     <div id="rosterChangeList"></div>
 
                     <button type="button" id="rosterApplyBtn" class="btn-save">Save changes</button>
-                    <p class="save-hint">All changes default to Save. Tap a row's button to skip it. Resolve any conflicts by choosing Manual or PDF, then tap Save changes.</p>
-                    <button type="button" id="rosterCancelBtn" class="roster-cancel-btn">Upload different file</button>
+                    <button type="button" id="rosterCancelBtn" class="roster-cancel-btn">Upload a different file</button>
                 </div>
 
                 <div id="rosterApplyFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>

@@ -300,7 +300,11 @@ computeCellStates(parsedResult, existingOverrides)
     UNREADABLE = normaliseShift couldn't parse the cell (UNKNOWN| sentinel) — shown
                  skip-only, NEVER written; admin fixes the PDF or records it manually (v15.30)
         ↓
-renderReviewTable() — per-person card list
+renderReviewTable() — per-person card list (presentation reworked v15.52):
+  • plain-language OUTCOME SUMMARY above the list ("what Save will do")
+  • each change row = a Save tick + action tag (Update / Clear old / Your choice / Not saved)
+  • conflicts = inline "Keep yours / Use new roster" (was Manual / PDF); no separate banner
+  • Save button shows a live count. State machine + `chosen` model UNCHANGED.
   shiftDisplay(shiftStr, baseShift)
     — detects "RDW|" prefix → shows 💼 RDW badge + time
     — falls back to baseShift==='RD' detection for plain times

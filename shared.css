@@ -170,9 +170,6 @@
     --conflict-strong: oklch(41.6% 0.0924 66.4deg);
     --conflict-text:   oklch(47.1% 0.0987 76.3deg);
 
-    /* Covered / superseded shift display (admin) */
-    --val-dim-bg: oklch(95.5% 0 0);
-
     /* Roster pre-fill suggestion highlight (pay calculator) */
     --roster-suggested-bg: color-mix(in oklch, var(--accent-gold) 10%, white);
 

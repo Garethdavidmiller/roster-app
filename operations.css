@@ -154,22 +154,27 @@ body.auth-ready .container { display: grid; }
     outline: 2px solid var(--primary-blue);
     outline-offset: 1px;
 }
-.roster-conflict-banner {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    background: var(--al-confirm-bg);
-    border: 1.5px solid var(--al-confirm-accent);
-    border-radius: var(--radius-md);
-    padding: 12px 14px;
-    margin-bottom: 12px;
-}
-.roster-conflict-icon { font-size: 18px; line-height: 1.2; flex-shrink: 0; }
-.roster-conflict-text { font-size: 13px; line-height: 1.5; }
-.roster-conflict-text strong { display: block; margin-bottom: 2px; color: var(--conflict-strong); }
-.roster-conflict-text p { margin: 0; color: var(--conflict-text); }
-.roster-review-label { font-size: 12px; color: var(--text-mid); margin: 0 0 12px; }
+.roster-review-label { font-size: 13px; font-weight: 700; color: var(--primary-blue); margin: 0 0 10px; }
 #rosterChangeList { margin-bottom: 14px; }
+
+/* Plain-language outcome summary — "what Save will do", shown above the list. */
+.roster-outcome {
+    background: var(--bg-light);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 11px 13px;
+    margin: 0 0 12px;
+}
+.roster-outcome[hidden] { display: none; }
+.ro-h { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+        text-transform: uppercase; color: var(--text-mid); }
+.ro-line { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; padding: 3px 0; color: var(--text-dark); }
+.ro-k { flex: 0 0 auto; width: 16px; text-align: center; font-weight: 800; line-height: 1.4; }
+.ro-up     .ro-k { color: var(--success-green); }
+.ro-clear  .ro-k { color: var(--primary-blue); }
+.ro-choice .ro-k { color: var(--conflict-strong); }
+.ro-read   .ro-k { color: var(--warning-amber); }
+.ro-hint { margin: 8px 0 0; font-size: 11.5px; color: var(--text-light); }
 .roster-person-section {
     border: 1px solid var(--border-light);
     border-radius: var(--radius-md);
@@ -208,7 +213,7 @@ body.auth-ready .container { display: grid; }
 }
 .roster-change-row:last-child { border-bottom: none; }
 .roster-change-row.is-skipped { opacity: 0.4; }
-.roster-change-row.roster-change-conflict { background: var(--error-bg); }
+.roster-change-row.roster-change-conflict { background: var(--al-confirm-bg); align-items: flex-start; }
 .roster-chg-day { display: flex; flex-direction: column; align-items: flex-start; min-width: 44px; }
 .roster-day-abbr { font-size: 12px; font-weight: 700; color: var(--text-dark); }
 .roster-day-date { font-size: 11px; color: var(--text-light); }
@@ -221,37 +226,48 @@ body.auth-ready .container { display: grid; }
 .roster-arrow { color: var(--text-light); font-size: 11px; }
 .roster-to-val { font-size: 12px; }
 .review-shift-time { font-size: 11px; font-weight: 600; color: var(--text-mid); margin-left: 4px; }
-.val-active .review-shift-time { color: rgba(255,255,255,0.85); }
-.roster-conflict-icon-sm { font-size: 13px; flex-shrink: 0; }
-.roster-manual-val { font-weight: 700; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
-.roster-vs-sep { font-size: 11px; color: var(--text-light); }
-.val-active { background: var(--primary-blue); color: white; }
-.val-dim    { background: var(--val-dim-bg); color: var(--text-light); text-decoration: line-through; }
-.roster-approve-btn {
-    font-size: 11px; font-weight: 700;
-    padding: 4px 12px; border-radius: 20px; border: 1.5px solid;
-    cursor: pointer; white-space: nowrap;
-    transition: background 0.15s, color 0.15s;
+/* Tick control — "this row will save". Ticked = green box; tap to skip (empties it + dims the row). */
+.roster-tick {
+    flex: 0 0 auto; width: 24px; height: 24px; padding: 0;
+    border-radius: 6px; border: 2px solid var(--success-green);
+    background: var(--success-green); color: white;
+    font-size: 14px; font-weight: 900; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 0.15s, border-color 0.15s;
 }
-.roster-approve-btn.is-approved { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-.roster-approve-btn.is-skipped  { background: none; color: var(--text-light); border-color: var(--border-light); }
-@media (hover: hover) and (pointer: fine) {
-    .roster-approve-btn.is-approved:hover { background: var(--primary-blue-dark); border-color: var(--primary-blue-dark); }
-    .roster-approve-btn.is-skipped:hover  { border-color: var(--primary-blue); color: var(--primary-blue); }
+.roster-tick.off { background: white; border-color: var(--border-mid); color: transparent; }
+.roster-tick:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+
+/* Per-row action tag: Update · Clear old · Your choice · Not saved */
+.roster-act {
+    flex: 0 0 auto; font-size: 9.5px; font-weight: 800; letter-spacing: 0.03em;
+    text-transform: uppercase; padding: 3px 7px; border-radius: 6px; white-space: nowrap;
 }
-.roster-conflict-choice { display: flex; gap: 4px; }
+.act-update { background: var(--success-green-bg); color: var(--success-green); }
+.act-clear  { background: var(--bg-faint); color: var(--text-mid); }
+.act-choice { background: var(--al-confirm-bg); color: var(--conflict-strong); align-self: flex-start; }
+.act-read   { background: color-mix(in oklch, var(--warning-amber) 14%, white); color: var(--warning-amber); }
+
+/* Conflict row — "Your choice": what you saved vs the new roster, stacked in one block. */
+.roster-choicebox { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 0; }
+.roster-cb-day { display: flex; align-items: baseline; gap: 6px; }
+.roster-cb-opt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.roster-cb-lab { flex: 0 0 66px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
+                 text-transform: uppercase; color: var(--conflict-text); }
+.roster-cv-manual, .roster-cv-pdf { font-size: 12px; font-weight: 600; }
+.cv-dim { opacity: 0.5; text-decoration: line-through; }
+.roster-pick { display: inline-flex; gap: 6px; margin-left: auto; }
 .roster-choice-btn {
-    font-size: 11px; font-weight: 600;
-    padding: 4px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 700;
+    padding: 5px 11px; border-radius: 8px;
     border: 1.5px solid var(--border-light);
-    background: none; color: var(--text-mid);
-    cursor: pointer;
+    background: white; color: var(--text-mid);
+    cursor: pointer; white-space: nowrap;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.roster-choice-btn.is-chosen { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+.roster-choice-btn.is-chosen { background: var(--success-green); color: white; border-color: var(--success-green); }
 @media (hover: hover) and (pointer: fine) {
     .roster-choice-btn:not(.is-chosen):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
-    .roster-choice-btn.is-chosen:hover { background: var(--primary-blue-dark); border-color: var(--primary-blue-dark); }
 }
 .section-skipped .roster-change-row { opacity: 0.35; pointer-events: none; }
 .section-skipped .roster-skip-all-btn { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
@@ -268,7 +284,6 @@ body.auth-ready .container { display: grid; }
    garbled real shift isn't silently dropped, but never written. Amber (a warning), not red. */
 .roster-change-row.roster-change-unreadable { background: color-mix(in oklch, var(--warning-amber) 10%, white); }
 .review-shift-unreadable { font-size: 12px; font-weight: 600; color: var(--warning-amber); }
-.roster-unreadable-note  { font-size: 11px; font-weight: 600; color: var(--warning-amber); white-space: nowrap; flex-shrink: 0; }
 /* REMOVE_IMPORT — a stale PDF import whose day now matches base; approving deletes it (no write). */
 .roster-remove-note { font-size: 11px; color: var(--text-light); font-style: italic; }
 .roster-cancel-btn {

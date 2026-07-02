@@ -80,9 +80,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     const parseBtn       = /** @type {HTMLButtonElement|null} */ (document.getElementById('rosterParseBtn'));
     const parseFeedback  = /** @type {any} */ (document.getElementById('rosterParseFeedback'));
     const reviewSection  = /** @type {any} */ (document.getElementById('rosterReviewSection'));
-    const conflictBanner = /** @type {any} */ (document.getElementById('rosterConflictBanner'));
-    const conflictTitle  = /** @type {any} */ (document.getElementById('rosterConflictTitle'));
-    const conflictDetail = /** @type {any} */ (document.getElementById('rosterConflictDetail'));
+    const outcomeEl      = /** @type {any} */ (document.getElementById('rosterOutcome'));
     const reviewLabel    = /** @type {any} */ (document.getElementById('rosterReviewLabel'));
     let   changeList     = /** @type {any} */ (document.getElementById('rosterChangeList'));
     const applyBtn       = /** @type {any} */ (document.getElementById('rosterApplyBtn'));
@@ -565,46 +563,42 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     function renderReviewTable(parsedResult, cellStates) {
         const { dates, parsed, weekEnding } = parsedResult;
 
-        // Enable/disable the Save button based on whether anything will actually be
-        // written: a DIFF still approved, or a CONFLICT resolved to "PDF". If nothing
-        // will be written, Save is disabled (rather than tapping it for a faint
-        // "nothing to save" message).
-        function updateApplyState() {
-            let willWrite = 0;
+        // Recompute what pressing "Save changes" will actually do, and refresh BOTH the Save
+        // button (label carries the running count + disables when nothing will be written) and
+        // the plain-language outcome summary above the list. Presentation only — the state
+        // machine (computeCellStates) and the `chosen` model are unchanged.
+        function refreshOutcome() {
+            let updates = 0, clears = 0, conflictsTotal = 0, conflictsSwitched = 0, unreadable = 0;
             for (const st of cellStates.values()) {
-                if (st.state === 'DIFF' && st.chosen !== false) willWrite++;
-                else if (st.state === 'REMOVE_IMPORT' && st.chosen !== false) willWrite++;
-                else if (st.state === 'CONFLICT' && st.chosen === 'pdf') willWrite++;
+                if      (st.state === 'DIFF')          { if (st.chosen !== false) updates++; }
+                else if (st.state === 'REMOVE_IMPORT') { if (st.chosen !== false) clears++; }
+                else if (st.state === 'CONFLICT')      { conflictsTotal++; if (st.chosen === 'pdf') { conflictsSwitched++; updates++; } }
+                else if (st.state === 'UNREADABLE')    { unreadable++; }
             }
-            applyBtn.disabled = willWrite === 0;
-        }
+            const writes = updates + clears;
+            applyBtn.disabled    = writes === 0;
+            applyBtn.textContent = writes === 0 ? 'Nothing to save' : `Save ${writes} change${writes !== 1 ? 's' : ''}`;
 
-        // ---- Count totals for banner + label ----
-        let diffCount = 0, conflictCount = 0, unreadableCount = 0;
-        const conflictLines = [];
-        for (const [key, s] of cellStates) {
-            if (s.state === 'DIFF' || s.state === 'REMOVE_IMPORT') diffCount++;
-            if (s.state === 'UNREADABLE') unreadableCount++;
-            if (s.state === 'CONFLICT') {
-                conflictCount++;
-                const [memberName, date] = key.split('|');
-                const dt = new Date(date + 'T12:00:00');
-                const savedLabel = s.manualValue === 'SICK' ? 'Absent' : s.manualValue;
-                conflictLines.push(
-                    `${esc(memberName)} — ${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}: ` +
-                    `saved <strong>${esc(savedLabel)}</strong>, PDF says <strong>${esc(isRdwEncoded(s.parsedShift) ? 'RDW ' + stripRdw(s.parsedShift) : (s.displayShift ?? s.parsedShift))}</strong>`
-
-                );
+            const lines = [];
+            if (updates > 0)
+                lines.push(`<div class="ro-line ro-up"><span class="ro-k">✓</span><span><strong>${updates}</strong> shift${updates !== 1 ? 's' : ''} will be updated</span></div>`);
+            if (clears > 0)
+                lines.push(`<div class="ro-line ro-clear"><span class="ro-k">✓</span><span><strong>${clears}</strong> old ${clears !== 1 ? 'entries' : 'entry'} will be cleared</span></div>`);
+            if (conflictsTotal > 0) {
+                const kept   = conflictsTotal - conflictsSwitched;
+                const detail = conflictsSwitched > 0
+                    ? `${conflictsSwitched} switched to the new roster, ${kept} kept as you saved`
+                    : 'kept as you saved — change below if needed';
+                lines.push(`<div class="ro-line ro-choice"><span class="ro-k">?</span><span><strong>${conflictsTotal}</strong> ${conflictsTotal !== 1 ? 'days need' : 'day needs'} your choice — ${detail}</span></div>`);
             }
-        }
+            if (unreadable > 0)
+                lines.push(`<div class="ro-line ro-read"><span class="ro-k">⚠</span><span><strong>${unreadable}</strong> cell${unreadable !== 1 ? 's' : ''} couldn't be read — nothing saved</span></div>`);
 
-        // ---- Conflict banner ----
-        if (conflictCount > 0) {
-            conflictTitle.textContent = `${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} — manually saved entries are protected`;
-            conflictDetail.innerHTML  = conflictLines.join('<br>');
-            conflictBanner.classList.add('visible');
-        } else {
-            conflictBanner.classList.remove('visible');
+            if (lines.length === 0) { outcomeEl.hidden = true; outcomeEl.innerHTML = ''; return; }
+            outcomeEl.hidden = false;
+            const hint = (updates > 0 || clears > 0)
+                ? '<p class="ro-hint">Ticked rows will save — tap a ✓ to skip that row.</p>' : '';
+            outcomeEl.innerHTML = `<h4 class="ro-h">When you tap “Save changes”</h4>${lines.join('')}${hint}`;
         }
 
         // ---- Build per-person sections ----
@@ -647,7 +641,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
                 if (s.state === 'DIFF') {
                     const approved = s.chosen !== false;
+                    if (!approved) row.classList.add('is-skipped');
                     row.innerHTML = `
+                        <button type="button" class="roster-tick${approved ? '' : ' off'}" data-key="${esc(key)}" aria-pressed="${approved}" aria-label="Save this change">${approved ? '✓' : ''}</button>
                         <div class="roster-chg-day">
                             <span class="roster-day-abbr">${dayName}</span>
                             <span class="roster-day-date">${dateStr}</span>
@@ -657,15 +653,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <span class="roster-arrow">→</span>
                             <span class="roster-to-val">${shiftDisplay(s.displayShift ?? s.parsedShift, s.baseShift, date)}</span>
                         </div>
-                        <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}" aria-pressed="${approved}">
-                            ${approved ? 'Save' : 'Skip'}
-                        </button>`;
+                        <span class="roster-act act-update">Update</span>`;
                 } else if (s.state === 'REMOVE_IMPORT') {
                     // A stale previous PDF import whose day now matches the base roster. Approving
                     // DELETES the stale override (writes nothing) so it can't mask a future base change.
                     // from = the currently-saved import value, to = the base it now matches.
                     const approved = s.chosen !== false;
+                    if (!approved) row.classList.add('is-skipped');
                     row.innerHTML = `
+                        <button type="button" class="roster-tick${approved ? '' : ' off'}" data-key="${esc(key)}" aria-pressed="${approved}" aria-label="Clear this old entry">${approved ? '✓' : ''}</button>
                         <div class="roster-chg-day">
                             <span class="roster-day-abbr">${dayName}</span>
                             <span class="roster-day-date">${dateStr}</span>
@@ -674,15 +670,13 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <span class="roster-from-val">${shiftDisplay(s.manualValue)}</span>
                             <span class="roster-arrow">→</span>
                             <span class="roster-to-val">${shiftDisplay(s.baseShift, s.baseShift, date)}</span>
-                            <span class="roster-remove-note">remove previous PDF change</span>
+                            <span class="roster-remove-note">no longer on the roster</span>
                         </div>
-                        <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}" aria-pressed="${approved}">
-                            ${approved ? 'Save' : 'Skip'}
-                        </button>`;
+                        <span class="roster-act act-clear">Clear old</span>`;
                 } else if (s.state === 'UNREADABLE') {
-                    // Skip-only: the PDF cell couldn't be parsed. No Save/Skip toggle and no write —
-                    // just surfaces the unreadable value so it isn't silently lost. The admin fixes
-                    // the PDF and re-uploads, or records the shift via Change a Shift.
+                    // Skip-only: the PDF cell couldn't be parsed. No tick and no write — just surfaces
+                    // the unreadable value so it isn't silently lost. The admin fixes the PDF and
+                    // re-uploads, or records the shift via Change a Shift.
                     row.classList.add('roster-change-unreadable');
                     row.innerHTML = `
                         <div class="roster-chg-day">
@@ -691,25 +685,34 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         </div>
                         <div class="roster-chg-vals">
                             ${shiftDisplay(s.parsedShift)}
+                            <span class="roster-remove-note">couldn't read — check the paper roster</span>
                         </div>
-                        <span class="roster-unreadable-note">not saved — check the roster</span>`;
+                        <span class="roster-act act-read">Not saved</span>`;
                 } else {
-                    // CONFLICT — show Manual vs PDF toggle, defaulting to Manual
+                    // CONFLICT — you already recorded something that differs from the new roster.
+                    // Defaults to keeping yours (chosen='manual', writes nothing); "Use new roster"
+                    // switches to chosen='pdf'. Plain labels replace the old Manual/PDF jargon; the
+                    // data-pick values are unchanged so the save path is identical.
                     const usesPDF = s.chosen === 'pdf';
                     row.innerHTML = `
-                        <div class="roster-chg-day">
-                            <span class="roster-day-abbr">${dayName}</span>
-                            <span class="roster-day-date">${dateStr}</span>
-                        </div>
-                        <div class="roster-chg-vals">
-                            <span class="roster-conflict-icon-sm">⚠</span>
-                            <span class="roster-manual-val roster-cv-manual ${usesPDF ? 'val-dim' : 'val-active'}">${shiftDisplay(s.manualValue)}</span>
-                            <span class="roster-vs-sep">vs</span>
-                            <span class="roster-manual-val roster-cv-pdf ${usesPDF ? 'val-active' : 'val-dim'}">${shiftDisplay(s.displayShift ?? s.parsedShift, s.baseShift, date)}</span>
-                        </div>
-                        <div class="roster-conflict-choice" role="group" aria-label="Resolve conflict">
-                            <button class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Manual</button>
-                            <button class="roster-choice-btn ${usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="pdf" aria-pressed="${usesPDF}">PDF</button>
+                        <span class="roster-act act-choice">Your choice</span>
+                        <div class="roster-choicebox">
+                            <div class="roster-cb-day">
+                                <span class="roster-day-abbr">${dayName}</span>
+                                <span class="roster-day-date">${dateStr}</span>
+                            </div>
+                            <div class="roster-cb-opt">
+                                <span class="roster-cb-lab">You saved</span>
+                                <span class="roster-cv-manual${usesPDF ? ' cv-dim' : ''}">${shiftDisplay(s.manualValue)}</span>
+                                <span class="roster-pick" role="group" aria-label="Resolve conflict">
+                                    <button type="button" class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Keep yours</button>
+                                    <button type="button" class="roster-choice-btn ${usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="pdf" aria-pressed="${usesPDF}">Use new roster</button>
+                                </span>
+                            </div>
+                            <div class="roster-cb-opt">
+                                <span class="roster-cb-lab">New roster</span>
+                                <span class="roster-cv-pdf${usesPDF ? '' : ' cv-dim'}">${shiftDisplay(s.displayShift ?? s.parsedShift, s.baseShift, date)}</span>
+                            </div>
                         </div>`;
                 }
                 section.appendChild(row);
@@ -726,23 +729,22 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         changeList.addEventListener('click', /** @param {any} e */ e => {
             const target = /** @type {Element} */ (e.target);
-            // Save / Skip toggle on DIFF rows
-            const approveBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-approve-btn'));
-            if (approveBtn) {
-                const s = cellStates.get(approveBtn.dataset.key ?? '');
+            // Save / skip toggle on a change row's tick (DIFF + REMOVE_IMPORT)
+            const tickBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-tick'));
+            if (tickBtn) {
+                const s = cellStates.get(tickBtn.dataset.key ?? '');
                 if (!s) return;
                 s.chosen = !s.chosen;
                 const approved = s.chosen !== false;
-                approveBtn.classList.toggle('is-approved', approved);
-                approveBtn.classList.toggle('is-skipped',  !approved);
-                approveBtn.setAttribute('aria-pressed', String(approved));
-                approveBtn.textContent = approved ? 'Save' : 'Skip';
-                /** @type {any} */ (approveBtn.closest('.roster-change-row')).classList.toggle('is-skipped', !approved);
-                updateApplyState();
+                tickBtn.classList.toggle('off', !approved);
+                tickBtn.setAttribute('aria-pressed', String(approved));
+                tickBtn.textContent = approved ? '✓' : '';
+                /** @type {any} */ (tickBtn.closest('.roster-change-row')).classList.toggle('is-skipped', !approved);
+                refreshOutcome();
                 return;
             }
 
-            // Skip all / Restore for a person — applies to DIFF and CONFLICT rows alike
+            // Skip all / Restore for a person — applies to DIFF/REMOVE and CONFLICT rows alike
             const skipAllBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-skip-all-btn'));
             if (skipAllBtn) {
                 const memberName = skipAllBtn.dataset.member ?? '';
@@ -761,16 +763,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     rowHtml.inert = nowSkipped;
                     if (s.state === 'DIFF' || s.state === 'REMOVE_IMPORT') {
                         s.chosen = !nowSkipped;
-                        const btn = rowEl.querySelector('.roster-approve-btn');
-                        if (btn) {
-                            btn.classList.toggle('is-approved', !nowSkipped);
-                            btn.classList.toggle('is-skipped',  nowSkipped);
-                            btn.setAttribute('aria-pressed', String(!nowSkipped));
-                            btn.textContent = nowSkipped ? 'Skip' : 'Save';
+                        const tick = rowEl.querySelector('.roster-tick');
+                        if (tick) {
+                            tick.classList.toggle('off', nowSkipped);
+                            tick.setAttribute('aria-pressed', String(!nowSkipped));
+                            tick.textContent = nowSkipped ? '' : '✓';
                         }
                         rowEl.classList.toggle('is-skipped', nowSkipped);
                     } else if (s.state === 'CONFLICT') {
-                        // Skipping cancels any "use PDF" choice (keep manual = nothing written).
+                        // Skipping cancels any "use new roster" choice (keep yours = nothing written).
                         s.chosen = 'manual';
                         rowEl.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
                             const bHtml = /** @type {HTMLElement} */ (b);
@@ -780,34 +781,34 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         });
                         const mPill = rowEl.querySelector('.roster-cv-manual');
                         const pPill = rowEl.querySelector('.roster-cv-pdf');
-                        if (mPill) { mPill.classList.add('val-active'); mPill.classList.remove('val-dim'); }
-                        if (pPill) { pPill.classList.add('val-dim'); pPill.classList.remove('val-active'); }
+                        if (mPill) mPill.classList.remove('cv-dim');
+                        if (pPill) pPill.classList.add('cv-dim');
                     }
                 });
-                updateApplyState();
+                refreshOutcome();
                 return;
             }
 
-            // Manual / PDF choice on CONFLICT rows
+            // Keep yours / Use new roster choice on CONFLICT rows
             const choiceBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-choice-btn'));
             if (choiceBtn) {
                 const s = cellStates.get(choiceBtn.dataset.key ?? '');
                 if (!s) return;
                 s.chosen = choiceBtn.dataset.pick;
                 const usesPDF = s.chosen === 'pdf';
-                /** @type {any} */ (choiceBtn.closest('.roster-conflict-choice')).querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
+                /** @type {any} */ (choiceBtn.closest('.roster-pick')).querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
                     const bHtml = /** @type {HTMLElement} */ (b);
                     const on = bHtml.dataset.pick === s.chosen;
                     b.classList.toggle('is-chosen', on);
                     b.setAttribute('aria-pressed', String(on));
                 });
-                // Update the value pills to show which is active
+                // Dim the value that will NOT be written.
                 const row    = /** @type {any} */ (choiceBtn.closest('.roster-change-row'));
                 const mPill  = row.querySelector('.roster-cv-manual');
                 const pPill  = row.querySelector('.roster-cv-pdf');
-                if (mPill) { mPill.classList.toggle('val-active', !usesPDF); mPill.classList.toggle('val-dim', usesPDF); }
-                if (pPill) { pPill.classList.toggle('val-active', usesPDF);  pPill.classList.toggle('val-dim', !usesPDF); }
-                updateApplyState();
+                if (mPill) mPill.classList.toggle('cv-dim', usesPDF);
+                if (pPill) pPill.classList.toggle('cv-dim', !usesPDF);
+                refreshOutcome();
             }
         });
 
@@ -815,19 +816,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         if (sectionsShown === 0) {
             changeList.innerHTML = `<div class="roster-no-changes">✓ The roster matches what's already saved — no changes needed.</div>`;
         }
-        applyBtn.textContent = 'Save changes';
-        updateApplyState();   // enables Save only if something will actually be written
+        refreshOutcome();   // fills the outcome summary + sets the Save button label/disabled state
 
-        // ---- Summary label ----
-        // "to review" = DIFFs (default-approved); "to resolve" = conflicts that
-        // need an explicit Manual/PDF choice. Kept distinct so the count doesn't
-        // imply conflicts are auto-applied.
+        // ---- Week-ending heading (the counts now live in the outcome summary above the list) ----
         const weekEndDate = new Date(weekEnding + 'T12:00:00');
         const formatted   = weekEndDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-        const changeStr   = `${diffCount} change${diffCount !== 1 ? 's' : ''} to review`;
-        const conflictStr = conflictCount > 0 ? ` · ${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} to resolve` : '';
-        const unreadStr   = unreadableCount > 0 ? ` · ${unreadableCount} couldn't be read` : '';
-        reviewLabel.textContent = `Week ending ${formatted} — ${changeStr}${conflictStr}${unreadStr}`;
+        reviewLabel.textContent = `Week ending ${formatted}`;
 
         reviewSection.classList.add('visible');
         applyFeedback.textContent = '';
