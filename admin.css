@@ -1402,10 +1402,17 @@
                 padding: 7px 8px;
             }
 
-            /* Bulk time inputs fill available space */
+            /* Bulk time inputs fill available space — but MUST be allowed to shrink below
+               their intrinsic width (min-width: 0). Without it, two inputs' built-in ~180px
+               minimums + the separator forced ~523px of unbreakable width into the bulk bar
+               the moment a pill with hours (Shift/RDW/Other) was selected on a TOUCH device,
+               stretching the whole page to ~585px and clipping it at the right edge (the
+               "admin goes all wrong" blowout — coarse-pointer only, invisible on desktop). */
             .bulk-time-group .time-input {
                 flex: 1;
                 width: auto;
+                min-width: 0;
+                max-width: 160px;
             }
 
         }
