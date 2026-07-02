@@ -12,5 +12,11 @@
     "firebase-functions": "^7.2.5",
     "mammoth": "^1.12.0",
     "web-push": "^3.6.7"
+  },
+  "comments": {
+    "overrides": "uuid pinned to >=11.1.1 to clear GHSA-w5hq-g745-h8pq (moderate) — a missing buffer bounds check in uuid v3/v5/v6 when a `buf` arg is provided. It reaches us only transitively via @google-cloud/storage -> gaxios/teeny-request, which call uuid.v4() (no buf), so the flaw is not actually reachable; the override removes the advisory noise without a breaking firebase-admin major. Revisit/remove when @google-cloud/storage ships uuid>=11.1.1 upstream."
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

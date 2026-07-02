@@ -41,6 +41,7 @@ import {
     fixedRoster,
     isValidEmail,
     isChilternWorkEmail,
+    getMembersForGrade,
 } from './roster-data.js';
 
 describe('isChilternWorkEmail', () => {
@@ -623,6 +624,21 @@ test('escapeHtml: number is coerced to string', () => {
 // ---------------------------------------------------------------------------
 // parseSmartFloat
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// getMembersForGrade — pinned against LIVE data
+// ---------------------------------------------------------------------------
+
+test('getMembersForGrade(Management) returns every CONFIG.MANAGER_NAMES manager (live-data regression)', () => {
+    // Every ACTIVE manager row carries hidden:true as the standing convention, so the Management
+    // filter must NOT exclude hidden — a `!m.hidden` filter here once emptied the login group,
+    // locking all managers out and exposing their accounts to "Disable accounts for leavers".
+    const names = getMembersForGrade('Management').map(m => m.name);
+    for (const mgr of CONFIG.MANAGER_NAMES) {
+        assert.ok(names.includes(mgr), `Management login group must include active manager ${mgr}`);
+    }
+    assert.ok(names.length >= CONFIG.MANAGER_NAMES.length, 'Management group must not be empty');
+});
 
 test('parseSmartFloat: empty/null/undefined returns 0', () => {
     assert.equal(parseSmartFloat(''), 0);

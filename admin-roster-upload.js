@@ -12,6 +12,13 @@ const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
 const stripRdw     = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
 
+// UNKNOWN|<raw> — a value the AI returned that normaliseShift (server) could not recognise as a
+// shift. Surfaced in review as an UNREADABLE cell so a garbled real shift isn't silently dropped;
+// never written to Firestore (see computeCellStates / the save path). Mirrors the RDW encoding.
+const UNKNOWN_PREFIX   = 'UNKNOWN|';
+const isUnknownEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(UNKNOWN_PREFIX);
+const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFIX.length);
+
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
@@ -27,6 +34,9 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * @returns {string} HTML
  */
 function shiftDisplay(shiftStr, _baseShift = null, date = null) {
+    if (isUnknownEncoded(shiftStr)) {
+        return `<span class="review-shift-unreadable">⚠ couldn't read “${escapeHtml(stripUnknown(shiftStr))}”</span>`;
+    }
     if (isRdwEncoded(shiftStr)) {
         const time = stripRdw(shiftStr);
         return `${getShiftBadge('RDW')}<span class="review-shift-time">${escapeHtml(time)}</span>`;
@@ -256,6 +266,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // manualId = any existing override doc for this date, to be replaced.
                 toWrite.push({ memberName, date, value: state.editedValue ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
             }
+            if (state.state === 'REMOVE_IMPORT' && state.chosen !== false) {
+                // A stale previous import whose day now matches base — delete it, write nothing
+                // (a fresh base-matching override would be redundant and mask future base changes).
+                toWrite.push({ memberName, date, value: null, baseShift: state.baseShift, replaceId: state.manualId, deleteOnly: true });
+            }
             if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
                 // Admin chose PDF over the existing manual entry — replace it, don't
                 // leave both docs for the same date.
@@ -280,7 +295,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             for (let i = 0; i < toWrite.length; i += CHUNK) {
                 const chunk = toWrite.slice(i, i + CHUNK);
                 const batch = writeBatch(db);
-                for (const { memberName, date, value, baseShift, replaceId } of chunk) {
+                for (const { memberName, date, value, baseShift, replaceId, deleteOnly } of chunk) {
+                    if (deleteOnly) {
+                        // REMOVE_IMPORT — delete the stale import doc and write nothing.
+                        if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
+                        continue;
+                    }
                     // Map shift value to override type — pass date so Sunday shifts are
                     // correctly saved as 'rdw' and explicit RDW| prefix is honoured
                     const type = shiftValueToOverrideType(value, baseShift, date);
@@ -316,7 +336,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // loadOverrides() will re-fetch cleanly.
             await loadOverrides();
 
-            applyFeedback.textContent = `Done — ${toWrite.length} shift${toWrite.length !== 1 ? 's' : ''} saved to the roster.`;
+            applyFeedback.textContent = `Done — ${toWrite.length} change${toWrite.length !== 1 ? 's' : ''} applied to the roster.`;
             applyFeedback.className   = 'huddle-feedback huddle-feedback--ok';
 
             // Clear the review table so it can't be applied twice
@@ -422,6 +442,22 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const key          = `${entry.memberName}|${date}`;
                 const existing     = overrideMap.get(key);
 
+                // Unreadable PDF value (normaliseShift couldn't parse it — see UNKNOWN_PREFIX). Surface
+                // it as a skip-only UNREADABLE row so a garbled real shift isn't silently dropped, but
+                // NEVER write the sentinel: chosen stays null and the save path only writes DIFF/CONFLICT.
+                // The admin fixes the source PDF and re-uploads, or records the shift manually.
+                if (isUnknownEncoded(parsedShift)) {
+                    states.set(key, {
+                        state: 'UNREADABLE',
+                        parsedShift, baseShift,
+                        manualValue: existing?.value ?? null,
+                        manualId:    existing?.id    ?? null,
+                        editedValue: null,
+                        chosen:      null,
+                    });
+                    continue;
+                }
+
                 // Determine whether the existing override is manual or a previous import
                 const isManual = existing
                     ? (existing.source !== 'roster_import')   // no source field → treat as manual
@@ -450,15 +486,19 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // No override, or only a previous import.
                     if (existing && !isManual && normRest(existing.value) === normParsed) {
                         state = 'COVERED';  // previous import already equals the PDF — nothing to re-approve
-                    } else if (normParsed === normBase && !existing) {
-                        // PDF matches base AND there is no override to clean up — genuinely nothing to do.
-                        state = 'MATCH';
+                    } else if (normParsed === normBase) {
+                        // PDF now matches the base roster.
+                        //  • No override to clean up → genuinely nothing to do (MATCH).
+                        //  • A stale previous import still exists (and can't equal the PDF, or it would
+                        //    be COVERED above) → REMOVE_IMPORT: delete the stale doc and write NOTHING.
+                        //    Writing a fresh base-matching override (the old DIFF behaviour) was
+                        //    redundant AND would MASK a later base-roster change (an override always
+                        //    beats the base), so a "matches base today" row silently kept the old value.
+                        state = existing ? 'REMOVE_IMPORT' : 'MATCH';
                     } else {
-                        // PDF differs from base, OR a stale differing import must be reverted/replaced.
-                        // The latter is the correction case: a prior bad import whose day now matches
-                        // base must NOT classify as MATCH, or the stale override would survive forever
-                        // (nothing gets written/deleted). As a DIFF, approving it deletes the old import
-                        // (replaceId) and writes the corrected value.
+                        // PDF differs from base (a genuine change), OR a stale differing import must be
+                        // replaced with a new value. Approving deletes the old import (replaceId) and
+                        // writes the corrected value.
                         state = 'DIFF';
                     }
                 } else {
@@ -483,8 +523,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
                     editedValue: null,    // set if admin edits a DIFF cell
-                    chosen:      state === 'DIFF' ? true : null,
-                    // 'chosen' for DIFF = true (approved) or false (skipped)
+                    chosen:      (state === 'DIFF' || state === 'REMOVE_IMPORT') ? true : null,
+                    // 'chosen' for DIFF / REMOVE_IMPORT = true (approved) or false (skipped)
                     // 'chosen' for CONFLICT = 'manual' (default) or 'pdf'
                 });
             }
@@ -512,16 +552,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             let willWrite = 0;
             for (const st of cellStates.values()) {
                 if (st.state === 'DIFF' && st.chosen !== false) willWrite++;
+                else if (st.state === 'REMOVE_IMPORT' && st.chosen !== false) willWrite++;
                 else if (st.state === 'CONFLICT' && st.chosen === 'pdf') willWrite++;
             }
             applyBtn.disabled = willWrite === 0;
         }
 
         // ---- Count totals for banner + label ----
-        let diffCount = 0, conflictCount = 0;
+        let diffCount = 0, conflictCount = 0, unreadableCount = 0;
         const conflictLines = [];
         for (const [key, s] of cellStates) {
-            if (s.state === 'DIFF') diffCount++;
+            if (s.state === 'DIFF' || s.state === 'REMOVE_IMPORT') diffCount++;
+            if (s.state === 'UNREADABLE') unreadableCount++;
             if (s.state === 'CONFLICT') {
                 conflictCount++;
                 const [memberName, date] = key.split('|');
@@ -554,7 +596,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
             const changedDates = dates.filter(/** @param {any} d */ d => {
                 const s = cellStates.get(`${entry.memberName}|${d}`);
-                return s && (s.state === 'DIFF' || s.state === 'CONFLICT');
+                return s && (s.state === 'DIFF' || s.state === 'REMOVE_IMPORT' || s.state === 'CONFLICT' || s.state === 'UNREADABLE');
             });
             if (changedDates.length === 0) continue;
 
@@ -597,6 +639,39 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}" aria-pressed="${approved}">
                             ${approved ? 'Save' : 'Skip'}
                         </button>`;
+                } else if (s.state === 'REMOVE_IMPORT') {
+                    // A stale previous PDF import whose day now matches the base roster. Approving
+                    // DELETES the stale override (writes nothing) so it can't mask a future base change.
+                    // from = the currently-saved import value, to = the base it now matches.
+                    const approved = s.chosen !== false;
+                    row.innerHTML = `
+                        <div class="roster-chg-day">
+                            <span class="roster-day-abbr">${dayName}</span>
+                            <span class="roster-day-date">${dateStr}</span>
+                        </div>
+                        <div class="roster-chg-vals">
+                            <span class="roster-from-val">${shiftDisplay(s.manualValue)}</span>
+                            <span class="roster-arrow">→</span>
+                            <span class="roster-to-val">${shiftDisplay(s.baseShift, s.baseShift, date)}</span>
+                            <span class="roster-remove-note">remove previous PDF change</span>
+                        </div>
+                        <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}" aria-pressed="${approved}">
+                            ${approved ? 'Save' : 'Skip'}
+                        </button>`;
+                } else if (s.state === 'UNREADABLE') {
+                    // Skip-only: the PDF cell couldn't be parsed. No Save/Skip toggle and no write —
+                    // just surfaces the unreadable value so it isn't silently lost. The admin fixes
+                    // the PDF and re-uploads, or records the shift via Change a Shift.
+                    row.classList.add('roster-change-unreadable');
+                    row.innerHTML = `
+                        <div class="roster-chg-day">
+                            <span class="roster-day-abbr">${dayName}</span>
+                            <span class="roster-day-date">${dateStr}</span>
+                        </div>
+                        <div class="roster-chg-vals">
+                            ${shiftDisplay(s.parsedShift)}
+                        </div>
+                        <span class="roster-unreadable-note">not saved — check the roster</span>`;
                 } else {
                     // CONFLICT — show Manual vs PDF toggle, defaulting to Manual
                     const usesPDF = s.chosen === 'pdf';
@@ -663,7 +738,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // inert removes the row's controls from the tab order while skipped,
                     // so they aren't keyboard-focusable behind the dimmed overlay.
                     rowHtml.inert = nowSkipped;
-                    if (s.state === 'DIFF') {
+                    if (s.state === 'DIFF' || s.state === 'REMOVE_IMPORT') {
                         s.chosen = !nowSkipped;
                         const btn = rowEl.querySelector('.roster-approve-btn');
                         if (btn) {
@@ -730,7 +805,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         const formatted   = weekEndDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
         const changeStr   = `${diffCount} change${diffCount !== 1 ? 's' : ''} to review`;
         const conflictStr = conflictCount > 0 ? ` · ${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} to resolve` : '';
-        reviewLabel.textContent = `Week ending ${formatted} — ${changeStr}${conflictStr}`;
+        const unreadStr   = unreadableCount > 0 ? ` · ${unreadableCount} couldn't be read` : '';
+        reviewLabel.textContent = `Week ending ${formatted} — ${changeStr}${conflictStr}${unreadStr}`;
 
         reviewSection.classList.add('visible');
         applyFeedback.textContent = '';

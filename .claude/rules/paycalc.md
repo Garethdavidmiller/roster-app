@@ -34,6 +34,8 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 
 **Chiltern Sunday-on-BH: Sunday wins (1.5×)** — `dow === 0` check is before `isBH` in the suggestion engine. Confirmed by Gareth May 2026.
 
+**Boxing Day (26 Dec) is always 3× — even on a weekend.** The 3× rate attaches to the literal 26 December, whatever weekday it falls on; it is *not* moved to the substitute bank holiday. In the suggestion engine the `isBoxing` (26 Dec) check runs **before** both the Sunday (`dow === 0` → 1.5×) and Saturday (`dow === 6` → 1.25×) branches, so a worked 26 Dec always lands in the `box` bucket. The substitute bank holiday (e.g. Mon 28 Dec 2026) is a normal BH → `Bank Holiday Rostered 1.25`, not Boxing Day. Confirmed by Gareth Jul 2026. Tests assert both the Saturday (2026-12-26) and Sunday (2027-12-26) cases in `paycalc-roster-suggestions.test.mjs`.
+
 **BH + `rdw` override is additive, not replacement** — `rdw` override on a worked BH day adds hours to `bhOt`; base hours stay in `bh`. Do not change to "override replaces base" without specific confirmation.
 
 ## Layout decisions

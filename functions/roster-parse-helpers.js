@@ -69,14 +69,31 @@ function normaliseShift(raw) {
     // an 'RD' here would classify as MATCH and silently drop a genuine worked shift from the roster.
     // The extracted shift is still shown in the review table (surfaced as a DIFF when it differs from
     // base). Genuinely unrecognised values (no valid leading time) still fall through to 'RD' below.
+    // ACCEPTED TRADE-OFF: a hypothetical negating annotation ("06:00-12:00 CANCELLED") would also be
+    // extracted as the worked time — but the old RD-default silently lost genuinely WORKED annotated
+    // shifts, which is the error we have actually observed. If cancellation-style annotations ever
+    // appear in these PDFs, gate the extraction on the trailing text instead of removing it.
     const lead = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})\b/);
     if (lead && validHHMM(lead[1], lead[2]) && validHHMM(lead[3], lead[4])) {
         console.warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
         return `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
     }
 
-    console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — defaulting to RD`);
-    return 'RD';
+    // A genuinely blank cell is a rest day — nothing to flag. (buildSafeEntries already maps
+    // empty cells to 'RD' before calling this, so this mainly guards direct callers.)
+    if (s === '') return 'RD';
+
+    // Non-empty but unrecognised (garbled OCR, unexpected text, out-of-range time). Do NOT
+    // default to 'RD': when the member's base shift is also RD, an RD here classifies as MATCH
+    // and the real (unreadable) shift is silently dropped from the review — never shown to the
+    // admin. Return a review-only sentinel instead, carrying the raw text for display. The client
+    // surfaces it as an UNREADABLE cell (skip-only, never written); the admin fixes the source PDF
+    // and re-uploads, or records the shift manually. Pipes are stripped so they can't break the
+    // "PREFIX|value" decoding; capped so a pathological value can't bloat the payload.
+    const cleaned = s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (cleaned === '') return 'RD';   // was only pipes/whitespace — treat as blank
+    console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — flagged UNKNOWN for review`);
+    return `UNKNOWN|${cleaned}`;
 }
 
 // ── Week date building ───────────────────────────────────────────────────────
@@ -233,7 +250,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             console.warn(`[parseRosterPDF] ${entry.memberName}: AI omitted key(s) [${missingKeys.join(', ')}] — filled with RD`);
         }
 
-        safeEntries.push({ memberName: entry.memberName.trim(), shifts });
+        safeEntries.push({ memberName: memberKey, shifts });
     }
     return safeEntries;
 }

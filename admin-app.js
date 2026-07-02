@@ -64,7 +64,7 @@ let currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
  *  Instead, onSuccess sets a one-shot "pending" marker and reloads; the check then runs on the next
  *  page load via initEmailCheck() (async/non-blocking), gated so it appears ONLY after a real login
  *  and at most once every ~3 months (Fix 4 + cadence, v14.77; see _emailCheckDue / _runEmailCheck). */
-function showAdminLogin() {
+function showAdminLogin({ reloadOnSuccess = false } = {}) {
     initLoginOverlay({
         pageLabel: 'Admin',
         onSuccess: (/** @type {string} */ name) => {
@@ -72,12 +72,17 @@ function showAdminLogin() {
             // next pass / in initAuthorised). Set on BOTH paths so the email-check behaviour is
             // identical whether we reload or initialise in place.
             lsSet(`myb_email_check_pending_${name}`, '1');
-            // Flag on → initialise in place (fall back to reload if init throws mid-wiring, so the
-            // in-place path is never less robust than reload). Flag off → reload, exactly as before.
-            if (CONFIG.INPLACE_LOGIN.admin) {
-                try { initAuthorised(); } catch { window.location.reload(); }
-            } else {
+            // reloadOnSuccess is set on the B1 stale-session path (see the _adminAuth.then block in
+            // initAuthorised): initAuthorised() ALREADY ran optimistically there and resolved the
+            // one-shot sessionReady, which cannot be re-resolved — so re-initialising in place would
+            // leave feature modules (admin-overrides, huddle, admin-auth) gated on a stale/failed auth
+            // barrier. Reload for a fresh page life + fresh sessionReady, mirroring operations/settings/
+            // links' B1 handling. The normal not-signed-in path (initAuthorised never ran, sessionReady
+            // still pending) initialises in place as before, falling back to a reload if init throws.
+            if (reloadOnSuccess || !CONFIG.INPLACE_LOGIN.admin) {
                 window.location.reload();
+            } else {
+                try { initAuthorised(); } catch { window.location.reload(); }
             }
         },
     });
@@ -1616,12 +1621,12 @@ function initAuthorised() {
     // resolves 'named'/'anonymous' to 'allow', so this never fires (unchanged).
     _adminAuth.then(() => {
         // B1: this optimistic 'allow' init turned out to be an unconfirmable session → clear it and
-        // re-show the login overlay in place. resetNavPanel() first: the optimistic pass already wired
-        // the nav drawer with the (stale) identity (line ~1690, decision was 'allow'), and initNavPanel
-        // self-guards against re-wiring, so without a reset an in-place re-login as a DIFFERENT user
-        // would leave the previous member's name + admin pill in the drawer. Reset tears down the
-        // injected nav DOM + clears the guard so initAuthorised's wireNavPanel() rebuilds it fresh.
-        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); resetNavPanel(); showAdminLogin(); }
+        // re-show the login overlay. The re-login RELOADS on success (reloadOnSuccess), because this
+        // optimistic pass already resolved the one-shot sessionReady — re-initialising in place cannot
+        // re-resolve it and would strand feature modules on a stale auth barrier. resetNavPanel() clears
+        // the stale identity the optimistic pass wired into the drawer so it isn't briefly visible
+        // behind the overlay before the reload (initNavPanel self-guards against re-wiring otherwise).
+        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); resetNavPanel(); showAdminLogin({ reloadOnSuccess: true }); }
     });
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');
@@ -1694,21 +1699,27 @@ function wireNavPanel() {
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut:   () => { clearSession(); window.location.reload(); },
     });
+    // Calendar pill: write the current fieldDate month/year to localStorage before navigating so
+    // index.html opens on the same month the user was editing. (Replaces the removed v10.63 header
+    // back button.) Wired HERE — inside wireNavPanel, guarded per element — not at module scope: the
+    // B1 teardown path resetNavPanel()s and re-injects a FRESH pill, and a module-scope listener on
+    // the old pill would be silently lost with it. initNavPanel's own guard means the pill element
+    // survives repeat wireNavPanel() calls, so the dataset guard prevents double-attach.
+    const calPill = /** @type {HTMLElement|null} */ (document.querySelector('.nav-panel-pill--calendar'));
+    if (calPill && !calPill.dataset.monthPersistWired) {
+        calPill.dataset.monthPersistWired = '1';
+        calPill.addEventListener('click', () => {
+            if (fieldDate.value) {
+                const d = new Date(fieldDate.value + 'T12:00:00');
+                lsSet('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
+                lsSet('myb_roster_year',  d.getFullYear());
+            }
+            // Let the <a> navigate normally
+        });
+    }
 }
 // Wire the nav now EXCEPT on the in-place login path, where initAuthorised() defers it so it renders
 // with the signed-in identity (the full-screen overlay covers the burger meanwhile). Flag off → wired
 // now exactly as before (null identity on the login screen, corrected after the reload).
 if (!CONFIG.INPLACE_LOGIN.admin || _access.decision !== 'login') wireNavPanel();
-
-// Calendar pill in the nav drawer: write the current fieldDate month/year to
-// localStorage before navigating so index.html opens on the same month the user
-// was looking at in admin. (Replaces the removed header back button, v10.63.)
-document.querySelector('.nav-panel-pill--calendar')?.addEventListener('click', () => {
-    if (fieldDate.value) {
-        const d = new Date(fieldDate.value + 'T12:00:00');
-        lsSet('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
-        lsSet('myb_roster_year',  d.getFullYear());
-    }
-    // Let the <a> navigate normally
-});
 

@@ -165,6 +165,21 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
     assert.equal(s.satCount, 0);
   });
 
+  test('Boxing Day on a Sunday → box bucket (3×), not sun (1.5×)', () => {
+    // 2027-12-26 is a Sunday. 26 Dec is always the 3× Boxing Day rate regardless
+    // of weekday (confirmed by Gareth) — the isBoxing check must run BEFORE the
+    // Sunday (dow === 0 → 1.5×) branch. C. Reen base Sun=RD, override to work.
+    _setOverridesForTest(new Map([
+      ['2027-12-26', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2027-12-26'), cReen);
+    assert.ok(s);
+    assert.equal(s.boxCount, 1);
+    assert.equal(s.boxH, 8);
+    assert.equal(s.sunCount, 0);
+    assert.equal(s.bhCount, 0);
+  });
+
   test('AL override on BH day → suppresses contribution → null', () => {
     _setOverridesForTest(new Map([
       ['2026-04-06', { type: 'annual_leave', value: 'AL', _ts: 1, _manual: true }],

@@ -86,16 +86,23 @@ export function getPensionDefault(pObj) {
  * the grade default. Use this wherever a SPECIFIC tax year's rate is needed (e.g. the prior-year HPP
  * estimate) — reading the live `hourlyRate` field or the current grade default gives the wrong year's
  * rate after an April pay award.
+ *
+ * `useLegacyFallback` (default true) controls the middle leg — the legacy single `SK.rate` key. That
+ * key holds the LAST-SAVED rate (not year-specific), so it is the right migration fallback when
+ * loading a rate into the field, but WRONG for a PRIOR year's estimate: after an award it would price
+ * last year at the new rate. Callers estimating a specific past year (updatePriorHpp) pass `false` so
+ * an absent per-year rate falls straight through to the grade default instead.
  * @param {any} ty
+ * @param {boolean} [useLegacyFallback=true]
  * @returns {number}
  */
-export function getStoredRateForYear(ty) {
+export function getStoredRateForYear(ty, useLegacyFallback = true) {
   /** @type {Record<string, any>} */
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted'); }
   const g = getGrade();
   return rates[ty.label]
-      || parseFloat(lsGet(SK.rate) ?? '')
+      || (useLegacyFallback ? parseFloat(lsGet(SK.rate) ?? '') : 0)
       || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
 }
 
@@ -174,7 +181,11 @@ export function confirmSettings(calculate) {
   if (existingRaw) {
     try {
       const d = JSON.parse(existingRaw);
-      d.pension = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value) || 0;
+      // Blank field → null (loadPeriodData re-applies the period default), NOT 0. Coercing blank to
+      // 0 here persisted a permanent £0 pension for the period — the same overstatement the
+      // readFormData/calculate null convention closes. A typed "0" is a genuine opt-out and is kept.
+      const _pRaw = /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value.trim();
+      d.pension = _pRaw === '' ? null : (parseFloat(_pRaw) || 0);
       lsSet(periodKey(pNum), JSON.stringify(d));
     } catch {}
   }
@@ -235,9 +246,22 @@ export function loadSettings() {
   if (!done) {
     setSettingsCardOpen(true);
   } else {
-    // Mark all tax years confirmed if the global setup flag was already set (v1.13+)
-    CONFIG.TAX_YEARS.forEach(ty => {
-      if (!lsGet(settingsKey(ty))) lsSet(settingsKey(ty), '1');
-    });
+    // One-time legacy migration (was: run on EVERY load). Users who completed setup
+    // before per-tax-year confirmation tracking existed have SK.setup but no per-year
+    // flags — mark the tax years that exist NOW as confirmed so they aren't re-prompted
+    // for a year they already effectively set up.
+    //
+    // Guarded so it runs ONCE per member: a tax year ADDED LATER must NOT be swept up
+    // here, so its "👋 New tax year" setup banner appears the first time the member opens
+    // a period in it. Pay rates change every April, so silently carrying the old year's
+    // rate into a new one risked a stale-rate calculation with no prompt to review it.
+    // (Re-running on every load was what defeated the banner the UI copy already promises.)
+    const migratedKey = `${pcPrefix()}setup_years_migrated`;
+    if (!lsGet(migratedKey)) {
+      CONFIG.TAX_YEARS.forEach(ty => {
+        if (!lsGet(settingsKey(ty))) lsSet(settingsKey(ty), '1');
+      });
+      lsSet(migratedKey, '1');
+    }
   }
 }

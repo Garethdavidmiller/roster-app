@@ -73,6 +73,11 @@ let _panelOpen      = false;
 let _historyPushed  = false;
 let _comingSoonOpen = false;
 let _noticesOpen    = false;
+// The document keydown + window popstate handlers registered by initNavPanel — held at module
+// level so resetNavPanel() can remove them (they close over the injected panel; a stale copy
+// surviving a reset would consume the shared flags against a detached panel).
+/** @type {any} */ let _docKeydownHandler = null;
+/** @type {any} */ let _popstateHandler   = null;
 
 /** localStorage key for the archived notices list. */
 const NOTICES_KEY = 'myb_app_notices';
@@ -149,6 +154,12 @@ export function archiveNotice({ id, title, section, date, body }) {
  */
 export function resetNavPanel() {
     if (_panelOpen) unlockBodyScroll();
+    // Remove the document/window-level listeners the previous initNavPanel registered — the
+    // clone-replace below only drops the BURGER's listeners; these two close over the old panel
+    // and share the module flags, so a surviving copy would fire first on the next Escape /
+    // Android Back and leave the rebuilt drawer stuck open.
+    if (_docKeydownHandler) { document.removeEventListener('keydown', _docKeydownHandler); _docKeydownHandler = null; }
+    if (_popstateHandler)   { window.removeEventListener('popstate', _popstateHandler);   _popstateHandler = null; }
     ['navPanel', 'navPanelOverlay', 'navComingSoonLightbox', 'navNoticesLightbox']
         .forEach(id => document.getElementById(id)?.remove());
     const burger = document.getElementById('navMenuBtn');
@@ -598,7 +609,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // Close panel on Escape; trap Tab focus within the panel while it is open.
     // The !panel.contains(active) guard catches focus that escaped the panel
     // (e.g. via a programmatic focus() call elsewhere) and pulls it back in.
-    document.addEventListener('keydown', e => {
+    // Stored in the module-level ref so resetNavPanel() can remove it — a stale copy left behind
+    // after a reset would fire FIRST on the next Escape, consume the shared _panelOpen/_historyPushed
+    // flags against the detached old panel, and leave the rebuilt drawer stuck open.
+    _docKeydownHandler = (/** @type {KeyboardEvent} */ e) => {
         if (!_panelOpen) return;
         if (e.key === 'Escape') { closePanel(); return; }
         if (e.key === 'Tab') {
@@ -621,17 +635,21 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 }
             }
         }
-    });
+    };
+    document.addEventListener('keydown', _docKeydownHandler);
 
     // Android Back button closes whichever overlay is currently open. The
     // coming-soon and notices lightboxes share the panel's single history entry,
     // so check them first (they sit on top of the visually-closed panel).
-    window.addEventListener('popstate', () => {
+    // Stored in the module-level ref so resetNavPanel() can remove it (same stale-copy hazard
+    // as the keydown handler above — Android Back is the primary close gesture on staff phones).
+    _popstateHandler = () => {
         if (_comingSoonOpen) { _closeComingSoonFromBack(); return; }
         if (_noticesOpen)   { _closeNoticesFromBack(); return; }
         if (!_historyPushed) return;
         closePanelFromBack();
-    });
+    };
+    window.addEventListener('popstate', _popstateHandler);
 }
 
 // lockBodyScroll / unlockBodyScroll imported from overlay.js

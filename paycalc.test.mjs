@@ -173,14 +173,21 @@ describe('computeSL', () => {
     assert.equal(computeSL(3000, 'plan2', sl, true), 0);
   });
 
+  test('2025/26 thresholds match the confirmed GOV.UK annual figures', () => {
+    // Pins the corrected 2025/26 values (were the 2024/25 figures). GOV.UK, checked Jul 2026.
+    assert.equal(sl.plan1.t, 26065 / P_YR);
+    assert.equal(sl.plan2.t, 28470 / P_YR);
+    assert.equal(sl.plan4.t, 32745 / P_YR);
+  });
+
   test('plan2: below threshold → 0', () => {
-    // plan2 threshold 2025/26 = 27295/13 ≈ 2099.62
-    assert.equal(computeSL(2000, 'plan2', sl), 0);
+    const threshold = sl.plan2.t; // 28470/13 ≈ 2190.0
+    assert.equal(computeSL(threshold - 100, 'plan2', sl), 0);
   });
 
   test('plan2: above threshold → floor of 9% on excess', () => {
     const sacGross = 2500;
-    const threshold = 27295 / P_YR;
+    const threshold = sl.plan2.t;
     const expected = Math.floor((sacGross - threshold) * 0.09);
     assert.equal(computeSL(sacGross, 'plan2', sl), expected);
   });
@@ -193,11 +200,9 @@ describe('computeSL', () => {
   });
 
   test('floor rounding: fractional pence are dropped, not rounded', () => {
-    // plan2 threshold ≈ 2099.615. Choose sacGross so (gross-threshold)*0.09 has a fraction.
-    const sacGross = 2099.615 + 100; // excess = 100, * 0.09 = 9.00 exactly
-    // Choose one with fractional result:
-    const sacGross2 = 2099.615 + 100.1; // excess ≈ 100.1, * 0.09 = 9.009 → floor = 9
-    assert.equal(computeSL(sacGross2, 'plan2', sl), Math.floor((sacGross2 - 27295 / P_YR) * 0.09));
+    const threshold = sl.plan2.t;
+    const sacGross2 = threshold + 100.1; // excess ≈ 100.1, * 0.09 = 9.009 → floor = 9
+    assert.equal(computeSL(sacGross2, 'plan2', sl), Math.floor((sacGross2 - threshold) * 0.09));
   });
 
   test('postgrad plan uses 6% rate', () => {

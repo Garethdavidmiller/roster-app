@@ -10,11 +10,11 @@
  */
 
 import {
-  GRADES, HPP_FRACTION, RATE_125, RATE_150, RATE_300,
+  HPP_FRACTION, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, getLondonAllowanceForPeriod,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
-import { getGrade, getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
+import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { periodKey, hppEstKey, hppActualKey, readPayslipActuals } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
@@ -102,14 +102,15 @@ export function _varPayForPeriod(p, d, rate) {
  * @param {number} bpPNum - Period number the back pay lands in (coordinator state).
  */
 export function calcHPP(bpVarAmount, bpPNum) {
-  const _hppGrade       = getGrade();
-  const _hppDefaultRate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
-  const rate       = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value) || _hppDefaultRate;
   const allPeriods = getPeriods();
 
   const pNum    = currentPeriodNum();
   const curP    = allPeriods.find(/** @param {any} x */ x => x.num === pNum);
   const ty      = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  // Rate: the live field when filled, else THIS tax year's stored rate (which itself falls back to
+  // the grade default) — not the bare grade default, which ignored a saved custom/protected rate
+  // and mispriced the persisted HPP estimate whenever the field was empty/unparsable.
+  const rate    = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value) || getStoredRateForYear(ty);
   const periods = allPeriods.filter(/** @param {any} p */ p => {
     const o = p.num - 48;
     return o >= ty.first && o <= ty.last;
@@ -228,10 +229,11 @@ export function updatePriorHpp(ty) {
       }, 0);
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     } else {
-      // Use the PRIOR year's stored rate, not the current grade default — after an April pay award
-      // the prior year's rate is lower, so the grade default over-estimated last year's variable pay
-      // (and this figure is persisted + added to the January payslip).
-      const rate = getStoredRateForYear(priorTy);
+      // The PRIOR year's stored per-year rate, else the grade default. Pass useLegacyFallback=false
+      // so an absent per-year rate does NOT fall through to the legacy SK.rate (the last-saved rate):
+      // after an April award that key holds the NEW rate, which would over-price last year's variable
+      // pay in this persisted, January-payslip-bound estimate.
+      const rate = getStoredRateForYear(priorTy, false);
       let _priorVar = 0;
       _priorPeriods.forEach(/** @param {any} p */ p => {
         try {

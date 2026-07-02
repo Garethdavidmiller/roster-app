@@ -333,8 +333,17 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
             await setDoc(doc(db, COLLECTIONS.huddles, date), firestoreDoc);
         }
     } catch (err) {
-        // Old file is unaffected — roll back the new upload on a non-retriable failure.
-        deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn('[uploadHuddle] rollback failed:', e));
+        // Old file is unaffected. Roll back the new Storage object ONLY on a non-retriable failure
+        // (a definite non-commit). When the FINAL error is still a retriable code, the write is
+        // commit-AMBIGUOUS — the server may have committed the doc after the response was lost — and
+        // deleting the file could leave a committed huddles doc pointing at nothing (every staff tap
+        // 404s until re-upload). Leaving the file behind on ambiguity costs at most one orphaned
+        // object, which the next upload's old-file cleanup / re-upload path tolerates.
+        if (!_RETRIABLE_FIRESTORE_CODES.has(/** @type {any} */ (err)?.code)) {
+            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn('[uploadHuddle] rollback failed:', e));
+        } else {
+            console.warn('[uploadHuddle] commit-ambiguous failure — leaving new Storage object in place:', /** @type {any} */ (err)?.code);
+        }
         throw err;
     }
 
@@ -456,8 +465,17 @@ async function _uploadPdf(collectionName, date, file, uploadedBy) {
             await setDoc(doc(db, collectionName, date), firestoreData);
         }
     } catch (err) {
-        // Old file is unaffected — always roll back the new upload on any failure.
-        deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[uploadPdf] ${collectionName} rollback failed:`, e));
+        // Old file is unaffected. Roll back the new Storage object ONLY on a non-retriable failure
+        // (a definite non-commit). When the FINAL error is still a retriable code the write is
+        // commit-AMBIGUOUS — the server may have committed after the response was lost — and deleting
+        // the file could leave a committed circulars/newsletters doc pointing at nothing (every staff
+        // tap 404s until re-upload). Leaving the file on ambiguity costs at most one orphaned object,
+        // which the next upload's old-file cleanup tolerates. Mirrors uploadHuddle.
+        if (!_RETRIABLE_FIRESTORE_CODES.has(/** @type {any} */ (err)?.code)) {
+            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[uploadPdf] ${collectionName} rollback failed:`, e));
+        } else {
+            console.warn(`[uploadPdf] ${collectionName} commit-ambiguous failure — leaving new Storage object in place:`, /** @type {any} */ (err)?.code);
+        }
         throw err;
     }
 

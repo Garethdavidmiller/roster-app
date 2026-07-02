@@ -117,6 +117,11 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
     // A surviving range covers the Sunday iff it has a leave override within 2 days either side
     // (±1 = Sat/Mon, ±2 = Fri/Tue for when the adjacent rest day carries no leave). Keep the shared
     // correction in that case; only delete it when nothing surviving spans the Sunday.
+    // ACCEPTED TRADE-OFF: per-day override docs carry no booking-range identity, so this heuristic
+    // can FALSE-KEEP — an unrelated 1-day absence at Sunday±2 preserves a correction whose booking
+    // was fully deleted (calendar shows a stale RD on a worked Sunday until manually removed). We
+    // bias toward keeping: the opposite error (deleting a correction an overlapping booking still
+    // needs) resurrects a WORKED shift in the middle of someone's remaining leave, which is worse.
     const _spansSunday = (/** @type {string} */ sundayISO) =>
         [-2, -1, 1, 2].some(off => remainingLeaveDates.has(_shiftISODate(sundayISO, off)));
     const correctionIds = allOverrides

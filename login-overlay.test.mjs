@@ -40,7 +40,7 @@ function makeDeps(over = {}) {
     const deps = {
         enforce:            true,
         ensureNamedSession: async () => true,
-        saveSession:        () => { calls.save++; },
+        saveSession:        () => { calls.save++; return true; },
         clearSession:       () => { calls.clear++; },
         getAuthError:       () => null,
         isTransient:        () => false,
@@ -102,6 +102,18 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         assert.equal(r.ok, false);
         assert.equal(calls.save, 0);
         assert.equal(calls.clear, 1);
+    });
+
+    test('storage blocked (saveSession returns false) → clears, ok:false with storage message', async () => {
+        // iOS Private Browsing: lsSet swallows the SecurityError, so saveSession's read-back returns
+        // false. runNamedSignIn must fail cleanly (sign back out, explain) instead of returning ok:true
+        // and handing off to onSuccess, which would loop back to the overlay (getSession() stays null).
+        const { deps, calls } = makeDeps({ saveSession: () => { calls.save++; return false; } });
+        const r = await runNamedSignIn(deps);
+        assert.equal(r.ok, false);
+        assert.match(/** @type {string} */ (r.error), /blocking storage/i);
+        assert.equal(calls.save, 1, 'save was attempted');
+        assert.equal(calls.clear, 1, 'signed back out so no Firebase identity is stranded');
     });
 
     test('while auth is still PENDING the session is not saved (the half-signed-in regression)', async () => {

@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: July 2026 — v15.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v15.30 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -17,9 +17,10 @@ orphans the previous file or races the Firestore commit. The exact path is recor
 `storagePath` field. (Docs written before versioned paths have no `storagePath`; the cleanup/prune
 code falls back to the legacy fixed `huddles/{date}.{fileType}`.)
 
-Storage URL strategy (v9.53+): `ingestHuddle` generates a time-limited v4 signed URL (1 year).
-Falls back to a permanent `firebaseStorageDownloadTokens` download URL if the service account
-lacks `iam.serviceAccountTokenCreator` role. Either way the URL lands in `storageUrl`.
+Storage URL strategy (v15.19+): `ingestHuddle` writes a permanent `firebaseStorageDownloadTokens`
+download URL to `storageUrl`. It does NOT use a signed URL — GCS caps v4 signed-URL expiry at
+7 days, far shorter than the 3-month Huddle retention window (the old "1-year signed URL" code
+always threw and silently fell back to the token path anyway).
 
 Signed URL format:
 ```
@@ -287,10 +288,15 @@ parsedResult (from Cloud Function)
         ↓
 computeCellStates(parsedResult, existingOverrides)
   — classifies each day:
-    MATCH    = PDF matches base roster, nothing to do
-    DIFF     = PDF differs from base roster, needs saving
-    CONFLICT = manual override already exists but differs from PDF
-    COVERED  = manual override already matches PDF, nothing to do
+    MATCH      = PDF matches base roster, nothing to do
+    DIFF       = PDF differs from base roster, needs saving
+    CONFLICT   = manual override already exists but differs from PDF
+    COVERED    = manual override already matches PDF, nothing to do
+    REMOVE_IMPORT = a stale previous PDF import whose day now matches base — approving
+                 DELETES the stale doc and writes nothing (a fresh base-matching override
+                 would be redundant and mask a future base-roster change) (v15.31)
+    UNREADABLE = normaliseShift couldn't parse the cell (UNKNOWN| sentinel) — shown
+                 skip-only, NEVER written; admin fixes the PDF or records it manually (v15.30)
         ↓
 renderReviewTable() — per-person card list
   shiftDisplay(shiftStr, baseShift)

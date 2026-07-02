@@ -499,6 +499,22 @@ describe('saveSession', () => {
         const s = JSON.parse(store.get(AUTH_KEY));
         assert.ok(s.lastActivity >= before - 50 && s.lastActivity <= Date.now() + 50);
     });
+
+    test('returns true when the write persists (read-back matches)', () => {
+        assert.equal(saveSession('G. Miller'), true);
+    });
+
+    test('returns false when storage is blocked (write swallowed → read-back mismatch)', () => {
+        // Simulate iOS Private Browsing: lsSet swallows the throw, so nothing is stored and the
+        // read-back returns null !== payload. runNamedSignIn relies on this to fail sign-in cleanly.
+        const orig = store.set.bind(store);
+        store.set = () => store;            // no-op write (value never lands)
+        try {
+            assert.equal(saveSession('G. Miller'), false);
+        } finally {
+            store.set = orig;
+        }
+    });
 });
 
 // ── clearSession ──────────────────────────────────────────────────────────────

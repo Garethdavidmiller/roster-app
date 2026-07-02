@@ -116,21 +116,29 @@ export function calcBackPay() {
   let grandVarTotal = 0;
   let pCount        = 0;
 
+  // Upper cap for accrual = the EARLIER of the selected "paid in" period and today's period. Back pay
+  // only accrues for periods already WORKED under the old rate; the "paid in" period is just when the
+  // lump lands and can be in the FUTURE. Capping at min(bpPNum, current) stops a future paid-in
+  // selection — or an unselected one — from adding contracted rate-diff for weeks not yet worked
+  // (a period the user merely opened autosaves a record, so it can't be excluded by emptiness alone).
+  const _capPNum = Math.min(bpPNum || Infinity, currentPeriodNum());
   periods.forEach(/** @param {any} p */ p => {
     try {
       if (fromPNum && p.num < fromPNum) return;
-      if (bpPNum   && p.num > bpPNum)  return;
+      if (_capPNum && p.num > _capPNum) return;
       // Skip periods outside the award tax year (e.g. when "paid in" period is
       // in the following year — don't apply 2025/26 rate diff to 2026/27 work).
       if (awardTy && getTaxYearForOffset(p.num - 48) !== awardTy) return;
       const raw = lsGet(periodKey(p.num));
-      if (!raw) return;   // never-visited period — conservatively excluded (we can't assume it was worked)
-      const d = JSON.parse(raw);
-      // Do NOT skip an "empty" (no special hours) period: a normal contracted week still owes the
-      // contracted-hours rate diff on a rate award — dropping it lost the LARGEST component
-      // (≈ effContr × rateDiff per period) with no field the user could fill to include it. For an
-      // empty period _decodeHours returns zeros, so ratePay below reduces to exactly that contracted
-      // component + the London diff, and the variable portion is zero.
+      // Include EVERY period in the award window — even one never opened in the app. A normal
+      // contracted week is owed the rise whether worked or paid at contracted rate on leave/sick
+      // (confirmed by Gareth), so an unvisited period defaults to empty data → contracted-only
+      // (no variable). _decodeHours returns zeros for `{}`, so ratePay reduces to exactly the
+      // contracted component + London diff. GUARDED by fromPNum: with no "backdated from" period
+      // selected there is no award window, so an unvisited period has nothing to accrue and is
+      // skipped — otherwise contracted arrears would be summed across unbounded history.
+      if (!raw && !fromPNum) return;
+      const d = raw ? JSON.parse(raw) : {};
       const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
       // Cap sat/BH hours as calculate() does — back-pay must reflect actual gross paid.
       const _bpEffContr = getEffectiveContr(p);
