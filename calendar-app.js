@@ -170,10 +170,10 @@ function updateLegend() {
     setLegendItemVisible('legend-rdw',   typesThisMonth.has('RDW'));
     setLegendItemVisible('legend-al',    typesThisMonth.has('AL'));
     setLegendItemVisible('legend-sick',  typesThisMonth.has('SICK'));
-    setLegendItemVisible('legend-trg',   typesThisMonth.has('TRG'));
+    setLegendItemVisible('legend-other',   typesThisMonth.has('OTHER'));
     // Hide the whole row-2 if all five are absent
     const row2 = _legendEl('legend-row-2');
-    if (row2) row2.style.display = (typesThisMonth.has('SPARE') || typesThisMonth.has('RDW') || typesThisMonth.has('AL') || typesThisMonth.has('SICK') || typesThisMonth.has('TRG')) ? '' : 'none';
+    if (row2) row2.style.display = (typesThisMonth.has('SPARE') || typesThisMonth.has('RDW') || typesThisMonth.has('AL') || typesThisMonth.has('SICK') || typesThisMonth.has('OTHER')) ? '' : 'none';
 
     const isDispatcher = member && (/** @type {any} */ (member)).rosterType === 'dispatcher';
     const nightItem = _legendEl('legend-night');

@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
-         TRAINING_FLAVOURS, TRG_RDW_DEFAULT_MINS, isTrainingValue, parseTrainingValue, resolveTrainingPay } from './override-utils.js';
+         OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay } from './override-utils.js';
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 
@@ -216,75 +216,75 @@ describe('computePeriodDeleteIds', () => {
     });
 });
 
-// ── Training grammar + pay resolution (TRAINING_PLAN.md) ─────────────────────
+// ── Training grammar + pay resolution (OTHER_PLAN.md) ─────────────────────
 
-describe('isTrainingValue / parseTrainingValue — value grammar', () => {
+describe('isOtherValue / parseOtherValue — value grammar', () => {
     it('accepts every flavour, bare', () => {
         for (const f of ['TRG', 'IND', 'ASSESS']) {
-            assert.equal(isTrainingValue(f), true, f);
-            assert.deepEqual(parseTrainingValue(f), { flavour: f, rdw: false, time: null });
+            assert.equal(isOtherValue(f), true, f);
+            assert.deepEqual(parseOtherValue(f), { flavour: f, rdw: false, time: null });
         }
     });
 
     it('accepts the RDW marker', () => {
-        assert.deepEqual(parseTrainingValue('TRG RDW'),    { flavour: 'TRG',    rdw: true, time: null });
-        assert.deepEqual(parseTrainingValue('ASSESS RDW'), { flavour: 'ASSESS', rdw: true, time: null });
+        assert.deepEqual(parseOtherValue('TRG RDW'),    { flavour: 'TRG',    rdw: true, time: null });
+        assert.deepEqual(parseOtherValue('ASSESS RDW'), { flavour: 'ASSESS', rdw: true, time: null });
     });
 
     it('accepts actual times, with and without RDW', () => {
-        assert.deepEqual(parseTrainingValue('IND 08:00-16:00'),     { flavour: 'IND', rdw: false, time: '08:00-16:00' });
-        assert.deepEqual(parseTrainingValue('TRG RDW 08:00-16:00'), { flavour: 'TRG', rdw: true,  time: '08:00-16:00' });
+        assert.deepEqual(parseOtherValue('IND 08:00-16:00'),     { flavour: 'IND', rdw: false, time: '08:00-16:00' });
+        assert.deepEqual(parseOtherValue('TRG RDW 08:00-16:00'), { flavour: 'TRG', rdw: true,  time: '08:00-16:00' });
     });
 
     it('rejects non-training values, malformed grammar, and impossible times', () => {
         for (const v of ['RD', 'SPARE', 'AL', 'SICK', 'RDW', '06:00-14:00', 'RDW TRG',
                          'TRAINING', 'trg', 'TRG BAD', 'TRGRDW', 'TRG  RDW', 'ASS',
                          'TRG 25:00-30:00', 'TRG RDW 08:00', '', null, undefined, 42]) {
-            assert.equal(isTrainingValue(v), false, String(v));
-            assert.equal(parseTrainingValue(v), null, String(v));
+            assert.equal(isOtherValue(v), false, String(v));
+            assert.equal(parseOtherValue(v), null, String(v));
         }
     });
 
     it('flavour labels carry both the badge word and the full tap word', () => {
-        assert.equal(TRAINING_FLAVOURS.TRG.badge,    'Train');
-        assert.equal(TRAINING_FLAVOURS.TRG.full,     'Training');
-        assert.equal(TRAINING_FLAVOURS.IND.badge,    'Ind');
-        assert.equal(TRAINING_FLAVOURS.IND.full,     'Induction');
-        assert.equal(TRAINING_FLAVOURS.ASSESS.badge, 'Assess');
-        assert.equal(TRAINING_FLAVOURS.ASSESS.full,  'Assessment');
+        assert.equal(OTHER_FLAVOURS.TRG.badge,    'Train');
+        assert.equal(OTHER_FLAVOURS.TRG.full,     'Training');
+        assert.equal(OTHER_FLAVOURS.IND.badge,    'Ind');
+        assert.equal(OTHER_FLAVOURS.IND.full,     'Induction');
+        assert.equal(OTHER_FLAVOURS.ASSESS.badge, 'Assess');
+        assert.equal(OTHER_FLAVOURS.ASSESS.full,  'Assessment');
     });
 });
 
-describe('resolveTrainingPay — the pay mapping (single source)', () => {
+describe('resolveOtherPay — the pay mapping (single source)', () => {
     const parse = (v) => {
-        const p = parseTrainingValue(v);
+        const p = parseOtherValue(v);
         assert.ok(p, `expected training value: ${v}`);
         return p;
     };
 
     it('rostered day, no times → as-base (pays exactly as the base shift, never less)', () => {
-        assert.deepEqual(resolveTrainingPay(parse('TRG'), '06:00-14:00'), { mode: 'as-base' });
-        assert.deepEqual(resolveTrainingPay(parse('ASSESS'), '12:00-19:00'), { mode: 'as-base' });
+        assert.deepEqual(resolveOtherPay(parse('TRG'), '06:00-14:00'), { mode: 'as-base' });
+        assert.deepEqual(resolveOtherPay(parse('ASSESS'), '12:00-19:00'), { mode: 'as-base' });
     });
 
     it('rostered day, actual times → timed (engine applies the base-cap + excess→OT split)', () => {
-        assert.deepEqual(resolveTrainingPay(parse('TRG 08:00-18:00'), '06:00-14:00'),
+        assert.deepEqual(resolveOtherPay(parse('TRG 08:00-18:00'), '06:00-14:00'),
             { mode: 'timed', time: '08:00-18:00' });
     });
 
     it('explicit RDW, no times → rdw with the 8h default', () => {
-        assert.deepEqual(resolveTrainingPay(parse('TRG RDW'), 'RD'),
-            { mode: 'rdw', mins: TRG_RDW_DEFAULT_MINS });
-        assert.equal(TRG_RDW_DEFAULT_MINS, 480, 'default is 8 hours (confirmed by Gareth)');
+        assert.deepEqual(resolveOtherPay(parse('TRG RDW'), 'RD'),
+            { mode: 'rdw', mins: OTHER_RDW_DEFAULT_MINS });
+        assert.equal(OTHER_RDW_DEFAULT_MINS, 480, 'default is 8 hours (confirmed by Gareth)');
     });
 
     it('explicit RDW with actual times → rdw with the actual duration (never split into OT)', () => {
-        assert.deepEqual(resolveTrainingPay(parse('TRG RDW 08:00-18:00'), 'RD'),
+        assert.deepEqual(resolveOtherPay(parse('TRG RDW 08:00-18:00'), 'RD'),
             { mode: 'rdw', mins: 600 });
     });
 
     it('RDW duration wraps overnight ranges', () => {
-        assert.deepEqual(resolveTrainingPay(parse('TRG RDW 22:00-06:00'), 'RD'),
+        assert.deepEqual(resolveOtherPay(parse('TRG RDW 22:00-06:00'), 'RD'),
             { mode: 'rdw', mins: 480 });
     });
 
@@ -292,13 +292,13 @@ describe('resolveTrainingPay — the pay mapping (single source)', () => {
         // The roster marks rest-day training explicitly ("TRG RDW"), but if the flag is
         // ever missing while the base is RD/OFF, as-base would pay ZERO hours — so the
         // resolver derives rdw-ness from the base as a defensive layer.
-        assert.deepEqual(resolveTrainingPay(parse('TRG'), 'RD'),
-            { mode: 'rdw', mins: TRG_RDW_DEFAULT_MINS });
-        assert.deepEqual(resolveTrainingPay(parse('IND'), 'OFF'),
-            { mode: 'rdw', mins: TRG_RDW_DEFAULT_MINS });
+        assert.deepEqual(resolveOtherPay(parse('TRG'), 'RD'),
+            { mode: 'rdw', mins: OTHER_RDW_DEFAULT_MINS });
+        assert.deepEqual(resolveOtherPay(parse('IND'), 'OFF'),
+            { mode: 'rdw', mins: OTHER_RDW_DEFAULT_MINS });
     });
 
     it('spare-week training is NOT rdw — SPARE is not a rest day (contracted day, as-base)', () => {
-        assert.deepEqual(resolveTrainingPay(parse('TRG'), 'SPARE'), { mode: 'as-base' });
+        assert.deepEqual(resolveOtherPay(parse('TRG'), 'SPARE'), { mode: 'as-base' });
     });
 });

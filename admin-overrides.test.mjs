@@ -250,19 +250,19 @@ describe('validateShiftRules', () => {
 
     test('training WITHOUT times is skipped — the pay defaults apply, nothing to validate', () => {
         for (const value of ['TRG', 'IND RDW', 'ASSESS']) {
-            assert.deepEqual(validateShiftRules([{ date: '2026-06-15', value, type: 'training' }], 'NONEXISTENT'), [], value);
+            assert.deepEqual(validateShiftRules([{ date: '2026-06-15', value, type: 'other' }], 'NONEXISTENT'), [], value);
         }
     });
 
     test('training WITH times validates the time part (13h → max-12h error, not a NaN no-op)', () => {
-        const toSave = [{ date: '2026-06-15', value: 'TRG RDW 06:00-19:00', type: 'training' }];
+        const toSave = [{ date: '2026-06-15', value: 'TRG RDW 06:00-19:00', type: 'other' }];
         const errors = validateShiftRules(toSave, 'NONEXISTENT');
         assert.equal(errors.length, 1);
         assert.match(errors[0], /max is 12h/);
     });
 
     test('training with valid times passes', () => {
-        const toSave = [{ date: '2026-06-15', value: 'TRG 08:00-16:00', type: 'training' }];
+        const toSave = [{ date: '2026-06-15', value: 'TRG 08:00-16:00', type: 'other' }];
         assert.deepEqual(validateShiftRules(toSave, 'NONEXISTENT'), []);
     });
 

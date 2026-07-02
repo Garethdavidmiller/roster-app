@@ -17,7 +17,7 @@ import { isRestShift, shouldReplaceOverride } from './override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
-import { parseTrainingValue } from './override-utils.js';
+import { parseOtherValue } from './override-utils.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 /** @type {Record<string, any>} */
@@ -28,13 +28,13 @@ export const TYPES = {
     annual_leave: { label: 'Annual Leave',     pill: 'AL',       fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Set as Rest Day',  pill: 'Rest Day', fixed: true,  fixedValue: 'RD' },
     sick:         { label: 'Absent',           pill: 'Absent',   fixed: true,  fixedValue: 'SICK' },
-    // Training / Induction / Assessment (TRAINING_PLAN.md). NOT fixed — the time inputs show —
+    // Training / Induction / Assessment (OTHER_PLAN.md). NOT fixed — the time inputs show —
     // but times are OPTIONAL: blank is VALID (pay defaults apply: base shift on a rostered
     // day, 8h RDW on a training rest-day). Value is composed at save time from the row's
     // flavour buttons + RDW tick + optional times: FLAVOUR[" RDW"][" HH:MM-HH:MM"].
-    // `timesOptional` is DESCRIPTIVE metadata — consumers branch on type === 'training'
+    // `timesOptional` is DESCRIPTIVE metadata — consumers branch on type === 'other'
     // explicitly (collector, validateShiftRules, prefill); keep it for the next such type.
-    training:     { label: 'Training',         pill: 'Training', fixed: false, timesOptional: true },
+    other:        { label: 'Other',            pill: 'Other',    fixed: false, timesOptional: true },
     // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
     allocated:    { label: 'Allocated shift',  fixed: false },
     overtime:     { label: 'Overtime',         fixed: false },
@@ -44,7 +44,7 @@ export const TYPES = {
 /** Ordered list of type keys for the per-row and bulk-bar pill buttons (single source of truth).
  *  Order: AL · Spare · Shift · RDW · Absent · Rest Day — do not reorder; matches admin.html label order.
  */
-export const PILL_TYPES = ['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction', 'training'];
+export const PILL_TYPES = ['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction', 'other'];
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 /** @type {any[]} */
@@ -241,14 +241,14 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="time-error-msg" id="${timeErrId}" role="alert">Use HH:MM format (e.g. 07:00)</span>
             </div>
             <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> if this was overtime</div>
-            <div class="trg-opts" hidden>
-                <span class="trg-flavour-group" role="group" aria-label="Training type">
-                    <button type="button" class="trg-flavour-btn active" data-flavour="TRG" aria-pressed="true">Train</button>
-                    <button type="button" class="trg-flavour-btn" data-flavour="IND" aria-pressed="false">Ind</button>
-                    <button type="button" class="trg-flavour-btn" data-flavour="ASSESS" aria-pressed="false">Assess</button>
+            <div class="other-opts" hidden>
+                <span class="other-flavour-group" role="group" aria-label="Type of day">
+                    <button type="button" class="other-flavour-btn active" data-flavour="TRG" aria-pressed="true">Training</button>
+                    <button type="button" class="other-flavour-btn" data-flavour="IND" aria-pressed="false">Induction</button>
+                    <button type="button" class="other-flavour-btn" data-flavour="ASSESS" aria-pressed="false">Assessment</button>
                 </span>
-                <label class="trg-rdw-label"><input type="checkbox" class="trg-rdw-cb"> Rest day (RDW)</label>
-                <span class="trg-opts-hint">Times optional — blank pays the default (base shift, or 8h RDW)</span>
+                <label class="trg-rdw-label"><input type="checkbox" class="other-rdw-cb"> Rest day (RDW)</label>
+                <span class="other-opts-hint">Times optional — blank pays the default (base shift, or 8h RDW)</span>
             </div>`;
 
         container.appendChild(row);
@@ -270,11 +270,11 @@ export function buildWeekGridInto(container, dateStr) {
                 sickPill.title    = 'Absence cannot be recorded on a Sunday — Sundays are not contracted days';
                 sickPill.setAttribute('aria-label', 'Absent — unavailable on Sundays (not a contracted day)');
             }
-            const trgPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-training'));
-            if (trgPill) {
-                trgPill.disabled = true;
-                trgPill.title    = 'Training cannot be recorded on a Sunday — Sundays are not contracted days';
-                trgPill.setAttribute('aria-label', 'Training — unavailable on Sundays (not a contracted day)');
+            const otherPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-other'));
+            if (otherPill) {
+                otherPill.disabled = true;
+                otherPill.title    = 'Other days (training, induction, assessment) cannot be recorded on a Sunday — Sundays are not contracted days';
+                otherPill.setAttribute('aria-label', 'Other — unavailable on Sundays (not a contracted day)');
             }
         }
 
@@ -290,19 +290,19 @@ export function buildWeekGridInto(container, dateStr) {
             const typeMeta      = TYPES[prefillType];
             _activateRow(row, checkbox, pills, startEl, endEl, prefillType);
             row.classList.add('prefilled-existing');
-            const _exTrg = existing.type === 'training' ? parseTrainingValue(existing.value) : null;
-            if (_exTrg) {
+            const _exOther = existing.type === 'other' ? parseOtherValue(existing.value) : null;
+            if (_exOther) {
                 // Restore flavour + RDW tick + optional times from the stored grammar —
                 // a naive value.split('-') would shred 'TRG RDW 08:00-16:00'.
-                row.querySelectorAll('.trg-flavour-btn').forEach(b => {
-                    const on = (/** @type {HTMLElement} */ (b)).dataset.flavour === _exTrg.flavour;
+                row.querySelectorAll('.other-flavour-btn').forEach(b => {
+                    const on = (/** @type {HTMLElement} */ (b)).dataset.flavour === _exOther.flavour;
                     b.classList.toggle('active', on);
                     b.setAttribute('aria-pressed', String(on));
                 });
-                const _cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.trg-rdw-cb'));
-                if (_cb) _cb.checked = _exTrg.rdw;
-                if (_exTrg.time) {
-                    const [s, e] = _exTrg.time.split('-');
+                const _cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
+                if (_cb) _cb.checked = _exOther.rdw;
+                if (_exOther.time) {
+                    const [s, e] = _exOther.time.split('-');
                     /** @type {HTMLInputElement} */ (startEl).value = s;
                     /** @type {HTMLInputElement} */ (endEl).value   = e;
                 }
@@ -375,10 +375,10 @@ export function buildWeekGridInto(container, dateStr) {
 
         // Training sub-controls: flavour is a one-of-three toggle; the RDW tick marks a
         // training rest-day. Both mark the grid changed like any other edit.
-        row.querySelectorAll('.trg-flavour-btn').forEach(btnEl => {
+        row.querySelectorAll('.other-flavour-btn').forEach(btnEl => {
             const btn = /** @type {HTMLButtonElement} */ (btnEl);
             btn.addEventListener('click', () => {
-                row.querySelectorAll('.trg-flavour-btn').forEach(b => {
+                row.querySelectorAll('.other-flavour-btn').forEach(b => {
                     const on = b === btn;
                     b.classList.toggle('active', on);
                     b.setAttribute('aria-pressed', String(on));
@@ -387,8 +387,8 @@ export function buildWeekGridInto(container, dateStr) {
                 _markChanged(); updateSaveBtn();
             });
         });
-        const trgRdwCb = /** @type {HTMLInputElement|null} */ (row.querySelector('.trg-rdw-cb'));
-        if (trgRdwCb) trgRdwCb.addEventListener('change', () => {
+        const otherRdwCb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
+        if (otherRdwCb) otherRdwCb.addEventListener('change', () => {
             row.classList.remove('prefilled-existing');
             _markChanged(); updateSaveBtn();
         });
@@ -463,13 +463,13 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
     }
     row.dataset.type = type;
     // Training options strip: visible only while the Training pill is active. The RDW tick
-    // pre-ticks itself when the day's base roster is a rest day (TRAINING_PLAN.md decision 8)
+    // pre-ticks itself when the day's base roster is a rest day (OTHER_PLAN.md decision 8)
     // — smart default, still adjustable. Runs on BOTH the pill and bulk-apply paths.
-    const trgOpts = /** @type {HTMLElement|null} */ (row.querySelector('.trg-opts'));
-    if (trgOpts) {
-        trgOpts.hidden = type !== 'training';
-        if (type === 'training') {
-            const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.trg-rdw-cb'));
+    const otherOpts = /** @type {HTMLElement|null} */ (row.querySelector('.other-opts'));
+    if (otherOpts) {
+        otherOpts.hidden = type !== 'other';
+        if (type === 'other') {
+            const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
             if (cb && row.dataset.baseIsRd === '1') cb.checked = true;
         }
     }
@@ -502,15 +502,15 @@ function _deactivateRow(row, checkbox, pills, startEl, endEl) {
     }
     delete row.dataset.type;
     // Reset the training sub-controls to their defaults (Train flavour, no RDW, hidden).
-    const trgOpts = /** @type {HTMLElement|null} */ (row.querySelector('.trg-opts'));
-    if (trgOpts) {
-        trgOpts.hidden = true;
-        row.querySelectorAll('.trg-flavour-btn').forEach(b => {
+    const otherOpts = /** @type {HTMLElement|null} */ (row.querySelector('.other-opts'));
+    if (otherOpts) {
+        otherOpts.hidden = true;
+        row.querySelectorAll('.other-flavour-btn').forEach(b => {
             const on = (/** @type {HTMLElement} */ (b)).dataset.flavour === 'TRG';
             b.classList.toggle('active', on);
             b.setAttribute('aria-pressed', String(on));
         });
-        const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.trg-rdw-cb'));
+        const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
         if (cb) cb.checked = false;
     }
     const badge = row.querySelector('.overwrite-badge');
@@ -680,7 +680,7 @@ function _initBulkBar() {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox || !checkbox.checked) return;
-            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick' || _bulkActiveType === 'training') && isSunday(row.dataset.date ?? '')) return; // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
+            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick' || _bulkActiveType === 'other') && isSunday(row.dataset.date ?? '')) return; // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
@@ -1153,8 +1153,8 @@ export function validateShiftRules(toSave, memberName) {
         // split('-') would shred it into NaN and silently skip every check. No times →
         // nothing to validate (the pay defaults apply); times → validate the time part.
         let checkValue = value;
-        if (type === 'training') {
-            const _t = parseTrainingValue(value);
+        if (type === 'other') {
+            const _t = parseOtherValue(value);
             if (!_t || !_t.time) return;
             checkValue = _t.time;
         }
@@ -1184,16 +1184,16 @@ export function validateShiftRules(toSave, memberName) {
             // Adjacent training values: a TIMED training constrains via its actual times; an
             // untimed as-base training constrains via its BASE shift (the member attends those
             // hours); only an untimed training REST-day is exempt (its hours are unknowable here).
-            const _adjTrg = parseTrainingValue(adjShift);
-            if (_adjTrg) {
-                if (_adjTrg.time) {
-                    adjShift = _adjTrg.time;
-                } else if (_adjTrg.rdw) {
+            const _adjOther = parseOtherValue(adjShift);
+            if (_adjOther) {
+                if (_adjOther.time) {
+                    adjShift = _adjOther.time;
+                } else if (_adjOther.rdw) {
                     return;
                 } else {
                     const _adjMember = teamMembers.find(m => m.name === memberName);
                     adjShift = _adjMember ? getBaseShift(_adjMember, new Date(adjISO + 'T12:00:00')) : '';
-                    if (parseTrainingValue(adjShift) || isRestShift(adjShift)) return;
+                    if (parseOtherValue(adjShift) || isRestShift(adjShift)) return;
                 }
             }
             if (!adjShift || !adjShift.includes('-')) return;

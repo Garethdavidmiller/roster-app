@@ -137,7 +137,7 @@ let openAboutLightbox = null;
                     { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift; use for spare-week confirmations, changed shift times, and swaps with colleagues' },
                     { icon: '💼', html: '<strong>RDW</strong> — rest day worked; use when someone works a full shift on their rest day' },
                     { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day back to a rest day' },
-                    { icon: '🎓', html: '<strong>Training</strong> — a training, induction or assessment day. Pick the type, tick "Rest day (RDW)" if it\'s on a rest day, and add times if you know them — blank times pay the default (the base shift, or 8 hours RDW)' },
+                    { icon: '🏷️', html: '<strong>Other</strong> — a training, induction or assessment day. Pick the type, tick "Rest day (RDW)" if it\'s on a rest day, and add times if you know them — blank times pay the default (the base shift, or 8 hours RDW)' },
                 ]},
             ],
         },
@@ -755,9 +755,9 @@ saveBtn.addEventListener('click', async () => {
             errors.push(`${formatDisplay(date)}: absence cannot be recorded on a Sunday`);
             return;
         }
-        if (type === 'training' && isSunday(date)) {
+        if (type === 'other' && isSunday(date)) {
             row.classList.add('row-error');
-            errors.push(`${formatDisplay(date)}: training cannot be recorded on a Sunday`);
+            errors.push(`${formatDisplay(date)}: an "Other" day (training, induction, assessment) cannot be recorded on a Sunday`);
             return;
         }
         const typeMeta    = TYPES[type];
@@ -766,13 +766,13 @@ saveBtn.addEventListener('click', async () => {
         const note    = '';
 
         let value;
-        if (type === 'training') {
+        if (type === 'other') {
             // Compose the training grammar from the row's sub-controls:
             // FLAVOUR[" RDW"][" HH:MM-HH:MM"]. Times are OPTIONAL — blank means the pay
             // defaults apply (base shift on a rostered day, 8h RDW on a training rest-day) —
             // but a half-filled or malformed pair is still an error.
-            const flavour = (/** @type {HTMLElement|null} */ (row.querySelector('.trg-flavour-btn.active')))?.dataset.flavour || 'TRG';
-            const rdw     = (/** @type {HTMLInputElement|null} */ (row.querySelector('.trg-rdw-cb')))?.checked ? ' RDW' : '';
+            const flavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour || 'TRG';
+            const rdw     = (/** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb')))?.checked ? ' RDW' : '';
             const s = (/** @type {HTMLInputElement} */ (row.querySelector('.day-start'))).value.trim();
             const e = (/** @type {HTMLInputElement} */ (row.querySelector('.day-end'))).value.trim();
             let time = '';

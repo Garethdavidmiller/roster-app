@@ -12,7 +12,7 @@
  */
 
 import { getBaseShift, formatISO, getBankHolidays } from './roster-data.js';
-import { parseTrainingValue, resolveTrainingPay, TRG_RDW_DEFAULT_MINS } from './override-utils.js';
+import { parseOtherValue, resolveOtherPay, OTHER_RDW_DEFAULT_MINS } from './override-utils.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
@@ -189,32 +189,32 @@ export function getRosterSuggestion(p, member) {
     let effValue  = ov ? ov.value : baseValue;
     let effType   = ov ? ov.type  : null;
 
-    // Training / Induction / Assessment (TRAINING_PLAN.md) — the ONLY override that means
+    // Training / Induction / Assessment (OTHER_PLAN.md) — the ONLY override that means
     // "fall back to the day underneath" (every other override REPLACES the base). The pay
-    // mapping lives in ONE place: resolveTrainingPay (override-utils.js).
+    // mapping lives in ONE place: resolveOtherPay (override-utils.js).
     //   rdw     → a training rest-day: credit the RDW bucket (actual times, or the 8h
     //             default the member adjusts) and move on — never split into overtime.
     //   timed   → actual times on a rostered day: classify like a shift override, so the
     //             existing base-cap + excess→overtime split applies unchanged below.
     //   as-base → no times: pay exactly as the base shift (weekday → contracted basic,
     //             Sat/BH/Boxing → that day's premium bucket; never less than the shift).
-    const _trgParsed = ov && ov.type === 'training' ? parseTrainingValue(ov.value) : null;
-    let _trgFromOv = null;   // null = not a training day; boolean = fromOv override below
-    if (_trgParsed) {
+    const _otherParsed = ov && ov.type === 'other' ? parseOtherValue(ov.value) : null;
+    let _otherFromOv = null;   // null = not a training day; boolean = fromOv override below
+    if (_otherParsed) {
       if (cur.getDay() === 0) {
         // Sunday training cannot exist (blocked at every write layer). A legacy/out-of-band doc
         // falls back to the BASE shift — matching the display layers, which suppress the override
         // and show the base. (Skipping the whole day would silently DROP a worked base Sunday's
         // 1.5× hours from the suggestion while the calendar still showed them.)
-        effValue = baseValue; effType = null; _trgFromOv = false;
+        effValue = baseValue; effType = null; _otherFromOv = false;
       } else {
-        const _pay = resolveTrainingPay(_trgParsed, baseValue);
+        const _pay = resolveOtherPay(_otherParsed, baseValue);
         if (_pay.mode === 'rdw') {
           // Route the rest-day-worked minutes by the DAY, mirroring a plain rdw override:
           // Boxing Day (26 Dec) is ALWAYS 3× (confirmed payroll rule — the box bucket), a bank
           // holiday pays as BH overtime ("Bank Holiday Overtime 1.25"), anything else is RDW.
           const _mins     = _pay.mins;
-          const _labelTxt = _trgParsed.time ?? `${TRG_RDW_DEFAULT_MINS / 60}h default — adjust to actual`;
+          const _labelTxt = _otherParsed.time ?? `${OTHER_RDW_DEFAULT_MINS / 60}h default — adjust to actual`;
           const _isBoxingT = cur.getMonth() === 11 && cur.getDate() === 26;
           if (_isBoxingT) {
             boxMins += _mins; boxCount++;
@@ -229,8 +229,8 @@ export function getRosterSuggestion(p, member) {
           cur.setDate(cur.getDate() + 1);
           continue;
         }
-        if (_pay.mode === 'timed') { effValue = _pay.time;  effType = 'shift'; _trgFromOv = true; }
-        else                       { effValue = baseValue;  effType = null;    _trgFromOv = false; }
+        if (_pay.mode === 'timed') { effValue = _pay.time;  effType = 'shift'; _otherFromOv = true; }
+        else                       { effValue = baseValue;  effType = null;    _otherFromOv = false; }
       }
     }
 
@@ -244,7 +244,7 @@ export function getRosterSuggestion(p, member) {
       const dow      = cur.getDay(); // 0 = Sun, 6 = Sat
       const isBoxing = cur.getMonth() === 11 && cur.getDate() === 26;
       const isBH     = !isBoxing && _isDateBH(cur);
-      const fromOv   = _trgFromOv !== null ? _trgFromOv : !!ov;
+      const fromOv   = _otherFromOv !== null ? _otherFromOv : !!ov;
 
       // Pre-compute base duration to cap rostered hours and detect overtime
       // when admin extends a shift beyond the base roster.

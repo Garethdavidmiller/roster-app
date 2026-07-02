@@ -48,7 +48,7 @@ mock.module('./roster-data.js', {
             if (s === 'RDW')   return 'rdw-day';
             if (s === 'AL')    return 'al-day';
             if (s === 'SICK')  return 'sick-day';
-            if (/^(TRG|IND|ASSESS)( RDW)?/.test(s)) return 'trg-day';
+            if (/^(TRG|IND|ASSESS)( RDW)?/.test(s)) return 'other-day';
             return 'early-shift';
         },
         getShiftBadge(s) {
@@ -57,11 +57,11 @@ mock.module('./roster-data.js', {
             if (s === 'RDW')   return '<span class="shift-badge badge-rdw"><span aria-hidden="true">💼</span><span>RDW</span></span>';
             if (s === 'AL')    return '<span class="shift-badge badge-al"><span aria-hidden="true">🏖️</span><span>AL</span></span>';
             if (s === 'SICK')  return '<span class="shift-badge badge-sick"><span aria-hidden="true">🪑</span><span>Absent</span></span>';
-            // Faithful copy of the real training branch — badge = 🎓 + short flavour word
+            // Faithful copy of the real training branch — badge = 🏷️ + short flavour word
             const _t = /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/.exec(s);
             if (_t) {
                 const word = { TRG: 'Train', IND: 'Ind', ASSESS: 'Assess' }[_t[1]];
-                return `<span class="shift-badge badge-trg"><span aria-hidden="true">🎓</span><span>${word}</span></span>`;
+                return `<span class="shift-badge badge-other"><span aria-hidden="true">🏷️</span><span>${word}</span></span>`;
             }
             return '<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>';
         },
@@ -89,12 +89,12 @@ mock.module('./override-utils.js', {
         // Real (pure) training-grammar helpers — inlined because a module mock replaces the
         // WHOLE module: the renderer needs these to classify training values faithfully.
         isRestShift: (s) => s === 'RD' || s === 'OFF',
-        isTrainingValue: (v) => typeof v === 'string' && /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/.test(v),
-        parseTrainingValue: (v) => {
+        isOtherValue: (v) => typeof v === 'string' && /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/.test(v),
+        parseOtherValue: (v) => {
             const m = typeof v === 'string' ? v.match(/^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/) : null;
             return m ? { flavour: m[1], rdw: !!m[2], time: m[3] ? m[3].trim() : null } : null;
         },
-        TRAINING_FLAVOURS: {
+        OTHER_FLAVOURS: {
             TRG:    { badge: 'Train',  full: 'Training'   },
             IND:    { badge: 'Ind',    full: 'Induction'  },
             ASSESS: { badge: 'Assess', full: 'Assessment' },
@@ -263,24 +263,24 @@ describe('createDayCell', () => {
         assert.ok(html.includes('06:00-'));
     });
 
-    test('training → 🎓 badge with the flavour word, side-channel time in the hours slot', () => {
+    test('training → 🏷️ badge with the flavour word, side-channel time in the hours slot', () => {
         // A rostered-day training: shift is the training value, the hours slot shows the
         // BASE shift time passed via the rdwTime side-channel (same mechanism as RDW).
         const html = createDayCell(JAN_1, 'TRG', undefined, true, '06:00-14:00');
-        assert.ok(html.includes('badge-trg'), 'training badge');
+        assert.ok(html.includes('badge-other'), 'training badge');
         assert.ok(html.includes('>Train<'), 'short flavour word');
         assert.ok(html.includes('06:00-'), 'base time in the hours slot');
     });
 
     test('training rest-day → hours slot reads RDW', () => {
         const html = createDayCell(JAN_1, 'TRG RDW', undefined, true, 'RDW');
-        assert.ok(html.includes('badge-trg'));
+        assert.ok(html.includes('badge-other'));
         assert.ok(html.includes('<div class="shift-time">RDW</div>'), 'RDW in the hours slot');
     });
 
     test('training always gets its own badge even when permanentShift is set (no early/late misfire)', () => {
         const html = createDayCell(JAN_1, 'IND', 'early', true, '09:00-16:00');
-        assert.ok(html.includes('badge-trg'), 'training badge wins');
+        assert.ok(html.includes('badge-other'), 'training badge wins');
         assert.ok(html.includes('>Ind<'), 'Induction short word');
         assert.ok(!html.includes('badge-early'), 'permanentShift badge must not override training');
     });

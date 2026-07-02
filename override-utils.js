@@ -131,8 +131,8 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
     return [...leaveIds, ...correctionIds];
 }
 
-// ── TRAINING / INDUCTION / ASSESSMENT (TRAINING_PLAN.md) ──────────────────────
-// One override type ('training') whose value uses a human-readable grammar that
+// ── TRAINING / INDUCTION / ASSESSMENT (OTHER_PLAN.md) ──────────────────────
+// One override type ('other') whose value uses a human-readable grammar that
 // mirrors the roster's own language:
 //
 //   value := FLAVOUR [" RDW"] [" HH:MM-HH:MM"]
@@ -148,8 +148,8 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
 // pattern as normaliseSurname). If the grammar changes, update both.
 
 /** Badge (short) and full display words per training flavour. Badge word shows in the
- *  calendar-cell badge next to 🎓; full word is used on tap (day detail / tooltip / aria). */
-export const TRAINING_FLAVOURS = {
+ *  calendar-cell badge next to 🏷️; full word is used on tap (day detail / tooltip / aria). */
+export const OTHER_FLAVOURS = {
     TRG:    { badge: 'Train',  full: 'Training'   },
     IND:    { badge: 'Ind',    full: 'Induction'  },
     ASSESS: { badge: 'Assess', full: 'Assessment' },
@@ -158,7 +158,7 @@ export const TRAINING_FLAVOURS = {
 /** Default duration credited to a training REST-DAY (TRG RDW) when no actual times are
  *  recorded: 8 hours, pre-filled into the pay calculator's RDW bucket for the member to
  *  correct to the real hours (confirmed by Gareth, Jul 2026). Single source — never inline 480. */
-export const TRG_RDW_DEFAULT_MINS = 480;
+export const OTHER_RDW_DEFAULT_MINS = 480;
 
 // Anchored full-string grammar. Time range is bounded HH:MM (00-23 / 00-59) so an
 // impossible time can never ride in on a training value.
@@ -170,7 +170,7 @@ const _TRAINING_RE = /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|
  * @param {any} v
  * @returns {boolean}
  */
-export function isTrainingValue(v) {
+export function isOtherValue(v) {
     return typeof v === 'string' && _TRAINING_RE.test(v);
 }
 
@@ -179,7 +179,7 @@ export function isTrainingValue(v) {
  * @param {any} v
  * @returns {{ flavour: 'TRG'|'IND'|'ASSESS', rdw: boolean, time: string|null } | null}
  */
-export function parseTrainingValue(v) {
+export function parseOtherValue(v) {
     if (typeof v !== 'string') return null;
     const m = v.match(_TRAINING_RE);
     if (!m) return null;
@@ -205,26 +205,26 @@ function _shiftMins(time) {
 }
 
 /**
- * Resolve how a training day PAYS (TRAINING_PLAN.md — the pay mapping, in one place).
- * Display deliberately does NOT use this — it shows the 🎓 badge; only pay consumers
+ * Resolve how a training day PAYS (OTHER_PLAN.md — the pay mapping, in one place).
+ * Display deliberately does NOT use this — it shows the 🏷️ badge; only pay consumers
  * (paycalc-roster-suggestions.js) resolve training to the day underneath it.
  *
  * Modes:
  *   'rdw'     — a training rest-day: explicit " RDW" flag OR (belt-and-braces) the base
  *               is itself a rest day. mins = actual times when recorded, else the 8h
- *               default (TRG_RDW_DEFAULT_MINS). All hours stay RDW — never split into OT.
+ *               default (OTHER_RDW_DEFAULT_MINS). All hours stay RDW — never split into OT.
  *   'timed'   — a rostered day with actual times recorded: classify like a shift
  *               override (the existing base-cap + excess→overtime split applies).
  *   'as-base' — a rostered day, no times: pay exactly as the base shift (the member is
  *               never paid less than their rostered shift, even if training runs short).
  *
- * @param {{ flavour: string, rdw: boolean, time: string|null }} parsed  from parseTrainingValue()
+ * @param {{ flavour: string, rdw: boolean, time: string|null }} parsed  from parseOtherValue()
  * @param {string} baseValue  the member's base roster shift for that date
  * @returns {{ mode: 'rdw', mins: number } | { mode: 'timed', time: string } | { mode: 'as-base' }}
  */
-export function resolveTrainingPay(parsed, baseValue) {
+export function resolveOtherPay(parsed, baseValue) {
     const rdw = parsed.rdw || isRestShift(baseValue);
-    if (rdw) return { mode: 'rdw', mins: parsed.time ? _shiftMins(parsed.time) : TRG_RDW_DEFAULT_MINS };
+    if (rdw) return { mode: 'rdw', mins: parsed.time ? _shiftMins(parsed.time) : OTHER_RDW_DEFAULT_MINS };
     if (parsed.time) return { mode: 'timed', time: parsed.time };
     return { mode: 'as-base' };
 }

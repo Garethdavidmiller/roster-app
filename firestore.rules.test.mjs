@@ -130,7 +130,7 @@ describe('overrides', () => {
             annual_leave: 'AL',
             correction:   'RD',
             sick:         'SICK',
-            training:     'TRG',
+            other:        'TRG',
         };
         for (const [type, value] of Object.entries(TYPE_VALUE_MAP)) {
             await assertSucceeds(
@@ -175,27 +175,27 @@ describe('overrides', () => {
         );
     });
 
-    // ── training value grammar (TRAINING_PLAN.md): FLAVOUR [" RDW"] [" HH:MM-HH:MM"] ──
+    // ── training value grammar (OTHER_PLAN.md): FLAVOUR [" RDW"] [" HH:MM-HH:MM"] ──
 
     test('training accepts every grammar form (flavours, RDW marker, actual times)', async () => {
         for (const value of ['TRG', 'IND', 'ASSESS', 'TRG RDW', 'ASSESS RDW',
                              'IND 08:00-16:00', 'TRG RDW 08:00-16:00']) {
             await assertSucceeds(
-                setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'training', value })
+                setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value })
             );
         }
     });
 
     test('training rejects a bare time value (flavour is mandatory)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'training', value: '06:00-12:00' })
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value: '06:00-12:00' })
         );
     });
 
     test('training rejects malformed grammar and impossible times', async () => {
         for (const value of ['TRAINING', 'TRG BAD', 'ASS', 'TRG 25:00-30:00', 'RDW TRG', 'TRG RDW extra']) {
             await assertFails(
-                setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'training', value })
+                setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value })
             );
         }
     });

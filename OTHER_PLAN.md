@@ -1,11 +1,37 @@
-# TRAINING_PLAN.md — Training / Induction / Assessment days
+# OTHER_PLAN.md — the "Other" day family (Training / Induction / Assessment; Meetings / Union duties later)
 
-*Status: **BUILT — all 5 steps complete** (foundation v15.34 · display v15.35 · pay engine v15.36 ·
-admin entry v15.37 · guides/docs v15.38). Verify live in a private window after deploy (375px badge
+*Status: **BUILT** (v15.34–v15.38) and **EVOLVED into the "Other" family at v15.40** (pre-deploy, so
+the rename was free — no data migration). Verify live in a private window after deploy (375px badge
 fit + a real roster upload with a training day), then this file can be archived — the shipped
 behaviour is documented in CLAUDE.md, AI_MAP.md, OPERATIONS_REFERENCE.md and .claude/rules/paycalc.md.
-Working spec for the feature; delete or archive once shipped and documented in CLAUDE.md.
 Not version-stamped; not a runtime asset.*
+
+## Evolution (v15.40) — decisions confirmed by Gareth, Jul 2026
+
+The training family became the **"Other" family**: a home for every non-standard day type.
+Training / Induction / Assessment are its first flavours; **Meetings and Union duties join later**
+(roster words TBC from Gareth — Phase B below).
+
+| Decision | Answer |
+|---|---|
+| Family name | **Other** — pill "Other", legend "Other", Saved-Changes pill "Other" |
+| Stored type | **`type: 'other'`** (renamed from `training` pre-deploy — a MEET under type `training` would have been permanently wrong) |
+| Icon | **🏷️ label/tag** (replaces 🎓 — a tag says "day labelled as something else"; the badge word IS the label). Chosen over 📌 (weaker metaphor) |
+| Badge | 🏷️ + SHORT flavour word (Train / Ind / Assess — later Meet / Union). Confirmed: badge never literally reads "Other" |
+| Colour | **Leaf green `oklch(46% 0.115 136°)`** (`--other`/`--other-light`, 13% tint). NOT the original bronze — bronze (65°) was hue-identical to Early's orange (64.1°): indistinguishable at tint level and literally the same colour under red-green colour-blindness. Green 136° is the only empty band (46° from AL teal 183°); under deutan vision it keeps a yellow-olive cast while teal stays blue-grey, so it separates BETTER for colour-blind staff. Swatch proof: the "green-vs-teal" artifact, Jul 2026. "Reassess down the line" per Gareth |
+| Manual UX | One **"Other"** pill → previously-hidden submenu with **full-word** flavour chips (Training / Induction / Assessment), the pre-ticked-on-rest-day RDW tick, optional times. New kinds become chips, never new pills |
+| Namespace note | The legacy unknown-value fallback classes were renamed `other-day`→`unknown-day`, `badge-other`→`badge-unknown` so the Other family owns the `other-*`/`--other` names coherently with `type: 'other'` |
+
+**Phase B (when Gareth supplies the roster words for Meetings / Union duties):** add `MEET`/`UNION`
+sentinels to the grammar (client `override-utils.js` + server `roster-parse-helpers.js` + the
+firestore.rules clause + AI prompt lines), badge words `Meet`/`Union`, submenu chips, tests. Two
+confirmations needed then: do they **pay the same way** (as the day underneath, 8h RDW default),
+and does the **Sunday block** apply to them too?
+
+---
+
+## Original build spec (historical — identifiers below predate the v15.40 rename: read
+## `training` as `other`, 🎓 as 🏷️, bronze as leaf green)
 
 ---
 
@@ -29,7 +55,7 @@ calculator (`peerDays`). That is a different feature; keep all copy distinct.
 
 | # | Decision | Answer |
 |---|----------|--------|
-| 1 | Family colour | **Bronze** — one new token pair `--trg` / `--trg-light` (all three flavours share it) |
+| 1 | Family colour | **Bronze** — one new token pair `--trg` / `--other-light` (all three flavours share it) |
 | 2 | Badge | 🎓 + short flavour word: **Train** / **Ind** / **Assess** |
 | 3 | Hours slot (where a time normally shows) | The **time** (base shift time, or actual times when entered) — or the word **RDW** for a training rest-day with no times |
 | 4 | Tap on the day (day-detail / tooltip / aria) | The **full word**: “Training” / “Induction” / “Assessment” (+ “ — Rest Day Worked” when RDW, + times when known) |
@@ -46,7 +72,7 @@ calculator (`peerDays`). That is a different feature; keep all copy distinct.
 
 ## Data model
 
-**Override document:** `type: 'training'` (new), with a single human-readable value grammar that
+**Override document:** `type: 'other'` (new), with a single human-readable value grammar that
 mirrors the roster's own language:
 
 ```
@@ -58,16 +84,16 @@ Examples: `TRG` · `IND` · `ASSESS` · `TRG RDW` · `TRG 08:00-16:00` · `TRG R
 
 - Value reads exactly like the roster → debuggable by eye in the Saved Changes list.
 - One Firestore rules clause validates the whole grammar (bounded time regex, RE2 full-string):
-  `type == 'training' && value.matches('(TRG|IND|ASSESS)( RDW)?( ([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9])?')`
+  `type == 'other' && value.matches('(TRG|IND|ASSESS)( RDW)?( ([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9])?')`
 - All other override fields (`note`, `source`, `createdAt`, `changedBy`) unchanged; the `hasOnly`
   field allowlist unchanged. Per-member isolation / delete rules are type-agnostic — no change.
 
 **Single sources of truth (new, in `override-utils.js`** — pure module, already imported by
 `roster-data.js`, no cycle):
-- `TRAINING_FLAVOURS = { TRG: {badge:'Train', full:'Training'}, IND: {badge:'Ind', full:'Induction'}, ASSESS: {badge:'Assess', full:'Assessment'} }`
-- `isTrainingValue(v)` / `parseTrainingValue(v)` → `{ flavour, rdw, time|null }` or `null`
-- `TRG_RDW_DEFAULT_MINS = 480` (the 8h default — one place)
-- `resolveTrainingPay(parsed, baseValue)` → the pay mapping as a discriminated union —
+- `OTHER_FLAVOURS = { TRG: {badge:'Train', full:'Training'}, IND: {badge:'Ind', full:'Induction'}, ASSESS: {badge:'Assess', full:'Assessment'} }`
+- `isOtherValue(v)` / `parseOtherValue(v)` → `{ flavour, rdw, time|null }` or `null`
+- `OTHER_RDW_DEFAULT_MINS = 480` (the 8h default — one place)
+- `resolveOtherPay(parsed, baseValue)` → the pay mapping as a discriminated union —
   `{mode:'rdw', mins}` | `{mode:'timed', time}` | `{mode:'as-base'}` (as built at v15.34; the plan's
   earlier `resolveOverrideShift` name was refined — a single string return couldn't express the
   8h-default RDW case). **This helper is the spine** — training is the only override that means
@@ -99,7 +125,7 @@ pattern as `normaliseSurname`; if the grammar changes, update both).
 ## Upload review (client — `admin-roster-upload.js`)
 
 - `shiftValueToOverrideType()`: Sunday + training value → `'correction'` (Sunday block, mirrors
-  AL/SICK); otherwise training value → `'training'`. **Hoist this function to module scope and
+  AL/SICK); otherwise training value → `'other'`. **Hoist this function to module scope and
   export it** — it is pure, currently an untestable closure; this change adds a type to it, so it
   gets unit tests now.
 - `computeCellStates()`: extend the `sundaySafe` normalisation — a Sunday training value → `'RD'`
@@ -115,8 +141,8 @@ pattern as `normaliseSurname`; if the grammar changes, update both).
 ## Display spec
 
 **Calendar cell** (`calendar-renderer.js` + `roster-data.js`):
-- `getShiftClass(v)` → `trg-day` (bronze tint cell) for any training value.
-- `getShiftBadge(v)` → `🎓 Train` / `🎓 Ind` / `🎓 Assess` (`badge-trg`).
+- `getShiftClass(v)` → `other-day` (bronze tint cell) for any training value.
+- `getShiftBadge(v)` → `🎓 Train` / `🎓 Ind` / `🎓 Assess` (`badge-other`).
 - Hours slot: `time` if present → else `RDW` if the RDW flag → else the **base shift time** when
   the base is a real time → else blank (e.g. spare-week training: badge only).
 - Training must be branched **before** the worked-day logic: it must NOT get the
@@ -129,29 +155,29 @@ pattern as `normaliseSurname`; if the grammar changes, update both).
   the base shift shows instead (mirrors the v12.61 sick-on-Sunday suppression).
 
 **Team Week View** (`calendar-team-view.js`): resolution passes `override.value` through already;
-`getTeamCellDisplay` gets a training branch → `{ text: '🎓 Train|Ind|Assess', cls: 'tv-trg',
+`getTeamCellDisplay` gets a training branch → `{ text: '🎓 Train|Ind|Assess', cls: 'tv-other',
 label: full word }`. Sunday suppression mirrored.
 
 **Legend / keys**: `getShiftTypesInMonth` adds `TRG` when any training value is present that month
-→ `updateLegend` toggles a new `legend-trg` item (“Training”); team-info `?` key gets a
-`tv-key-dot--trg` row.
+→ `updateLegend` toggles a new `legend-other` item (“Training”); team-info `?` key gets a
+`tv-key-dot--other` row.
 
 **CSS** (all colours as `:root` variables per css-tokens.md — never hardcoded):
 - `shared.css :root`: `--trg` (bronze, oklch — tuned at build for AA white-on-bronze badge text
   and clear distance from `--accent-gold`/`--warning-amber`, which share the hue zone; low chroma +
-  low lightness keeps it “bronze” not “gold”) and `--trg-light: color-mix(in oklch, var(--trg) 14%, white)`.
-- `shared.css`: `.badge-trg` — screen **and** print blocks.
-- `index.css`: `.calendar-day.trg-day` — screen **and** `@media print` (`!important`, per the
+  low lightness keeps it “bronze” not “gold”) and `--other-light: color-mix(in oklch, var(--other) 14%, white)`.
+- `shared.css`: `.badge-other` — screen **and** print blocks.
+- `index.css`: `.calendar-day.other-day` — screen **and** `@media print` (`!important`, per the
   print checklist; print rules are MANDATORY for a new shift type) · `.legend-color.trg` ·
-  `.tv-trg` · `.tv-key-dot--trg`.
-- `shared.css`/`admin.css`: `.pill-training`, `.lpill-training` (+ print).
+  `.tv-other` · `.tv-key-dot--other`.
+- `shared.css`/`admin.css`: `.pill-other`, `.lpill-other` (+ print).
 
 ---
 
 ## Pay spec (the heart of it)
 
 **Engine:** `paycalc-roster-suggestions.js → getRosterSuggestion()`, via
-`parseTrainingValue`/`resolveOverrideShift`. Effective RDW-ness = explicit `RDW` flag **or** base
+`parseOtherValue`/`resolveOverrideShift`. Effective RDW-ness = explicit `RDW` flag **or** base
 is RD/OFF (defensive).
 
 | Training day case | Engine behaviour | Pay result |
@@ -160,7 +186,7 @@ is RD/OFF (defensive).
 | Rostered **Saturday**, no times | resolve to base → existing `sat` path | base hours at 1.25× |
 | Rostered **BH / Boxing Day**, no times | resolve to base → `bh`/`box` paths | day's premium |
 | Rostered day, **with times** | `effValue = times`, `fromOv=true` → the existing override-split machinery | base hours in the day's bucket, **excess → Overtime** (`ot`; on a BH → `bhOt`) — exactly the current shift-extension logic, reused |
-| **TRG RDW, no times** | `rdw` bucket, **`TRG_RDW_DEFAULT_MINS` (8h)**; day-breakdown row labelled “(8h default — adjust to actual)” | 8h RDW pre-filled, gold-highlighted, member edits like any pre-fill |
+| **TRG RDW, no times** | `rdw` bucket, **`OTHER_RDW_DEFAULT_MINS` (8h)**; day-breakdown row labelled “(8h default — adjust to actual)” | 8h RDW pre-filled, gold-highlighted, member edits like any pre-fill |
 | **TRG RDW, with times** | `rdw` bucket, actual duration; never split into base+OT | all hours at RDW 1.25× |
 | Spare-week training | resolves to `SPARE` → contributes nothing | correct: it's one of the four contracted days, basic pay covers it |
 | Sunday (legacy doc only) | ignored by the engine | Sunday block holds |
@@ -191,7 +217,7 @@ is RD/OFF (defensive).
 - `TYPES` add: `training: { label: 'Training', pill: 'Training', fixed: false, timesOptional: true }`
   — a **new semi-fixed pattern**: time inputs shown but optional (`validateShiftRules` skips the
   required-time check for training when blank; validates format when filled).
-- `PILL_TYPES` append `'training'` → **7 pills** (one edit feeds both the per-row pills and the
+- `PILL_TYPES` append `'other'` → **7 pills** (one edit feeds both the per-row pills and the
   bulk bar). Verify 375px wrap; update CLAUDE.md's pinned pill-order note (AL · Spare · Shift ·
   RDW · Absent · Rest Day · **Training**).
 - Selecting Training reveals: **flavour choice** (Train / Ind / Assess — segmented, defaults
@@ -199,7 +225,7 @@ is RD/OFF (defensive).
   Composed into the value grammar on save (`TRG RDW 08:00-16:00` etc.).
 - Bulk bar: reuse the same sub-controls if layout allows; if too tight, bulk = Train flavour only
   (Ind/Assess are rare bulk operations) — build-time judgement, note the outcome in CLAUDE.md.
-- Saved Changes list: `lpill-training` pill “Training”; the value column shows the readable
+- Saved Changes list: `lpill-other` pill “Training”; the value column shows the readable
   grammar verbatim.
 
 ---
@@ -209,7 +235,7 @@ is RD/OFF (defensive).
 | File | Cases |
 |---|---|
 | `roster-parse-helpers.test.mjs` | every alias → sentinel (case-insensitive); `TRG RDW`/`RDW TRG` → `TRG RDW`; training NOT `UNKNOWN`; `XYZ RDW` still UNKNOWN; training-with-times → UNKNOWN |
-| `override-utils.test.mjs` | `parseTrainingValue` full grammar matrix; `resolveOverrideShift` per pay-mapping row; `TRG_RDW_DEFAULT_MINS` |
+| `override-utils.test.mjs` | `parseOtherValue` full grammar matrix; `resolveOverrideShift` per pay-mapping row; `OTHER_RDW_DEFAULT_MINS` |
 | `firestore.rules.test.mjs` | `training` valid with each grammar form (bare, RDW, timed, RDW+timed); invalid: bad flavour, bad time, trailing junk |
 | `paycalc-roster-suggestions.test.mjs` | weekday→null; Sat→sat; BH→bh; timed over-run→ot (and bhOt on BH); TRG RDW default→rdw 8h; TRG RDW timed→rdw actual; spare-week→null; Sunday ignored; base-RD-without-flag→rdw (defensive) |
 | `admin-roster-upload` (newly exported `shiftValueToOverrideType`) | three values → `training`; Sunday → `correction` |

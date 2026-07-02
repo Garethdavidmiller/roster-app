@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: July 2026 — v15.30 · Updated every 0.10 version*
+*Last updated: July 2026 — v15.40 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -279,7 +279,7 @@ Body:
 - Duty/diagram codes on a second line (e.g. `"CEA 16"`) — **ignore entirely**, only the first line is the shift value
 - `"N/A"`, `"NA"`, `"NS"` all mean RD on any day
 - `"AL"`, `"A/L"`, `"A.L."` all mean annual leave — return `"AL"`
-- **Training family (v15.34, TRAINING_PLAN.md):** `"TRG"`/`"TRAINING"`/`"TRAIN"` → `"TRG"`; `"INDUCTION"`/`"IND"` → `"IND"`; `"ASSESSMENT(S)"`/`"ASSESS"` → `"ASSESS"`; an RDW marker either side (`"TRG RDW"`, `"RDW TRG"`) is preserved as the canonical `"FLAVOUR RDW"`. Saved as `type: 'training'` with the value verbatim. A training cell WITH times is unexpected (rosters never set them) → UNREADABLE review row. **Training on a Sunday is invalid** — normalised to RD like AL/SICK
+- **Training family (v15.34, OTHER_PLAN.md):** `"TRG"`/`"TRAINING"`/`"TRAIN"` → `"TRG"`; `"INDUCTION"`/`"IND"` → `"IND"`; `"ASSESSMENT(S)"`/`"ASSESS"` → `"ASSESS"`; an RDW marker either side (`"TRG RDW"`, `"RDW TRG"`) is preserved as the canonical `"FLAVOUR RDW"`. Saved as `type: 'other'` with the value verbatim. A training cell WITH times is unexpected (rosters never set them) → UNREADABLE review row. **Training on a Sunday is invalid** — normalised to RD like AL/SICK
 - **AL or Absent on a Sunday is invalid** — Sundays are non-contracted for all grades. The review pipeline (`computeCellStates`) normalises a Sunday `"AL"`/`"SICK"` to `"RD"`, so it classifies as MATCH and is never written as a Sunday annual-leave/absence override. A worked Sunday time stays RDW. Mirrors the in-app rule — see CLAUDE.md "Sundays are non-contracted".
 
 ### Review pipeline

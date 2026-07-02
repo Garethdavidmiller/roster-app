@@ -49,7 +49,7 @@ function normaliseShift(raw) {
 
     if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(s)) return s;
 
-    // Training / Induction / Assessment (TRAINING_PLAN.md). Roster words collapse to the
+    // Training / Induction / Assessment (OTHER_PLAN.md). Roster words collapse to the
     // canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
     // marks a training rest-day and is preserved as the canonical " RDW" suffix. These
     // cells never carry times (the trainer sets them later) — a timed variant falls
