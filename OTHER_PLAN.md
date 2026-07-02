@@ -22,11 +22,43 @@ Training / Induction / Assessment are its first flavours; **Meetings and Union d
 | Manual UX | One **"Other"** pill → previously-hidden submenu with **full-word** flavour chips (Training / Induction / Assessment), the pre-ticked-on-rest-day RDW tick, optional times. New kinds become chips, never new pills |
 | Namespace note | The legacy unknown-value fallback classes were renamed `other-day`→`unknown-day`, `badge-other`→`badge-unknown` so the Other family owns the `other-*`/`--other` names coherently with `type: 'other'` |
 
-**Phase B (when Gareth supplies the roster words for Meetings / Union duties):** add `MEET`/`UNION`
-sentinels to the grammar (client `override-utils.js` + server `roster-parse-helpers.js` + the
-firestore.rules clause + AI prompt lines), badge words `Meet`/`Union`, submenu chips, tests. Two
-confirmations needed then: do they **pay the same way** (as the day underneath, 8h RDW default),
-and does the **Sunday block** apply to them too?
+**Flavour semantics (owner, Jul 2026):** `ASSESS` means the member is the **assessor** — spending
+the day conducting assessments of junior staff (most likely a CES duty). It is a full-day activity
+exactly like delivering training, so the pay-as-the-day treatment and the 8h rest-day default are
+correct for it — do not shorten the default for assessments.
+
+**Worked-base RDW tick (owner, Jul 2026):** ticking "Rest day (RDW)" on a day whose base roster is a
+WORKED shift is ALLOWED (the admin may know the roster is wrong) but shows a brief warning line —
+"Originally rostered {base} this day — RDW pays it as rest-day working instead" (`.other-rdw-warn`,
+synced by `_syncOtherRdwWarn` on tick/activate/prefill). Rest-day rows never warn.
+
+## Phase B — adding Meetings / Union duties (the precise checklist)
+
+**Blocked on Gareth supplying:** (1) the exact roster words/codes for each; (2) two confirmations —
+do they **pay the same way** (as the day underneath, 8h RDW default — note ASSESS already confirmed
+full-day), and does the **Sunday block** apply to them too?
+
+Per new flavour, the touch-list (kept short by the v15.43 prep — the submenu chips are GENERATED
+from `OTHER_FLAVOURS` and the server uses an explicit alias lookup, so neither needs hand-edited UI):
+
+1. `override-utils.js` — one `OTHER_FLAVOURS` entry (`MEET: {badge:'Meet', full:'Meeting'}` /
+   `UNION: {badge:'Union', full:'Union Duties'}`) + add the sentinel to `_OTHER_RE`.
+2. `functions/roster-parse-helpers.js` — extend the recognition regex with the roster words + one
+   `FLAVOUR_LOOKUP` entry per alias (the deliberate server-side duplicate).
+3. `firestore.rules` — add the sentinel to the training-grammar `matches()` clause (rules deploy —
+   rides `deploy-rules.yml`, gated by the emulator suite).
+4. `functions/index.js` — one AI-prompt "WHAT THE CODES MEAN" line per flavour.
+5. Tests — grammar matrix rows (`override-utils.test`), recognition aliases (`roster-parse-helpers.test`),
+   rules accept/reject rows (`firestore.rules.test` TYPE_VALUE_MAP loop covers the happy path),
+   one pay-engine case each, badge words (`roster-data.test`).
+6. Copy strings that enumerate the flavours (only if wording should change): Sunday pill title
+   (`admin-overrides.js`), Sunday save error (`admin-app.js`), admin CARD_TIPS, `guide.html` badge row,
+   `paycalc-help.js` — plus the docs sweep (CLAUDE.md shift-types row, AI_MAP, OPERATIONS_REFERENCE).
+7. One version bump; verify a new-flavour day at 375px in a private window.
+
+Also do at Phase B: the deferred comment-vocabulary sweep — shared-code comments still say
+"training" where they mean the family (fine while training is the only live flavour; factually
+wrong the day a MEET ships).
 
 ---
 

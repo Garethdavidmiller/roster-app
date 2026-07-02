@@ -1878,6 +1878,8 @@
     cursor: pointer; white-space: nowrap;
 }
 .other-rdw-label input { accent-color: var(--other); }
+.other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: 11px; }
+.other-rdw-warn[hidden] { display: none; }
 .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: 11px; }
 @media print {
     .lpill-other { background: var(--other-light) !important; color: var(--other) !important; }

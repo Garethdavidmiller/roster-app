@@ -248,6 +248,7 @@ export function buildWeekGridInto(container, dateStr) {
                     ).join('\n                    ')}
                 </span>
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"> Rest day (RDW)</label>
+                <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(baseShift)} this day — RDW pays it as rest-day working instead</span>
                 <span class="other-opts-hint">Times optional — blank pays the default (base shift, or 8h RDW)</span>
             </div>`;
 
@@ -301,6 +302,7 @@ export function buildWeekGridInto(container, dateStr) {
                 });
                 const _cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
                 if (_cb) _cb.checked = _exOther.rdw;
+                _syncOtherRdwWarn(row);
                 if (_exOther.time) {
                     const [s, e] = _exOther.time.split('-');
                     /** @type {HTMLInputElement} */ (startEl).value = s;
@@ -393,6 +395,7 @@ export function buildWeekGridInto(container, dateStr) {
         const otherRdwCb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
         if (otherRdwCb) otherRdwCb.addEventListener('change', () => {
             row.classList.remove('prefilled-existing');
+            _syncOtherRdwWarn(row);
             _markChanged(); updateSaveBtn();
         });
     }
@@ -439,6 +442,21 @@ export function renderWeekGrid() {
 }
 
 /**
+ * Show the "originally rostered" warning only when the RDW tick is ON for a day whose
+ * base roster is NOT a rest day (owner decision, Jul 2026: allow it — the admin may know
+ * the roster is wrong — but say plainly that a real rostered shift is being repaid as RDW).
+ * Rest-day rows never warn (the tick is the normal state there, pre-ticked).
+ * @param {HTMLElement} row
+ */
+function _syncOtherRdwWarn(row) {
+    const warn = /** @type {HTMLElement|null} */ (row.querySelector('.other-rdw-warn'));
+    if (!warn) return;
+    const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
+    const optsVisible = !(/** @type {HTMLElement|null} */ (row.querySelector('.other-opts'))?.hidden);
+    warn.hidden = !(optsVisible && cb?.checked && row.dataset.baseIsRd !== '1');
+}
+
+/**
  * @param {HTMLElement} row
  * @param {HTMLInputElement|null} checkbox
  * @param {NodeListOf<Element>} pills
@@ -475,6 +493,7 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
             const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
             if (cb && row.dataset.baseIsRd === '1') cb.checked = true;
         }
+        _syncOtherRdwWarn(row);
     }
     const badge = row.querySelector('.overwrite-badge');
     if (badge) badge.textContent = '⚠ Updating';
@@ -515,6 +534,7 @@ function _deactivateRow(row, checkbox, pills, startEl, endEl) {
         });
         const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
         if (cb) cb.checked = false;
+        _syncOtherRdwWarn(row);
     }
     const badge = row.querySelector('.overwrite-badge');
     if (badge) badge.textContent = '⚠ Existing';
