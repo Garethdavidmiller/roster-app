@@ -264,6 +264,11 @@ body.auth-ready .container { display: grid; }
     border: 1px solid var(--success-green-border);
     margin-bottom: 14px;
 }
+/* UNREADABLE — a PDF cell normaliseShift couldn't parse (UNKNOWN|). Skip-only: surfaced so a
+   garbled real shift isn't silently dropped, but never written. Amber (a warning), not red. */
+.roster-change-row.roster-change-unreadable { background: color-mix(in oklch, var(--warning-amber) 10%, white); }
+.review-shift-unreadable { font-size: 12px; font-weight: 600; color: var(--warning-amber); }
+.roster-unreadable-note  { font-size: 11px; font-weight: 600; color: var(--warning-amber); white-space: nowrap; flex-shrink: 0; }
 .roster-cancel-btn {
     display: block; width: 100%;
     background: none; border: 1.5px solid var(--border-light);

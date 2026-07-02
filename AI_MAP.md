@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v15.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v15.30 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -333,9 +333,10 @@ Staff Firebase Auth account setup (admin only).
 ### `admin-roster-upload.js`
 The Weekly Roster Upload pipeline.
 - `initRosterUpload(opts)` — called by `operations-app.js` after session guard passes
-- `computeCellStates()` — classifies each day: MATCH / DIFF / CONFLICT / COVERED
+- `computeCellStates()` — classifies each day: MATCH / DIFF / CONFLICT / COVERED / UNREADABLE
 - `renderReviewTable()` — per-person card list with approve/skip
 - `shiftDisplay()`, `shiftValueToOverrideType()` — display and type helpers
+- **UNREADABLE (v15.30):** when `normaliseShift` (functions) can't parse a non-empty cell it returns a `UNKNOWN|<raw>` sentinel instead of defaulting to `RD` (which, when the base is also RD, silently dropped a real shift as a MATCH). `computeCellStates` maps the sentinel to a skip-only `UNREADABLE` row — surfaced in review, counted in the summary label, but never written (the save path only writes DIFF/CONFLICT). The admin fixes the source PDF and re-uploads, or records the shift manually.
 
 ### `paycalc-app.js`
 Coordinator for `paycalc.html`. No pure pay maths, no period arithmetic here.

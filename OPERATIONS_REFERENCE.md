@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: July 2026 — v15.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v15.30 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -288,10 +288,12 @@ parsedResult (from Cloud Function)
         ↓
 computeCellStates(parsedResult, existingOverrides)
   — classifies each day:
-    MATCH    = PDF matches base roster, nothing to do
-    DIFF     = PDF differs from base roster, needs saving
-    CONFLICT = manual override already exists but differs from PDF
-    COVERED  = manual override already matches PDF, nothing to do
+    MATCH      = PDF matches base roster, nothing to do
+    DIFF       = PDF differs from base roster, needs saving
+    CONFLICT   = manual override already exists but differs from PDF
+    COVERED    = manual override already matches PDF, nothing to do
+    UNREADABLE = normaliseShift couldn't parse the cell (UNKNOWN| sentinel) — shown
+                 skip-only, NEVER written; admin fixes the PDF or records it manually (v15.30)
         ↓
 renderReviewTable() — per-person card list
   shiftDisplay(shiftStr, baseShift)

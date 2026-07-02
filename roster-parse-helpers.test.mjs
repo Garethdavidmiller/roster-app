@@ -104,15 +104,18 @@ describe('normaliseShift', () => {
         assert.equal(normaliseShift(undefined), 'RD');
         assert.equal(normaliseShift(42), 'RD');
     });
-    test('garbage string → RD', () => {
-        assert.equal(normaliseShift('XYZZY'), 'RD');
+    test('garbage string → UNKNOWN sentinel (flagged for review, not silently RD)', () => {
+        // A non-empty value normaliseShift can't parse is NOT defaulted to RD — when the base is
+        // also RD that would classify as MATCH and silently drop a real shift. It's flagged UNKNOWN
+        // so the review surfaces it (skip-only, never written). The raw text rides along for display.
+        assert.equal(normaliseShift('XYZZY'), 'UNKNOWN|XYZZY');
     });
     test('valid leading time with a trailing code → extracts the time (not silently dropped to RD)', () => {
         assert.equal(normaliseShift('06:00-12:00 GER'), '06:00-12:00');
         assert.equal(normaliseShift('0600-1200 CEA16'), '06:00-12:00');
     });
-    test('trailing content after an OUT-OF-RANGE leading time still → RD', () => {
-        assert.equal(normaliseShift('29:00-12:00 GER'), 'RD');
+    test('trailing content after an OUT-OF-RANGE leading time → UNKNOWN (surfaced, not silent RD)', () => {
+        assert.equal(normaliseShift('29:00-12:00 GER'), 'UNKNOWN|29:00-12:00 GER');
     });
     test('night shift time', () => {
         assert.equal(normaliseShift('22:00-06:00'), '22:00-06:00');
@@ -120,17 +123,23 @@ describe('normaliseShift', () => {
     test('boundary clock values accepted (00:00 and 23:59)', () => {
         assert.equal(normaliseShift('00:00-23:59'), '00:00-23:59');
     });
-    test('out-of-range hours/minutes → RD (not a bogus shift)', () => {
-        assert.equal(normaliseShift('29:75-88:90'), 'RD');
+    test('out-of-range hours/minutes → UNKNOWN (surfaced, not a bogus shift nor a silent RD)', () => {
+        assert.equal(normaliseShift('29:75-88:90'), 'UNKNOWN|29:75-88:90');
     });
-    test('out-of-range hour only → RD', () => {
-        assert.equal(normaliseShift('24:00-10:00'), 'RD');
+    test('out-of-range hour only → UNKNOWN', () => {
+        assert.equal(normaliseShift('24:00-10:00'), 'UNKNOWN|24:00-10:00');
     });
-    test('out-of-range minute only → RD', () => {
-        assert.equal(normaliseShift('06:60-10:00'), 'RD');
+    test('out-of-range minute only → UNKNOWN', () => {
+        assert.equal(normaliseShift('06:60-10:00'), 'UNKNOWN|06:60-10:00');
     });
-    test('RDW with out-of-range time → RD (not a bogus shift)', () => {
-        assert.equal(normaliseShift('RDW 25:00-30:00'), 'RD');
+    test('RDW with out-of-range time → UNKNOWN (surfaced, not a bogus shift)', () => {
+        assert.equal(normaliseShift('RDW 25:00-30:00'), 'UNKNOWN|RDW 25:00-30:00');
+    });
+    test('whitespace-only string → RD (genuinely blank, not flagged)', () => {
+        assert.equal(normaliseShift('   '), 'RD');
+    });
+    test('UNKNOWN sentinel strips pipe chars from the raw text (so PREFIX|value stays decodable)', () => {
+        assert.equal(normaliseShift('A|B|C'), 'UNKNOWN|A B C');
     });
 });
 

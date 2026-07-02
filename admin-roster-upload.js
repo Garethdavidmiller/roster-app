@@ -12,6 +12,13 @@ const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
 const stripRdw     = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
 
+// UNKNOWN|<raw> — a value the AI returned that normaliseShift (server) could not recognise as a
+// shift. Surfaced in review as an UNREADABLE cell so a garbled real shift isn't silently dropped;
+// never written to Firestore (see computeCellStates / the save path). Mirrors the RDW encoding.
+const UNKNOWN_PREFIX   = 'UNKNOWN|';
+const isUnknownEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(UNKNOWN_PREFIX);
+const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFIX.length);
+
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
@@ -27,6 +34,9 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * @returns {string} HTML
  */
 function shiftDisplay(shiftStr, _baseShift = null, date = null) {
+    if (isUnknownEncoded(shiftStr)) {
+        return `<span class="review-shift-unreadable">⚠ couldn't read “${escapeHtml(stripUnknown(shiftStr))}”</span>`;
+    }
     if (isRdwEncoded(shiftStr)) {
         const time = stripRdw(shiftStr);
         return `${getShiftBadge('RDW')}<span class="review-shift-time">${escapeHtml(time)}</span>`;
@@ -422,6 +432,22 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const key          = `${entry.memberName}|${date}`;
                 const existing     = overrideMap.get(key);
 
+                // Unreadable PDF value (normaliseShift couldn't parse it — see UNKNOWN_PREFIX). Surface
+                // it as a skip-only UNREADABLE row so a garbled real shift isn't silently dropped, but
+                // NEVER write the sentinel: chosen stays null and the save path only writes DIFF/CONFLICT.
+                // The admin fixes the source PDF and re-uploads, or records the shift manually.
+                if (isUnknownEncoded(parsedShift)) {
+                    states.set(key, {
+                        state: 'UNREADABLE',
+                        parsedShift, baseShift,
+                        manualValue: existing?.value ?? null,
+                        manualId:    existing?.id    ?? null,
+                        editedValue: null,
+                        chosen:      null,
+                    });
+                    continue;
+                }
+
                 // Determine whether the existing override is manual or a previous import
                 const isManual = existing
                     ? (existing.source !== 'roster_import')   // no source field → treat as manual
@@ -518,10 +544,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         }
 
         // ---- Count totals for banner + label ----
-        let diffCount = 0, conflictCount = 0;
+        let diffCount = 0, conflictCount = 0, unreadableCount = 0;
         const conflictLines = [];
         for (const [key, s] of cellStates) {
             if (s.state === 'DIFF') diffCount++;
+            if (s.state === 'UNREADABLE') unreadableCount++;
             if (s.state === 'CONFLICT') {
                 conflictCount++;
                 const [memberName, date] = key.split('|');
@@ -554,7 +581,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
             const changedDates = dates.filter(/** @param {any} d */ d => {
                 const s = cellStates.get(`${entry.memberName}|${d}`);
-                return s && (s.state === 'DIFF' || s.state === 'CONFLICT');
+                return s && (s.state === 'DIFF' || s.state === 'CONFLICT' || s.state === 'UNREADABLE');
             });
             if (changedDates.length === 0) continue;
 
@@ -597,6 +624,20 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}" aria-pressed="${approved}">
                             ${approved ? 'Save' : 'Skip'}
                         </button>`;
+                } else if (s.state === 'UNREADABLE') {
+                    // Skip-only: the PDF cell couldn't be parsed. No Save/Skip toggle and no write —
+                    // just surfaces the unreadable value so it isn't silently lost. The admin fixes
+                    // the PDF and re-uploads, or records the shift via Change a Shift.
+                    row.classList.add('roster-change-unreadable');
+                    row.innerHTML = `
+                        <div class="roster-chg-day">
+                            <span class="roster-day-abbr">${dayName}</span>
+                            <span class="roster-day-date">${dateStr}</span>
+                        </div>
+                        <div class="roster-chg-vals">
+                            ${shiftDisplay(s.parsedShift)}
+                        </div>
+                        <span class="roster-unreadable-note">not saved — check the roster</span>`;
                 } else {
                     // CONFLICT — show Manual vs PDF toggle, defaulting to Manual
                     const usesPDF = s.chosen === 'pdf';
@@ -730,7 +771,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         const formatted   = weekEndDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
         const changeStr   = `${diffCount} change${diffCount !== 1 ? 's' : ''} to review`;
         const conflictStr = conflictCount > 0 ? ` · ${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} to resolve` : '';
-        reviewLabel.textContent = `Week ending ${formatted} — ${changeStr}${conflictStr}`;
+        const unreadStr   = unreadableCount > 0 ? ` · ${unreadableCount} couldn't be read` : '';
+        reviewLabel.textContent = `Week ending ${formatted} — ${changeStr}${conflictStr}${unreadStr}`;
 
         reviewSection.classList.add('visible');
         applyFeedback.textContent = '';

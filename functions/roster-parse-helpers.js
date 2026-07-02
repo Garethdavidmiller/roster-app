@@ -79,8 +79,21 @@ function normaliseShift(raw) {
         return `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
     }
 
-    console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — defaulting to RD`);
-    return 'RD';
+    // A genuinely blank cell is a rest day — nothing to flag. (buildSafeEntries already maps
+    // empty cells to 'RD' before calling this, so this mainly guards direct callers.)
+    if (s === '') return 'RD';
+
+    // Non-empty but unrecognised (garbled OCR, unexpected text, out-of-range time). Do NOT
+    // default to 'RD': when the member's base shift is also RD, an RD here classifies as MATCH
+    // and the real (unreadable) shift is silently dropped from the review — never shown to the
+    // admin. Return a review-only sentinel instead, carrying the raw text for display. The client
+    // surfaces it as an UNREADABLE cell (skip-only, never written); the admin fixes the source PDF
+    // and re-uploads, or records the shift manually. Pipes are stripped so they can't break the
+    // "PREFIX|value" decoding; capped so a pathological value can't bloat the payload.
+    const cleaned = s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (cleaned === '') return 'RD';   // was only pipes/whitespace — treat as blank
+    console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — flagged UNKNOWN for review`);
+    return `UNKNOWN|${cleaned}`;
 }
 
 // ── Week date building ───────────────────────────────────────────────────────
