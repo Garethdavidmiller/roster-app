@@ -336,7 +336,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // loadOverrides() will re-fetch cleanly.
             await loadOverrides();
 
-            applyFeedback.textContent = `Done — ${toWrite.length} shift${toWrite.length !== 1 ? 's' : ''} saved to the roster.`;
+            applyFeedback.textContent = `Done — ${toWrite.length} change${toWrite.length !== 1 ? 's' : ''} applied to the roster.`;
             applyFeedback.className   = 'huddle-feedback huddle-feedback--ok';
 
             // Clear the review table so it can't be applied twice
