@@ -449,6 +449,11 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            /* MUST wrap: on touch the two inputs are 160px each (coarse-pointer block) —
+               without wrap their nowrap row is ~335px of unbreakable min-content, which
+               plus bulk-bar+card padding forced the page to ~397px and clipped every
+               360px-wide phone (Samsung 1080/3) at the right edge. */
+            flex-wrap: wrap;
         }
 
         .bulk-time-group .time-input {

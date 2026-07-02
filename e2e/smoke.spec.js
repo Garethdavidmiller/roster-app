@@ -816,6 +816,9 @@ test('in-place sign-in: settings initialises (work-email card + nav identity) wi
 // Desktop never showed it (the coarse-pointer stylesheet block doesn't apply), which
 // is why this must assert element widths on the Pixel-5 project, not desktop.
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
+    // 360px = the most common Android CSS width (1080 physical ÷ 3, e.g. Samsung) — the
+    // width where the second-round residue (the nowrap bulk-time-group) actually clipped.
+    await page.setViewportSize({ width: 360, height: 800 });
     await seedSession(page);
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
@@ -836,8 +839,6 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
         });
         return { max: Math.round(max), innerW: window.innerWidth, worst };
     });
-    // +6px tolerance: a known, invisible ~4px residue at exactly 393px (real devices are
-    // 393–430px CSS). The bug this guards against was a ~190px (+49%) blowout.
     expect(m.max, `widest element ${m.worst} at ${m.max}px vs viewport ${m.innerW}px`)
-        .toBeLessThanOrEqual(m.innerW + 6);
+        .toBeLessThanOrEqual(m.innerW + 2);
 });
