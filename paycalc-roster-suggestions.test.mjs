@@ -38,6 +38,9 @@ const { teamMembers } = await import('./roster-data.js');
 const cReen = teamMembers.find(m => m.name === 'C. Reen');
 // C. Reen: fixed roster — Mon–Fri 12:00-19:00 (7h), Sat/Sun RD.
 const sBoyle = teamMembers.find(m => m.name === 'S. Boyle');
+const lSpringer = teamMembers.find(m => m.name === 'L. Springer');
+// L. Springer: main wk1 — base WORKED Sunday 2026-05-10 (14:30-23:25, ~8h55m), used for the
+// Sunday-training fall-back test (verified against getBaseShift).
 // S. Boyle: main roster wk10 — has a SPARE week in Jan 2026. Base is SPARE on the dates below
 // (verified against getBaseShift), used for the spare-week RDW/contracted-Saturday tests:
 //   2026-01-19 (Mon)  → SPARE weekday
@@ -338,12 +341,58 @@ describe('getRosterSuggestion — training days', () => {
     assert.equal(s.rdwH, 8);
   });
 
-  test('a (legacy) SUNDAY training override is ignored — Sundays are never training days', () => {
+  test('a (legacy) SUNDAY training override falls back to the BASE — rest-day base → null', () => {
     // 2026-04-12 is a Sunday; the write layers block this, so a doc can only be legacy.
+    // C. Reen base Sunday = RD → nothing to suggest (same as no override).
     _setOverridesForTest(new Map([
       ['2026-04-12', { type: 'training', value: 'TRG', _ts: 1, _manual: true }],
     ]));
     assert.strictEqual(getRosterSuggestion(period('2026-04-12'), cReen), null);
+  });
+
+  test('a (legacy) SUNDAY training override does NOT drop a WORKED base Sunday from the suggestion', () => {
+    // The display layers suppress a Sunday training and show the base — the engine must match,
+    // or the calendar shows a worked Sunday whose 1.5× hours silently vanish from the pre-fill.
+    // L. Springer base Sunday 2026-05-10 = 14:30-23:25 (8h55m) → sun bucket.
+    _setOverridesForTest(new Map([
+      ['2026-05-10', { type: 'training', value: 'TRG', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-05-10'), lSpringer);
+    assert.ok(s, 'worked base Sunday must still be suggested');
+    assert.equal(s.sunCount, 1);
+    assert.equal(s.sunH, 8);
+    assert.equal(s.sunM, 55);
+    assert.equal(s.rdwCount, 0);
+  });
+
+  test('TRG RDW on BOXING DAY → box bucket at 3× (confirmed rule: 26 Dec is always Boxing Day)', () => {
+    // 2026-12-26 is a Saturday, C. Reen base RD. A plain rdw override that day lands in box —
+    // a training rest-day must do the same, not 1.25× RDW (~14h pay under-suggestion on 8h).
+    _setOverridesForTest(new Map([
+      ['2026-12-26', { type: 'training', value: 'TRG RDW', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-12-26'), cReen);
+    assert.ok(s);
+    assert.equal(s.boxCount, 1);
+    assert.equal(s.boxH, 8);
+    assert.equal(s.rdwCount, 0, 'must not land in the 1.25× RDW bucket');
+  });
+
+  test('TRG RDW on a BANK HOLIDAY → bhOt bucket (mirrors a plain rdw override on a BH)', () => {
+    // Inject a BH on 2026-04-11 (Sat, C. Reen base RD) via the test hook.
+    _addBhDateForTest(2026, '2026-04-11');
+    try {
+      _setOverridesForTest(new Map([
+        ['2026-04-11', { type: 'training', value: 'TRG RDW', _ts: 1, _manual: true }],
+      ]));
+      const s = getRosterSuggestion(period('2026-04-11'), cReen);
+      assert.ok(s);
+      assert.equal(s.bhOtCount, 1);
+      assert.equal(s.bhOtH, 8);
+      assert.equal(s.rdwCount, 0);
+    } finally {
+      _removeBhDateForTest(2026, '2026-04-11');
+    }
   });
 
   test('training in a SPARE week → null (one of the four contracted days; basic pay covers it)', () => {
