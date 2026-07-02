@@ -14,7 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, shouldReplaceOverride, parseTrainingValue, TRAINING_FLAVOURS, isRestShift } from './override-utils.js';
+import { isBeforeMemberStart, shouldReplaceOverride, parseOtherValue, OTHER_FLAVOURS, isRestShift } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -91,8 +91,8 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
             else if (override.type === 'rdw')          shift = 'RDW|' + (override.value || '');
             else if (override.type === 'spare_shift')  shift = 'SPARE';
             // Sunday training suppressed — Sundays can never be training days
-            // (TRAINING_PLAN.md; layer 5 of the Sunday block, mirrors sick above).
-            else if (override.type === 'training' && isSunday(dateStr)) { /* keep base */ }
+            // (OTHER_PLAN.md; layer 5 of the Sunday block, mirrors sick above).
+            else if (override.type === 'other' && isSunday(dateStr)) { /* keep base */ }
             else if (override.value && override.type !== 'sick') shift = override.value;
         }
 
@@ -104,15 +104,15 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         if (shift === 'AL')                    return { text: '🏖️ AL', cls: 'tv-al', label: 'Annual leave' };
         if (shift === 'SICK')                  return { text: '🪑 Absent', cls: 'tv-sick', label: 'Absent' };
         if (shift === 'RDW')                   return { text: '💼 RDW', cls: 'tv-rdw', label: 'Rest day worked' };
-        const _trg = parseTrainingValue(shift);
+        const _trg = parseOtherValue(shift);
         if (_trg) {
-            // 🎓 + short flavour word in the tiny cell; FULL word in the accessible label
+            // 🏷️ + short flavour word in the tiny cell; FULL word in the accessible label
             // (+ RDW/time detail), mirroring the calendar's tap behaviour.
-            const f = TRAINING_FLAVOURS[_trg.flavour];
+            const f = OTHER_FLAVOURS[_trg.flavour];
             // Derived RDW-ness matches the calendar + pay engine: explicit flag OR rest-day base.
             const label = f.full + ((_trg.rdw || isRestShift(baseShiftTV)) ? ' — Rest Day Worked' : '')
                 + (_trg.time ? ` ${_trg.time}` : '');
-            return { text: `🎓 ${f.badge}`, cls: 'tv-trg', label };
+            return { text: `🏷️ ${f.badge}`, cls: 'tv-other', label };
         }
         if (shift.startsWith('RDW|')) {
             const t = shift.slice(4);

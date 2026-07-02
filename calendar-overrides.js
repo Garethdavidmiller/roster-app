@@ -12,7 +12,7 @@
 
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
-import { shouldReplaceOverride, isBeforeMemberStart, isTrainingValue } from './override-utils.js';
+import { shouldReplaceOverride, isBeforeMemberStart, isOtherValue } from './override-utils.js';
 
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();
@@ -148,14 +148,14 @@ export function getShiftTypesInMonth(member, year, month) {
         const dateStr = formatISO(date);
         const ov = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
         if (ov && !(ov.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr)))
-               && !(ov.type === 'training' && isSunday(dateStr))) {
+               && !(ov.type === 'other' && isSunday(dateStr))) {
             shift = ov.type === 'rdw' ? 'RDW' : ov.value;
         }
         if (shift === 'SPARE') types.add('SPARE');
         else if (shift === 'RDW')  types.add('RDW');
         else if (shift === 'AL')   types.add('AL');
         else if (shift === 'SICK') types.add('SICK');
-        else if (isTrainingValue(shift)) types.add('TRG');
+        else if (isOtherValue(shift)) types.add('OTHER');
     }
 
     shiftTypesMonthCache.set(cacheKey, types);

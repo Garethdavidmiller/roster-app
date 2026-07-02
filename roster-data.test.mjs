@@ -261,15 +261,15 @@ test('getShiftClass: late shift returns "late-shift"', () => {
     assert.equal(getShiftClass('14:00-22:00'), 'late-shift');
 });
 
-test('getShiftClass: every training grammar form returns "trg-day" (never other-day)', () => {
+test('getShiftClass: every training grammar form returns "other-day" (never unknown-day)', () => {
     for (const v of ['TRG', 'IND', 'ASSESS', 'TRG RDW', 'ASSESS RDW', 'IND 08:00-16:00', 'TRG RDW 08:00-16:00']) {
-        assert.equal(getShiftClass(v), 'trg-day', v);
+        assert.equal(getShiftClass(v), 'other-day', v);
     }
 });
 
-test('getShiftBadge: training flavours get 🎓 + the SHORT word (Train/Ind/Assess)', () => {
-    assert.match(getShiftBadge('TRG'),    /badge-trg/);
-    assert.match(getShiftBadge('TRG'),    /🎓/);
+test('getShiftBadge: Other-family flavours get 🏷️ + the SHORT word (Train/Ind/Assess)', () => {
+    assert.match(getShiftBadge('TRG'),    /badge-other/);
+    assert.match(getShiftBadge('TRG'),    /🏷️/);
     assert.match(getShiftBadge('TRG'),    />Train</);
     assert.match(getShiftBadge('IND'),    />Ind</);
     assert.match(getShiftBadge('ASSESS'), />Assess</);
@@ -277,7 +277,7 @@ test('getShiftBadge: training flavours get 🎓 + the SHORT word (Train/Ind/Asse
     assert.match(getShiftBadge('TRG RDW'),            />Train</);
     assert.match(getShiftBadge('IND 08:00-16:00'),    />Ind</);
     // and never the ❓ Unknown fallthrough
-    assert.doesNotMatch(getShiftBadge('TRG RDW'), /badge-other/);
+    assert.doesNotMatch(getShiftBadge('TRG RDW'), /badge-unknown/);
 });
 
 // ---------------------------------------------------------------------------

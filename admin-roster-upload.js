@@ -6,7 +6,7 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, COLLECTIONS } from './firebase-client.js';
-import { shouldReplaceOverride, isTrainingValue } from './override-utils.js';
+import { shouldReplaceOverride, isOtherValue } from './override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -472,7 +472,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // the rest-day base, classifies as MATCH, and is never written as a Sunday
                 // AL/absence/training override. (Worked Sunday times remain RDW — handled below.)
                 const isSun      = isSunday(date);
-                const sundaySafe = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK' || isTrainingValue(parsedValue)))
+                const sundaySafe = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK' || isOtherValue(parsedValue)))
                     ? 'RD' : parsedValue;
 
                 // Bilingual roster uses 'OFF' for rest days; AI always returns 'RD'.
@@ -835,15 +835,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 export function shiftValueToOverrideType(value, baseShift, date = null) {
     // Sundays are non-contracted — AL, Absent, and Training cannot apply; treat as RD correction
     const isSun = date !== null && isSunday(date);
-    if (isSun && (value === 'AL' || value === 'SICK' || isTrainingValue(value))) return 'correction';
+    if (isSun && (value === 'AL' || value === 'SICK' || isOtherValue(value))) return 'correction';
     if (value === 'AL')    return 'annual_leave';
     if (value === 'SICK')  return 'sick';
     if (value === 'SPARE') return 'spare_shift';
-    // Training / Induction / Assessment (TRAINING_PLAN.md) — flavour sentinel, optional
+    // Training / Induction / Assessment (OTHER_PLAN.md) — flavour sentinel, optional
     // " RDW" marker, optional actual times. Checked before RD/RDW: a 'TRG RDW' value must
     // classify as training, not fall through on its RDW substring (no clash today — the
     // bare-'RDW' and pipe checks are exact/prefix — but the ordering makes that explicit).
-    if (isTrainingValue(value)) return 'training';
+    if (isOtherValue(value)) return 'other';
     if (value === 'RD' || value === 'OFF') return 'correction';
     // Pipe-encoded RDW from AI: "RDW|14:30-22:00" — explicit flag regardless of base shift
     if (isRdwEncoded(value) || value === 'RDW') return 'rdw';

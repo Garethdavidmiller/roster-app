@@ -61,11 +61,11 @@ describe('shiftValueToOverrideType — existing vocabulary (regression)', () => 
     });
 });
 
-describe('shiftValueToOverrideType — training (TRAINING_PLAN.md)', () => {
+describe('shiftValueToOverrideType — training (OTHER_PLAN.md)', () => {
     test('every training grammar form → training', () => {
         for (const v of ['TRG', 'IND', 'ASSESS', 'TRG RDW', 'IND RDW', 'ASSESS RDW',
                          'TRG 08:00-16:00', 'TRG RDW 08:00-16:00']) {
-            assert.equal(shiftValueToOverrideType(v, 'RD', MON), 'training', v);
+            assert.equal(shiftValueToOverrideType(v, 'RD', MON), 'other', v);
         }
     });
 
@@ -78,6 +78,6 @@ describe('shiftValueToOverrideType — training (TRAINING_PLAN.md)', () => {
     test('a training value never falls through to rdw/shift on its RDW substring', () => {
         // 'TRG RDW' contains 'RDW' — the training check must classify it before the
         // RDW checks could ever see it.
-        assert.equal(shiftValueToOverrideType('TRG RDW', '06:00-14:00', MON), 'training');
+        assert.equal(shiftValueToOverrideType('TRG RDW', '06:00-14:00', MON), 'other');
     });
 });

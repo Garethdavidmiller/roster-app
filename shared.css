@@ -91,11 +91,15 @@
     --al-hover: color-mix(in oklch, var(--al) 91%, black);
     --al-deep:  color-mix(in oklch, var(--al) 66%, black);
 
-    /* Training / Induction / Assessment — bronze (TRAINING_PLAN.md). Low chroma +
-       low lightness keeps it "bronze" not "gold": hue sits near --accent-gold/--warning-amber
-       but reads clearly darker/muted beside them; white badge text clears WCAG AA (~5.9:1). */
-    --trg:       oklch(48.0% 0.0850 65.0deg);
-    --trg-light: color-mix(in oklch, var(--trg) 13%, white);
+    /* "Other" family — Training / Induction / Assessment, later Meetings / Union duties
+       (OTHER_PLAN.md). LEAF GREEN, hue 136° — the only empty band on the calendar wheel:
+       46° from AL's teal (183°) with a darker border, and NOT the bronze 65° originally
+       chosen, which was hue-identical to the Early orange (64°) — indistinguishable at
+       tint level and literally the same colour for red-green colour-blind staff. The
+       leaf green keeps a yellow-olive cast under deutan vision while teal stays blue-grey,
+       so the two SEPARATE for colour-blind users. White badge text clears WCAG AA. */
+    --other:       oklch(46.0% 0.1150 136.0deg);
+    --other-light: color-mix(in oklch, var(--other) 13%, white);
 
     /* Absence / sick — deliberately neutral; reason for absence is never stored */
     --absence:       oklch(49.3% 0 0);
@@ -917,7 +921,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .badge-rdw   { background: var(--rdw);       color: white; }
 .badge-al    { background: var(--al);        color: white; }
 .badge-sick  { background: var(--absence);   color: white; }
-.badge-trg   { background: var(--trg);       color: white; }
+.badge-other   { background: var(--other);       color: white; }
 
 /* Badge colour enforcement for print — keeps colours when browser strips backgrounds.
    badge-night keeps its screen style (white bg + dark border) — it reads better on
@@ -930,7 +934,7 @@ body.lb-open #stickyTotal { display: none !important; }
     .badge-rdw   { background: var(--rdw)       !important; color: white !important; }
     .badge-al    { background: var(--al)        !important; color: white !important; }
     .badge-sick  { background: var(--absence)   !important; color: white !important; }
-    .badge-trg   { background: var(--trg)       !important; color: white !important; }
+    .badge-other   { background: var(--other)       !important; color: white !important; }
 }
 
 /* ═══════════════════════════════════════════════════════════════

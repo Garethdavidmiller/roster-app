@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v15.30 · Updated every 0.10 version*
+*Last updated: July 2026 — v15.40 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `15.30` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `15.40` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -320,7 +320,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | SW caching: network-first HTML, stale-while-revalidate JS/CSS (v14.18) | HTML documents are network-first (fresh entry point). JS/CSS are stale-while-revalidate — instant from cache, refreshed in the background — so online loads don't wait on a per-file network round trip. Code freshness still propagates via the version-bump → new SW → new cache lifecycle (skipWaiting + claim); roster DATA is live from Firestore, never from cached JS. Do not revert JS/CSS to network-first without discussion — it reinstates a network wait on every load. |
 | `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. |
 | `getBaseShift(member, date)` for all base shift lookups | Direct access to `roster.data[week][day]` bypasses `startDate` suppression, Christmas rules, and future base-shift logic. Always call `getBaseShift()`, never read `roster.data` directly. |
-| Type pills in admin — single source of truth (v13.48) | `PILL_TYPES` in `admin-overrides.js` is the one authoritative list. `renderWeekGrid()` generates per-row pills from it; `admin-app.js` generates the bulk-bar pills from it at init (the `#bulkTypePills` div in `admin.html` is empty — populated at runtime). Order: AL · Spare · Shift · RDW · Absent · Rest Day · Training (v15.37). Never hardcode either list. Training reveals per-row sub-controls (flavour Train/Ind/Assess + a pre-ticked-on-rest-day RDW tick + OPTIONAL times — `timesOptional: true`); the save collector composes the grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`. |
+| Type pills in admin — single source of truth (v13.48) | `PILL_TYPES` in `admin-overrides.js` is the one authoritative list. `renderWeekGrid()` generates per-row pills from it; `admin-app.js` generates the bulk-bar pills from it at init (the `#bulkTypePills` div in `admin.html` is empty — populated at runtime). Order: AL · Spare · Shift · RDW · Absent · Rest Day · Other (v15.37; renamed from Training v15.40). Never hardcode either list. Other reveals per-row sub-controls (full-word flavour chips Training/Induction/Assessment — later Meetings/Union duties — + a pre-ticked-on-rest-day RDW tick + OPTIONAL times — `timesOptional: true`); the save collector composes the grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`. |
 | **`AL` pill label must stay as `AL`** | Compact mobile layout requires short labels. `AL` is the standard Chiltern abbreviation. Do not expand without discussing layout impact. |
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `calendar-app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member. On the next page open the banner fires via `_showStaleMemberBanner()` — called from the pre-branch init block for team-view users (v14.08), or from inside `renderCalendar()` for calendar-view users. `takeStaleMemberName()` is one-shot so only one path fires. |
@@ -417,7 +417,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 | `'AL'` | 🏖️ AL | Annual leave |
 | `'SICK'` | 🪑 Absent | Sick/absent day — recorded via override |
 | `'HH:MM-HH:MM'` | ☀️/🌙/🦉 | Worked shift |
-| `'TRG'` / `'IND'` / `'ASSESS'` (+ optional `' RDW'`, `' HH:MM-HH:MM'`) | 🎓 Train / Ind / Assess | Training / Induction / Assessment day (v15.35, TRAINING_PLAN.md) — bronze `trg-day` family; hours slot shows actual times → `RDW` → base time; tap shows the FULL word; pays as the day underneath (`resolveTrainingPay` in `override-utils.js`); Sundays blocked |
+| `'TRG'` / `'IND'` / `'ASSESS'` (+ optional `' RDW'`, `' HH:MM-HH:MM'`) | 🏷️ Train / Ind / Assess | The **"Other" family** (v15.35; evolved v15.40, OTHER_PLAN.md): Training / Induction / Assessment day — later Meetings / Union duties. LEAF-GREEN `other-day` family (`--other`, hue 136° — deliberately NOT bronze, which was hue-identical to Early's orange); hours slot shows actual times → `RDW` → base time; tap shows the FULL word; pays as the day underneath (`resolveOtherPay` in `override-utils.js`); Sundays blocked. The unknown-value fallback classes were renamed `unknown-day`/`badge-unknown` (v15.40) to free the `other-*` names |
 
 **Classification:** Early 04:00–10:59 · Late 11:00–20:59 · Night 21:00–03:59
 
@@ -475,7 +475,7 @@ type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "
              Legacy (still in data, not creatable): "allocated" | "overtime" | "swap"
 value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
              training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS", optional rest-day
-             marker, optional actual times (see TRAINING_PLAN.md; grammar single-source: override-utils.js)
+             marker, optional actual times (see OTHER_PLAN.md; grammar single-source: override-utils.js)
 note         Free text — "" if none. Field must always be present.
 source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths
 createdAt    Firestore server timestamp
@@ -619,7 +619,7 @@ UX experiments tried and reverted, plus future capabilities: **see `ROADMAP.md`*
 
 **Do-not-change UI labels (Claude-relevant):**
 - **Admin button label** — "Admin" = administration, not administrator. Intentional. Do not rename.
-- **Shift type count** — 7 pills in the admin selector since Training (v15.37). At the practical ceiling — consider merging before adding more.
+- **Shift type count** — 7 pills in the admin selector since Other (v15.37). At the practical ceiling — new day KINDS go into the Other submenu as flavours, not new pills.
 
 ### Staff-facing wording conventions
 
