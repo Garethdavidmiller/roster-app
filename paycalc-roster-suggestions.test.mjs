@@ -37,6 +37,12 @@ const {
 const { teamMembers } = await import('./roster-data.js');
 const cReen = teamMembers.find(m => m.name === 'C. Reen');
 // C. Reen: fixed roster — Mon–Fri 12:00-19:00 (7h), Sat/Sun RD.
+const sBoyle = teamMembers.find(m => m.name === 'S. Boyle');
+// S. Boyle: main roster wk10 — has a SPARE week in Jan 2026. Base is SPARE on the dates below
+// (verified against getBaseShift), used for the spare-week RDW/contracted-Saturday tests:
+//   2026-01-19 (Mon)  → SPARE weekday
+//   2026-01-24 (Sat)  → SPARE Saturday
+// Neither is a bank holiday.
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -203,6 +209,58 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
     assert.equal(s.bhOtH,     2); // rdw override 20:00-22:00
     assert.equal(s.bhOtM,     0);
     assert.equal(s.satCount + s.sunCount + s.rdwCount + s.otCount + s.boxCount, 0);
+  });
+
+});
+
+// ── Spare weeks: RDW vs contracted Saturday ───────────────────────────────────
+// Confirmed operational rule (Gareth, Jul 2026): in a spare week a worked Saturday is one of the
+// four CONTRACTED days (paid as a rostered Saturday, 1.25×) — UNLESS the roster specifically marks
+// it RDW, in which case it is rest-day-worked. And an RDW written on any spare-week day is picked
+// up as RDW regardless of the SPARE base. These pin those three cases against a real SPARE base.
+
+describe('getRosterSuggestion — spare weeks (RDW vs contracted Saturday)', () => {
+
+  test('RDW override on a SPARE weekday → rdw bucket (SPARE base does not suppress it)', () => {
+    // 2026-01-19 is a Monday, S. Boyle base = SPARE. An explicit rdw override is picked up because
+    // effType === 'rdw' is checked before any base/day-of-week logic.
+    _setOverridesForTest(new Map([
+      ['2026-01-19', { type: 'rdw', value: '06:00-14:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-01-19'), sBoyle);
+    assert.ok(s);
+    assert.equal(s.rdwCount, 1);
+    assert.equal(s.rdwH, 8);
+    assert.equal(s.satCount, 0);
+    assert.equal(s.otCount, 0);
+  });
+
+  test('SPARE Saturday worked as a plain shift → sat bucket (contracted Saturday, 1.25×), all hours, no OT', () => {
+    // 2026-01-24 is a Saturday, S. Boyle base = SPARE. A plain shift (not marked RDW) is the spare
+    // week's actual allocation — one of the four contracted days — so ALL hours go to sat (no base
+    // to cap against, so no overtime split), NOT rdw.
+    _setOverridesForTest(new Map([
+      ['2026-01-24', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-01-24'), sBoyle);
+    assert.ok(s);
+    assert.equal(s.satCount, 1);
+    assert.equal(s.satH, 8);
+    assert.equal(s.otCount, 0);
+    assert.equal(s.rdwCount, 0);
+  });
+
+  test('SPARE Saturday specifically marked RDW → rdw bucket (RDW wins over the contracted-Saturday rule)', () => {
+    // Same Saturday, but the roster marks it RDW → the effType === 'rdw' branch fires first, so it
+    // is rest-day-worked, not a contracted Saturday.
+    _setOverridesForTest(new Map([
+      ['2026-01-24', { type: 'rdw', value: '10:00-18:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-01-24'), sBoyle);
+    assert.ok(s);
+    assert.equal(s.rdwCount, 1);
+    assert.equal(s.rdwH, 8);
+    assert.equal(s.satCount, 0);
   });
 
 });
