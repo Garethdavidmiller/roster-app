@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '15.34';
+export const APP_VERSION = '15.35';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -287,7 +287,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
 import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js';
-import { shouldReplaceOverride } from './override-utils.js';
+import { shouldReplaceOverride, isTrainingValue, parseTrainingValue, TRAINING_FLAVOURS } from './override-utils.js';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
@@ -692,6 +692,9 @@ export function getShiftClass(timeStr) {
     if (timeStr === 'RDW')   return 'rdw-day';
     if (timeStr === 'AL')    return 'al-day';
     if (timeStr === 'SICK')  return 'sick-day';
+    // Training / Induction / Assessment (TRAINING_PLAN.md) — one bronze family class
+    // for every grammar form ('TRG', 'IND RDW', 'ASSESS 08:00-16:00', ...).
+    if (isTrainingValue(timeStr)) return 'trg-day';
     if (!SHIFT_TIME_REGEX.test(timeStr)) {
         console.warn(`Unknown shift value: "${timeStr}" — rendered as other-day`);
         return 'other-day';
@@ -714,6 +717,10 @@ export function getShiftBadge(timeStr) {
     if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw" title="Rest day worked — extra shift on your rostered day off"><span aria-hidden="true">💼</span><span>RDW</span></span>`;
     if (timeStr === 'AL')    return `<span class="shift-badge badge-al"><span aria-hidden="true">🏖️</span><span>AL</span></span>`;
     if (timeStr === 'SICK')  return `<span class="shift-badge badge-sick"><span aria-hidden="true">🪑</span><span>Absent</span></span>`;
+    // Training family — 🎓 + the SHORT flavour word (Train/Ind/Assess); the FULL word
+    // (Training/Induction/Assessment) is shown on tap via the day-detail label instead.
+    const _trg = parseTrainingValue(timeStr);
+    if (_trg) return `<span class="shift-badge badge-trg"><span aria-hidden="true">🎓</span><span>${TRAINING_FLAVOURS[_trg.flavour].badge}</span></span>`;
     if (!SHIFT_TIME_REGEX.test(timeStr)) return `<span class="shift-badge badge-other"><span aria-hidden="true">❓</span><span>Unknown</span></span>`;
     if (isNightShift(timeStr)) return `<span class="shift-badge badge-night"><span aria-hidden="true">🦉</span><span>Night</span></span>`;
     return isEarlyShift(timeStr)

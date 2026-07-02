@@ -417,6 +417,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 | `'AL'` | 🏖️ AL | Annual leave |
 | `'SICK'` | 🪑 Absent | Sick/absent day — recorded via override |
 | `'HH:MM-HH:MM'` | ☀️/🌙/🦉 | Worked shift |
+| `'TRG'` / `'IND'` / `'ASSESS'` (+ optional `' RDW'`, `' HH:MM-HH:MM'`) | 🎓 Train / Ind / Assess | Training / Induction / Assessment day (v15.35, TRAINING_PLAN.md) — bronze `trg-day` family; hours slot shows actual times → `RDW` → base time; tap shows the FULL word; pays as the day underneath (`resolveTrainingPay` in `override-utils.js`); Sundays blocked |
 
 **Classification:** Early 04:00–10:59 · Late 11:00–20:59 · Night 21:00–03:59
 
