@@ -236,7 +236,7 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 - **Region:** `europe-west2` (London)
 - **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates via Firebase Admin SDK. `ROSTER_SECRET` is no longer used anywhere — both `parseRosterPDF` and `setupRosterAuth` use Firebase ID token auth with an admin custom claim.
 - **CORS:** `cors: ADMIN_FUNCTION_ORIGINS` — an explicit origin allowlist (`functions/index.js`): `https://garethdavidmiller.github.io`, `https://myb-roster.web.app`, `https://myb-roster.firebaseapp.com`. This is defence-in-depth; the real control is the Firebase ID token + admin claim, so a browser from an unlisted origin is blocked at preflight *and* would fail auth. `setupRosterAuth` uses the same allowlist. Add any new hosting domain to the `ADMIN_FUNCTION_ORIGINS` array. (`ingestHuddle` keeps `cors: false` — server-to-server.)
-- **AI model:** the `CLAUDE_MODEL` constant in `functions/index.js` — currently `claude-sonnet-4-6`, `max_tokens: 8192`. Note this is an unversioned alias (it tracks the latest Sonnet 4.6 snapshot), not a dated pin; switch to a dated snapshot if reproducibility matters.
+- **AI model:** the `CLAUDE_MODEL` constant in `functions/index.js` — currently `claude-sonnet-5`, `max_tokens: 8192`. Note this is an unversioned alias (it tracks the latest Sonnet 5 snapshot), not a dated pin; switch to a dated snapshot if reproducibility matters.
 - **Why direct PDF input:** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
 
 **Request format:**

@@ -98,7 +98,7 @@ function nowInLondon() {
 }
 
 // Claude model used by parseRosterPDF. Pin here so version bumps are explicit and grep-able.
-const CLAUDE_MODEL = 'claude-sonnet-4-6';
+const CLAUDE_MODEL = 'claude-sonnet-5';
 
 /**
  * POST /ingestHuddle
