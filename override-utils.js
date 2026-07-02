@@ -162,7 +162,7 @@ export const OTHER_RDW_DEFAULT_MINS = 480;
 
 // Anchored full-string grammar. Time range is bounded HH:MM (00-23 / 00-59) so an
 // impossible time can never ride in on a training value.
-const _TRAINING_RE = /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/;
+const _OTHER_RE = /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/;
 
 /**
  * True when a stored override/shift value is a training-family value (any flavour,
@@ -171,7 +171,7 @@ const _TRAINING_RE = /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|
  * @returns {boolean}
  */
 export function isOtherValue(v) {
-    return typeof v === 'string' && _TRAINING_RE.test(v);
+    return typeof v === 'string' && _OTHER_RE.test(v);
 }
 
 /**
@@ -181,7 +181,7 @@ export function isOtherValue(v) {
  */
 export function parseOtherValue(v) {
     if (typeof v !== 'string') return null;
-    const m = v.match(_TRAINING_RE);
+    const m = v.match(_OTHER_RE);
     if (!m) return null;
     return {
         flavour: /** @type {'TRG'|'IND'|'ASSESS'} */ (m[1]),
@@ -205,7 +205,7 @@ function _shiftMins(time) {
 }
 
 /**
- * Resolve how a training day PAYS (OTHER_PLAN.md — the pay mapping, in one place).
+ * Resolve how an Other-family day PAYS (OTHER_PLAN.md — the pay mapping, in one place).
  * Display deliberately does NOT use this — it shows the 🏷️ badge; only pay consumers
  * (paycalc-roster-suggestions.js) resolve training to the day underneath it.
  *

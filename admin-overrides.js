@@ -17,7 +17,7 @@ import { isRestShift, shouldReplaceOverride } from './override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
-import { parseOtherValue } from './override-utils.js';
+import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 /** @type {Record<string, any>} */
@@ -243,9 +243,9 @@ export function buildWeekGridInto(container, dateStr) {
             <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> if this was overtime</div>
             <div class="other-opts" hidden>
                 <span class="other-flavour-group" role="group" aria-label="Type of day">
-                    <button type="button" class="other-flavour-btn active" data-flavour="TRG" aria-pressed="true">Training</button>
-                    <button type="button" class="other-flavour-btn" data-flavour="IND" aria-pressed="false">Induction</button>
-                    <button type="button" class="other-flavour-btn" data-flavour="ASSESS" aria-pressed="false">Assessment</button>
+                    ${Object.entries(OTHER_FLAVOURS).map(([k, f]) =>
+                        `<button type="button" class="other-flavour-btn${k === 'TRG' ? ' active' : ''}" data-flavour="${k}" aria-pressed="${k === 'TRG'}">${f.full}</button>`
+                    ).join('\n                    ')}
                 </span>
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"> Rest day (RDW)</label>
                 <span class="other-opts-hint">Times optional — blank pays the default (base shift, or 8h RDW)</span>
@@ -335,7 +335,10 @@ export function buildWeekGridInto(container, dateStr) {
                             /** @type {HTMLInputElement} */ (endEl).value   = prefillE;
                         }
                     }
-                    if (!TYPES[type]?.fixed) /** @type {HTMLInputElement} */ (startEl).focus();
+                    // timesOptional types (Other): DON'T auto-focus the time input — on a phone the
+                    // keyboard would pop over the just-revealed flavour/RDW sub-controls, for times
+                    // that are optional and usually unknown. (This is timesOptional's behavioural job.)
+                    if (!TYPES[type]?.fixed && !TYPES[type]?.timesOptional) /** @type {HTMLInputElement} */ (startEl).focus();
                 }
                 // Show RD hint when Shift is chosen on a base-rest day
                 const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
@@ -1149,7 +1152,7 @@ export function validateShiftRules(toSave, memberName) {
     toSave.forEach(entry => {
         const { date, value, type } = entry;
         if (TYPES[type]?.fixed) return;
-        // Training values carry the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — a naive
+        // Other-family values carry the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — a naive
         // split('-') would shred it into NaN and silently skip every check. No times →
         // nothing to validate (the pay defaults apply); times → validate the time part.
         let checkValue = value;

@@ -58,7 +58,14 @@ function normaliseShift(raw) {
     // import browser ES modules — same accepted pattern as nameToPassword).
     const trgMatch = s.match(/^(?:RDW\s+)?(TRG|TRAINING|TRAIN|IND(?:UCTION)?|ASSESS(?:MENTS?)?)(?:\s+(RDW))?$/);
     if (trgMatch) {
-        const flavour = trgMatch[1][0] === 'T' ? 'TRG' : trgMatch[1][0] === 'I' ? 'IND' : 'ASSESS';
+        // Explicit alias → sentinel table (NOT first-letter dispatch, which would silently map any
+        // future alias added to the regex without a table entry onto the wrong flavour).
+        const FLAVOUR_LOOKUP = {
+            TRG: 'TRG', TRAINING: 'TRG', TRAIN: 'TRG',
+            IND: 'IND', INDUCTION: 'IND',
+            ASSESS: 'ASSESS', ASSESSMENT: 'ASSESS', ASSESSMENTS: 'ASSESS',
+        };
+        const flavour = FLAVOUR_LOOKUP[trgMatch[1]];
         const rdw = /^RDW\s/.test(s) || !!trgMatch[2];
         return rdw ? `${flavour} RDW` : flavour;
     }

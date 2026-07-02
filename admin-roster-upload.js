@@ -6,7 +6,7 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, COLLECTIONS } from './firebase-client.js';
-import { shouldReplaceOverride, isOtherValue } from './override-utils.js';
+import { shouldReplaceOverride, isOtherValue, parseOtherValue } from './override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -40,6 +40,13 @@ function shiftDisplay(shiftStr, _baseShift = null, date = null) {
     if (isRdwEncoded(shiftStr)) {
         const time = stripRdw(shiftStr);
         return `${getShiftBadge('RDW')}<span class="review-shift-time">${escapeHtml(time)}</span>`;
+    }
+    // Other-family values: the badge alone hid the RDW marker — but TRG vs TRG RDW decides
+    // between "nothing to pay" and the 8h RDW default, so the review must show it (and any times).
+    const _o = parseOtherValue(shiftStr);
+    if (_o && (_o.rdw || _o.time)) {
+        const detail = [_o.rdw ? 'RDW' : '', _o.time ?? ''].filter(Boolean).join(' ');
+        return `${getShiftBadge(shiftStr)}<span class="review-shift-time">${escapeHtml(detail)}</span>`;
     }
     const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shiftStr);
     const sundayWorked = isTime && date !== null && isSunday(date);
@@ -519,6 +526,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 states.set(key, {
                     state,
                     parsedShift,
+                    // What the row DISPLAYS as the incoming value. Differs from parsedShift only on
+                    // a Sunday whose AL/SICK/Other value was normalised to RD — the save path writes
+                    // the correction/RD, so the row must show RD, not a value that won't be saved.
+                    displayShift: sundaySafe,
                     baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
@@ -634,7 +645,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${shiftDisplay(s.baseShift)}</span>
                             <span class="roster-arrow">→</span>
-                            <span class="roster-to-val">${shiftDisplay(s.parsedShift, s.baseShift, date)}</span>
+                            <span class="roster-to-val">${shiftDisplay(s.displayShift ?? s.parsedShift, s.baseShift, date)}</span>
                         </div>
                         <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}" aria-pressed="${approved}">
                             ${approved ? 'Save' : 'Skip'}
@@ -684,7 +695,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <span class="roster-conflict-icon-sm">⚠</span>
                             <span class="roster-manual-val roster-cv-manual ${usesPDF ? 'val-dim' : 'val-active'}">${shiftDisplay(s.manualValue)}</span>
                             <span class="roster-vs-sep">vs</span>
-                            <span class="roster-manual-val roster-cv-pdf ${usesPDF ? 'val-active' : 'val-dim'}">${shiftDisplay(s.parsedShift, s.baseShift, date)}</span>
+                            <span class="roster-manual-val roster-cv-pdf ${usesPDF ? 'val-active' : 'val-dim'}">${shiftDisplay(s.displayShift ?? s.parsedShift, s.baseShift, date)}</span>
                         </div>
                         <div class="roster-conflict-choice" role="group" aria-label="Resolve conflict">
                             <button class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Manual</button>
