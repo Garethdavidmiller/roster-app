@@ -17,9 +17,10 @@ orphans the previous file or races the Firestore commit. The exact path is recor
 `storagePath` field. (Docs written before versioned paths have no `storagePath`; the cleanup/prune
 code falls back to the legacy fixed `huddles/{date}.{fileType}`.)
 
-Storage URL strategy (v9.53+): `ingestHuddle` generates a time-limited v4 signed URL (1 year).
-Falls back to a permanent `firebaseStorageDownloadTokens` download URL if the service account
-lacks `iam.serviceAccountTokenCreator` role. Either way the URL lands in `storageUrl`.
+Storage URL strategy (v15.19+): `ingestHuddle` writes a permanent `firebaseStorageDownloadTokens`
+download URL to `storageUrl`. It does NOT use a signed URL — GCS caps v4 signed-URL expiry at
+7 days, far shorter than the 3-month Huddle retention window (the old "1-year signed URL" code
+always threw and silently fell back to the token path anyway).
 
 Signed URL format:
 ```

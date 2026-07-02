@@ -99,11 +99,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
     syncChip.disabled = true;
     announceSync('Retrying');
 
-    addFetchedMonths([
-      monthKey(prev.getFullYear(), prev.getMonth()),
-      monthKey(now.getFullYear(),  now.getMonth()),
-      monthKey(next.getFullYear(), next.getMonth()),
-    ]);
+    addFetchedMonths(_initialMonthKeys);
 
     const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
     const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
@@ -120,6 +116,10 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
     } catch (err) {
       console.error('[Firestore] Retry failed:', err);
       if (_retryGen !== _fetchGen) return; // a later retry superseded this one
+      // Mirror the initial fetch's failure path: release the re-claimed months so a later
+      // render/navigation can re-fetch them — otherwise a failed retry re-strands all three
+      // for the session (the chip is a recovery path only while the calendar header exists).
+      _initialMonthKeys.forEach(clearFetchedMonth);
       if (syncChip) {
         syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
         syncChip.className = 'sync-chip sync-chip-error';

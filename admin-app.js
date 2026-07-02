@@ -1694,21 +1694,27 @@ function wireNavPanel() {
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut:   () => { clearSession(); window.location.reload(); },
     });
+    // Calendar pill: write the current fieldDate month/year to localStorage before navigating so
+    // index.html opens on the same month the user was editing. (Replaces the removed v10.63 header
+    // back button.) Wired HERE — inside wireNavPanel, guarded per element — not at module scope: the
+    // B1 teardown path resetNavPanel()s and re-injects a FRESH pill, and a module-scope listener on
+    // the old pill would be silently lost with it. initNavPanel's own guard means the pill element
+    // survives repeat wireNavPanel() calls, so the dataset guard prevents double-attach.
+    const calPill = /** @type {HTMLElement|null} */ (document.querySelector('.nav-panel-pill--calendar'));
+    if (calPill && !calPill.dataset.monthPersistWired) {
+        calPill.dataset.monthPersistWired = '1';
+        calPill.addEventListener('click', () => {
+            if (fieldDate.value) {
+                const d = new Date(fieldDate.value + 'T12:00:00');
+                lsSet('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
+                lsSet('myb_roster_year',  d.getFullYear());
+            }
+            // Let the <a> navigate normally
+        });
+    }
 }
 // Wire the nav now EXCEPT on the in-place login path, where initAuthorised() defers it so it renders
 // with the signed-in identity (the full-screen overlay covers the burger meanwhile). Flag off → wired
 // now exactly as before (null identity on the login screen, corrected after the reload).
 if (!CONFIG.INPLACE_LOGIN.admin || _access.decision !== 'login') wireNavPanel();
-
-// Calendar pill in the nav drawer: write the current fieldDate month/year to
-// localStorage before navigating so index.html opens on the same month the user
-// was looking at in admin. (Replaces the removed header back button, v10.63.)
-document.querySelector('.nav-panel-pill--calendar')?.addEventListener('click', () => {
-    if (fieldDate.value) {
-        const d = new Date(fieldDate.value + 'T12:00:00');
-        lsSet('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
-        lsSet('myb_roster_year',  d.getFullYear());
-    }
-    // Let the <a> navigate normally
-});
 

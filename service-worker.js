@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v15.22
+// MYB Roster — Service Worker v15.23
 // Strategy:
 //   HTML documents (navigations)
 //               → Network-first: a returning user always lands on the freshest
@@ -22,7 +22,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '15.22';
+const APP_VERSION = '15.23';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -378,11 +378,13 @@ self.addEventListener("message", event => {
 // ============================================
 // PUSH — incoming notifications (Huddle + Pay reminder)
 // ============================================
-// Payload shape (sent by Cloud Functions):
+// Payload shape (sent by Cloud Functions via buildPushPayload):
 //   { title, body, url, tag }
-// tag is either 'huddle' or 'pay-reminder'. Using the same tag for repeat
-// notifications of the same type means the new one replaces the old one in
-// the Notification Centre rather than stacking.
+// tag is the feature's stable tag from notifications.md ('huddle', 'circular',
+// 'newsletter', 'pay-reminder') — or the SW-local fallback 'update' for a
+// data-less/unparseable push. Using the same tag for repeat notifications of the
+// same type means the new one replaces the old one in the Notification Centre
+// rather than stacking.
 self.addEventListener("push", event => {
     // Neutral defensive fallback for a data-less / unparseable push — we can't know the feature, so
     // do NOT assume a Huddle (the old fallback used the app name as title and mistagged everything as

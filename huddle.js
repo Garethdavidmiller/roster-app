@@ -134,11 +134,15 @@ function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {str
     // Reveal card for admin
     card.style.display = '';
 
-    // Default date to today, and cap at today — a future-dated Huddle would win the
-    // orderBy('date','desc') latest-Huddle query and shadow every real daily Huddle until manually
-    // deleted (pruneOldHuddles' 3-month-past cutoff can't remove a future doc). Matches _initDocUpload.
+    // Default date to today, and cap at TOMORROW — not today: the Huddle is sent the evening
+    // before for the next day's plan (see .claude/rules/notifications.md), so the manual upload
+    // (the fallback when Power Automate fails) legitimately carries tomorrow's date. The cap still
+    // blocks the far-future typo that would win the orderBy('date','desc') latest-Huddle query and
+    // shadow every real daily Huddle (pruneOldHuddles' 3-month-past cutoff can't remove a future doc).
+    const _tomorrow = new Date();
+    _tomorrow.setDate(_tomorrow.getDate() + 1);
     dateInput.value = formatISO(new Date());
-    dateInput.max   = formatISO(new Date());
+    dateInput.max   = formatISO(_tomorrow);
 
     function _rejectFile(/** @type {string} */ reason) {
         _fileLabel.classList.remove('visible');

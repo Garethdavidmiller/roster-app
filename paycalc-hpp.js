@@ -10,11 +10,11 @@
  */
 
 import {
-  GRADES, HPP_FRACTION, RATE_125, RATE_150, RATE_300,
+  HPP_FRACTION, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, getLondonAllowanceForPeriod,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
-import { getGrade, getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
+import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { periodKey, hppEstKey, hppActualKey, readPayslipActuals } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
@@ -102,14 +102,15 @@ export function _varPayForPeriod(p, d, rate) {
  * @param {number} bpPNum - Period number the back pay lands in (coordinator state).
  */
 export function calcHPP(bpVarAmount, bpPNum) {
-  const _hppGrade       = getGrade();
-  const _hppDefaultRate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
-  const rate       = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value) || _hppDefaultRate;
   const allPeriods = getPeriods();
 
   const pNum    = currentPeriodNum();
   const curP    = allPeriods.find(/** @param {any} x */ x => x.num === pNum);
   const ty      = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  // Rate: the live field when filled, else THIS tax year's stored rate (which itself falls back to
+  // the grade default) — not the bare grade default, which ignored a saved custom/protected rate
+  // and mispriced the persisted HPP estimate whenever the field was empty/unparsable.
+  const rate    = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value) || getStoredRateForYear(ty);
   const periods = allPeriods.filter(/** @param {any} p */ p => {
     const o = p.num - 48;
     return o >= ty.first && o <= ty.last;

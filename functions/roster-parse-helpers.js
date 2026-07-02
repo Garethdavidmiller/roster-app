@@ -69,6 +69,10 @@ function normaliseShift(raw) {
     // an 'RD' here would classify as MATCH and silently drop a genuine worked shift from the roster.
     // The extracted shift is still shown in the review table (surfaced as a DIFF when it differs from
     // base). Genuinely unrecognised values (no valid leading time) still fall through to 'RD' below.
+    // ACCEPTED TRADE-OFF: a hypothetical negating annotation ("06:00-12:00 CANCELLED") would also be
+    // extracted as the worked time — but the old RD-default silently lost genuinely WORKED annotated
+    // shifts, which is the error we have actually observed. If cancellation-style annotations ever
+    // appear in these PDFs, gate the extraction on the trailing text instead of removing it.
     const lead = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})\b/);
     if (lead && validHHMM(lead[1], lead[2]) && validHHMM(lead[3], lead[4])) {
         console.warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
@@ -233,7 +237,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             console.warn(`[parseRosterPDF] ${entry.memberName}: AI omitted key(s) [${missingKeys.join(', ')}] — filled with RD`);
         }
 
-        safeEntries.push({ memberName: entry.memberName.trim(), shifts });
+        safeEntries.push({ memberName: memberKey, shifts });
     }
     return safeEntries;
 }

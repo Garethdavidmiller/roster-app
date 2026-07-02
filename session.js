@@ -231,20 +231,20 @@ export async function ensureFirebaseSession(name, _gen) {
     // pure latency win, no behaviour change. One-shot: a later call does a fresh restore; tests (which
     // never prime, and whose mock currentUser is null) always take the await path.
     const existing = auth.currentUser || await (_consumePrimedAuthUser() || _restoreFirstAuthUser());
+    // Gen-guard EVERY shared-auth mutation from here down (like commit/recordError/the reset above):
+    // a SUPERSEDED attempt resuming after this long await — the sign-out below on the mismatch path,
+    // but equally the signInWithEmailAndPassword / signInAnonymously calls further down on the
+    // no-persisted-session (cold load) path — would otherwise replace the WINNING attempt's
+    // freshly-established session on the shared `auth`, leaving the store reading 'named' for the
+    // winner while auth.currentUser holds someone else (silent permission-denied writes). The
+    // matching-user fast path below stays safe for a stale gen: commit() no-ops the global write.
+    if (existing && !existing.isAnonymous && existing.email === nameToEmail(name)) return commit('named', true);
+    if (!fresh()) return commit('none', false);
     // Only reuse a persisted session when it belongs to the expected user.
     // An anonymous fallback session, or a session for a different member (e.g.
     // Person A was active on a shared browser and Person B now selects their name),
     // must not be reused — sign out and re-authenticate under the correct identity.
-    if (existing) {
-        if (!existing.isAnonymous && existing.email === nameToEmail(name)) return commit('named', true);
-        // Identity mismatch → sign the stale session out before re-authenticating. But gen-guard this
-        // side effect (like commit/recordError/the reset above): a SUPERSEDED retry that resumes here
-        // after a newer attempt already won would otherwise sign out the WINNER's freshly-established
-        // named session on the shared `auth`, leaving the store reading 'named' while auth.currentUser
-        // is null (silent permission-denied writes). If superseded, abort touching shared auth.
-        if (!fresh()) return commit('none', false);
-        await firebaseSignOut(auth);
-    }
+    if (existing) await firebaseSignOut(auth);
 
     const pw         = getSurname(name);
     // Firebase Auth requires ≥6 chars — repeat the derived password string to reach the minimum.

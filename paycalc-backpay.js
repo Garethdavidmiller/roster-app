@@ -116,10 +116,14 @@ export function calcBackPay() {
   let grandVarTotal = 0;
   let pCount        = 0;
 
+  // Upper cap: the "paid in" period when selected, otherwise TODAY's period — without a default cap,
+  // a future period the user once opened (autosave writes a record on any input) would add its full
+  // contracted-hours component to the lump sum for work not yet done.
+  const _capPNum = bpPNum || currentPeriodNum();
   periods.forEach(/** @param {any} p */ p => {
     try {
       if (fromPNum && p.num < fromPNum) return;
-      if (bpPNum   && p.num > bpPNum)  return;
+      if (_capPNum && p.num > _capPNum) return;
       // Skip periods outside the award tax year (e.g. when "paid in" period is
       // in the following year — don't apply 2025/26 rate diff to 2026/27 work).
       if (awardTy && getTaxYearForOffset(p.num - 48) !== awardTy) return;
