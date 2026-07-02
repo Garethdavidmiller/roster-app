@@ -269,6 +269,8 @@ body.auth-ready .container { display: grid; }
 .roster-change-row.roster-change-unreadable { background: color-mix(in oklch, var(--warning-amber) 10%, white); }
 .review-shift-unreadable { font-size: 12px; font-weight: 600; color: var(--warning-amber); }
 .roster-unreadable-note  { font-size: 11px; font-weight: 600; color: var(--warning-amber); white-space: nowrap; flex-shrink: 0; }
+/* REMOVE_IMPORT — a stale PDF import whose day now matches base; approving deletes it (no write). */
+.roster-remove-note { font-size: 11px; color: var(--text-light); font-style: italic; }
 .roster-cancel-btn {
     display: block; width: 100%;
     background: none; border: 1.5px solid var(--border-light);

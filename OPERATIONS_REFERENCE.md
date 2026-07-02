@@ -292,6 +292,9 @@ computeCellStates(parsedResult, existingOverrides)
     DIFF       = PDF differs from base roster, needs saving
     CONFLICT   = manual override already exists but differs from PDF
     COVERED    = manual override already matches PDF, nothing to do
+    REMOVE_IMPORT = a stale previous PDF import whose day now matches base — approving
+                 DELETES the stale doc and writes nothing (a fresh base-matching override
+                 would be redundant and mask a future base-roster change) (v15.31)
     UNREADABLE = normaliseShift couldn't parse the cell (UNKNOWN| sentinel) — shown
                  skip-only, NEVER written; admin fixes the PDF or records it manually (v15.30)
         ↓
