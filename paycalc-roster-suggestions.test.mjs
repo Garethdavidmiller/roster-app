@@ -416,15 +416,32 @@ describe('getRosterSuggestion — training days', () => {
     assert.equal(s.otCount, 0);
   });
 
-  test('rdwDefaulted flag: true for an untimed rest-day default, false when actual times exist', () => {
+  test('defaulted8h flag is PER BUCKET and follows the routed minutes', () => {
+    // Untimed rest-day default on a plain Saturday → the estimate is in the rdw bucket.
     _setOverridesForTest(new Map([
       ['2026-04-11', { type: 'other', value: 'TRG RDW', _ts: 1, _manual: true }],
     ]));
-    assert.equal(getRosterSuggestion(period('2026-04-11'), cReen).rdwDefaulted, true);
+    let s = getRosterSuggestion(period('2026-04-11'), cReen);
+    assert.deepEqual(s.defaulted8h, { rdw: true, bhOt: false, box: false });
+    // Actual times → no estimate anywhere.
     _setOverridesForTest(new Map([
       ['2026-04-11', { type: 'other', value: 'TRG RDW 09:00-17:00', _ts: 1, _manual: true }],
     ]));
-    assert.equal(getRosterSuggestion(period('2026-04-11'), cReen).rdwDefaulted, false);
+    s = getRosterSuggestion(period('2026-04-11'), cReen);
+    assert.deepEqual(s.defaulted8h, { rdw: false, bhOt: false, box: false });
+    // Untimed default routed to a BANK HOLIDAY → the estimate flag must follow it to bhOt
+    // (previously the global flag mis-badged the rdw row, or vanished when rdwCount was 0).
+    _addBhDateForTest(2026, '2026-04-11');
+    try {
+      _setOverridesForTest(new Map([
+        ['2026-04-11', { type: 'other', value: 'TRG RDW', _ts: 1, _manual: true }],
+      ]));
+      s = getRosterSuggestion(period('2026-04-11'), cReen);
+      assert.deepEqual(s.defaulted8h, { rdw: false, bhOt: true, box: false });
+      assert.equal(s.bhOtH, 8);
+    } finally {
+      _removeBhDateForTest(2026, '2026-04-11');
+    }
   });
 
   test('TRG RDW on a BANK HOLIDAY → bhOt bucket (mirrors a plain rdw override on a BH)', () => {

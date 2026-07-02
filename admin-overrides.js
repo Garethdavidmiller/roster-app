@@ -247,7 +247,7 @@ export function buildWeekGridInto(container, dateStr) {
                         `<button type="button" class="other-flavour-btn${k === 'TRG' ? ' active' : ''}" data-flavour="${k}" aria-pressed="${k === 'TRG'}">${f.full}</button>`
                     ).join('\n                    ')}
                 </span>
-                <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"> Rest day (RDW)</label>
+                <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled title="Rest day — RDW is automatic"' : ''}> Rest day (RDW)</label>
                 <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(baseShift)} this day — RDW pays it as rest-day working instead</span>
                 <span class="other-opts-hint">Times optional — blank pays the default (base shift, or 8h RDW)</span>
             </div>`;
@@ -301,7 +301,7 @@ export function buildWeekGridInto(container, dateStr) {
                     b.setAttribute('aria-pressed', String(on));
                 });
                 const _cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
-                if (_cb) _cb.checked = _exOther.rdw;
+                if (_cb && !_cb.disabled) _cb.checked = _exOther.rdw;
                 _syncOtherRdwWarn(row);
                 if (_exOther.time) {
                     const [s, e] = _exOther.time.split('-');
@@ -533,7 +533,7 @@ function _deactivateRow(row, checkbox, pills, startEl, endEl) {
             b.setAttribute('aria-pressed', String(on));
         });
         const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
-        if (cb) cb.checked = false;
+        if (cb && !cb.disabled) cb.checked = false;   // rest-day rows keep their baked tick (RDW is automatic)
         _syncOtherRdwWarn(row);
     }
     const badge = row.querySelector('.overwrite-badge');

@@ -175,7 +175,9 @@ export function getRosterSuggestion(p, member) {
   let satMins = 0, sunMins = 0, bhMins = 0, bhOtMins = 0, otMins = 0, boxMins = 0, rdwMins = 0;
   let satCount = 0, sunCount = 0, bhCount = 0, bhOtCount = 0, otCount = 0, boxCount = 0, rdwCount = 0;
   let satFromOv = false, sunFromOv = false, bhFromOv = false, boxFromOv = false;
-  let rdwDefaulted = false;   // true when a defaulted (untimed) Other rest-day contributed 8h to the totals
+  // Which buckets contain an 8h ESTIMATE from an untimed Other rest-day (the default routes
+  // by day: Boxing → box, BH → bhOt, else rdw — the flag must follow the minutes).
+  const defaulted8h = { rdw: false, bhOt: false, box: false };
   const days = [];
 
   const cur = new Date(p.start);
@@ -225,15 +227,17 @@ export function getRosterSuggestion(p, member) {
           const _mins     = _pay.mins;
           const _labelTxt = _otherParsed.time ?? `${OTHER_RDW_DEFAULT_MINS / 60}h default — adjust to actual`;
           const _isBoxingT = cur.getMonth() === 11 && cur.getDate() === 26;
-          if (!_otherParsed.time) rdwDefaulted = true;   // an 8h ESTIMATE is in the totals — surfaced on the hint row
           if (_isBoxingT) {
             boxMins += _mins; boxCount++;
+            if (!_otherParsed.time) defaulted8h.box = true;
             days.push({ date: new Date(cur), shift: _labelTxt, type: 'box', source: 'override' });
           } else if (_isDateBH(cur)) {
             bhOtMins += _mins; bhOtCount++;
+            if (!_otherParsed.time) defaulted8h.bhOt = true;
             days.push({ date: new Date(cur), shift: _labelTxt, type: 'bhOt', source: 'override' });
           } else {
             rdwMins += _mins; rdwCount++;
+            if (!_otherParsed.time) defaulted8h.rdw = true;
             days.push({ date: new Date(cur), shift: _labelTxt, type: 'rdw', source: 'override' });
           }
           cur.setDate(cur.getDate() + 1);
@@ -376,7 +380,7 @@ export function getRosterSuggestion(p, member) {
     satFromOv, sunFromOv, bhFromOv,
     // bhOtFromOv is always true: BH overtime only arises from an explicit override on a BH day,
     // never from the base roster alone. rdwFromOv likewise — base roster never schedules RDW.
-    bhOtFromOv: true, boxFromOv, rdwFromOv: true, rdwDefaulted,
+    bhOtFromOv: true, boxFromOv, rdwFromOv: true, defaulted8h,
     memberName: member.name,
     days: days.sort((a, b) => +a.date - +b.date),
   };
