@@ -819,6 +819,13 @@ saveBtn.addEventListener('click', async () => {
                 errors.push(`${formatDisplay(date)}: times must be in HH:MM format (e.g. 07:00)`);
                 return;
             }
+            if (s === e) {
+                // Same hazard as the Other path: equal times validate as a 0h shift but PAY as
+                // 24h via the overnight wrap in the duration maths.
+                row.classList.add('row-error');
+                errors.push(`${formatDisplay(date)}: start and end times are the same`);
+                return;
+            }
             value = `${s}-${e}`;
         }
 

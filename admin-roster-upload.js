@@ -269,9 +269,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const [memberName, date] = key.split('|');
 
             if (state.state === 'DIFF' && state.chosen !== false) {
-                // Use the edited value if the admin changed it, otherwise the parsed value.
-                // manualId = any existing override doc for this date, to be replaced.
-                toWrite.push({ memberName, date, value: state.editedValue ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
+                // Use the edited value if the admin changed it, otherwise the value the row
+                // DISPLAYED (displayShift — Sunday/rest-day-normalised): what the admin approved
+                // is what gets written. manualId = any existing override doc, to be replaced.
+                toWrite.push({ memberName, date, value: state.editedValue ?? state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
             }
             if (state.state === 'REMOVE_IMPORT' && state.chosen !== false) {
                 // A stale previous import whose day now matches base — delete it, write nothing
@@ -279,9 +280,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 toWrite.push({ memberName, date, value: null, baseShift: state.baseShift, replaceId: state.manualId, deleteOnly: true });
             }
             if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
-                // Admin chose PDF over the existing manual entry — replace it, don't
-                // leave both docs for the same date.
-                toWrite.push({ memberName, date, value: state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
+                // Admin chose PDF over the existing manual entry — replace it, don't leave both
+                // docs for the same date. Write the row's DISPLAYED (normalised) value: a raw
+                // SICK on a base rest day would otherwise bypass the restSafe guard here and
+                // land as a rest-day absence doc the review had shown as "RD".
+                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
             }
         }
 
@@ -589,7 +592,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const savedLabel = s.manualValue === 'SICK' ? 'Absent' : s.manualValue;
                 conflictLines.push(
                     `${esc(memberName)} — ${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}: ` +
-                    `saved <strong>${esc(savedLabel)}</strong>, PDF says <strong>${esc(isRdwEncoded(s.parsedShift) ? 'RDW ' + stripRdw(s.parsedShift) : s.parsedShift)}</strong>`
+                    `saved <strong>${esc(savedLabel)}</strong>, PDF says <strong>${esc(isRdwEncoded(s.parsedShift) ? 'RDW ' + stripRdw(s.parsedShift) : (s.displayShift ?? s.parsedShift))}</strong>`
 
                 );
             }

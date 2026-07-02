@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v15.45
+// MYB Roster — Service Worker v15.46
 // Strategy:
 //   HTML documents (navigations)
 //               → Network-first: a returning user always lands on the freshest
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '15.45';
+const APP_VERSION = '15.46';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -200,24 +200,53 @@ self.addEventListener("install", () => {
     self.skipWaiting();
 });
 
-/** Warm the new version's cache. Runs DETACHED after activation (never inside a
- *  waitUntil — install's would delay activation; activate's would block every
- *  fetch until it finished, hanging the freshly-reloaded page). allSettled means
- *  a single 404 / network blip skips that file; the SWR fetch path re-fetches
- *  any miss on demand, so precache is an optimisation, not a correctness need.
- *  Old-version caches are deleted ONLY after the warm-up completes — until then
- *  the SWR path can still fall back to the previous version's copy if the
- *  network drops mid-transition (offline-first holds through the window). If
- *  the browser kills the SW mid-warm-up, leftover old caches are swept by the
- *  next version's warm-up instead — storage cost, never breakage. */
+// Synthetic cache entry written ONLY when a warm-up completed with EVERY asset cached.
+// Its absence on SW startup means the warm-up never finished (killed mid-run, or some
+// fetches failed) → retry. Never requested by pages, so the fetch handler never sees it.
+const PRECACHE_MARKER = './__precache-complete';
+
+// The in-flight warm-up promise. The fetch handler piggybacks it onto event.waitUntil so
+// the browser keeps the SW alive while page traffic flows — a detached promise alone has
+// no lifetime guarantee and Chrome kills an idle SW ~30s after the last event settles.
+let _warmupInFlight = null;
+
+/** Start (or join) the cache warm-up. Runs DETACHED from the SW lifecycle events (never
+ *  inside a waitUntil — install's would delay activation, which was the v15.33 update-lag
+ *  bug; activate's would queue every fetch of the freshly-reloaded page behind ~90 files).
+ *  Resilience (v15.46): a completion MARKER is written only when every asset cached, the
+ *  top-level startup check re-runs an incomplete warm-up on every SW wake, and the fetch
+ *  handler extends the SW's lifetime while a warm-up is in flight — so a killed or
+ *  partially-failed warm-up retries until it genuinely completes, on first installs too. */
+function startWarmup() {
+    if (_warmupInFlight) return _warmupInFlight;
+    _warmupInFlight = warmCacheAndSweepOld()
+        .catch(err => console.warn(`[SW ${APP_VERSION}] cache warm-up failed (will retry on next SW start):`, err))
+        .finally(() => { _warmupInFlight = null; });
+    return _warmupInFlight;
+}
+
 async function warmCacheAndSweepOld() {
     const cache = await caches.open(CACHE_NAME);
+    if (await cache.match(PRECACHE_MARKER)) return;   // already fully warmed + swept
+    let allOk = true;
     const precache = asset => fetch(new Request(asset, { cache: 'no-cache' }))
-        .then(res => { if (res.ok) return cache.put(asset, res); })
-        .catch(err => console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err));
+        .then(res => {
+            if (res.ok) return cache.put(asset, res);
+            allOk = false;
+            console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}): HTTP ${res.status}`);
+        })
+        .catch(err => { allOk = false; console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err); });
     await Promise.allSettled(CORE_ASSETS.map(precache));
     await Promise.allSettled([...SUPPLEMENTARY_ASSETS, ...FONT_ASSETS, ...ICON_ASSETS].map(precache));
-    console.log(`[SW ${APP_VERSION}] Pre-cached`);
+    if (!allOk) {
+        // Some assets missed (flaky network). Do NOT delete the old caches — they are the
+        // fallback for exactly this situation — and do NOT write the marker, so the next
+        // SW start retries the missing files. SWR also self-heals per-file on demand.
+        console.warn(`[SW ${APP_VERSION}] Warm-up incomplete — keeping old caches; will retry`);
+        return;
+    }
+    await cache.put(PRECACHE_MARKER, new Response('1'));
+    console.log(`[SW ${APP_VERSION}] Pre-cached (complete)`);
     const cacheNames = await caches.keys();
     await Promise.all(
         cacheNames
@@ -232,6 +261,17 @@ async function warmCacheAndSweepOld() {
     );
 }
 
+// STARTUP RE-CHECK — this top-level code runs every time the browser wakes the SW (any
+// fetch/push/message), so a warm-up killed mid-run resumes on the next wake instead of
+// leaving the "transition window" open until the next deploy. One cheap cache.match when
+// already complete.
+(async () => {
+    try {
+        const cache = await caches.open(CACHE_NAME);
+        if (!(await cache.match(PRECACHE_MARKER))) startWarmup();
+    } catch (_e) { /* best-effort */ }
+})();
+
 // ============================================
 // ACTIVATE — claim all open tabs IMMEDIATELY; cache warm-up runs detached
 // ============================================
@@ -243,13 +283,17 @@ async function warmCacheAndSweepOld() {
 self.addEventListener("activate", event => {
     console.log(`[SW ${APP_VERSION}] Activating — claiming clients`);
     event.waitUntil(self.clients.claim());
-    warmCacheAndSweepOld().catch(err => console.warn(`[SW ${APP_VERSION}] cache warm-up failed:`, err));
+    startWarmup();
 });
 
 // ============================================
 // FETCH — network-first for HTML docs, stale-while-revalidate for JS/CSS, cache-first for assets
 // ============================================
 self.addEventListener("fetch", event => {
+    // Piggyback an in-flight warm-up onto this event's lifetime so the browser doesn't
+    // kill the SW mid-precache while page traffic is flowing (a detached promise alone
+    // has no lifetime guarantee). Guarded: waitUntil can throw if the event settled.
+    if (_warmupInFlight) { try { event.waitUntil(_warmupInFlight); } catch (_e) { /* settled */ } }
     // Only handle same-origin GET requests
     if (event.request.method !== "GET") return;
     const url = new URL(event.request.url);
@@ -299,10 +343,15 @@ self.addEventListener("fetch", event => {
             const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.endsWith(`/${seg}.html`) || path.endsWith(`/${seg}`));
             const fallback   = match ? match[1] : (isDoc ? './index.html' : null);
             const offlineMsg = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
-            // iOS can evict the entire Cache Storage under storage pressure —
-            // synthesise a minimal offline page so the request still resolves.
-            return caches.match(event.request)
-                .then(r => r || (fallback ? caches.match(fallback) : null))
+            // CURRENT-version cache first — the global caches.match() prefers the OLDEST
+            // cache (creation order), which during a warm-up window served the PREVIOUS
+            // version's HTML to a page whose JS then loaded fresh (a mixed-version page).
+            // The any-version lookup stays as the last resort so pure-offline still works
+            // mid-transition. iOS can evict the entire Cache Storage under storage
+            // pressure — synthesise a minimal offline page so the request still resolves.
+            return caches.open(CACHE_NAME).then(c => c.match(event.request))
+                .then(r => r || caches.match(event.request))
+                .then(r => r || (fallback ? caches.open(CACHE_NAME).then(c => c.match(fallback)).then(fr => fr || caches.match(fallback)) : null))
                 .then(r => r || (isDoc
                     ? new Response(
                         `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Offline — Marylebone Roster</title></head><body><h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">${offlineMsg}</p></body></html>`,
