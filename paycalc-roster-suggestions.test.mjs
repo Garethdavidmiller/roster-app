@@ -454,6 +454,63 @@ describe('getRosterSuggestion — training days', () => {
 
 });
 
+// ── Absence = full pay (owner, Jul 2026) ─────────────────────────────────────
+// A sick/absent day (incl. HA hospital appointments and OD long-term-sick markings)
+// pays exactly as the day underneath: premium days keep their premium at base hours;
+// a base REST day contributes nothing (the overpay guard for blanket Mon–Fri OD weeks).
+// AL is deliberately unchanged (suppresses — leave pay is payroll's own mechanism).
+
+describe('getRosterSuggestion — absence pays as the day underneath (full pay)', () => {
+
+  test('absence on a rostered SATURDAY → sat bucket at base hours (premium kept)', () => {
+    // L. Springer base Sat 2026-04-04 = 13:30-21:00 (7h30).
+    _setOverridesForTest(new Map([
+      ['2026-04-04', { type: 'sick', value: 'SICK', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-04'), lSpringer);
+    assert.ok(s, 'full-pay absence must keep the Saturday premium');
+    assert.equal(s.satCount, 1);
+    assert.equal(s.satH, 7);
+    assert.equal(s.satM, 30);
+    assert.equal(s.rdwCount + s.otCount, 0);
+  });
+
+  test('absence on a rostered BANK HOLIDAY → bh bucket at base hours', () => {
+    // Easter Monday 2026 — C. Reen base 12:00-19:00 (7h).
+    _setOverridesForTest(new Map([
+      ['2026-04-06', { type: 'sick', value: 'SICK', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-06'), cReen);
+    assert.ok(s);
+    assert.equal(s.bhCount, 1);
+    assert.equal(s.bhH, 7);
+  });
+
+  test('absence on a plain weekday → null (basic pay already covers it)', () => {
+    _setOverridesForTest(new Map([
+      ['2026-04-08', { type: 'sick', value: 'SICK', _ts: 1, _manual: true }],
+    ]));
+    assert.strictEqual(getRosterSuggestion(period('2026-04-08'), cReen), null);
+  });
+
+  test('OVERPAY GUARD: absence on a base REST day contributes nothing', () => {
+    // The blanket Mon–Fri "OD" marking on a long-term sick member must not pay for
+    // days their base roster had as rest. C. Reen base Sat 2026-04-11 = RD.
+    _setOverridesForTest(new Map([
+      ['2026-04-11', { type: 'sick', value: 'SICK', _ts: 1, _manual: true }],
+    ]));
+    assert.strictEqual(getRosterSuggestion(period('2026-04-11'), cReen), null);
+  });
+
+  test('AL is unchanged — still suppresses the day entirely', () => {
+    _setOverridesForTest(new Map([
+      ['2026-04-06', { type: 'annual_leave', value: 'AL', _ts: 1, _manual: true }],
+    ]));
+    assert.strictEqual(getRosterSuggestion(period('2026-04-06'), cReen), null);
+  });
+
+});
+
 // ── fetchOverridesForPeriod — priority ────────────────────────────────────────
 
 describe('fetchOverridesForPeriod — override priority', () => {

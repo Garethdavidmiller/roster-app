@@ -138,6 +138,12 @@ describe('normaliseShift', () => {
     test('whitespace-only string → RD (genuinely blank, not flagged)', () => {
         assert.equal(normaliseShift('   '), 'RD');
     });
+    test('paid-absence codes HA (hospital appointment) and OD → SICK, case-insensitive, never UNKNOWN', () => {
+        assert.equal(normaliseShift('HA'), 'SICK');
+        assert.equal(normaliseShift('OD'), 'SICK');
+        assert.equal(normaliseShift('ha'), 'SICK');
+        assert.equal(normaliseShift('od'), 'SICK');
+    });
     test('training words → TRG (case-insensitive, all aliases)', () => {
         assert.equal(normaliseShift('TRG'), 'TRG');
         assert.equal(normaliseShift('Training'), 'TRG');

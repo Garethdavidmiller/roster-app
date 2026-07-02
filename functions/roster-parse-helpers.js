@@ -49,6 +49,12 @@ function normaliseShift(raw) {
 
     if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(s)) return s;
 
+    // Paid-absence roster codes (owner, Jul 2026): HA = Hospital Appointment (a day off on full
+    // pay); OD = paid absence, often used as a blanket Mon–Fri marking for long-term sickness.
+    // Both become the app's Absent day ('SICK' — the reason is never stored). Sunday and
+    // base-rest-day normalisation happen client-side in computeCellStates, same as SICK.
+    if (s === 'HA' || s === 'OD') return 'SICK';
+
     // Training / Induction / Assessment (OTHER_PLAN.md). Roster words collapse to the
     // canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
     // marks a training rest-day and is preserved as the canonical " RDW" suffix. These

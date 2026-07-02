@@ -941,6 +941,8 @@ WHAT THE CODES MEAN:
 - OFF = Uncontracted rest day (used in CES and bilingual rosters). Return "RD".
 - RDW = Rest day worked. A cell with RDW always shows a time too, e.g. "14:30-22:00 RDW" or "RDW 06:00-12:00". Return as "RDW HH:MM-HH:MM". Always keep the RDW — never strip it.
 - SC or SN = Sick. Return "SICK".
+- HA = Hospital appointment (a paid absence day). Return "SICK".
+- OD = paid absence (often marked Mon-Fri for long-term sickness). Return "SICK".
 - TRG or TRAINING or TRAIN = Training day (no shift time on the roster). Return "TRG". If the cell also says RDW (e.g. "TRG RDW"), return "TRG RDW".
 - INDUCTION or IND = Induction day. Return "IND" (or "IND RDW" if the cell also says RDW).
 - ASSESS or ASSESSMENT or ASSESSMENTS = Assessment day. Return "ASSESS" (or "ASSESS RDW" if the cell also says RDW).
