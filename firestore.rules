@@ -71,7 +71,7 @@ service cloud.firestore {
         request.resource.data.memberName.size() < 100 &&
         request.resource.data.type in [
           'spare_shift', 'shift', 'rdw',
-          'annual_leave', 'correction', 'sick'
+          'annual_leave', 'correction', 'sick', 'training'
         ] &&
         request.resource.data.source in ['manual', 'roster_import'] &&
         // type↔value consistency: value format must match the override type.
@@ -80,6 +80,9 @@ service cloud.firestore {
         // (spare_shift→SPARE, annual_leave→AL, correction→RD, sick→SICK); only the
         // timed types (shift, rdw) carry an HH:MM-HH:MM range. The importer normalises
         // every correction (RD/OFF/Sunday AL/SICK) to 'RD' before writing.
+        // 'training' (TRAINING_PLAN.md) uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"]
+        // — flavour TRG/IND/ASSESS, optional rest-day marker, optional actual times
+        // (bounded, so an impossible time can never ride in on a training value).
         (
           (request.resource.data.type in ['shift', 'rdw'] &&
            // Bounded HH:MM-HH:MM — hours 00-23, minutes 00-59 (rejects impossible times
@@ -88,7 +91,9 @@ service cloud.firestore {
           (request.resource.data.type == 'spare_shift'  && request.resource.data.value == 'SPARE') ||
           (request.resource.data.type == 'annual_leave' && request.resource.data.value == 'AL') ||
           (request.resource.data.type == 'correction'   && request.resource.data.value == 'RD') ||
-          (request.resource.data.type == 'sick'         && request.resource.data.value == 'SICK')
+          (request.resource.data.type == 'sick'         && request.resource.data.value == 'SICK') ||
+          (request.resource.data.type == 'training'     &&
+           request.resource.data.value.matches('(TRG|IND|ASSESS)( RDW)?( ([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9])?'))
         ) &&
         request.resource.data.note is string &&
         request.resource.data.note.size() < 500 &&

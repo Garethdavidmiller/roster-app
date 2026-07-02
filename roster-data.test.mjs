@@ -261,6 +261,25 @@ test('getShiftClass: late shift returns "late-shift"', () => {
     assert.equal(getShiftClass('14:00-22:00'), 'late-shift');
 });
 
+test('getShiftClass: every training grammar form returns "trg-day" (never other-day)', () => {
+    for (const v of ['TRG', 'IND', 'ASSESS', 'TRG RDW', 'ASSESS RDW', 'IND 08:00-16:00', 'TRG RDW 08:00-16:00']) {
+        assert.equal(getShiftClass(v), 'trg-day', v);
+    }
+});
+
+test('getShiftBadge: training flavours get 🎓 + the SHORT word (Train/Ind/Assess)', () => {
+    assert.match(getShiftBadge('TRG'),    /badge-trg/);
+    assert.match(getShiftBadge('TRG'),    /🎓/);
+    assert.match(getShiftBadge('TRG'),    />Train</);
+    assert.match(getShiftBadge('IND'),    />Ind</);
+    assert.match(getShiftBadge('ASSESS'), />Assess</);
+    // RDW/timed variants keep the same flavour badge — the detail lives in the hours slot / tap label
+    assert.match(getShiftBadge('TRG RDW'),            />Train</);
+    assert.match(getShiftBadge('IND 08:00-16:00'),    />Ind</);
+    // and never the ❓ Unknown fallthrough
+    assert.doesNotMatch(getShiftBadge('TRG RDW'), /badge-other/);
+});
+
 // ---------------------------------------------------------------------------
 // getShiftKind
 // ---------------------------------------------------------------------------

@@ -227,6 +227,7 @@ roster-app/
 ├── surname-parity.test.mjs ← asserts normaliseSurname (firebase-client.js) and nameToPassword (functions/roster-parse-helpers.js) stay in sync (behavioural + source-equivalence); part of test:hygiene
 ├── import-graph.test.mjs   ← detects circular imports across all root ES modules (regex-based, no build step)
 ├── admin-overrides.test.mjs ← tests for getEffectiveShift, validateShiftRules, buildMemberDateMap (--experimental-test-module-mocks)
+├── admin-roster-upload.test.mjs ← tests for shiftValueToOverrideType (parsed value → override type, incl. training + Sunday block) (--experimental-test-module-mocks)
 ├── nav-panel.test.mjs      ← tests for isNoticeExpired, archiveNotice, initNavPanel DOM guard (--experimental-test-module-mocks)
 ├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname, refreshClaimsIfStale (--experimental-test-module-mocks)
 ├── login-overlay.test.mjs  ← tests for runNamedSignIn: the sign-in core commits the local session ONLY after auth resolves (timeout/throw/enforce-fail → no save), enforce on/off, transient-vs-persistent messages (--experimental-test-module-mocks)
@@ -319,7 +320,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | SW caching: network-first HTML, stale-while-revalidate JS/CSS (v14.18) | HTML documents are network-first (fresh entry point). JS/CSS are stale-while-revalidate — instant from cache, refreshed in the background — so online loads don't wait on a per-file network round trip. Code freshness still propagates via the version-bump → new SW → new cache lifecycle (skipWaiting + claim); roster DATA is live from Firestore, never from cached JS. Do not revert JS/CSS to network-first without discussion — it reinstates a network wait on every load. |
 | `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. |
 | `getBaseShift(member, date)` for all base shift lookups | Direct access to `roster.data[week][day]` bypasses `startDate` suppression, Christmas rules, and future base-shift logic. Always call `getBaseShift()`, never read `roster.data` directly. |
-| Type pills in admin — single source of truth (v13.48) | `PILL_TYPES` in `admin-overrides.js` is the one authoritative list. `renderWeekGrid()` generates per-row pills from it; `admin-app.js` generates the bulk-bar pills from it at init (the `#bulkTypePills` div in `admin.html` is empty — populated at runtime). Order: AL · Spare · Shift · RDW · Absent · Rest Day. Never hardcode either list. |
+| Type pills in admin — single source of truth (v13.48) | `PILL_TYPES` in `admin-overrides.js` is the one authoritative list. `renderWeekGrid()` generates per-row pills from it; `admin-app.js` generates the bulk-bar pills from it at init (the `#bulkTypePills` div in `admin.html` is empty — populated at runtime). Order: AL · Spare · Shift · RDW · Absent · Rest Day · Training (v15.37). Never hardcode either list. Training reveals per-row sub-controls (flavour Train/Ind/Assess + a pre-ticked-on-rest-day RDW tick + OPTIONAL times — `timesOptional: true`); the save collector composes the grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`. |
 | **`AL` pill label must stay as `AL`** | Compact mobile layout requires short labels. `AL` is the standard Chiltern abbreviation. Do not expand without discussing layout impact. |
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `calendar-app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member. On the next page open the banner fires via `_showStaleMemberBanner()` — called from the pre-branch init block for team-view users (v14.08), or from inside `renderCalendar()` for calendar-view users. `takeStaleMemberName()` is one-shot so only one path fires. |
@@ -416,6 +417,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 | `'AL'` | 🏖️ AL | Annual leave |
 | `'SICK'` | 🪑 Absent | Sick/absent day — recorded via override |
 | `'HH:MM-HH:MM'` | ☀️/🌙/🦉 | Worked shift |
+| `'TRG'` / `'IND'` / `'ASSESS'` (+ optional `' RDW'`, `' HH:MM-HH:MM'`) | 🎓 Train / Ind / Assess | Training / Induction / Assessment day (v15.35, TRAINING_PLAN.md) — bronze `trg-day` family; hours slot shows actual times → `RDW` → base time; tap shows the FULL word; pays as the day underneath (`resolveTrainingPay` in `override-utils.js`); Sundays blocked |
 
 **Classification:** Early 04:00–10:59 · Late 11:00–20:59 · Night 21:00–03:59
 
@@ -469,9 +471,11 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 ```
 date         "YYYY-MM-DD"
 memberName   Must match teamMembers[n].name exactly — one char mismatch = silent failure
-type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick"
+type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick" | "training"
              Legacy (still in data, not creatable): "allocated" | "overtime" | "swap"
-value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick
+value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick;
+             training uses the grammar FLAVOUR[" RDW"][" HH:MM-HH:MM"] — flavour "TRG"|"IND"|"ASSESS", optional rest-day
+             marker, optional actual times (see TRAINING_PLAN.md; grammar single-source: override-utils.js)
 note         Free text — "" if none. Field must always be present.
 source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths
 createdAt    Firestore server timestamp
@@ -615,7 +619,7 @@ UX experiments tried and reverted, plus future capabilities: **see `ROADMAP.md`*
 
 **Do-not-change UI labels (Claude-relevant):**
 - **Admin button label** — "Admin" = administration, not administrator. Intentional. Do not rename.
-- **Shift type count** — 8 types in admin selector. Consider merging before adding more.
+- **Shift type count** — 7 pills in the admin selector since Training (v15.37). At the practical ceiling — consider merging before adding more.
 
 ### Staff-facing wording conventions
 

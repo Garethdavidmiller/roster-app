@@ -91,6 +91,12 @@
     --al-hover: color-mix(in oklch, var(--al) 91%, black);
     --al-deep:  color-mix(in oklch, var(--al) 66%, black);
 
+    /* Training / Induction / Assessment — bronze (TRAINING_PLAN.md). Low chroma +
+       low lightness keeps it "bronze" not "gold": hue sits near --accent-gold/--warning-amber
+       but reads clearly darker/muted beside them; white badge text clears WCAG AA (~5.9:1). */
+    --trg:       oklch(48.0% 0.0850 65.0deg);
+    --trg-light: color-mix(in oklch, var(--trg) 13%, white);
+
     /* Absence / sick — deliberately neutral; reason for absence is never stored */
     --absence:       oklch(49.3% 0 0);
     --absence-light: oklch(96.0% 0 0);
@@ -911,6 +917,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .badge-rdw   { background: var(--rdw);       color: white; }
 .badge-al    { background: var(--al);        color: white; }
 .badge-sick  { background: var(--absence);   color: white; }
+.badge-trg   { background: var(--trg);       color: white; }
 
 /* Badge colour enforcement for print — keeps colours when browser strips backgrounds.
    badge-night keeps its screen style (white bg + dark border) — it reads better on
@@ -923,6 +930,7 @@ body.lb-open #stickyTotal { display: none !important; }
     .badge-rdw   { background: var(--rdw)       !important; color: white !important; }
     .badge-al    { background: var(--al)        !important; color: white !important; }
     .badge-sick  { background: var(--absence)   !important; color: white !important; }
+    .badge-trg   { background: var(--trg)       !important; color: white !important; }
 }
 
 /* ═══════════════════════════════════════════════════════════════

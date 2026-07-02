@@ -138,6 +138,42 @@ describe('normaliseShift', () => {
     test('whitespace-only string → RD (genuinely blank, not flagged)', () => {
         assert.equal(normaliseShift('   '), 'RD');
     });
+    test('training words → TRG (case-insensitive, all aliases)', () => {
+        assert.equal(normaliseShift('TRG'), 'TRG');
+        assert.equal(normaliseShift('Training'), 'TRG');
+        assert.equal(normaliseShift('TRAIN'), 'TRG');
+        assert.equal(normaliseShift('trg'), 'TRG');
+    });
+    test('induction words → IND', () => {
+        assert.equal(normaliseShift('Induction'), 'IND');
+        assert.equal(normaliseShift('IND'), 'IND');
+    });
+    test('assessment words → ASSESS', () => {
+        assert.equal(normaliseShift('Assess'), 'ASSESS');
+        assert.equal(normaliseShift('Assessment'), 'ASSESS');
+        assert.equal(normaliseShift('ASSESSMENTS'), 'ASSESS');
+    });
+    test('training rest-day marker preserved, either order → canonical "FLAVOUR RDW"', () => {
+        assert.equal(normaliseShift('TRG RDW'), 'TRG RDW');
+        assert.equal(normaliseShift('Training RDW'), 'TRG RDW');
+        assert.equal(normaliseShift('RDW TRG'), 'TRG RDW');
+        assert.equal(normaliseShift('IND RDW'), 'IND RDW');
+        assert.equal(normaliseShift('ASSESS RDW'), 'ASSESS RDW');
+    });
+    test('training values never become UNKNOWN (they were UNREADABLE before v15.34)', () => {
+        for (const v of ['TRG', 'Training', 'Induction', 'Assessment', 'TRG RDW']) {
+            assert.ok(!normaliseShift(v).startsWith('UNKNOWN|'), v);
+        }
+    });
+    test('a TIMED training cell is unexpected (roster never sets times) → UNKNOWN, surfaced for review', () => {
+        assert.equal(normaliseShift('TRG 08:00-16:00'), 'UNKNOWN|TRG 08:00-16:00');
+    });
+    test('an unknown word with an RDW marker is still UNKNOWN (not swallowed by the training grammar)', () => {
+        assert.equal(normaliseShift('XYZ RDW'), 'UNKNOWN|XYZ RDW');
+    });
+    test('bare RDW is unaffected by the training grammar (still the review sentinel)', () => {
+        assert.equal(normaliseShift('RDW'), 'RDW');
+    });
     test('UNKNOWN sentinel strips pipe chars from the raw text (so PREFIX|value stays decodable)', () => {
         assert.equal(normaliseShift('A|B|C'), 'UNKNOWN|A B C');
     });

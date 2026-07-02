@@ -16,7 +16,7 @@ import {
     getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, getPaydaysAndCutoffs, escapeHtml,
 } from './roster-data.js';
-import { isBeforeMemberStart } from './override-utils.js';
+import { isBeforeMemberStart, isRestShift, isTrainingValue, parseTrainingValue, TRAINING_FLAVOURS } from './override-utils.js';
 import { getCurrentMember } from './calendar-member.js';
 import { rosterOverridesCache } from './calendar-overrides.js';
 
@@ -56,16 +56,19 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
  * rdwTime — actual shift time for RDW overrides, since shift='RDW' sentinel.
  */
 export function createDayCell(/** @type {any} */ date, /** @type {any} */ shift, /** @type {any} */ permanentShift, /** @type {any} */ isWorkedDay, rdwTime = '') {
+    // RDW and Training use rdwTime as a side-channel display string (shift itself is a
+    // sentinel: 'RDW', or a training value like 'TRG RDW'). Both always keep their OWN
+    // badge regardless of permanentShift — distinct pay/day categories, never Early/Late.
+    const isTrg = isTrainingValue(shift);
     let badge;
-    // RDW always gets its own badge regardless of permanentShift — it's a distinct pay category
-    if (shift !== 'RDW' && isWorkedDay && permanentShift === 'late') {
+    if (shift !== 'RDW' && !isTrg && isWorkedDay && permanentShift === 'late') {
         badge = '<span class="shift-badge badge-late"><span aria-hidden="true">🌙</span><span>Late</span></span>';
-    } else if (shift !== 'RDW' && isWorkedDay && permanentShift === 'early') {
+    } else if (shift !== 'RDW' && !isTrg && isWorkedDay && permanentShift === 'early') {
         badge = '<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>';
     } else {
         badge = getShiftBadge(shift);
     }
-    const displayTime = shift === 'RDW' ? rdwTime : shift;
+    const displayTime = (shift === 'RDW' || isTrg) ? rdwTime : shift;
     // Escape the override value BEFORE inserting the intentional <wbr> — the value can be an
     // unvalidated legacy/Admin-SDK Firestore value, and this goes into innerHTML (the team view
     // escapes the same field). Word-break after the hyphen so "06:20-14:20" wraps as "06:20-"/"14:20".
@@ -186,6 +189,20 @@ export function buildCalendarContainer(month, year, opts = {}) {
                 } else if (override.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr))) {
                     // Sick override on a base rest day, or ANY Sunday — suppress it.
                     // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 5: display suppression)
+                } else if (override.type === 'training' && isSunday(dateStr)) {
+                    // Sunday training suppressed — Sundays can never be training days
+                    // (TRAINING_PLAN.md; layer 5 of the Sunday block, mirrors sick above).
+                } else if (override.type === 'training' && parseTrainingValue(override.value)) {
+                    // Training / Induction / Assessment: shift becomes the training value (drives
+                    // the trg-day class + 🎓 badge); the hours slot shows, in priority order,
+                    // the ACTUAL times (admin-entered) → 'RDW' (training rest-day, no times) →
+                    // the BASE shift time (rostered-day training happens during your shift) →
+                    // blank (e.g. spare-week training: badge only).
+                    const _t = /** @type {any} */ (parseTrainingValue(override.value));
+                    rdwTime = _t.time ?? ((_t.rdw || isRestShift(shift)) ? 'RDW'
+                        : (/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shift) ? shift : ''));
+                    shift = override.value;
+                    overrideNote = override.note;
                 } else {
                     shift = override.value;
                     overrideNote = override.note;
@@ -194,7 +211,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         }
 
         const isWorkedDay = shift !== 'RD' && shift !== 'SPARE' && shift !== 'OFF' && shift !== 'AL' && shift !== 'SICK';
-        const shiftClass = shift === 'RDW'                                    ? getShiftClass(shift)
+        const shiftClass = shift === 'RDW' || isTrainingValue(shift)          ? getShiftClass(shift)
                          : isWorkedDay && member.permanentShift === 'late'  ? 'late-shift'
                          : isWorkedDay && member.permanentShift === 'early' ? 'early-shift'
                          : getShiftClass(shift);
@@ -202,11 +219,16 @@ export function buildCalendarContainer(month, year, opts = {}) {
         dayCell.className = `calendar-day ${shiftClass}`;
         dayCell.setAttribute('role', 'button');
 
+        const _trgParsed = parseTrainingValue(shift);
         const shiftLabel = shift === 'RD' || shift === 'OFF' ? 'Rest day'
             : shift === 'SPARE' ? 'Spare day'
             : shift === 'AL'    ? 'Annual leave'
             : shift === 'SICK'  ? 'Absence'
             : shift === 'RDW'   ? 'Rest day worked'
+            // Training: the FULL word on tap/tooltip/aria (badge carries the short word).
+            : _trgParsed ? TRAINING_FLAVOURS[_trgParsed.flavour].full
+                + ((_trgParsed.rdw || rdwTime === 'RDW') ? ' — Rest Day Worked' : '')
+                + (_trgParsed.time ? ` ${_trgParsed.time}` : '')
             : SHIFT_KIND_LABELS[getShiftKind(shift, member)]
                 + (member.permanentShift ? '' : ` ${shift}`);
 

@@ -12,6 +12,7 @@
  */
 
 import { getBaseShift, formatISO, getBankHolidays } from './roster-data.js';
+import { parseTrainingValue, resolveTrainingPay, TRG_RDW_DEFAULT_MINS } from './override-utils.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
@@ -185,8 +186,40 @@ export function getRosterSuggestion(p, member) {
     // Always read baseValue independently so the split logic can compare
     // the override duration against the rostered duration.
     const baseValue = getBaseShift(member, noon);
-    const effValue  = ov ? ov.value : baseValue;
-    const effType   = ov ? ov.type  : null;
+    let effValue  = ov ? ov.value : baseValue;
+    let effType   = ov ? ov.type  : null;
+
+    // Training / Induction / Assessment (TRAINING_PLAN.md) — the ONLY override that means
+    // "fall back to the day underneath" (every other override REPLACES the base). The pay
+    // mapping lives in ONE place: resolveTrainingPay (override-utils.js).
+    //   rdw     → a training rest-day: credit the RDW bucket (actual times, or the 8h
+    //             default the member adjusts) and move on — never split into overtime.
+    //   timed   → actual times on a rostered day: classify like a shift override, so the
+    //             existing base-cap + excess→overtime split applies unchanged below.
+    //   as-base → no times: pay exactly as the base shift (weekday → contracted basic,
+    //             Sat/BH/Boxing → that day's premium bucket; never less than the shift).
+    const _trgParsed = ov && ov.type === 'training' ? parseTrainingValue(ov.value) : null;
+    let _trgFromOv = null;   // null = not a training day; boolean = fromOv override below
+    if (_trgParsed) {
+      if (cur.getDay() === 0) {
+        // Sunday training cannot exist (blocked at every write layer); ignore a legacy doc.
+        cur.setDate(cur.getDate() + 1);
+        continue;
+      }
+      const _pay = resolveTrainingPay(_trgParsed, baseValue);
+      if (_pay.mode === 'rdw') {
+        rdwMins += _pay.mins; rdwCount++;
+        days.push({
+          date: new Date(cur),
+          shift: _trgParsed.time ?? `${TRG_RDW_DEFAULT_MINS / 60}h default — adjust to actual`,
+          type: 'rdw', source: 'override',
+        });
+        cur.setDate(cur.getDate() + 1);
+        continue;
+      }
+      if (_pay.mode === 'timed') { effValue = _pay.time;  effType = 'shift'; _trgFromOv = true; }
+      else                       { effValue = baseValue;  effType = null;    _trgFromOv = false; }
+    }
 
     if (effValue && effValue.includes('-') && effValue.includes(':')) {
       const parts = effValue.split('-');
@@ -198,7 +231,7 @@ export function getRosterSuggestion(p, member) {
       const dow      = cur.getDay(); // 0 = Sun, 6 = Sat
       const isBoxing = cur.getMonth() === 11 && cur.getDate() === 26;
       const isBH     = !isBoxing && _isDateBH(cur);
-      const fromOv   = !!ov;
+      const fromOv   = _trgFromOv !== null ? _trgFromOv : !!ov;
 
       // Pre-compute base duration to cap rostered hours and detect overtime
       // when admin extends a shift beyond the base roster.

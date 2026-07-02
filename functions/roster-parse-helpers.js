@@ -48,6 +48,21 @@ function normaliseShift(raw) {
     }
 
     if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(s)) return s;
+
+    // Training / Induction / Assessment (TRAINING_PLAN.md). Roster words collapse to the
+    // canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
+    // marks a training rest-day and is preserved as the canonical " RDW" suffix. These
+    // cells never carry times (the trainer sets them later) — a timed variant falls
+    // through to UNKNOWN below and surfaces as an UNREADABLE review row, never mis-saved.
+    // Deliberate duplicate of the client grammar in override-utils.js (CommonJS cannot
+    // import browser ES modules — same accepted pattern as nameToPassword).
+    const trgMatch = s.match(/^(?:RDW\s+)?(TRG|TRAINING|TRAIN|IND(?:UCTION)?|ASSESS(?:MENTS?)?)(?:\s+(RDW))?$/);
+    if (trgMatch) {
+        const flavour = trgMatch[1][0] === 'T' ? 'TRG' : trgMatch[1][0] === 'I' ? 'IND' : 'ASSESS';
+        const rdw = /^RDW\s/.test(s) || !!trgMatch[2];
+        return rdw ? `${flavour} RDW` : flavour;
+    }
+
     if (s === 'RDW') {
         // Bare 'RDW' means the AI omitted the required shift time. Return as-is so
         // the review table displays it for manual correction — the admin can see the

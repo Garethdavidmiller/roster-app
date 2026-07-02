@@ -137,6 +137,7 @@ let openAboutLightbox = null;
                     { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift; use for spare-week confirmations, changed shift times, and swaps with colleagues' },
                     { icon: '💼', html: '<strong>RDW</strong> — rest day worked; use when someone works a full shift on their rest day' },
                     { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day back to a rest day' },
+                    { icon: '🎓', html: '<strong>Training</strong> — a training, induction or assessment day. Pick the type, tick "Rest day (RDW)" if it\'s on a rest day, and add times if you know them — blank times pay the default (the base shift, or 8 hours RDW)' },
                 ]},
             ],
         },
@@ -754,13 +755,43 @@ saveBtn.addEventListener('click', async () => {
             errors.push(`${formatDisplay(date)}: absence cannot be recorded on a Sunday`);
             return;
         }
+        if (type === 'training' && isSunday(date)) {
+            row.classList.add('row-error');
+            errors.push(`${formatDisplay(date)}: training cannot be recorded on a Sunday`);
+            return;
+        }
         const typeMeta    = TYPES[type];
         const startEl = /** @type {HTMLInputElement} */ (row.querySelector('.day-start'));
         const endEl   = /** @type {HTMLInputElement} */ (row.querySelector('.day-end'));
         const note    = '';
 
         let value;
-        if (typeMeta && typeMeta.fixed) {
+        if (type === 'training') {
+            // Compose the training grammar from the row's sub-controls:
+            // FLAVOUR[" RDW"][" HH:MM-HH:MM"]. Times are OPTIONAL — blank means the pay
+            // defaults apply (base shift on a rostered day, 8h RDW on a training rest-day) —
+            // but a half-filled or malformed pair is still an error.
+            const flavour = (/** @type {HTMLElement|null} */ (row.querySelector('.trg-flavour-btn.active')))?.dataset.flavour || 'TRG';
+            const rdw     = (/** @type {HTMLInputElement|null} */ (row.querySelector('.trg-rdw-cb')))?.checked ? ' RDW' : '';
+            const s = (/** @type {HTMLInputElement} */ (row.querySelector('.day-start'))).value.trim();
+            const e = (/** @type {HTMLInputElement} */ (row.querySelector('.day-end'))).value.trim();
+            let time = '';
+            if (s || e) {
+                const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+                if (!s || !e) {
+                    row.classList.add('row-error');
+                    errors.push(`${formatDisplay(date)}: fill in BOTH times, or leave both blank for the training default`);
+                    return;
+                }
+                if (!timeRe.test(s) || !timeRe.test(e)) {
+                    row.classList.add('row-error');
+                    errors.push(`${formatDisplay(date)}: times must be in HH:MM format (e.g. 07:00)`);
+                    return;
+                }
+                time = ` ${s}-${e}`;
+            }
+            value = `${flavour}${rdw}${time}`;
+        } else if (typeMeta && typeMeta.fixed) {
             value = typeMeta.fixedValue;
         } else {
             const s = startEl.value.trim();

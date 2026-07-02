@@ -529,6 +529,11 @@
             border-color: var(--absence);
         }
 
+        .calendar-day.trg-day {
+            background: var(--trg-light);
+            border-color: var(--trg);
+        }
+
         .calendar-day.other-day {
             background: var(--bg-faint);
             border-color: var(--border-mid);
@@ -702,6 +707,7 @@
         .legend-color.rdw     { background: var(--rdw-light);    border-color: var(--rdw); }
         .legend-color.al      { background: var(--al-light);      border-color: var(--al); }
         .legend-color.sick    { background: var(--absence-light);    border-color: var(--absence); }
+        .legend-color.trg     { background: var(--trg-light);         border-color: var(--trg); }
         .legend-color.today   { background: var(--accent-gold);  border-color: var(--primary-blue); }
         .legend-color.night   { background: var(--night-cell-bg); border-color: var(--night-cell-border); }
 
@@ -1405,6 +1411,7 @@
         .tv-rdw   { background: var(--rdw-light); }
         .tv-al    { background: var(--al-light); }
         .tv-sick  { background: var(--absence-light); }
+        .tv-trg   { background: var(--trg-light); }
         /* Logged-in member's row — subtle navy left accent and bolder name */
         .team-table tr.tv-my-row th.tv-name-col {
             border-left: 3px solid var(--primary-blue);
@@ -1496,6 +1503,7 @@
         .tv-key-dot--rdw    { background: var(--rdw-light);     border-color: var(--rdw); }
         .tv-key-dot--spare  { background: var(--purple-light);  border-color: var(--purple); }
         .tv-key-dot--absent { background: var(--absence-light); border-color: var(--absence); }
+        .tv-key-dot--trg    { background: var(--trg-light); border-color: var(--trg); }
         .tv-key-dot--rest   { background: var(--rest-day-bg);   border-color: var(--border-mid); }
         .team-info-note {
             font-size: 11px;
@@ -1742,6 +1750,11 @@
                 border-color: var(--absence) !important;
             }
 
+            .calendar-day.trg-day {
+                background: var(--trg-light) !important;
+                border-color: var(--trg) !important;
+            }
+
             /* today must come after shift rules — same specificity, last wins */
             .calendar-day.today {
                 border-color: var(--primary-blue) !important;
@@ -1879,7 +1892,7 @@
             .tv-cell { white-space: normal; }
             .team-table th.tv-name-col,
             .team-table td.tv-name-col { position: static; }
-            .tv-early, .tv-late, .tv-night, .tv-spare, .tv-rdw, .tv-al, .tv-sick {
+            .tv-early, .tv-late, .tv-night, .tv-spare, .tv-rdw, .tv-al, .tv-sick, .tv-trg {
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
         }
