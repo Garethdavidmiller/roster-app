@@ -265,6 +265,97 @@ describe('getRosterSuggestion — spare weeks (RDW vs contracted Saturday)', () 
 
 });
 
+// ── Training / Induction / Assessment (TRAINING_PLAN.md) ─────────────────────
+// Training pays as the day underneath (resolveTrainingPay): weekday → contracted
+// basic (nothing to suggest), BH → bh bucket, actual times → base-cap + excess→OT,
+// TRG RDW → rdw bucket (8h default, member-adjusted). Sundays can never be training.
+
+describe('getRosterSuggestion — training days', () => {
+
+  test('training on a plain weekday → null (contracted basic already covers it)', () => {
+    // 2026-04-08 Wed — C. Reen base 12:00-19:00; TRG resolves as-base → no special category.
+    _setOverridesForTest(new Map([
+      ['2026-04-08', { type: 'training', value: 'TRG', _ts: 1, _manual: true }],
+    ]));
+    assert.strictEqual(getRosterSuggestion(period('2026-04-08'), cReen), null);
+  });
+
+  test('training on a rostered BANK HOLIDAY → bh bucket at base hours (keeps the premium)', () => {
+    // Easter Monday 2026 — C. Reen base 12:00-19:00 (7h). Induction that day pays as the day.
+    _setOverridesForTest(new Map([
+      ['2026-04-06', { type: 'training', value: 'IND', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-06'), cReen);
+    assert.ok(s);
+    assert.equal(s.bhCount, 1);
+    assert.equal(s.bhH, 7);
+    assert.equal(s.rdwCount + s.otCount + s.satCount, 0);
+  });
+
+  test('training with ACTUAL times over the base shift → excess to overtime', () => {
+    // 2026-04-13 Mon — base 12:00-19:00 (7h); training ran 12:00-21:00 (9h) → 2h OT.
+    _setOverridesForTest(new Map([
+      ['2026-04-13', { type: 'training', value: 'TRG 12:00-21:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-13'), cReen);
+    assert.ok(s);
+    assert.equal(s.otCount, 1);
+    assert.equal(s.otH, 2);
+    assert.equal(s.rdwCount, 0);
+  });
+
+  test('TRG RDW with no times → rdw bucket with the 8h default', () => {
+    // 2026-04-11 Sat — C. Reen base RD. Training rest-day defaults to 8h RDW (member adjusts).
+    _setOverridesForTest(new Map([
+      ['2026-04-11', { type: 'training', value: 'TRG RDW', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-11'), cReen);
+    assert.ok(s);
+    assert.equal(s.rdwCount, 1);
+    assert.equal(s.rdwH, 8);
+    assert.equal(s.rdwM, 0);
+    assert.equal(s.otCount + s.satCount, 0);
+  });
+
+  test('TRG RDW with ACTUAL times → rdw bucket with the real duration (never split into OT)', () => {
+    _setOverridesForTest(new Map([
+      ['2026-04-11', { type: 'training', value: 'TRG RDW 09:00-18:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-11'), cReen);
+    assert.ok(s);
+    assert.equal(s.rdwCount, 1);
+    assert.equal(s.rdwH, 9);
+    assert.equal(s.otCount, 0, 'an RDW day is all-RDW — no overtime split');
+  });
+
+  test('training on a rest day WITHOUT the RDW flag → still rdw 8h (belt-and-braces, never £0)', () => {
+    _setOverridesForTest(new Map([
+      ['2026-04-11', { type: 'training', value: 'TRG', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-11'), cReen);
+    assert.ok(s);
+    assert.equal(s.rdwCount, 1);
+    assert.equal(s.rdwH, 8);
+  });
+
+  test('a (legacy) SUNDAY training override is ignored — Sundays are never training days', () => {
+    // 2026-04-12 is a Sunday; the write layers block this, so a doc can only be legacy.
+    _setOverridesForTest(new Map([
+      ['2026-04-12', { type: 'training', value: 'TRG', _ts: 1, _manual: true }],
+    ]));
+    assert.strictEqual(getRosterSuggestion(period('2026-04-12'), cReen), null);
+  });
+
+  test('training in a SPARE week → null (one of the four contracted days; basic pay covers it)', () => {
+    // 2026-01-24 Sat — S. Boyle base SPARE (verified date). Not a rest day, so NOT rdw.
+    _setOverridesForTest(new Map([
+      ['2026-01-24', { type: 'training', value: 'TRG', _ts: 1, _manual: true }],
+    ]));
+    assert.strictEqual(getRosterSuggestion(period('2026-01-24'), sBoyle), null);
+  });
+
+});
+
 // ── fetchOverridesForPeriod — priority ────────────────────────────────────────
 
 describe('fetchOverridesForPeriod — override priority', () => {
