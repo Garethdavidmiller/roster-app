@@ -757,7 +757,7 @@ saveBtn.addEventListener('click', async () => {
         }
         if (type === 'other' && isSunday(date)) {
             row.classList.add('row-error');
-            errors.push(`${formatDisplay(date)}: an "Other" day (training, induction, assessment) cannot be recorded on a Sunday`);
+            errors.push(`${formatDisplay(date)}: an "Other" day cannot be recorded on a Sunday`);
             return;
         }
         const typeMeta    = TYPES[type];
@@ -777,7 +777,14 @@ saveBtn.addEventListener('click', async () => {
             // type would otherwise have it saved as Training.
             if (!flavour) {
                 row.classList.add('row-error');
-                errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment or Team Day)`);
+                errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment, Team Day or Spare)`);
+                return;
+            }
+            if (flavour === 'SPARE') {
+                // Spare lives under the Other pill but is its OWN override type — a standby
+                // placeholder (not a worked day; keeps its 📋 purple badge; no RDW/times). Write
+                // it directly as spare_shift and skip the training grammar below. (v15.57)
+                toSave.push({ memberName, date, type: 'spare_shift', value: 'SPARE', note, existingId: row.dataset.existingId || null });
                 return;
             }
             // Rest-day base FORCES the RDW marker regardless of the tick: the pay engine and both

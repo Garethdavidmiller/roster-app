@@ -42,9 +42,13 @@ export const TYPES = {
 };
 
 /** Ordered list of type keys for the per-row and bulk-bar pill buttons (single source of truth).
- *  Order: AL · Spare · Shift · RDW · Absent · Rest Day — do not reorder; matches admin.html label order.
+ *  Order: AL · Shift · RDW · Absent · Rest Day · Other — do not reorder; matches admin.html label order.
+ *  Spare moved OUT of the top pill row into the Other submenu (v15.57): it's a rarely-used
+ *  standby placeholder (only reached to correct an error), so it doesn't earn a top-level pill.
+ *  It stays its OWN override type (`spare_shift`/'SPARE', 📋 purple badge) — only the entry
+ *  point moved: picking "Spare" in the Other submenu writes a spare_shift, not an 'other' day.
  */
-export const PILL_TYPES = ['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction', 'other'];
+export const PILL_TYPES = ['annual_leave', 'shift', 'rdw', 'sick', 'correction', 'other'];
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 /** @type {any[]} */
@@ -246,6 +250,7 @@ export function buildWeekGridInto(container, dateStr) {
                     ${Object.entries(OTHER_FLAVOURS).map(([k, f]) =>
                         `<button type="button" class="other-flavour-btn" data-flavour="${k}" aria-pressed="false">${f.full}</button>`
                     ).join('\n                    ')}
+                    <button type="button" class="other-flavour-btn other-flavour-spare" data-flavour="SPARE" aria-pressed="false" title="On standby — shift not yet assigned">📋 Spare</button>
                 </span>
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled title="Rest day — RDW is automatic"' : ''}> Rest day (RDW)</label>
                 <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(baseShift)} this day — RDW pays it as rest-day working instead</span>
@@ -287,10 +292,24 @@ export function buildWeekGridInto(container, dateStr) {
         // Pre-fill with existing override — mark as prefilled so Save button stays disabled until user edits
         if (existing) {
             const legacyToShift = { overtime: 'shift', allocated: 'shift' };
-            const prefillType   = (/** @type {Record<string, any>} */ (legacyToShift))[existing.type] ?? existing.type;
+            // Spare moved under the Other pill (v15.57): an existing spare_shift override prefills
+            // via Other → Spare (there is no top-level Spare pill anymore).
+            const isSpare       = existing.type === 'spare_shift';
+            const prefillType   = isSpare ? 'other'
+                : ((/** @type {Record<string, any>} */ (legacyToShift))[existing.type] ?? existing.type);
             const typeMeta      = TYPES[prefillType];
             _activateRow(row, checkbox, pills, startEl, endEl, prefillType);
             row.classList.add('prefilled-existing');
+            if (isSpare) {
+                // Activate the Spare chip inside the now-open Other submenu; _syncOtherSpareMode
+                // hides RDW/times and applies the fixed-type "No time needed" state.
+                row.querySelectorAll('.other-flavour-btn').forEach(b => {
+                    const on = (/** @type {HTMLElement} */ (b)).dataset.flavour === 'SPARE';
+                    b.classList.toggle('active', on);
+                    b.setAttribute('aria-pressed', String(on));
+                });
+                _syncOtherSpareMode(row);
+            }
             const _exOther = existing.type === 'other' ? parseOtherValue(existing.value) : null;
             if (_exOther) {
                 // Restore flavour + RDW tick + optional times from the stored grammar —
@@ -389,6 +408,7 @@ export function buildWeekGridInto(container, dateStr) {
                     b.setAttribute('aria-pressed', String(on));
                 });
                 row.classList.remove('prefilled-existing');
+                _syncOtherSpareMode(row);   // Spare hides RDW/times; training flavours restore them
                 _markChanged(); updateSaveBtn();
             });
         });
@@ -457,6 +477,25 @@ function _syncOtherRdwWarn(row) {
 }
 
 /**
+ * Reflect a "Spare" choice inside the Other submenu (v15.57 — Spare moved under Other).
+ * Spare is a fixed placeholder: no RDW, no times. Reuse the `.fixed-type` machinery to hide
+ * the time inputs (and show "No time needed"), and `.other-spare` to hide the RDW tick + hint.
+ * Picking any training flavour clears it (training keeps its optional times). The collector
+ * reads the active flavour and, when it's SPARE, writes a `spare_shift`/'SPARE' override.
+ * @param {HTMLElement} row
+ */
+function _syncOtherSpareMode(row) {
+    const spareActive = !!row.querySelector('.other-flavour-btn.active[data-flavour="SPARE"]');
+    row.classList.toggle('other-spare', spareActive);
+    row.classList.toggle('fixed-type',  spareActive);
+    const s = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
+    const e = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
+    if (s) s.tabIndex = spareActive ? -1 : 0;
+    if (e) e.tabIndex = spareActive ? -1 : 0;
+    _syncOtherRdwWarn(row);
+}
+
+/**
  * @param {HTMLElement} row
  * @param {HTMLInputElement|null} checkbox
  * @param {NodeListOf<Element>} pills
@@ -482,6 +521,7 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
         if (startEl) startEl.tabIndex = 0;
         if (endEl) endEl.tabIndex = 0;
     }
+    row.classList.remove('other-spare');   // clear any stale Spare-mode when (re)activating a type
     row.dataset.type = type;
     // Training options strip: visible only while the Training pill is active. The RDW tick
     // pre-ticks itself when the day's base roster is a rest day (OTHER_PLAN.md decision 8)
@@ -508,7 +548,7 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
  */
 function _deactivateRow(row, checkbox, pills, startEl, endEl) {
     if (checkbox) checkbox.checked = false;
-    row.classList.remove('active', 'fixed-type', 'selected', 'row-error');
+    row.classList.remove('active', 'fixed-type', 'selected', 'row-error', 'other-spare');
     pills.forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
     if (startEl) {
         startEl.value = '';
