@@ -98,6 +98,23 @@
         .member-context-bar select:focus-visible { border-color: var(--accent-gold); }
         .member-context-bar select option { background: white; color: var(--text-dark); }
 
+        /* Sticky member bar on the single-column (mobile/tablet) layout — but ONLY when
+           it's an active selector. Admins/managers switch between staff and lose the
+           "who am I editing?" context as they scroll to Absence / Saved Changes; pinning
+           the bar keeps it in view. Self-service staff are locked to their own name
+           (body.member-locked, set in applyPermissions), so their bar never changes —
+           pinning it would only waste screen. Desktop (>=1024px) pins the col-side copy
+           instead, so this is scoped below that breakpoint. `.container` uses overflow:clip
+           (no scroll container), so sticky is not broken here. */
+        @media (max-width: 1023px) {
+            body:not(.member-locked) .member-context-bar {
+                position: sticky;
+                top: 0;
+                z-index: 30; /* above cards (0-1); the fixed bottom bars live at 7400+ */
+                box-shadow: 0 3px 10px -3px rgba(0, 0, 0, 0.4);
+            }
+        }
+
         /* Read-only member display shown inside AL form once member is chosen */
         .member-readonly-display {
             font-size: var(--type-label);
