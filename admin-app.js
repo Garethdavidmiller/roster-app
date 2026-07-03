@@ -1354,7 +1354,12 @@ initCardCollapse('sickBookedToggle', 'sickBookedBody', 'sickBookedChevron');
 function applyPermissions() {
     if (currentIsAdmin || currentIsManager) return; // full access — nothing to restrict
 
-    // Non-admin: lock all member selectors to their own name
+    // Non-admin: lock all member selectors to their own name.
+    // Flag it on <body> so the mobile sticky-member-bar rule can opt OUT for these
+    // self-service users — their bar shows only their own (unchangeable) name, so
+    // pinning it would just cost vertical space. Admins/managers (who switch between
+    // people and can lose track on scroll) keep the sticky bar.
+    document.body.classList.add('member-locked');
     _setSelectValue(fieldMember, currentUser);
     fieldMember.disabled  = true;
     syncMemberDisplay();
