@@ -227,7 +227,7 @@ export function calcBackPay() {
     }
     const parts = [];
     if (hasRate)   parts.push(`rate ${fmt(oldRate)} → ${fmt(newRate)}`);
-    if (hasLondon) parts.push(`London Allow ${fmt(oldLondon)} → ${fmt(newLondon)}`);
+    if (hasLondon) parts.push(`London Allowance ${fmt(oldLondon)} → ${fmt(newLondon)}`);
     totalBasEl.textContent = `${pCount} period${pCount > 1 ? 's' : ''} backdated · ${parts.join(' · ')}`;
 
     if (periodWrap) periodWrap.style.display = 'block';
