@@ -115,6 +115,21 @@
             }
         }
 
+        /* Phone (<=768px, where the body side padding is a flat 10px): the member bar runs
+           edge-to-edge as a full-bleed top strip instead of a rounded floating chip — it's
+           navy like the canvas, so the rounded corners barely showed and read as a chip.
+           Negative margins cancel the body's side padding; the padding is restored (+12px) so
+           the field stays aligned with the cards. Tablet/desktop keep the rounded card. */
+        @media (max-width: 768px) {
+            .member-context-bar {
+                border-radius: 0;
+                margin-left:  calc(-1 * max(10px, env(safe-area-inset-left)));
+                margin-right: calc(-1 * max(10px, env(safe-area-inset-right)));
+                padding-left:  calc(max(10px, env(safe-area-inset-left))  + 12px);
+                padding-right: calc(max(10px, env(safe-area-inset-right)) + 12px);
+            }
+        }
+
         /* Read-only member display shown inside AL form once member is chosen */
         .member-readonly-display {
             font-size: var(--type-label);
