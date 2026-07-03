@@ -173,4 +173,8 @@ sickSaveBtn.addEventListener('click', async () => {
         sickSaveBtn.textContent = 'Record absence';
     }
 });
+
+// Exposed so admin-app.js can refresh the preview when the staff member changes
+// at the top bar (see the matching note in admin-al.js). (stale-preview fix)
+return { updateSickPreview };
 } // end initSickSection

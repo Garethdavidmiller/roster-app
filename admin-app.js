@@ -905,6 +905,12 @@ function syncSickMemberDisplay() {
     if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
 }
 
+// Preview refreshers exposed by initALSection / initSickSection (assigned when those
+// run, further down). Called on member change so the AL/absence previews can't keep
+// naming the previously-selected person or their rest-day count. (stale-preview fix)
+/** @type {(() => void) | null} */ let _refreshAlPreview   = null;
+/** @type {(() => void) | null} */ let _refreshSickPreview = null;
+
 let lastFieldMember = fieldMember.value;
 fieldMember.addEventListener('change', () => {
     const chosen   = fieldMember.value;
@@ -924,6 +930,8 @@ fieldMember.addEventListener('change', () => {
         updateALBanner();
         updateALBookedBox();
         updateSickBookedBox();
+        _refreshAlPreview?.();   // keep the AL/absence previews pointed at the new member
+        _refreshSickPreview?.();
         resetTableMemberFilter(); // also calls renderTable internally
         renderWeekGrid();
     };
@@ -982,21 +990,29 @@ function handleEdit(e) {
  * @param {string} date        YYYY-MM-DD — any date within the week to show
  */
 function showInChangeAShift(memberName, date) {
-    _setSelectValue(fieldMember, memberName);
-    fieldDate.value   = date;
-    lastFieldMember   = memberName;
-    lastFieldDate     = date;
-    _setSelectValue(alMember, memberName);
-    _setSelectValue(sickMember, memberName);
-    syncMemberDisplay();
-    syncSickMemberDisplay();
-    // Align the saved-changes month filter so the new days aren't filtered out.
-    const monthFilter = /** @type {HTMLSelectElement} */ (document.getElementById('overridesMonthFilter'));
-    if (monthFilter) monthFilter.value = date.substring(0, 7);
-    renderTable();
-    renderWeekGrid();
-    // The grid was rebuilt fresh from saved data — no pending edits remain.
-    userMadeChanges = false;
+    const go = () => {
+        _setSelectValue(fieldMember, memberName);
+        fieldDate.value   = date;
+        lastFieldMember   = memberName;
+        lastFieldDate     = date;
+        _setSelectValue(alMember, memberName);
+        _setSelectValue(sickMember, memberName);
+        syncMemberDisplay();
+        syncSickMemberDisplay();
+        // Align the saved-changes month filter so the new days aren't filtered out.
+        const monthFilter = /** @type {HTMLSelectElement} */ (document.getElementById('overridesMonthFilter'));
+        if (monthFilter) monthFilter.value = date.substring(0, 7);
+        renderTable();
+        renderWeekGrid();
+        // The grid was rebuilt fresh from saved data — no pending edits remain.
+        userMadeChanges = false;
+    };
+    // Re-pointing the grid re-renders it, which would silently discard any UNSAVED
+    // week-grid edits. Guard it the same way every other navigation does (member/date
+    // change, edit-from-table): if the grid is dirty, show the Discard/Keep-editing
+    // banner instead of wiping the staged edits. The AL/absence save has already
+    // committed; this only governs whether the grid jumps to reflect it. (data-loss fix)
+    if (confirmNavigate(go)) go();
 }
 
 
@@ -1094,24 +1110,24 @@ alConfirmCancelBtn.addEventListener('click', () => {
 // ============================================
 // ANNUAL LEAVE BOOKING  (logic in admin-al.js)
 // ============================================
-initALSection({
+_refreshAlPreview = initALSection({
     alMember,
     syncMemberDisplay,
     populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox,
     getCurrentUser: () => currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
     showSuccess,
-});
+})?.updateAlPreview ?? null;
 
 // ============================================
 // SICK DAYS RECORDING  (logic in admin-sick.js)
 // ============================================
-initSickSection({
+_refreshSickPreview = initSickSection({
     sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox, getCurrentUser: () => currentUser, showInChangeAShift,
     showSuccess,
-});
+})?.updateSickPreview ?? null;
 
 
 /**
