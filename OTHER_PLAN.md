@@ -9,17 +9,17 @@ Not version-stamped; not a runtime asset.*
 ## Evolution (v15.40) — decisions confirmed by Gareth, Jul 2026
 
 The training family became the **"Other" family**: a home for every non-standard day type.
-Training / Induction / Assessment are its first flavours; **Meetings and Union duties join later**
-(roster words TBC from Gareth — Phase B below).
+Training / Induction / Assessment were its first flavours; **Team Day** joined at v15.51; **Meetings
+and Union duties join later** (roster words TBC from Gareth — Phase B below).
 
 | Decision | Answer |
 |---|---|
 | Family name | **Other** — pill "Other", legend "Other", Saved-Changes pill "Other" |
 | Stored type | **`type: 'other'`** (renamed from `training` pre-deploy — a MEET under type `training` would have been permanently wrong) |
 | Icon | **🏷️ label/tag** (replaces 🎓 — a tag says "day labelled as something else"; the badge word IS the label). Chosen over 📌 (weaker metaphor) |
-| Badge | 🏷️ + SHORT flavour word (Train / Ind / Assess — later Meet / Union). Confirmed: badge never literally reads "Other" |
+| Badge | 🏷️ + SHORT flavour word (Train / Ind / Assess / Team — later Meet / Union). Confirmed: badge never literally reads "Other" |
 | Colour | **Leaf green `oklch(46% 0.115 136°)`** (`--other`/`--other-light`, 13% tint). NOT the original bronze — bronze (65°) was hue-identical to Early's orange (64.1°): indistinguishable at tint level and literally the same colour under red-green colour-blindness. Green 136° is the only empty band (46° from AL teal 183°); under deutan vision it keeps a yellow-olive cast while teal stays blue-grey, so it separates BETTER for colour-blind staff. Swatch proof: the "green-vs-teal" artifact, Jul 2026. "Reassess down the line" per Gareth |
-| Manual UX | One **"Other"** pill → previously-hidden submenu with **full-word** flavour chips (Training / Induction / Assessment), the pre-ticked-on-rest-day RDW tick, optional times. New kinds become chips, never new pills |
+| Manual UX | One **"Other"** pill → previously-hidden submenu with **full-word** flavour chips (Training / Induction / Assessment / Team Day), the pre-ticked-on-rest-day RDW tick, optional times. New kinds become chips, never new pills |
 | Namespace note | The legacy unknown-value fallback classes were renamed `other-day`→`unknown-day`, `badge-other`→`badge-unknown` so the Other family owns the `other-*`/`--other` names coherently with `type: 'other'` |
 
 **Flavour semantics (owner, Jul 2026):** `ASSESS` means the member is the **assessor** — spending
