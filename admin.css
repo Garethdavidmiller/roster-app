@@ -1903,6 +1903,13 @@
     transition: background 0.15s, color 0.15s;
 }
 .other-flavour-btn.active { background: var(--other); color: white; }
+/* Spare lives in this submenu but is its own thing — keep its 📋 purple colour (v15.57). */
+.other-flavour-spare { border-color: var(--purple); color: var(--purple); }
+.other-flavour-spare.active { background: var(--purple); color: white; border-color: var(--purple); }
+/* Spare has no RDW tick, no times, and no "pick a type / times optional" hint — hide them. */
+.day-row.other-spare .other-rdw-label,
+.day-row.other-spare .other-rdw-warn,
+.day-row.other-spare .other-opts-hint { display: none; }
 .other-rdw-label {
     display: inline-flex; align-items: center; gap: 5px;
     font-weight: 600; color: var(--other);
