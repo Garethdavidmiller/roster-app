@@ -42,7 +42,7 @@ import {
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey,
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, updatePriorHpp } from './paycalc-hpp.js';
-import { prefillBackPay, calcBackPay, _bpAwardTaxYear } from './paycalc-backpay.js';
+import { prefillBackPay, calcBackPay, _bpAwardTaxYear, raiseByPercent } from './paycalc-backpay.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -920,6 +920,22 @@ export function init() {
     }
     function _runCalcBackPay() { _applyBpState(calcBackPay()); }
 
+    /**
+     * "Pay rise %" shortcut: when a percentage is entered, fill the New rate/London from
+     * Old × (1 + %). A convenience only — the New boxes stay editable, and leaving the % blank
+     * keeps them fully manual. Re-runs whenever the % or either Old figure changes.
+     */
+    function _applyBpRisePct() {
+      const pct = numVal('bpRisePct');
+      if (pct > 0) {
+        const newR = raiseByPercent(numVal('oldRate'),   pct);
+        const newL = raiseByPercent(numVal('oldLondon'), pct);
+        if (newR) /** @type {HTMLInputElement} */ (document.getElementById('newRateInput')).value = newR.toFixed(2);
+        if (newL) /** @type {HTMLInputElement} */ (document.getElementById('newLondon')).value    = newL.toFixed(2);
+      }
+      _runCalcBackPay();
+    }
+
     function toggleBpBreakdown() {
       const btn  = /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn'));
       const body = /** @type {HTMLElement} */ (document.getElementById('backPayRows'));
@@ -1088,9 +1104,13 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('peerMinus')).addEventListener('click', () => stepPeer(-1));
     /** @type {HTMLElement} */ (document.getElementById('peerPlus')).addEventListener('click',  () => stepPeer(1));
 
-    // Back-pay inputs
-    ['oldRate','newRateInput','oldLondon','newLondon'].forEach(/** @param {string} id */ id => {
+    // Back-pay inputs. New fields: a manual edit just recalcs. Old fields + the "Pay rise %"
+    // shortcut: re-derive the New figures from Old × (1 + %) when a % is present, then recalc.
+    ['newRateInput','newLondon'].forEach(/** @param {string} id */ id => {
       /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', _runCalcBackPay);
+    });
+    ['oldRate','oldLondon','bpRisePct'].forEach(/** @param {string} id */ id => {
+      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', _applyBpRisePct);
     });
 
     // Card collapse toggles — shared initCardCollapse (overlay.js) adds keyboard +

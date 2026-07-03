@@ -420,8 +420,9 @@ Holiday Pay Premium estimator and shared period decode helpers for `paycalc.html
 ### `paycalc-backpay.js`
 Back-pay lump sum calculator for `paycalc.html` (v13.81).
 - `_bpAwardTaxYear(fromPNum)` — tax year of the back-pay award (derived from "backdated from" period); exported for coordinator's `applyNewRate()`
-- `prefillBackPay()` — pre-fills card inputs (London Allowance defaults, April selector) when the card opens; returns `calcBackPay()` result for coordinator to consume
-- `calcBackPay()` — calculates lump sum from card inputs, renders results, returns `{ bpAmount, bpVarAmount, bpPNum }`; does NOT mutate coordinator state — caller applies the returned values
+- `prefillBackPay()` — pre-fills card inputs when the card opens; returns `calcBackPay()` result for coordinator to consume. For an **unconfirmed award year** (`ty.rateUnconfirmed`, e.g. 2026/27 awaiting RMT acceptance) it fills the **Old** rate + Old London with the current figures (the current rate IS the pre-award rate) and leaves **New** blank for the % helper / manual entry; for a confirmed year it keeps the original Old=`londonAllowPre` / New=`londonAllow` prefill (v15.62)
+- `calcBackPay()` — calculates lump sum from card inputs, renders results, returns `{ bpAmount, bpVarAmount, bpPNum }`; does NOT mutate coordinator state — caller applies the returned values. Also toggles the `#bpEstimateNote` "offered, awaiting RMT" banner when the award year's rates are unconfirmed
+- `raiseByPercent(oldVal, pct)` — pure; new value after a % rise (`oldVal × (1 + pct/100)`), 0 for non-positive inputs. Backs the coordinator's "Pay rise %" shortcut that fills the New rate/London from the Old figure (v15.62)
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `paycalc-hpp.js`, `paycalc-format.js`, `ls.js`
 
 ### `paycalc-format.js`

@@ -18,7 +18,7 @@ import {
   getTaxYearForOffset,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, _setSelectPeriod } from './paycalc-periods.js';
-import { getEffectiveContr, getProRateFactor } from './paycalc-settings.js';
+import { getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet } from './ls.js';
 import { SK, periodKey } from './paycalc-migrations.js';
 import { _decodeHours } from './paycalc-hpp.js';
@@ -48,10 +48,22 @@ export function prefillBackPay() {
   const pNum = currentPeriodNum();
   const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const oldRateEl   = /** @type {HTMLInputElement} */ (document.getElementById('oldRate'));
   const oldLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('oldLondon'));
   const newLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
-  if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
-  if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
+  if (ty.rateUnconfirmed) {
+    // Offered-but-unconfirmed award (e.g. the 2026/27 rise awaiting RMT acceptance): the
+    // member's CURRENT rate IS the OLD (pre-award) rate, and the NEW rate is not yet known —
+    // so prefill the OLD boxes with the current figures and leave NEW blank for the "Pay
+    // rise %" helper or manual entry. Previously NEW was filled with ty.londonAllow, which
+    // for an unconfirmed year is merely the current rate carried over as a placeholder — so
+    // it dropped the current/old rate into the New box (the bug this fixes).
+    if (!oldRateEl.value)   oldRateEl.value   = getStoredRateForYear(ty).toFixed(2);
+    if (!oldLondonEl.value) oldLondonEl.value = ty.londonAllow.toFixed(2);
+  } else {
+    if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
+    if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
+  }
   // Auto-select April — Chiltern's pay anniversary is always 1 April. Use _setSelectPeriod (sets
   // option.selected), NOT `.value = …`: this select is populated with <optgroup>s, and iOS Safari
   // ignores a direct `.value` assignment on an optgroup select, so the default never applied there —
@@ -59,6 +71,19 @@ export function prefillBackPay() {
   const fromSel = /** @type {HTMLSelectElement} */ (document.getElementById('backPayFrom'));
   if (fromSel && !fromSel.value) _setSelectPeriod(fromSel, 48 + ty.first);
   return calcBackPay();
+}
+
+/**
+ * New value after applying a percentage pay rise — e.g. raiseByPercent(20.74, 3.6) → 21.4866.
+ * Pure. Returns 0 when either input is non-positive so a caller can treat 0 as "nothing to fill"
+ * (used by the "Pay rise %" shortcut to derive the New rate/London from the Old figure).
+ * @param {number} oldVal
+ * @param {number} pct
+ * @returns {number}
+ */
+export function raiseByPercent(oldVal, pct) {
+  if (!(oldVal > 0) || !(pct > 0)) return 0;
+  return oldVal * (1 + pct / 100);
 }
 
 // ── BACK PAY CALCULATOR ───────────────────────────────────────────────────────
@@ -92,6 +117,12 @@ export function calcBackPay() {
   const periodWrap = document.getElementById('backPayPeriodWrap');
   const applyWrap  = document.getElementById('applyRateWrap');
   const applyBtn   = document.getElementById('applyRateBtn');
+
+  // Estimate banner — visible whenever the award's tax-year rates are still unconfirmed
+  // (offered, awaiting acceptance). Set before the early return so it shows the moment the
+  // card opens, even before any figures are entered.
+  const estimateNote = document.getElementById('bpEstimateNote');
+  if (estimateNote) estimateNote.style.display = _bpAwardTaxYear(fromPNum)?.rateUnconfirmed ? 'block' : 'none';
 
   if (!hasRate && !hasLondon) {
     rowsEl.innerHTML = '';
