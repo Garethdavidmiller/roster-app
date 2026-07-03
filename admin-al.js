@@ -242,4 +242,9 @@ alSaveBtn.addEventListener('click', async () => {
         alSaveBtn.textContent = 'Record annual leave';
     }
 });
+
+// Expose the preview refresher so admin-app.js can re-run it when the staff member
+// changes at the top bar — otherwise the preview keeps naming the previous person
+// and their rest-day count until the date inputs are touched again. (stale-preview fix)
+return { updateAlPreview };
 } // end initALSection

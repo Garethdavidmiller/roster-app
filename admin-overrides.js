@@ -699,24 +699,33 @@ function _initBulkBar() {
     bulkApplyBtn?.addEventListener('click', () => {
         if (!_bulkActiveType) { _showError('Choose a type in step 2 first, then tap Apply.'); return; }
         const typeMeta = TYPES[_bulkActiveType];
+        let ticked = 0, applied = 0, sundaySkipped = 0;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox || !checkbox.checked) return;
-            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick' || _bulkActiveType === 'other') && isSunday(row.dataset.date ?? '')) return; // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
+            ticked++;
+            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick' || _bulkActiveType === 'other') && isSunday(row.dataset.date ?? '')) { sundaySkipped++; return; } // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
             _activateRow(row, checkbox, pills, startEl, endEl, _bulkActiveType);
             row.classList.remove('prefilled-existing'); // mark as user-edited, not pre-filled
+            applied++;
             if (typeMeta && !typeMeta.fixed) {
                 if (bulkStart?.value && startEl) startEl.value = bulkStart.value;
                 if (bulkEnd?.value && endEl)     endEl.value   = bulkEnd.value;
             }
         });
+        // Silent-no-op fixes: "Apply" used to do nothing (no feedback) when no days were
+        // ticked, or when the only ticked day was a Sunday that AL/Absent/Other skips.
+        if (ticked === 0)  { _showError('Tick some days first — use the buttons above, or tap the day checkboxes.'); return; }
+        if (applied === 0) { _showError('Nothing applied — Sunday is not a contracted day. Tick a working day.'); return; }
         _markChanged();
         updateSaveBtn();
         _updateBulkSelCount();
+        // Tell the user when ticked Sundays were dropped, so "All 7 → 6 applied" isn't a surprise.
+        if (sundaySkipped > 0) _showSuccess(`Set ${applied} day${applied !== 1 ? 's' : ''} — Sunday skipped (not a contracted day).`);
     });
 }
 
