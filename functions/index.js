@@ -998,7 +998,16 @@ Every column header must appear as a key in every member object.`;
 
             const message = await client.messages.create({
                 model:      CLAUDE_MODEL,
-                max_tokens: 8192,
+                // Sonnet 5 runs ADAPTIVE THINKING by default when `thinking` is omitted (Sonnet 4.6
+                // ran thinking-off). Left on, thinking consumes part of max_tokens, and Sonnet 5's
+                // tokenizer emits ~30% more tokens for the same JSON — together they truncated the
+                // roster JSON mid-object, surfacing as "The AI returned an unreadable response".
+                // This is deterministic structured extraction (read the table → JSON), so disable
+                // thinking to restore the 4.6 behaviour, with generous max_tokens headroom for large
+                // rosters. If we ever want thinking on for parse accuracy, raise max_tokens well
+                // above the JSON size (and stream) so the output isn't truncated.
+                thinking:   { type: 'disabled' },
+                max_tokens: 16000,
                 messages: [{
                     role: 'user',
                     content: [
