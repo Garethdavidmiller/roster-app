@@ -604,16 +604,30 @@ export function updateSaveBtn() {
         }
     }
 
+    // Inline change preview (v15.58) — a calm "what you're about to do" line above the
+    // Save button, naming the member so a wrong-person / wrong-count edit is caught before
+    // saving. Type-neutral copy; reuses the counts already computed above.
+    const gridPreview = document.getElementById('gridPreview');
+    if (gridPreview) {
+        const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
+        if (total > 0 && memberName) {
+            const bits = [];
+            if (saveCount) bits.push(`${saveCount} day${saveCount > 1 ? 's' : ''} to change`);
+            if (delCount)  bits.push(`${delCount} to remove`);
+            gridPreview.innerHTML = `<span aria-hidden="true">🗓️</span> <span>You're about to save <strong>${bits.join(' and ')}</strong> for <strong>${escapeHtml(memberName)}</strong>.</span>`;
+            gridPreview.hidden = false;
+        } else {
+            gridPreview.hidden = true;
+            gridPreview.textContent = '';
+        }
+    }
+
     const hint = document.getElementById('saveBtnHint');
     if (hint) {
-        if (total > 0) {
-            const parts = [];
-            if (saveCount) parts.push(`${saveCount} day${saveCount > 1 ? 's' : ''} to save`);
-            if (delCount)  parts.push(`${delCount} change${delCount > 1 ? 's' : ''} to remove`);
-            hint.textContent = `Ready — ${parts.join(', ')}`;
-        } else {
-            hint.textContent = 'Select a type on at least one day, then tap Save changes';
-        }
+        // When there are staged changes the grid preview above carries the summary (with the
+        // member name), so keep only the empty-state guidance here — avoids two near-identical
+        // lines stacked above the Save button.
+        hint.textContent = total > 0 ? '' : 'Select a type on at least one day, then tap Save changes';
     }
 }
 

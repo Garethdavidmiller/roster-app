@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v15.57 -->
+<!-- MYB Roster — Admin v15.58 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -208,6 +208,9 @@
             <div class="week-grid" id="weekGrid">
                 <div class="week-empty">Select a staff member and date above to load the week.</div>
             </div>
+
+            <!-- Change preview — calm "what you're about to save" line; populated by updateSaveBtn() -->
+            <div class="grid-preview" id="gridPreview" role="status" aria-live="polite" hidden></div>
 
             <button type="button" class="btn-save" id="saveBtn" disabled>Save changes</button>
             <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then tap Save changes</p>
