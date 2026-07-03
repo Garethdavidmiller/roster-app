@@ -608,26 +608,36 @@ export function updateSaveBtn() {
     // Save button, naming the member so a wrong-person / wrong-count edit is caught before
     // saving. Type-neutral copy; reuses the counts already computed above.
     const gridPreview = document.getElementById('gridPreview');
+    let previewShown = false;
     if (gridPreview) {
         const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
         if (total > 0 && memberName) {
             const bits = [];
             if (saveCount) bits.push(`${saveCount} day${saveCount > 1 ? 's' : ''} to change`);
             if (delCount)  bits.push(`${delCount} to remove`);
-            gridPreview.innerHTML = `<span aria-hidden="true">🗓️</span> <span>You're about to save <strong>${bits.join(' and ')}</strong> for <strong>${escapeHtml(memberName)}</strong>.</span>`;
+            // #gridPreview is an aria-live region, and updateSaveBtn() also fires on every
+            // time-input keystroke — only rewrite (and thus re-announce) when the summary
+            // actually changes, so typing a shift time doesn't re-read the unchanged sentence.
+            const sig = `${bits.join('|')}|${memberName}`;
+            if (gridPreview.dataset.sig !== sig) {
+                gridPreview.innerHTML = `<span aria-hidden="true">🗓️</span> <span>You're about to save <strong>${bits.join(' and ')}</strong> for <strong>${escapeHtml(memberName)}</strong>.</span>`;
+                gridPreview.dataset.sig = sig;
+            }
             gridPreview.hidden = false;
+            previewShown = true;
         } else {
             gridPreview.hidden = true;
             gridPreview.textContent = '';
+            delete gridPreview.dataset.sig;
         }
     }
 
     const hint = document.getElementById('saveBtnHint');
     if (hint) {
-        // When there are staged changes the grid preview above carries the summary (with the
-        // member name), so keep only the empty-state guidance here — avoids two near-identical
-        // lines stacked above the Save button.
-        hint.textContent = total > 0 ? '' : 'Select a type on at least one day, then tap Save changes';
+        // Blank the hint only when the preview above is actually carrying the summary; if the
+        // preview isn't showing (no member selected, or stale HTML without #gridPreview) fall
+        // back to the guidance so there's never an enabled Save with no on-screen explanation.
+        hint.textContent = previewShown ? '' : 'Select a type on at least one day, then tap Save changes';
     }
 }
 

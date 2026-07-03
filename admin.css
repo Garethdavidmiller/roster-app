@@ -568,8 +568,9 @@
 
         /* day-row: checkbox | day | base | type pills | time inputs.
            Each row is a discrete rounded card (v15.58) — gaps come from the flex .week-panel.
-           State rows (.selected/.active/.has-override) swap the 1px left border for a 4px
-           accent; the other three sides stay 1px, giving the accent-card look. */
+           .selected (ticked) and .has-override swap the 1px left border for a 4px accent
+           (gold / orange); .active shows a background tint only. The other three sides stay
+           1px, giving the accent-card look. */
         .day-row {
             display: grid;
             grid-template-columns: 32px 100px 92px 1fr auto;
@@ -783,7 +784,8 @@
             background: var(--blue-sky);
         }
 
-        /* Today's row — subtle blue left border so it's easy to spot */
+        /* Today's row — gold day-name + a subtle background tint (no left border; the base
+           card border is enough to frame it). */
         .day-row.today .col-day .day-name { color: var(--accent-gold-dark); font-weight: 800; }
         .day-row.today .col-day .day-date { color: var(--accent-gold-dark); }
         .day-row.today:not(.active):not(.has-override):not(.selected) { background: var(--today-print); }
@@ -1718,6 +1720,14 @@
                 border-bottom: 1px solid var(--border-mid);
                 border-radius: 0 !important;
                 break-inside: avoid;
+            }
+            /* State rows carry a 4px accent left border at (0,2,0) that the bare .day-row
+               reset above can't reach — flatten it explicitly so override/selected rows print
+               as a plain list too (row-error uses !important, so match it). */
+            .day-row.selected,
+            .day-row.has-override,
+            .day-row.row-error {
+                border-left: none !important;
             }
 
             .day-row { background: white !important; }
