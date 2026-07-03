@@ -506,8 +506,10 @@
 
         /* ---- Week grid ---- */
         .week-grid {
-            border: 1.5px solid var(--border-light);
-            border-radius: 10px;
+            /* No visible frame (v15.58): each .day-row is now its own rounded card, so the
+               grid is a transparent container. overflow:hidden + position:relative are
+               LOAD-BEARING — they clip the absolutely-positioned swipe carousel panels.
+               Do NOT remove them, and do NOT re-add a border/radius here. */
             overflow: hidden;
             margin-bottom: 14px;
             position: relative; /* contains absolutely-positioned carousel panels during swipe */
@@ -520,9 +522,14 @@
         /* Swipe carousel — mirrors .carousel-panel / .calendar-container in index.html.
            .week-panel          — current (in-flow) panel; defines weekGrid height.
            .week-carousel-panel — adjacent pre-built panel, absolutely positioned off-screen. */
+        /* Both panels stack their rows as gapped cards (v15.58). They MUST share identical
+           layout so the in-flow panel and the absolute carousel panel are the same height. */
         .week-panel {
             width: 100%;
             box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
         .week-carousel-panel {
             position: absolute;
@@ -530,15 +537,20 @@
             left: 0;
             width: 100%;
             box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
+        /* Light column-label row (v15.58) — the old navy bar read as a dated table header
+           sitting above the new rounded day-cards. Now a quiet uppercase label strip. */
         .week-grid-header {
             display: grid;
             grid-template-columns: 32px 100px 92px 1fr auto;
             gap: 8px;
-            padding: 7px 12px;
-            background: var(--primary-blue);
-            color: rgba(255,255,255,0.5);
+            padding: 2px 13px 5px;
+            background: transparent;
+            color: var(--text-light);
             font-size: 10px;
             font-weight: 700;
             text-transform: uppercase;
@@ -554,18 +566,22 @@
             .week-grid-header .hdr-time { display: none; }
         }
 
-        /* day-row: checkbox | day | base | type pills | time inputs */
+        /* day-row: checkbox | day | base | type pills | time inputs.
+           Each row is a discrete rounded card (v15.58) — gaps come from the flex .week-panel.
+           State rows (.selected/.active/.has-override) swap the 1px left border for a 4px
+           accent; the other three sides stay 1px, giving the accent-card look. */
         .day-row {
             display: grid;
             grid-template-columns: 32px 100px 92px 1fr auto;
             gap: 8px;
             align-items: center;
             padding: 8px 12px;
-            border-bottom: 1px solid var(--border-light);
-            transition: background var(--dur-fast) var(--ease-standard);
+            background: var(--surface);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            transition: background var(--dur-fast) var(--ease-standard),
+                        border-color var(--dur-fast) var(--ease-standard);
         }
-
-        .day-row:last-child { border-bottom: none; }
 
         /* Pre-selected (checkbox ticked, no type yet) — gold left-border aligns with brand */
         .day-row.selected   { background: color-mix(in srgb, var(--accent-gold) 8%, transparent); border-left: 4px solid var(--accent-gold); }
@@ -781,6 +797,26 @@
             color: var(--text-light);
             font-size: 14px;
         }
+
+        /* ---- Grid change preview (v15.58) — calm "what you're about to do" line above the
+           Save button. Names the member so a wrong-person edit is caught before saving.
+           Deliberately type-neutral (sunken neutral, not a shift colour) so it never reads
+           as one particular override type. ---- */
+        .grid-preview {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 9px 13px;
+            background: var(--surface-sunken);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            font-size: 13px;
+            line-height: 1.4;
+            color: var(--text-mid);
+        }
+        .grid-preview[hidden] { display: none; }
+        .grid-preview strong { color: var(--text-dark); font-weight: 700; }
 
         /* ---- Feedback ---- */
         .feedback {
@@ -1672,10 +1708,15 @@
             .container { display: grid !important; max-width: 100% !important; grid-template-columns: 1fr !important; }
             .col-main, .col-side { display: contents !important; }
 
-            /* Override rows */
+            /* Flatten the screen day-cards back to a plain bordered list for paper (v15.58) —
+               rounded cards + inter-row gaps waste vertical space and read oddly in print. */
+            .week-panel,
+            .week-carousel-panel { gap: 0 !important; }
             .week-grid-header,
             .day-row {
+                border: none;
                 border-bottom: 1px solid var(--border-mid);
+                border-radius: 0 !important;
                 break-inside: avoid;
             }
 
