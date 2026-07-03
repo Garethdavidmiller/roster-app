@@ -771,7 +771,15 @@ saveBtn.addEventListener('click', async () => {
             // FLAVOUR[" RDW"][" HH:MM-HH:MM"]. Times are OPTIONAL — blank means the pay
             // defaults apply (base shift on a rostered day, 8h RDW on a training rest-day) —
             // but a half-filled or malformed pair is still an error.
-            const flavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour || 'TRG';
+            const flavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour;
+            // Force an explicit flavour choice — no silent Training default (owner decision,
+            // v15.56): a manager recording an induction/assessment/team day who didn't tap a
+            // type would otherwise have it saved as Training.
+            if (!flavour) {
+                row.classList.add('row-error');
+                errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment or Team Day)`);
+                return;
+            }
             // Rest-day base FORCES the RDW marker regardless of the tick: the pay engine and both
             // display layers derive RDW-ness from a rest-day base anyway (belt-and-braces — as-base
             // would pay £0), so storing 'TRG' for such a day would just make the saved value lie

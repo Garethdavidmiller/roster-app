@@ -244,12 +244,12 @@ export function buildWeekGridInto(container, dateStr) {
             <div class="other-opts" hidden>
                 <span class="other-flavour-group" role="group" aria-label="Type of day">
                     ${Object.entries(OTHER_FLAVOURS).map(([k, f]) =>
-                        `<button type="button" class="other-flavour-btn${k === 'TRG' ? ' active' : ''}" data-flavour="${k}" aria-pressed="${k === 'TRG'}">${f.full}</button>`
+                        `<button type="button" class="other-flavour-btn" data-flavour="${k}" aria-pressed="false">${f.full}</button>`
                     ).join('\n                    ')}
                 </span>
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled title="Rest day — RDW is automatic"' : ''}> Rest day (RDW)</label>
                 <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(baseShift)} this day — RDW pays it as rest-day working instead</span>
-                <span class="other-opts-hint">Times optional — blank pays the default (base shift, or 8h RDW)</span>
+                <span class="other-opts-hint">Pick a type above, then times (optional — blank pays the default: base shift, or 8h RDW).</span>
             </div>`;
 
         container.appendChild(row);
@@ -523,14 +523,14 @@ function _deactivateRow(row, checkbox, pills, startEl, endEl) {
         endEl.tabIndex = -1;
     }
     delete row.dataset.type;
-    // Reset the training sub-controls to their defaults (Train flavour, no RDW, hidden).
+    // Reset the Other sub-controls: NO flavour selected (an explicit pick is required —
+    // no silent Training default), no RDW, hidden.
     const otherOpts = /** @type {HTMLElement|null} */ (row.querySelector('.other-opts'));
     if (otherOpts) {
         otherOpts.hidden = true;
         row.querySelectorAll('.other-flavour-btn').forEach(b => {
-            const on = (/** @type {HTMLElement} */ (b)).dataset.flavour === 'TRG';
-            b.classList.toggle('active', on);
-            b.setAttribute('aria-pressed', String(on));
+            b.classList.remove('active');
+            b.setAttribute('aria-pressed', 'false');
         });
         const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
         if (cb && !cb.disabled) cb.checked = false;   // rest-day rows keep their baked tick (RDW is automatic)
