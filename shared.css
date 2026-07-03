@@ -183,7 +183,7 @@
     /* ── Admin row / nav state backgrounds ──────────────────────── */
     --row-selected-bg:        oklch(95.1% 0.0138 248.0deg);
     --row-override-bg:        oklch(96.4% 0.0509 92.6deg);
-    --row-override-active-bg: oklch(92.1% 0.0687 77.5deg);
+    --row-override-active-bg: color-mix(in srgb, var(--orange) 14%, white); /* pale warm peach (softened v15.60); admin day-row override-active fill */
     --week-current-bg:        oklch(96.0% 0.0159 233.0deg);
 
     /* ── Neutral palette ──────────────────────────────────────────

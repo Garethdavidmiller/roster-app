@@ -529,7 +529,7 @@
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 8px;
         }
         .week-carousel-panel {
             position: absolute;
@@ -539,7 +539,7 @@
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 8px;
         }
 
         /* Light column-label row (v15.58) — the old navy bar read as a dated table header
@@ -576,12 +576,14 @@
             grid-template-columns: 32px 100px 92px 1fr auto;
             gap: 8px;
             align-items: center;
-            padding: 8px 12px;
+            padding: 10px 12px;
             background: var(--surface);
             border: 1px solid var(--border-light);
-            border-radius: 10px;
+            border-radius: 12px;
+            box-shadow: 0 1px 2px rgba(0, 30, 60, 0.05); /* whisper of lift so cards read as raised */
             transition: background var(--dur-fast) var(--ease-standard),
-                        border-color var(--dur-fast) var(--ease-standard);
+                        border-color var(--dur-fast) var(--ease-standard),
+                        box-shadow var(--dur-fast) var(--ease-standard);
         }
 
         /* Pre-selected (checkbox ticked, no type yet) — gold left-border aligns with brand */
@@ -590,6 +592,8 @@
         .day-row.active     { background: var(--today-print); }
         /* Has an existing Firestore override — will overwrite */
         .day-row.has-override { background: var(--row-override-bg); border-left: 4px solid var(--orange); }
+        /* Warm-peach fill via --row-override-active-bg (softened in shared.css v15.60) — the
+           4px orange left accent carries the state, not a loud full-card wash. */
         .day-row.has-override.active { background: var(--row-override-active-bg); }
 
         /* More breathing room when a row is expanded */
@@ -689,10 +693,14 @@
             justify-content: center;
         }
 
-        /* Per-row type pills — same style as bulk pills */
+        /* Per-row type pills — sleek capsules (v15.60): generous horizontal padding + a
+           trimmed height + 1px border so short labels (AL, RDW) read as capsules, not the
+           fat circles a 44px min-height produced. */
         .col-pills .type-pill-btn {
             font-size: 11px;
-            padding: 4px 9px;
+            padding: 5px 15px;
+            min-height: 34px;
+            border-width: 1px;
         }
 
         .col-time {
@@ -1416,8 +1424,8 @@
             }
 
             .col-pills .type-pill-btn {
-                padding: 7px 11px;
-                min-height: 36px;
+                padding: 8px 16px;
+                min-height: 38px;
             }
 
             .btn-bulk-select {
