@@ -96,7 +96,7 @@ const {
     settingsKey, getContr, getEffectiveContr, getProRateFactor,
 } = await import('./paycalc-settings.js');
 
-const { _bpAwardTaxYear } = await import('./paycalc-backpay.js');
+const { _bpAwardTaxYear, raiseByPercent } = await import('./paycalc-backpay.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -459,5 +459,40 @@ describe('_bpAwardTaxYear', () => {
         // Stub DOM so currentPeriodNum() returns P48 (2025/26)
         global.document = { getElementById: () => ({ value: '48' }) };
         assert.equal(_bpAwardTaxYear(0).label, '2025/26');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// paycalc-backpay.js — raiseByPercent (the "Pay rise %" shortcut maths)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('raiseByPercent', () => {
+    test('applies a 3.6% rise to the CEA hourly rate', () => {
+        assert.ok(Math.abs(raiseByPercent(20.74, 3.6) - 21.48664) < 1e-5);
+    });
+
+    test('applies a 3.6% rise to the London Allowance', () => {
+        assert.ok(Math.abs(raiseByPercent(276.16, 3.6) - 286.101760) < 1e-4);
+    });
+
+    test('rounds (via caller .toFixed) to the expected CES new rate', () => {
+        assert.equal(raiseByPercent(21.81, 3.6).toFixed(2), '22.60');
+    });
+
+    test('returns 0 when the old value is missing or non-positive', () => {
+        assert.equal(raiseByPercent(0, 3.6), 0);
+        assert.equal(raiseByPercent(-5, 3.6), 0);
+        assert.equal(raiseByPercent(NaN, 3.6), 0);
+    });
+
+    test('returns 0 when the percentage is missing or non-positive', () => {
+        assert.equal(raiseByPercent(20.74, 0), 0);
+        assert.equal(raiseByPercent(20.74, -1), 0);
+        assert.equal(raiseByPercent(20.74, NaN), 0);
+    });
+
+    test('a small percentage still returns a positive scaled value', () => {
+        assert.ok(raiseByPercent(100, 0.5) > 100);
+        assert.ok(Math.abs(raiseByPercent(100, 0.5) - 100.5) < 1e-9); // 1.005 is not exact in FP
     });
 });
