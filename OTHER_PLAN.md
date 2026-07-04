@@ -76,7 +76,7 @@ on**: a normal weekday training is already covered by basic pay; a Saturday/BH t
 day's premium; a training rest-day (**TRG RDW**) defaults to **8 hours in the RDW bucket** which
 the member (or the admin) corrects to the real hours; training that **runs over** a rostered shift
 puts the excess in the existing **Overtime** bucket. A member is **never paid less than their
-rostered shift** even if training runs short. Sundays can never be training days.
+rostered shift** even if training runs short. Sundays and Boxing Day (26 Dec) can never be training days (confirmed by Gareth Jul 2026).
 
 ⚠️ **Do not confuse with "Peer Training"** — the existing 2h-per-day basic-rate item in the pay
 calculator (`peerDays`). That is a different feature; keep all copy distinct.

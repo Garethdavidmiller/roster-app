@@ -103,6 +103,21 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
     assert.equal(s.bhOtM, 0);
   });
 
+  test('BH override when base is RD → bhOt bucket, not bh (non-rostered BH worked, v15.70)', () => {
+    // L. Springer base = RD on May Day (2026-05-04, a bank holiday). Working it via a Shift
+    // override is Bank Holiday OVERTIME ("Bank Holiday Overtime 1.25"), mirroring the
+    // Saturday-on-RD → RDW rule — same 1.25× rate, correct payslip field. Confirmed by Gareth.
+    _setOverridesForTest(new Map([
+      ['2026-05-04', { type: 'shift', value: '09:00-17:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-05-04'), lSpringer);
+    assert.ok(s);
+    assert.equal(s.bhOtCount, 1);
+    assert.equal(s.bhOtH, 8);   // 09:00-17:00
+    assert.equal(s.bhOtM, 0);
+    assert.equal(s.bhCount, 0, 'must NOT land in the rostered "Bank Holiday Rostered" bucket');
+  });
+
   test('Saturday override when base is RD → rdw bucket (confirmed payroll rule)', () => {
     // C. Reen base Sat=RD → rest day worked, goes to RDW not Saturday enhanced rate.
     // Gareth confirmed May 2026: unrostered Saturday = Rest Day Working.

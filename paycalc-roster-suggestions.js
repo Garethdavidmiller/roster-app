@@ -314,6 +314,15 @@ export function getRosterSuggestion(p, member) {
             bhOtMins += ot; bhOtCount++;
             days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'bhOt', source: 'override' });
           }
+        } else if (fromOv && baseValue !== 'SPARE') {
+          // Shift override on a bank holiday whose base day was a REST day (not rostered, not
+          // SPARE) — you worked a BH you weren't scheduled for, so it's Bank Holiday OVERTIME,
+          // mirroring the Saturday-on-rest-day → RDW rule below. Same 1.25× rate as `bh`, but
+          // this lands the hours in the correct payslip field ("Bank Holiday Overtime 1.25")
+          // for reconciliation. (We reach here only when baseWorked is false — the rostered-BH
+          // case was caught above; SPARE = "rostered, shift TBC", so it stays a rostered `bh`.)
+          bhOtMins += mins; bhOtCount++;
+          days.push({ date: new Date(cur), shift: effValue, type: 'bhOt', source: 'override' });
         } else {
           bhMins += mins; bhCount++;
           if (fromOv) bhFromOv = true;

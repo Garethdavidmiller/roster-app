@@ -118,6 +118,9 @@ export function init() {
     let _defaultPeriodNum = null;
 
     let _adjNegative = false; // tracks intended sign of otherAdj independently of value
+    // True once the user types into / clears any hours field after a background override-fetch
+    // began, so the late fetch's re-apply doesn't overwrite an in-flight edit (see onPeriodChange).
+    let _hoursTouchedSinceFetch = false;
 
     // periodKey (and SK, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey) imported from paycalc-migrations.js
 
@@ -380,12 +383,18 @@ export function init() {
       // Fetch admin-added overrides from Firestore in the background.
       if (session2?.name) {
         const _fetchedPNum = p.num;
+        _hoursTouchedSinceFetch = false; // start watching for in-flight user edits
         fetchOverridesForPeriod(p, session2.name).then(status => {
           if (status === 'cancelled') return;
           // Guard: if the user switched period before the fetch resolved, do not
           // autosave override data from the old period into the new period.
           if (currentPeriodNum() !== _fetchedPNum) return;
-          updateRosterHint();
+          updateRosterHint(); // display-only refresh of the hint bar — always safe
+          // In-flight edits win: if the user typed into or cleared any hours field while the
+          // fetch was in flight, do NOT re-apply the suggestion or autosave over their work —
+          // a cleared auto-fill would otherwise be silently reinstated. The latest calendar
+          // data still shows in the hint bar above, so they can tap "Fill from calendar".
+          if (_hoursTouchedSinceFetch) return;
           // Silently refresh any gold-highlighted fields filled during 'checking' state.
           const _refreshP = getPeriods().find(/** @param {any} x */ x => x.num === _fetchedPNum);
           if (_refreshP) {
@@ -1090,6 +1099,11 @@ export function init() {
 
     // Roster day list toggle
     /** @type {HTMLElement} */ (document.getElementById('rosterDaysToggle')).addEventListener('click', toggleRosterDays);
+
+    // In-flight-edit tracking: any genuine user input inside the Hours card marks the period
+    // as "user is editing", so a late background override-fetch won't overwrite it (see
+    // onPeriodChange). Delegated + on 'input', so programmatic .value fills never trip it.
+    /** @type {HTMLElement|null} */ (document.getElementById('hoursCard'))?.addEventListener('input', () => { _hoursTouchedSinceFetch = true; });
 
     // Hours inputs — Saturday (has validation warn)
     /** @type {HTMLElement} */ (document.getElementById('satH')).addEventListener('input', () => { onHhMm('satH','satM','satWarn'); autosave(); });
