@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v16.00 -->
+<!-- MYB Roster — Pay Calculator v16.01 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -630,6 +630,12 @@
           <option value="">— select when the lump sum will land —</option>
         </select>
         <div class="field-hint">Which payslip will carry the full lump sum? Select it to see a specific tax warning for that period.</div>
+        <!-- Opt-in: the lump is only ADDED to that payslip's take-home estimate when ticked
+             (off by default — owner decision, Jul 2026). The card always shows the lump itself. -->
+        <div class="toggle-row" id="bpIncludeRow" style="border-top:none;padding-bottom:0">
+          <input type="checkbox" id="bpIncludeTick">
+          <label for="bpIncludeTick">Add this lump sum to that payslip's take-home estimate</label>
+        </div>
       </div>
       <div class="backpay-notice" id="backPayNotice" style="display:none">
         ⚠️ This lump sum is taxed in the period it is paid. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown — check your payslip carefully. Your payslip may split the back pay across multiple lines (Basic Pay, Overtime, RDW, etc.) but the total should match this figure.

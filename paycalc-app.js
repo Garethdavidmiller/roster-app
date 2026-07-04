@@ -109,6 +109,7 @@ export function init() {
     let _bpVarAmount  = 0; // variable (HPP-accruing) portion of the back pay lump sum
     let _bpPNum       = 0; // period number that receives the back pay (0 = none)
     let _bpIsEstimate = false; // lump derives from an unconfirmed award → label it "estimated"
+    let _bpIncluded   = false; // the card's opt-in tick — the lump only joins the take-home when true
 
     // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
     // per browser session. Cleared on page reload. Uses tax year label as the key.
@@ -725,8 +726,9 @@ export function init() {
         peerDays: peer, otherAdj, london: LONDON,
       });
 
-      // Add back pay if this is the period the lump sum is paid in.
-      const _bpThisPeriod = (_bpPNum > 0 && _bpPNum === _pNum) ? _bpAmount : 0;
+      // Add back pay if this is the paid-in period AND the member ticked "add to take-home"
+      // (opt-in, OFF by default — the card computes/show the lump either way).
+      const _bpThisPeriod = (_bpPNum > 0 && _bpPNum === _pNum && _bpIncluded) ? _bpAmount : 0;
 
       // Add HPP estimate/actual if this is the January period where HPP is paid.
       // Finds the tax year whose hppPaidJan matches this period's payday year.
@@ -896,12 +898,18 @@ export function init() {
 
       const _bannerEl = document.getElementById('bpActiveBanner');
       if (_bannerEl) {
-        if (_bpThisPeriod > 0) {
+        // Two banner states on the paid-in period: included (ticked) → "✓ Includes …"; computed but
+        // NOT ticked → a quiet pointer that the lump exists and where to add it. Off this period → hidden.
+        const _bpAvailableHere = _bpPNum > 0 && _bpPNum === _pNum && _bpAmount > 0;
+        const _bannerText = _bpThisPeriod > 0
+          ? `✓ Includes ${_bpIsEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(_bpThisPeriod)} · `
+          : `ℹ️ ${_bpIsEstimate ? 'Estimated' : 'A'} back pay lump sum of ${fmt(_bpAmount)} could land on this payslip — not added to this estimate · `;
+        if (_bpAvailableHere) {
           // Keep banner element stable; only update text node + lazily-created link.
           // Previous version created a new <a> + listener on every recalc.
           _bannerEl.firstChild?.nodeType === Node.TEXT_NODE
-            ? (_bannerEl.firstChild.nodeValue = `✓ Includes ${_bpIsEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(_bpThisPeriod)} · `)
-            : (_bannerEl.textContent = `✓ Includes ${_bpIsEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(_bpThisPeriod)} · `);
+            ? (_bannerEl.firstChild.nodeValue = _bannerText)
+            : (_bannerEl.textContent = _bannerText);
           if (!_bannerEl.querySelector('button')) {
             // <button>, not href-less <a> — an anchor without href is mouse-only
             // (no keyboard focus, no Enter activation).
@@ -919,7 +927,7 @@ export function init() {
         }
       }
 
-      calcHPP(_bpVarAmount, _bpPNum);
+      calcHPP(_bpIncluded ? _bpVarAmount : 0, _bpPNum);
     }
 
     // isDataEmpty, calcHPP, updatePriorHpp imported from paycalc-hpp.js.
@@ -929,16 +937,18 @@ export function init() {
     // prefillBackPay, calcBackPay, _bpAwardTaxYear imported from paycalc-backpay.js.
     // calcBackPay() returns { bpAmount, bpVarAmount, bpPNum } — this wrapper
     // compares against coordinator state and calls calculate() if changed.
-    /** @param {{ bpAmount: any, bpVarAmount: any, bpPNum: any, bpIsEstimate?: boolean }} _ */
-    function _applyBpState({ bpAmount, bpVarAmount, bpPNum, bpIsEstimate = false }) {
+    /** @param {{ bpAmount: any, bpVarAmount: any, bpPNum: any, bpIsEstimate?: boolean, bpIncluded?: boolean }} _ */
+    function _applyBpState({ bpAmount, bpVarAmount, bpPNum, bpIsEstimate = false, bpIncluded = false }) {
       if (bpPNum !== _bpPNum ||
           bpIsEstimate !== _bpIsEstimate ||
+          bpIncluded   !== _bpIncluded   ||
           Math.abs(bpAmount    - _bpAmount)    > 0.001 ||
           Math.abs(bpVarAmount - _bpVarAmount) > 0.001) {
         _bpAmount     = bpAmount;
         _bpVarAmount  = bpVarAmount;
         _bpPNum       = bpPNum;
         _bpIsEstimate = bpIsEstimate;
+        _bpIncluded   = bpIncluded;
         calculate();
       }
     }
@@ -1201,6 +1211,7 @@ export function init() {
     // Back-pay inputs + period selectors + apply rate
     /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn')).addEventListener('click', toggleBpBreakdown);
     /** @type {HTMLElement} */ (document.getElementById('backPayPeriod')).addEventListener('change', _runCalcBackPay);
+    /** @type {HTMLElement} */ (document.getElementById('bpIncludeTick')).addEventListener('change', _runCalcBackPay);
     /** @type {HTMLElement} */ (document.getElementById('applyRateBtn')).addEventListener('click', applyNewRate);
     /** @type {HTMLElement} */ (document.getElementById('saveSettingsBtn')).addEventListener('click', () => confirmSettings(calculate));
 
