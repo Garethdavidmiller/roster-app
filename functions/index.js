@@ -34,6 +34,7 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
+    parseStrictIsoDate,
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
@@ -79,6 +80,11 @@ const ADMIN_FUNCTION_ORIGINS = [
 // STAFF_SITE_URL was missing the `/roster-app` path, so notification taps hit a 404
 // (mis-recorded at the time as "the site is down"). To pause again: set true, redeploy.
 const HUDDLE_PUSH_PAUSED = false;
+
+// Upload size caps — named once (were inline literals in both HTTP handlers).
+const MAX_RAW_BODY_BYTES   = 28 * 1024 * 1024; // base64 request-body cap (bypasses JSON limit)
+const MAX_FILE_BYTES       = 20 * 1024 * 1024; // decoded file cap — MUST match storage.rules request.resource.size
+const MAX_HUDDLE_HTML_CHARS = 200_000;         // converted-DOCX htmlContent cap
 
 /**
  * Returns {year, month(0-based), day} in London local time, derived directly from
@@ -157,27 +163,16 @@ exports.ingestHuddle = onRequest(
             return;
         }
 
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-            res.status(400).json({ error: 'Invalid date format — expected YYYY-MM-DD' });
-            return;
-        }
-        const parsedDate = new Date(date + 'T12:00:00Z');
-        if (isNaN(parsedDate.getTime())) {
-            res.status(400).json({ error: 'Invalid date value — month or day out of range' });
-            return;
-        }
-        // Strict calendar check — JS normalises impossible dates (e.g. 2026-02-30 → 2026-03-02)
-        // instead of returning NaN, so the isNaN check above is not sufficient on its own.
-        const [dYear, dMonth, dDay] = date.split('-').map(Number);
-        if (parsedDate.getUTCFullYear() !== dYear || parsedDate.getUTCMonth() + 1 !== dMonth || parsedDate.getUTCDate() !== dDay) {
-            res.status(400).json({ error: 'Invalid date value — month or day out of range' });
+        const parsedDate = parseStrictIsoDate(date);
+        if (!parsedDate) {
+            res.status(400).json({ error: 'Invalid date — expected a real YYYY-MM-DD calendar date' });
             return;
         }
 
         // ---- Read raw body ----
         // The file arrives as a base64 plain-text body, bypassing JSON body-size limits.
         // 20 MB decoded ≈ 27 MB of base64; cap raw body slightly above that.
-        const MAX_BODY_BYTES = 28 * 1024 * 1024;
+        const MAX_BODY_BYTES = MAX_RAW_BODY_BYTES;
         let base64Content;
         try {
             if (req.rawBody) {
@@ -245,7 +240,7 @@ exports.ingestHuddle = onRequest(
             return;
         }
 
-        if (fileBuffer.length > 20 * 1024 * 1024) {
+        if (fileBuffer.length > MAX_FILE_BYTES) {
             res.status(413).json({ error: 'File exceeds 20 MB limit' });
             return;
         }
@@ -320,7 +315,7 @@ exports.ingestHuddle = onRequest(
                     // Cap at 200 KB — a Huddle is a short daily briefing. A larger HTML blob
                     // indicates something unexpected (a giant document, a conversion anomaly).
                     // Store the file in Storage and let staff download it directly instead.
-                    if (htmlContent && htmlContent.length > 200_000) {
+                    if (htmlContent && htmlContent.length > MAX_HUDDLE_HTML_CHARS) {
                         console.warn(`[ingestHuddle] HTML too large (${htmlContent.length} chars) — discarding, staff will download from Storage`);
                         htmlContent = null;
                     }
@@ -755,14 +750,13 @@ exports.parseRosterPDF = onRequest(
         // Also apply a strict round-trip calendar check: JS normalises impossible dates
         // (e.g. 2025-02-29 → 2025-03-01) instead of returning NaN, so the format check
         // above is not sufficient on its own to reject an impossible date.
-        const weekEndingDate = new Date(weekEnding + 'T12:00:00Z');
-        if (weekEndingDate.getUTCDay() !== 6) {
-            res.status(400).json({ error: 'X-Week-Ending must be a Saturday' });
+        const weekEndingDate = parseStrictIsoDate(weekEnding);
+        if (!weekEndingDate) {
+            res.status(400).json({ error: 'X-Week-Ending is not a valid calendar date' });
             return;
         }
-        const [weYear, weMonth, weDay] = weekEnding.split('-').map(Number);
-        if (weekEndingDate.getUTCFullYear() !== weYear || weekEndingDate.getUTCMonth() + 1 !== weMonth || weekEndingDate.getUTCDate() !== weDay) {
-            res.status(400).json({ error: 'X-Week-Ending is not a valid calendar date' });
+        if (weekEndingDate.getUTCDay() !== 6) {
+            res.status(400).json({ error: 'X-Week-Ending must be a Saturday' });
             return;
         }
         if (!['cea', 'ces', 'dispatcher'].includes(rosterType)) {
@@ -774,7 +768,7 @@ exports.parseRosterPDF = onRequest(
         // 20 MB decoded ≈ 27 MB of base64; cap the raw body a little above that so
         // an oversized upload is rejected *during* streaming rather than after the
         // whole thing is buffered + decoded (which could OOM the 512MiB instance).
-        const MAX_BODY_BYTES = 28 * 1024 * 1024;
+        const MAX_BODY_BYTES = MAX_RAW_BODY_BYTES;
         let base64Content;
         try {
             if (req.rawBody) {
@@ -839,7 +833,7 @@ exports.parseRosterPDF = onRequest(
             res.status(400).json({ error: 'Uploaded file is not a valid PDF' });
             return;
         }
-        if (pdfBuffer.length > 20 * 1024 * 1024) {
+        if (pdfBuffer.length > MAX_FILE_BYTES) {
             res.status(413).json({ error: 'File exceeds 20 MB limit' });
             return;
         }

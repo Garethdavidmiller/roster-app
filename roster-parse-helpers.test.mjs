@@ -19,6 +19,7 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
+    parseStrictIsoDate,
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
@@ -578,5 +579,34 @@ describe('buildPushPayload', () => {
             assert.ok(title.length <= 40, `${key} title "${title}" exceeds the 40-char budget (${title.length})`);
             assert.ok(typeof f.tag === 'string' && f.tag.length > 0, `${key} must have a stable tag`);
         }
+    });
+});
+
+// ── parseStrictIsoDate ──────────────────────────────────────────────────────────
+describe('parseStrictIsoDate', () => {
+    test('accepts a real date and returns UTC-noon', () => {
+        const d = parseStrictIsoDate('2026-04-11');
+        assert.ok(d instanceof Date);
+        assert.equal(d.getUTCFullYear(), 2026);
+        assert.equal(d.getUTCMonth() + 1, 4);
+        assert.equal(d.getUTCDate(), 11);
+        assert.equal(d.getUTCHours(), 12);
+    });
+    test('rejects bad format', () => {
+        for (const bad of ['2026/04/11', '11-04-2026', '2026-4-11', 'x', '', '2026-04-11T00:00'])
+            assert.equal(parseStrictIsoDate(bad), null, bad);
+    });
+    test('rejects JS-normalised impossible dates', () => {
+        assert.equal(parseStrictIsoDate('2026-02-30'), null); // would normalise to 2026-03-02
+        assert.equal(parseStrictIsoDate('2025-02-29'), null); // 2025 not a leap year
+        assert.equal(parseStrictIsoDate('2026-13-01'), null);
+        assert.equal(parseStrictIsoDate('2026-00-10'), null);
+    });
+    test('accepts a valid leap day', () => {
+        assert.ok(parseStrictIsoDate('2028-02-29') instanceof Date);
+    });
+    test('non-string input → null', () => {
+        assert.equal(parseStrictIsoDate(null), null);
+        assert.equal(parseStrictIsoDate(20260411), null);
     });
 });

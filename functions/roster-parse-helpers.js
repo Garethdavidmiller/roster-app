@@ -334,6 +334,24 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
 
 // ── Huddle push notification day label ───────────────────────────────────────
 
+
+/**
+ * Parse a strict YYYY-MM-DD calendar date. Returns the UTC-noon Date if the string is a real
+ * calendar date, else null. Rejects bad formats AND JS-normalised impossible dates (2026-02-30 →
+ * 2026-03-02) via a round-trip check — the format regex alone is not enough. Shared by both HTTP
+ * handlers (ingestHuddle, parseRosterPDF) so date validation is identical.
+ * @param {string} str
+ * @returns {Date|null}
+ */
+function parseStrictIsoDate(str) {
+    if (typeof str !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;
+    const d = new Date(str + 'T12:00:00Z');
+    if (isNaN(d.getTime())) return null;
+    const [y, m, day] = str.split('-').map(Number);
+    if (d.getUTCFullYear() !== y || d.getUTCMonth() + 1 !== m || d.getUTCDate() !== day) return null;
+    return d;
+}
+
 // ── Pay cutoff detection ─────────────────────────────────────────────────────
 
 /**
@@ -467,6 +485,7 @@ module.exports = {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
+    parseStrictIsoDate,
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
