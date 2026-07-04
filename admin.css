@@ -603,11 +603,12 @@
         .day-row.selected   { background: color-mix(in srgb, var(--accent-gold) 8%, transparent); border-left: 4px solid var(--accent-gold); }
         /* Active (type is set — ready to save) */
         .day-row.active     { background: var(--today-print); }
-        /* Has an existing Firestore override — will overwrite */
-        .day-row.has-override { background: var(--row-override-bg); border-left: 4px solid var(--orange); }
-        /* Warm-peach fill via --row-override-active-bg (softened in shared.css v15.60) — the
-           4px orange left accent carries the state, not a loud full-card wash. */
-        .day-row.has-override.active { background: var(--row-override-active-bg); }
+        /* Has an existing Firestore override — will overwrite. Uses the SAME warm tone as the
+           roster-upload conflict card (v15.68): --al-confirm-bg cream + a muted --conflict-strong
+           left accent, instead of the old bright-orange accent + amber fill. */
+        .day-row.has-override { background: var(--al-confirm-bg); border-left: 4px solid var(--conflict-strong); }
+        /* Active (prefilled) override: a touch deeper warm cream so it reads a step stronger. */
+        .day-row.has-override.active { background: color-mix(in srgb, var(--al-confirm-accent) 12%, white); }
 
         /* More breathing room when a row is expanded */
         .day-row.active, .day-row.selected { padding-top: 10px; padding-bottom: 10px; }
