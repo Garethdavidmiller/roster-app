@@ -3,7 +3,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
+  P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
 } from './paycalc-calc.js';
@@ -38,6 +38,26 @@ describe('constants', () => {
     assert.equal(TAX_YEARS.length, 2);
     assert.equal(TAX_YEARS[0].label, '2025/26');
     assert.equal(TAX_YEARS[1].label, '2026/27');
+  });
+
+  test('AWARD_RATES: CEA 2025/26 old £20.06 → new £20.74 (payslip-confirmed)', () => {
+    // Old rate from G. Miller payslip 09/05/2025 ("Basic Pay @ 20.06"); new = the settled 2025/26 rate.
+    assert.equal(AWARD_RATES.cea['2025/26'].pre, 20.06);
+    assert.equal(AWARD_RATES.cea['2025/26'].rate, 20.74);
+  });
+
+  test('AWARD_RATES: pending 2026/27 has old = last year rate, new unconfirmed (null)', () => {
+    assert.equal(AWARD_RATES.cea['2026/27'].pre, 20.74); // 2025/26 rate is the pending award's OLD rate
+    assert.equal(AWARD_RATES.cea['2026/27'].rate, null); // award not yet agreed
+    assert.equal(AWARD_RATES.ces['2026/27'].pre, 21.81);
+  });
+
+  test('awardRatesFor: known grade/year returns the pair, unknown returns null', () => {
+    assert.deepEqual(awardRatesFor('cea', '2025/26'), { rate: 20.74, pre: 20.06 });
+    assert.equal(awardRatesFor('cea', '2099/00'), null);        // unknown year
+    assert.equal(awardRatesFor('ces', '2025/26').pre, null);    // CES 2024/25 rate not on record
+    // Unknown grade falls back to CEA (never throws)
+    assert.deepEqual(awardRatesFor('zzz', '2025/26'), { rate: 20.74, pre: 20.06 });
   });
 
   test('NI 2025/26 thresholds are exactly £968 PT and £3868 UEL (weekly × 4)', () => {

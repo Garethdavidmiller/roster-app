@@ -452,8 +452,13 @@ localStorage key constants and data migration logic for the pay calculator (v11.
 ### `paycalc-calc.js`
 Pure functions only — no DOM, no Firebase, no localStorage.
 - All pay rate tables (`GRADES`, `TAX_YEARS`)
+- `AWARD_RATES` + `awardRatesFor(grade, tyLabel)` — authoritative per-grade, per-tax-year pay-award
+  rates (`{ rate, pre }`: settled rate + the prior-year "old" rate). Payslip-confirmed (CEA 2024/25
+  = £20.06). Consumed ONLY by `paycalc-backpay.js` so the back-pay card can compute any year's award
+  with the correct old→new rates, independent of the mutable `GRADES` default. Add one entry per
+  grade each April.
 - `computeGross()`, `computeTax()`, `computeNI()`, `computeSL()`
-- Edit here for: rate changes, tax year rollover, NI threshold changes
+- Edit here for: rate changes, tax year rollover, NI threshold changes, a new annual pay award
 - Covered by `paycalc.test.mjs` — run tests after any change here
 
 ### `paycalc-roster-suggestions.js`

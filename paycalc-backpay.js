@@ -15,10 +15,10 @@
 import { parseSmartFloat } from './roster-data.js';
 import {
   RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset,
+  getTaxYearForOffset, awardRatesFor,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, payslipPeriodNum, _setSelectPeriod } from './paycalc-periods.js';
-import { getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
+import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet } from './ls.js';
 import { SK, periodKey } from './paycalc-migrations.js';
 import { _decodeHours } from './paycalc-hpp.js';
@@ -71,15 +71,23 @@ export function prefillBackPay() {
   const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   const oldRateEl   = /** @type {HTMLInputElement} */ (document.getElementById('oldRate'));
+  const newRateEl   = /** @type {HTMLInputElement} */ (document.getElementById('newRateInput'));
   const oldLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('oldLondon'));
   const newLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
+
+  // The award year is the tax year of the SELECTED period, so the card computes the award for
+  // whichever year you're viewing (historic OR pending). Its OLD rate = the rate paid before that
+  // year's award = the prior year's rate — held per grade/year in AWARD_RATES (payslip-confirmed),
+  // so it never depends on the mutable GRADES default. null = not on record (e.g. CES 2024/25) →
+  // the old-rate box stays blank for manual entry.
+  const award = awardRatesFor(getGrade(), ty.label);
+  if (!oldRateEl.value && award && award.pre != null) oldRateEl.value = award.pre.toFixed(2);
+
   if (ty.rateUnconfirmed) {
-    // Offered-but-unconfirmed award (e.g. the 2026/27 rise awaiting RMT acceptance): the
-    // member's CURRENT rate IS the OLD (pre-award) rate, and the NEW rate is not yet known —
-    // so prefill the OLD boxes with the current figures and leave NEW blank for the "Pay
-    // rise %" helper or manual entry. Previously NEW was filled with ty.londonAllow, which
-    // for an unconfirmed year is merely the current rate carried over as a placeholder — so
-    // it dropped the current/old rate into the New box (the bug this fixes).
+    // Offered-but-unconfirmed award (e.g. the 2026/27 rise awaiting RMT acceptance): the OLD rate
+    // is the prior year's rate (prefilled above from AWARD_RATES, or the stored rate as a fallback
+    // for a grade with no recorded pre), and the NEW rate is not yet known — so leave NEW blank for
+    // the "Pay rise %" helper (defaulted below) or manual entry.
     if (!oldRateEl.value)   oldRateEl.value   = getStoredRateForYear(ty).toFixed(2);
     if (!oldLondonEl.value) oldLondonEl.value = ty.londonAllow.toFixed(2);
     // Default the "Pay rise %" to the currently offered award so the card opens with an estimate.
@@ -88,9 +96,16 @@ export function prefillBackPay() {
     const pctEl = /** @type {HTMLInputElement | null} */ (document.getElementById('bpRisePct'));
     if (pctEl && !pctEl.value) pctEl.value = String(PENDING_AWARD_PCT);
   } else {
+    // Settled award (e.g. 2025/26): the NEW rate is on record too, so prefill it — a historic
+    // award opens fully populated (CEA 2025/26: old £20.06 → new £20.74). No "Pay rise %" default
+    // (the real figures are known), so _applyBpRisePct is a no-op and won't touch these boxes.
+    if (!newRateEl.value && award && award.rate != null) newRateEl.value = award.rate.toFixed(2);
     if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
     if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
   }
+  // Name the award year on the card so it's clear WHICH annual rise is being calculated.
+  const awardScopeEl = document.getElementById('bpAwardScope');
+  if (awardScopeEl) awardScopeEl.textContent = `You're calculating the ${ty.label} pay award (backdated to 1 April).`;
   // The award is always backdated to 1 April (Chiltern's pay anniversary) — computed
   // internally by _backdatedFromPNum(); there is no "backdated from" selector to pre-set.
   // Default the "paid in" period to the NEXT PAYDAY (the current period) — the lump sum most

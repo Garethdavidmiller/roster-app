@@ -90,6 +90,41 @@ export const GRADES = {
   ces: { label: 'CES — £21.81/hr', rate: 21.81, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) }, // 2026/27 rate TBC
 };
 
+// ── Annual pay-award rates by grade + tax year ─────────────────────────────
+// A pay rise happens once a year, backdated to 1 April (Chiltern's pay anniversary), and is
+// typically PAID mid-year as a lump sum once the award is agreed (2025/26 landed on the 24 Oct
+// 2025 payslip — see londonAllowFrom). This table is the authoritative record so the back-pay
+// card can compute ANY year's award, not just the pending one:
+//   `rate` = the settled rate for that tax year (null while an award is still unconfirmed).
+//   `pre`  = the rate paid BEFORE that year's award was applied (i.e. the prior year's rate) —
+//            the OLD rate for that year's back-pay. null = not on record (falls back to manual).
+// Payslip-confirmed values: CEA 2024/25 = £20.06 (G. Miller payslip 09/05/2025, "Basic Pay @20.06").
+// Each April, when the new award is agreed: set that year's `rate`, and add the next year with
+// `pre` = this year's rate. Consumed ONLY by paycalc-backpay.js (the main calculator's per-year
+// rate still comes from GRADES + the localStorage per-year override — unchanged).
+/** @type {Record<string, Record<string, { rate: number|null, pre: number|null }>>} */
+export const AWARD_RATES = {
+  cea: {
+    '2025/26': { rate: 20.74, pre: 20.06 },
+    '2026/27': { rate: null,  pre: 20.74 }, // pending — 3.6% offered, awaiting RMT
+  },
+  ces: {
+    '2025/26': { rate: 21.81, pre: null },  // 2024/25 CES rate not yet on record
+    '2026/27': { rate: null,  pre: 21.81 },
+  },
+};
+
+/**
+ * The pay-award old/new rates for a grade + tax-year label, or null if the grade/year is unknown.
+ * @param {string} grade    - 'cea' | 'ces'
+ * @param {string} tyLabel  - e.g. '2025/26'
+ * @returns {{ rate: number|null, pre: number|null } | null}
+ */
+export function awardRatesFor(grade, tyLabel) {
+  const g = AWARD_RATES[grade] || AWARD_RATES.cea;
+  return g[tyLabel] || null;
+}
+
 // HPP formula confirmed by Chiltern payroll (Marie Firby): (Gross − Basic) × 4/52
 export const HPP_FRACTION = 4 / 52;
 
