@@ -748,8 +748,9 @@
       .net-amount { font-size: 60px; }
       .net-period { font-size: 17px; }
 
-      /* Period controls: the tablet grid layout persists here. On desktop the
-         card sits in a 636px column — comfortable for the form controls. */
+      /* Period controls: the tablet grid layout persists, but on desktop the band spans BOTH
+         columns (grid-column: 1 / -1, row 3) and is capped + centred to ~660px (see above) so
+         its inner controls don't stretch — it is NOT in the left column. */
 
       /* Peek button is redundant on desktop — result card is sticky and always visible */
       .result-peek-btn { display: none; }
