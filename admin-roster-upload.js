@@ -704,14 +704,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <div class="roster-cb-opt">
                                 <span class="roster-cb-lab">You saved</span>
                                 <span class="roster-cv-manual${usesPDF ? ' cv-dim' : ''}">${shiftDisplay(s.manualValue)}</span>
-                                <span class="roster-pick" role="group" aria-label="Resolve conflict">
-                                    <button type="button" class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Keep yours</button>
-                                    <button type="button" class="roster-choice-btn ${usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="pdf" aria-pressed="${usesPDF}">Use new roster</button>
-                                </span>
                             </div>
                             <div class="roster-cb-opt">
                                 <span class="roster-cb-lab">New roster</span>
                                 <span class="roster-cv-pdf${usesPDF ? '' : ' cv-dim'}">${shiftDisplay(s.displayShift ?? s.parsedShift, s.baseShift, date)}</span>
+                            </div>
+                            <div class="roster-pick" role="group" aria-label="Resolve conflict">
+                                <button type="button" class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Keep yours</button>
+                                <button type="button" class="roster-choice-btn ${usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="pdf" aria-pressed="${usesPDF}">Use new roster</button>
                             </div>
                         </div>`;
                 }
