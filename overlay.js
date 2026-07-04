@@ -10,10 +10,14 @@
  * position:fixed at the current scroll offset and restore on close. The
  * .lb-open class (defined in shared.css) applies the fix.
  *
- * Android Back button: opening any overlay pushes a shallow history entry;
- * Back dismisses it instead of navigating away. Closing via a button clears
- * the entry via history.back(), which fires popstate — the flag is already
- * false by then so the handler is a no-op.
+ * Android Back button: opening any overlay pushes a shallow history entry and
+ * registers its close handler on a LIFO stack, so NESTED overlays (e.g. a lightbox
+ * opened over Team Week View) each get their own entry and Back closes only the
+ * topmost — the lower overlay keeps its entry and closes on the next Back. Closing via
+ * a button pops that overlay's entry with history.back(); the resulting popstate echo
+ * is absorbed so its handler is not re-invoked. (Before v15.69 this was a single slot:
+ * the second overlay clobbered the first's registration, so after closing the top one
+ * the lower overlay was left open with no entry and Back then left the page.)
  */
 
 let _lbScrollY = 0;
@@ -32,18 +36,30 @@ export function unlockBodyScroll() {
     window.scrollTo(0, _lbScrollY);
 }
 
-let _overlayHistoryPushed = false;
-/** @type {Function|null} */
-let _backHandler = null;
+// LIFO stack of overlay close handlers — one per pushed history entry, so nested
+// overlays stack instead of clobbering each other's Back registration.
+/** @type {Function[]} */
+let _backHandlers = [];
+// Absorbs the popstate ECHO that a button-initiated history.back() fires (see
+// _clearOverlayHistory) — a counter, not a boolean, so overlapping button-closes stay balanced.
+let _suppressPops = 0;
+// True only while a popstate-invoked handler runs. A _clearOverlayHistory() call from
+// inside such a handler (the browser already consumed the entry) must be a no-op — otherwise
+// it would pop and history.back() a SECOND overlay. (Team view's toggle and every lightbox's
+// close call _clearOverlayHistory, so they hit this on the Back path.)
+let _handlingPop = false;
 
-/** Push a shallow history entry so Android Back closes the overlay. */
-/** @param {Function} closeHandler */
+/**
+ * Push a shallow history entry so Android Back closes the overlay, and register its
+ * close handler on the stack. Idempotent per handler: re-registering the SAME overlay's
+ * close (e.g. open() called twice with no intervening close) does not stack a duplicate
+ * entry — preserving the old model's resilience to a double-open.
+ * @param {Function} closeHandler
+ */
 export function _pushOverlayState(closeHandler) {
-    if (!_overlayHistoryPushed) {
-        history.pushState({ mybOverlay: true }, '');
-        _overlayHistoryPushed = true;
-    }
-    _backHandler = closeHandler;
+    if (_backHandlers.includes(closeHandler)) return;
+    history.pushState({ mybOverlay: true }, '');
+    _backHandlers.push(closeHandler);
 }
 
 /**
@@ -84,21 +100,30 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose } = {}) {
     el.addEventListener('transitionend', finishOnce);
 }
 
-/** Remove the pushed history entry when the overlay is closed by a button. */
+/**
+ * Remove the TOP overlay's history entry when it is closed by a button (not Back).
+ * The closing overlay is always the topmost (overlays dismiss LIFO), so pop the top
+ * handler and history.back() to drop its entry; the echoed popstate is absorbed by
+ * _suppressPops. A no-op when called from within a popstate-invoked handler (_handlingPop) —
+ * there the browser already consumed the entry, so popping again would close a second overlay.
+ */
 export function _clearOverlayHistory() {
-    if (_overlayHistoryPushed) {
-        _overlayHistoryPushed = false;
-        _backHandler = null;
+    if (_handlingPop) return;
+    if (_backHandlers.length > 0) {
+        _backHandlers.pop();
+        _suppressPops++;
         history.back();
     }
 }
 
 window.addEventListener('popstate', () => {
-    if (!_overlayHistoryPushed) return;
-    _overlayHistoryPushed = false;
-    const fn = _backHandler;
-    _backHandler = null;
-    fn?.();
+    // Absorb the echo from our own button-initiated history.back().
+    if (_suppressPops > 0) { _suppressPops--; return; }
+    if (_backHandlers.length === 0) return;
+    const fn = _backHandlers.pop();
+    // Guard so the handler's own _clearOverlayHistory() call is a no-op (the entry is gone).
+    _handlingPop = true;
+    try { fn?.(); } finally { _handlingPop = false; }
 });
 
 /**
