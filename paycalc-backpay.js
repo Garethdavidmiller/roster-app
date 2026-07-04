@@ -71,7 +71,7 @@ export function _bpAwardTaxYear(fromPNum) {
 /**
  * Pre-fill the Back Pay card inputs when it opens (initCardCollapse onToggle).
  * Returns the result of calcBackPay() so coordinator can update its BP state.
- * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number, bpIsEstimate: boolean }}
+ * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number, bpIsEstimate: boolean, bpIncluded: boolean }}
  */
 export function prefillBackPay() {
   const pNum = currentPeriodNum();
@@ -176,6 +176,7 @@ function _saveBpState() {
       year: _bpAwardTaxYear(_backdatedFromPNum()).label,
       pct:  v('bpRisePct'), oldR: v('oldRate'), newR: v('newRateInput'),
       oldL: v('oldLondon'), newL: v('newLondon'), paidIn: v('backPayPeriod'),
+      inc:  /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked ? '1' : '',
     }));
   } catch { /* storage unavailable — card still works, just not persisted */ }
 }
@@ -206,6 +207,8 @@ export function restoreBpState() {
   set('oldLondon', s.oldL); set('newLondon', s.newL);
   const paidSel = document.getElementById('backPayPeriod');
   if (paidSel && s.paidIn) _setSelectPeriod(paidSel, +s.paidIn);
+  const incTick = /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'));
+  if (incTick) incTick.checked = s.inc === '1';
   _lastAwardYear = year;
   return true;
 }
@@ -281,7 +284,7 @@ function _resetBreakdown(rowsEl, breakdownBtn) {
  * Calculate the back-pay lump sum from the card inputs, render the results,
  * and return the new coordinator BP state.
  * Does NOT mutate coordinator state or call calculate() — caller handles that.
- * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number, bpIsEstimate: boolean }}
+ * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number, bpIsEstimate: boolean, bpIncluded: boolean }}
  */
 export function calcBackPay() {
   const oldRate   = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldRate')).value);
@@ -304,6 +307,9 @@ export function calcBackPay() {
   const bpP       = bpPNum ? getPeriods().find(/** @param {any} x */ x => x.num === bpPNum) : null;
   const hasRate   = oldRate   > 0 && newRate   > 0 && newRate   > oldRate;
   const hasLondon = oldLondon > 0 && newLondon > 0 && newLondon > oldLondon;
+  // Opt-in tick (OFF by default): the lump is only ADDED to the paid-in payslip's take-home when
+  // ticked. The card still computes and shows the lump either way; the coordinator gates the gross.
+  const bpIncluded = !!(/** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked);
 
   // Persist the raw inputs per member (autosave, like every other paycalc field) so the lump
   // survives a reload — restored by restoreBpState() at init.
@@ -336,7 +342,7 @@ export function calcBackPay() {
     noticeEl.style.display     = 'none';
     if (periodWrap) periodWrap.style.display = 'none';
     if (applyWrap)  applyWrap.style.display  = 'none';
-    return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false };
+    return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded };
   }
 
   const rateDiff   = hasRate   ? newRate   - oldRate   : 0;
@@ -486,5 +492,5 @@ export function calcBackPay() {
   // bpIsEstimate: the lump derives from an offered-but-unconfirmed award (the 3.6% default) —
   // the result card must say "estimated" wherever it surfaces this figure.
   return { bpAmount: newBpAmt, bpVarAmount: newBpVarAmt, bpPNum: newBpPNum,
-           bpIsEstimate: !!awardTy?.rateUnconfirmed };
+           bpIsEstimate: !!awardTy?.rateUnconfirmed, bpIncluded };
 }
