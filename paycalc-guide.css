@@ -1,26 +1,48 @@
 /* MYB Roster — Pay Calculator Guide page styles (paycalc-guide.html).
    Shared document-guide styles (print, banner, steps, table, info, footer,
-   two-column layout, palette) live in guide-doc.css, linked BEFORE this file.
-   Only paycalc-guide.html-specific rules below. */
+   two-column layout, shift-badge chips, palette) live in guide-doc.css,
+   linked BEFORE this file. Only paycalc-guide.html-specific rules below. */
 
 /* Single-page guide — hide the in-document banner on screen (the sticky
    page-header carries identity + version); it still prints. */
 @media screen { .guide-header { display: none; } }
 
-/* ── Pay type grid ───────────────────────────────────── */
-.pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+/* ── Pay-type reference grid ─────────────────────────── */
+.pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .pay-item {
     display: flex;
     align-items: flex-start;
-    gap: 7px;
-    padding: 5px 7px;
+    gap: 9px;
+    padding: 8px 10px;
     border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
+    border-radius: 10px;
+    background: var(--card);
 }
-.pay-emoji { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
-.pay-name  { font-size: 10.5px; font-weight: 700; color: var(--navy); display: block; }
-.pay-desc  { font-size: 10px; color: var(--light); display: block; line-height: 1.3; }
+.pay-emoji { font-size: 17px; flex-shrink: 0; margin-top: 1px; line-height: 1; }
+.pay-name  { font-size: 11.5px; font-weight: 800; color: var(--navy); display: block; }
+.pay-rate  { font-size: 10px; font-weight: 800; color: var(--sb-rdw); }
+.pay-desc  { font-size: 10.5px; color: var(--mid); display: block; line-height: 1.4; margin-top: 1px; }
+.pay-slip  { font-size: 10px; color: var(--light); display: block; margin-top: 2px; }
+.pay-slip code { font-size: 10px; }
 
-/* ── Disc list (used in the "Entering your hours" section) ── */
-.guide-disc-list { list-style: disc; padding-left: 1.2em; font-size: 11px; color: var(--mid); line-height: 1.6; margin-bottom: 8px; }
+/* ── Disc list (used in "Entering your hours") ───────── */
+.guide-disc-list { list-style: none; margin-bottom: 8px; }
+.guide-disc-list li {
+    position: relative;
+    padding-left: 16px;
+    font-size: 12px;
+    color: var(--mid);
+    line-height: 1.55;
+    margin-bottom: 3px;
+}
+.guide-disc-list li::before {
+    content: ""; position: absolute; left: 3px; top: 8px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--gold);
+}
+.guide-disc-list li strong { color: var(--text); }
+
+@media print {
+    .pay-grid { gap: 4px; }
+    .pay-item { padding: 4px 7px; border-radius: 6px; }
+    .guide-disc-list li { font-size: 10px; margin-bottom: 1px; }
+}
