@@ -507,6 +507,16 @@ a placeholder so the idea isn't lost.
 
 ---
 
+### Deferred: mid-year pension step for 2025/26
+
+**What:** The pay calculator models the pension contribution as two values — `pensionPre` £154.77 (before 8 May 2026) and `pension` £147.36 (from 8 May 2026) in `GRADES` (`paycalc-calc.js`). But G. Miller's **09/05/2025** payslip shows `Smart RPS CR Scheme` at **£160.78**, so the pension actually stepped **£160.78 → £154.77** at some point during the 2025/26 tax year that the app doesn't model. Historic pre-step 2025/26 periods therefore estimate pension ~£6 too low (take-home ~£6 too high). This is the pension counterpart to the mid-year *rate* step already modelled by `getRateForPeriod` (v15.95) and the London step (`londonAllowFrom`).
+
+**Blocked on:** Finding **when the £160.78 → £154.77 pension change came in** — the exact payslip/date it dropped. One payslip (09/05/2025 = £160.78) isn't enough to locate the step; need a payslip from later in 2025/26 showing £154.77 and ideally the first one that changed. `MILLER_ACTUALS` stores net/tax/NI but **not** the pension line, so the date can't be read from the repo — it needs a payslip.
+
+**When to do it:** Once the step date is known, model it exactly like the rate/London steps — add `pensionPre2/pensionFrom2` (or generalise to a small per-date pension table) so `getPensionForPeriod` returns £160.78 before the step, £154.77 between the step and 8 May 2026, and £147.36 after. Then a historic 2025/26 period matches the real payslip on pension too.
+
+---
+
 ### Dispatcher pay calculator support
 **What:** Add Dispatcher pay rates to the `GRADES` object in `paycalc-calc.js` so Dispatcher staff can use the pay calculator.
 
