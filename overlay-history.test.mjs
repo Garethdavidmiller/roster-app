@@ -130,4 +130,37 @@ describe('overlay history stack — _pushOverlayState / _clearOverlayHistory / p
         pressBack();                                // must run B (suppression already consumed)
         assert.deepEqual(calls, ['B']);
     });
+
+    test('REGRESSION: double button-close of the TOP overlay does NOT pop the overlay beneath it', async () => {
+        // e.g. About lightbox (top) over Team View (lower); user double-taps About's ✕ during
+        // the 500ms fade. The SECOND _clearOverlayHistory(closeAbout) must find closeAbout already
+        // gone and no-op — it must NOT pop closeTV.
+        const { _pushOverlayState, _clearOverlayHistory } = await freshOverlay();
+        const calls = [];
+        const closeTV    = () => calls.push('TV');
+        const closeAbout = () => calls.push('About');
+        _pushOverlayState(closeTV);
+        _pushOverlayState(closeAbout);
+        _clearOverlayHistory(closeAbout);   // first ✕ tap
+        assert.equal(backCount, 1, 'one history.back() for the real close');
+        _clearOverlayHistory(closeAbout);   // second ✕ tap during fade — handler already gone
+        assert.equal(backCount, 1, 'the double-tap must NOT issue a second history.back()');
+        // Team View survived: a real Back now closes it (and only it).
+        pressBack();
+        assert.deepEqual(calls, ['TV']);
+    });
+
+    test('specific-handler close removes the RIGHT entry when a non-topmost overlay is dismissed', async () => {
+        const { _pushOverlayState, _clearOverlayHistory } = await freshOverlay();
+        const calls = [];
+        const closeA = () => calls.push('A');   // lower
+        const closeB = () => calls.push('B');   // upper
+        _pushOverlayState(closeA);
+        _pushOverlayState(closeB);
+        _clearOverlayHistory(closeA);           // dismiss the LOWER one by identity
+        assert.equal(backCount, 1);
+        // Only closeB remains registered; a Back closes B (not A again).
+        pressBack();
+        assert.deepEqual(calls, ['B']);
+    });
 });

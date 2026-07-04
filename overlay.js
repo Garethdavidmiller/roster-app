@@ -71,9 +71,12 @@ export function _pushOverlayState(closeHandler) {
  * @param {EventListener} [opts.onKey]   - document keydown listener to remove
  * @param {HTMLElement}  [opts.focusReturn]  - element to focus synchronously on close
  * @param {Function} [opts.afterClose]   - called once .visible is removed and scroll unlocked
+ * @param {Function} [opts.backHandler]  - the close handler this overlay registered via
+ *   _pushOverlayState; passed on so _clearOverlayHistory drops THIS overlay's entry (not
+ *   just the top) and a double-tap / non-topmost dismiss can't pop a different overlay's entry.
  */
-export function dismissOverlay(el, { onKey, focusReturn, afterClose } = {}) {
-    _clearOverlayHistory();
+export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler } = {}) {
+    _clearOverlayHistory(backHandler);
     el.classList.remove('open');
     if (onKey) document.removeEventListener('keydown', onKey);
     focusReturn?.focus();
@@ -101,19 +104,23 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose } = {}) {
 }
 
 /**
- * Remove the TOP overlay's history entry when it is closed by a button (not Back).
- * The closing overlay is always the topmost (overlays dismiss LIFO), so pop the top
- * handler and history.back() to drop its entry; the echoed popstate is absorbed by
- * _suppressPops. A no-op when called from within a popstate-invoked handler (_handlingPop) —
- * there the browser already consumed the entry, so popping again would close a second overlay.
+ * Remove an overlay's history entry when it is closed by a button (not Back).
+ * Pass the overlay's own close handler so its SPECIFIC entry is removed — this makes the
+ * call idempotent (a double-tap on the ✕, common during the 500ms fade, finds the handler
+ * already gone and no-ops instead of popping the overlay BENEATH it) and safe if a
+ * non-topmost overlay is dismissed. With no handler it falls back to popping the top (the
+ * closing overlay is normally the topmost). Either way it history.back()s ONE entry and the
+ * echoed popstate is absorbed by _suppressPops. A no-op inside a popstate-invoked handler
+ * (_handlingPop) — the browser already consumed that entry.
+ * @param {Function} [closeHandler]
  */
-export function _clearOverlayHistory() {
+export function _clearOverlayHistory(closeHandler) {
     if (_handlingPop) return;
-    if (_backHandlers.length > 0) {
-        _backHandlers.pop();
-        _suppressPops++;
-        history.back();
-    }
+    const idx = closeHandler ? _backHandlers.lastIndexOf(closeHandler) : _backHandlers.length - 1;
+    if (idx < 0) return;   // already removed (double-tap) or not registered → idempotent no-op
+    _backHandlers.splice(idx, 1);
+    _suppressPops++;
+    history.back();
 }
 
 window.addEventListener('popstate', () => {
@@ -188,7 +195,9 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
 
     function close() {
         onClose?.();
-        dismissOverlay(overlay, { onKey: /** @type {EventListener} */ (onKey), focusReturn: /** @type {HTMLElement|undefined} */ (_focusReturn ?? undefined) });
+        // Pass `close` as backHandler so a double-tap on the ✕ (or backdrop) during the fade
+        // drops only THIS lightbox's entry, never the overlay beneath it.
+        dismissOverlay(overlay, { onKey: /** @type {EventListener} */ (onKey), focusReturn: /** @type {HTMLElement|undefined} */ (_focusReturn ?? undefined), backHandler: close });
         _focusReturn = null;
     }
 

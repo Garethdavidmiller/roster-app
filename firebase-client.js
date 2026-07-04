@@ -701,32 +701,34 @@ export function logClientError({ memberName, page, message, stack, appVersion, u
  * Ordering and retention are pure logic in client-errors.js (unit-tested); this
  * function is only the Firestore I/O around them.
  *
- * The unresolved query is capped at `UNRESOLVED_CAP` with NO `orderBy` (that would need
- * the composite index this design deliberately avoids), so if the cap is ever hit the
- * returned set is an arbitrary — not the newest — 100. That only happens above the
- * documented operating volume (< 100 unresolved), but the error log is the admin's own
- * "see problems" surface, so a hit cap must be surfaced, never silently swallowed (the
- * app's no-silent-caps rule). Hence the `truncated` flag — the card shows a banner when set.
+ * The unresolved query is capped at `UNRESOLVED_CAP` shown, with NO `orderBy` (that would
+ * need the composite index this design deliberately avoids), so once the cap is exceeded the
+ * shown set is an arbitrary — not the newest — 100. That only happens above the documented
+ * operating volume (< 100 unresolved), but the error log is the admin's own "see problems"
+ * surface, so a genuinely-hidden overflow must be surfaced, never silently swallowed (the
+ * app's no-silent-caps rule). We query `CAP + 1` and set `truncated` only when the extra row
+ * comes back (i.e. > 100 actually exist) — exactly 100 with none hidden is NOT truncated.
  * @returns {Promise<{ errors: Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean, resolvedAt?: import('firebase/firestore').Timestamp}>, truncated: boolean }>}
  */
 export async function getClientErrors() {
     const now = Date.now();
     const UNRESOLVED_CAP = 100;
+    // Fetch ONE more than the display cap: if the 101st exists we KNOW there are more than
+    // 100 (truncated), whereas a plain limit(100) can't tell "exactly 100" from "100+".
     const [unresolvedSnap, resolvedSnap] = await Promise.all([
-        getDocs(query(collection(db, COLLECTIONS.clientErrors), where('resolved', '==', false), limit(UNRESOLVED_CAP))),
+        getDocs(query(collection(db, COLLECTIONS.clientErrors), where('resolved', '==', false), limit(UNRESOLVED_CAP + 1))),
         getDocs(query(collection(db, COLLECTIONS.clientErrors), where('resolved', '==', true),  limit(200))),
     ]);
-    const unresolved = unresolvedSnap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
+    const truncated      = unresolvedSnap.size > UNRESOLVED_CAP;
+    const unresolvedDocs = unresolvedSnap.docs.slice(0, UNRESOLVED_CAP); // show at most the cap
+    const unresolved = unresolvedDocs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
     const resolved   = resolvedSnap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
 
     // Best-effort prune of resolved records past the retention window (from resolvedAt).
     for (const id of expiredResolvedIds(resolved, now)) {
         deleteDoc(doc(db, COLLECTIONS.clientErrors, id)).catch(() => {/* best-effort cleanup */});
     }
-    return {
-        errors: orderClientErrors(unresolved, resolved, now),
-        truncated: unresolvedSnap.size >= UNRESOLVED_CAP,
-    };
+    return { errors: orderClientErrors(unresolved, resolved, now), truncated };
 }
 
 /**

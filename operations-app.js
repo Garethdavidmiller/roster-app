@@ -835,12 +835,13 @@ export function init() {
             errStatus.setAttribute('aria-live', 'polite');
             content.appendChild(errStatus);
 
-            // No-silent-caps: the unresolved query hit its 100-record cap, so more
-            // unresolved errors exist than are shown. Say so rather than hide them.
+            // No-silent-caps: more than 100 unresolved errors exist; only the first 100 are
+            // shown. The card renders once on load and the Resolve button doesn't re-fetch, so
+            // tell the admin to reload after clearing some — don't imply they appear on their own.
             if (truncated) {
                 const note = document.createElement('p');
                 note.className = 'error-truncation-note';
-                note.textContent = '⚠ Showing the first 100 unresolved errors — resolve some to reveal the rest.';
+                note.textContent = '⚠ More than 100 unresolved errors — showing the first 100. Resolve some and reload to see the rest.';
                 content.appendChild(note);
             }
 

@@ -114,7 +114,7 @@ export function initHuddleViewer() {
         _viewerOpen = false;
         const focusReturn = _viewerFocusReturn;
         _viewerFocusReturn = null;
-        dismissOverlay(viewer, { onKey, focusReturn });
+        dismissOverlay(viewer, { onKey, focusReturn, backHandler: closeViewer });
     }
     /** @param {any} e */
     function onKey(e) {
