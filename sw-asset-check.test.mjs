@@ -334,6 +334,47 @@ test('paycalc.html gstatic Firebase preloads match the SDK version in firebase-c
     }
 });
 
+test('index.html modulepreload hints match the calendar\'s real transitive module graph', () => {
+    const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+
+    // The calendar's entry IS calendar-app.js (loaded via <script type="module" src>), and
+    // index.html preloads the whole graph including it — so the entry is NOT deleted here.
+    const graph = staticLocalGraph('calendar-app.js');
+    const expected = [...graph].filter(f => f.endsWith('.js')).sort();
+
+    const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)]
+        .map(x => x[1]).sort();
+
+    const missing = expected.filter(f => !preloaded.includes(f));
+    const stale   = preloaded.filter(f => !expected.includes(f));
+    assert.deepEqual(
+        { missing, stale }, { missing: [], stale: [] },
+        'index.html modulepreload list is out of sync with calendar-app.js\'s static graph.\n' +
+        `  Add a <link rel="modulepreload"> for: ${missing.join(', ') || '(none)'}\n` +
+        `  Remove the stale preload for:        ${stale.join(', ') || '(none)'}`
+    );
+});
+
+test('index.html gstatic Firebase preloads match the SDK version in firebase-client.js', () => {
+    const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
+    const versions = new Set(
+        [...client.matchAll(/gstatic\.com\/firebasejs\/([\d.]+)\//g)].map(x => x[1])
+    );
+    const version = [...versions][0];
+
+    const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+    const preloadedSdk = [...html.matchAll(
+        /<link rel="modulepreload" href="https:\/\/www\.gstatic\.com\/firebasejs\/([\d.]+)\/(firebase-[a-z]+)\.js" crossorigin>/g
+    )];
+    for (const [, v, mod] of preloadedSdk) {
+        assert.equal(v, version, `index.html preloads ${mod} at ${v} but firebase-client.js uses ${version}`);
+    }
+    const preloadedMods = new Set(preloadedSdk.map(x => x[2]));
+    for (const mod of ['firebase-app', 'firebase-auth', 'firebase-firestore']) {
+        assert.ok(preloadedMods.has(mod), `index.html is missing a modulepreload for ${mod}.js`);
+    }
+});
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Privacy guard: real payslip figures (MILLER_ACTUALS) must live ONLY in the test
 // fixture (test-fixtures/miller-actuals.js, excluded from Firebase Hosting), never
