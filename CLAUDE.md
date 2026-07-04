@@ -177,7 +177,7 @@ roster-app/
 ├── admin-sick.js           ← Sick Days Recording: initSickSection(deps)
 ├── admin-overrides.js      ← Change a Shift: PILL_TYPES, week grid, bulk bar, override list, recordRangeOverrides()
 ├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix), getDateRange()
-├── admin-roster-upload.js  ← Weekly Roster Upload: computeCellStates, renderReviewTable, shiftDisplay
+├── admin-roster-upload.js  ← Weekly Roster Upload: computeCellStates, renderReviewTable, shiftDisplay, _saveOverrideBatches (chunked Firestore save — each batch rebuilt inside writeWithClaimRetry so roster-import saves self-heal a stale admin/manager claim, like every other Admin write path)
 ├── paycalc-app.js          ← coordinator for paycalc.html (UI, DOM, autosave, HPP, sticky bar, back-pay). Body is an exported `init()` (Phase 4a.2) invoked by paycalc-boot.js — local-identity gate early-returns, no top-level throw
 ├── paycalc-boot.js         ← 2-line bootstrap for paycalc.html: imports `init` from paycalc-app.js and calls it (CSP blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── paycalc-lightboxes.js   ← lightbox and overlay initialisation for paycalc.html: initPaycalcLightboxes() → { openAboutLightbox }
@@ -218,7 +218,7 @@ roster-app/
 ├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs
 ├── SECURITY_RELEASE_PLAN.md ← master sequencing/risk plan for the deferred security release (per-member isolation, named sessions, App Check, password retirement, WIF, firebase-admin bump). Not version-stamped; not a runtime asset.
 ├── ARCHITECTURE_PLAN.md     ← auth/session consolidation plan (Track 1: identity state machine + page-auth policy map, behaviour-preserving, lands before B3) + supporting refactors (testable coordinators, roster-data split) and the MILLER_ACTUALS privacy decision. Companion to SECURITY_RELEASE_PLAN.md. Not version-stamped; not a runtime asset.
-├── LOGIN_INCIDENT.md        ← incident log for the v14.72–74 login freeze/slowness — RESOLVED (freeze fixed v14.75; B1 re-enabled v14.98). Records the diagnosis, the current auth-flag state (B1 `ENFORCE_NAMED_SESSION=true`; B2 live permissive; B3 strict sweep still off, `CLAIM_EPOCH=0`), and the re-enable checklist. READ THIS before touching login/auth or starting the B3 strict cutover. Not version-stamped.
+├── LOGIN_INCIDENT.md        ← incident log for the v14.72–74 login freeze/slowness — RESOLVED (freeze fixed v14.75; B1 re-enabled v14.98). Records the diagnosis, the current auth-flag state (B1 `ENFORCE_NAMED_SESSION=true`; B2 live permissive; B3 token sweep DONE — `CLAIM_EPOCH=2` since v15.33 — with the B3 strict Rules cutover still pending), and the re-enable checklist. READ THIS before touching login/auth or starting the B3 strict cutover. Not version-stamped.
 ├── override-utils.test.mjs            ← tests for override-utils.js
 ├── roster-data.test.mjs    ← tests for roster-data.js
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
@@ -227,7 +227,7 @@ roster-app/
 ├── surname-parity.test.mjs ← asserts normaliseSurname (firebase-client.js) and nameToPassword (functions/roster-parse-helpers.js) stay in sync (behavioural + source-equivalence); part of test:hygiene
 ├── import-graph.test.mjs   ← detects circular imports across all root ES modules (regex-based, no build step)
 ├── admin-overrides.test.mjs ← tests for getEffectiveShift, validateShiftRules, buildMemberDateMap (--experimental-test-module-mocks)
-├── admin-roster-upload.test.mjs ← tests for shiftValueToOverrideType (parsed value → override type, incl. training + Sunday block) (--experimental-test-module-mocks)
+├── admin-roster-upload.test.mjs ← tests for shiftValueToOverrideType (parsed value → override type, incl. training + Sunday block) + _saveOverrideBatches stale-claim retry parity (permission-denied → token refresh → fresh batch → retry once) (--experimental-test-module-mocks)
 ├── nav-panel.test.mjs      ← tests for isNoticeExpired, archiveNotice, initNavPanel DOM guard (--experimental-test-module-mocks)
 ├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname, refreshClaimsIfStale (--experimental-test-module-mocks)
 ├── login-overlay.test.mjs  ← tests for runNamedSignIn: the sign-in core commits the local session ONLY after auth resolves (timeout/throw/enforce-fail → no save), enforce on/off, transient-vs-persistent messages (--experimental-test-module-mocks)
@@ -541,7 +541,7 @@ resolvedAt   Firestore server timestamp — set when an admin resolves; retentio
 Write: any authenticated session (`request.auth != null`); shape-validated by Firestore rules.
 Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` in `firebase-client.js`, called fire-and-forget from `error-reporter.js`.
-Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) a backlog of resolved records cannot hide them. Prunes resolved records 90 days past `resolvedAt`.
+Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) a backlog of resolved records cannot hide them. It returns `{ errors, truncated }`: the unresolved query is capped at 100 with **no `orderBy`** (an `orderBy` would need the composite index this design deliberately avoids), so above that volume the cap returns an arbitrary — not the newest — 100; `truncated` is set when the cap is hit so the card shows a "showing the first 100" banner rather than silently hiding the rest (no-silent-caps, v15.69). Prunes resolved records 90 days past `resolvedAt`.
 
 **analytics** (v14.14) — anonymous usage counters; **no member identity is ever stored**
 ```

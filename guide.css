@@ -8,6 +8,11 @@
    banner stays as an on-screen divider. Both still print. */
 @media screen { .page:first-of-type .guide-header { display: none; } }
 
+/* Shift Types table — keep the emoji + type name on one line (the TYPE column is
+   narrow, so "🪑 Absent" / "🏷️ Other" were wrapping the word onto a second row). */
+.shift-types th:first-child,
+.shift-types td:first-child { white-space: nowrap; }
+
 /* ── Shift-badge reference grid ──────────────────────── */
 .badge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .badge-item {

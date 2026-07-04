@@ -12,9 +12,9 @@
 
 ## Pre-window checklist (must all hold before applying)
 
-- [ ] `CONFIG.CLAIM_EPOCH == 0` currently, `ENFORCE_NAMED_SESSION == true`, in-place login settled.
+- [x] `CONFIG.CLAIM_EPOCH == 2` already (token sweep armed v15.33), `ENFORCE_NAMED_SESSION == true`, in-place login settled.
 - [ ] **Step 1 — Re-provision:** Operations → Set up accounts (sets `admin`/`manager`/`name` on every account). Idempotent.
-- [ ] **Step 2 — Token sweep:** bump `CONFIG.CLAIM_EPOCH` `0 → 2`, deploy **hosting only** (a separate deploy from the rules). Wait a few days so active devices re-open and force-refresh once; force-sign-out stragglers.
+- [x] **Step 2 — Token sweep ✓ DONE (v15.33):** `CONFIG.CLAIM_EPOCH` is already `2`, so devices force-refresh once on open. Do NOT bump again unless deliberately forcing a fresh sweep. At window time, confirm active devices have re-opened since v15.33 and force-sign-out stragglers.
 - [ ] `CONFIG.MANAGER_NAMES` matches current staff (a stale manager token has `name` but not `manager`).
 - [ ] The write-side `writeWithClaimRetry` net is live (v15.18) — a manager who misses the sweep self-heals on first write. Still do the sweep.
 

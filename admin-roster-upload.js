@@ -5,7 +5,7 @@
 // Called by operations-app.js via initRosterUpload().
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, COLLECTIONS } from './firebase-client.js';
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { shouldReplaceOverride, isOtherValue, parseOtherValue } from './override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';
@@ -54,6 +54,62 @@ function shiftDisplay(shiftStr, _baseShift = null, date = null) {
     return isTime
         ? `${badge}<span class="review-shift-time">${escapeHtml(shiftStr)}</span>`
         : badge;
+}
+
+/**
+ * Write the reviewed roster changes to Firestore in chunked batches. Each chunk's batch is
+ * built and committed INSIDE a `writeWithClaimRetry` thunk, so a freshly-provisioned or
+ * claim-changed admin whose ID token is stale self-heals (permission-denied → force token
+ * refresh → retry once), matching every other Admin write path. The batch is rebuilt on each
+ * attempt because a `WriteBatch` cannot be reused after a failed commit. Exported for tests.
+ *
+ * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, deleteOnly?: boolean}>} toWrite
+ * @param {string} currentUser  Logged-in member name, written to `changedBy`.
+ * @returns {Promise<void>}  Rejects (after one retry) if the write is genuinely denied.
+ */
+export async function _saveOverrideBatches(toWrite, currentUser) {
+    // Firestore batches are capped at 500 ops. Each item can be a delete + a set (2 ops),
+    // so chunk at 200 to stay well under the limit.
+    const CHUNK = 200;
+    for (let i = 0; i < toWrite.length; i += CHUNK) {
+        const chunk = toWrite.slice(i, i + CHUNK);
+        await writeWithClaimRetry(async () => {
+            const batch = writeBatch(db);
+            for (const { memberName, date, value, baseShift, replaceId, deleteOnly } of chunk) {
+                if (deleteOnly) {
+                    // REMOVE_IMPORT — delete the stale import doc and write nothing.
+                    if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
+                    continue;
+                }
+                // Map shift value to override type — pass date so Sunday shifts are correctly
+                // saved as 'rdw' and an explicit RDW| prefix is honoured. (value is a real string
+                // here — deleteOnly items, the only ones with a null value, continued above.)
+                const type = shiftValueToOverrideType(/** @type {string} */ (value), baseShift, date);
+                // Strip the internal "RDW|" encoding before saving — Firestore stores the plain
+                // time as the value (e.g. "14:30-22:00"), type field carries 'rdw'.
+                let savedValue = isRdwEncoded(value) ? stripRdw(value) : value;
+                // A 'correction' override always means "set as Rest Day" — its canonical value is
+                // 'RD'. Normalise every source that maps to correction (bilingual 'OFF', plain 'RD',
+                // or a Sunday AL/SICK) so firestore.rules doesn't reject a {correction, 'OFF'} write.
+                if (type === 'correction') savedValue = 'RD';
+                // Replace any existing override for this member/date in the same batch, so
+                // "Use new roster" / a re-import doesn't leave a stale doc beside the new one.
+                if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
+                const ref = doc(collection(db, COLLECTIONS.overrides));
+                batch.set(ref, {
+                    memberName,
+                    date,
+                    type,
+                    value: savedValue,
+                    note:       '',
+                    source:     'roster_import',   // marks this as auto-applied, not hand-entered
+                    createdAt:  serverTimestamp(),
+                    changedBy:  currentUser,
+                });
+            }
+            await batch.commit();
+        });
+    }
 }
 
 /**
@@ -297,47 +353,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         applyFeedback.textContent = '';
 
         try {
-            // Firestore batches are capped at 500 ops. Each item can be a delete +
-            // a set (2 ops), so chunk at 200 to stay well under the limit.
-            const CHUNK = 200;
-            for (let i = 0; i < toWrite.length; i += CHUNK) {
-                const chunk = toWrite.slice(i, i + CHUNK);
-                const batch = writeBatch(db);
-                for (const { memberName, date, value, baseShift, replaceId, deleteOnly } of chunk) {
-                    if (deleteOnly) {
-                        // REMOVE_IMPORT — delete the stale import doc and write nothing.
-                        if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
-                        continue;
-                    }
-                    // Map shift value to override type — pass date so Sunday shifts are
-                    // correctly saved as 'rdw' and explicit RDW| prefix is honoured
-                    const type = shiftValueToOverrideType(value, baseShift, date);
-                    // Strip the internal "RDW|" encoding before saving — Firestore stores
-                    // the plain time as the value (e.g. "14:30-22:00"), type field carries 'rdw'
-                    let savedValue = isRdwEncoded(value) ? stripRdw(value) : value;
-                    // A 'correction' override always means "set as Rest Day" — its canonical
-                    // value is 'RD' (TYPES.correction.fixedValue). Normalise every source that
-                    // maps to correction: a bilingual 'OFF', a plain 'RD', or a Sunday AL/SICK
-                    // (Sundays are non-contracted). Without this an imported 'OFF' would be
-                    // written as {type:'correction', value:'OFF'} and rejected by firestore.rules.
-                    if (type === 'correction') savedValue = 'RD';
-                    // Replace any existing override for this member/date in the same batch,
-                    // so "Use PDF" / a re-import doesn't leave a stale doc beside the new one.
-                    if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
-                    const ref  = doc(collection(db, COLLECTIONS.overrides));
-                    batch.set(ref, {
-                        memberName,
-                        date,
-                        type,
-                        value: savedValue,
-                        note:       '',
-                        source:     'roster_import',   // marks this as auto-applied, not hand-entered
-                        createdAt:  serverTimestamp(),
-                        changedBy:  currentUser,
-                    });
-                }
-                await batch.commit();
-            }
+            await _saveOverrideBatches(toWrite, currentUser);
 
             // Update the in-memory override cache so the week grid and table refresh
             // without a round-trip to Firestore.  We don't know the new doc IDs but
