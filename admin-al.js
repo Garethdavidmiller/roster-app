@@ -66,9 +66,8 @@ syncMemberDisplay();
 // No separate change handler here — it was never reachable because alMember is hidden.
 
 function getAlDates() {
-    const dates = getDateRange(alFrom.value, alTo.value);
-    if (dates && dates.length > 60) return dates; // let preview show the too-long error
-    return dates;
+    // The range is validated (incl. the too-long case) in updateAlPreview; this is just the raw range.
+    return getDateRange(alFrom.value, alTo.value);
 }
 
 function updateAlPreview() {

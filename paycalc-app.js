@@ -719,7 +719,7 @@ export function init() {
       const otherAdj  = _adjNegative ? -_adjRaw : _adjRaw;
 
       // Pure gross calculation — all DOM reads done; no more DOM access until UI writes below
-      const { gross, satCapped, normHrs: _normHrs, bhCapped, nonBhNorm,
+      const { gross, satCapped, bhCapped, nonBhNorm,
               gBasicNorm, gBasicSat, gBankHol, gBhOt, gOvertime,
               gRdw, gSunday, gBoxing, gPeer } = computeGross({
         effContr: _effContr, rate, satHrs, bhHrs, bhOtHrs, oHrs, rHrs, sHrs, bHrs,

@@ -334,26 +334,6 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
 
 // ── Huddle push notification day label ───────────────────────────────────────
 
-/**
- * Build the smart day label for a Huddle push notification.
- *
- * @param {string} huddleDate - YYYY-MM-DD — the date the huddle is FOR
- * @param {Date}   nowLondon  - current moment as a Date object in London timezone
- * @returns {string} e.g. "Today's", "Tomorrow's", "Thursday's"
- */
-function huddleDayLabel(huddleDate, nowLondon) {
-    const todayMs  = Date.UTC(nowLondon.getFullYear(), nowLondon.getMonth(), nowLondon.getDate());
-    const parts    = huddleDate.split('-').map(Number);
-    const huddleMs = Date.UTC(parts[0], parts[1] - 1, parts[2]);
-    const diffDays = Math.round((huddleMs - todayMs) / 86_400_000);
-
-    if (diffDays === 0) return "Today's";
-    if (diffDays === 1) return "Tomorrow's";
-    const dayName = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'Europe/London' })
-        .format(new Date(huddleDate + 'T12:00:00Z'));
-    return `${dayName}'s`;
-}
-
 // ── Pay cutoff detection ─────────────────────────────────────────────────────
 
 /**
@@ -487,7 +467,6 @@ module.exports = {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
-    huddleDayLabel,
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,

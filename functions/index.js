@@ -575,11 +575,10 @@ async function pruneOldHuddles(excludeDate) {
 }
 
 /**
- * Fan out Huddle push notifications.
- * Builds a smart day label in London time:
- *   Same day as huddleDate  → "Today's Huddle is ready"
- *   Day after huddleDate    → "Tomorrow's Huddle is ready"
- *   Any other day           → "Thursday's Huddle is ready" (weekday name)
+ * Fan out Huddle push notifications. Uses the fixed "Latest Huddle" design-language copy via
+ * buildPushPayload (see .claude/rules/notifications.md) — day-relative labels ("Today's"/
+ * "Tomorrow's") were retired in that redesign because a Huddle is sent the evening before and the
+ * label is wrong by the time it's read. `huddleDate` is now only logging/deep-link context.
  *
  * @param {string}       huddleDate    YYYY-MM-DD — the date the huddle is FOR
  * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key

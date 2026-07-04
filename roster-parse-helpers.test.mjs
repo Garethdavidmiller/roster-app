@@ -19,7 +19,6 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
-    huddleDayLabel,
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
@@ -427,29 +426,6 @@ describe('applySundayScanCorrections', () => {
         assert.doesNotThrow(() =>
             applySundayScanCorrections(entries, null, true, DATES),
         );
-    });
-});
-
-// ── huddleDayLabel ────────────────────────────────────────────────────────────
-
-describe('huddleDayLabel', () => {
-    test("same day → Today's", () => {
-        const now = new Date(2026, 3, 6); // April 6 2026 (Monday)
-        assert.equal(huddleDayLabel('2026-04-06', now), "Today's");
-    });
-    test("next day → Tomorrow's", () => {
-        const now = new Date(2026, 3, 6); // April 6
-        assert.equal(huddleDayLabel('2026-04-07', now), "Tomorrow's");
-    });
-    test('two days ahead → weekday name', () => {
-        const now = new Date(2026, 3, 6); // Monday April 6
-        // April 8 2026 is Wednesday
-        assert.equal(huddleDayLabel('2026-04-08', now), "Wednesday's");
-    });
-    test('past date uses weekday name', () => {
-        const now = new Date(2026, 3, 8); // Wednesday April 8
-        // April 6 is Monday — two days in the past
-        assert.equal(huddleDayLabel('2026-04-06', now), "Monday's");
     });
 });
 
