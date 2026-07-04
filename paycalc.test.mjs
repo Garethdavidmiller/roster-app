@@ -344,6 +344,22 @@ describe('computeTax', () => {
     approx(tax, sacGross * T25.scottishTax.bands[1].rate, 'SBR tax');
   });
 
+  test('SD0 code → Scottish INTERMEDIATE rate (21%), not higher', () => {
+    const sacGross = 2000;
+    const { tax } = computeTax(sacGross, 'SD0', T25);
+    // SD0 = Scottish intermediate = bands[2] (0.21). Regression guard: it previously
+    // pointed at bands[3] (higher 42%), over-taxing by a full band.
+    approx(tax, sacGross * T25.scottishTax.bands[2].rate, 'SD0 tax');
+  });
+
+  test('SD1 code → Scottish HIGHER rate (42%), not top', () => {
+    const sacGross = 2000;
+    const { tax } = computeTax(sacGross, 'SD1', T25);
+    // SD1 = Scottish higher = bands[3] (0.42). Regression guard: it previously pointed
+    // at bands[5] (top 48%).
+    approx(tax, sacGross * T25.scottishTax.bands[3].rate, 'SD1 tax');
+  });
+
   test('cumulative PAYE: uses ytdPay + sacGross across periodN', () => {
     // Period 5, YTD pay = 4800, YTD tax = 200, this period gross = 1200
     // cumGross = 6000; PA scaled × 5 = (12570/13) × 5

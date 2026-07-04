@@ -169,13 +169,12 @@
         <div class="field-hint">Only select a plan if student loan deductions appear on your payslip. If you repay by direct debit, leave as None.</div>
       </div>
 
-      <button type="button" class="btn-primary" id="saveSettingsBtn" style="margin-top:8px">Save settings</button>
-      <div id="settingsSaveFeedback" role="status" aria-live="polite" style="font-size:var(--type-small);color:var(--success-text);text-align:center;min-height:18px;margin-top:6px"></div>
+      <button type="button" class="btn-primary" id="saveSettingsBtn">Save settings</button>
+      <div id="settingsSaveFeedback" class="settings-save-feedback" role="status" aria-live="polite"></div>
 
       <!-- Owner-only: device-local payslip actuals import. Hidden by default; revealed by
            paycalc-lightboxes.js only when the logged-in member is G. Miller. -->
-      <button type="button" id="actualsImportBtn" hidden
-              style="margin-top:10px;font-size:var(--type-small);background:none;border:none;text-decoration:underline;cursor:pointer;padding:4px;color:var(--text-faint)">Import payslip actuals (this device)</button>
+      <button type="button" id="actualsImportBtn" class="actuals-import-link" hidden>Import payslip actuals (this device)</button>
 
     </div>
   </div>
@@ -460,9 +459,9 @@
           </div>
           <div class="adj-controls">
             <button id="adjSignBtn" type="button" class="adj-sign-btn" aria-label="Toggle sign: currently positive">+</button>
-            <div class="pfx" style="width:90px">
+            <div class="pfx pfx--adj">
               <span class="pfx-sym">£</span>
-              <input type="text" id="otherAdj" aria-label="Other payslip adjustment amount (£)" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done" style="text-align:right">
+              <input type="text" id="otherAdj" aria-label="Other payslip adjustment amount (£)" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
         </div>
@@ -476,7 +475,7 @@
   <div class="content-card" id="payslipCard">
     <div class="card-header card-header-toggle" id="payslipCardToggle">
       <div>
-        <h2><span aria-hidden="true">📊</span> Improve Accuracy <span style="font-size:12px;font-weight:400;color:var(--text-light)">(optional)</span></h2>
+        <h2><span aria-hidden="true">📊</span> Improve Accuracy <span class="card-optional-tag">(optional)</span></h2>
         <span class="hint">Enter Year to Date figures from your last payslip to get a more accurate tax estimate</span>
       </div>
       <div class="card-header-actions">
@@ -641,7 +640,7 @@
       <!-- Apply new rate — updates Settings so future periods calculate at the new rate -->
       <div id="applyRateWrap" style="display:none;margin-top:10px">
         <button type="button" class="btn-primary" id="applyRateBtn"></button>
-        <div class="field-hint" id="applyRateFeedback" style="margin-top:6px;color:var(--success-text)"></div>
+        <div class="field-hint apply-rate-feedback" id="applyRateFeedback"></div>
       </div>
       <!-- Per-period breakdown — collapsible, secondary to the total -->
       <button type="button" class="bd-btn" id="bpBreakdownBtn" style="display:none" aria-expanded="false" aria-controls="backPayRows">
@@ -767,8 +766,8 @@
     <div class="notice-badge notice-badge--pay">💷 Pay</div>
     <div class="lightbox-app-name">Payslip actuals (this device)</div>
     <p class="notice-body">Paste your payslip-actuals JSON (an object keyed by payday, e.g. <code>{"2025-04-11": {"gross": …, "tax": …, "ni": …, "sl": …, "net": …, "varPay": …}}</code>). Stored only in this browser &mdash; never sent anywhere.</p>
-    <textarea id="actualsInput" rows="6" aria-label="Payslip actuals JSON" style="width:100%;font-family:monospace;font-size:var(--type-small);box-sizing:border-box"></textarea>
-    <div id="actualsStatus" role="status" aria-live="polite" style="font-size:var(--type-small);min-height:18px;margin:6px 0"></div>
+    <textarea id="actualsInput" class="actuals-textarea" rows="6" aria-label="Payslip actuals JSON"></textarea>
+    <div id="actualsStatus" class="actuals-status" role="status" aria-live="polite"></div>
     <button id="actualsImport" class="btn-action btn-primary" type="button">Import</button>
     <button id="actualsClear" class="btn-action btn-secondary" type="button">Clear stored data</button>
   </div>

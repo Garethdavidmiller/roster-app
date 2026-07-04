@@ -55,7 +55,7 @@
       border-bottom: 1px solid var(--border-light);
     }
     .card-header h2 {
-      font-size: 13px; font-weight: 700; color: var(--primary-blue); margin: 0;
+      font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0;
     }
     .hint {
       font-size: var(--type-small); color: var(--text-light);
@@ -171,7 +171,7 @@
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum' 1;
     }
-    .net-period { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
+    .net-period { font-size: var(--type-medium); font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
     .net-hint   { font-size: 13px; color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
 
     #payBreakBar {
@@ -236,9 +236,9 @@
 
     /* Payslip gross note */
     .payslip-note {
-      font-size: var(--type-micro); color: var(--text-faint);
+      font-size: var(--type-small); color: var(--text-light);
       padding: 6px 16px 8px; border-top: 1px solid var(--border-light);
-      line-height: 1.4;
+      line-height: 1.45;
     }
 
     /* Breakdown */
@@ -518,7 +518,7 @@
       background: var(--error-bg); border-color: var(--error-red); color: var(--error-red);
     }
     .adj-sign-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
-    .field-hint { font-size: var(--type-micro); color: var(--text-faint); margin-top: 5px; line-height: 1.4; }
+    .field-hint { font-size: var(--type-small); color: var(--text-light); margin-top: 5px; line-height: 1.45; }
 
     /* First-run banner */
     .setup-banner {
@@ -527,7 +527,7 @@
       padding: 14px 16px;
       border-left: 4px solid var(--accent-gold);
     }
-    .setup-banner h2 { font-size: 15px; font-weight: 800; color: var(--primary-blue); margin-bottom: 4px; }
+    .setup-banner h2 { font-size: var(--type-button); font-weight: 800; color: var(--primary-blue); margin-bottom: 4px; }
     .setup-banner p  { font-size: 13px; color: var(--text-mid); line-height: 1.5; }
     .privacy-note { font-size: var(--type-small); color: var(--text-mid); margin-top: 10px; padding: 8px 10px; background: var(--bg-faint); border-left: 3px solid var(--primary-blue); border-radius: 0 6px 6px 0; line-height: 1.5; }
     /* Standalone privacy note — always visible, sits below the conditional setup banner */
@@ -707,30 +707,34 @@
          Row 2 = privacy note (always visible). */
       #setupBanner             { grid-column: 1 / -1; grid-row: 1; }
       .privacy-note-standalone { grid-column: 1 / -1; grid-row: 2; }
-      .guide-footer-link       { grid-column: 1 / -1; grid-row: 9; }
-      .disclaimer              { grid-column: 1 / -1; grid-row: 10; }
+      /* Period controls span BOTH columns as a full-width band above the two-column
+         work zone (v15.70). Previously period sat in the left column at row 3 beside
+         the tall result card (right, row 3), so result's height stretched row 3 and
+         left a large empty void under the short period card. Making period full-width
+         removes that pairing entirely: below it the work zone is a clean two columns —
+         result+detail cards (right) alongside the tall Hours card (left) — with no
+         short-beside-tall void, and the result card stays at the TOP of the right
+         column so it's always in view. */
+      .period-controls         { grid-column: 1 / -1; grid-row: 3; }
+      .guide-footer-link       { grid-column: 1 / -1; grid-row: 10; }
+      .disclaimer              { grid-column: 1 / -1; grid-row: 11; }
 
-      /* Left column.
-         #hoursCard spans rows 4–8 so its tall content sits ALONGSIDE the whole
-         right-column card stack (settings → payslip → HPP → back-pay → decimal),
-         instead of sharing only row 4 with the short Settings card. Without the
-         span, CSS Grid sized row 4 to the tall Hours card, leaving a large blank
-         gap under Settings before Payslip (row 5) could appear. align-self:start
-         keeps Hours top-aligned within the span. (A true masonry layout isn't
-         possible here: the explicit grid rows exist to give a different mobile
-         source order — Settings appears first on mobile — so the columns can't be
-         split into independent container stacks.) */
-      .period-controls { grid-column: 1; grid-row: 3; }
-      #hoursCard       { grid-column: 1; grid-row: 4 / 9; align-self: start; }
+      /* Left column: Hours spans the whole two-column work zone (rows 4–9) so its tall
+         content sits ALONGSIDE the entire right-column stack (result → settings →
+         payslip → HPP → back-pay → decimal) instead of inflating a single shared row.
+         align-self:start keeps it top-aligned. (A true masonry layout isn't possible
+         here: the explicit grid rows exist to give a different mobile source order, so
+         the columns can't be split into independent container stacks.) */
+      #hoursCard       { grid-column: 1; grid-row: 4 / 10; align-self: start; }
 
-      /* Right column: result card tops the column (sticky), settings below it,
-         then detail cards. All explicit rows prevent them landing in free gaps. */
-      .result-card          { grid-column: 2; grid-row: 3; position: sticky; top: 20px; }
-      #settingsCard         { grid-column: 2; grid-row: 4; }
-      #payslipCard          { grid-column: 2; grid-row: 5; }
-      #hppCard              { grid-column: 2; grid-row: 6; }
-      #backPayCard          { grid-column: 2; grid-row: 7; }
-      #decimalConverterCard { grid-column: 2; grid-row: 8; }
+      /* Right column: result card tops the work zone (sticky, always visible), then
+         the detail cards. All explicit rows prevent them landing in free gaps. */
+      .result-card          { grid-column: 2; grid-row: 4; position: sticky; top: 20px; }
+      #settingsCard         { grid-column: 2; grid-row: 5; }
+      #payslipCard          { grid-column: 2; grid-row: 6; }
+      #hppCard              { grid-column: 2; grid-row: 7; }
+      #backPayCard          { grid-column: 2; grid-row: 8; }
+      #decimalConverterCard { grid-column: 2; grid-row: 9; }
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
@@ -1072,7 +1076,7 @@
   .roster-row {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
     padding: 8px 10px;
-    background: var(--surface); border: 1px solid var(--border-light); border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--border-light); border-radius: 12px;
     font-family: inherit; text-align: left;
     cursor: pointer; touch-action: manipulation; transition: background 0.12s, border-color 0.12s;
   }
@@ -1084,7 +1088,7 @@
   @media (hover: hover) and (pointer: fine) {
     .roster-row:hover { background: var(--bg-faint); }
   }
-  .roster-row:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: 6px; }
+  .roster-row:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: 12px; }
   .roster-row--matched { background: var(--row-matched-bg); }
   .roster-row--differs { background: var(--row-differs-bg); }
   .roster-cat-match { font-size: var(--type-small); font-weight: 700; color: var(--row-matched-text); flex-shrink: 0; }
@@ -1094,8 +1098,8 @@
   .conf-recorded { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .conf-possible { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
   .roster-card-note {
-    font-size: var(--type-micro); color: var(--text-faint);
-    line-height: 1.4; margin: 0 0 8px;
+    font-size: var(--type-small); color: var(--text-light);
+    line-height: 1.45; margin: 0 0 8px;
   }
   .roster-card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .fill-roster-btn {
@@ -1242,4 +1246,24 @@
   }
 
   .adj-controls { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
+
+  /* ---- Presentational styles lifted out of paycalc.html inline `style=` (v15.70) ----
+     Only non-JS-toggled styling is moved here; the remaining inline `display:none` on
+     conditionally-shown elements stays inline (it's the initial state JS flips). */
+  #saveSettingsBtn { margin-top: 8px; }
+  .settings-save-feedback {
+    font-size: var(--type-small); color: var(--success-text);
+    text-align: center; min-height: 18px; margin-top: 6px;
+  }
+  .actuals-import-link {
+    margin-top: 10px; font-size: var(--type-small);
+    background: none; border: none; text-decoration: underline;
+    cursor: pointer; padding: 4px; color: var(--text-faint);
+  }
+  .card-optional-tag { font-size: var(--type-small); font-weight: 400; color: var(--text-light); }
+  .pfx--adj { width: 90px; }
+  #otherAdj { text-align: right; }
+  .apply-rate-feedback { margin-top: 6px; color: var(--success-text); }
+  .actuals-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: var(--type-small); box-sizing: border-box; }
+  .actuals-status { font-size: var(--type-small); min-height: 18px; margin: 6px 0; }
 
