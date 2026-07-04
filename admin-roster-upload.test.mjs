@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 
 // ── Mock-controllable state for the roster-upload save-path tests ───────────────
 let   _idTokenRefreshes = 0;
+let   _refreshShouldFail = false;     // model getIdToken(true) failing (offline/flaky)
 let   _commitBehavior   = () => {};   // called on each batch.commit(); may throw
 const _batchOps         = [];         // one ops-array per writeBatch() call
 
@@ -48,7 +49,16 @@ mock.module('./firebase-client.js', {
         writeWithClaimRetry: async (/** @type {Function} */ fn) => {
             try { return await fn(); }
             catch (err) {
-                if (/** @type {any} */ (err)?.code === 'permission-denied') { _idTokenRefreshes++; return await fn(); }
+                if (/** @type {any} */ (err)?.code === 'permission-denied') {
+                    // Model getIdToken(true): it may fail (offline/flaky). When it does, the ORIGINAL
+                    // permission-denied is preserved and NOT replaced by the refresh's own error — the
+                    // caller keys its user-facing message on err.code (matches firebase-client.js).
+                    try {
+                        if (_refreshShouldFail) throw new Error('token refresh failed (network)');
+                        _idTokenRefreshes++;
+                    } catch { throw err; }
+                    return await fn();   // retry once with the fresh token
+                }
                 throw err;
             }
         },
@@ -118,7 +128,7 @@ describe('shiftValueToOverrideType — training (OTHER_PLAN.md)', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('_saveOverrideBatches — stale-claim retry parity', () => {
-    beforeEach(() => { _idTokenRefreshes = 0; _batchOps.length = 0; _commitBehavior = () => {}; });
+    beforeEach(() => { _idTokenRefreshes = 0; _refreshShouldFail = false; _batchOps.length = 0; _commitBehavior = () => {}; });
 
     const one = [{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD' }];
 
@@ -147,6 +157,16 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
         await assert.rejects(_saveOverrideBatches(one, 'G. Miller'), /permission/i);
         assert.equal(_idTokenRefreshes, 1, 'refreshed once');
         assert.equal(_batchOps.length, 2, 'tried the original + one retry, then gave up');
+    });
+
+    test('token refresh itself FAILS → original permission-denied preserved, no retry', async () => {
+        // Offline/flaky getIdToken(true): the caller must still see a permission-denied (an
+        // authorisation problem), NOT the refresh's network error — and there is no second attempt.
+        _refreshShouldFail = true;
+        _commitBehavior = () => { throw _denied(); };
+        await assert.rejects(_saveOverrideBatches(one, 'G. Miller'), /permission/i);
+        assert.equal(_idTokenRefreshes, 0, 'refresh failed → not counted as a successful refresh');
+        assert.equal(_batchOps.length, 1, 'no retry attempted after a failed refresh');
     });
 
     test('a non-auth error is NOT retried', async () => {
