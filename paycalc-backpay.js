@@ -210,12 +210,16 @@ export function calcBackPay() {
       ) : 0) + (hasLondon ? londonDiff * _bpScale : 0);
 
       if (backPay > 0) {
-        grandTotal    += backPay;
+        // Accumulate the PENNY-ROUNDED row value into the total so the displayed rows always
+        // sum to the displayed total (each row prints fmt(backPay) = 2dp; summing the unrounded
+        // values could leave the total 1p off the rows on a figure staff cross-check by hand).
+        const bpRow    = Math.round(backPay * 100) / 100;
+        grandTotal    += bpRow;
         grandVarTotal += varPay;
         pCount++;
         rows += `<div class="bp-row">
           <span class="bp-lbl">P${p.num} · ${fd(p.payday)}</span>
-          <span class="bp-val">${fmt(backPay)}</span>
+          <span class="bp-val">${fmt(bpRow)}</span>
         </div>`;
       }
     } catch {}

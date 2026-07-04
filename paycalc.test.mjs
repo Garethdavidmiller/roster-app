@@ -360,6 +360,14 @@ describe('computeTax', () => {
     approx(tax, sacGross * T25.scottishTax.bands[3].rate, 'SD1 tax');
   });
 
+  test('Welsh C-prefix codes tax identically to their rUK equivalents (C stripped)', () => {
+    // Welsh rates == English/rUK, so a C-code must match the unprefixed code exactly. Previously
+    // CBR/CD0/CD1/CNT fell through to banded tax and C0T wrongly kept the full allowance.
+    for (const [welsh, ruk] of [['CBR','BR'], ['CD0','D0'], ['CD1','D1'], ['C0T','0T'], ['C1257L','1257L'], ['CNT','NT']]) {
+      approx(computeTax(2000, welsh, T25).tax, computeTax(2000, ruk, T25).tax, `${welsh} == ${ruk}`);
+    }
+  });
+
   test('cumulative PAYE: uses ytdPay + sacGross across periodN', () => {
     // Period 5, YTD pay = 4800, YTD tax = 200, this period gross = 1200
     // cumGross = 6000; PA scaled × 5 = (12570/13) × 5

@@ -261,7 +261,11 @@ export function computeGross(i) {
 export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null, periodN = null } = {}) {
   const rawCode    = (taxCode || '1257L').toUpperCase().replace(/\s+/g, '');
   const isNonCum   = /[WM]1$|X$/.test(rawCode);
-  const baseCode   = rawCode.replace(/[WM]1$|X$/, '');
+  // Welsh (C-prefix) income-tax rates are identical to rUK/English (Wales has not diverged from
+  // the Westminster rates), so strip a leading C and treat it as the equivalent rUK code. Without
+  // this, CBR/CD0/CD1/CNT fell through to banded tax and C0T wrongly kept the full allowance.
+  // (Numeric C-codes like C1257L were already handled by resolvePA's [SC]? prefix.)
+  const baseCode   = rawCode.replace(/[WM]1$|X$/, '').replace(/^C/, '');
   const isScottish = /^S/.test(baseCode);
   const TAX = /** @type {any} */ (t.tax), SCOT = /** @type {any} */ (t.scottishTax);
 
