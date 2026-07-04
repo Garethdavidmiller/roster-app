@@ -29,7 +29,7 @@ import {
   hasBoxingDay, hasBankHoliday,
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
-  setEarliestVisiblePeriod, isTaxYearVisible,
+  setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
   _setSelectPeriod,
 } from './paycalc-periods.js';
 import {
@@ -257,16 +257,18 @@ export function init() {
       if (!p) return;
       const cutStr  = fdShort(p.cutoff);
 
-      // Prev / Next button states
-      const idx = periods.findIndex(/** @param {any} x */ x => x.num === pNum);
+      // Prev / Next button states — over the VISIBLE periods (a new starter is clamped to their join
+      // year), so the button state matches what prevPeriod/nextPeriod can actually navigate to.
+      const _navPeriods = visiblePeriods();
+      const idx = _navPeriods.findIndex(/** @param {any} x */ x => x.num === pNum);
       const prevBtn = /** @type {HTMLButtonElement} */ (document.getElementById('prevBtn'));
       const nextBtn = /** @type {HTMLButtonElement} */ (document.getElementById('nextBtn'));
       prevBtn.disabled = (idx <= 0);
-      nextBtn.disabled = (idx >= periods.length - 1);
+      nextBtn.disabled = (idx >= _navPeriods.length - 1);
       prevBtn.setAttribute('aria-label', idx <= 0
         ? 'No earlier period available — this is the first one'
         : 'View earlier period');
-      nextBtn.setAttribute('aria-label', idx >= periods.length - 1
+      nextBtn.setAttribute('aria-label', idx >= _navPeriods.length - 1
         ? 'No later period available — this is the last one'
         : 'View later period');
 
@@ -408,6 +410,11 @@ export function init() {
 
       // Load saved data for this period
       loadPeriodData(p.num);
+
+      // If the back-pay card is open, refresh it — its award year follows the selected period, so
+      // crossing a tax-year boundary must re-prefill the rate boxes (prefillBackPay clears the stale
+      // figures on a year change). Within a year this just recomputes the lump with fresh data.
+      if (document.getElementById('backPayBody')?.classList.contains('open')) _refreshBackPayCard();
 
       stampPaycalcPrintLine();
     }
@@ -958,6 +965,13 @@ export function init() {
       _runCalcBackPay();
     }
 
+    // Prefill + recompute the back-pay card for the currently-selected award year. Called on card
+    // open AND from onPeriodChange when the card is open (so switching tax years re-prefills rates).
+    function _refreshBackPayCard() {
+      _applyBpState(prefillBackPay());
+      _applyBpRisePct();
+    }
+
     function toggleBpBreakdown() {
       const btn  = /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn'));
       const body = /** @type {HTMLElement} */ (document.getElementById('backPayRows'));
@@ -1157,11 +1171,10 @@ export function init() {
     initCardCollapse('backPayCardToggle', 'backPayBody',     'backPayCardToggle',
       /** @param {any} open */ open => {
         if (!open) return;
-        _applyBpState(prefillBackPay());
-        // prefillBackPay may have defaulted the "Pay rise %" (unconfirmed award) — derive the New
-        // rate/London from it here so the card opens with an estimate. _applyBpRisePct tracks the
-        // auto-filled values (so a later hand-edit isn't clobbered) and recomputes the total.
-        _applyBpRisePct();
+        // prefillBackPay fills the rate boxes for the selected award year; _applyBpRisePct then
+        // derives the New rate/London from any defaulted "Pay rise %" (unconfirmed award). Shared
+        // with onPeriodChange so a year switch while open re-prefills.
+        _refreshBackPayCard();
       });
 
     // Back-pay inputs + period selectors + apply rate

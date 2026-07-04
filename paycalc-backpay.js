@@ -15,9 +15,9 @@
 import { parseSmartFloat } from './roster-data.js';
 import {
   RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, awardRatesFor,
+  getTaxYearForOffset, awardRatesFor, awardFromForYear,
 } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, payslipPeriodNum, _setSelectPeriod } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod } from './paycalc-periods.js';
 import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet } from './ls.js';
 import { SK, periodKey } from './paycalc-migrations.js';
@@ -32,6 +32,13 @@ import { fd, fdShort, fmt } from './paycalc-format.js';
  * Current: the 3.6% offered Jul 2026, awaiting RMT acceptance.
  */
 const PENDING_AWARD_PCT = 3.6;
+
+// The award tax year the card's rate/London/% boxes were last prefilled for. The card computes the
+// award for whichever tax year is selected in the main calculator, but reuses the same DOM inputs;
+// when the year changes we must clear the stale figures so the next year's real rates prefill in
+// (otherwise a 2026/27 estimate would be shown under a 2025/26 label — see prefillBackPay).
+/** @type {string|null} */
+let _lastAwardYear = null;
 
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
 
@@ -74,6 +81,17 @@ export function prefillBackPay() {
   const newRateEl   = /** @type {HTMLInputElement} */ (document.getElementById('newRateInput'));
   const oldLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('oldLondon'));
   const newLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
+  const pctEl0      = /** @type {HTMLInputElement | null} */ (document.getElementById('bpRisePct'));
+
+  // If the award YEAR changed since the boxes were last filled, the old year's figures are
+  // meaningless — clear them so this year's real rates prefill in below (the fills are blank-guarded,
+  // so without this a stale 2026/27 estimate would persist under a 2025/26 label). Within a year the
+  // guard is a no-op, preserving any manual corrections. Coordinator's _applyBpRisePct then refills a
+  // cleared New from the % (pending) or leaves the prefilled New (settled).
+  if (_lastAwardYear !== ty.label) {
+    for (const el of [oldRateEl, newRateEl, oldLondonEl, newLondonEl, pctEl0]) if (el) el.value = '';
+    _lastAwardYear = ty.label;
+  }
 
   // The award year is the tax year of the SELECTED period, so the card computes the award for
   // whichever year you're viewing (historic OR pending). Its OLD rate = the rate paid before that
@@ -189,18 +207,22 @@ export function calcBackPay() {
   // `null`, dropping the fence entirely and spilling one award's rate-diff across
   // saved periods of the OTHER tax year (an inflated lump sum).
   const awardTy    = _bpAwardTaxYear(fromPNum);
+  // The date THIS award was applied/paid (mid-year lump). For a SETTLED award, periods paid on/after
+  // it were already paid at the new rate and owe NO arrears — so the accrual must stop there, matching
+  // the main calculator's mid-year rate step (getRateForPeriod). null for the pending award (not yet
+  // paid) → no such cap, the whole window from April accrues.
+  const _awardFrom = awardFromForYear(awardTy?.label);
   let rows          = '';
   let grandTotal    = 0;
   let grandVarTotal = 0;
   let pCount        = 0;
 
-  // Upper cap for accrual = up to but NOT INCLUDING the "paid in" period, AND no later than today.
+  // Upper cap for accrual = up to but NOT INCLUDING the "paid in" period, AND no later than TODAY.
   // Excluding the paid-in month: in the period the lump sum lands you are already paid at the NEW
   // rate, so that month is current pay, not back pay (confirmed by Gareth Jul 2026). Capping at
-  // today's period also stops a future paid-in — or an unselected one — from adding contracted
-  // rate-diff for weeks not yet worked (a period the user merely opened autosaves a record, so it
-  // can't be excluded by emptiness alone).
-  const _capPNum = Math.min(bpPNum ? bpPNum - 1 : Infinity, currentPeriodNum());
+  // today's period (todaysPeriodNum — NOT the SELECTED period) stops a future paid-in or a future
+  // period the user has merely navigated to from adding contracted rate-diff for weeks not yet worked.
+  const _capPNum = Math.min(bpPNum ? bpPNum - 1 : Infinity, todaysPeriodNum());
   periods.forEach(/** @param {any} p */ p => {
     try {
       if (fromPNum && p.num < fromPNum) return;
@@ -208,6 +230,9 @@ export function calcBackPay() {
       // Skip periods outside the award tax year (e.g. when "paid in" period is
       // in the following year — don't apply 2025/26 rate diff to 2026/27 work).
       if (awardTy && getTaxYearForOffset(p.num - 48) !== awardTy) return;
+      // Skip periods already paid at the new rate (a settled award's mid-year application date) — they
+      // owe no arrears. Without this the accrual would double-count a historic award viewed at a late period.
+      if (_awardFrom && p.payday >= _awardFrom) return;
       const raw = lsGet(periodKey(p.num));
       // Include EVERY period in the award window — even one never opened in the app. A normal
       // contracted week is owed the rise whether worked or paid at contracted rate on leave/sick

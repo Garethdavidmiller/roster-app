@@ -288,6 +288,16 @@ function staticLocalGraph(entry) {
     return seen;
 }
 
+/** The gstatic Firebase SDK modules firebase-client.js imports STATICALLY (excludes dynamic
+ *  import() like firebase-storage, which is intentionally lazy and must NOT be preloaded). These
+ *  are exactly the SDK modules a page's <head> must modulepreload to flatten the load waterfall. */
+function requiredGstaticModules() {
+    const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
+    // `from '…'` = a static import; a dynamic `import('…')` has no `from`, so it's excluded.
+    return [...client.matchAll(/\bfrom\s*['"]https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z]+)\.js['"]/g)]
+        .map(x => x[1]);
+}
+
 test('paycalc.html modulepreload hints match its real transitive module graph', () => {
     const html = readFileSync(join(ROOT, 'paycalc.html'), 'utf8');
 
@@ -329,8 +339,8 @@ test('paycalc.html gstatic Firebase preloads match the SDK version in firebase-c
         assert.equal(v, version, `paycalc.html preloads ${mod} at ${v} but firebase-client.js uses ${version}`);
     }
     const preloadedMods = new Set(preloadedSdk.map(x => x[2]));
-    for (const mod of ['firebase-app', 'firebase-auth', 'firebase-firestore']) {
-        assert.ok(preloadedMods.has(mod), `paycalc.html is missing a modulepreload for ${mod}.js`);
+    for (const mod of requiredGstaticModules()) {
+        assert.ok(preloadedMods.has(mod), `paycalc.html is missing a modulepreload for ${mod}.js (firebase-client.js imports it statically)`);
     }
 });
 
@@ -370,8 +380,8 @@ test('index.html gstatic Firebase preloads match the SDK version in firebase-cli
         assert.equal(v, version, `index.html preloads ${mod} at ${v} but firebase-client.js uses ${version}`);
     }
     const preloadedMods = new Set(preloadedSdk.map(x => x[2]));
-    for (const mod of ['firebase-app', 'firebase-auth', 'firebase-firestore']) {
-        assert.ok(preloadedMods.has(mod), `index.html is missing a modulepreload for ${mod}.js`);
+    for (const mod of requiredGstaticModules()) {
+        assert.ok(preloadedMods.has(mod), `index.html is missing a modulepreload for ${mod}.js (firebase-client.js imports it statically)`);
     }
 });
 

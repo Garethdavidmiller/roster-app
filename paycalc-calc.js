@@ -102,19 +102,20 @@ export const GRADES = {
 // Each April, when the new award is agreed: set that year's `rate`, and add the next year with
 // `pre` = this year's rate. Consumed ONLY by paycalc-backpay.js (the main calculator's per-year
 // rate still comes from GRADES + the localStorage per-year override — unchanged).
-// `from` = the date the award was actually APPLIED/paid (backdated lump lands here). It equals the
-// year's londonAllowFrom (the whole award — rate + London — steps on one payslip: 2025/26 = 24 Oct
-// 2025). Periods paid BEFORE `from` were paid at `pre`; the mid-year step is honoured by the main
-// calculator via getRateForPeriod (mirrors getLondonAllowanceForPeriod). null = no known step.
-/** @type {Record<string, Record<string, { rate: number|null, pre: number|null, from: Date|null }>>} */
+// `pre` = the rate paid BEFORE the year's award was applied (the prior year's rate). The DATE the
+// award was applied is NOT stored here — it is a property of the tax YEAR (rate + London step on
+// one payslip: 2025/26 = 24 Oct 2025) and lives once as `londonAllowFrom` on TAX_YEARS, read via
+// awardFromForYear() below. This keeps the award-application date a single source of truth (it used
+// to be written three times, a drift hazard). null `pre`/`rate` = not on record / not yet confirmed.
+/** @type {Record<string, Record<string, { rate: number|null, pre: number|null }>>} */
 export const AWARD_RATES = {
   cea: {
-    '2025/26': { rate: 20.74, pre: 20.06, from: new Date(2025, 9, 24) },
-    '2026/27': { rate: null,  pre: 20.74, from: null }, // pending — 3.6% offered, awaiting RMT
+    '2025/26': { rate: 20.74, pre: 20.06 },
+    '2026/27': { rate: null,  pre: 20.74 }, // pending — 3.6% offered, awaiting RMT
   },
   ces: {
-    '2025/26': { rate: 21.81, pre: null,  from: new Date(2025, 9, 24) }, // 2024/25 CES rate not on record
-    '2026/27': { rate: null,  pre: 21.81, from: null },
+    '2025/26': { rate: 21.81, pre: null },  // 2024/25 CES rate not on record
+    '2026/27': { rate: null,  pre: 21.81 },
   },
 };
 
@@ -122,11 +123,39 @@ export const AWARD_RATES = {
  * The pay-award rates for a grade + tax-year label, or null if the grade/year is unknown.
  * @param {string} grade    - 'cea' | 'ces'
  * @param {string} tyLabel  - e.g. '2025/26'
- * @returns {{ rate: number|null, pre: number|null, from: Date|null } | null}
+ * @returns {{ rate: number|null, pre: number|null } | null}
  */
 export function awardRatesFor(grade, tyLabel) {
   const g = AWARD_RATES[grade] || AWARD_RATES.cea;
   return g[tyLabel] || null;
+}
+
+/**
+ * The date a tax year's pay award was APPLIED/paid (the backdated lump lands on this payslip; periods
+ * paid before it were still on the old rate). Single source of truth = the year's `londonAllowFrom`
+ * (rate + London step together). null when the year has no mid-year step (e.g. the pending 2026/27).
+ * INVARIANT: any year with an AWARD_RATES `pre` must have a londonAllowFrom — asserted in paycalc.test.mjs.
+ * @param {string} tyLabel
+ * @returns {Date|null}
+ */
+export function awardFromForYear(tyLabel) {
+  const ty = TAX_YEARS.find(t => t.label === tyLabel);
+  return ty?.londonAllowFrom || null;
+}
+
+/**
+ * True if `p` is a period paid BEFORE its tax year's award was applied — i.e. it was paid at the
+ * prior year's (pre-award) rate. Requires a recorded `pre` rate AND an award date, AND payday < that
+ * date. Single predicate shared by getRateForPeriod (main calc) and saveSettings (the persist guard).
+ * @param {{ payday: Date }} p
+ * @param {string} grade
+ * @param {string} tyLabel
+ * @returns {boolean}
+ */
+export function isPreAwardPeriod(p, grade, tyLabel) {
+  const a    = awardRatesFor(grade, tyLabel);
+  const from = awardFromForYear(tyLabel);
+  return !!(a && a.pre != null && from && p.payday < from);
 }
 
 /**
@@ -143,8 +172,7 @@ export function awardRatesFor(grade, tyLabel) {
  */
 export function getRateForPeriod(p, grade, tyLabel, settledRate) {
   const a = awardRatesFor(grade, tyLabel);
-  if (a && a.pre != null && a.from && p.payday < a.from) return a.pre;
-  return settledRate;
+  return (a && a.pre != null && isPreAwardPeriod(p, grade, tyLabel)) ? a.pre : settledRate;
 }
 
 // HPP formula confirmed by Chiltern payroll (Marie Firby): (Gross − Basic) × 4/52

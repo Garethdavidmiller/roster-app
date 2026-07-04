@@ -11,7 +11,7 @@
  * Do not edit here for: pay maths, period date maths, roster pre-fill.
  */
 
-import { GRADES, getTaxYearForOffset, calcProRateFactor, getPensionForPeriod, getRateForPeriod, awardRatesFor } from './paycalc-calc.js';
+import { GRADES, getTaxYearForOffset, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
 import { getSession } from './session.js';
@@ -115,13 +115,21 @@ export function getStoredRateForYear(ty, useLegacyFallback = true) {
  * @param {any} [p] - the period (enables the mid-year step; omitted → settled rate only)
  */
 export function updateRateForPeriod(ty, p) {
-  const settled = getStoredRateForYear(ty);
-  const rate    = p ? getRateForPeriod(p, getGrade(), ty.label, settled) : settled;
-  /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value = rate.toFixed(2);
-  // Label: show the tax year, and flag when a pre-award (pre-rise) rate is in effect so a user
-  // checking an early-in-the-year payslip isn't surprised the rate is lower than the settled one.
+  const grade    = getGrade();
+  const settled  = getStoredRateForYear(ty);
+  const preAward = !!p && isPreAwardPeriod(p, grade, ty.label);
+  const rate     = preAward ? getRateForPeriod(p, grade, ty.label, settled) : settled;
+  const field    = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
+  field.value = rate.toFixed(2);
+  // On a pre-award period the field shows the fixed HISTORIC rate (a payslip fact, not a setting) —
+  // make it read-only so a typed edit isn't silently discarded by saveSettings (which persists the
+  // settled rate for that year, never the pre-rise value). Editable again on post-award/current periods.
+  field.readOnly = preAward;
+  field.title    = preAward ? 'Rate paid before this year’s mid-year pay rise — fixed for this period' : '';
+  // Label: show the tax year, and flag when the pre-rise rate is in effect so a user checking an
+  // early-in-the-year payslip isn't surprised the rate is lower than the settled one.
   const lbl = document.getElementById('rateYearLabel');
-  if (lbl) lbl.textContent = (rate < settled) ? `for ${ty.label} · pre-rise rate` : `for ${ty.label}`;
+  if (lbl) lbl.textContent = preAward ? `for ${ty.label} · pre-rise rate` : `for ${ty.label}`;
 }
 
 /** Load the stored Year to Date figures for this tax year into the Improve Accuracy fields.
@@ -157,8 +165,8 @@ export function saveSettings() {
   // Guard the SETTLED rate on a pre-award period: the field shows that period's OLD (pre-rise)
   // rate, so never persist it as the year's settled rate. Store the settled rate instead — mirrors
   // the pension pro-rate guard below. (On a normal/post-award period _fieldRate is the settled rate.)
-  const _award       = awardRatesFor(_savedGrade, curTy.label);
-  const _isPreAward  = !!(_award && _award.pre != null && _award.from && curP && curP.payday < _award.from);
+  // Uses the shared isPreAwardPeriod predicate (single source, also used by getRateForPeriod).
+  const _isPreAward  = !!curP && isPreAwardPeriod(curP, _savedGrade, curTy.label);
   const _rateToSave  = _isPreAward ? getStoredRateForYear(curTy) : _fieldRate;
   rates[curTy.label] = _rateToSave;
   lsSet(SK.rates,     JSON.stringify(rates));

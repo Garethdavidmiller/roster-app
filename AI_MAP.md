@@ -369,6 +369,8 @@ Period arithmetic and select UI for `paycalc.html` (v13.80).
 - `CONFIG` — period anchor, PERIOD_DAYS, PERIODS_PER_YR, FIRST/LAST_OFFSET, TAX_YEARS
 - `getPeriods()` — returns the full period array; result is cached (avoids ~78 Date allocations per calculate())
 - `currentPeriodNum()` — reads `#periodSelect` value
+- `todaysPeriodNum()` — the period being earned TODAY (independent of the selected period); the
+  back-pay accrual caps at it so a future selection can't accrue unworked weeks
 - `hasBoxingDay(p)` / `hasBankHoliday(p)` — period content checks
 - `CONDITIONAL_ROWS` — data-driven array: `{ condition, rows, fields }` — used by `updateBhRows`
 - `updateBhRows(p)` — shows/hides BH input rows based on period content
@@ -463,6 +465,10 @@ Pure functions only — no DOM, no Firebase, no localStorage.
   award step: returns `pre` for periods paid before `from`, else the settled rate (mirrors
   `getLondonAllowanceForPeriod`). Loaded into the rate field by `updateRateForPeriod(ty, p)`, so the
   main calculator matches the real payslip for historic pre-award periods.
+- `awardFromForYear(tyLabel)` — the date a year's award was applied (single-sourced from that
+  year's `londonAllowFrom`; the date is NOT stored on `AWARD_RATES`). `isPreAwardPeriod(p, grade,
+  tyLabel)` — the one shared predicate for "period paid before its award", used by `getRateForPeriod`
+  and `saveSettings`'s persist guard, and by the back-pay accrual to cap arrears at the award date.
 - `computeGross()`, `computeTax()`, `computeNI()`, `computeSL()`
 - Edit here for: rate changes, tax year rollover, NI threshold changes, a new annual pay award
 - Covered by `paycalc.test.mjs` — run tests after any change here
