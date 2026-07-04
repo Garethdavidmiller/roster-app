@@ -67,6 +67,13 @@ breakage".
 
 ## Version bumping (MANDATORY on every change)
 
+> **⚠️ INCREMENT IS EXACTLY 0.01 PER CHANGE — never 0.10.** A batch/change goes e.g.
+> `15.90 → 15.91 → 15.92`. The **"update every 0.10 version"** documentation rule further down is
+> ONLY about *when to re-stamp the docs* (when the version crosses a 0.10 line, e.g. `…99 → 16.00`) —
+> it is **not** the step size. Do not confuse the two: bumping by 0.10 per batch (the v15.70→15.80→15.90
+> slip) burns the version space and is wrong. The version only ever *increases* (it names the SW cache),
+> so never set a value ≤ what is already on `main`.
+
 > **⚠️ PRE-COMMIT CHECK — do this before every `git commit`:**
 > Ask: "Did this change touch anything a user can see or experience?" UI text, layout,
 > behaviour, CSS, security rules, SW caching — all require a bump. If yes, update all
