@@ -285,6 +285,23 @@ export function calcProRateFactor(startDate, periodStart, periodCutoff) {
 }
 
 /**
+ * Cap Saturday and Bank-Holiday hours against contracted hours, the way the payslip does:
+ * Saturday hours fill contracted first (satCapped); Bank-Holiday hours take the remaining normal
+ * hours (bhCapped); nonBhNorm is what's left as plain contracted basic. SINGLE SOURCE of the cap
+ * rule — shared by computeGross, _varPayForPeriod (HPP) and _accrueBackPayPeriod (back-pay) so a
+ * payroll-rule change can't silently diverge across the three. Pure.
+ * @param {{ effContr: number, satHrs?: number, bhHrs?: number }} i
+ * @returns {{ satCapped: number, normHrs: number, bhCapped: number, nonBhNorm: number }}
+ */
+export function capHours(i) {
+  const satCapped = Math.min(i.satHrs || 0, i.effContr);
+  const normHrs   = i.effContr - satCapped;
+  const bhCapped  = Math.min(i.bhHrs || 0, normHrs);
+  const nonBhNorm = normHrs - bhCapped;
+  return { satCapped, normHrs, bhCapped, nonBhNorm };
+}
+
+/**
  * Compute gross pay and its named components from period inputs.
  * BH and Boxing Day hours must already be zeroed by the caller for periods that
  * don't contain those days — this function trusts the values it receives.
@@ -306,12 +323,10 @@ export function calcProRateFactor(startDate, periodStart, periodCutoff) {
  *             gBasicNorm: number, gBasicSat: number, gBankHol: number, gBhOt: number, gOvertime: number,
  *             gRdw: number, gSunday: number, gBoxing: number, gPeer: number }}
  */
+
 export function computeGross(i) {
   const r125 = i.rate * RATE_125, r150 = i.rate * RATE_150, r300 = i.rate * RATE_300;
-  const satCapped  = Math.min(i.satHrs, i.effContr);
-  const normHrs    = i.effContr - satCapped;
-  const bhCapped   = Math.min(i.bhHrs, normHrs);
-  const nonBhNorm  = normHrs - bhCapped;
+  const { satCapped, normHrs, bhCapped, nonBhNorm } = capHours(i);
 
   const gBasicNorm = nonBhNorm  * i.rate;
   const gBasicSat  = satCapped  * r125;

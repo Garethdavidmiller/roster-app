@@ -15,7 +15,7 @@
 import { parseSmartFloat } from './roster-data.js';
 import {
   RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, awardRatesFor, awardFromForYear,
+  getTaxYearForOffset, awardRatesFor, awardFromForYear, capHours,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect } from './paycalc-periods.js';
 import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
@@ -247,9 +247,7 @@ export function raiseByPercent(oldVal, pct) {
  */
 export function _accrueBackPayPeriod(i) {
   const { satHrs = 0, bhHrs = 0, bhOtHrs = 0, otHrs = 0, rdwHrs = 0, sunHrs = 0, boxHrs = 0 } = i.hours || {};
-  const satCapped = Math.min(satHrs, i.effContr);
-  const normHrs   = i.effContr - satCapped;
-  const bhCapped  = Math.min(bhHrs, normHrs);
+  const { satCapped, bhCapped } = capHours({ effContr: i.effContr, satHrs, bhHrs });
   const premium =
     satCapped * i.rateDiff * (RATE_125 - 1) +
     bhCapped  * i.rateDiff * (RATE_125 - 1) +

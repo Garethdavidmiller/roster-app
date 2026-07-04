@@ -11,7 +11,7 @@
 
 import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, getLondonAllowanceForPeriod,
+  getTaxYearForOffset, getLondonAllowanceForPeriod, capHours,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
@@ -75,10 +75,7 @@ export function _decodeHours(p, d) {
 export function _varPayForPeriod(p, d, rate) {
   const r125      = rate * RATE_125, r150 = rate * RATE_150, r300 = rate * RATE_300;
   const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
-  const effContr  = getEffectiveContr(p);
-  const satCapped = Math.min(satHrs, effContr);
-  const normHrs   = effContr - satCapped;
-  const bhCapped  = Math.min(bhHrs, normHrs);
+  const { satCapped, bhCapped } = capHours({ effContr: getEffectiveContr(p), satHrs, bhHrs });
   const pTy       = getTaxYearForOffset(p.num - 48);
   const pLondon   = getLondonAllowanceForPeriod(p, pTy) * getProRateFactor(p);
   return satCapped * (rate * (RATE_125 - 1)) +
