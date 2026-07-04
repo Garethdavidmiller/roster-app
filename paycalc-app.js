@@ -42,7 +42,7 @@ import {
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey,
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, updatePriorHpp } from './paycalc-hpp.js';
-import { prefillBackPay, calcBackPay, _bpAwardTaxYear, raiseByPercent } from './paycalc-backpay.js';
+import { prefillBackPay, calcBackPay, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent } from './paycalc-backpay.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -974,8 +974,7 @@ export function init() {
       // Write the rate against the AWARD's tax year. Going through the rate field +
       // saveSettings() would store it on whichever tax year is being viewed —
       // silently corrupting last year's rate if an old period happens to be open.
-      const fromPNum = +(/** @type {HTMLInputElement | null} */ (document.getElementById('backPayFrom'))?.value || 0);
-      const awardTy  = _bpAwardTaxYear(fromPNum);
+      const awardTy  = _bpAwardTaxYear(_backdatedFromPNum());
       /** @type {Record<string,any>} */
       let rates = {};
       try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
@@ -1156,7 +1155,6 @@ export function init() {
 
     // Back-pay inputs + period selectors + apply rate
     /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn')).addEventListener('click', toggleBpBreakdown);
-    /** @type {HTMLElement} */ (document.getElementById('backPayFrom')).addEventListener('change', _runCalcBackPay);
     /** @type {HTMLElement} */ (document.getElementById('backPayPeriod')).addEventListener('change', _runCalcBackPay);
     /** @type {HTMLElement} */ (document.getElementById('applyRateBtn')).addEventListener('click', applyNewRate);
     /** @type {HTMLElement} */ (document.getElementById('saveSettingsBtn')).addEventListener('click', () => confirmSettings(calculate));

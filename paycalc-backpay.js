@@ -36,10 +36,23 @@ const PENDING_AWARD_PCT = 3.6;
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
 
 /**
+ * Period number the back-pay award is backdated FROM. Always the April period of the
+ * current tax year — Chiltern's pay anniversary is always 1 April, so there is no user
+ * choice to make (the old "Pay rise backdated from" selector was removed Jul 2026). The
+ * April period is `48 + ty.first` (period offset `num - 48`, `ty.first` = the tax year's
+ * first offset). Used as the accrual window's lower bound and to derive the award tax year.
+ * @returns {number}
+ */
+export function _backdatedFromPNum() {
+  const awardTy = getTaxYearForOffset(currentPeriodNum() - 48);
+  return 48 + awardTy.first;
+}
+
+/**
  * Tax year the back-pay award belongs to — derived from the "backdated from"
  * period, NOT the period being viewed (which may be a different tax year).
  * Exported so coordinator's applyNewRate() can call it.
- * @param {number} fromPNum - Period number of the "backdated from" selector value.
+ * @param {number} fromPNum - Period number the award is backdated from.
  */
 export function _bpAwardTaxYear(fromPNum) {
   const p = fromPNum ? getPeriods().find(/** @param {any} x */ x => x.num === fromPNum) : null;
@@ -78,12 +91,8 @@ export function prefillBackPay() {
     if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
     if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
   }
-  // Auto-select April — Chiltern's pay anniversary is always 1 April. Use _setSelectPeriod (sets
-  // option.selected), NOT `.value = …`: this select is populated with <optgroup>s, and iOS Safari
-  // ignores a direct `.value` assignment on an optgroup select, so the default never applied there —
-  // leaving fromPNum 0 → awardTy null → the tax-year fence removed → an inflated lump sum.
-  const fromSel = /** @type {HTMLSelectElement} */ (document.getElementById('backPayFrom'));
-  if (fromSel && !fromSel.value) _setSelectPeriod(fromSel, 48 + ty.first);
+  // The award is always backdated to 1 April (Chiltern's pay anniversary) — computed
+  // internally by _backdatedFromPNum(); there is no "backdated from" selector to pre-set.
   // Default the "paid in" period to the NEXT PAYDAY (the current period) — the lump sum most
   // likely lands on your next payslip. Adjustable; the paid-in period is itself excluded from the
   // accrual (in that month you're already on the new rate — see calcBackPay's _capPNum).
@@ -125,7 +134,7 @@ export function calcBackPay() {
   const noticeEl     = /** @type {HTMLElement} */ (document.getElementById('backPayNotice'));
   const breakdownBtn = /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn'));
 
-  const fromPNum  = +(/** @type {HTMLSelectElement} */ (document.getElementById('backPayFrom'))?.value || 0);
+  const fromPNum  = _backdatedFromPNum();
   const bpSel     = /** @type {HTMLSelectElement} */ (document.getElementById('backPayPeriod'));
   const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
   const bpP       = bpPNum ? getPeriods().find(/** @param {any} x */ x => x.num === bpPNum) : null;

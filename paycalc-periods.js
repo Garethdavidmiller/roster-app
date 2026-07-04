@@ -186,14 +186,12 @@ export function buildPeriodSelect() {
   return _currentPNum; // coordinator stores this as _defaultPeriodNum
 }
 
-/** Populate the back-pay period selectors. */
+/** Populate the back-pay "paid in" period selector. */
 export function buildBackPayPeriodSelect() {
-  const sel     = document.getElementById('backPayPeriod');
-  const fromSel = document.getElementById('backPayFrom');
-  if (!sel || !fromSel) return;
+  const sel = document.getElementById('backPayPeriod');
+  if (!sel) return;
   const periods = getPeriods();
-  _populatePeriodSelect(sel,     periods, { placeholder: '— select when the lump sum will land —' });
-  _populatePeriodSelect(fromSel, periods, { placeholder: '— all periods with saved data —' });
+  _populatePeriodSelect(sel, periods, { placeholder: '— select when the lump sum will land —' });
 }
 
 // ── TAX YEAR TABS ─────────────────────────────────────────────────────────────
