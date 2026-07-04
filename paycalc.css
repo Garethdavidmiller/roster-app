@@ -233,6 +233,8 @@
       cursor: pointer; touch-action: manipulation;
     }
     .bp-active-banner button:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    /* Second line inside the banner: the fill-your-payslips-accurately note */
+    .bp-active-banner .bp-banner-note { margin-top: 4px; font-weight: 400; }
 
     /* Payslip gross note */
     .payslip-note {
