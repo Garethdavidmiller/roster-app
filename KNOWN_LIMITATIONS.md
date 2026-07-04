@@ -236,6 +236,22 @@ band the full £50,270 wide, under-taxing anyone on those codes who crosses into
 changing this means updating tests too. Rare codes at Marylebone; **verify against a
 real payslip from someone on a 0T/K code before changing** — do not fix speculatively.
 
+### Pension default is frozen onto a period once it is touched (defer to the next pension change)
+`loadPeriodData` writes the period-appropriate pension default into `#pensionAmt` when a period
+has no saved pension (`d.pension == null`), and `readFormData` then persists whatever is in the
+field — so the first edit to that period saves the default as a concrete value, and the period no
+longer "self-heals" to a *future* pension-default change (the self-heal the `loadPeriodData` comment
+intends for pension rate cut-overs). **Impact today is zero**: there is only one pension value
+(£147.36), so default == stored for every period and nothing can diverge. It becomes real only when
+(a) a pension **cut-over** is configured in `getPensionDefault` (like the rate `pensionPre`/`pensionFrom`
+pattern) *and* (b) a **future** period was edited before that cut-over — then that period shows the
+old pension. **Fix belongs with the next pension-rate change** (that's when it matters and when it can
+be tested against a real cut-over): make `readFormData` store `null` when the field still equals the
+period's default — `Math.abs(fieldValue − getPensionDefault(period)×proRate) < 0.005`, mirroring the
+existing `_hasCustomPension` check — so a pre-touched period self-heals while a genuinely-custom pension
+is preserved. Do NOT fix speculatively now (unverifiable without a cut-over; risks the historical-accuracy
+case). Surfaced by the v15.70 whole-page paycalc review (finding #6).
+
 ---
 
 ## Calendar / roster

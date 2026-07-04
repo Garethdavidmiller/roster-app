@@ -1207,9 +1207,15 @@ export function init() {
         document.addEventListener('focusout', () => {
           _inputFocused = false;
           stickyBar.classList.remove('keyboard-up');
-          // Refresh baseline after keyboard dismissal (orientation may have changed)
+          // Refresh the keyboard-down baseline after dismissal (orientation may have changed) —
+          // but ONLY when no input is focused, i.e. the keyboard is genuinely down. Moving directly
+          // from one field to another fires focusout→focusin, so an input is still focused when this
+          // timer runs; rebasing then pinned _baseVVH to the keyboard-SHRUNK height, after which
+          // keyboardUp never tripped and the bar overlaid the keyboard for the rest of the session.
+          // (Guard is strictly conservative — it can only skip a bad rebase. Needs real-iOS
+          // verification: visualViewport keyboard behaviour can't be reproduced in headless/e2e.)
           setTimeout(() => {
-            _baseVVH = _vv.height;
+            if (!_inputFocused) _baseVVH = _vv.height;
           }, 300);
         });
 
