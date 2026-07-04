@@ -349,12 +349,18 @@
     .hours-extra { display: none; }
     .hours-extra.open { display: block; }
 
-    /* ── HOURS ROWS ── */
+    /* ── HOURS ROWS — discrete rounded cards (match the admin "Change a Shift"
+       day-cards + roster-upload review rows: flat --surface fill, hairline border,
+       12px radius, gapped stack; no divider lines, no shadow) ── */
     .hours-row {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 12px 0; border-bottom: 1px solid var(--border-light); gap: 12px;
+      padding: 11px 12px; gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      margin-bottom: 8px;
     }
-    .hours-row:last-child { border-bottom: none; }
+    .hours-row:last-child { margin-bottom: 0; }
 
     .h-info { flex: 1; min-width: 0; }
     .h-title {
@@ -1060,14 +1066,16 @@
   .roster-state-badge.base-only { background: var(--boxing-day-bg); color: var(--badge-pending-text); }
   /* (.conf-high class removed — only the recorded/possible badges are rendered;
      the --conf-high-* tokens above stay for the .loaded state badge) */
-  .roster-rows { display: flex; flex-direction: column; gap: 0; margin-bottom: 8px; }
+  /* Roster "From your calendar" rows — discrete cards, matching the hours-row +
+     admin day-card treatment (white on the cream card, hairline border, 10px radius). */
+  .roster-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
   .roster-row {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
-    padding: 8px 6px; border: none; border-bottom: 1px solid var(--border-light);
-    background: none; font-family: inherit; text-align: left;
-    cursor: pointer; touch-action: manipulation; transition: background 0.12s;
+    padding: 8px 10px;
+    background: var(--surface); border: 1px solid var(--border-light); border-radius: 10px;
+    font-family: inherit; text-align: left;
+    cursor: pointer; touch-action: manipulation; transition: background 0.12s, border-color 0.12s;
   }
-  .roster-row:last-child { border-bottom: none; }
   .roster-row-icon  { font-size: 14px; flex-shrink: 0; width: 20px; text-align: center; }
   .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); white-space: nowrap; flex-shrink: 0; }
   .roster-row-total { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); min-width: 52px; flex-shrink: 0; }
