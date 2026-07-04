@@ -4,6 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod,
+  awardFromForYear, isPreAwardPeriod,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
 } from './paycalc-calc.js';
@@ -76,6 +77,35 @@ describe('constants', () => {
     assert.equal(getRateForPeriod({ payday: new Date(2026, 4, 8) }, 'cea', '2026/27', 20.74), 20.74);
     // Unknown year → settled (never throws).
     assert.equal(getRateForPeriod({ payday: new Date(2030, 0, 1) }, 'cea', '2099/00', 25), 25);
+  });
+
+  test('awardFromForYear: single-sourced from the year’s londonAllowFrom', () => {
+    // The award-application date is NOT stored in AWARD_RATES — it is the year's londonAllowFrom.
+    assert.deepEqual(awardFromForYear('2025/26'), new Date(2025, 9, 24)); // 24 Oct 2025
+    assert.equal(awardFromForYear('2026/27'), null);                      // pending — no mid-year step
+    assert.equal(awardFromForYear('2099/00'), null);                      // unknown year
+  });
+
+  test('isPreAwardPeriod: true only for a recorded-pre grade before the award date', () => {
+    assert.equal(isPreAwardPeriod({ payday: new Date(2025, 8, 26) }, 'cea', '2025/26'), true);  // 26 Sep 2025
+    assert.equal(isPreAwardPeriod({ payday: new Date(2025, 9, 24) }, 'cea', '2025/26'), false); // on the award date
+    assert.equal(isPreAwardPeriod({ payday: new Date(2025, 5, 6) },  'ces', '2025/26'), false); // CES has no recorded pre
+    assert.equal(isPreAwardPeriod({ payday: new Date(2026, 4, 8) },  'cea', '2026/27'), false); // pending, no date
+  });
+
+  test('AWARD_RATES drift guards: settled rate matches GRADES; each year’s pre = prior year rate', () => {
+    for (const grade of ['cea', 'ces']) {
+      // The settled 2025/26 rate must equal the grade default (the two must not drift apart).
+      assert.equal(AWARD_RATES[grade]['2025/26'].rate, GRADES[grade].rate,
+        `${grade} 2025/26 AWARD_RATES.rate must match GRADES.rate`);
+      // A year's `pre` is the prior year's settled rate.
+      assert.equal(AWARD_RATES[grade]['2026/27'].pre, AWARD_RATES[grade]['2025/26'].rate,
+        `${grade} 2026/27 pre must equal 2025/26 rate`);
+    }
+    // A SETTLED mid-year rate step (recorded pre AND a real hourly rate that grade was stepped to)
+    // must have an award-application date, else getRateForPeriod would never fire the step. 2025/26
+    // is the only settled step on record; the pending 2026/27 correctly has pre but no date yet.
+    assert.ok(awardFromForYear('2025/26') instanceof Date, '2025/26 award date must be set');
   });
 
   test('NI 2025/26 thresholds are exactly £968 PT and £3868 UEL (weekly × 4)', () => {

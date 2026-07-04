@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: July 2026 — v15.90 · Updated every 0.10 version*
+*Last updated: July 2026 — v16.00 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -514,6 +514,16 @@ a placeholder so the idea isn't lost.
 **Blocked on:** Finding **when the £160.78 → £154.77 pension change came in** — the exact payslip/date it dropped. One payslip (09/05/2025 = £160.78) isn't enough to locate the step; need a payslip from later in 2025/26 showing £154.77 and ideally the first one that changed. `MILLER_ACTUALS` stores net/tax/NI but **not** the pension line, so the date can't be read from the repo — it needs a payslip.
 
 **When to do it:** Once the step date is known, model it exactly like the rate/London steps — add `pensionPre2/pensionFrom2` (or generalise to a small per-date pension table) so `getPensionForPeriod` returns £160.78 before the step, £154.77 between the step and 8 May 2026, and £147.36 after. Then a historic 2025/26 period matches the real payslip on pension too.
+
+---
+
+### Deferred: validate the back-pay accrual against the real 24 Oct 2025 payslip
+
+**What:** Two assumptions in `calcBackPay` are payslip-checkable but unverified: (1) the accrual includes the **full April-paid period** (P4, paid 11 Apr 2025) even though its work window is mostly late March — if Chiltern pro-rates the award from literal 1 April, P4's row overstates slightly; (2) the per-bucket arithmetic (`_accrueBackPayPeriod`) should reproduce the real lump when the 2025/26 hours are entered. The 24 Oct 2025 payslip carries the actual back-pay lines (the basic-line spike was ~£591 vs a contracted-only estimate of ~£730 including London — the gap is explainable by variable-line placement, but unconfirmed).
+
+**Blocked on:** Reading the 24 Oct 2025 payslip's back-pay line breakdown (Gareth has it).
+
+**When to do it:** One-time check; if P4 turns out to be pro-rated, add a first-period factor to the accrual and a fixture-based test.
 
 ---
 

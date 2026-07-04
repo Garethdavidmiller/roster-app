@@ -131,6 +131,19 @@ export function isTaxYearVisible(/** @type {any} */ ty) {
   return (48 + ty.last) >= getEarliestVisiblePNum();
 }
 
+/**
+ * The period number for TODAY (the first period whose payday is still in the future — the one
+ * currently being earned). Independent of what the user has SELECTED in the period dropdown.
+ * Used by the back-pay accrual to cap arrears at today, so selecting a future period can't accrue
+ * arrears for weeks not yet worked.
+ */
+export function todaysPeriodNum() {
+  const periods = getPeriods();
+  const today = new Date();
+  const upcoming = periods.find((/** @type {any} */ p) => p.payday > today);
+  return upcoming ? upcoming.num : periods[periods.length - 1].num;
+}
+
 /** Return the period number currently shown in the period selector. */
 export function currentPeriodNum() {
   return +(/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'))).value;
@@ -261,11 +274,18 @@ export function buildPeriodSelect() {
   return _currentPNum; // coordinator stores this as _defaultPeriodNum
 }
 
-/** Populate the back-pay "paid in" period selector. */
-export function buildBackPayPeriodSelect() {
+/**
+ * Populate the back-pay "paid in" period selector. With `minPNum`, only periods from that num
+ * onward are offered — prefillBackPay passes the award's April so the dropdown can't offer a
+ * payslip that predates the award (choosing one produced a confusing empty result). Rebuilding
+ * clears the selection; callers re-select/default afterwards.
+ * @param {number} [minPNum=0]
+ */
+export function buildBackPayPeriodSelect(minPNum = 0) {
   const sel = document.getElementById('backPayPeriod');
   if (!sel) return;
-  const periods = visiblePeriods(); // a new starter can only pay a lump into a period they can view
+  // A new starter can only pay a lump into a period they can view (visiblePeriods).
+  const periods = visiblePeriods().filter((/** @type {any} */ p) => p.num >= minPNum);
   _populatePeriodSelect(sel, periods, { placeholder: '— select when the lump sum will land —' });
 }
 
