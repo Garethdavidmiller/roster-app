@@ -806,6 +806,11 @@
         .day-row.active .overwrite-badge {
             background: var(--blue-sky);
         }
+        /* A loaded-but-untouched override is already recorded — calm green "✓ Saved", not the
+           attention-blue of an active change. Must follow .day-row.active (same specificity). */
+        .day-row.prefilled-existing .overwrite-badge {
+            background: var(--green);
+        }
 
         /* Today's row — gold day-name + a subtle background tint (no left border; the base
            card border is enough to frame it). */

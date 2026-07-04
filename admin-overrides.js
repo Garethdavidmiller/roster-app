@@ -300,6 +300,7 @@ export function buildWeekGridInto(container, dateStr) {
             const typeMeta      = TYPES[prefillType];
             _activateRow(row, checkbox, pills, startEl, endEl, prefillType);
             row.classList.add('prefilled-existing');
+            _syncOverwriteBadge(row); // loaded + untouched → "✓ Saved" (not "Updating")
             if (isSpare) {
                 // Activate the Spare chip inside the now-open Other submenu; _syncOtherSpareMode
                 // hides RDW/times and applies the fixed-type "No time needed" state.
@@ -535,8 +536,23 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
         }
         _syncOtherRdwWarn(row);
     }
+    _syncOverwriteBadge(row);
+}
+
+/**
+ * Sync a day-row's overwrite badge to its state, relative to the override it was loaded with:
+ *   • prefilled-existing (loaded, untouched) → "✓ Saved"    — already recorded, no change staged
+ *   • active with a type   (a change staged)  → "⚠ Updating" — will overwrite the saved one on Save
+ *   • deactivated          (unticked)         → "⚠ Removing" — the saved override is deleted on Save
+ * No-op on rows with no saved override (they have no .overwrite-badge).
+ * @param {HTMLElement} row
+ */
+function _syncOverwriteBadge(row) {
     const badge = row.querySelector('.overwrite-badge');
-    if (badge) badge.textContent = '⚠ Updating';
+    if (!badge) return;
+    badge.textContent = row.classList.contains('prefilled-existing') ? '✓ Saved'
+        : row.dataset.type ? '⚠ Updating'
+        : '⚠ Removing';
 }
 
 /**
@@ -576,8 +592,7 @@ function _deactivateRow(row, checkbox, pills, startEl, endEl) {
         if (cb && !cb.disabled) cb.checked = false;   // rest-day rows keep their baked tick (RDW is automatic)
         _syncOtherRdwWarn(row);
     }
-    const badge = row.querySelector('.overwrite-badge');
-    if (badge) badge.textContent = '⚠ Existing';
+    _syncOverwriteBadge(row);
 }
 
 export function updateSaveBtn() {
@@ -585,6 +600,7 @@ export function updateSaveBtn() {
     const saveBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     if (!weekGrid || !saveBtn) return;
     const rows       = /** @type {HTMLElement[]} */ ([...weekGrid.querySelectorAll('.day-row')]);
+    rows.forEach(_syncOverwriteBadge); // keep every overwrite badge in step with its row's state
     const saveCount  = rows.filter(r => r.dataset.type && !r.classList.contains('prefilled-existing')).length;
     const delCount   = rows.filter(r => !r.dataset.type && r.dataset.existingId).length;
     const total = saveCount + delCount;
