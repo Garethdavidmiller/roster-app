@@ -917,6 +917,12 @@ export function init() {
             _bpLink.type = 'button';
             _bpLink.textContent = 'view back pay card';
             _bpLink.addEventListener('click', () => {
+              // OPEN the collapsed card before scrolling — scrolling to a shut card looked like
+              // nothing happened. Clicking the header (not classList) reuses the exact real-tap
+              // path: initCardCollapse's toggle + aria-expanded + the prefill onToggle.
+              if (!document.getElementById('backPayBody')?.classList.contains('open')) {
+                /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle'))?.click();
+              }
               /** @type {HTMLElement} */ (document.getElementById('backPayCard')).scrollIntoView({ behavior: 'smooth' });
             });
             _bannerEl.appendChild(_bpLink);
