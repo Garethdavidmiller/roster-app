@@ -453,10 +453,14 @@ localStorage key constants and data migration logic for the pay calculator (v11.
 Pure functions only — no DOM, no Firebase, no localStorage.
 - All pay rate tables (`GRADES`, `TAX_YEARS`)
 - `AWARD_RATES` + `awardRatesFor(grade, tyLabel)` — authoritative per-grade, per-tax-year pay-award
-  rates (`{ rate, pre }`: settled rate + the prior-year "old" rate). Payslip-confirmed (CEA 2024/25
-  = £20.06). Consumed ONLY by `paycalc-backpay.js` so the back-pay card can compute any year's award
-  with the correct old→new rates, independent of the mutable `GRADES` default. Add one entry per
-  grade each April.
+  rates (`{ rate, pre, from }`: settled rate + the prior-year "old" rate + the mid-year date the
+  award was applied). Payslip-confirmed (CEA 2024/25 = £20.06, applied 24 Oct 2025). Used by
+  `paycalc-backpay.js` (any year's old→new award, independent of the mutable `GRADES` default) and by
+  `getRateForPeriod()`. Add one entry per grade each April.
+- `getRateForPeriod(p, grade, tyLabel, settledRate)` — the rate for a period, honouring a MID-YEAR
+  award step: returns `pre` for periods paid before `from`, else the settled rate (mirrors
+  `getLondonAllowanceForPeriod`). Loaded into the rate field by `updateRateForPeriod(ty, p)`, so the
+  main calculator matches the real payslip for historic pre-award periods.
 - `computeGross()`, `computeTax()`, `computeNI()`, `computeSL()`
 - Edit here for: rate changes, tax year rollover, NI threshold changes, a new annual pay award
 - Covered by `paycalc.test.mjs` — run tests after any change here
