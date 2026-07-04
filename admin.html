@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v15.70 -->
+<!-- MYB Roster — Admin v15.80 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -340,28 +340,15 @@
         <div class="card-collapsible-body" id="overridesBody">
         <div class="list-toolbar">
             <span class="list-count" id="listCount">Loading…</span>
+            <label class="override-selectall"><input type="checkbox" id="selectAllOverrides" aria-label="Select all changes"> All</label>
             <button type="button" id="showAllOverridesBtn" class="btn-show-all-overrides" hidden>All staff</button>
             <select id="overridesMonthFilter" class="overrides-month-filter" aria-label="Filter by month">
                 <option value="">All months</option>
             </select>
             <button type="button" id="bulkDeleteBtn" class="btn-bulk-delete" style="display:none" aria-label="Delete selected changes">Delete selected</button>
         </div>
-        <div class="table-scroll">
-            <table class="override-table">
-                <thead>
-                    <tr>
-                        <th class="cb-col"><input type="checkbox" id="selectAllOverrides" aria-label="Select all overrides"></th>
-                        <th>Date</th>
-                        <th>Member</th>
-                        <th>Type</th>
-                        <th>Shift time</th>
-                        <th colspan="2"><span class="sr-only">Actions</span></th>
-                    </tr>
-                </thead>
-                <tbody id="overrideTableBody">
-                    <tr class="state-row"><td colspan="7"><span class="spinner"></span>Loading…</td></tr>
-                </tbody>
-            </table>
+        <div class="override-cards" id="overrideTableBody">
+            <div class="override-state"><span class="spinner"></span>Loading…</div>
         </div>
         <div class="list-feedback" id="listFeedback" role="status" aria-live="polite"></div>
         </div><!-- /.card-collapsible-body -->
