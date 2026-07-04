@@ -73,7 +73,7 @@ B-track phase reference them.
 | **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
 | **Management** | `CONFIG.MANAGER_NAMES` (6 names) | **`{ manager: true, name }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
 | **Staff** | everyone else | `{ name }` | Only their **own** overrides (`token.name == memberName`) |
-| *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva']`) | *cross-cuts the above* — S. Silva is a **CEA**, not a manager | `linkDesigns` (designs are **not** member-owned) |
+| *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva']`) | *cross-cuts the above* — S. Silva is a **CEA**, not a manager. **No `linksDesigner` claim exists yet** — a dedicated one is the deferred H2 cutover (add claim → re-provision → refresh → gate `linkDesigns` write). Full apply-ready patch: **B3_STRICT_CUTOVER.HELD.md → "Sibling cutover — `linksDesigner` claim"**; rides the B3 window | `linkDesigns` (designs are **not** member-owned) — server-write control **still client-redirect only** until H2 |
 
 **The gap B2 closed (pre-v14.53):** originally only `ADMIN_NAMES` was sent to `setupRosterAuth` as
 `adminMembers`, so only G. Miller carried `admin: true`; managers carried just `{ name }`. The
