@@ -927,6 +927,18 @@ export function init() {
             });
             _bannerEl.appendChild(_bpLink);
           }
+          // Accuracy note (owner request, Jul 2026): the lump is summed from each period's saved
+          // hours — unvisited periods count contracted-only — so completed payslips back to the
+          // award's April make the figure accurate. April year derived from the award tax year
+          // (label "2026/27" → "2026") so the line rolls forward each year untouched.
+          let _bpNoteEl = _bannerEl.querySelector('.bp-banner-note');
+          if (!_bpNoteEl) {
+            _bpNoteEl = document.createElement('div');
+            _bpNoteEl.className = 'bp-banner-note';
+            _bannerEl.appendChild(_bpNoteEl);
+          }
+          const _bpAprilYr = _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4);
+          _bpNoteEl.textContent = `For the best estimate, make sure each payslip back to 1 April ${_bpAprilYr} is filled in accurately on the calculator.`;
           _bannerEl.style.display = '';
         } else {
           _bannerEl.style.display = 'none';
