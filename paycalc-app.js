@@ -306,8 +306,9 @@ export function init() {
       // Update tax year tab active state
       updateTyTabs();
 
-      // Load the rate and Year to Date figures for this period's tax year
-      updateRateForPeriod(ty);
+      // Load the rate and Year to Date figures for this period's tax year (period-aware: an
+      // early-in-the-year period before its mid-year pay-award date shows the pre-rise rate).
+      updateRateForPeriod(ty, p);
       updateYtdForTaxYear(ty);
       // Update the "for P__" label next to the pension field so users can see
       // which period's pension they are viewing or editing.
@@ -985,7 +986,7 @@ export function init() {
       // year, in which case its rate is correctly left unchanged).
       const curP  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
       const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-      updateRateForPeriod(curTy);
+      updateRateForPeriod(curTy, curP);
       calculate();
       // Update button state to reflect it's been applied
       const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById('applyRateBtn'));

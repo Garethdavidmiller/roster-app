@@ -11,7 +11,7 @@
  * Do not edit here for: pay maths, period date maths, roster pre-fill.
  */
 
-import { GRADES, getTaxYearForOffset, calcProRateFactor, getPensionForPeriod } from './paycalc-calc.js';
+import { GRADES, getTaxYearForOffset, calcProRateFactor, getPensionForPeriod, getRateForPeriod, awardRatesFor } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
 import { getSession } from './session.js';
@@ -106,14 +106,22 @@ export function getStoredRateForYear(ty, useLegacyFallback = true) {
       || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
 }
 
-/** Load the stored rate for the given tax year into the hourly rate field. */
-/** @param {any} ty */
-export function updateRateForPeriod(ty) {
-  const rate = getStoredRateForYear(ty);
+/**
+ * Load the rate for the given period into the hourly rate field. Period-aware: a period paid
+ * BEFORE its tax year's mid-year pay-award date shows the pre-award rate (e.g. 2025/26 periods
+ * before 24 Oct 2025 show £20.06, not the settled £20.74) — so the calculator matches the real
+ * payslip for historic periods. calculate() reads this field, so no change is needed there.
+ * @param {any} ty  - the period's tax year
+ * @param {any} [p] - the period (enables the mid-year step; omitted → settled rate only)
+ */
+export function updateRateForPeriod(ty, p) {
+  const settled = getStoredRateForYear(ty);
+  const rate    = p ? getRateForPeriod(p, getGrade(), ty.label, settled) : settled;
   /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value = rate.toFixed(2);
-  // Update label to show which tax year this rate applies to
+  // Label: show the tax year, and flag when a pre-award (pre-rise) rate is in effect so a user
+  // checking an early-in-the-year payslip isn't surprised the rate is lower than the settled one.
   const lbl = document.getElementById('rateYearLabel');
-  if (lbl) lbl.textContent = `for ${ty.label}`;
+  if (lbl) lbl.textContent = (rate < settled) ? `for ${ty.label} · pre-rise rate` : `for ${ty.label}`;
 }
 
 /** Load the stored Year to Date figures for this tax year into the Improve Accuracy fields.
@@ -145,9 +153,16 @@ export function saveSettings() {
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
   const _savedGrade   = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
   const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
-  rates[curTy.label] = parseFloat(rateVal) || _gradeDefault;
+  const _fieldRate    = parseFloat(rateVal) || _gradeDefault;
+  // Guard the SETTLED rate on a pre-award period: the field shows that period's OLD (pre-rise)
+  // rate, so never persist it as the year's settled rate. Store the settled rate instead — mirrors
+  // the pension pro-rate guard below. (On a normal/post-award period _fieldRate is the settled rate.)
+  const _award       = awardRatesFor(_savedGrade, curTy.label);
+  const _isPreAward  = !!(_award && _award.pre != null && _award.from && curP && curP.payday < _award.from);
+  const _rateToSave  = _isPreAward ? getStoredRateForYear(curTy) : _fieldRate;
+  rates[curTy.label] = _rateToSave;
   lsSet(SK.rates,     JSON.stringify(rates));
-  lsSet(SK.rate,      rateVal);
+  lsSet(SK.rate,      _rateToSave.toFixed(2));
   lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
   lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
   // Save grade and invalidate cache before getPensionDefault — it calls getGrade()

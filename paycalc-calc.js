@@ -90,6 +90,63 @@ export const GRADES = {
   ces: { label: 'CES — £21.81/hr', rate: 21.81, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) }, // 2026/27 rate TBC
 };
 
+// ── Annual pay-award rates by grade + tax year ─────────────────────────────
+// A pay rise happens once a year, backdated to 1 April (Chiltern's pay anniversary), and is
+// typically PAID mid-year as a lump sum once the award is agreed (2025/26 landed on the 24 Oct
+// 2025 payslip — see londonAllowFrom). This table is the authoritative record so the back-pay
+// card can compute ANY year's award, not just the pending one:
+//   `rate` = the settled rate for that tax year (null while an award is still unconfirmed).
+//   `pre`  = the rate paid BEFORE that year's award was applied (i.e. the prior year's rate) —
+//            the OLD rate for that year's back-pay. null = not on record (falls back to manual).
+// Payslip-confirmed values: CEA 2024/25 = £20.06 (G. Miller payslip 09/05/2025, "Basic Pay @20.06").
+// Each April, when the new award is agreed: set that year's `rate`, and add the next year with
+// `pre` = this year's rate. Consumed ONLY by paycalc-backpay.js (the main calculator's per-year
+// rate still comes from GRADES + the localStorage per-year override — unchanged).
+// `from` = the date the award was actually APPLIED/paid (backdated lump lands here). It equals the
+// year's londonAllowFrom (the whole award — rate + London — steps on one payslip: 2025/26 = 24 Oct
+// 2025). Periods paid BEFORE `from` were paid at `pre`; the mid-year step is honoured by the main
+// calculator via getRateForPeriod (mirrors getLondonAllowanceForPeriod). null = no known step.
+/** @type {Record<string, Record<string, { rate: number|null, pre: number|null, from: Date|null }>>} */
+export const AWARD_RATES = {
+  cea: {
+    '2025/26': { rate: 20.74, pre: 20.06, from: new Date(2025, 9, 24) },
+    '2026/27': { rate: null,  pre: 20.74, from: null }, // pending — 3.6% offered, awaiting RMT
+  },
+  ces: {
+    '2025/26': { rate: 21.81, pre: null,  from: new Date(2025, 9, 24) }, // 2024/25 CES rate not on record
+    '2026/27': { rate: null,  pre: 21.81, from: null },
+  },
+};
+
+/**
+ * The pay-award rates for a grade + tax-year label, or null if the grade/year is unknown.
+ * @param {string} grade    - 'cea' | 'ces'
+ * @param {string} tyLabel  - e.g. '2025/26'
+ * @returns {{ rate: number|null, pre: number|null, from: Date|null } | null}
+ */
+export function awardRatesFor(grade, tyLabel) {
+  const g = AWARD_RATES[grade] || AWARD_RATES.cea;
+  return g[tyLabel] || null;
+}
+
+/**
+ * The hourly rate to use for a period, honouring a MID-YEAR pay-award step. A pay award is
+ * backdated to 1 April but PAID from a mid-year date (2025/26: 24 Oct 2025) — so periods paid
+ * BEFORE that date were actually paid at the prior year's rate. Returns the recorded pre-award
+ * rate for those periods, else the settled rate. Mirrors getLondonAllowanceForPeriod. A grade/year
+ * with no recorded step (CES, or the pending 2026/27) always returns the settled rate.
+ * @param {{ payday: Date }} p        - the period
+ * @param {string} grade              - 'cea' | 'ces'
+ * @param {string} tyLabel            - e.g. '2025/26'
+ * @param {number} settledRate        - the year's settled rate (from getStoredRateForYear / the field)
+ * @returns {number}
+ */
+export function getRateForPeriod(p, grade, tyLabel, settledRate) {
+  const a = awardRatesFor(grade, tyLabel);
+  if (a && a.pre != null && a.from && p.payday < a.from) return a.pre;
+  return settledRate;
+}
+
 // HPP formula confirmed by Chiltern payroll (Marie Firby): (Gross − Basic) × 4/52
 export const HPP_FRACTION = 4 / 52;
 

@@ -3,7 +3,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
+  P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
 } from './paycalc-calc.js';
@@ -38,6 +38,44 @@ describe('constants', () => {
     assert.equal(TAX_YEARS.length, 2);
     assert.equal(TAX_YEARS[0].label, '2025/26');
     assert.equal(TAX_YEARS[1].label, '2026/27');
+  });
+
+  test('AWARD_RATES: CEA 2025/26 old £20.06 → new £20.74 (payslip-confirmed)', () => {
+    // Old rate from G. Miller payslip 09/05/2025 ("Basic Pay @ 20.06"); new = the settled 2025/26 rate.
+    assert.equal(AWARD_RATES.cea['2025/26'].pre, 20.06);
+    assert.equal(AWARD_RATES.cea['2025/26'].rate, 20.74);
+  });
+
+  test('AWARD_RATES: pending 2026/27 has old = last year rate, new unconfirmed (null)', () => {
+    assert.equal(AWARD_RATES.cea['2026/27'].pre, 20.74); // 2025/26 rate is the pending award's OLD rate
+    assert.equal(AWARD_RATES.cea['2026/27'].rate, null); // award not yet agreed
+    assert.equal(AWARD_RATES.ces['2026/27'].pre, 21.81);
+  });
+
+  test('awardRatesFor: known grade/year returns the record, unknown returns null', () => {
+    assert.equal(awardRatesFor('cea', '2025/26').rate, 20.74);
+    assert.equal(awardRatesFor('cea', '2025/26').pre, 20.06);
+    assert.equal(awardRatesFor('cea', '2099/00'), null);        // unknown year
+    assert.equal(awardRatesFor('ces', '2025/26').pre, null);    // CES 2024/25 rate not on record
+    assert.equal(awardRatesFor('zzz', '2025/26').rate, 20.74);  // unknown grade → CEA, never throws
+  });
+
+  test('getRateForPeriod: CEA 2025/26 mid-year step at 24 Oct 2025 (£20.06 → £20.74)', () => {
+    const settled = 20.74;
+    // A payday BEFORE 24 Oct 2025 was paid at the pre-rise rate…
+    assert.equal(getRateForPeriod({ payday: new Date(2025, 8, 26) }, 'cea', '2025/26', settled), 20.06);
+    // …the award-date payslip and after use the settled rate.
+    assert.equal(getRateForPeriod({ payday: new Date(2025, 9, 24) }, 'cea', '2025/26', settled), 20.74);
+    assert.equal(getRateForPeriod({ payday: new Date(2025, 10, 21) }, 'cea', '2025/26', settled), 20.74);
+  });
+
+  test('getRateForPeriod: no step when the year/grade has no recorded pre-rate', () => {
+    // CES 2025/26 has no recorded pre rate → always settled, even before the award date.
+    assert.equal(getRateForPeriod({ payday: new Date(2025, 5, 6) }, 'ces', '2025/26', 21.81), 21.81);
+    // Pending 2026/27 has from:null → always settled.
+    assert.equal(getRateForPeriod({ payday: new Date(2026, 4, 8) }, 'cea', '2026/27', 20.74), 20.74);
+    // Unknown year → settled (never throws).
+    assert.equal(getRateForPeriod({ payday: new Date(2030, 0, 1) }, 'cea', '2099/00', 25), 25);
   });
 
   test('NI 2025/26 thresholds are exactly £968 PT and £3868 UEL (weekly × 4)', () => {
