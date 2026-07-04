@@ -90,7 +90,12 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
   const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
   const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
   if (!elH || !elM) return;
-  if (hVal == null && mVal == null) return;
+  // Nothing to suggest when the engine reports zero for BOTH hours and minutes — the
+  // suggestion object uses numeric 0 (not null) for undetected categories, so guarding
+  // only on `== null` stamped a gold "0" onto every empty category, making it look like a
+  // confirmed "none" where the engine actually has no information. A real 0-in-one-field
+  // pairing (e.g. 5h 0m, or 0h 30m) still passes because the other field is non-zero.
+  if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) return;
   // Treat H and M independently — a manually-edited field is skipped individually
   // rather than blocking its paired field.
   const hEdited = elH.value !== '' && !elH.classList.contains('roster-suggested');
@@ -331,7 +336,9 @@ export function _applyRosterSuggestion(s, force = false) {
       const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
       const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
       if (!elH || !elM) continue;
-      if (hVal == null && mVal == null) continue;
+      // Skip categories the engine reports as zero (undetected) — even on a force replace,
+      // a gold "0" would misrepresent "no info" as a confirmed none. Matches _suggestIfBlank.
+      if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) continue;
       elH.value = hVal ?? '';
       elM.value = mVal ?? '';
       elH.classList.add('roster-suggested');

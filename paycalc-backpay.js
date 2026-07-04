@@ -140,8 +140,12 @@ export function calcBackPay() {
   const periods    = getPeriods();
   // Back-pay applies within a single tax-year anniversary — derive it from the
   // "backdated from" period so that a "paid in" period in a subsequent year does
-  // not accidentally pull in periods from that later year.
-  const awardTy    = fromPNum ? _bpAwardTaxYear(fromPNum) : null;
+  // not accidentally pull in periods from that later year. When no explicit period
+  // is chosen (the "— all periods with saved data —" option), _bpAwardTaxYear falls
+  // back to the CURRENT tax year, so the fence still holds — previously this was
+  // `null`, dropping the fence entirely and spilling one award's rate-diff across
+  // saved periods of the OTHER tax year (an inflated lump sum).
+  const awardTy    = _bpAwardTaxYear(fromPNum);
   let rows          = '';
   let grandTotal    = 0;
   let grandVarTotal = 0;

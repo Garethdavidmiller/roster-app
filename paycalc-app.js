@@ -928,13 +928,21 @@ export function init() {
      * Old × (1 + %). A convenience only — the New boxes stay editable, and leaving the % blank
      * keeps them fully manual. Re-runs whenever the % or either Old figure changes.
      */
+    // Last values we auto-filled into the New rate/London boxes, so _applyBpRisePct can tell a
+    // still-auto value (safe to refresh) from one the user has hand-corrected (must not clobber).
+    let _bpAutoNewR = '', _bpAutoNewL = '';
     function _applyBpRisePct() {
       const pct = numVal('bpRisePct');
       if (pct > 0) {
+        const newREl = /** @type {HTMLInputElement} */ (document.getElementById('newRateInput'));
+        const newLEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
         const newR = raiseByPercent(numVal('oldRate'),   pct);
         const newL = raiseByPercent(numVal('oldLondon'), pct);
-        if (newR) /** @type {HTMLInputElement} */ (document.getElementById('newRateInput')).value = newR.toFixed(2);
-        if (newL) /** @type {HTMLInputElement} */ (document.getElementById('newLondon')).value    = newL.toFixed(2);
+        // Only fill a New box that is blank or still holds our last auto value — never overwrite
+        // a figure the user hand-corrected to their payslip. (The old code re-filled New on every
+        // Old-field or % edit, clobbering a manual correction.)
+        if (newR && (newREl.value === '' || newREl.value === _bpAutoNewR)) { newREl.value = newR.toFixed(2); _bpAutoNewR = newREl.value; }
+        if (newL && (newLEl.value === '' || newLEl.value === _bpAutoNewL)) { newLEl.value = newL.toFixed(2); _bpAutoNewL = newLEl.value; }
       }
       _runCalcBackPay();
     }
