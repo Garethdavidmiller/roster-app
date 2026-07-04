@@ -373,9 +373,8 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
   incl. refresh-called-once and cache-untouched-on-persistent-denial; a single-commit `WriteBatch`
   mock catches batch reuse). Bulk delete shares the identical wrapped-thunk pattern (verified by
   inspection — its cache mutation is after the awaited commit, inside the `try`). This is a safety net
-  that is **independent of — and does not replace —** the `CLAIM_EPOCH` sweep at the actual cutover
-  (`refreshClaimsIfStale` still no-ops while `CLAIM_EPOCH == 0`). **Do NOT bump `CLAIM_EPOCH` in the
-  same release as a UX rollout** (in-place login just completed at v15.17) — separate the variables.
+  that is **independent of — and does not replace —** the `CLAIM_EPOCH` sweep
+  (which already ran — armed to `2` at v15.33, so `refreshClaimsIfStale` is now active).
   See LOGIN_INCIDENT.md.
 
 #### B3 cutover runbook (staged, pre-window — nothing here is deployed)
@@ -394,18 +393,19 @@ on a **fresh branch cut at window time**, in this order. (The write-side retry n
 live and means a manager who misses the sweep self-heals on first write — so this is safer than a cold
 cutover, but still do the sweep.)
 
-**Pre-window checks:** `CLAIM_EPOCH == 0`, `ENFORCE_NAMED_SESSION == true`, in-place-login rollout
-deployed and settled; `CONFIG.MANAGER_NAMES` matches current staff.
+**Pre-window checks:** `CLAIM_EPOCH == 2` (sweep already armed v15.33 — see Progress below),
+`ENFORCE_NAMED_SESSION == true`, in-place-login rollout deployed and settled; `CONFIG.MANAGER_NAMES`
+matches current staff.
 
 **Step 1 — Re-provision (owner).** Operations → Set up accounts (sets `admin`/`manager`/`name` on every
 account). Idempotent — re-run in the window even if done earlier as a warm-up, to catch any account
 that changed since.
 
-**Step 2 — Force the token sweep (Claude edit + owner deploy).** Bump `CONFIG.CLAIM_EPOCH` `0 → 2`
-(higher than any previously-shipped value — 1 already shipped once — so every device force-refreshes
-once on next open regardless of its stored `myb_claim_epoch`). Deploy hosting. This is a **separate
-deploy from the rules** — do not ship strict rules in the same release. Wait for the sweep window (a
-few days of normal use so active devices re-open; force sign-out any stragglers).
+**Step 2 — Force the token sweep — ✓ ALREADY DONE (v15.33).** `CONFIG.CLAIM_EPOCH` is already `2`
+(higher than any previously-shipped value — 1 shipped in v14.71, hotfixed to 0 in v14.72 — so every
+device force-refreshes once on next open regardless of its stored `myb_claim_epoch`). **Do NOT bump it
+again** unless deliberately forcing a fresh sweep. What remains of this step at window time: confirm
+active devices have re-opened since the v15.33 hosting deploy, and force sign-out any stragglers.
 
 **Step 3 — Strict rule diff (Claude).** Remove the no-name escape from the `overrides` create/update
 AND delete blocks in `firestore.rules`:
