@@ -640,6 +640,18 @@ select:focus-visible, input:focus-visible {
 .error-row:last-child { border-bottom: none; }
 .error-row--resolved { opacity: 0.4; }
 
+/* No-silent-caps banner: the unresolved query hit its 100-record cap. */
+.error-truncation-note {
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--warning-amber);
+    background: color-mix(in oklch, var(--warning-amber) 12%, white);
+    border: 1px solid color-mix(in oklch, var(--warning-amber) 45%, white);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+}
+
 .error-summary {
     display: flex;
     flex-wrap: wrap;

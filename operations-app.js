@@ -823,7 +823,7 @@ export function init() {
 
         try {
             await sessionReady;
-            const errors = await adminReadWithRetry(getClientErrors);
+            const { errors = [], truncated = false } = (await adminReadWithRetry(getClientErrors)) || {};
 
             content.innerHTML = '';
 
@@ -834,6 +834,15 @@ export function init() {
             errStatus.setAttribute('role', 'status');
             errStatus.setAttribute('aria-live', 'polite');
             content.appendChild(errStatus);
+
+            // No-silent-caps: the unresolved query hit its 100-record cap, so more
+            // unresolved errors exist than are shown. Say so rather than hide them.
+            if (truncated) {
+                const note = document.createElement('p');
+                note.className = 'error-truncation-note';
+                note.textContent = '⚠ Showing the first 100 unresolved errors — resolve some to reveal the rest.';
+                content.appendChild(note);
+            }
 
             if (errors.length === 0) {
                 const none = document.createElement('p');

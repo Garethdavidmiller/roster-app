@@ -541,7 +541,7 @@ resolvedAt   Firestore server timestamp — set when an admin resolves; retentio
 Write: any authenticated session (`request.auth != null`); shape-validated by Firestore rules.
 Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` in `firebase-client.js`, called fire-and-forget from `error-reporter.js`.
-Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) a backlog of resolved records cannot hide them. Prunes resolved records 90 days past `resolvedAt`.
+Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) a backlog of resolved records cannot hide them. It returns `{ errors, truncated }`: the unresolved query is capped at 100 with **no `orderBy`** (an `orderBy` would need the composite index this design deliberately avoids), so above that volume the cap returns an arbitrary — not the newest — 100; `truncated` is set when the cap is hit so the card shows a "showing the first 100" banner rather than silently hiding the rest (no-silent-caps, v15.69). Prunes resolved records 90 days past `resolvedAt`.
 
 **analytics** (v14.14) — anonymous usage counters; **no member identity is ever stored**
 ```
