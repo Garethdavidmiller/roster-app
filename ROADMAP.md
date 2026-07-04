@@ -864,10 +864,27 @@ lazy-import Firebase, and restructures the calendar init to paint first, then dy
 **Decision:** only pursue if a cold-load Lighthouse profile shows the Firebase SDK dominating TTI
 *and* it's worth a dedicated branch with real-device verification. Otherwise leave as-is.
 
+> **Reviewers keep re-suggesting "lazy-import Firebase in `nav-panel.js`" as a standalone win —
+> it is worth ZERO in isolation, do not do it on its own.** Every page that renders the nav drawer
+> already pulls the Firebase SDK through other static imports (`calendar-app.js` reaches it via seven
+> paths besides nav-panel; `admin`/`operations`/`links`/`settings` import `firebase-client.js`
+> directly; `paycalc` via `session.js`). So deferring Firebase in nav-panel alone removes nothing from
+> any page's module graph — it only converts the synchronous bell render (`notifSupported()`) and the
+> circular/newsletter tap path to async-import paths, adding complexity + risk to the most fragile
+> shared surface for no download saved. The nav-panel lazy-import is only meaningful **bundled with**
+> the calendar-init restructure above (paint first, then `import()` the Firebase-dependent modules) —
+> never as a lone change. (Evaluated and declined again in the v15.69 review.)
+
 ### Minor / not worth it now
 - `paycalc.calculate()` runs on every keystroke (a few `lsGet`s per call; `getGrade` already
   cached) — a short rAF/debounce would smooth rapid typing on low-end phones. Marginal.
 - Font is already optimal (one variable woff2, preloaded, `font-display: swap`, immutable).
+- **Lazy-load the heavy Operations-page card imports** (`operations-app.js` and its Firebase/Functions
+  paths). Reviewers periodically flag this, but `operations.html` is **admin-only** — effectively a
+  single user (the developer) — and is opened rarely. Deferring its imports optimises a page almost
+  no staff ever load, for real churn on a page whose init is already gated behind an access check.
+  Not worth it; only reconsider if Operations ever becomes staff-facing. (Evaluated and declined in
+  the v15.69 review.)
 - Vite build step (bundle the ~52 modules, tree-shake Firebase) — the "nuclear option"; Batches
   1+3 capture most of the benefit without a build step. Stays deferred (see "Build tooling — Vite").
 
