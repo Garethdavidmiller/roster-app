@@ -215,7 +215,6 @@ body.auth-ready .container { display: grid; }
     background: var(--surface);
     border: 1px solid var(--border-light);
     border-radius: 10px;
-    box-shadow: 0 1px 2px rgba(0, 30, 60, 0.05); /* whisper of lift, matching the admin day-cards */
 }
 .roster-change-row.is-skipped { opacity: 0.4; }
 /* Conflict card keeps its warm tint + gains a left accent (needs-a-decision), like the admin
@@ -261,7 +260,10 @@ body.auth-ready .container { display: grid; }
 
 /* Conflict row — "Your choice": what you saved vs the new roster, stacked in one block. */
 .roster-choicebox { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 0; }
-.roster-cb-day { display: flex; align-items: baseline; gap: 6px; }
+.roster-cb-day { display: flex; align-items: center; gap: 6px; }
+/* "Your choice" tag rides in the day header (right-aligned) rather than a left column,
+   so the choicebox content uses the full card width (v15.67). */
+.roster-cb-day .act-choice { margin-left: auto; align-self: center; }
 .roster-cb-opt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .roster-cb-lab { flex: 0 0 66px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
                  text-transform: uppercase; color: var(--conflict-text); }

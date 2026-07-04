@@ -695,14 +695,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // data-pick values are unchanged so the save path is identical.
                     const usesPDF = s.chosen === 'pdf';
                     row.innerHTML = `
-                        <span class="roster-act act-choice">Your choice</span>
                         <div class="roster-choicebox">
                             <div class="roster-cb-day">
                                 <span class="roster-day-abbr">${dayName}</span>
                                 <span class="roster-day-date">${dateStr}</span>
+                                <span class="roster-act act-choice">Your choice</span>
                             </div>
                             <div class="roster-cb-opt">
-                                <span class="roster-cb-lab">You saved</span>
+                                <span class="roster-cb-lab">Saved</span>
                                 <span class="roster-cv-manual${usesPDF ? ' cv-dim' : ''}">${shiftDisplay(s.manualValue)}</span>
                             </div>
                             <div class="roster-cb-opt">
@@ -710,7 +710,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                                 <span class="roster-cv-pdf${usesPDF ? '' : ' cv-dim'}">${shiftDisplay(s.displayShift ?? s.parsedShift, s.baseShift, date)}</span>
                             </div>
                             <div class="roster-pick" role="group" aria-label="Resolve conflict">
-                                <button type="button" class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Keep yours</button>
+                                <button type="button" class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Keep saved</button>
                                 <button type="button" class="roster-choice-btn ${usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="pdf" aria-pressed="${usesPDF}">Use new roster</button>
                             </div>
                         </div>`;
