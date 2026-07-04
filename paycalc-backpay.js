@@ -17,7 +17,7 @@ import {
   RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset,
 } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, _setSelectPeriod } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, payslipPeriodNum, _setSelectPeriod } from './paycalc-periods.js';
 import { getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet } from './ls.js';
 import { SK, periodKey } from './paycalc-migrations.js';
@@ -247,7 +247,7 @@ export function calcBackPay() {
         grandVarTotal += varPay;
         pCount++;
         rows += `<div class="bp-row">
-          <span class="bp-lbl">P${p.num} · ${fd(p.payday)}</span>
+          <span class="bp-lbl">P${payslipPeriodNum(p)} · ${fd(p.payday)}</span>
           <span class="bp-val">${fmt(bpRow)}</span>
         </div>`;
       }
@@ -274,7 +274,7 @@ export function calcBackPay() {
       const payLong = bpP.payday.toLocaleDateString('en-GB', {
         day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
       });
-      noticeEl.innerHTML = `⚠️ This lump sum will appear on your <strong>P${bpP.num} payslip (paid ${payLong})</strong>. It is taxed in full in that period — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.`;
+      noticeEl.innerHTML = `⚠️ This lump sum will appear on your <strong>P${payslipPeriodNum(bpP)} payslip (paid ${payLong})</strong>. It is taxed in full in that period — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.`;
     } else {
       noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
     }
