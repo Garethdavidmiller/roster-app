@@ -902,7 +902,7 @@ export async function executeSave(toSave, toDelete = []) {
 export async function loadOverrides() {
     const tableBody = document.getElementById('overrideTableBody');
     const listCount = document.getElementById('listCount');
-    if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="7"><span class="spinner"></span>Loading…</td></tr>';
+    if (tableBody) tableBody.innerHTML = '<div class="override-state"><span class="spinner"></span>Loading…</div>';
     try {
         const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
         _allOverrides = [];
@@ -915,7 +915,7 @@ export async function loadOverrides() {
     } catch (err) {
         console.error('[Admin] Load failed:', err);
         if (tableBody) {
-            tableBody.innerHTML = '<tr class="state-row"><td colspan="7">Couldn\'t load saved changes.<br><span class="reload-link" id="reloadLink">↻ Reload page</span></td></tr>';
+            tableBody.innerHTML = '<div class="override-state">Couldn\'t load saved changes.<br><span class="reload-link" id="reloadLink">↻ Reload page</span></div>';
             document.getElementById('reloadLink')?.addEventListener('click', () => location.reload());
         }
         if (listCount) listCount.textContent = 'Error';
@@ -979,7 +979,7 @@ export function renderTable() {
 
     if (!rows.length) {
         const who = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';
-        if (tableBody) tableBody.innerHTML = `<tr class="state-row"><td colspan="7">No recorded changes yet${who}. Any shifts you record will appear here.</td></tr>`;
+        if (tableBody) tableBody.innerHTML = `<div class="override-state">No recorded changes yet${who}. Any shifts you record will appear here.</div>`;
         return;
     }
 
@@ -994,16 +994,19 @@ export function renderTable() {
         const edate = escapeHtml(o.date || '');
         const etype = escapeHtml(o.type || '');
         const ename = escapeHtml(o.memberName || '');
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><input type="checkbox" class="row-select" data-id="${eid}" aria-label="Select ${ename} ${edate}"></td>
-            <td style="white-space:nowrap;font-weight:600">${formatDisplay(o.date)}</td>
-            <td>${ename}</td>
-            <td><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${isLegacyType ? '<span class="legacy-pill">old format</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
-            <td style="font-family:monospace;font-size:12px">${escapeHtml(o.value)}${o.note ? `<span class="override-note" title="${escapeHtml(o.note)}">${escapeHtml(o.note)}</span>` : ''}</td>
-            <td><button class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}">Edit</button></td>
-            <td><button class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}">Delete</button></td>`;
-        if (tableBody) tableBody.appendChild(tr);
+        const card = document.createElement('div');
+        card.className = 'override-card';
+        card.innerHTML = `
+            <input type="checkbox" class="row-select" data-id="${eid}" aria-label="Select ${ename} ${edate}">
+            <div class="oc-body">
+                <div class="oc-head"><span class="oc-date">${formatDisplay(o.date)}</span><span class="oc-member">${ename}</span></div>
+                <div class="oc-detail"><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${isLegacyType ? '<span class="legacy-pill">old format</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}<span class="oc-value">${escapeHtml(o.value)}</span>${o.note ? `<span class="override-note" title="${escapeHtml(o.note)}">${escapeHtml(o.note)}</span>` : ''}</div>
+            </div>
+            <div class="oc-actions">
+                <button class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}">Edit</button>
+                <button class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}">Delete</button>
+            </div>`;
+        if (tableBody) tableBody.appendChild(card);
     });
     // Delegated listeners attached once in _initOverridesTable() — see below.
     // Previously: 3 × N listeners per render (e.g. 6000 for 2000 overrides).

@@ -633,12 +633,23 @@ select:focus-visible, input:focus-visible {
 #rosterConflictBanner.visible  { display: flex; }
 
 /* ---- Error Log card ---- */
+/* Discrete cards (matches the admin day-card / roster-review row treatment): flat --surface
+   fill, hairline border, 12px radius, gapped stack. UNRESOLVED errors are the "needs
+   attention" variant — warm --al-confirm-bg + a --conflict-strong left accent, the same tone
+   as an admin has-override / roster conflict row. Resolved errors drop the accent and dim. */
 .error-row {
-    border-bottom: 1px solid var(--border-light);
-    padding: 10px 0;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    margin-bottom: 8px;
 }
-.error-row:last-child { border-bottom: none; }
-.error-row--resolved { opacity: 0.4; }
+.error-row:last-child { margin-bottom: 0; }
+.error-row:not(.error-row--resolved) {
+    background: var(--al-confirm-bg);
+    border-left: 4px solid var(--conflict-strong);
+}
+.error-row--resolved { opacity: 0.45; }
 
 /* No-silent-caps banner: the unresolved query hit its 100-record cap. */
 .error-truncation-note {
