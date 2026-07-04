@@ -88,3 +88,30 @@ The whole drawer is one continuous navy surface (`--nav-surface` = `--primary-bl
 These are the on-navy equivalents of the global `--text-*` / `--border-light` / `--bg-faint` neutrals. Alpha values are tuned for WCAG AA on navy (0.70 ≈ 7:1, 0.55 ≈ 5:1). Head and footer are separated from the scrolling body by hairline `--nav-border` borders, not by a colour change.
 
 **Pills:** Calendar (gold), Pay (green), Operations (orange) keep their solid fills; the **Admin pill** uses `--nav-raised` with gold text (not navy-fill, which would vanish on navy). Sign-out and the blocked-bell hint mix `--error-red` 65% with white to clear AA on the dark footer. Do not revert the drawer to a white body.
+
+## Desktop layout — content width + reading measure (v15.90)
+
+**Two content-width tokens, single-sourced in `shared.css :root` — never hardcode a page width:**
+- `--page-max-width` (1400px) — **calendar only**. Its 7-column month grid and the Team Week
+  View matrix genuinely use the horizontal space.
+- `--content-max-width` (1100px) — **every other page** (admin, paycalc, operations, settings,
+  links). Keeps forms and prose a comfortable width and stops the app re-laying-out ~300px on
+  every desktop hop. Admin joined this group at v15.90 once its week grid became vertical
+  day-cards (it no longer needs a wide table). **Settings** caps narrower still (860px in
+  `settings.css`) — it's two tiny single-field cards, so the full band left them stretched.
+  When adding a page, route its desktop `max-width` through one of these tokens.
+
+**Reading measure:** on desktop, full-width **prose** (card descriptions/`.hint`, disclaimers,
+notes, generator intro) is capped with `max-width: ~64–72ch` at the `min-width: 1024px`
+breakpoint so text doesn't run past the ~75ch comfortable ceiling. Forms, tables, grids and
+data-viz keep the full column width — only prose gets the measure cap. Data-viz bar charts
+(`.usage-bars`/`.speed-rows`) are capped (~540px) so bars stay a comparable, scannable length.
+
+**Accepted constraint — two-column voids.** admin, operations and paycalc use an explicit-grid
+two-column desktop layout whose row order is fixed so the SAME source order can give a good
+mobile stack. Because column heights differ, the shorter column shows a navy void (admin's
+right AL/Absence stack; operations' left upload stack; paycalc's left Hours column when few
+hours are entered). This is inherent to preserving the mobile source order without a masonry
+layout (not yet baseline-supported); it is a cosmetic gap on a secondary (desktop) surface and
+is **deliberately left as-is** — do not "fix" it by reordering, which would regress the mobile
+stack. (Reviewed v15.90 desktop UX pass.)

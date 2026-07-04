@@ -684,7 +684,11 @@
       /* 1100px gives left col ~636px — comfortable for form entry.
          Right col is 440px. 1400px was too wide: left col reached 936px,
          making description text unreadably long. */
-      .app { max-width: 1100px; }
+      .app { max-width: var(--content-max-width); }
+
+      /* Cap the measure on the full-width prose blocks so they don't run to ~150ch on
+         desktop (the rest of the page caps text at the 440px column). Left-aligned. */
+      .disclaimer, .privacy-note-standalone { max-width: 72ch; }
 
       /* Grid lives on <main> — all cards are direct children of <main>, not .app */
       main {
@@ -715,7 +719,11 @@
          result+detail cards (right) alongside the tall Hours card (left) — with no
          short-beside-tall void, and the result card stays at the TOP of the right
          column so it's always in view. */
-      .period-controls         { grid-column: 1 / -1; grid-row: 3; }
+      /* Full-width row, but cap + centre the band's INNER width so its controls don't stretch
+         across the whole 1100px grid (the #periodSelect ballooned to ~860px and the
+         space-between meta/save rows flung their two items to opposite ends). ~660px keeps the
+         period selector + nav + meta a comfortable, self-contained width. */
+      .period-controls         { grid-column: 1 / -1; grid-row: 3; max-width: 660px; margin-inline: auto; }
       .guide-footer-link       { grid-column: 1 / -1; grid-row: 10; }
       .disclaimer              { grid-column: 1 / -1; grid-row: 11; }
 

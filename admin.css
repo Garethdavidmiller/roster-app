@@ -25,7 +25,12 @@
         /* overflow-x: clip clips any child that overflows the container at the container
            boundary — prevents overflow from bleeding into body's 16px right padding
            (which would hide the blue edge). clip is safe: no scroll container created. */
-        .container { max-width: var(--page-max-width); width: 100%; margin: 0 auto; display: none; gap: 12px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
+        /* v15.90: admin caps at --content-max-width (1100), not the wide --page-max-width. Its
+           week grid is now vertical day-CARDS (not the old wide table), so it no longer needs the
+           extra width — and 1100 both stops the day-cards stretching on a wide monitor AND makes
+           admin consistent with the other tool pages. The calendar is now the only page that keeps
+           the wide cap (its 7-column month grid + Team Week View genuinely earn it). */
+        .container { max-width: var(--content-max-width); width: 100%; margin: 0 auto; display: none; gap: 12px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
         /* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
         .app-header { margin-bottom: -8px; }
         body.auth-ready .container { display: grid; }
@@ -1581,20 +1586,21 @@
         /* ── Desktop: 1024px — two-column grid ──
            Change a Shift is the main work area and gets the wide left column.
            AL booking, sick, notifications, and admin tools sit on the right.
-           Column minimums (600+340+24=964px) safely fit in 1024px viewport
-           minus 40px body padding = 984px available. */
+           Column minimums (580+340+24=944px) fit in a 1024px viewport minus body padding
+           (~61px at 3vw) = ~963px available — with headroom (the old 600px min was 964px
+           total, ~1px over, silently swallowed by overflow-x:clip). */
         @media (min-width: 1024px) {
             body.auth-ready .container {
-                max-width: 1400px;
-                grid-template-columns: minmax(600px, 1fr) minmax(340px, 420px);
+                max-width: var(--content-max-width);
+                grid-template-columns: minmax(580px, 1fr) minmax(340px, 420px);
                 column-gap: 24px;
                 align-items: start;
             }
 
             /* Align confirm bar padding with page content on wide screens */
             .al-confirm-bar {
-                padding-left:  max(20px, calc((100vw - var(--page-max-width)) / 2 + 20px));
-                padding-right: max(20px, calc((100vw - var(--page-max-width)) / 2 + 20px));
+                padding-left:  max(20px, calc((100vw - var(--content-max-width)) / 2 + 20px));
+                padding-right: max(20px, calc((100vw - var(--content-max-width)) / 2 + 20px));
             }
 
             /* Full-width rows spanning both columns */
@@ -1674,11 +1680,13 @@
             .day-row:not(.active):not(.selected) .col-pills { display: none; }
             .day-row:not(.active):not(.selected) .col-time  { display: none; }
         }
-        /* ≥1400px: left col inner width ~840px — comfortably fits 5-col min of 630px */
+        /* ≥1400px viewport: the container is now capped at --content-max-width (1100), so the
+           left column is ~656px — this wider day-row template keeps the pill column snug rather
+           than letting it balloon. (v15.90: was tuned for the old 1400px container.) */
         @media (min-width: 1400px) {
             .week-grid-header,
             .day-row {
-                grid-template-columns: 28px 80px 100px minmax(200px, 1fr) 190px;
+                grid-template-columns: 28px 80px 100px minmax(160px, 1fr) 190px;
             }
 
             /* Tighten week grid spacing */

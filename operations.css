@@ -364,11 +364,17 @@ select:focus-visible, input:focus-visible {
     body.auth-ready .container {
         /* 1100px matches paycalc.css and settings.css — keeps all three
            sub-pages a consistent width. */
-        max-width: 1100px;
+        max-width: var(--content-max-width);
         grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
         column-gap: 24px;
         align-items: start;
     }
+    /* Cap the measure on card descriptions and note prose so they don't run ~105ch in the
+       wide (~664px) right column. Forms, tables and data-viz keep the full column width. */
+    .card .hint, .auth-desc, .usage-note, .speed-note { max-width: 64ch; }
+    /* Cap the usage/speed bar charts — a 1fr bar track stretched to ~400px produces long, thin,
+       hard-to-compare pills. ~540px keeps them a scannable length in the wide column. */
+    .usage-bars, .speed-rows { max-width: 540px; }
     /* Header spans both columns */
     .app-header { grid-column: 1 / -1; }
 
