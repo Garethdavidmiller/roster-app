@@ -235,6 +235,7 @@ roster-app/
 ├── auth-state.test.mjs     ← tests for the auth store: getAuthSnapshot/subscribeAuth/dispatchAuth, no-op/listener isolation (no mocks; part of test:hygiene). The session.js→store bridge is tested in session.test.mjs.
 ├── auth-policy.test.mjs    ← tests for requirePageAuth/requirePage/rolesFor: the page×status×role decision matrix + invariants (degraded never allows, soft never blocks, public always allows, fail-closed on unknown page). No mocks; part of test:hygiene.
 ├── overlay.test.mjs        ← tests for lockBodyScroll, unlockBodyScroll, trapFocus, initCardCollapse (no mocks; runs in test:hygiene)
+├── overlay-history.test.mjs ← tests for the Android-Back history STACK in overlay.js: nested overlays each get their own entry, Back closes only the topmost, a handler's own _clearOverlayHistory doesn't cascade, dedupe on double-open (capturing popstate harness; runs in test:hygiene)
 ├── calendar-state.test.mjs / calendar-member.test.mjs / calendar-overrides.test.mjs ← tests for calendar-state.js, calendar-member.js, calendar-overrides.js (--experimental-test-module-mocks)
 ├── calendar-renderer.test.mjs   ← tests for createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer (fake DOM; --experimental-test-module-mocks)
 ├── calendar-initial-fetch.test.mjs ← tests for initInitialFetch: pre-fetch setup, success/failure paths, sync-chip state machine, retry, visibilitychange (--experimental-test-module-mocks)
