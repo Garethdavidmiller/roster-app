@@ -139,7 +139,10 @@ export function init() {
         return parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '');
     }
     /** @param {string} id */
-    function intVal(id)    { return parseInt(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '') || 0; }
+    // Math.max(0, …) floors at zero: hours/minutes can never be negative, and on desktop the
+    // numeric field will accept a typed/pasted "-5" (mobile's numeric keypad has no minus), which
+    // would otherwise subtract pay. Used only for hour/minute reads (hhmmDec) — never a signed field.
+    function intVal(id)    { return Math.max(0, parseInt(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '') || 0); }
     /**
      * @param {string} hId
      * @param {string} mId
@@ -1278,7 +1281,10 @@ export function init() {
       const v   = parseSmartFloat(raw);
       if (v < 0) {
         _adjNegative = true;
-        _adjEl.value = Math.abs(v).toFixed(2);
+        // Normalise to the bare absolute value (String, NOT toFixed) so multi-digit typing
+        // isn't corrupted: toFixed('-1')→'1.00' left the caret after '.00', so continuing to
+        // type "-150" built '1.0050' (saved −1.005). String(abs) → '1' → '15' → '150' (saved −150).
+        _adjEl.value = String(Math.abs(v));
       }
       // Positive typed value: leave _adjNegative alone — the ± button is authoritative.
       updateAdjSign();

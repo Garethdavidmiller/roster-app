@@ -281,8 +281,11 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
   function taxOnAmount(/** @type {number} */ amount, /** @type {number|null} */ scale) {
     if (baseCode === 'NT') return 0;
     if (baseCode === 'BR' || baseCode === 'SBR') return amount * (isScottish ? SCOT.bands[1].rate : TAX.r20);
-    if (baseCode === 'D0' || baseCode === 'SD0') return amount * (isScottish ? SCOT.bands[3].rate : TAX.r40);
-    if (baseCode === 'D1' || baseCode === 'SD1') return amount * (isScottish ? SCOT.bands[5].rate : TAX.r45);
+    // SD0 = Scottish INTERMEDIATE (21% = bands[2]); SD1 = Scottish HIGHER (42% = bands[3]).
+    // (rUK D0 = higher 40%, D1 = additional 45%.) These previously pointed at bands[3]/[5]
+    // (higher/top), over-taxing S-prefixed D0/D1 codes by a full band or two.
+    if (baseCode === 'D0' || baseCode === 'SD0') return amount * (isScottish ? SCOT.bands[2].rate : TAX.r40);
+    if (baseCode === 'D1' || baseCode === 'SD1') return amount * (isScottish ? SCOT.bands[3].rate : TAX.r45);
     const pa = resolvePA();
     const scaledPa = pa * (scale || 1);
     // HMRC floors taxable income to the nearest whole pound before applying rates.

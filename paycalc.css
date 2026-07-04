@@ -1076,7 +1076,7 @@
   .roster-row {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
     padding: 8px 10px;
-    background: var(--surface); border: 1px solid var(--border-light); border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--border-light); border-radius: 12px;
     font-family: inherit; text-align: left;
     cursor: pointer; touch-action: manipulation; transition: background 0.12s, border-color 0.12s;
   }
@@ -1088,7 +1088,7 @@
   @media (hover: hover) and (pointer: fine) {
     .roster-row:hover { background: var(--bg-faint); }
   }
-  .roster-row:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: 6px; }
+  .roster-row:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: 12px; }
   .roster-row--matched { background: var(--row-matched-bg); }
   .roster-row--differs { background: var(--row-differs-bg); }
   .roster-cat-match { font-size: var(--type-small); font-weight: 700; color: var(--row-matched-text); flex-shrink: 0; }
