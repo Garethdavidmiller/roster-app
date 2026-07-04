@@ -1,79 +1,70 @@
 /* ──────────────────────────────────────────────────────────────────────────
    guide-doc.css — shared styles for the two DOCUMENT-style guides: the
    Staff & Admin Guide (guide.html) and the Pay Calculator Guide
-   (paycalc-guide.html). Both pages share the same two-column print layout,
-   navy in-document banner, version pill, numbered steps, info boxes, tables,
-   and footer — previously duplicated verbatim in guide.css and
-   paycalc-guide.css.
+   (paycalc-guide.html). Both share the same two-column print layout, navy
+   in-document banner, version pill, numbered steps, info boxes, tables,
+   shift-badge chips, and footer.
 
    NOT linked by railcard-guide.html or fip.html — those are single-column
-   card pages with a different structure, and they keep their own h2/table/p
-   styling. Only the two document guides link this file.
+   card pages with their own structure.
 
    Load order per page: guide-shell.css → guide-doc.css → page CSS
    (guide.css / paycalc-guide.css). The page CSS is linked LAST so its
-   page-specific rules (component grids, the screen-hide of the banner) still
-   win on equal specificity.
+   page-specific rules still win on equal specificity.
    ────────────────────────────────────────────────────────────────────────── */
-
-/* ── Print setup ─────────────────────────────────────── */
-@page { size: A4; margin: 14mm 13mm; }
-@media print {
-    * { orphans: 2; widows: 2; }
-    body  { background: white; padding: 0; font-size: 11px; }
-    .page { max-width: 100%; margin: 0; padding: 18px 18px 14px; box-shadow: none; border-radius: 0; }
-    .no-print { display: none !important; }
-    .page-break { page-break-before: always; break-before: page; }
-    a { color: inherit; text-decoration: none; }
-    h2 { margin: 10px 0 5px; }
-    h2:first-of-type { margin-top: 0; }
-    .steps li { margin-bottom: 3px; }
-    .info { margin-top: 4px; padding: 4px 8px; }
-    .guide-header { padding: 10px 14px; margin-bottom: 14px; }
-    .guide-footer { margin-top: 10px; padding-top: 7px; }
-    .cols { gap: 16px; }
-    thead th, .guide-header, .steps li::before, .version-pill {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-}
 
 /* ── Variables ───────────────────────────────────────── */
 :root {
-    /* --navy / --navy-mid / --gold defined in guide-shell.css */
-    --text:   #1a1a2e;
-    --mid:    #555;
-    --light:  #888;
-    --border:  #dde1e8;
-    --bg:      #f8f9fb;
-    --page-bg: #f4f5f8;   /* flat edge-to-edge guide background (see .claude/rules/guide-pages.md) */
+    /* --navy / --navy-mid / --gold / --info-bg defined in guide-shell.css */
+    --text:    #16202e;
+    --mid:     #4a5563;
+    --light:   #7c8794;
+    --border:  #e3e7ee;
+    --hair:    #eef1f6;
+    --bg:      #f7f9fc;   /* card fill */
+    --page-bg: #eef1f6;   /* flat edge-to-edge guide background (rules/guide-pages.md) */
+    --card:    #ffffff;
+
+    /* App shift-badge colours — kept in sync with shared.css by eye so the guide
+       reads as the same product. Solid fill, white text (night is the exception). */
+    --sb-early:  #d9822b;   /* ☀️ Early  */
+    --sb-late:   #2f6fb0;   /* 🌙 Late   */
+    --sb-night:  #26304a;   /* 🦉 Night  */
+    --sb-rest:   #3a3a3a;   /* 🏠 Rest   */
+    --sb-spare:  #7a3ca8;   /* 📋 Spare  */
+    --sb-rdw:    #c0392b;   /* 💼 RDW    */
+    --sb-al:     #17877e;   /* 🏖️ AL     */
+    --sb-absent: #6b6b6b;   /* 🪑 Absent */
+    --sb-other:  #3f7d3a;   /* 🏷️ Other  */
 }
 
 /* ── Base ──────────────────────────────────────────────
-   Shell chrome (* reset, .page-header, .btn-back, .btn-pdf, print)
-   lives in guide-shell.css. Page-specific styles only in the page CSS. */
+   Shell chrome (* reset, .page-header, .btn-back, .btn-pdf) lives in
+   guide-shell.css. Page-specific component grids live in the page CSS. */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.55;
     color: var(--text);
     background: var(--page-bg);
     padding: 0 0 max(40px, env(safe-area-inset-bottom));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 /* 760px flat content wrapper (sticky header is full-bleed above it) */
 .page {
     max-width: 760px;
     margin: 0 auto 24px;
-    padding: 16px max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left));
+    padding: 18px max(16px, env(safe-area-inset-right)) 20px max(16px, env(safe-area-inset-left));
 }
 
-/* ── In-document print banner (titles the printed page) ──────── */
+/* ── In-document banner (titles the printed page; also an on-screen divider) ── */
 .guide-header {
-    background: var(--navy);
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 100%);
     color: white;
-    padding: 14px 18px;
-    border-radius: 8px;
+    padding: 15px 18px;
+    border-radius: 12px;
     margin-bottom: 20px;
     display: flex;
     align-items: center;
@@ -81,59 +72,59 @@ body {
     gap: 12px;
 }
 .guide-header-left { display: flex; align-items: center; gap: 12px; }
-.guide-header-icon { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-.guide-header h2 { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; color: white; text-transform: none; border-bottom: none; padding-bottom: 0; margin: 0; }
-.guide-header .sub { font-size: 10.5px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+.guide-header-icon { width: 42px; height: 42px; border-radius: 11px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
+.guide-header h2 { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; color: white; text-transform: none; border: none; padding: 0; margin: 0; }
+.guide-header .sub { font-size: 11px; color: rgba(255,255,255,0.66); margin-top: 3px; }
 .version-pill {
     background: var(--gold);
     color: var(--navy);
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 800;
-    padding: 3px 9px;
-    border-radius: 12px;
+    padding: 4px 10px;
+    border-radius: 20px;
     white-space: nowrap;
     flex-shrink: 0;
 }
 
 /* ── Section headings ────────────────────────────────── */
 h2 {
-    font-size: 10.5px;
+    font-size: 11px;
     font-weight: 800;
     color: var(--navy);
     text-transform: uppercase;
-    letter-spacing: 0.6px;
-    border-bottom: 2px solid var(--gold);
-    padding-bottom: 3px;
-    margin: 16px 0 8px;
+    letter-spacing: 0.7px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 22px 0 10px;
 }
-h2:first-of-type { margin-top: 0; }
+/* gold tick before each heading, plus a hairline rule that fills the row */
+h2::before { content: ""; width: 14px; height: 3px; border-radius: 2px; background: var(--gold); flex-shrink: 0; }
+h2::after  { content: ""; flex: 1; height: 1px; background: var(--hair); }
+h2:first-of-type { margin-top: 4px; }
+
+/* ── Lede / intro paragraph ──────────────────────────── */
+.lede { font-size: 13.5px; color: var(--text); margin-bottom: 10px; }
 
 /* ── Two-column layout ───────────────────────────────── */
-.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
 
-/* ── Mobile: single column (screen only — print keeps two cols) ── */
-@media screen and (max-width: 640px) {
-    body  { padding: 0 0 max(28px, env(safe-area-inset-bottom)); }
-    .page { padding: 8px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left)); }
-    .cols { grid-template-columns: 1fr; gap: 0; }
-    .guide-header { padding: 10px 12px; margin-bottom: 14px; }
-    .guide-header h2 { font-size: 14px; }
-    .guide-header-icon { width: 32px; height: 32px; border-radius: 8px; }
-    h2 { margin-top: 14px; }
-}
-
-/* ── Info box ────────────────────────────────────────── */
+/* ── Info / tip callout ──────────────────────────────── */
 .info {
     background: var(--info-bg);
+    border: 1px solid #d6e2f7;
     border-left: 3px solid var(--navy);
-    padding: 6px 9px;
-    border-radius: 0 5px 5px 0;
-    font-size: 10.5px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 12px;
     color: var(--mid);
-    margin-top: 6px;
-    line-height: 1.4;
+    margin: 8px 0;
+    line-height: 1.5;
 }
 .info strong { color: var(--navy); }
+/* Gold "tip" variant */
+.info.tip { background: #fff8e1; border-color: #f2e2a8; border-left-color: var(--gold); }
+.info.tip strong { color: #8a6d00; }
 
 /* ── Numbered steps ──────────────────────────────────── */
 .steps { list-style: none; counter-reset: s; }
@@ -141,18 +132,20 @@ h2:first-of-type { margin-top: 0; }
     counter-increment: s;
     display: flex;
     align-items: flex-start;
-    gap: 7px;
-    margin-bottom: 5px;
-    font-size: 11px;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 12.5px;
+    color: var(--mid);
 }
+.steps li strong { color: var(--text); }
 .steps li::before {
     content: counter(s);
     background: var(--navy);
     color: white;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 800;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -161,19 +154,37 @@ h2:first-of-type { margin-top: 0; }
     margin-top: 1px;
 }
 
+/* ── Shift-badge chip — solid app-coloured pill (white text) ── */
+.sb {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 9px; border-radius: 20px;
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px;
+    color: white; white-space: nowrap; text-transform: uppercase;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.sb-early  { background: var(--sb-early); }
+.sb-late   { background: var(--sb-late); }
+.sb-night  { background: var(--sb-night); }
+.sb-rest   { background: var(--sb-rest); }
+.sb-spare  { background: var(--sb-spare); }
+.sb-rdw    { background: var(--sb-rdw); }
+.sb-al     { background: var(--sb-al); }
+.sb-absent { background: var(--sb-absent); }
+.sb-other  { background: var(--sb-other); }
+
 /* ── Table ───────────────────────────────────────────── */
-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+table { width: 100%; border-collapse: collapse; font-size: 11.5px; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px var(--border); }
 thead th {
     background: var(--navy);
     color: white;
-    padding: 5px 7px;
+    padding: 7px 9px;
     text-align: left;
-    font-size: 9.5px;
+    font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.4px;
 }
-tbody td { padding: 4px 7px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tbody td { padding: 6px 9px; border-bottom: 1px solid var(--hair); vertical-align: top; background: var(--card); }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:nth-child(even) td { background: var(--bg); }
 td strong { color: var(--navy); }
@@ -181,13 +192,53 @@ td strong { color: var(--navy); }
 /* ── Footer ──────────────────────────────────────────── */
 .guide-footer {
     text-align: center;
-    font-size: 9.5px;
+    font-size: 10.5px;
     color: var(--light);
-    margin-top: 16px;
-    padding-top: 10px;
+    margin-top: 20px;
+    padding-top: 12px;
     border-top: 1px solid var(--border);
 }
 
 /* ── Body copy ───────────────────────────────────────── */
-p { font-size: 11px; color: var(--mid); margin-bottom: 6px; line-height: 1.45; }
-code { background: var(--bg); padding: 1px 4px; border-radius: 3px; font-size: 10.5px; border: 1px solid var(--border); font-family: monospace; }
+p { font-size: 12.5px; color: var(--mid); margin-bottom: 8px; line-height: 1.55; }
+p strong, li strong { color: var(--text); }
+code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--navy); }
+
+/* ── Mobile: single column (screen only — print keeps two cols) ── */
+@media screen and (max-width: 640px) {
+    body  { padding: 0 0 max(28px, env(safe-area-inset-bottom)); }
+    .page { padding: 12px max(12px, env(safe-area-inset-right)) 16px max(12px, env(safe-area-inset-left)); }
+    .cols { grid-template-columns: 1fr; gap: 0; }
+    .guide-header { padding: 12px 14px; margin-bottom: 16px; }
+    .guide-header h2 { font-size: 15px; }
+    .guide-header-icon { width: 34px; height: 34px; border-radius: 9px; }
+    h2 { margin-top: 20px; }
+}
+
+/* ── Print setup — dense two-column A4 ───────────────── */
+@page { size: A4; margin: 13mm 12mm; }
+@media print {
+    * { orphans: 2; widows: 2; }
+    body  { background: white; padding: 0; font-size: 10.5px; }
+    .page { max-width: 100%; margin: 0; padding: 16px 16px 12px; box-shadow: none; border-radius: 0; }
+    .no-print { display: none !important; }
+    .page-break { page-break-before: always; break-before: page; }
+    a { color: inherit; text-decoration: none; }
+    .lede { font-size: 11px; }
+    p { font-size: 10px; margin-bottom: 4px; }
+    h2 { margin: 11px 0 5px; font-size: 10px; }
+    h2:first-of-type { margin-top: 0; }
+    .steps li { margin-bottom: 3px; font-size: 10px; }
+    .info { margin: 4px 0; padding: 5px 8px; font-size: 9.5px; }
+    table { font-size: 9.5px; box-shadow: none; }
+    thead th { padding: 4px 7px; }
+    tbody td { padding: 3px 7px; }
+    .guide-header { padding: 11px 14px; margin-bottom: 14px; }
+    .guide-header h2 { font-size: 15px; }
+    .guide-footer { margin-top: 10px; padding-top: 7px; }
+    .cols { gap: 18px; }
+    thead th, .guide-header, .steps li::before, .version-pill, .sb {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

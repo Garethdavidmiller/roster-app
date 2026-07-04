@@ -22,7 +22,7 @@
     <a href="./index.html" class="btn-back" aria-label="Back to roster">←</a>
     <div>
         <h1><span aria-hidden="true">📋</span> Staff &amp; Admin Guide</h1>
-        <div class="sub">Chiltern Railways · MYB Station · v15.02</div>
+        <div class="sub">Chiltern Railways · MYB Station · v15.69</div>
     </div>
     <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
 </header>
@@ -40,53 +40,27 @@
                 <div class="sub">Chiltern Railways · MYB Station · For all staff</div>
             </div>
         </div>
-        <span class="version-pill">v15.02</span>
+        <span class="version-pill">v15.69</span>
     </div>
 
     <div class="cols">
         <!-- ── LEFT COLUMN ── -->
         <div>
             <h2>Getting Started</h2>
-            <p>Open the app or tap its icon on your home screen. Select <strong>your name</strong> from the dropdown at the top — your calendar appears immediately.</p>
+            <p class="lede">Open the app, then pick <strong>your name</strong> from the dropdown at the top — your roster appears straight away. Nothing to install and no password needed just to view your shifts.</p>
+            <p>Each day shows a coloured badge for the shift you're on. Tap any day to see the full detail — start and end times, plus anything your manager has recorded.</p>
 
             <h2>Shift Badges</h2>
             <div class="badge-grid">
-                <div class="badge-item">
-                    <span class="badge-emoji">☀️</span>
-                    <div><span class="badge-name">EARLY</span><span class="badge-desc">Starts 04:00–10:59</span></div>
-                </div>
-                <div class="badge-item">
-                    <span class="badge-emoji">🌙</span>
-                    <div><span class="badge-name">LATE</span><span class="badge-desc">Starts 11:00–20:59</span></div>
-                </div>
-                <div class="badge-item">
-                    <span class="badge-emoji">🦉</span>
-                    <div><span class="badge-name">NIGHT</span><span class="badge-desc">Starts 21:00–03:59</span></div>
-                </div>
-                <div class="badge-item">
-                    <span class="badge-emoji">🏠</span>
-                    <div><span class="badge-name">REST</span><span class="badge-desc">Rest or off day</span></div>
-                </div>
-                <div class="badge-item">
-                    <span class="badge-emoji">📋</span>
-                    <div><span class="badge-name">SPARE</span><span class="badge-desc">On standby — shift not yet assigned</span></div>
-                </div>
-                <div class="badge-item">
-                    <span class="badge-emoji">🏖️</span>
-                    <div><span class="badge-name">AL</span><span class="badge-desc">Annual leave</span></div>
-                </div>
-                <div class="badge-item">
-                    <span class="badge-emoji">💼</span>
-                    <div><span class="badge-name">RDW</span><span class="badge-desc">Rest day worked (overtime)</span></div>
-                </div>
-                <div class="badge-item">
-                    <span class="badge-emoji">🪑</span>
-                    <div><span class="badge-name">ABSENT</span><span class="badge-desc">Absence from work for any reason</span></div>
-                </div>
-                <div class="badge-item">
-                    <span class="badge-emoji">🏷️</span>
-                    <div><span class="badge-name">TRAIN / IND / ASSESS</span><span class="badge-desc">Training, induction or assessment day — paid as the day it replaces; tap the day for details</span></div>
-                </div>
+                <div class="badge-item"><span class="sb sb-early">☀️ Early</span><span class="badge-desc">Starts 04:00–10:59</span></div>
+                <div class="badge-item"><span class="sb sb-late">🌙 Late</span><span class="badge-desc">Starts 11:00–20:59</span></div>
+                <div class="badge-item"><span class="sb sb-night">🦉 Night</span><span class="badge-desc">Starts 21:00–03:59</span></div>
+                <div class="badge-item"><span class="sb sb-rest">🏠 Rest</span><span class="badge-desc">Rest or off day</span></div>
+                <div class="badge-item"><span class="sb sb-rdw">💼 RDW</span><span class="badge-desc">Rest day worked (overtime)</span></div>
+                <div class="badge-item"><span class="sb sb-al">🏖️ AL</span><span class="badge-desc">Annual leave</span></div>
+                <div class="badge-item"><span class="sb sb-absent">🪑 Absent</span><span class="badge-desc">Away from work, any reason</span></div>
+                <div class="badge-item"><span class="sb sb-spare">📋 Spare</span><span class="badge-desc">On standby — shift not yet set</span></div>
+                <div class="badge-item"><span class="sb sb-other">🏷️ Other</span><span class="badge-desc">Training, Induction, Assessment or Team Day — tap the day for the full word</span></div>
             </div>
 
             <h2>Calendar Markers</h2>
@@ -95,18 +69,21 @@
                 <div class="marker">💷 Payday</div>
                 <div class="marker">✂️ Pay cut-off</div>
                 <div class="marker">🐣 Easter Sunday</div>
-                <div class="marker">🎄 Christmas (always REST)</div>
+                <div class="marker">🎄 Christmas (always Rest)</div>
             </div>
+
+            <h2>Works Offline</h2>
+            <p>Your base roster is saved on your device after the first load, so the calendar always opens — even with no signal. Shift changes recorded by your manager, and the Daily Huddle, need internet to load the latest.</p>
         </div>
 
         <!-- ── RIGHT COLUMN ── -->
         <div>
-            <h2>Navigating</h2>
+            <h2>Getting Around</h2>
             <div class="nav-grid">
-                <div class="nav-tip"><span class="nav-tip-icon">👆</span> Swipe left/right to change month</div>
+                <div class="nav-tip"><span class="nav-tip-icon">👆</span> Swipe left / right to change month</div>
                 <div class="nav-tip"><span class="nav-tip-icon">◀▶</span> Prev / Next buttons</div>
                 <div class="nav-tip"><span class="nav-tip-icon">📅</span> Tap the month heading to jump</div>
-                <div class="nav-tip"><span class="nav-tip-icon">🎯</span> Today button returns to now</div>
+                <div class="nav-tip"><span class="nav-tip-icon">📍</span> Today button returns to now</div>
                 <div class="nav-tip"><span class="nav-tip-icon">☰</span> Menu — pages, Huddle, guides, Settings</div>
             </div>
 
@@ -114,53 +91,49 @@
             <div class="feature-row">
                 <div class="feature-card">
                     <span class="feature-label">🏖️ AL</span>
-                    <div class="feature-desc">Your annual leave balance — <strong>Taken · Booked · Remaining · Entitlement</strong>. Tap "Record leave in Admin" to record leave you've already booked through the normal Chiltern process.</div>
+                    <div class="feature-desc">Your annual leave: <strong>Remaining · Taken · Booked · Entitlement</strong>. Book leave through the normal Chiltern process — the app shows the balance.</div>
                 </div>
                 <div class="feature-card">
                     <span class="feature-label">📝 Admin</span>
-                    <div class="feature-desc">Staff self-service — record annual leave, record an absence, and view or delete saved changes. You'll need to log in with your name and surname as the password.</div>
-                </div>
-                <div class="feature-card">
-                    <span class="feature-label">☰ Menu</span>
-                    <div class="feature-desc">Tap ☰ (top-left) to open the navigation menu. Find the <strong>Daily Huddle</strong> briefing, guides, Settings, and links to other pages here.</div>
+                    <div class="feature-desc">Staff self-service — record annual leave or an absence, and view your saved changes. Log in with your name and surname as the password.</div>
                 </div>
                 <div class="feature-card">
                     <span class="feature-label">💷 Pay</span>
-                    <div class="feature-desc">Opens the Pay Calculator — estimate your take-home pay for any 4-week period.</div>
+                    <div class="feature-desc">The Pay Calculator — estimate your take-home for any 4-week period. See the separate <strong>Pay Calculator Guide</strong>.</div>
                 </div>
                 <div class="feature-card">
                     <span class="feature-label">👥 Team</span>
-                    <div class="feature-desc">See the whole team's shifts for any week. Tap <strong>CEA</strong>, <strong>CES</strong> or <strong>Dispatcher</strong> to switch grade. Use ← → to move between weeks.</div>
+                    <div class="feature-desc">The whole team's shifts for any week. Switch <strong>CEA · CES · Dispatcher</strong>; use ← → to change week.</div>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-label">☰ Menu</span>
+                    <div class="feature-desc">Top-left. The <strong>Daily Huddle</strong>, Weekly Retail Circular, Marylebone Newsletter, guides, Settings and every page.</div>
                 </div>
             </div>
 
             <h2>Install as an App</h2>
             <div class="install-grid">
                 <div class="install-card">
-                    <div class="install-os">Android (Chrome)</div>
-                    <div class="install-steps">Tap the browser menu (⋮)<br>→ Add to Home Screen</div>
+                    <div class="install-os">Android · Chrome</div>
+                    <div class="install-steps">Browser menu (⋮)<br>→ Add to Home Screen</div>
                 </div>
                 <div class="install-card">
-                    <div class="install-os">iPhone / iPad (Safari)</div>
-                    <div class="install-steps">Tap the Share button (□↑)<br>→ Add to Home Screen</div>
+                    <div class="install-os">iPhone · Safari</div>
+                    <div class="install-steps">Share button (□↑)<br>→ Add to Home Screen</div>
                 </div>
             </div>
             <div class="info">
-                <strong>Push notifications</strong><br>
-                <strong>Android:</strong> tap ☰ → <strong>Settings</strong> → <strong>Enable notifications</strong>.<br>
-                <strong>iPhone:</strong> open in <em>Safari</em>, tap Share → <em>Add to Home Screen</em>, then open from Home Screen and go to ☰ → Settings → Enable notifications. (Must be added to Home Screen first — notifications won't work from the browser tab.)
+                <strong>Turn on notifications</strong> for a new Huddle or pay reminder: <strong>☰ → Settings → Enable notifications</strong>.
+                On iPhone you must <em>Add to Home Screen first</em> and open it from there — notifications don't work from a browser tab.
             </div>
 
             <h2>Add Your Work Email</h2>
-            <p>Open <strong>☰ Menu → ⚙ Settings</strong> and add your work email in the <strong>📧 Work Email</strong> card. It will be used for password reset when that feature is added — worth setting now so you're ready. Only you and the admin can see it.</p>
-
-            <h2>Works Offline</h2>
-            <p>Your base roster is stored on your device after first load — the calendar always works without signal. Shift changes recorded by admin and the Huddle link need internet to load.</p>
+            <p>In <strong>☰ Menu → ⚙ Settings</strong>, add your <strong>@chilternrailways.co.uk</strong> email in the 📧 Work Email card. It's for password reset when that arrives — worth setting now. Only you and the admin can see it.</p>
         </div>
     </div>
 
     <div class="guide-footer">
-        Marylebone Roster · Chiltern Railways · Staff Guide · v15.05 · For queries, speak to your team manager
+        Marylebone Roster · Chiltern Railways · Staff Guide · v15.69 · For roster queries, speak to your manager
     </div>
 </div>
 
@@ -174,10 +147,10 @@
             <img class="guide-header-icon" src="./icon-192.png" alt="MYB Roster app icon">
             <div>
                 <h2>Marylebone Roster — Admin Guide</h2>
-                <div class="sub">Chiltern Railways · MYB Station · Admin and self-service users</div>
+                <div class="sub">Chiltern Railways · MYB Station · Self-service &amp; admins</div>
             </div>
         </div>
-        <span class="version-pill">v15.02</span>
+        <span class="version-pill">v15.69</span>
     </div>
 
     <div class="cols">
@@ -185,28 +158,33 @@
         <div>
             <h2>Logging In</h2>
             <ol class="steps">
-                <li>Tap the <strong>📝 Admin</strong> button on the main screen</li>
-                <li>Select <strong>your name</strong> from the dropdown</li>
+                <li>Tap <strong>📝 Admin</strong> on the main screen</li>
+                <li>Pick <strong>your name</strong> from the dropdown</li>
                 <li>Enter your <strong>surname as the password</strong> — lowercase, no spaces or punctuation</li>
                 <li>Tap <strong>Log In</strong> — sessions last 30 days</li>
             </ol>
             <div class="info"><strong>Example:</strong> "D. Smith" → password is <code>smith</code></div>
+            <p>You can record leave and absence for <strong>yourself</strong>. Managers and the admin can also record changes for other staff.</p>
 
             <h2>Change a Shift</h2>
             <ol class="steps">
-                <li>Select the <strong>staff member</strong> from the top dropdown</li>
-                <li>Navigate to the <strong>week</strong> containing the day</li>
-                <li>Tap a <strong>shift type</strong> on the day — it turns amber to show it's selected</li>
-                <li>Enter <strong>Start and End time</strong> if the type requires one</li>
-                <li>Add an optional <strong>note</strong> for context</li>
-                <li>Tap <strong>Save changes</strong></li>
+                <li>Pick the <strong>staff member</strong> in the bar at the top</li>
+                <li>Move to the <strong>week</strong> you need — swipe or use ‹ ›, or tap the date to jump</li>
+                <li>On the day, tap a <strong>type</strong>: AL · Shift · RDW · Absent · Rest · Other</li>
+                <li>The card highlights (gold edge) to show it's selected</li>
+                <li>Enter <strong>Start / End times</strong> for types that need them</li>
+                <li>Check the <strong>"You're about to save…"</strong> line, then tap <strong>Save changes</strong></li>
             </ol>
+            <div class="info tip"><strong>Already recorded?</strong> A day that already has a saved change opens with a <strong>✓ Saved</strong> badge and a warm edge. Change it and it reads <strong>Updating</strong>; untick it and it reads <strong>Removing</strong> — nothing is written until you Save.</div>
 
-            <h2>Apply to Multiple Days</h2>
-            <p>Tick the checkboxes beside several days — the <strong>Apply to multiple days at once</strong> bar appears at the bottom. Pick a type and tap <strong>Apply to ticked days</strong>. For a holiday spanning several days, use the <strong>Record Annual Leave</strong> card instead — pick a date range and tap Record.</p>
+            <h2>Apply to Several Days</h2>
+            <p>Tick the boxes on several days to open the <strong>Apply to multiple days</strong> bar: pick the days (Mon–Fri, Working days, All 7), choose a type, and tap <strong>Apply to ticked days</strong>. For leave spanning several days, use the <strong>Record Annual Leave</strong> card and pick a date range instead.</p>
+
+            <h2>Leave &amp; Absence</h2>
+            <p>The <strong>🏖️ Record Annual Leave</strong> and <strong>🪑 Record Absence</strong> cards each take a <strong>date range</strong> — rest days and Sundays are skipped automatically. The AL card shows the running balance as you go.</p>
 
             <h2>Saved Changes</h2>
-            <p>Scroll to the <strong>Saved Changes</strong> card. Filter by member and month using the dropdowns. Tap <strong>Delete</strong> to remove an entry. Entries tagged <strong>PDF upload</strong> were saved automatically by the weekly roster upload — you can still delete or edit them if needed.</p>
+            <p>The <strong>📋 Saved Changes</strong> card lists everything recorded. Filter by member and month; tap a row to edit or delete. Rows tagged <strong>roster upload</strong> came from the weekly PDF — you can still edit or remove them.</p>
         </div>
 
         <!-- ── RIGHT COLUMN ── -->
@@ -217,19 +195,29 @@
                     <tr><th scope="col">Type</th><th scope="col">When to use</th><th scope="col">Time?</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td>📋 <strong>Spare</strong></td><td>Standby week — actual shift not yet known</td><td>No</td></tr>
-                    <tr><td>📅 <strong>Shift</strong></td><td>A confirmed working shift — use for spare-week confirmations, changed shift times, and swaps with a colleague</td><td>Yes</td></tr>
-                    <tr><td>💼 <strong>RDW</strong></td><td>Rest day worked — working a full shift on a rest day</td><td>Yes</td></tr>
-                    <tr><td>🏖️ <strong>AL</strong></td><td>Annual leave</td><td>No</td></tr>
-                    <tr><td>🪑 <strong>Absent</strong></td><td>Absence from work for any reason</td><td>No</td></tr>
-                    <tr><td>🏠 <strong>Set as Rest Day</strong></td><td>Corrects a working day back to a rest day</td><td>No</td></tr>
+                    <tr><td><strong>🏖️ AL</strong></td><td>Annual leave (not on Sundays)</td><td>No</td></tr>
+                    <tr><td><strong>☀️ Shift</strong></td><td>A confirmed working shift — changed times, a spare-week confirmation, or a swap</td><td>Yes</td></tr>
+                    <tr><td><strong>💼 RDW</strong></td><td>Rest day worked — a full shift on a rest day</td><td>Yes</td></tr>
+                    <tr><td><strong>🪑 Absent</strong></td><td>Away from work, any reason (not on Sundays)</td><td>No</td></tr>
+                    <tr><td><strong>🏠 Rest</strong></td><td>Correct a working day back to a rest day</td><td>No</td></tr>
+                    <tr><td><strong>🏷️ Other</strong></td><td>Training / Induction / Assessment / Team Day — and 📋 Spare</td><td>Optional</td></tr>
                 </tbody>
             </table>
+
+            <h2>The "Other" Family</h2>
+            <p>Tap <strong>Other</strong> and a small menu appears — pick <strong>Training, Induction, Assessment</strong> or <strong>Team Day</strong>. These <em>pay as the day underneath</em> (the shift they replace), so times are optional. Tick <strong>Rest day (RDW)</strong> if it fell on a rest day.</p>
+            <div class="info"><strong>📋 Spare</strong> also lives in the Other menu. It's a rarely-used placeholder for a standby day whose shift isn't set yet — it keeps its own purple badge and doesn't pay a premium.</div>
+
+            <h2>Weekly Roster Upload</h2>
+            <p>Admins upload the weekly roster PDF in <strong>Operations</strong>. The app reads it and shows a <strong>review</strong> grouped by person: ticked rows will save, and where a day clashes with something already recorded it asks <strong>Keep saved</strong> or <strong>Use new roster</strong>. Nothing is written until you confirm.</p>
+
+            <h2>Sundays</h2>
+            <div class="info">Sundays are <strong>uncontracted</strong> for every grade, so <strong>AL</strong> and <strong>Absent</strong> can't be recorded on them. A worked Sunday is always <strong>RDW</strong> (1.5×), never annual leave or absence.</div>
         </div>
     </div>
 
     <div class="guide-footer">
-        Marylebone Roster · Chiltern Railways · Admin Guide · v15.02 · For access or queries, speak to your team manager
+        Marylebone Roster · Chiltern Railways · Admin Guide · v15.69 · For access or queries, speak to your manager
     </div>
 </div>
 
