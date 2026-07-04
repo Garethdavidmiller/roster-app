@@ -16,7 +16,7 @@ import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat } from './roster-da
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, getPensionForPeriod,
+  computeGross, computeTax, computeNI, computeSL, getPensionForPeriod, awardRatesFor,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -43,7 +43,7 @@ import {
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey,
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, updatePriorHpp } from './paycalc-hpp.js';
-import { prefillBackPay, calcBackPay, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent } from './paycalc-backpay.js';
+import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent } from './paycalc-backpay.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -995,6 +995,15 @@ export function init() {
       let rates = {};
       try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
       rates[awardTy.label] = newRate;
+      // Backfill every OTHER tax year that has a known settled rate (AWARD_RATES) but no stored
+      // entry. Without this, on a fresh device the SK.rate legacy fallback below — which we're
+      // about to set to the NEW rate — would bleed into any historic year with no stored rate,
+      // making e.g. post-award 2025/26 periods compute at the 2026/27 figure.
+      for (const t of CONFIG.TAX_YEARS) {
+        if (t.label === awardTy.label || rates[t.label] != null) continue;
+        const _known = awardRatesFor(getGrade(), t.label);
+        if (_known && _known.rate != null) rates[t.label] = _known.rate;
+      }
       lsSet(SK.rates, JSON.stringify(rates));
       lsSet(SK.rate,  newRate.toFixed(2)); // legacy single-rate fallback for years with no stored rate
       // Refresh the rate field for the tax year being viewed (it may be a different
@@ -1104,6 +1113,12 @@ export function init() {
     // the button is correctly hidden on the initial load (not shown as if off-default).
     _defaultPeriodNum = buildPeriodSelect();
     onPeriodChange();
+
+    // Restore any persisted back-pay figures for the current award year (per-member; discarded on
+    // an award-year rollover) and recompute, so the paid-in period's take-home includes the lump
+    // straight away — previously the lump silently vanished on every reload until the card was
+    // reopened, making the same period show different take-home before and after a refresh.
+    if (restoreBpState()) _runCalcBackPay();
 
     // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 

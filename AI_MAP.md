@@ -371,6 +371,8 @@ Period arithmetic and select UI for `paycalc.html` (v13.80).
 - `currentPeriodNum()` — reads `#periodSelect` value
 - `todaysPeriodNum()` — the period being earned TODAY (independent of the selected period); the
   back-pay accrual caps at it so a future selection can't accrue unworked weeks
+- `buildBackPayPeriodSelect(minPNum?)` — optional floor so the back-pay paid-in dropdown only offers
+  periods from the award's April onward (prefillBackPay passes `48 + ty.first`)
 - `hasBoxingDay(p)` / `hasBankHoliday(p)` — period content checks
 - `CONDITIONAL_ROWS` — data-driven array: `{ condition, rows, fields }` — used by `updateBhRows`
 - `updateBhRows(p)` — shows/hides BH input rows based on period content
@@ -427,6 +429,8 @@ Back-pay lump sum calculator for `paycalc.html` (v13.81).
 - `_bpAwardTaxYear(fromPNum)` — tax year of the back-pay award (derived from "backdated from" period); exported for coordinator's `applyNewRate()`
 - `prefillBackPay()` — pre-fills card inputs when the card opens; returns `calcBackPay()` result for coordinator to consume. For an **unconfirmed award year** (`ty.rateUnconfirmed`, e.g. 2026/27 awaiting RMT acceptance) it fills the **Old** rate + Old London with the current figures (the current rate IS the pre-award rate) and leaves **New** blank for the % helper / manual entry; for a confirmed year it keeps the original Old=`londonAllowPre` / New=`londonAllow` prefill (v15.62)
 - `calcBackPay()` — calculates lump sum from card inputs, renders results, returns `{ bpAmount, bpVarAmount, bpPNum }`; does NOT mutate coordinator state — caller applies the returned values. Also toggles the `#bpEstimateNote` "offered, awaiting RMT" banner when the award year's rates are unconfirmed
+- `_accrueBackPayPeriod(i)` — PURE per-period back-pay arithmetic (no DOM/storage; unit-tested in `paycalc-periods.test.mjs`): contracted + premium-bucket + peer + pro-rated London diffs → `{ backPay, varPay }`. calcBackPay maps DOM/storage to these numbers — do not re-inline the maths
+- `restoreBpState()` — restores the persisted card figures (per-member `bpKey()` blob, written by calcBackPay on every recompute) at init so the paid-in period's take-home keeps the lump across reloads; discards a blob from a different award year (April rollover). Coordinator calls it once after the initial `onPeriodChange()` and recomputes if it returns true
 - `raiseByPercent(oldVal, pct)` — pure; new value after a % rise (`oldVal × (1 + pct/100)`), 0 for non-positive inputs. Backs the coordinator's "Pay rise %" shortcut that fills the New rate/London from the Old figure (v15.62)
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `paycalc-hpp.js`, `paycalc-format.js`, `ls.js`
 

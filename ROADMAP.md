@@ -517,6 +517,16 @@ a placeholder so the idea isn't lost.
 
 ---
 
+### Deferred: validate the back-pay accrual against the real 24 Oct 2025 payslip
+
+**What:** Two assumptions in `calcBackPay` are payslip-checkable but unverified: (1) the accrual includes the **full April-paid period** (P4, paid 11 Apr 2025) even though its work window is mostly late March — if Chiltern pro-rates the award from literal 1 April, P4's row overstates slightly; (2) the per-bucket arithmetic (`_accrueBackPayPeriod`) should reproduce the real lump when the 2025/26 hours are entered. The 24 Oct 2025 payslip carries the actual back-pay lines (the basic-line spike was ~£591 vs a contracted-only estimate of ~£730 including London — the gap is explainable by variable-line placement, but unconfirmed).
+
+**Blocked on:** Reading the 24 Oct 2025 payslip's back-pay line breakdown (Gareth has it).
+
+**When to do it:** One-time check; if P4 turns out to be pro-rated, add a first-period factor to the accrual and a fixture-based test.
+
+---
+
 ### Dispatcher pay calculator support
 **What:** Add Dispatcher pay rates to the `GRADES` object in `paycalc-calc.js` so Dispatcher staff can use the pay calculator.
 

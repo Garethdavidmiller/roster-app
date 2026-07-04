@@ -274,11 +274,18 @@ export function buildPeriodSelect() {
   return _currentPNum; // coordinator stores this as _defaultPeriodNum
 }
 
-/** Populate the back-pay "paid in" period selector. */
-export function buildBackPayPeriodSelect() {
+/**
+ * Populate the back-pay "paid in" period selector. With `minPNum`, only periods from that num
+ * onward are offered — prefillBackPay passes the award's April so the dropdown can't offer a
+ * payslip that predates the award (choosing one produced a confusing empty result). Rebuilding
+ * clears the selection; callers re-select/default afterwards.
+ * @param {number} [minPNum=0]
+ */
+export function buildBackPayPeriodSelect(minPNum = 0) {
   const sel = document.getElementById('backPayPeriod');
   if (!sel) return;
-  const periods = visiblePeriods(); // a new starter can only pay a lump into a period they can view
+  // A new starter can only pay a lump into a period they can view (visiblePeriods).
+  const periods = visiblePeriods().filter((/** @type {any} */ p) => p.num >= minPNum);
   _populatePeriodSelect(sel, periods, { placeholder: '— select when the lump sum will land —' });
 }
 

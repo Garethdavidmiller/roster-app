@@ -98,7 +98,7 @@ const {
     settingsKey, getContr, getEffectiveContr, getProRateFactor,
 } = await import('./paycalc-settings.js');
 
-const { _bpAwardTaxYear, raiseByPercent } = await import('./paycalc-backpay.js');
+const { _bpAwardTaxYear, raiseByPercent, _accrueBackPayPeriod } = await import('./paycalc-backpay.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -582,5 +582,61 @@ describe('raiseByPercent', () => {
     test('a small percentage still returns a positive scaled value', () => {
         assert.ok(raiseByPercent(100, 0.5) > 100);
         assert.ok(Math.abs(raiseByPercent(100, 0.5) - 100.5) < 1e-9); // 1.005 is not exact in FP
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// paycalc-backpay.js — _accrueBackPayPeriod (pure per-period back-pay arithmetic)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('_accrueBackPayPeriod', () => {
+    // Real 2025/26 CEA award figures: rate £20.06 → £20.74, London £267.08 → £276.16.
+    const RATE_DIFF   = 20.74 - 20.06;   // 0.68/hr
+    const LONDON_DIFF = 276.16 - 267.08; // 9.08/period
+    const approx = (actual, expected, msg, tol = 1e-9) =>
+        assert.ok(Math.abs(actual - expected) <= tol, `${msg}: got ${actual}, want ${expected}`);
+    const base = { effContr: 140, proRateFactor: 1, rateDiff: RATE_DIFF, londonDiff: LONDON_DIFF };
+
+    test('contracted-only period (no hours entered): contracted diff + London diff', () => {
+        const { backPay, varPay } = _accrueBackPayPeriod({ ...base, hours: {} });
+        approx(backPay, 140 * RATE_DIFF + LONDON_DIFF, 'backPay'); // £104.28 — matches the rendered rows
+        approx(varPay, LONDON_DIFF, 'varPay excludes contracted basic');
+    });
+
+    test('premium buckets scale by their multipliers (RDW 1.25 · Sun 1.5 · Boxing 3.0)', () => {
+        const { backPay, varPay } = _accrueBackPayPeriod({
+            ...base, hours: { rdwHrs: 8, sunHrs: 8, boxHrs: 8 },
+        });
+        const premium = 8 * RATE_DIFF * 1.25 + 8 * RATE_DIFF * 1.5 + 8 * RATE_DIFF * 3;
+        approx(backPay, 140 * RATE_DIFF + premium + LONDON_DIFF, 'backPay');
+        approx(varPay, premium + LONDON_DIFF, 'varPay');
+    });
+
+    test('Saturday hours cap at contracted; BH caps at the remaining normal hours', () => {
+        // 150 Sat hours on a 140h contract → capped 140, leaving 0 normal hours, so BH caps to 0.
+        const { backPay } = _accrueBackPayPeriod({ ...base, hours: { satHrs: 150, bhHrs: 10 } });
+        approx(backPay, 140 * RATE_DIFF + 140 * RATE_DIFF * 0.25 + LONDON_DIFF, 'sat capped, bh squeezed out');
+    });
+
+    test('peer-training days add to backPay (2h/day at basic) but NOT to varPay', () => {
+        const withPeer = _accrueBackPayPeriod({ ...base, peer: 2, hours: {} });
+        const without  = _accrueBackPayPeriod({ ...base, hours: {} });
+        approx(withPeer.backPay - without.backPay, 2 * 2 * RATE_DIFF, 'peer adds 2h/day of rate diff');
+        approx(withPeer.varPay, without.varPay, 'varPay unchanged by peer');
+    });
+
+    test('pre-start period (effContr 0, factor 0) accrues nothing', () => {
+        const { backPay, varPay } = _accrueBackPayPeriod({
+            effContr: 0, proRateFactor: 0, rateDiff: RATE_DIFF, londonDiff: LONDON_DIFF, hours: {},
+        });
+        assert.equal(backPay, 0);
+        assert.equal(varPay, 0);
+    });
+
+    test('London-only award (no rate change): pro-rated London diff, all of it variable', () => {
+        const { backPay, varPay } = _accrueBackPayPeriod({
+            effContr: 70, proRateFactor: 0.5, rateDiff: 0, londonDiff: LONDON_DIFF, hours: { rdwHrs: 8 },
+        });
+        approx(backPay, LONDON_DIFF * 0.5, 'rateDiff 0 zeroes every hours bucket');
+        approx(varPay, LONDON_DIFF * 0.5, 'varPay = pro-rated London');
     });
 });
