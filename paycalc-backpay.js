@@ -71,7 +71,7 @@ export function _bpAwardTaxYear(fromPNum) {
 /**
  * Pre-fill the Back Pay card inputs when it opens (initCardCollapse onToggle).
  * Returns the result of calcBackPay() so coordinator can update its BP state.
- * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number }}
+ * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number, bpIsEstimate: boolean }}
  */
 export function prefillBackPay() {
   const pNum = currentPeriodNum();
@@ -184,9 +184,13 @@ function _saveBpState() {
  * Restore the persisted card figures into the DOM (card may stay closed). Only restores when the
  * stored award year matches the CURRENT award year — a stale year's figures are discarded (the
  * April rollover clean-slate). Sets _lastAwardYear so the first card-open doesn't wipe the
- * restored values. Coordinator calls this once at init and, if it returns true, recomputes so the
- * paid-in period's take-home includes the lump straight away.
- * @returns {boolean} true if figures were restored.
+ * restored values.
+ *
+ * Returns true when a valid same-year blob was APPLIED — **even an all-blank one**: blank saved
+ * fields mean the member deliberately cleared the card, and that choice must stick. The
+ * coordinator treats false ("no saved state at all — first visit, or a new award year after the
+ * rollover discard") as the cue to compute the DEFAULT pending-award estimate automatically.
+ * @returns {boolean} true if a same-year saved state was applied.
  */
 export function restoreBpState() {
   let s = null;
@@ -203,7 +207,7 @@ export function restoreBpState() {
   const paidSel = document.getElementById('backPayPeriod');
   if (paidSel && s.paidIn) _setSelectPeriod(paidSel, +s.paidIn);
   _lastAwardYear = year;
-  return !!(s.oldR || s.newR || s.oldL || s.newL || s.pct);
+  return true;
 }
 
 /**
@@ -277,7 +281,7 @@ function _resetBreakdown(rowsEl, breakdownBtn) {
  * Calculate the back-pay lump sum from the card inputs, render the results,
  * and return the new coordinator BP state.
  * Does NOT mutate coordinator state or call calculate() — caller handles that.
- * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number }}
+ * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number, bpIsEstimate: boolean }}
  */
 export function calcBackPay() {
   const oldRate   = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldRate')).value);
@@ -332,7 +336,7 @@ export function calcBackPay() {
     noticeEl.style.display     = 'none';
     if (periodWrap) periodWrap.style.display = 'none';
     if (applyWrap)  applyWrap.style.display  = 'none';
-    return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0 };
+    return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false };
   }
 
   const rateDiff   = hasRate   ? newRate   - oldRate   : 0;
@@ -479,5 +483,8 @@ export function calcBackPay() {
   const newBpPNum   = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;
   const newBpAmt    = newBpPNum > 0 ? grandTotal    : 0;
   const newBpVarAmt = newBpPNum > 0 ? grandVarTotal : 0;
-  return { bpAmount: newBpAmt, bpVarAmount: newBpVarAmt, bpPNum: newBpPNum };
+  // bpIsEstimate: the lump derives from an offered-but-unconfirmed award (the 3.6% default) —
+  // the result card must say "estimated" wherever it surfaces this figure.
+  return { bpAmount: newBpAmt, bpVarAmount: newBpVarAmt, bpPNum: newBpPNum,
+           bpIsEstimate: !!awardTy?.rateUnconfirmed };
 }

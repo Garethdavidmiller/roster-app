@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v15.90 · Updated every 0.10 version*
+*Last updated: July 2026 — v16.00 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -430,7 +430,7 @@ Back-pay lump sum calculator for `paycalc.html` (v13.81).
 - `prefillBackPay()` — pre-fills card inputs when the card opens; returns `calcBackPay()` result for coordinator to consume. For an **unconfirmed award year** (`ty.rateUnconfirmed`, e.g. 2026/27 awaiting RMT acceptance) it fills the **Old** rate + Old London with the current figures (the current rate IS the pre-award rate) and leaves **New** blank for the % helper / manual entry; for a confirmed year it keeps the original Old=`londonAllowPre` / New=`londonAllow` prefill (v15.62)
 - `calcBackPay()` — calculates lump sum from card inputs, renders results, returns `{ bpAmount, bpVarAmount, bpPNum }`; does NOT mutate coordinator state — caller applies the returned values. Also toggles the `#bpEstimateNote` "offered, awaiting RMT" banner when the award year's rates are unconfirmed
 - `_accrueBackPayPeriod(i)` — PURE per-period back-pay arithmetic (no DOM/storage; unit-tested in `paycalc-periods.test.mjs`): contracted + premium-bucket + peer + pro-rated London diffs → `{ backPay, varPay }`. calcBackPay maps DOM/storage to these numbers — do not re-inline the maths
-- `restoreBpState()` — restores the persisted card figures (per-member `bpKey()` blob, written by calcBackPay on every recompute) at init so the paid-in period's take-home keeps the lump across reloads; discards a blob from a different award year (April rollover). Coordinator calls it once after the initial `onPeriodChange()` and recomputes if it returns true
+- `restoreBpState()` — restores the persisted card figures (per-member `bpKey()` blob, written by calcBackPay on every recompute) at init so the paid-in period's take-home keeps the lump across reloads; discards a blob from a different award year (April rollover). Returns true when a same-year blob was applied — EVEN an all-blank one (a deliberate clear must stick). Coordinator calls it once after the initial `onPeriodChange()`: true → recompute the saved figures; false (no saved state) → compute the DEFAULT pending-award estimate automatically (v16.00 — staff see the estimated lump without ever opening the card; all result-card surfaces label it "estimated" via `_bpIsEstimate`)
 - `raiseByPercent(oldVal, pct)` — pure; new value after a % rise (`oldVal × (1 + pct/100)`), 0 for non-positive inputs. Backs the coordinator's "Pay rise %" shortcut that fills the New rate/London from the Old figure (v15.62)
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `paycalc-hpp.js`, `paycalc-format.js`, `ls.js`
 

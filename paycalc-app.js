@@ -105,9 +105,10 @@ export function init() {
     // ── COORDINATOR STATE ─────────────────────────────────────────────────────────
     // Back pay state — set by _applyBpState() when calcBackPay() runs.
     // Read by calculate() to add the lump sum into that period's gross before tax/NI.
-    let _bpAmount    = 0; // gross back pay for the "paid in" period (0 = none)
-    let _bpVarAmount = 0; // variable (HPP-accruing) portion of the back pay lump sum
-    let _bpPNum      = 0; // period number that receives the back pay (0 = none)
+    let _bpAmount     = 0; // gross back pay for the "paid in" period (0 = none)
+    let _bpVarAmount  = 0; // variable (HPP-accruing) portion of the back pay lump sum
+    let _bpPNum       = 0; // period number that receives the back pay (0 = none)
+    let _bpIsEstimate = false; // lump derives from an unconfirmed award → label it "estimated"
 
     // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
     // per browser session. Cleared on page reload. Uses tax year label as the key.
@@ -788,7 +789,7 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = `
         ${(_bpThisPeriod > 0 || _hppForPeriod > 0)
           ? `<div class="sum-row"><span class="lbl">Regular pay</span><span class="val">${fmt(gross)}</span></div>
-             ${_bpThisPeriod > 0 ? `<div class="sum-row sum-bp"><span class="lbl">Back pay lump sum (pay award)</span><span class="val">+${fmt(_bpThisPeriod)}</span></div>` : ''}
+             ${_bpThisPeriod > 0 ? `<div class="sum-row sum-bp"><span class="lbl">Back pay lump sum (pay award${_bpIsEstimate ? ' — estimate' : ''})</span><span class="val">+${fmt(_bpThisPeriod)}</span></div>` : ''}
              ${_hppForPeriod > 0 ? `<div class="sum-row sum-hpp"><span class="lbl">Holiday Pay Premium${_hppIsEstimate ? ' <span class="sum-est">(estimated)</span>' : ''}</span><span class="val">+${fmt(_hppForPeriod)}</span></div>` : ''}
              <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(grossWithBp)}</span></div>`
           : `<div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>`}
@@ -797,7 +798,7 @@ export function init() {
         <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
         <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
         ${sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(sl)}</span></div>` : ''}
-        <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ' (inc. back pay & HPP)' : _bpThisPeriod > 0 ? ' (inc. back pay)' : _hppForPeriod > 0 ? ' (inc. HPP)' : ''}</span><span class="val">${fmt(net)}</span></div>
+        <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay & HPP)` : _bpThisPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay)` : _hppForPeriod > 0 ? ' (inc. HPP)' : ''}</span><span class="val">${fmt(net)}</span></div>
       `;
 
       const fh = /** @param {number} h */ h => {
@@ -830,7 +831,7 @@ export function init() {
       if (usingCumulative)
         bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your last payslip</span><span class="b-val"></span></div>`;
       if (_bpThisPeriod > 0)
-        bd += `<div class="bd-row bd-extra"><span class="b-lbl">Back pay lump sum (pay award)</span><span class="b-val">+${fmt(_bpThisPeriod)}</span></div>`;
+        bd += `<div class="bd-row bd-extra"><span class="b-lbl">Back pay lump sum (pay award${_bpIsEstimate ? ' — estimate' : ''})</span><span class="b-val">+${fmt(_bpThisPeriod)}</span></div>`;
       if (_hppForPeriod > 0)
         bd += `<div class="bd-row bd-extra"><span class="b-lbl">Holiday Pay Premium${_hppIsEstimate ? ' (estimated)' : ''}</span><span class="b-val">+${fmt(_hppForPeriod)}</span></div>`;
       if (bd !== _lastBdBodyHtml) {
@@ -872,8 +873,8 @@ export function init() {
         const _stickyLbl = document.getElementById('stickyLabel');
         if (_stickyLbl) _stickyLbl.textContent = '✅ Actual take-home';
       } else {
-        const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? 'inc. back pay & HPP'
-            : _bpThisPeriod > 0  ? 'inc. back pay'
+        const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? `inc. ${_bpIsEstimate ? 'est. ' : ''}back pay & HPP`
+            : _bpThisPeriod > 0  ? `inc. ${_bpIsEstimate ? 'est. ' : ''}back pay`
             : _hppForPeriod > 0  ? `inc. HPP${_hppIsEstimate ? ' estimate' : ''}`
             : null;
         if (_netLabel) _netLabel.textContent = _suffix
@@ -899,8 +900,8 @@ export function init() {
           // Keep banner element stable; only update text node + lazily-created link.
           // Previous version created a new <a> + listener on every recalc.
           _bannerEl.firstChild?.nodeType === Node.TEXT_NODE
-            ? (_bannerEl.firstChild.nodeValue = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} · `)
-            : (_bannerEl.textContent = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} · `);
+            ? (_bannerEl.firstChild.nodeValue = `✓ Includes ${_bpIsEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(_bpThisPeriod)} · `)
+            : (_bannerEl.textContent = `✓ Includes ${_bpIsEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(_bpThisPeriod)} · `);
           if (!_bannerEl.querySelector('button')) {
             // <button>, not href-less <a> — an anchor without href is mouse-only
             // (no keyboard focus, no Enter activation).
@@ -928,14 +929,16 @@ export function init() {
     // prefillBackPay, calcBackPay, _bpAwardTaxYear imported from paycalc-backpay.js.
     // calcBackPay() returns { bpAmount, bpVarAmount, bpPNum } — this wrapper
     // compares against coordinator state and calls calculate() if changed.
-    /** @param {{ bpAmount: any, bpVarAmount: any, bpPNum: any }} _ */
-    function _applyBpState({ bpAmount, bpVarAmount, bpPNum }) {
+    /** @param {{ bpAmount: any, bpVarAmount: any, bpPNum: any, bpIsEstimate?: boolean }} _ */
+    function _applyBpState({ bpAmount, bpVarAmount, bpPNum, bpIsEstimate = false }) {
       if (bpPNum !== _bpPNum ||
+          bpIsEstimate !== _bpIsEstimate ||
           Math.abs(bpAmount    - _bpAmount)    > 0.001 ||
           Math.abs(bpVarAmount - _bpVarAmount) > 0.001) {
-        _bpAmount    = bpAmount;
-        _bpVarAmount = bpVarAmount;
-        _bpPNum      = bpPNum;
+        _bpAmount     = bpAmount;
+        _bpVarAmount  = bpVarAmount;
+        _bpPNum       = bpPNum;
+        _bpIsEstimate = bpIsEstimate;
         calculate();
       }
     }
@@ -1114,11 +1117,14 @@ export function init() {
     _defaultPeriodNum = buildPeriodSelect();
     onPeriodChange();
 
-    // Restore any persisted back-pay figures for the current award year (per-member; discarded on
-    // an award-year rollover) and recompute, so the paid-in period's take-home includes the lump
-    // straight away — previously the lump silently vanished on every reload until the card was
-    // reopened, making the same period show different take-home before and after a refresh.
-    if (restoreBpState()) _runCalcBackPay();
+    // Back-pay at init: restore the member's persisted figures for the current award year, or —
+    // when there is NO saved state at all (first visit, or a fresh award year after the rollover
+    // discard) — compute the DEFAULT pending-award estimate automatically, exactly as opening the
+    // card would (prefill + % derivation). Staff no longer need to know the card exists to see
+    // the estimated lump on the right payslip; the result card labels it "estimated"
+    // (_bpIsEstimate) and links to the card to fine-tune. A saved-but-CLEARED state returns true
+    // from restoreBpState, so a member who blanked the card stays opted out.
+    restoreBpState() ? _runCalcBackPay() : _refreshBackPayCard();
 
     // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 
