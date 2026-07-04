@@ -377,7 +377,7 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
             currentTeamWeekStart = getSunday(new Date());
             renderTeamView(currentTeamGrade);
         } else {
-            _clearOverlayHistory(); // Remove pushed entry when exiting via button
+            _clearOverlayHistory(toggleTeamView); // Remove THIS overlay's pushed entry when exiting via button
             renderCalendar();
         }
     }
