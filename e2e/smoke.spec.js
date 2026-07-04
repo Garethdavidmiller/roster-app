@@ -313,6 +313,8 @@ for (const width of [1280, 1440]) {
         // Settings. The row-span fix keeps it small. Threshold is deliberately loose
         // (catches the half-screen bug, tolerates the small content-dependent
         // distribution inherent to spanning a tall card across the right stack).
+        // (v15.70: period-controls is now full-width above the two-column zone, so the
+        // right column is Result → Settings → Payslip — Settings and Payslip stay adjacent.)
         const gap = await page.evaluate(() => {
             const s = document.getElementById('settingsCard').getBoundingClientRect();
             const p = document.getElementById('payslipCard').getBoundingClientRect();
