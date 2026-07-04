@@ -24,6 +24,15 @@ import { SK, periodKey } from './paycalc-migrations.js';
 import { _decodeHours } from './paycalc-hpp.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
 
+/**
+ * The currently OFFERED (but not-yet-confirmed) annual pay award, as a percentage. Used to
+ * pre-fill the back-pay card's "Pay rise %" so it opens with a live estimate — only while the
+ * award year is unconfirmed (`ty.rateUnconfirmed`); once the real rate is entered/confirmed this
+ * default no longer applies. UPDATE (or remove) when the award is agreed / a new one is offered.
+ * Current: the 3.6% offered Jul 2026, awaiting RMT acceptance.
+ */
+const PENDING_AWARD_PCT = 3.6;
+
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
 
 /**
@@ -60,6 +69,11 @@ export function prefillBackPay() {
     // it dropped the current/old rate into the New box (the bug this fixes).
     if (!oldRateEl.value)   oldRateEl.value   = getStoredRateForYear(ty).toFixed(2);
     if (!oldLondonEl.value) oldLondonEl.value = ty.londonAllow.toFixed(2);
+    // Default the "Pay rise %" to the currently offered award so the card opens with an estimate.
+    // The coordinator's _applyBpRisePct() then derives the New rate/London from it. Adjustable —
+    // and only for the unconfirmed award year (once real rates are known this branch isn't taken).
+    const pctEl = /** @type {HTMLInputElement | null} */ (document.getElementById('bpRisePct'));
+    if (pctEl && !pctEl.value) pctEl.value = String(PENDING_AWARD_PCT);
   } else {
     if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
     if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
@@ -70,6 +84,11 @@ export function prefillBackPay() {
   // leaving fromPNum 0 → awardTy null → the tax-year fence removed → an inflated lump sum.
   const fromSel = /** @type {HTMLSelectElement} */ (document.getElementById('backPayFrom'));
   if (fromSel && !fromSel.value) _setSelectPeriod(fromSel, 48 + ty.first);
+  // Default the "paid in" period to the NEXT PAYDAY (the current period) — the lump sum most
+  // likely lands on your next payslip. Adjustable; the paid-in period is itself excluded from the
+  // accrual (in that month you're already on the new rate — see calcBackPay's _capPNum).
+  const paidSel = /** @type {HTMLSelectElement} */ (document.getElementById('backPayPeriod'));
+  if (paidSel && !paidSel.value) _setSelectPeriod(paidSel, currentPeriodNum());
   return calcBackPay();
 }
 
@@ -151,12 +170,13 @@ export function calcBackPay() {
   let grandVarTotal = 0;
   let pCount        = 0;
 
-  // Upper cap for accrual = the EARLIER of the selected "paid in" period and today's period. Back pay
-  // only accrues for periods already WORKED under the old rate; the "paid in" period is just when the
-  // lump lands and can be in the FUTURE. Capping at min(bpPNum, current) stops a future paid-in
-  // selection — or an unselected one — from adding contracted rate-diff for weeks not yet worked
-  // (a period the user merely opened autosaves a record, so it can't be excluded by emptiness alone).
-  const _capPNum = Math.min(bpPNum || Infinity, currentPeriodNum());
+  // Upper cap for accrual = up to but NOT INCLUDING the "paid in" period, AND no later than today.
+  // Excluding the paid-in month: in the period the lump sum lands you are already paid at the NEW
+  // rate, so that month is current pay, not back pay (confirmed by Gareth Jul 2026). Capping at
+  // today's period also stops a future paid-in — or an unselected one — from adding contracted
+  // rate-diff for weeks not yet worked (a period the user merely opened autosaves a record, so it
+  // can't be excluded by emptiness alone).
+  const _capPNum = Math.min(bpPNum ? bpPNum - 1 : Infinity, currentPeriodNum());
   periods.forEach(/** @param {any} p */ p => {
     try {
       if (fromPNum && p.num < fromPNum) return;

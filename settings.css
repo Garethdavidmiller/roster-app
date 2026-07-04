@@ -24,7 +24,13 @@ body {
 }
 
 .app { max-width: 560px; margin: 0 auto; }
-@media (min-width: 768px) { .app { max-width: 720px; } }
+@media (min-width: 768px) {
+    .app { max-width: 720px; }
+    /* Keep the header tracking the card column at tablet widths too (was only capped at
+       1024px, so 768–1023px left the burger/brand/badge spanning full width while the cards
+       sat in a 720px column — a visible header/content misalignment). */
+    .app-header { max-width: 720px; margin-left: auto; margin-right: auto; }
+}
 .app-header { margin-bottom: 4px; }
 
 /* ── CARD ── */
@@ -54,7 +60,12 @@ body {
 /* ── Desktop: 1024px — two-column layout ── */
 @media (min-width: 1024px) {
     .app {
-        max-width: 1100px;
+        /* Deliberately narrower than the shared --content-max-width (1100px): Settings is a
+           very short page of two small cards (one field each), so a full 1100px band gave each
+           card ~530px to hold a single input and they read as stretched/half-empty. ~860px
+           (~410px each) makes them feel intentional. The tall navy space below is inherent to
+           how short the page is. (v15.90 desktop UX pass.) */
+        max-width: 860px;
         display: grid;
         /* Equal columns — Work Email and Notifications are peer cards, so a
            narrow-left/wide-right split just made them look mismatched. */
@@ -64,7 +75,9 @@ body {
         align-items: start;
     }
     /* Header aligns with the grid */
-    .app-header { max-width: 1100px; margin-left: auto; margin-right: auto; }
+    .app-header { max-width: 860px; margin-left: auto; margin-right: auto; }
+    /* Prose measure cap for card descriptions on desktop. */
+    .card .hint { max-width: 60ch; }
 
     /* Cards sit directly in the grid — no wrappers needed. */
     #contactCard       { grid-column: 1; grid-row: 1; margin-bottom: 0; }

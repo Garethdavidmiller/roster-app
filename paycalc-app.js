@@ -1145,7 +1145,14 @@ export function init() {
     initCardCollapse('payslipCardToggle', 'payslipCardBody', 'payslipCardToggle');
     initCardCollapse('hppCardToggle',     'hppCardBody',     'hppCardToggle');
     initCardCollapse('backPayCardToggle', 'backPayBody',     'backPayCardToggle',
-      /** @param {any} open */ open => { if (open) _applyBpState(prefillBackPay()); });
+      /** @param {any} open */ open => {
+        if (!open) return;
+        _applyBpState(prefillBackPay());
+        // prefillBackPay may have defaulted the "Pay rise %" (unconfirmed award) — derive the New
+        // rate/London from it here so the card opens with an estimate. _applyBpRisePct tracks the
+        // auto-filled values (so a later hand-edit isn't clobbered) and recomputes the total.
+        _applyBpRisePct();
+      });
 
     // Back-pay inputs + period selectors + apply rate
     /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn')).addEventListener('click', toggleBpBreakdown);

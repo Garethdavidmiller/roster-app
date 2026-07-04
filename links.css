@@ -39,7 +39,7 @@ body {
 .container {
     /* 1100px matches paycalc/settings/operations. The old --page-max-width
        (1400px) stretched each 10px shift label across a ~170px cell. */
-    max-width: 1100px;
+    max-width: var(--content-max-width);
     width: 100%;
     margin: 0 auto;
     display: none;
@@ -784,6 +784,9 @@ body.auth-ready .container { display: grid; }
         gap: 16px;
         align-items: start;
     }
+    /* Cap the measure on the generator's intro prose so it doesn't run ~140ch across the
+       full ~1000px card (the grid/tables keep the full width). */
+    .links-desc { max-width: 82ch; }
 }
 .compare-col { min-width: 0; }
 .compare-col-head {

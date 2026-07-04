@@ -230,7 +230,15 @@
     --print-muted: oklch(37% 0 0); /* ≈#444 — secondary text on printed pages (timestamps, sub-lines) */
 
     /* ── Page shell ──────────────────────────────────────────────── */
-    --page-max-width: 1400px;
+    /* Two desktop content widths, single-sourced (v15.90). Only the CALENDAR earns the wide
+       cap — its 7-column month grid and Team Week View genuinely use the horizontal space.
+       EVERY other page (admin, paycalc, operations, settings, links) uses the narrower content
+       cap so forms and prose stay a comfortable width and the app doesn't re-lay-out ~300px on
+       every desktop hop. Both live here as tokens, not hardcoded per file. (Admin moved to the
+       content cap at v15.90 once its week grid became vertical day-cards rather than a wide table.)
+       Settings deliberately caps narrower still — see settings.css (two tiny cards). */
+    --page-max-width:    1400px;   /* wide: calendar only */
+    --content-max-width: 1100px;   /* everything else: admin, paycalc, operations, settings, links */
 
     /* ── Border radius ───────────────────────────────────────────── */
     --radius-xs:     6px;  /* compact table-action / confirm-bar buttons */
