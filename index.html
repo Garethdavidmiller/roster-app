@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v15.95 -->
+<!-- MYB Roster — Calendar v15.96 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -35,11 +35,52 @@
     <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
 
-    <!-- Preload critical JS modules so the browser fetches them in parallel with CSS -->
+    <!--
+      Module preload (v15.96 calendar load-speed pass — mirrors paycalc's v14.94 fix).
+      calendar-app.js pulls a 31-module static graph, several levels deep to
+      firebase-client → the gstatic Firebase SDK. Module scripts are deferred and block
+      DOMContentLoaded ("ready"), and without these hints the browser discovers modules in
+      a WATERFALL (parse a file, THEN fetch its imports) — so the heavy cross-origin SDK
+      doesn't start downloading until the chain reaches firebase-client. Declaring the graph
+      here lets every module (and the SDK) fetch in parallel from first HTML parse, collapsing
+      the waterfall. modulepreload only fetches/compiles — execution order is unchanged, so
+      this is purely a speed-up with no behaviour change. Kept honest by sw-asset-check.test.mjs
+      (fails if it drifts from the real transitive graph or the pinned Firebase version).
+    -->
+    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js" crossorigin>
+    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js" crossorigin>
+    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js" crossorigin>
+    <link rel="modulepreload" href="./about-lightbox.js">
+    <link rel="modulepreload" href="./auth-state-core.js">
+    <link rel="modulepreload" href="./auth-state.js">
+    <link rel="modulepreload" href="./calendar-al-lightbox.js">
     <link rel="modulepreload" href="./calendar-app.js">
-    <link rel="modulepreload" href="./nav-panel.js">
-    <link rel="modulepreload" href="./roster-data.js">
+    <link rel="modulepreload" href="./calendar-doc-viewer.js">
+    <link rel="modulepreload" href="./calendar-huddle-viewer.js">
+    <link rel="modulepreload" href="./calendar-initial-fetch.js">
+    <link rel="modulepreload" href="./calendar-keyboard.js">
+    <link rel="modulepreload" href="./calendar-member.js">
+    <link rel="modulepreload" href="./calendar-overrides.js">
+    <link rel="modulepreload" href="./calendar-renderer.js">
+    <link rel="modulepreload" href="./calendar-state.js">
+    <link rel="modulepreload" href="./calendar-swipe.js">
+    <link rel="modulepreload" href="./calendar-team-view.js">
+    <link rel="modulepreload" href="./client-errors.js">
+    <link rel="modulepreload" href="./error-reporter.js">
     <link rel="modulepreload" href="./firebase-client.js">
+    <link rel="modulepreload" href="./ls.js">
+    <link rel="modulepreload" href="./nav-panel.js">
+    <link rel="modulepreload" href="./notif.js">
+    <link rel="modulepreload" href="./overlay.js">
+    <link rel="modulepreload" href="./override-utils.js">
+    <link rel="modulepreload" href="./perf-reporter.js">
+    <link rel="modulepreload" href="./perf-stats.js">
+    <link rel="modulepreload" href="./roster-cycle-data.js">
+    <link rel="modulepreload" href="./roster-data.js">
+    <link rel="modulepreload" href="./session.js">
+    <link rel="modulepreload" href="./sw-register.js">
+    <link rel="modulepreload" href="./usage-reporter.js">
+    <link rel="modulepreload" href="./usage-stats.js">
 
     <!-- Preload the self-hosted Inter typeface so it's ready before first paint (crossorigin is required even same-origin for fonts) -->
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
