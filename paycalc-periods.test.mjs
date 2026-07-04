@@ -87,7 +87,7 @@ mock.module('./paycalc-roster-suggestions.js', {
 });
 
 const {
-    CONFIG: PC_CONFIG, getPeriods,
+    CONFIG: PC_CONFIG, getPeriods, payslipPeriodNum,
     hasBoxingDay, hasBankHoliday,
     _setSelectPeriod, prevPeriod, nextPeriod,
 } = await import('./paycalc-periods.js');
@@ -190,6 +190,46 @@ describe('getPeriods', () => {
             const diffDays   = (curStart - prevCutoff) / 86400000;
             assert.equal(diffDays, 1,
                 `P${periods[i].num} start should be the day after P${periods[i-1].num} cutoff`);
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// paycalc-periods.js — payslipPeriodNum (printed payslip number: weeks-into-year, ×4, resets April)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('payslipPeriodNum', () => {
+    const printedFor = num => payslipPeriodNum({ num });
+
+    test('April (first period of a tax year) prints "Period 4"', () => {
+        assert.equal(printedFor(37), 4);  // 2025/26 first period (~11 Apr 2025)
+        assert.equal(printedFor(50), 4);  // 2026/27 first period (~10 Apr 2026)
+    });
+
+    test('the anchor 13 Feb 2026 prints "Period 48"', () => {
+        assert.equal(printedFor(48), 48); // 12th period of 2025/26
+    });
+
+    test('last period of a tax year prints "Period 52"', () => {
+        assert.equal(printedFor(49), 52); // 2025/26 last (13th, ~13 Mar 2026)
+        assert.equal(printedFor(62), 52); // 2026/27 last (13th, ~11 Mar 2027)
+    });
+
+    test('advances by exactly 4 per period within a tax year', () => {
+        assert.equal(printedFor(38), 8);
+        assert.equal(printedFor(39), 12);
+        assert.equal(printedFor(54), 20); // 31 Jul 2026 — 5th period of 2026/27
+    });
+
+    test('resets each April (52 → 4 across the tax-year boundary)', () => {
+        assert.equal(printedFor(49), 52); // last of 2025/26
+        assert.equal(printedFor(50), 4);  // first of 2026/27
+    });
+
+    test('every period prints a multiple of 4 in 4..52', () => {
+        for (const p of getPeriods()) {
+            const n = payslipPeriodNum(p);
+            assert.equal(n % 4, 0, `P(internal ${p.num}) printed ${n} — not a multiple of 4`);
+            assert.ok(n >= 4 && n <= 52, `P(internal ${p.num}) printed ${n} — out of 4..52`);
         }
     });
 });

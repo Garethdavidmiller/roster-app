@@ -25,7 +25,7 @@ import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import {
-  CONFIG, getPeriods, currentPeriodNum,
+  CONFIG, getPeriods, currentPeriodNum, payslipPeriodNum,
   hasBoxingDay, hasBankHoliday,
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
@@ -287,7 +287,7 @@ export function init() {
       });
       /** @type {HTMLElement} */ (document.getElementById('pmRange')).textContent   = `${startStr} – ${cutLongStr}`;
       /** @type {HTMLElement} */ (document.getElementById('pmSub')).textContent     = `💷 Paid: ${payStr}  ·  Tax year ${ty.label}`;
-      /** @type {HTMLElement} */ (document.getElementById('periodBadge')).textContent = `P${p.num}`;
+      /** @type {HTMLElement} */ (document.getElementById('periodBadge')).textContent = `P${payslipPeriodNum(p)}`;
       /** @type {HTMLElement} */ (document.getElementById('netPeriod')).textContent   = `Paid ${fd(p.payday)}`;
 
       // Update cut-off date in sub descriptions
@@ -312,7 +312,7 @@ export function init() {
       // Update the "for P__" label next to the pension field so users can see
       // which period's pension they are viewing or editing.
       const pensionPeriodLbl = document.getElementById('pensionPeriodLabel');
-      if (pensionPeriodLbl) pensionPeriodLbl.textContent = `for P${p.num}`;
+      if (pensionPeriodLbl) pensionPeriodLbl.textContent = `for P${payslipPeriodNum(p)}`;
 
       // Settings confirmation check for this tax year.
       const tyConfirmed = lsGet(settingsKey(ty));
@@ -1427,7 +1427,7 @@ export function init() {
       const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
       const p = periodSel ? getPeriods().find(/** @param {any} x */ x => x.num === +periodSel.value) : null;
       const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-      const label = p ? `Period P${p.num} · Paid ${fdShort(p.payday)} · Printed ${now}` : `MYB Pay Calculator · Printed ${now}`;
+      const label = p ? `Period P${payslipPeriodNum(p)} · Paid ${fdShort(p.payday)} · Printed ${now}` : `MYB Pay Calculator · Printed ${now}`;
       hdr.setAttribute('data-print-line', label);
     }
     stampPaycalcPrintLine();

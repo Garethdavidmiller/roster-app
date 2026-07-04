@@ -20,13 +20,18 @@ import { bhsForYear } from './paycalc-roster-suggestions.js';
 // Period arithmetic constants.
 // ⚠️  TAX YEAR ROLLOVER: Each April, update ANCHOR_DATE, FIRST_OFFSET, LAST_OFFSET
 //     and the threshold tables in paycalc-calc.js.
-//     P48 anchor (13 Feb 2026) stays fixed as the offset reference point.
+//     The anchor (13 Feb 2026) stays fixed as the offset reference point (internal num 48).
+//
+// NB: `num` below is an INTERNAL, monotonic offset id (37…62), NOT the number printed on the
+// payslip. The payslip counts weeks-into-the-tax-year (×4 per period, resetting each April):
+// April = "Period 4", … 13 Feb 2026 = "Period 48", last = "Period 52". Convert with
+// payslipPeriodNum() for any user-facing label; never key storage/maths off the payslip number.
 export const CONFIG = {
-  ANCHOR_DATE:    new Date(2026, 1, 13, 12, 0, 0), // P48 payday: 13 Feb 2026, noon local — MUST be noon to preserve the calcProRateFactor half-day invariant
+  ANCHOR_DATE:    new Date(2026, 1, 13, 12, 0, 0), // internal num 48 payday: 13 Feb 2026 (printed "Period 48"), noon local — MUST be noon to preserve the calcProRateFactor half-day invariant
   PERIOD_DAYS:    28,
   PERIODS_PER_YR: P_YR,
-  FIRST_OFFSET:   -11,   // P37 — first period of 2025/26 (~11 Apr 2025)
-  LAST_OFFSET:     14,   // P62 — last period of 2026/27 (~11 Mar 2027)
+  FIRST_OFFSET:   -11,   // internal num 37 — first period of 2025/26 (~11 Apr 2025; printed "Period 4")
+  LAST_OFFSET:     14,   // internal num 62 — last period of 2026/27 (~11 Mar 2027; printed "Period 52")
   TAX_YEARS,             // imported from paycalc-calc.js
 };
 
@@ -54,6 +59,26 @@ export function getPeriods() {
   }
   _periodsCache = out;
   return out;
+}
+
+/**
+ * The period number as PRINTED ON THE CHILTERN PAYSLIP. The payslip counts the cumulative
+ * WEEK within the tax year — each 4-weekly period advances it by 4 — and RESETS every April.
+ * So period 1 of a tax year (April) is "Period 4", period 2 is "Period 8", … period 12 is
+ * "Period 48" (13 Feb 2026, the anchor), period 13 is "Period 52". Confirmed by Gareth
+ * Jul 2026 (April's payslip says Period 4; the anchor 13 Feb 2026 says Period 48).
+ *
+ * This is DISPLAY-ONLY. The internal `p.num` (37…62, an offset from the P48 anchor) is
+ * unchanged — it stays the localStorage key and the monotonic value for tax-year maths.
+ * The payslip number can't serve those roles: it resets 52→4 each April, so it is neither
+ * unique across years nor monotonic. Never store or key off this value; only show it.
+ * @param {{ num: number }} p - A period object from getPeriods().
+ * @returns {number} The printed payslip period number (4, 8, … 48, 52).
+ */
+export function payslipPeriodNum(p) {
+  const ty = getTaxYearForOffset(p.num - 48);
+  // (p.num - firstNumOfTaxYear + 1) = 1-based period index within the tax year; ×4 = weeks.
+  return 4 * (p.num - (48 + ty.first) + 1);
 }
 
 /** Return the period number currently shown in the period selector. */
@@ -137,7 +162,7 @@ function _populatePeriodSelect(/** @type {any} */ el, /** @type {any} */ periods
     const payStr = p.payday.toLocaleDateString('en-GB', {
       day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
     });
-    o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `P${p.num} · Paid ${payStr}`;
+    o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `P${payslipPeriodNum(p)} · Paid ${payStr}`;
     currentGroup.appendChild(o);
   });
 }

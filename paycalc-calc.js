@@ -12,9 +12,11 @@ export const RATE_300 = 3.00;
 
 // ── Tax year definitions ───────────────────────────────────────────────────
 // "Tax year" here means: payday falls in that Apr–Mar window.
-// Period offsets are relative to the P48 anchor (13 Feb 2026).
-// 2025/26: P37 → P49  (offsets -11 to +1)
-// 2026/27: P50 → P62  (offsets  +2 to +14)
+// `first`/`last` are INTERNAL num offsets relative to the anchor (internal num 48 = 13 Feb 2026),
+// NOT payslip period numbers. The payslip prints weeks-into-the-year (×4, resets each April) —
+// use payslipPeriodNum() in paycalc-periods.js for user-facing labels.
+// 2025/26: internal num 37 → 49  (offsets -11 to +1) — printed P4 → P52
+// 2026/27: internal num 50 → 62  (offsets  +2 to +14) — printed P4 → P52
 export const TAX_YEARS = [
   { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027,
     londonAllow: 276.16, londonAllowPre: 267.08, londonAllowFrom: new Date(2025, 9, 24) },

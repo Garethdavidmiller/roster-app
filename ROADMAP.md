@@ -501,7 +501,7 @@ a placeholder so the idea isn't lost.
 
 **What:** `computeSL` in `paycalc-calc.js` is tested via internal cross-checks but not against real payslip figures. `MILLER_ACTUALS` in `test-fixtures/miller-actuals.js` includes an `sl` field on each record, so the data exists to add per-period assertions like `assert.ok(Math.abs(computeSL(...) - MILLER_ACTUALS[n].sl) < 0.01)`.
 
-**Blocked on:** Confirming which Student Loan plan is active. The payslip Settings page shows the selected plan; once confirmed, add `computeSL(gross, planCode)` assertions against the 13 real `sl` values in `MILLER_ACTUALS` (P43–P55, 2025/26 tax year).
+**Blocked on:** Confirming which Student Loan plan is active. The payslip Settings page shows the selected plan; once confirmed, add `computeSL(gross, planCode)` assertions against the 13 real `sl` values in `MILLER_ACTUALS` (the 13 four-weekly periods of the 2025/26 tax year — printed P4–P52 on the payslip).
 
 **When to do it:** In the same commit that confirms/changes the SL plan in `GRADES` or `MILLER_ACTUALS`. There is no point adding assertions before the plan code is known — they would either all be zero (no SL) or wrong.
 
