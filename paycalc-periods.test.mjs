@@ -90,6 +90,8 @@ const {
     CONFIG: PC_CONFIG, getPeriods, payslipPeriodNum,
     hasBoxingDay, hasBankHoliday,
     _setSelectPeriod, prevPeriod, nextPeriod,
+    computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
+    visiblePeriods, isTaxYearVisible,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -231,6 +233,52 @@ describe('payslipPeriodNum', () => {
             assert.equal(n % 4, 0, `P(internal ${p.num}) printed ${n} — not a multiple of 4`);
             assert.ok(n >= 4 && n <= 52, `P(internal ${p.num}) printed ${n} — out of 4..52`);
         }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// paycalc-periods.js — member visibility clamp (new starters see "from this year onwards")
+// ─────────────────────────────────────────────────────────────────────────────
+describe('computeEarliestVisiblePNum', () => {
+    const FLOOR = 48 + PC_CONFIG.FIRST_OFFSET; // 37 — first supported period (2025/26)
+    const FIRST_2627 = 50;                      // 48 + 2 — first period of 2026/27
+
+    test('no member / no startDate → no clamp (range floor)', () => {
+        assert.equal(computeEarliestVisiblePNum(null), FLOOR);
+        assert.equal(computeEarliestVisiblePNum({ name: 'X' }), FLOOR);
+    });
+
+    test('startDate this tax year (2026/27) → clamped to first period of 2026/27', () => {
+        assert.equal(computeEarliestVisiblePNum({ startDate: new Date(2026, 3, 20) }), FIRST_2627); // 20 Apr 2026
+        assert.equal(computeEarliestVisiblePNum({ startDate: new Date(2026, 4, 5) }),  FIRST_2627); // 5 May 2026
+        assert.equal(computeEarliestVisiblePNum({ startDate: new Date(2026, 5, 3) }),  FIRST_2627); // 3 Jun 2026
+    });
+
+    test('startDate in a prior tax year (2025/26) → no effective clamp', () => {
+        assert.equal(computeEarliestVisiblePNum({ startDate: new Date(2025, 8, 1) }), FLOOR); // 1 Sep 2025
+    });
+
+    test('noProRate secondment return is NOT clamped even with a this-year startDate', () => {
+        assert.equal(computeEarliestVisiblePNum({ startDate: new Date(2026, 5, 9), noProRate: true }), FLOOR);
+    });
+});
+
+describe('setEarliestVisiblePeriod / visiblePeriods / isTaxYearVisible', () => {
+    test('a 2026/27 starter sees only 2026/27 periods and tab', () => {
+        setEarliestVisiblePeriod({ startDate: new Date(2026, 3, 20) });
+        assert.equal(getEarliestVisiblePNum(), 50);
+        const nums = visiblePeriods().map(p => p.num);
+        assert.ok(nums.every(n => n >= 50), 'no period before P50 (Apr 2026) is visible');
+        assert.ok(!nums.includes(49), '2025/26 last period (49) hidden');
+        assert.equal(isTaxYearVisible({ first: -11, last: 1 }),  false); // 2025/26 hidden
+        assert.equal(isTaxYearVisible({ first: 2,   last: 14 }), true);  // 2026/27 visible
+    });
+
+    test('an unclamped member sees the whole range again', () => {
+        setEarliestVisiblePeriod(null);
+        assert.equal(getEarliestVisiblePNum(), 48 + PC_CONFIG.FIRST_OFFSET);
+        assert.equal(visiblePeriods().length, getPeriods().length);
+        assert.equal(isTaxYearVisible({ first: -11, last: 1 }), true);
     });
 });
 

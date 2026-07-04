@@ -377,6 +377,8 @@ Period arithmetic and select UI for `paycalc.html` (v13.80).
 - `updateTyTabs()` — highlights the active tax-year tab
 - `jumpToTaxYear(tyIndex, onPeriodChange)` / `prevPeriod(onPeriodChange)` / `nextPeriod(onPeriodChange)` — navigation; accept coordinator's `onPeriodChange` callback to avoid circular dependency
 - `_setSelectPeriod(sel, pNum)` — internal `<select>` value setter (test-exposed; covered by `paycalc-periods.test.mjs`)
+- `payslipPeriodNum(p)` — the number PRINTED on the payslip (weeks-into-year ×4, resets each April: April = P4 … 13 Feb 2026 = P48 … P52). Display-only; internal `p.num` unchanged
+- **New-starter visibility clamp:** `computeEarliestVisiblePNum(member)` (pure) → the first period of a member's JOIN tax year; genuine new starters (a `startDate`, NOT a `noProRate` full-year return) are clamped so they only see "from this year onwards". `setEarliestVisiblePeriod(member)` stores it (coordinator calls it at init with `getLoggedMember()` — avoids a circular import), `getEarliestVisiblePNum()` reads it, `visiblePeriods()` filters `getPeriods()`, `isTaxYearVisible(ty)` gates the tax-year tabs. `buildPeriodSelect`/`buildBackPayPeriodSelect`/`prevPeriod`/`nextPeriod` all honour the clamp
 - Imports `P_YR, TAX_YEARS, getTaxYearForOffset` from `paycalc-calc.js`; imports `bhsForYear` from `paycalc-roster-suggestions.js`
 
 ### `paycalc-settings.js`

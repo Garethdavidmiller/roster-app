@@ -81,6 +81,56 @@ export function payslipPeriodNum(p) {
   return 4 * (p.num - (48 + ty.first) + 1);
 }
 
+// ── MEMBER VISIBILITY CLAMP ────────────────────────────────────────────────────
+// A member who only started THIS tax year should not see earlier tax years in the pay
+// calculator — "from this year onwards". The clamp is at a tax-year boundary (the first period
+// of the member's JOIN tax year), so a year is either fully visible or fully hidden. Set once by
+// the coordinator via setEarliestVisiblePeriod(getLoggedMember()) — paycalc-periods.js can't import
+// getLoggedMember (that would be a circular import), so the member is passed in.
+
+/** Earliest period num the current member may view; null = not set yet (no clamp). @type {number|null} */
+let _earliestVisiblePNum = null;
+
+/**
+ * The first period of the member's JOIN tax year — the earliest period they may view. Genuine new
+ * starters (a `startDate`, and NOT a full-year `noProRate` secondment return) are clamped to their
+ * join year; everyone else sees the whole supported range. Pure — exported for tests.
+ * @param {any} member - teamMembers entry (or null).
+ * @returns {number} period num (>= the supported range's first period).
+ */
+export function computeEarliestVisiblePNum(member) {
+  const floor = 48 + CONFIG.FIRST_OFFSET;
+  const start = member?.startDate;
+  if (!start || member?.noProRate) return floor; // no startDate, or full-year return → see everything
+  const periods = getPeriods();
+  // The tax year the member joined in = the tax year of the first period whose window ends on/after
+  // their start date (i.e. the first period they were employed for).
+  const joinP  = periods.find((/** @type {any} */ p) => start <= p.cutoff) || periods[periods.length - 1];
+  const joinTy = getTaxYearForOffset(joinP.num - 48);
+  return Math.max(floor, 48 + joinTy.first);
+}
+
+/** Store the current member's earliest visible period. Call once from init before building selects. */
+export function setEarliestVisiblePeriod(/** @type {any} */ member) {
+  _earliestVisiblePNum = computeEarliestVisiblePNum(member);
+}
+
+/** The stored earliest visible period num (the supported range's first period if unset). */
+export function getEarliestVisiblePNum() {
+  return _earliestVisiblePNum ?? (48 + CONFIG.FIRST_OFFSET);
+}
+
+/** getPeriods() filtered to the periods the current member may view. */
+export function visiblePeriods() {
+  const floor = getEarliestVisiblePNum();
+  return getPeriods().filter((/** @type {any} */ p) => p.num >= floor);
+}
+
+/** True if any period of the given tax year is visible to the current member. */
+export function isTaxYearVisible(/** @type {any} */ ty) {
+  return (48 + ty.last) >= getEarliestVisiblePNum();
+}
+
 /** Return the period number currently shown in the period selector. */
 export function currentPeriodNum() {
   return +(/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'))).value;
@@ -177,7 +227,7 @@ function _populatePeriodSelect(/** @type {any} */ el, /** @type {any} */ periods
  */
 export function buildPeriodSelect() {
   const sel     = document.getElementById('periodSelect');
-  const periods = getPeriods();
+  const periods = visiblePeriods(); // hide tax years before a new starter's join year
   const today   = new Date();
 
   // Default to the first period whose payday is still in the future.
@@ -215,7 +265,7 @@ export function buildPeriodSelect() {
 export function buildBackPayPeriodSelect() {
   const sel = document.getElementById('backPayPeriod');
   if (!sel) return;
-  const periods = getPeriods();
+  const periods = visiblePeriods(); // a new starter can only pay a lump into a period they can view
   _populatePeriodSelect(sel, periods, { placeholder: '— select when the lump sum will land —' });
 }
 
@@ -256,7 +306,7 @@ export function jumpToTaxYear(tyIndex, onPeriodChange) {
  */
 export function prevPeriod(onPeriodChange) {
   const sel     = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
-  const periods = getPeriods();
+  const periods = visiblePeriods(); // clamp: never step before a new starter's join year
   const idx     = periods.findIndex((/** @type {any} */ x) => x.num === +sel.value);
   if (idx > 0) { _setSelectPeriod(sel, periods[idx - 1].num); onPeriodChange(); }
 }
@@ -267,7 +317,7 @@ export function prevPeriod(onPeriodChange) {
  */
 export function nextPeriod(onPeriodChange) {
   const sel     = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
-  const periods = getPeriods();
+  const periods = visiblePeriods();
   const idx     = periods.findIndex((/** @type {any} */ x) => x.num === +sel.value);
   if (idx < periods.length - 1) { _setSelectPeriod(sel, periods[idx + 1].num); onPeriodChange(); }
 }

@@ -29,6 +29,7 @@ import {
   hasBoxingDay, hasBankHoliday,
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
+  setEarliestVisiblePeriod, isTaxYearVisible,
   _setSelectPeriod,
 } from './paycalc-periods.js';
 import {
@@ -1047,13 +1048,22 @@ export function init() {
     // ── INIT ──────────────────────────────────────────────────────────────────────
     runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
 
+    // Clamp the visible period range for a member who only started this tax year — they should
+    // not see earlier tax years ("from this year onwards"). Must run BEFORE the tabs + period
+    // select are built (both read the clamp). Secondment returns (noProRate) and long-serving
+    // staff are unaffected.
+    setEarliestVisiblePeriod(getLoggedMember());
+
     // Tax-year quick-jump tabs — generated from TAX_YEARS so the April rollover only
     // touches paycalc-calc.js (no hand-edited tab markup). Must run before
     // buildPeriodSelect() + onPeriodChange(): updateTyTabs looks the tabs up by id.
+    // Tax years before a new starter's join year are skipped (their tab is never built);
+    // the id stays `tyTab${i}` at the ORIGINAL index so updateTyTabs/jumpToTaxYear still align.
     (function buildTyTabs() {
       const wrap = document.getElementById('tyTabs');
       if (!wrap) return;
       CONFIG.TAX_YEARS.forEach((ty, i) => {
+        if (!isTaxYearVisible(ty)) return;
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'ty-tab';
