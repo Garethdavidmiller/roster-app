@@ -98,11 +98,13 @@ const {
     getEffectiveShift,
     validateShiftRules,
     buildMemberDateMap,
+    isWorkingDate,
     setAllOverrides,
     getAllOverrides,
     recordRangeOverrides,
     executeSave,
 } = await import('./admin-overrides.js');
+const { teamMembers } = await import('./roster-data.js');
 
 // Grab the mocked auth object so we can set currentUser for recordRangeOverrides tests.
 const { auth } = await import('./firebase-client.js');
@@ -525,5 +527,29 @@ describe('executeSave — stale-claim retry', () => {
         const all = getAllOverrides();
         assert.equal(all.length, 1, 'no new doc cached when both attempts fail');
         assert.equal(all[0].id, 'keep-1', 'the pre-existing cache entry is unchanged');
+    });
+});
+
+// ── isWorkingDate (single-source AL/absence working-day rule) ────────────────────
+describe('isWorkingDate', () => {
+    const reen   = teamMembers.find(m => m.name === 'C. Reen');   // fixed roster: weekdays 12:00-19:00, weekends RD
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+    const NO_OV = new Map();
+
+    test('a worked base day with no override is a working day', () => {
+        assert.equal(isWorkingDate(miller, '2026-06-15', NO_OV), true);  // Mon
+    });
+    test('a base rest day (non-Sunday) with no override is NOT a working day', () => {
+        assert.equal(isWorkingDate(reen, '2026-06-13', NO_OV), false);   // Sat, base RD
+    });
+    test('a Sunday is never a working day, even with a worked override', () => {
+        assert.equal(isWorkingDate(reen, '2026-06-14', new Map([['2026-06-14', { value: '06:00-14:00' }]])), false);
+    });
+    test('DRIFT FIX: a base-RD day with a NON-rest override (RDW) IS a working day', () => {
+        // The previews previously counted this as a rest day; the booking counted it as worked.
+        assert.equal(isWorkingDate(reen, '2026-06-13', new Map([['2026-06-13', { value: '06:00-14:00' }]])), true);
+    });
+    test('a rest override (RD) on a worked base day makes it NOT a working day', () => {
+        assert.equal(isWorkingDate(miller, '2026-06-15', new Map([['2026-06-15', { value: 'RD' }]])), false);
     });
 });

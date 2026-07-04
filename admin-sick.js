@@ -3,9 +3,8 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles
 // and shared functions via initSickSection(deps) to avoid circular imports.
 
-import { teamMembers, getBaseShift, isSunday, escapeHtml } from './roster-data.js';
-import { recordRangeOverrides, formatDisplay, buildMemberDateMap } from './admin-overrides.js';
-import { isRestShift } from './override-utils.js';
+import { teamMembers, escapeHtml } from './roster-data.js';
+import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate } from './admin-overrides.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
@@ -102,12 +101,8 @@ function updateSickPreview() {
     if (memberObj) {
         const memberOvByDate = buildMemberDateMap(memberObj.name);
         dates.forEach(dateStr => {
-            if (isSunday(dateStr)) { restCount++; return; }
-            const ov = memberOvByDate.get(dateStr);
-            if (ov && isRestShift((/** @type {any} */ (ov)).value)) { restCount++; return; }
-            const d    = new Date(dateStr + 'T12:00:00');
-            const base = getBaseShift(memberObj, d);
-            if (isRestShift(base)) { restCount++; return; }
+            // Single-source rule (isWorkingDate) — matches what the booking actually writes.
+            if (!isWorkingDate(memberObj, dateStr, memberOvByDate)) restCount++;
         });
     }
     const workDays = dates.length - restCount;

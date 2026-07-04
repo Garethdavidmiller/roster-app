@@ -4,8 +4,7 @@
 // and shared functions via initALSection(deps) to avoid circular imports.
 
 import { teamMembers, getALEntitlement, getBaseShift, isSunday, escapeHtml } from './roster-data.js';
-import { isRestShift } from './override-utils.js';
-import { getAllOverrides, recordRangeOverrides, formatDisplay, buildMemberDateMap } from './admin-overrides.js';
+import { getAllOverrides, recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate } from './admin-overrides.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
@@ -114,14 +113,10 @@ function updateAlPreview() {
     if (memberObj) {
         const memberOvByDate = buildMemberDateMap(memberObj.name);
         dates.forEach(dateStr => {
-            const d    = new Date(dateStr + 'T12:00:00');
-            // Check order matches recordRangeOverrides: Sunday → override → base
-            if (isSunday(dateStr)) { restCount++; return; }
-            const ov = memberOvByDate.get(dateStr);
-            if (ov && isRestShift((/** @type {any} */ (ov)).value)) { restCount++; return; }
-            const base = getBaseShift(memberObj, d);
-            if (isRestShift(base)) { restCount++; return; }
-            if (base === 'SPARE') spareCount++;
+            // Single-source rule (isWorkingDate) — matches what the booking actually writes.
+            if (!isWorkingDate(memberObj, dateStr, memberOvByDate)) { restCount++; return; }
+            // A worked day whose base is an unconfirmed Spare shift is flagged (booked as AL).
+            if (getBaseShift(memberObj, new Date(dateStr + 'T12:00:00')) === 'SPARE') spareCount++;
         });
     }
     const workDays  = dates.length - restCount;
@@ -165,13 +160,7 @@ alSaveBtn.addEventListener('click', async () => {
         // base-RD day with an RDW override was excluded here but INCLUDED by recordRangeOverrides — the
         // entitlement check then counted fewer days than were actually booked, letting a booking slip
         // over the cap without the over-limit confirm.
-        const workingDates = dates.filter(d => {
-            if (isSunday(d)) return false;
-            const ov = memberOvByDate.get(d);
-            if (ov) return !isRestShift((/** @type {any} */ (ov)).value);
-            const base = getBaseShift(/** @type {any} */ (memberObj), new Date(d + 'T12:00:00'));
-            return !isRestShift(base);
-        });
+        const workingDates = dates.filter(d => isWorkingDate(/** @type {any} */ (memberObj), d, memberOvByDate));
         const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
         for (const yearStr of years) {
             const entitlement    = getALEntitlement(/** @type {any} */ (memberObj), parseInt(yearStr, 10), getAllOverrides());
