@@ -1246,9 +1246,9 @@ export function init() {
       const stickyBar  = document.getElementById('stickyTotal');
       const resultCard = document.querySelector('.result-card');
       if (!stickyBar || !resultCard || !('IntersectionObserver' in window)) return;
-      // Skip on desktop — CSS hides the bar at ≥1024px, but the observer would still
-      // toggle body.sticky-active (which adds bottom padding), causing layout shift.
-      if (window.matchMedia('(min-width: 1024px)').matches) return;
+      // v16.12: no desktop skip — the bar runs at every width now. It replaced the
+      // sticky result card as the always-visible take-home figure (the pinned card
+      // covered and click-blocked the right column when scrolled).
       // Guard against bfcache double-init: if the page is restored from the back/forward
       // cache, this IIFE runs again — without this flag a second IntersectionObserver
       // would be created and leak listeners.
@@ -1299,7 +1299,12 @@ export function init() {
         });
 
         _vv.addEventListener('resize', () => {
-          const keyboardUp = _inputFocused && (_baseVVH - _vv.height) > 120;
+          // Touch devices only (checked at event time): this heuristic detects the SOFT
+          // keyboard. On desktop (v16.12 — the bar runs there too) a >120px window-height
+          // shrink with an input focused (window resize, docked DevTools) is not a
+          // keyboard and must not hide the bar.
+          const keyboardUp = window.matchMedia('(pointer: coarse)').matches
+              && _inputFocused && (_baseVVH - _vv.height) > 120;
           stickyBar.classList.toggle('keyboard-up', keyboardUp);
         }, { passive: true });
       }

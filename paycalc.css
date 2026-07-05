@@ -482,6 +482,9 @@
       font-weight: 400; text-transform: none; letter-spacing: 0;
       font-size: var(--type-micro); color: var(--text-faint); margin-left: 4px;
     }
+    /* Longer notes sit on their own line — inline they wrapped mid-phrase against the
+       uppercase label (the HPP "enter when payslip arrives" note). */
+    .field > label .note-block { display: block; margin-left: 0; margin-top: 2px; }
     .field input, .field select {
       width: 100%; padding: 9px 14px;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
@@ -729,22 +732,33 @@
       .guide-footer-link       { grid-column: 1 / -1; grid-row: 10; }
       .disclaimer              { grid-column: 1 / -1; grid-row: 11; }
 
-      /* Left column: Hours spans the whole two-column work zone (rows 4–9) so its tall
-         content sits ALONGSIDE the entire right-column stack (result → settings →
-         payslip → HPP → back-pay → decimal) instead of inflating a single shared row.
-         align-self:start keeps it top-aligned. (A true masonry layout isn't possible
-         here: the explicit grid rows exist to give a different mobile source order, so
-         the columns can't be split into independent container stacks.) */
-      #hoursCard       { grid-column: 1; grid-row: 4 / 10; align-self: start; }
+      /* Left column: Hours spans the two-column work zone (rows 4–6) so its tall
+         content sits ALONGSIDE the right-column stack (result → settings → payslip)
+         instead of inflating a single shared row. align-self:start keeps it
+         top-aligned. (A true masonry layout isn't possible here: the explicit grid
+         rows exist to give a different mobile source order, so the columns can't be
+         split into independent container stacks.) */
+      #hoursCard       { grid-column: 1; grid-row: 4 / 7; align-self: start; }
 
-      /* Right column: result card tops the work zone (sticky, always visible), then
-         the detail cards. All explicit rows prevent them landing in free gaps. */
-      .result-card          { grid-column: 2; grid-row: 4; position: sticky; top: 20px; }
+      /* Right column: result card tops the work zone — NOT sticky (removed v16.12).
+         A pinned ~700px card's sticky travel spans the whole grid container, and since
+         .result-card comes last in the DOM (mobile ordering) it painted OVER Settings/
+         Improve Accuracy as they scrolled beneath — click-blocking the right column
+         below the fold. The take-home figure stays in view while scrolled via
+         #stickyTotal instead (the mobile bottom bar, extended to desktop v16.12). */
+      .result-card          { grid-column: 2; grid-row: 4; }
       #settingsCard         { grid-column: 2; grid-row: 5; }
       #payslipCard          { grid-column: 2; grid-row: 6; }
-      #hppCard              { grid-column: 2; grid-row: 7; }
-      #backPayCard          { grid-column: 2; grid-row: 8; }
-      #decimalConverterCard { grid-column: 2; grid-row: 9; }
+
+      /* Reference cards (v16.12): full-width bands below the work zone, capped and
+         centred exactly like the period band. Stacked in the right column they ran
+         ~1000px past the Hours card (the "accepted void" became half the page with
+         cards expanded); as centred bands both columns end together and an expanded
+         HPP/back-pay form gets a comfortable 660px measure. Mobile/tablet source
+         order untouched — these rules exist only at ≥1024px. */
+      #hppCard              { grid-column: 1 / -1; grid-row: 7; max-width: 660px; margin-inline: auto; }
+      #backPayCard          { grid-column: 1 / -1; grid-row: 8; max-width: 660px; margin-inline: auto; }
+      #decimalConverterCard { grid-column: 1 / -1; grid-row: 9; max-width: 660px; margin-inline: auto; }
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
@@ -754,7 +768,9 @@
          columns (grid-column: 1 / -1, row 3) and is capped + centred to ~660px (see above) so
          its inner controls don't stretch — it is NOT in the left column. */
 
-      /* Peek button is redundant on desktop — result card is sticky and always visible */
+      /* Peek button is redundant on desktop — the result card tops the right column
+         and #stickyTotal (extended to desktop v16.12) carries the figure once it
+         scrolls away, so there's nothing for a "peek" affordance to add. */
       .result-peek-btn { display: none; }
 
       /* Buttons keep the 280px cap from the 768px rule — re-declaring a
@@ -1043,7 +1059,17 @@
   }
   /* iOS soft keyboard hides the sticky bar (driven by visualViewport listener in paycalc.js) */
   #stickyTotal.keyboard-up { display: none !important; }
-  @media (min-width: 1024px) { #stickyTotal { display: none !important; } }
+  /* Desktop (v16.12): the bar now runs here too — it replaced the sticky result card
+     as the "figure always in view" affordance (the pinned card painted over and
+     click-blocked the right column; see the grid comment above .result-card). Capped
+     and centred to the content band so it doesn't run the full window width. */
+  @media (min-width: 1024px) {
+    #stickyTotal {
+      left: 50%; right: auto; transform: translateX(-50%);
+      width: min(100%, var(--content-max-width));
+      border-radius: 12px 12px 0 0;
+    }
+  }
   /* Space so the disclaimer is never hidden behind the sticky bar */
   body.sticky-active { padding-bottom: max(70px, calc(60px + env(safe-area-inset-bottom))); }
 
