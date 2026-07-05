@@ -307,6 +307,7 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `recordRangeOverrides({ type, value, memberName, dates, changedBy })` — shared batch-write helper used by both `admin-al.js` and `admin-sick.js`; filters out Sundays and RD days, writes Sunday RD corrections alongside AL/sick overrides, updates `_allOverrides` cache, and re-renders the week grid and override list
 - `formatDisplay(value, type)` — shared shift/override display formatter; imported by `admin-al.js` and `admin-sick.js`
 - `getEffectiveShift(member, date, overrides)` / `validateShiftRules(...)` / `buildMemberDateMap(overrides)` — pure shift-resolution + validation helpers, covered by `admin-overrides.test.mjs`
+- `isWorkingDate(memberObj, dateStr, ovByDate)` — SINGLE SOURCE for the AL/absence "is this a working day" rule (Sunday→override→base). Used by recordRangeOverrides AND the AL/sick previews; previously reimplemented 4× and the previews had drifted from the save path (v16.06 unified + fixed).
 - Also exported (grid/bulk internals reused across the module and by `admin-app.js`): `resetTableMemberFilter()`, `updateWeekNavLabel()`, `buildWeekGridInto(container)`, `resetBulkPills()`
 
 ### `admin-rangepicker.js`
@@ -474,6 +475,7 @@ Pure functions only — no DOM, no Firebase, no localStorage.
   tyLabel)` — the one shared predicate for "period paid before its award", used by `getRateForPeriod`
   and `saveSettings`'s persist guard, and by the back-pay accrual to cap arrears at the award date.
 - `computeGross()`, `computeTax()`, `computeNI()`, `computeSL()`
+- `capHours({effContr,satHrs,bhHrs})` — the Saturday/BH-vs-contracted cap cascade, single-sourced (was inline in computeGross/_varPayForPeriod/_accrueBackPayPeriod).
 - Edit here for: rate changes, tax year rollover, NI threshold changes, a new annual pay award
 - Covered by `paycalc.test.mjs` — run tests after any change here
 

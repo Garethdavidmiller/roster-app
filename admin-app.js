@@ -1457,7 +1457,6 @@ async function purgeSundayAL() {
             // Only mark done when the cache is non-empty: an empty cache on first load
             // (offline/slow network) doesn't mean there are no Sunday AL overrides to purge.
             if (allOverrides.length > 0) {
-                console.log('[purgeSundayAL] No Sunday AL overrides found — nothing to clean up.');
                 lsSet('purgeSundayAL_done', '1');
             }
             return;
@@ -1466,9 +1465,6 @@ async function purgeSundayAL() {
         const batch = writeBatch(db);
         toDelete.forEach(o => batch.delete(doc(db, COLLECTIONS.overrides, o.id)));
         await batch.commit();
-
-        console.log(`[purgeSundayAL] Removed ${toDelete.length} Sunday AL override${toDelete.length !== 1 ? 's' : ''}:`,
-            toDelete.map(o => `${o.memberName} ${o.date}`));
         lsSet('purgeSundayAL_done', '1');
 
         // Update in-memory cache so Saved Changes reflects the cleanup

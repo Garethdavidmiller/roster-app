@@ -111,6 +111,29 @@ export function buildMemberDateMap(memberName) {
     return map;
 }
 
+/**
+ * SINGLE SOURCE: is `dateStr` a WORKING day for the member? Used by every AL/absence range
+ * operation — the two previews (AL/sick rest-day counts) AND the save/entitlement/write paths.
+ * Rule (Sunday -> override -> base): Sundays are never worked (uncontracted, CLAUDE.md); an existing
+ * override decides the day (worked iff its value is not a rest shift, so a non-rest override like
+ * RDW on a base-RD day IS worked); otherwise the base shift decides.
+ *
+ * Previously reimplemented four times: the AL/sick PREVIEWS used an older fall-through form that
+ * counted a base-RD day with a non-rest (RDW) override as a REST day, while the save/entitlement
+ * paths counted it as WORKED - so the preview under-reported vs what the booking actually wrote.
+ * Consolidating onto this (the save/write rule) fixes that drift.
+ * @param {any} memberObj  teamMembers entry
+ * @param {string} dateStr  YYYY-MM-DD
+ * @param {Map<string, any>} ovByDate  from buildMemberDateMap
+ * @returns {boolean}
+ */
+export function isWorkingDate(memberObj, dateStr, ovByDate) {
+    if (isSunday(dateStr)) return false;
+    const ov = ovByDate.get(dateStr);
+    if (ov) return !isRestShift(ov.value);
+    return !isRestShift(getBaseShift(memberObj, new Date(dateStr + 'T12:00:00')));
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 /** Guard so initOverrides wires its delegated listeners only once (see initOverrides). */
 let _listenersWired = false;
@@ -1369,15 +1392,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     const ovByDate = buildMemberDateMap(memberName);
 
     const workingDates = memberObj
-        ? dates.filter(dateStr => {
-            if (isSunday(dateStr)) return false; // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 3: recordRangeOverrides filter)
-            const ov = ovByDate.get(dateStr);
-            // An existing override (e.g. RDW) takes precedence over the base shift:
-            // if it marks the day as worked, include it even when base is RD.
-            if (ov) return !isRestShift(ov.value);
-            const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
-            return !isRestShift(base);
-          })
+        ? dates.filter(dateStr => isWorkingDate(memberObj, dateStr, ovByDate)) // single-source rule (Sundays non-contracted per CLAUDE.md)
         : [];
 
     // Sundays within the range that have a worked base shift need an explicit RD correction

@@ -3,7 +3,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod,
+  P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod, capHours,
   awardFromForYear, isPreAwardPeriod,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
@@ -106,6 +106,26 @@ describe('constants', () => {
     // must have an award-application date, else getRateForPeriod would never fire the step. 2025/26
     // is the only settled step on record; the pending 2026/27 correctly has pre but no date yet.
     assert.ok(awardFromForYear('2025/26') instanceof Date, '2025/26 award date must be set');
+  });
+
+  describe('capHours (shared hour-capping cascade)', () => {
+    test('Saturday fills contracted first, BH takes the remainder', () => {
+      // 140 contracted, 100 Sat, 60 BH → satCapped 100, normHrs 40, bhCapped 40, nonBhNorm 0
+      assert.deepEqual(capHours({ effContr: 140, satHrs: 100, bhHrs: 60 }),
+        { satCapped: 100, normHrs: 40, bhCapped: 40, nonBhNorm: 0 });
+    });
+    test('Saturday alone under contracted leaves normal + no BH squeeze', () => {
+      assert.deepEqual(capHours({ effContr: 140, satHrs: 30, bhHrs: 0 }),
+        { satCapped: 30, normHrs: 110, bhCapped: 0, nonBhNorm: 110 });
+    });
+    test('Saturday over contracted caps at contracted and squeezes BH to zero', () => {
+      assert.deepEqual(capHours({ effContr: 140, satHrs: 150, bhHrs: 20 }),
+        { satCapped: 140, normHrs: 0, bhCapped: 0, nonBhNorm: 0 });
+    });
+    test('no hours → all normal', () => {
+      assert.deepEqual(capHours({ effContr: 140 }),
+        { satCapped: 0, normHrs: 140, bhCapped: 0, nonBhNorm: 140 });
+    });
   });
 
   test('NI 2025/26 thresholds are exactly £968 PT and £3868 UEL (weekly × 4)', () => {
