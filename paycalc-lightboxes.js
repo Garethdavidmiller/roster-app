@@ -55,7 +55,7 @@ export function initPaycalcLightboxes() {
     if (!appIcon) return;
     appIcon.title = 'Back to calendar';
     appIcon.setAttribute('aria-label', 'Back to calendar');
-    appIcon.addEventListener('click', () => { window.location.href = './index.html'; });
+    appIcon.addEventListener('click', () => { window.location.href = './'; });
   })();
 
   // ── HELP LIGHTBOX ───────────────────────────────────────────────────────────

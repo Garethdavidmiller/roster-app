@@ -3,7 +3,7 @@
   "name": "MYB Roster - Chiltern Railways Marylebone",
   "short_name": "MYB Roster",
   "description": "Shift roster calendar for Chiltern Railways staff at London Marylebone Station",
-  "start_url": "./index.html",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#001e3c",
   "theme_color": "#001e3c",
@@ -16,7 +16,7 @@
       "name": "Calendar",
       "short_name": "Calendar",
       "description": "View your shift calendar",
-      "url": "./index.html",
+      "url": "./",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {

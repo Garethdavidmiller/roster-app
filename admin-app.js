@@ -107,7 +107,7 @@ let openAboutLightbox = null;
     if (!headerIcon) return;
     headerIcon.title = 'Back to calendar';
     headerIcon.setAttribute('aria-label', 'Back to calendar');
-    headerIcon.addEventListener('click', () => { window.location.href = './index.html'; });
+    headerIcon.addEventListener('click', () => { window.location.href = './'; });
 })();
 
 // ---- Per-card tips lightbox ----
