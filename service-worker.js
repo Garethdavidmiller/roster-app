@@ -1,16 +1,16 @@
-// MYB Roster — Service Worker v16.09
+// MYB Roster — Service Worker v16.10
 // Strategy:
-//   HTML documents (navigations)
-//               → Network-first: a returning user always lands on the freshest
-//                 entry point when online; falls back to cache offline.
-//   JS modules + CSS
+//   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
-//                 cache is refreshed in the background. This removes the per-file
-//                 network wait that network-first imposed on every online load.
-//                 Code freshness is preserved by the version-bump → new SW → new
-//                 cache lifecycle (each deploy precaches fresh assets and the new
-//                 SW claims immediately); roster DATA is always live from Firestore,
-//                 independent of which JS version is cached.
+//                 cache is refreshed in the background. No blocking network wait
+//                 on any page open. Freshness is preserved by the version-bump →
+//                 new SW → new cache lifecycle (each deploy precaches fresh assets
+//                 and the new SW claims immediately, then reloads the page); roster
+//                 DATA is always live from Firestore, independent of cached code.
+//                 A cache MISS (first visit / evicted storage) falls back to
+//                 network-first with a 2s cache-fallback race for HTML.
+//   Firebase SDK (gstatic, version-pinned) → Cache-first in a dedicated SDK-versioned
+//                 cache; offline no longer depends on the browser HTTP cache.
 //   Icons, fonts, manifest → Cache-first: stable assets served instantly; fetched on miss.
 //
 // self.skipWaiting() on install activates the new SW immediately — install does
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.09';
+const APP_VERSION = '16.10';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -55,9 +55,23 @@ function unredirect(res) {
 // (see the stale-while-revalidate branch). Resets whenever the browser restarts the SW.
 const _revalidated = new Set();
 
-// The "managed" same-origin app files: HTML pages, JS modules, and CSS. HTML docs
-// are served network-first; JS/CSS are served stale-while-revalidate (see the fetch
-// handler). Everything here is precached so SWR can serve it instantly from cache.
+// Firebase SDK runtime cache (v16.10, owner-approved): the gstatic CDN modules are
+// version-pinned (immutable), but offline launch used to depend on the browser HTTP
+// cache keeping ~400 KB of them — evictable under storage pressure on budget Androids,
+// which silently broke offline with no self-heal. They are now served cache-first from
+// a dedicated SDK-versioned cache — NOT the app cache, so a 0.01 app bump never
+// refetches the SDK — swept only when the pinned SDK version changes. Bumping the SDK
+// in firebase-client.js requires bumping THIS constant too; sw-asset-check.test.mjs
+// enforces the pair stays in sync.
+const FIREBASE_SDK_VERSION = '12.10.0';
+const SDK_CACHE_NAME = `myb-roster-sdk-v${FIREBASE_SDK_VERSION}`;
+const SDK_URL_PREFIX = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/`;
+const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-storage.js']
+    .map(f => SDK_URL_PREFIX + f);
+
+// The "managed" same-origin app files: HTML pages, JS modules, and CSS — all served
+// stale-while-revalidate (v16.10; HTML falls back to network-first on a cache miss).
+// Everything here is precached so SWR can serve it instantly from cache.
 // Matching is SCOPE-RELATIVE (the fetch handler strips SCOPE_PATH before lookup), so
 // these names match under both '/' (Firebase) and '/roster-app/' (GitHub Pages). (Name
 // kept for the sw-asset-check test that parses this array; not "network-first only".)
@@ -286,6 +300,19 @@ async function warmCacheAndSweepOld() {
     await fetchInBatches(CORE_ASSETS, a => precache(a, true));
     await fetchInBatches(SUPPLEMENTARY_ASSETS, a => precache(a, true));
     await fetchInBatches([...FONT_ASSETS, ...ICON_ASSETS], a => precache(a, false));
+    // Warm the SDK cache too — offline-first must not depend on the browser HTTP cache
+    // keeping the CDN modules. Failures count toward allOk, so the marker/retry logic
+    // covers the SDK exactly like app assets. Default cache mode: the URLs are immutable,
+    // so a browser HTTP-cache copy is always valid (no forced revalidation round trip).
+    const sdkCache = await caches.open(SDK_CACHE_NAME);
+    const precacheSdk = sdkUrl => (async () => {
+        if (await sdkCache.match(sdkUrl)) return;   // runtime route may have cached it already
+        const res = await fetch(sdkUrl);
+        if (res.ok) return sdkCache.put(sdkUrl, res);
+        allOk = false;
+        console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}): HTTP ${res.status}`);
+    })().catch(err => { allOk = false; console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}):`, err); });
+    await fetchInBatches(SDK_ASSETS, precacheSdk);
     if (!allOk) {
         // Some assets missed (flaky network). Do NOT delete the old caches — they are the
         // fallback for exactly this situation — and do NOT write the marker, so the next
@@ -298,10 +325,12 @@ async function warmCacheAndSweepOld() {
     const cacheNames = await caches.keys();
     await Promise.all(
         cacheNames
-            // Only prune THIS app's old version caches (myb-roster-v*). Scoping the
-            // delete by prefix means we never clobber a cache owned by something else
-            // sharing the origin, instead of deleting every non-current cache.
-            .filter(name => name.startsWith('myb-roster-v') && name !== CACHE_NAME)
+            // Only prune THIS app's old version caches (myb-roster-v*) and superseded
+            // SDK caches (myb-roster-sdk-v*, kept across app bumps — swept only when the
+            // pinned SDK version changes). Scoping the delete by prefix means we never
+            // clobber a cache owned by something else sharing the origin.
+            .filter(name => (name.startsWith('myb-roster-v') && name !== CACHE_NAME)
+                         || (name.startsWith('myb-roster-sdk-v') && name !== SDK_CACHE_NAME))
             .map(name => {
                 console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
                 return caches.delete(name);
@@ -344,29 +373,52 @@ self.addEventListener("activate", event => {
 });
 
 // ============================================
-// FETCH — network-first for HTML docs, stale-while-revalidate for JS/CSS, cache-first for assets
+// FETCH — stale-while-revalidate for HTML/JS/CSS, cache-first for SDK + stable assets
 // ============================================
 self.addEventListener("fetch", event => {
     // Piggyback an in-flight warm-up onto this event's lifetime so the browser doesn't
     // kill the SW mid-precache while page traffic is flowing (a detached promise alone
     // has no lifetime guarantee). Guarded: waitUntil can throw if the event settled.
     if (_warmupInFlight) { try { event.waitUntil(_warmupInFlight); } catch (_e) { /* settled */ } }
-    // Only handle same-origin GET requests
+    // Only handle same-origin GET requests — plus the pinned Firebase SDK modules.
     if (event.request.method !== "GET") return;
     const url = new URL(event.request.url);
+
+    // Firebase SDK modules: cache-first from the SDK-versioned cache. The URLs are
+    // version-pinned (immutable), so a cached copy is always correct; on a miss the
+    // network response is cached for deterministic offline. The any-cache .catch
+    // covers the SDK-bump transition window (old sdk cache still holds the modules
+    // the currently-loaded page's version imports, until the sweep).
+    if (url.href.startsWith(SDK_URL_PREFIX)) {
+        event.respondWith(
+            caches.open(SDK_CACHE_NAME).then(cache =>
+                cache.match(event.request).then(cached => cached
+                    || fetch(event.request).then(response => {
+                        if (response && response.status === 200) {
+                            const clone = response.clone();
+                            cache.put(event.request, clone).catch(() => {});
+                        }
+                        return response;
+                    })
+                )
+            ).catch(() => caches.match(event.request)).then(r => r || Response.error())
+        );
+        return;
+    }
     if (url.origin !== self.location.origin) return;
 
     const path = url.pathname;
-    // HTML documents stay network-first (freshest entry point); JS/CSS use
-    // stale-while-revalidate (instant from cache, refreshed in the background).
+    // HTML documents and JS/CSS are both stale-while-revalidate (v16.10) — instant from
+    // cache, refreshed in the background; HTML falls back to network-first on a miss.
     const isDoc          = path === '/' || path.endsWith('/') || path.endsWith('.html');
     // Scope-relative so JS/CSS match under a sub-path (/roster-app/) too, not just root.
     const relPath        = path.startsWith(SCOPE_PATH) ? path.slice(SCOPE_PATH.length) : path.replace(/^\//, '');
     const isManagedAsset = NETWORK_FIRST_FILES.includes(relPath);
 
     if (isDoc) {
-        // Network-first: revalidate against the server (304 if unchanged → no body download),
-        // update SW cache, fall back to cached copy if offline or the network hangs past 2 seconds.
+        // Cache-hit → served instantly (SWR, v16.10). Miss → network-first: revalidate
+        // against the server (304 if unchanged → no body download), update the SW cache,
+        // fall back to cached copy if offline or the network hangs past 2 seconds.
         // The network source is the browser's Navigation Preload response when available
         // (started in parallel with SW boot — see activate); else the SW's own fetch below.
         // AbortController cancels OUR fetch on timeout (feature-detected: it throws in
@@ -421,6 +473,22 @@ self.addEventListener("fetch", event => {
                 ));
         };
         event.respondWith((async () => {
+            // ── STALE-WHILE-REVALIDATE for HTML (v16.10, owner-approved — replaces the
+            // v14.18 network-first decision): serve the cached page INSTANTLY when this
+            // version's cache has it, and let the network fetch below refresh the cache in
+            // the background. This removes the last blocking round trip per page open
+            // (100–500ms on 4G; a full 2s on the old timeout path when offline/poor signal).
+            // Freshness still propagates exactly like JS/CSS: HTML never changes without a
+            // version bump → new SW → new cache → warm-up → controllerchange reload. Serving
+            // HTML and JS from the SAME version cache also shrinks the mixed-version window
+            // network-first had (fresh HTML + cached JS during a deploy transition).
+            // EXACT-page match only — '/' (the scope root) additionally tries the warm-up's
+            // './index.html' key. Never map one page to another here: serveFallback's
+            // index-default is OFFLINE-fallback behaviour, not an instant-serve rule.
+            const cache = await openCache();
+            const cachedDoc = await cache.match(event.request, { ignoreSearch: true })
+                || (relPath === '' ? await cache.match('./index.html') : null);
+
             let networkSettled = false;
             const networkPromise = (event.preloadResponse
                 ? event.preloadResponse.then(pre => pre || fetch(freshReq))
@@ -433,14 +501,19 @@ self.addEventListener("fetch", event => {
                     // for the life of the version cache. serveFallback matches ignoreSearch.
                     const clone = response.clone();
                     openCache()
-                        .then(cache => cache.put(url.origin + url.pathname, unredirect(clone)))
+                        .then(c => c.put(url.origin + url.pathname, unredirect(clone)))
                         .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err));
                 }
                 return response;
             }, err => { networkSettled = true; throw err; });
-            // Keep the SW alive so a post-timeout network result still refreshes the cache
-            // for the NEXT open (a preload response cannot be aborted anyway).
+            // Keep the SW alive so the background/late network result still refreshes the
+            // cache for the NEXT open (a preload response cannot be aborted anyway, so
+            // consuming it here is free — the browser already sent the request).
             try { event.waitUntil(networkPromise.catch(() => null)); } catch (_e) { /* settled */ }
+
+            if (cachedDoc) return cachedDoc;
+            // Cache miss (first visit to this page, or evicted storage): network-first with
+            // the 2s cache-fallback race, exactly as before v16.10.
 
             // The abort is GUARDED on networkSettled: firing it after the response resolved
             // would kill the body mid-stream (the old timeout-boundary race, where a response
