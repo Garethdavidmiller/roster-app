@@ -117,7 +117,7 @@ export function init() {
         onSignOut: () => {
             if (dirty && !confirm('You have unsaved changes. Sign out anyway?')) return;
             clearSession();
-            window.location.href = './index.html';
+            window.location.href = './';
         },
     });
 
@@ -1431,7 +1431,7 @@ export function init() {
         headerIcon.setAttribute('aria-label', 'Back to calendar');
         headerIcon.addEventListener('click', () => {
             if (dirty && !confirm('You have unsaved changes. Leave anyway?')) return;
-            window.location.href = './index.html';
+            window.location.href = './';
         });
     })();
 

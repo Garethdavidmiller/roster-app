@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: July 2026 — v16.00 · Updated every 0.10 version*
+*Last updated: July 2026 — v16.10 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -141,7 +141,7 @@ Progress on the four v11 security tasks. Authoritative current status and the re
 
 ### Railcard reference guide ✓ (v10.30–v10.48)
 
-`railcard-guide.html` — a standalone at-work reference sheet for staff checking and selling railcard-discounted tickets at the gateline. Linked from the nav panel (Guides section, via `NAV_GUIDES` in `nav-panel.js`) — the old admin.html link was dropped in the v10.57–v10.71 nav overhaul. JS in `railcard-guide.js` (print + chip-bar nav); static page, served network-first.
+`railcard-guide.html` — a standalone at-work reference sheet for staff checking and selling railcard-discounted tickets at the gateline. Linked from the nav panel (Guides section, via `NAV_GUIDES` in `nav-panel.js`) — the old admin.html link was dropped in the v10.57–v10.71 nav overhaul. JS in `railcard-guide.js` (print + chip-bar nav); static page, served by the SW like every other page (SWR since v16.10).
 
 Built over v10.30–v10.48: from an initial guide to a quick-glance at-work sheet (colour-coded
 morning-rule stripe, weekend/BH banner), then a research-backed accuracy overhaul against official
@@ -840,8 +840,8 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
 - **Batch 3 (v14.18) — stale-while-revalidate for JS/CSS.** The SW was network-first for all app
   files, so every online load waited on ~30+ per-file round trips (cache was offline-only). JS/CSS
   are now served instantly from the version-pinned cache and refreshed in the background; HTML
-  stays network-first. This is the biggest perceived-load win for the common case (returning
-  installed-PWA staff). Verify on a real device once (online → instant; offline → reload still works).
+  stayed network-first until v16.10 (see the v16.09–16.10 SW pass below). This was the biggest
+  perceived-load win for the common case (returning installed-PWA staff).
 - **Batch 4 (v14.94) — paycalc modulepreload (collapse the deepest waterfall).** `paycalc.html`
   declares its whole static import graph (~32 local modules **+ the 3 gstatic Firebase SDK URLs**)
   as `<link rel="modulepreload">` so the browser fetches everything in parallel from first HTML
@@ -857,6 +857,16 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
   preload would need its own drift guard first (the Batch 1 reason). **Let this settle** (watch the
   Operations App-speed data) before the deferred lazy-Firebase pass below.
 
+- **v16.09–v16.10 — service-worker deep pass (owner-approved architecture changes).** v16.09:
+  Navigation Preload (HTML fetch overlaps SW boot), SWR revalidation throttled to once per SW
+  lifetime (~35 no-op 304s per open removed), warm-up chunked (8-way) + skips already-cached
+  assets, first-install double-load fixed (`sw-register.js` hadController guard), notification
+  taps always navigate, redirect hygiene (`unredirect` + opaqueredirect pass-through + `./` links,
+  manifest start_url). v16.10: **HTML joined JS/CSS as stale-while-revalidate** (instant from
+  cache; the preload response doubles as the background refresh; cache-miss falls back to
+  network-first with the 2s race) and the **gstatic Firebase SDK is cached cache-first** in a
+  dedicated `myb-roster-sdk-v{ver}` cache warmed with the app — offline no longer depends on the
+  browser HTTP cache (`sw-asset-check.test.mjs` pins the SW's SDK version to firebase-client.js).
 ### Deferred — lazy-load the Firebase SDK off the calendar's first paint
 
 **What:** `firebase-client.js` statically imports the 3 gstatic Firebase modules (firestore is the
@@ -870,11 +880,12 @@ lazy-import Firebase, and restructures the calendar init to paint first, then dy
 `import()` the Firebase-dependent modules.
 
 **Why deferred (not just unstarted):**
-1. **Diminished benefit after Batches 1+3.** Returning installed-PWA users now get app code
-   instantly from the SWR cache, and the Firebase SDK from gstatic is browser-HTTP-cached
-   (long TTL) — so they're already fast. Lazy Firebase mainly helps *first-time / cache-evicted*
-   loads, which are rare for staff who install once. Preconnect (Batch 1) already trims the
-   cold-connection cost.
+1. **Diminished benefit after Batches 1+3 (and further after v16.10).** Returning
+   installed-PWA users now get app code instantly from the SWR cache, and the Firebase SDK
+   is served cache-first from the SW's own `myb-roster-sdk-v*` cache (v16.10 — no longer
+   just the evictable browser HTTP cache) — so they're already fast. Lazy Firebase mainly
+   helps *first-time* loads, which are rare for staff who install once. Preconnect
+   (Batch 1) already trims the cold-connection cost.
 2. **High risk on the two most-used surfaces** (calendar + nav-panel), with subtle failure modes
    (overrides silently not loading, auth race, sync chip stuck).
 3. **The automated gates can't validate it** — the e2e suite stubs Firebase at the network layer,

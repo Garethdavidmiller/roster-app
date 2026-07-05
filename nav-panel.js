@@ -30,7 +30,7 @@ import { lsGet, lsSet } from './ls.js';
  *   paycalc  → green (matches Pay button)
  */
 const NAV_PAGES = [
-    { id: 'calendar',   label: '📅 Calendar',   url: './index.html',      colorClass: 'nav-panel-pill--calendar'   },
+    { id: 'calendar',   label: '📅 Calendar',   url: './',      colorClass: 'nav-panel-pill--calendar'   },
     { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin'      },
     { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay'        },
     { id: 'operations', label: '🔧 Ops',          url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
@@ -47,7 +47,7 @@ const NAV_INFORMATION = [
     {
         heading: 'Workplace',
         links: [
-            { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle' },
+            { icon: '📋', label: 'Daily Huddle',           url: './#huddle' },
             { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No circular has been uploaded yet — it\'s usually available on Friday.' },
             { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No newsletter has been uploaded yet — check back soon.' },
             { icon: '📣', label: 'App Notices', notices: true },

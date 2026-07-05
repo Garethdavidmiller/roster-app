@@ -344,6 +344,23 @@ test('paycalc.html gstatic Firebase preloads match the SDK version in firebase-c
     }
 });
 
+test('service-worker.js FIREBASE_SDK_VERSION matches the SDK version firebase-client.js imports', () => {
+    // The SW serves the gstatic SDK cache-first from an SDK-versioned cache (v16.10).
+    // A firebase-client.js SDK bump without the matching SW constant bump would leave the
+    // SW caching (and warming) the OLD version's URLs while pages import the new ones —
+    // the new SDK would silently lose its offline guarantee.
+    const sw     = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+    const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
+    const swVer  = sw.match(/const FIREBASE_SDK_VERSION = '([\d.]+)'/)?.[1];
+    assert.ok(swVer, 'FIREBASE_SDK_VERSION constant missing from service-worker.js');
+    const clientVers = new Set(
+        [...client.matchAll(/gstatic\.com\/firebasejs\/([\d.]+)\//g)].map(x => x[1])
+    );
+    assert.equal(clientVers.size, 1, `firebase-client.js references multiple SDK versions: ${[...clientVers].join(', ')}`);
+    assert.equal([...clientVers][0], swVer,
+        `firebase-client.js imports SDK ${[...clientVers][0]} but service-worker.js FIREBASE_SDK_VERSION is ${swVer} — bump both together`);
+});
+
 test('index.html modulepreload hints match the calendar\'s real transitive module graph', () => {
     const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
 

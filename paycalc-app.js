@@ -384,7 +384,7 @@ export function init() {
 
       // Update Pay → Calendar link for this period
       const _rvl = /** @type {HTMLAnchorElement | null} */ (document.getElementById('rosterViewLink'));
-      if (_rvl) _rvl.href = `./index.html?date=${formatISO(p.start)}`;
+      if (_rvl) _rvl.href = `./?date=${formatISO(p.start)}`;
 
       // Fetch admin-added overrides from Firestore in the background.
       if (session2?.name) {
@@ -1516,7 +1516,7 @@ export function init() {
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut:   _paycalcMember ? () => {
             clearSession(); // clears localStorage AND signs out Firebase Auth
-            window.location.href = './index.html';
+            window.location.href = './';
         } : null,
     });
 

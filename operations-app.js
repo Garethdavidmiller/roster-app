@@ -153,7 +153,7 @@ export function init() {
         isAdmin:         true,
         isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
         onLogoClick: () => openAboutLightbox?.(),
-        onSignOut:   () => { clearSession(); window.location.href = './index.html'; },
+        onSignOut:   () => { clearSession(); window.location.href = './'; },
     });
 
     initHuddleUpload({ currentIsAdmin: true, currentUser });
@@ -608,7 +608,7 @@ export function init() {
         if (!headerIcon) return;
         headerIcon.title = 'Back to calendar';
         headerIcon.setAttribute('aria-label', 'Back to calendar');
-        headerIcon.addEventListener('click', () => { window.location.href = './index.html'; });
+        headerIcon.addEventListener('click', () => { window.location.href = './'; });
     })();
 
     // ============================================

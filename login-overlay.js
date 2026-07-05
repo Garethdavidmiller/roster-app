@@ -123,7 +123,7 @@ function overlayHtml(/** @type {string} */ pageLabel) {
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button type="button" id="loginSubmit">Sign in →</button>
         <div id="loginStatus" class="login-status" aria-live="polite"></div>
-        <a href="index.html" class="login-back">← Back to roster</a>
+        <a href="./" class="login-back">← Back to roster</a>
     </div>`;
 }
 
@@ -166,7 +166,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     overlay.addEventListener('keydown', e => {
         // Ignore Escape while a sign-in is in progress — navigating mid-submit would leave the
         // user neither signed in nor on the calendar.
-        if (e.key === 'Escape') { if (!submitBtn.disabled) window.location.href = './index.html'; return; }
+        if (e.key === 'Escape') { if (!submitBtn.disabled) window.location.href = './'; return; }
         trapFocus(overlay, e);
     });
 

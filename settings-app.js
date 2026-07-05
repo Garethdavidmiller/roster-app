@@ -46,7 +46,7 @@ function wireNavPanel() {
         isAdmin:         currentUser ? CONFIG.ADMIN_NAMES.includes(currentUser) : false,
         isLinksDesigner: currentUser ? CONFIG.LINKS_DESIGNERS.includes(currentUser) : false,
         onLogoClick: () => openAboutLightbox?.(),
-        onSignOut:   currentUser ? () => { clearSession(); window.location.href = './index.html'; } : null,
+        onSignOut:   currentUser ? () => { clearSession(); window.location.href = './'; } : null,
     });
 }
 
@@ -306,7 +306,7 @@ function initIconLightbox() {
     if (iconBtn) {
         iconBtn.title = 'Back to calendar';
         iconBtn.setAttribute('aria-label', 'Back to calendar');
-        iconBtn.addEventListener('click', () => { window.location.href = './index.html'; });
+        iconBtn.addEventListener('click', () => { window.location.href = './'; });
     }
     // The coming-soon lightbox is owned entirely by nav-panel.js (open/close, Escape,
     // Android Back, focus trap). Do not re-wire it here — a duplicate handler used to

@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v16.00 · Updated every 0.10 version*
+*Last updated: July 2026 — v16.10 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -232,6 +232,8 @@ Shared **in-place** sign-in overlay for every protected page (v14.45). Replaces 
 ### `sw-register.js`
 Shared service worker registration + update lifecycle (v12.28). All six app pages import this instead of duplicating the register/activate/reload pattern.
 - `registerServiceWorker({ beforeReload, bfcache })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `calendar-app.js` only).
+- **First-install guard (v16.09):** `hadController` is captured before registering; the controllerchange fired by the first install's `clients.claim()` (uncontrolled → controlled) is swallowed — the page was just loaded from the network so it already IS the newest version. Pre-v16.09 this reloaded every brand-new device (the old `registration.waiting && controller` guard only suppressed the redundant SKIP_WAITING *message*, not the reload — the SW self-activates via install-time `skipWaiting()` regardless).
+- **No `{once:true}` (v16.09):** the controllerchange listener stays armed so a `beforeReload` that declines (links' `confirm()` → Cancel) still receives the NEXT update's event; the default path double-reload is guarded by a `reloadFired` flag instead. Tested by `sw-register.test.mjs` (test:hygiene).
 - Per-page variants: `calendar-app.js` — 500ms reload delay + bfcache; `admin-app.js` — defers reload if `hasUnsavedChanges()`; `links-app.js` — shows `confirm()` if the design is dirty; others — plain reload.
 
 ### `session.js`
@@ -635,7 +637,7 @@ Firebase Storage security rules.
 ### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css` / `links.css`
 Page-specific CSS for each page — extracted from inline `<style>` blocks (index/admin/paycalc at v11.41; operations/settings at v12.01; links arrived with the page at v12.07).
 - Edit here for any visual change that is specific to one page
-- All are network-first in the service worker (same freshness guarantee as their HTML)
+- All are stale-while-revalidate in the service worker (v16.10 — same strategy and freshness lifecycle as their HTML and the app JS)
 
 ### `guide-shell.css`
 Shared chrome for the four guide pages (`guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html`) — added v11.48.
@@ -651,14 +653,14 @@ Shared styles for the two document-style guides (`guide.html`, `paycalc-guide.ht
 ### `guide.css` / `paycalc-guide.css` / `railcard-guide.css` / `fip.css`
 Page-specific CSS for each guide page — extracted from inline `<style>` blocks at v12.04.
 - Edit the corresponding file for any visual change specific to that guide page
-- All four are network-first in the service worker (same freshness guarantee as their HTML)
+- All four are stale-while-revalidate in the service worker (v16.10 — same strategy and freshness lifecycle as their HTML and the app JS)
 - Linked after `guide-shell.css` in each guide's `<head>`
 
 ### `purify.es.mjs`
 Self-hosted DOMPurify ES module (v3.4.8) — extracted from CDN at v12.04.
 - Imported by `calendar-huddle-viewer.js` for Huddle HTML sanitisation
 - To upgrade: `npm pack dompurify@<ver>`, extract `package/dist/purify.es.mjs`, replace this file, update version comment in `calendar-huddle-viewer.js`
-- Precached by the service worker (network-first)
+- Precached by the service worker (stale-while-revalidate, like all app JS)
 
 ### `shared.css`
 All CSS shared across all six app pages (index, admin, paycalc, operations, settings, links).
@@ -674,6 +676,8 @@ All CSS shared across all six app pages (index, admin, paycalc, operations, sett
 ### `service-worker.js`
 - Add any new JS/CSS/HTML file to both `NETWORK_FIRST_FILES` and `CORE_ASSETS`
 - Version string must match `APP_VERSION` in `roster-data.js`
+- Strategies (v16.10): HTML + JS/CSS stale-while-revalidate from the version-pinned cache (JS/CSS revalidate once per SW lifetime; HTML revalidates via the navigation-preload response; HTML cache-miss → network-first with the 2s cache-fallback race); gstatic Firebase SDK cache-first from `myb-roster-sdk-v{FIREBASE_SDK_VERSION}` (constant must match firebase-client.js — enforced by sw-asset-check.test.mjs); icons/fonts/manifest cache-first
+- Update lifecycle: install = skipWaiting only; activate = claim + navigationPreload.enable; warm-up detached, batched 8-way, skip-if-cached, `__precache-complete` marker; old app + SDK caches swept only after a complete warm-up
 
 ### `roster-cycle-data.js`
 Raw roster cycle arrays only — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster`. Imported by `roster-data.js` only. Edit here when the actual cycle patterns change (very rare). Do not import this file directly from app code — always go through `roster-data.js`.
