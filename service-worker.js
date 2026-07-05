@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.10
+// MYB Roster — Service Worker v16.11
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.10';
+const APP_VERSION = '16.11';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -301,41 +301,45 @@ async function warmCacheAndSweepOld() {
     await fetchInBatches(SUPPLEMENTARY_ASSETS, a => precache(a, true));
     await fetchInBatches([...FONT_ASSETS, ...ICON_ASSETS], a => precache(a, false));
     // Warm the SDK cache too — offline-first must not depend on the browser HTTP cache
-    // keeping the CDN modules. Failures count toward allOk, so the marker/retry logic
-    // covers the SDK exactly like app assets. Default cache mode: the URLs are immutable,
-    // so a browser HTTP-cache copy is always valid (no forced revalidation round trip).
+    // keeping the CDN modules. SDK failures are tracked SEPARATELY (sdkOk, v16.11) so
+    // third-party CDN reachability can never hold the APP-cache sweep hostage. Default
+    // cache mode: the URLs are immutable, so an HTTP-cache copy is always valid.
+    let sdkOk = true;
     const sdkCache = await caches.open(SDK_CACHE_NAME);
     const precacheSdk = sdkUrl => (async () => {
         if (await sdkCache.match(sdkUrl)) return;   // runtime route may have cached it already
         const res = await fetch(sdkUrl);
         if (res.ok) return sdkCache.put(sdkUrl, res);
-        allOk = false;
+        sdkOk = false;
         console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}): HTTP ${res.status}`);
-    })().catch(err => { allOk = false; console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}):`, err); });
+    })().catch(err => { sdkOk = false; console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}):`, err); });
     await fetchInBatches(SDK_ASSETS, precacheSdk);
-    if (!allOk) {
-        // Some assets missed (flaky network). Do NOT delete the old caches — they are the
-        // fallback for exactly this situation — and do NOT write the marker, so the next
-        // SW start retries the missing files. SWR also self-heals per-file on demand.
-        console.warn(`[SW ${APP_VERSION}] Warm-up incomplete — keeping old caches; will retry`);
-        return;
-    }
-    await cache.put(PRECACHE_MARKER, new Response('1'));
-    console.log(`[SW ${APP_VERSION}] Pre-cached (complete)`);
+
+    // Sweep superseded caches as soon as their REPLACEMENT is complete, per group:
+    // old app caches once every app asset cached (they are the fallback for exactly the
+    // incomplete-app case, so an app miss keeps them); old SDK caches once the new SDK
+    // cache is fully warmed. Decoupled (v16.11) so a device that can't reach gstatic —
+    // where the app is hard-broken anyway — doesn't accumulate an old app cache per
+    // deploy forever. Prefix-scoped so we never clobber another cache on the origin.
     const cacheNames = await caches.keys();
     await Promise.all(
         cacheNames
-            // Only prune THIS app's old version caches (myb-roster-v*) and superseded
-            // SDK caches (myb-roster-sdk-v*, kept across app bumps — swept only when the
-            // pinned SDK version changes). Scoping the delete by prefix means we never
-            // clobber a cache owned by something else sharing the origin.
-            .filter(name => (name.startsWith('myb-roster-v') && name !== CACHE_NAME)
-                         || (name.startsWith('myb-roster-sdk-v') && name !== SDK_CACHE_NAME))
+            .filter(name => (allOk && name.startsWith('myb-roster-v') && name !== CACHE_NAME)
+                         || (sdkOk && name.startsWith('myb-roster-sdk-v') && name !== SDK_CACHE_NAME))
             .map(name => {
                 console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
                 return caches.delete(name);
             })
     );
+    if (!allOk || !sdkOk) {
+        // Something missed (flaky network / unreachable CDN). Do NOT write the marker, so
+        // the next SW start retries the missing files (everything cached is skip-if-cached,
+        // so a retry only re-fetches the gaps). SWR also self-heals per-file on demand.
+        console.warn(`[SW ${APP_VERSION}] Warm-up incomplete (app ${allOk ? 'ok' : 'MISSES'}, sdk ${sdkOk ? 'ok' : 'MISSES'}) — will retry`);
+        return;
+    }
+    await cache.put(PRECACHE_MARKER, new Response('1'));
+    console.log(`[SW ${APP_VERSION}] Pre-cached (complete)`);
 }
 
 // STARTUP RE-CHECK — this top-level code runs every time the browser wakes the SW (any
@@ -361,10 +365,12 @@ self.addEventListener("activate", event => {
     console.log(`[SW ${APP_VERSION}] Activating — claiming clients`);
     event.waitUntil(Promise.all([
         self.clients.claim(),
-        // Navigation Preload: the browser starts the network-first HTML fetch in PARALLEL
-        // with SW boot (~50–250ms saved per open when the SW process was cold). The doc
-        // branch consumes event.preloadResponse. Feature-detected (iOS < 15.4 lacks it);
-        // failure is non-fatal — the doc branch falls back to the SW's own fetch.
+        // Navigation Preload: the browser starts the HTML fetch in PARALLEL with SW boot.
+        // Since v16.10 (HTML stale-while-revalidate) it doubles as the free background
+        // refresh on a cache hit, and still saves ~50–250ms on the cache-miss path when
+        // the SW process was cold. The doc branch consumes event.preloadResponse.
+        // Feature-detected (iOS < 15.4 lacks it); failure is non-fatal — the doc branch
+        // falls back to the SW's own fetch.
         self.registration.navigationPreload
             ? self.registration.navigationPreload.enable().catch(() => {})
             : null,
@@ -386,9 +392,11 @@ self.addEventListener("fetch", event => {
 
     // Firebase SDK modules: cache-first from the SDK-versioned cache. The URLs are
     // version-pinned (immutable), so a cached copy is always correct; on a miss the
-    // network response is cached for deterministic offline. The any-cache .catch
-    // covers the SDK-bump transition window (old sdk cache still holds the modules
-    // the currently-loaded page's version imports, until the sweep).
+    // network response is cached for deterministic offline. During an SDK bump, a
+    // still-open OLD page imports the old-version URLs — those fail this prefix check
+    // and pass through to the browser/network untouched (the pre-v16.10 behaviour),
+    // which is fine for the seconds until the update reload. The .catch below is
+    // storage-error resilience only (a broken Cache Storage must not kill the fetch).
     if (url.href.startsWith(SDK_URL_PREFIX)) {
         event.respondWith(
             caches.open(SDK_CACHE_NAME).then(cache =>

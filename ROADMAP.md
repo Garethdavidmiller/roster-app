@@ -880,11 +880,12 @@ lazy-import Firebase, and restructures the calendar init to paint first, then dy
 `import()` the Firebase-dependent modules.
 
 **Why deferred (not just unstarted):**
-1. **Diminished benefit after Batches 1+3.** Returning installed-PWA users now get app code
-   instantly from the SWR cache, and the Firebase SDK from gstatic is browser-HTTP-cached
-   (long TTL) — so they're already fast. Lazy Firebase mainly helps *first-time / cache-evicted*
-   loads, which are rare for staff who install once. Preconnect (Batch 1) already trims the
-   cold-connection cost.
+1. **Diminished benefit after Batches 1+3 (and further after v16.10).** Returning
+   installed-PWA users now get app code instantly from the SWR cache, and the Firebase SDK
+   is served cache-first from the SW's own `myb-roster-sdk-v*` cache (v16.10 — no longer
+   just the evictable browser HTTP cache) — so they're already fast. Lazy Firebase mainly
+   helps *first-time* loads, which are rare for staff who install once. Preconnect
+   (Batch 1) already trims the cold-connection cost.
 2. **High risk on the two most-used surfaces** (calendar + nav-panel), with subtle failure modes
    (overrides silently not loading, auth race, sync chip stuck).
 3. **The automated gates can't validate it** — the e2e suite stubs Firebase at the network layer,
