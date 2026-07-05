@@ -107,11 +107,15 @@ breakpoint so text doesn't run past the ~75ch comfortable ceiling. Forms, tables
 data-viz keep the full column width — only prose gets the measure cap. Data-viz bar charts
 (`.usage-bars`/`.speed-rows`) are capped (~540px) so bars stay a comparable, scannable length.
 
-**Accepted constraint — two-column voids.** admin, operations and paycalc use an explicit-grid
+**Accepted constraint — two-column voids.** admin and operations use an explicit-grid
 two-column desktop layout whose row order is fixed so the SAME source order can give a good
 mobile stack. Because column heights differ, the shorter column shows a navy void (admin's
-right AL/Absence stack; operations' left upload stack; paycalc's left Hours column when few
-hours are entered). This is inherent to preserving the mobile source order without a masonry
-layout (not yet baseline-supported); it is a cosmetic gap on a secondary (desktop) surface and
-is **deliberately left as-is** — do not "fix" it by reordering, which would regress the mobile
-stack. (Reviewed v15.90 desktop UX pass.)
+right AL/Absence stack; operations' left upload stack). This is inherent to preserving the
+mobile source order without a masonry layout (not yet baseline-supported); it is a cosmetic
+gap on a secondary (desktop) surface and is **deliberately left as-is** — do not "fix" it by
+reordering, which would regress the mobile stack. (Reviewed v15.90 desktop UX pass.)
+**Paycalc's void was resolved at v16.12** without reordering: its three reference cards
+(HPP, back-pay, decimal converter) became full-width capped-660px bands below the work zone
+— a desktop row-REMAP inside the same media query, source order untouched. That trick works
+when the overflow cards are self-contained reference tools; admin/operations don't have an
+equivalent card group, so their voids stand.

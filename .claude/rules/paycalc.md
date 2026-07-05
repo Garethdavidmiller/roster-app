@@ -60,7 +60,9 @@ A member who **only started this tax year** should not see earlier tax years in 
 
 **`paycalc.html` desktop grid on `<main>`, not `.app`** — CSS grid applies to direct children only — declare on `main { display: grid }`. `.app` only holds max-width.
 
-**Sticky take-home bar (`#stickyTotal`)** — fixed bar on mobile (hidden ≥1024px). `IntersectionObserver` shows it when `.result-card` scrolls off. `body.sticky-active` adds bottom padding.
+**Sticky take-home bar (`#stickyTotal`)** — fixed bottom bar on **all widths** (v16.12; was mobile-only). `IntersectionObserver` shows it when the £ figure scrolls off; `body.sticky-active` adds bottom padding. On desktop it is capped to `--content-max-width`, centred, with rounded top corners — and it REPLACED the result card's `position: sticky`, which painted over and click-blocked the whole right column when pinned (the card comes last in the DOM for mobile ordering, so it won the paint order). Do not re-add `position: sticky` to `.result-card`.
+
+**Desktop reference-card bands (v16.12)** — `#hppCard`, `#backPayCard`, `#decimalConverterCard` are full-width grid bands (rows 7–9, capped 660px and centred like the period band) below the two-column work zone, NOT right-column cards. In-column they ran ~1000px past the Hours card (half the page empty on the left with cards expanded); as bands both columns end together. `#hoursCard` spans rows 4/7 alongside result → settings → payslip only. Mobile/tablet source order untouched.
 
 ## State management
 

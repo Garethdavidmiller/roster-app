@@ -322,7 +322,9 @@ for (const width of [1280, 1440]) {
         });
         expect(gap, 'no half-screen gap under Settings (the v14.32 grid bug)').toBeLessThan(160);
 
-        // The sticky result card is the primary desktop output — must be on-screen.
+        // The result card is the primary desktop output — must be on-screen at load.
+        // (Not position:sticky since v16.12 — the pinned card covered the right column;
+        // #stickyTotal carries the figure once scrolled.)
         await expect(page.locator('.result-card')).toBeInViewport();
     });
 }
