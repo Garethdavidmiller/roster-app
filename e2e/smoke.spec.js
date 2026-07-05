@@ -281,14 +281,13 @@ test('paycalc (signed in): pay period selector is populated', async ({ page }) =
     expect(errors, 'Uncaught JS exceptions on paycalc.html').toHaveLength(0);
 });
 
-// Desktop layout regression: the two-column grid must keep the right-column card
-// stack compact. The bug (fixed v14.32): #hoursCard shared grid row 4 with the
-// short #settingsCard, so the tall Hours card inflated row 4 and left a large
-// blank gap under Settings before Payslip could appear. A passing maths/unit
-// suite never caught it — only a rendered desktop viewport does.
-for (const width of [1280, 1440]) {
-    test(`paycalc desktop @${width}px: compact right column, no horizontal overflow`, async ({ page }) => {
-        await page.setViewportSize({ width, height: 1000 });
+// Desktop WORKSPACE layout (v16.14): Hours card beside a sticky live-estimate rail,
+// with the setup/reference cards in a 2-up grid below. Rendered-viewport assertions —
+// a passing maths/unit suite never catches a broken grid. The two required review
+// viewports (1366×768 laptop, 1440×900) plus the pre-existing 1280 guard.
+for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h: 768 }, { w: 1440, h: 900 }]) {
+    test(`paycalc desktop workspace @${w}×${h}`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width: w, height: h });
         await seedSession(page);
         // Suppress the one-time notices so we measure the underlying layout.
         await page.addInitScript(() => {
@@ -298,34 +297,66 @@ for (const width of [1280, 1440]) {
         });
         await page.goto('/paycalc.html');
         await expect(page.locator('#settingsCard')).toBeVisible();
-        // The roster-assist hint loads asynchronously and changes the Hours card
-        // height, which redistributes the spanning grid; let the layout settle so
-        // the measurement is stable rather than catching a mid-render frame.
+        // The roster-assist hint loads asynchronously and changes the Hours card height;
+        // let the layout settle so the measurement isn't a mid-render frame.
         await page.waitForTimeout(800);
 
         const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow, 'no horizontal overflow on desktop').toBeLessThanOrEqual(1);
 
-        // The gap between Settings and the next right-column card guards the v14.32
-        // bug: #hoursCard sharing a single grid row with #settingsCard inflated that
-        // row to the tall Hours card's height, leaving ~530px of dead space under
-        // Settings. The row-span fix keeps it small. Threshold is deliberately loose
-        // (catches the half-screen bug, tolerates the small content-dependent
-        // distribution inherent to spanning a tall card across the right stack).
-        // (v15.70: period-controls is now full-width above the two-column zone, so the
-        // right column is Result → Settings → Payslip — Settings and Payslip stay adjacent.)
-        const gap = await page.evaluate(() => {
-            const s = document.getElementById('settingsCard').getBoundingClientRect();
-            const p = document.getElementById('payslipCard').getBoundingClientRect();
-            return p.top - (s.top + s.height);
-        });
-        expect(gap, 'no half-screen gap under Settings (the v14.32 grid bug)').toBeLessThan(160);
-
-        // The result card is the primary desktop output — must be on-screen at load.
-        // (Not position:sticky since v16.12 — the pinned card covered the right column;
-        // #stickyTotal carries the figure once scrolled.)
+        // The result rail is the primary live output — on-screen at load.
         await expect(page.locator('.result-card')).toBeInViewport();
+
+        // WORKSPACE: Hours + Settings span the two WIDE work columns (col 1–2); the result
+        // RAIL is the separate col 3, to the right of them, sharing the top row with Hours.
+        const zone = await page.evaluate(() => {
+            const hh = document.getElementById('hoursCard').getBoundingClientRect();
+            const ss = document.getElementById('settingsCard').getBoundingClientRect();
+            const rr = document.querySelector('.result-card').getBoundingClientRect();
+            const pp = document.getElementById('payslipCard').getBoundingClientRect();
+            return {
+                railRightOfHours: rr.left > hh.right - 2,
+                railSameTopAsHours: Math.abs(hh.top - rr.top) < 40,
+                // Settings spans the work columns → clearly wider than a single 2-up collapsible.
+                settingsWide: ss.width > pp.width * 1.5,
+                stickyPos: getComputedStyle(document.querySelector('.result-card')).position,
+            };
+        });
+        expect(zone.railRightOfHours, 'result rail is its own column right of the work cards').toBe(true);
+        expect(zone.railSameTopAsHours, 'rail shares the top row with Hours').toBe(true);
+        expect(zone.settingsWide, 'Settings spans the wide work columns').toBe(true);
+        expect(zone.stickyPos, 'the result rail is sticky').toBe('sticky');
+
+        // REFERENCE 2-up: the four occasional cards pair across the work columns —
+        // Improve-Accuracy (col 1) beside Pay-Rise-Back-Pay (col 2), same row.
+        const refRow = await page.evaluate(() => {
+            const p = document.getElementById('payslipCard').getBoundingClientRect();
+            const b = document.getElementById('backPayCard').getBoundingClientRect();
+            return { payslipLeft: p.left, backpayLeft: b.left, sameRow: Math.abs(p.top - b.top) < 40 };
+        });
+        expect(refRow.backpayLeft, 'Back-Pay is right of Improve-Accuracy (2-up)').toBeGreaterThan(refRow.payslipLeft);
+        expect(refRow.sameRow, 'the two share a reference row').toBe(true);
+
+        // STICKY RAIL SAFETY (the v16.14-probe overlap guard): scroll to the bottom work
+        // card and assert the rail (col 3) does not HORIZONTALLY overlap any work-column
+        // card — its left edge must be at or past every work card's right edge. A rail that
+        // crept back into a shared column (the historical failure) would fail this
+        // regardless of viewport width. Geometric, so it's robust at the tight 1024 end too.
+        await page.getByText('Decimal Hours Converter').scrollIntoViewIfNeeded();
+        await page.waitForTimeout(200);
+        const overlapPx = await page.evaluate(() => {
+            const rail = document.querySelector('.result-card').getBoundingClientRect();
+            const worst = ['hoursCard', 'settingsCard', 'payslipCard', 'backPayCard', 'hppCard', 'decimalConverterCard']
+                .map(id => {
+                    const c = document.getElementById(id).getBoundingClientRect();
+                    return c.right - rail.left;   // >0 means the card extends past the rail's left edge = overlap
+                });
+            return Math.max(...worst);
+        });
+        expect(overlapPx, 'rail must not horizontally overlap any work card').toBeLessThanOrEqual(1);
+
+        await page.screenshot({ path: testInfo.outputPath(`paycalc-${w}x${h}.png`), fullPage: true });
     });
 }
 

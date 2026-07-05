@@ -114,8 +114,11 @@ right AL/Absence stack; operations' left upload stack). This is inherent to pres
 mobile source order without a masonry layout (not yet baseline-supported); it is a cosmetic
 gap on a secondary (desktop) surface and is **deliberately left as-is** — do not "fix" it by
 reordering, which would regress the mobile stack. (Reviewed v15.90 desktop UX pass.)
-**Paycalc's void was resolved at v16.12** without reordering: its three reference cards
-(HPP, back-pay, decimal converter) became full-width capped-660px bands below the work zone
-— a desktop row-REMAP inside the same media query, source order untouched. That trick works
-when the overflow cards are self-contained reference tools; admin/operations don't have an
-equivalent card group, so their voids stand.
+**Paycalc resolved its void without reordering** (v16.12, rebuilt into a workspace at
+v16.14): a three-column desktop grid where Hours + Settings span the two wide work columns
+(wide → short), the four short collapsibles pair 2-up (similar heights → no void), and the
+result card is a dedicated col-3 sticky rail with nothing behind it (so it's always visible
+and can never overlap). All via desktop-only grid-row placement, source order untouched. The
+key lesson: 2-up only avoids voids when the paired cards are similar height — pairing a tall
+card beside a short one re-creates the void. admin/operations have no equivalent pairable card
+group, so their voids stand.

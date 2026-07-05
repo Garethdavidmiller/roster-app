@@ -1246,9 +1246,9 @@ export function init() {
       const stickyBar  = document.getElementById('stickyTotal');
       const resultCard = document.querySelector('.result-card');
       if (!stickyBar || !resultCard || !('IntersectionObserver' in window)) return;
-      // v16.12: no desktop skip — the bar runs at every width now. It replaced the
-      // sticky result card as the always-visible take-home figure (the pinned card
-      // covered and click-blocked the right column when scrolled).
+      // v16.12: no desktop skip — the bar runs at every width now. On desktop it backstops
+      // the footer rows below the sticky col-3 result rail (v16.14): the rail keeps the live
+      // figure visible across the work area, the bar covers the scroll past it.
       // Guard against bfcache double-init: if the page is restored from the back/forward
       // cache, this IIFE runs again — without this flag a second IntersectionObserver
       // would be created and leak listeners.

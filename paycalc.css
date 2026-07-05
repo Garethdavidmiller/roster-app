@@ -679,102 +679,85 @@
       #helpLightboxContent { width: min(520px, 88vw); }
     }
 
-    /* ── Desktop: 1024px — two-column grid ──
-       Left column  = period controls + hours entry (work area).
-       Right column = result card (sticky at top) + settings + detail cards.
-       Explicit grid-row assignments on key items guarantee the correct visual
-       order regardless of document order (settingsCard appears before
-       result-card in the DOM so it can be first on mobile). */
+    /* ── Desktop: 1024px — two-column WORKSPACE (v16.14) ──
+       A persistent live-estimate rail beside the primary editing surface, with the
+       setup / reference cards grouped into a compact 2-up grid below. Everything is
+       driven by explicit grid-row placement (the DOM order is fixed so the SAME source
+       gives a good mobile stack), so nothing in this block reaches mobile/tablet. */
     @media (min-width: 1024px) {
-      /* 1100px gives left col ~636px — comfortable for form entry.
-         Right col is 440px. 1400px was too wide: left col reached 936px,
-         making description text unreadably long. */
+      /* 1100px content band: left col ~636px (form entry), right rail ~440px (the live
+         breakdown needs the width). 1400px was too wide — descriptions ran unreadably long. */
       .app { max-width: var(--content-max-width); }
 
       /* Cap the measure on the full-width prose blocks so they don't run to ~150ch on
-         desktop (the rest of the page caps text at the 440px column). Left-aligned. */
+         desktop (the rest of the page caps text at the rail column). Left-aligned. */
       .disclaimer, .privacy-note-standalone { max-width: 72ch; }
 
-      /* Grid lives on <main> — all cards are direct children of <main>, not .app */
+      /* Grid on <main>: TWO wide work columns + a dedicated live-estimate RAIL (col 3). The
+         two big always-open cards (Hours, Settings) SPAN both work columns so they stay wide
+         (~660px → forms wrap far less and run much shorter than the old ~440 right column —
+         the real scroll-reduction lever). The four occasional cards, which are short when
+         collapsed, pair 2-up across the two work columns (similar heights → no navy void).
+         The result rail (col 3) holds ONLY the result card, spanning every work row, so it is
+         `position: sticky` and ALWAYS visible while editing — and because nothing else is ever
+         in col 3, it can never overlap another card. (Both v16.14 probes showed a sticky card
+         that SHARES a column with the cards beneath it slides over them; a rail column with
+         nothing behind removes that failure mode by construction.) */
       main {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(380px, 440px);
-        column-gap: 24px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(360px, 400px);
+        column-gap: 20px;
         row-gap: 16px;
         align-items: start;
       }
 
-      /* Cards have margin-bottom: 16px for mobile stacking. Reset at desktop so
-         row-gap is the only source of vertical spacing (avoids 32px double-gaps). */
+      /* Cards carry margin-bottom:16px for mobile stacking — reset here so row-gap is the
+         only vertical spacing (avoids 32px double-gaps). */
       main > * { margin-bottom: 0; }
 
-      /* Full-width rows — all items get explicit grid-row so nothing auto-places
-         into a free slot above the main content area.
-         Row 1 = setupBanner: display:none when hidden, which removes it from the
-         grid entirely — no empty row 1 track is created, so privacy-note at row 2
-         becomes the topmost visible row with no gap above it.
-         Row 2 = privacy note (always visible). */
+      /* Full-width bands above the workspace. #setupBanner is display:none when hidden, so
+         its row collapses and privacy-note becomes the topmost visible row with no gap. */
       #setupBanner             { grid-column: 1 / -1; grid-row: 1; }
       .privacy-note-standalone { grid-column: 1 / -1; grid-row: 2; }
-      /* Period controls span BOTH columns as a full-width band above the two-column
-         work zone (v15.70). Previously period sat in the left column at row 3 beside
-         the tall result card (right, row 3), so result's height stretched row 3 and
-         left a large empty void under the short period card. Making period full-width
-         removes that pairing entirely: below it the work zone is a clean two columns —
-         result+detail cards (right) alongside the tall Hours card (left) — with no
-         short-beside-tall void, and the result card stays at the TOP of the right
-         column so it's always in view. */
-      /* Full-width row, but cap + centre the band's INNER width so its controls don't stretch
-         across the whole 1100px grid (the #periodSelect ballooned to ~860px and the
-         space-between meta/save rows flung their two items to opposite ends). ~660px keeps the
-         period selector + nav + meta a comfortable, self-contained width. */
+      /* Period band spans all columns, capped + centred to ~660px so #periodSelect and the
+         space-between meta/save rows stay a self-contained width (v15.70). */
       .period-controls         { grid-column: 1 / -1; grid-row: 3; max-width: 660px; margin-inline: auto; }
-      .guide-footer-link       { grid-column: 1 / -1; grid-row: 10; }
-      .disclaimer              { grid-column: 1 / -1; grid-row: 11; }
 
-      /* Left column: Hours spans the two-column work zone (rows 4–6) so its tall
-         content sits ALONGSIDE the right-column stack (result → settings → payslip)
-         instead of inflating a single shared row. align-self:start keeps it
-         top-aligned. (A true masonry layout isn't possible here: the explicit grid
-         rows exist to give a different mobile source order, so the columns can't be
-         split into independent container stacks.) */
-      #hoursCard       { grid-column: 1; grid-row: 4 / 7; align-self: start; }
+      /* WORK COLUMNS (cols 1–2). The two tall always-open cards span both (wide → short):
+         Hours first (Fill from calendar at its top = the obvious first action, top-left),
+         then Settings. Below them the four occasional cards pair 2-up — all short when
+         collapsed, so pairing them adds no void. align-self:start so an expanded accordion
+         never stretches its row-neighbour. */
+      #hoursCard            { grid-column: 1 / 3; grid-row: 4; align-self: start; }
+      #settingsCard         { grid-column: 1 / 3; grid-row: 5; align-self: start; }
+      #payslipCard          { grid-column: 1;     grid-row: 6; align-self: start; }
+      #backPayCard          { grid-column: 2;     grid-row: 6; align-self: start; }
+      #hppCard              { grid-column: 1;     grid-row: 7; align-self: start; }
+      #decimalConverterCard { grid-column: 2;     grid-row: 7; align-self: start; }
 
-      /* Right column: result card tops the work zone — NOT sticky (removed v16.12).
-         A pinned ~700px card's sticky travel spans the whole grid container, and since
-         .result-card comes last in the DOM (mobile ordering) it painted OVER Settings/
-         Improve Accuracy as they scrolled beneath — click-blocking the right column
-         below the fold. The take-home figure stays in view while scrolled via
-         #stickyTotal instead (the mobile bottom bar, extended to desktop v16.12). */
-      .result-card          { grid-column: 2; grid-row: 4; }
-      #settingsCard         { grid-column: 2; grid-row: 5; }
-      #payslipCard          { grid-column: 2; grid-row: 6; }
+      /* LIVE-ESTIMATE RAIL (col 3): the result card, its grid area spanning every work row
+         (4–7) so it is the full height of the work columns. `position: sticky; top:20` keeps
+         the whole live breakdown pinned in view for the ENTIRE scroll of the work area — no
+         other card is in col 3, so it cannot overlap anything. align-self:start keeps it at
+         its natural height at the top of that tall area. #stickyTotal still carries the figure
+         once you reach the footer/disclaimer rows below the rail. */
+      .result-card          { grid-column: 3; grid-row: 4 / 8; align-self: start; position: sticky; top: 20px; }
 
-      /* Reference cards (v16.12): full-width bands below the work zone, capped and
-         centred exactly like the period band. Stacked in the right column they ran
-         ~1000px past the Hours card (the "accepted void" became half the page with
-         cards expanded); as centred bands both columns end together and an expanded
-         HPP/back-pay form gets a comfortable 660px measure. Mobile/tablet source
-         order untouched — these rules exist only at ≥1024px. */
-      #hppCard              { grid-column: 1 / -1; grid-row: 7; max-width: 660px; margin-inline: auto; }
-      #backPayCard          { grid-column: 1 / -1; grid-row: 8; max-width: 660px; margin-inline: auto; }
-      #decimalConverterCard { grid-column: 1 / -1; grid-row: 9; max-width: 660px; margin-inline: auto; }
+      .guide-footer-link    { grid-column: 1 / -1; grid-row: 8; }
+      .disclaimer           { grid-column: 1 / -1; grid-row: 9; }
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
       .net-period { font-size: 17px; }
 
-      /* Period controls: the tablet grid layout persists, but on desktop the band spans BOTH
-         columns (grid-column: 1 / -1, row 3) and is capped + centred to ~660px (see above) so
-         its inner controls don't stretch — it is NOT in the left column. */
+      /* Fill from calendar — the obvious first action, top-left of the workspace. A little
+         more presence on the roster hint bar's primary button on desktop (scoped to the
+         Hours card so mobile is untouched). */
+      #hoursCard .fill-roster-btn { padding: 12px 22px; font-size: var(--type-button); }
 
-      /* Peek button is redundant on desktop — the result card tops the right column
-         and #stickyTotal (extended to desktop v16.12) carries the figure once it
-         scrolls away, so there's nothing for a "peek" affordance to add. */
+      /* Peek button is redundant on desktop — the result rail is visible in the work zone
+         and #stickyTotal carries the figure once it scrolls away. */
       .result-peek-btn { display: none; }
-
-      /* Buttons keep the 280px cap from the 768px rule — re-declaring a
-         narrower 240px here caused a visible size jump when crossing 1024px. */
 
       /* Lightbox: comfortable reading width */
       #helpLightboxContent { width: min(620px, 85vw); }
@@ -1059,10 +1042,10 @@
   }
   /* iOS soft keyboard hides the sticky bar (driven by visualViewport listener in paycalc.js) */
   #stickyTotal.keyboard-up { display: none !important; }
-  /* Desktop (v16.12): the bar now runs here too — it replaced the sticky result card
-     as the "figure always in view" affordance (the pinned card painted over and
-     click-blocked the right column; see the grid comment above .result-card). Capped
-     and centred to the content band so it doesn't run the full window width. */
+  /* Desktop (v16.12): the bar runs here too. Since v16.14 the result card is a sticky
+     col-3 RAIL that keeps the live breakdown visible across the work area (rows 4–7); the
+     bar is the backstop for the footer/disclaimer rows below the rail's span. Capped and
+     centred to the content band so it doesn't run the full window width. */
   @media (min-width: 1024px) {
     #stickyTotal {
       left: 50%; right: auto; transform: translateX(-50%);
