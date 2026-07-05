@@ -9,7 +9,7 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers, formatISO, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
+import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter, getUsageStats, getPerfStats } from './firebase-client.js';
 import { SPEED_GROUPS, perfVerdict } from './perf-stats.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -18,6 +18,7 @@ import { recordPageLatency } from './perf-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
+import { initDocUploadCard } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -566,93 +567,13 @@ export function init() {
     });
 
     // ============================================
-    // SHARED PDF UPLOAD HELPER (Newsletter + Circular)
-    // ============================================
-    /**
-     * Wires file validation, date init, and upload for a PDF-upload card.
-     * @param {{ dateId: string, fileId: string, fileLabelId: string, uploadBtnId: string,
-     *           feedbackId: string, uploadFn: Function, successMsg: (date: string) => string,
-     *           btnLabel: string, logPrefix: string }} cfg
-     */
-    function _initDocUpload(cfg) {
-        const dateInput = /** @type {HTMLInputElement} */ (document.getElementById(cfg.dateId));
-        const fileInput = /** @type {HTMLInputElement} */ (document.getElementById(cfg.fileId));
-        const fileLabel = document.getElementById(cfg.fileLabelId);
-        const uploadBtn = /** @type {HTMLButtonElement} */ (document.getElementById(cfg.uploadBtnId));
-        const feedback  = document.getElementById(cfg.feedbackId);
-        if (!dateInput || !fileInput || !uploadBtn || !feedback || !fileLabel) return;
-
-        dateInput.value = formatISO(new Date());
-        dateInput.max   = formatISO(new Date());
-
-        fileInput.addEventListener('change', () => {
-            const file = (fileInput.files || [])[0];
-            feedback.textContent = '';
-            feedback.className = 'huddle-feedback';
-            if (!file) {
-                fileLabel.classList.remove('visible');
-                uploadBtn.disabled = true;
-                return;
-            }
-            const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-            if (!isPdf) {
-                fileLabel.classList.remove('visible');
-                uploadBtn.disabled = true;
-                feedback.textContent = 'Please choose a PDF file';
-                feedback.className = 'huddle-feedback huddle-feedback--err';
-                fileInput.value = '';
-                return;
-            }
-            if (file.size > 20 * 1024 * 1024) {
-                fileLabel.classList.remove('visible');
-                uploadBtn.disabled = true;
-                feedback.textContent = 'File too large — maximum 20 MB';
-                feedback.className = 'huddle-feedback huddle-feedback--err';
-                fileInput.value = '';
-                return;
-            }
-            fileLabel.textContent = file.name;
-            fileLabel.classList.add('visible');
-            uploadBtn.disabled = false;
-        });
-
-        uploadBtn.addEventListener('click', async () => {
-            const date = dateInput.value;
-            const file = (fileInput.files || [])[0];
-            if (!date || !file) return;
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = 'Uploading…';
-            feedback.textContent = '';
-            feedback.className = 'huddle-feedback';
-            try {
-                await sessionReady;
-                await cfg.uploadFn(date, file, currentUser);
-                feedback.textContent = cfg.successMsg(date);
-                feedback.className = 'huddle-feedback huddle-feedback--ok';
-                fileInput.value = '';
-                fileLabel.textContent = '';
-                fileLabel.classList.remove('visible');
-            } catch (err) {
-                console.error(`[${cfg.logPrefix}] Upload failed:`, err);
-                feedback.textContent = (/** @type {any} */ (err))?.message === 'SIGNATURE_MISMATCH'
-                    ? "That file isn't a valid PDF — please choose the original file"
-                    : 'Upload failed — please try again';
-                feedback.className = 'huddle-feedback huddle-feedback--err';
-                uploadBtn.disabled = false;
-            } finally {
-                uploadBtn.textContent = cfg.btnLabel;
-            }
-        });
-    }
-
-    // ============================================
     // MARYLEBONE NEWSLETTER UPLOAD
     // ============================================
     function initNewsletterUpload() {
-        _initDocUpload({
+        initDocUploadCard({
             dateId: 'newsletterDate', fileId: 'newsletterFileInput',
             fileLabelId: 'newsletterFileName', uploadBtnId: 'newsletterUploadBtn',
-            feedbackId: 'newsletterFeedback', uploadFn: uploadNewsletter,
+            feedbackId: 'newsletterFeedback', uploadFn: uploadNewsletter, currentUser,
             successMsg: date => `Newsletter uploaded for ${date} — staff can open it from ☰ → Marylebone Newsletter`,
             btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter',
         });
@@ -662,10 +583,10 @@ export function init() {
     // WEEKLY RETAIL CIRCULAR UPLOAD
     // ============================================
     function initCircularUpload() {
-        _initDocUpload({
+        initDocUploadCard({
             dateId: 'circularDate', fileId: 'circularFileInput',
             fileLabelId: 'circularFileName', uploadBtnId: 'circularUploadBtn',
-            feedbackId: 'circularFeedback', uploadFn: uploadCircular,
+            feedbackId: 'circularFeedback', uploadFn: uploadCircular, currentUser,
             successMsg: date => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`,
             btnLabel: 'Upload Circular', logPrefix: 'Circular',
         });

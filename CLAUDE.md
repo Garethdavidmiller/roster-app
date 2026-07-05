@@ -179,9 +179,11 @@ roster-app/
 ├── operations-boot.js      ← 2-line bootstrap for operations.html: imports `init` from operations-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email
 ├── huddle.js               ← initHuddleUpload (→ operations) + initHuddleNotifications (→ settings)
+├── doc-upload.js           ← shared Operations upload-card skeleton (Circular/Newsletter/Huddle): file-pick → validate (type + 20 MB) → optional transform (Huddle DOCX→HTML) → upload → feedback. initDocUploadCard(cfg)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card: initAuthSetup()
-├── admin-al.js             ← Annual Leave Booking: initALSection(deps), triggerConfirmedALSave()
-├── admin-sick.js           ← Sick Days Recording: initSickSection(deps)
+├── admin-al.js             ← Annual Leave Booking: initALSection(deps), triggerConfirmedALSave() — thin config wrapper over admin-range-booking.js (60-day cap, 🏖️ preview + spare warning, over-entitlement confirm bar)
+├── admin-sick.js           ← Sick Days Recording: initSickSection(deps) — thin config wrapper over admin-range-booking.js (1-year cap, 🪑 preview; no entitlement cap)
+├── admin-range-booking.js  ← shared skeleton for the two date-range booking sections: createRangeBookingSection(cfg) — dropdown + range picker → live preview → recordRangeOverrides save flow. Per-section differences (range rule, preview copy, AL pre-save entitlement check, refresh hooks) injected via config
 ├── admin-overrides.js      ← Change a Shift: PILL_TYPES, week grid, bulk bar, override list, recordRangeOverrides()
 ├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix), getDateRange()
 ├── admin-roster-upload.js  ← Weekly Roster Upload: computeCellStates, renderReviewTable, shiftDisplay, _saveOverrideBatches (chunked Firestore save — each batch rebuilt inside writeWithClaimRetry so roster-import saves self-heal a stale admin/manager claim, like every other Admin write path)
