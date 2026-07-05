@@ -1,11 +1,14 @@
 // @ts-check
 // admin-al.js — Annual Leave Booking section for admin.html
-// Imports data and Firebase directly; receives admin-app.js-owned DOM handles
-// and shared functions via initALSection(deps) to avoid circular imports.
+// Thin wrapper over the shared createRangeBookingSection factory (admin-range-booking.js):
+// it supplies the AL-specific config — the 60-day range cap, the 🏖️ preview with the
+// spare-shift warning, and the over-entitlement pre-save check that drives the confirm bar.
+// Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
+// functions via initALSection(deps) to avoid circular imports.
 
-import { teamMembers, getALEntitlement, getBaseShift, isSunday, escapeHtml } from './roster-data.js';
-import { getAllOverrides, recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate } from './admin-overrides.js';
-import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
+import { getALEntitlement, getBaseShift, isSunday, escapeHtml } from './roster-data.js';
+import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
+import { createRangeBookingSection } from './admin-range-booking.js';
 
 const esc = escapeHtml;
 
@@ -15,8 +18,6 @@ const esc = escapeHtml;
 let _alBookingConfirmed = false;
 /** @type {any} */
 let _alSaveBtnRef       = null;
-/** @type {any} */
-let _alFeedbackTimer    = null;
 
 /** Called by the AL confirm bar "Save anyway" button in admin-app.js. */
 export function triggerConfirmedALSave() {
@@ -49,121 +50,29 @@ export function initALSection({
     updateALBanner, updateALBookedBox, updateSickBookedBox,
     getCurrentUser, showALConfirm, hideALConfirm, showInChangeAShift, showSuccess,
 }) {
-const alFrom     = /** @type {HTMLInputElement}  */ (document.getElementById('alFrom'));
-const alTo       = /** @type {HTMLInputElement}  */ (document.getElementById('alTo'));
-const alPreview  = /** @type {HTMLElement} */ (document.getElementById('alPreview'));
-const alSaveBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('alSaveBtn'));
-const alFeedback = /** @type {HTMLElement} */ (document.getElementById('alFeedback'));
-_alSaveBtnRef = alSaveBtn;
+    // Captured at the top of each save click (before the member/dates guard) so an early
+    // return never leaves _alBookingConfirmed set true, which would silently skip the
+    // entitlement check on the next save attempt.
+    let confirmedOverLimit = false;
 
-populateMemberDropdown(alMember);
-// iOS Safari ignores select.value on optgroup-nested options — set option.selected directly.
-if (lastMember) { for (const o of alMember.options) if (o.value === lastMember) { o.selected = true; break; } }
-syncMemberDisplay();
-
-// alMember is kept in sync by the fieldMember change handler in admin-app.js.
-// No separate change handler here — it was never reachable because alMember is hidden.
-
-function getAlDates() {
-    // The range is validated (incl. the too-long case) in updateAlPreview; this is just the raw range.
-    return getDateRange(alFrom.value, alTo.value);
-}
-
-function updateAlPreview() {
-    const member = alMember.value;
-    const dates  = getAlDates();
-
-    if (!member) {
-        alPreview.className = 'al-preview empty';
-        alPreview.textContent = 'Select a staff member above.';
-        alSaveBtn.disabled = true;
-        return;
-    }
-    if (!alFrom.value || !alTo.value) {
-        alPreview.className = 'al-preview empty';
-        alPreview.textContent = 'Select a date range to see a preview.';
-        alSaveBtn.disabled = true;
-        return;
-    }
-
-    if (dates === null) {
-        alPreview.className = 'al-preview error';
-        alPreview.textContent = 'The end date must be on or after the start date.';
-        alSaveBtn.disabled = true;
-        return;
-    }
-
-    if (dates.length > 60) {
-        alPreview.className = 'al-preview error';
-        alPreview.textContent = `That's ${dates.length} days — maximum range is 60 days.`;
-        alSaveBtn.disabled = true;
-        return;
-    }
-
-    const fromDisp = formatDisplay(dates[0]);
-    const toDisp   = formatDisplay(dates[dates.length - 1]);
-    const rangeStr = dates.length === 1 ? fromDisp : `${fromDisp} – ${toDisp}`;
-
-    // Count rest days (RD/OFF) in the range to warn the user.
-    // Checks both the base roster and any existing RD/OFF Firestore overrides so the
-    // preview matches what the booking will actually skip.
-    const memberObj = teamMembers.find(m => m.name === member);
-    let restCount  = 0;
-    let spareCount = 0; // spare days that will be booked as AL (not already overridden to RD)
-    if (memberObj) {
-        const memberOvByDate = buildMemberDateMap(memberObj.name);
-        dates.forEach(dateStr => {
-            // Single-source rule (isWorkingDate) — matches what the booking actually writes.
-            if (!isWorkingDate(memberObj, dateStr, memberOvByDate)) { restCount++; return; }
-            // A worked day whose base is an unconfirmed Spare shift is flagged (booked as AL).
-            if (getBaseShift(memberObj, new Date(dateStr + 'T12:00:00')) === 'SPARE') spareCount++;
-        });
-    }
-    const workDays  = dates.length - restCount;
-    const label     = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;
-    const restNote  = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
-    // Warn for CEA/CES when spare (unconfirmed) shifts will be booked as AL
-    const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
-    const spareNote = (isSpareRole && spareCount > 0)
-        ? `<br><em>⚠ ${spareCount} of these day${spareCount !== 1 ? 's are' : ' is'} an unconfirmed "Spare" shift. If the actual shift ends up longer than 7 hours, it may use more than 1 AL day — check with management if unsure.</em>`
-        : '';
-
-    alPreview.className = 'al-preview ready';
-    alPreview.innerHTML = `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
-    alSaveBtn.disabled = workDays === 0;
-}
-
-alFrom.addEventListener('change', () => { hideALConfirm?.(); updateAlPreview(); updateALBanner(); updateALBookedBox(); });
-alTo.addEventListener('change',   () => { hideALConfirm?.(); updateAlPreview(); updateALBanner(); updateALBookedBox(); });
-const alPicker = buildRangePicker('al');
-updateAlPreview();
-
-alSaveBtn.addEventListener('click', async () => {
-    // Capture and immediately reset the confirmed flag so early returns never
-    // leave it set true, which would silently skip the entitlement check on
-    // the next save attempt.
-    const confirmedOverLimit = _alBookingConfirmed;
-    _alBookingConfirmed = false;
-
-    const member = alMember.value;
-    const dates  = getAlDates();
-    if (!member || !dates || !dates.length) return;
-
-    // Annual leave entitlement check — runs for each calendar year spanned by
-    // the booking (a Dec–Jan range touches two years).
-    const memberObj = teamMembers.find(m => m.name === member);
-    if (!confirmedOverLimit) {
+    /**
+     * AL over-entitlement check — runs for each calendar year spanned by the booking
+     * (a Dec–Jan range touches two years). Returns true to abort the save and show the
+     * confirm bar; false to proceed.
+     * @param {{ member: string, dates: string[], memberObj: any }} ctx
+     */
+    function checkEntitlement({ member, dates, memberObj }) {
+        if (confirmedOverLimit) return false;
         const memberOvByDate = buildMemberDateMap(member);
         // Mirror recordRangeOverrides EXACTLY: exclude Sundays; if an override exists, follow it
-        // (worked iff it is not a rest shift); otherwise fall back to the base shift. The previous
-        // version fell through to the base test even when a NON-rest override (e.g. RDW) existed, so a
-        // base-RD day with an RDW override was excluded here but INCLUDED by recordRangeOverrides — the
-        // entitlement check then counted fewer days than were actually booked, letting a booking slip
-        // over the cap without the over-limit confirm.
-        const workingDates = dates.filter(d => isWorkingDate(/** @type {any} */ (memberObj), d, memberOvByDate));
+        // (worked iff it is not a rest shift); otherwise fall back to the base shift. Falling
+        // through to the base test when a NON-rest override (e.g. RDW) exists would exclude a
+        // base-RD/RDW day here while recordRangeOverrides INCLUDES it — the check would then count
+        // fewer days than are actually booked and let a booking slip over the cap unconfirmed.
+        const workingDates = dates.filter(d => isWorkingDate(memberObj, d, memberOvByDate));
         const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
         for (const yearStr of years) {
-            const entitlement    = getALEntitlement(/** @type {any} */ (memberObj), parseInt(yearStr, 10), getAllOverrides());
+            const entitlement = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
             // Collect existing AL dates as a Set to subtract overlap from the new booking
             // (re-booking dates already marked AL must not double-count toward the cap).
             const existingALDates = new Set(
@@ -182,57 +91,62 @@ alSaveBtn.addEventListener('click', async () => {
                     `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
                     null // null = AL booking path (not week editor)
                 );
-                return;
+                return true;
             }
         }
+        return false;
     }
 
-    alFeedback.className = 'feedback';
-    alSaveBtn.disabled    = true;
-    alSaveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
-
-    try {
-        const { workingCount } = await recordRangeOverrides({
-            type: 'annual_leave', value: 'AL', memberName: member, dates, changedBy: getCurrentUser() ?? '',
-        });
-
-        if (!workingCount) {
-            alFeedback.className = 'feedback error';
-            alFeedback.textContent = '⚠ No working days in that range — nothing to record.';
-            alFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            return;
+    /**
+     * The 🏖️ ready-state preview, including the CEA/CES spare-shift warning.
+     * @param {{ member: string, dates: string[], memberObj: any, memberOvByDate: Map<string, any>|null,
+     *   rangeStr: string, workDays: number, restCount: number }} ctx
+     */
+    function renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount }) {
+        // A worked day whose base is an unconfirmed Spare shift is flagged (it will be booked as AL).
+        let spareCount = 0;
+        if (memberObj) {
+            dates.forEach(dateStr => {
+                if (isWorkingDate(memberObj, dateStr, /** @type {Map<string, any>} */ (memberOvByDate)) &&
+                    getBaseShift(memberObj, new Date(dateStr + 'T12:00:00')) === 'SPARE') spareCount++;
+            });
         }
-
-        alFeedback.className = 'feedback success';
-        alFeedback.textContent = `✓ Recorded ${workingCount} day${workingCount > 1 ? 's' : ''} of Annual Leave for ${member}`;
-        clearTimeout(_alFeedbackTimer);
-        _alFeedbackTimer = setTimeout(() => { alFeedback.className = 'feedback'; }, 7000);
-        // The form resets and Change-a-Shift scrolls into view below, so also fire
-        // the bottom toast — confirmation must be visible regardless of scroll.
-        showSuccess?.(`Recorded ${workingCount} day${workingCount > 1 ? 's' : ''} of Annual Leave for ${member}`);
-
-        alPicker.reset();
-        updateAlPreview();
-        updateALBanner();
-        updateALBookedBox();
-        updateSickBookedBox();
-        // Jump the Change a Shift section to show what was just recorded.
-        showInChangeAShift?.(member, dates[0]);
-    } catch (err) {
-        console.error('[Admin] AL save failed:', err);
-        clearTimeout(_alFeedbackTimer);
-        alFeedback.className = 'feedback error';
-        alFeedback.textContent = (/** @type {any} */ (err)).message === 'auth/session-expired'
-            ? '⚠ Session expired — please sign out and sign back in.'
-            : "⚠ Couldn't save — check your connection and try again.";
-    } finally {
-        alSaveBtn.disabled    = false;
-        alSaveBtn.textContent = 'Record annual leave';
+        const label    = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;
+        const restNote = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
+        const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
+        const spareNote = (isSpareRole && spareCount > 0)
+            ? `<br><em>⚠ ${spareCount} of these day${spareCount !== 1 ? 's are' : ' is'} an unconfirmed "Spare" shift. If the actual shift ends up longer than 7 hours, it may use more than 1 AL day — check with management if unsure.</em>`
+            : '';
+        return `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
     }
-});
 
-// Expose the preview refresher so admin-app.js can re-run it when the staff member
-// changes at the top bar — otherwise the preview keeps naming the previous person
-// and their rest-day count until the date inputs are touched again. (stale-preview fix)
-return { updateAlPreview };
-} // end initALSection
+    const section = createRangeBookingSection({
+        prefix: 'al',
+        memberSelect: alMember,
+        syncMemberDisplay,
+        populateMemberDropdown, lastMember,
+        previewClass: 'al-preview',
+        overrideType: 'annual_leave', overrideValue: 'AL',
+        savingLabel: 'Record annual leave',
+        logLabel: 'AL',
+        // Range is validated (incl. the too-long case) in the preview; max 60 days.
+        validateRange: (dates) => dates.length > 60
+            ? `That's ${dates.length} days — maximum range is 60 days.`
+            : null,
+        renderReady,
+        successFeedback: (n, m) => `✓ Recorded ${n} day${n > 1 ? 's' : ''} of Annual Leave for ${m}`,
+        successToast:    (n, m) => `Recorded ${n} day${n > 1 ? 's' : ''} of Annual Leave for ${m}`,
+        getCurrentUser, showInChangeAShift, showSuccess,
+        beforePreview: () => hideALConfirm?.(),
+        afterDateChange: () => { updateALBanner(); updateALBookedBox(); },
+        afterSave: () => { updateALBanner(); updateALBookedBox(); updateSickBookedBox(); },
+        onClick: () => { confirmedOverLimit = _alBookingConfirmed; _alBookingConfirmed = false; },
+        preSave: checkEntitlement,
+    });
+    _alSaveBtnRef = section.saveBtn;
+
+    // Expose the preview refresher so admin-app.js can re-run it when the staff member
+    // changes at the top bar — otherwise the preview keeps naming the previous person
+    // and their rest-day count until the date inputs are touched again. (stale-preview fix)
+    return { updateAlPreview: section.updatePreview };
+}

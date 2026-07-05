@@ -283,16 +283,22 @@ Coordinator for `operations.html` (admin-only, v10.99).
 ### `paycalc-boot.js`
 2-line bootstrap for `paycalc.html` (Phase 4a.2, v14.67). Imports `init` from `paycalc-app.js` and calls it. Same rationale as `operations-boot.js` (CSP + testability). No logic of its own.
 
+### `admin-range-booking.js`
+Shared skeleton for the two admin.html date-range booking sections (AL + sick), which were near-identical before v16.08.
+- `createRangeBookingSection(cfg)` — wires one section: element lookup by `cfg.prefix` (`al`/`sick`), dropdown population (incl. the iOS optgroup fix), the shared preview guard chain (no member / no dates / bad range), rest-day counting via `isWorkingDate`, the from/to change listeners, and the whole save→feedback→refresh flow incl. the `auth/session-expired` vs generic error split. Returns `{ updatePreview, saveBtn }`.
+- Per-section differences are injected as config/hooks: `validateRange(dates)` (60-day vs 1-year), `renderReady(ctx)` (the 🏖️/🪑 innerHTML), `successFeedback`/`successToast`, `beforePreview`/`afterDateChange`/`afterSave` refresh hooks, and the AL-only `onClick` (confirm-flag reset) + `preSave(ctx)` (over-entitlement check → confirm bar). It does NOT own the AL entitlement maths or the spare warning — those live in `admin-al.js` and are passed in via the hooks.
+- Imports `teamMembers` from `roster-data.js`; `recordRangeOverrides`, `formatDisplay`, `buildMemberDateMap`, `isWorkingDate` from `admin-overrides.js`; `buildRangePicker`, `getDateRange` from `admin-rangepicker.js`.
+
 ### `admin-al.js`
-Annual Leave Booking section (extracted v9.93).
-- `initALSection(deps)` — sets up date picker, preview, entitlement check, and Firestore save. Receives DOM handles and callbacks via `deps` to avoid circular imports.
-- `triggerConfirmedALSave()` — called by the confirm bar in `admin-app.js` when the user accepts booking over their AL entitlement; sets internal flag and re-fires the save button.
-- Imports `teamMembers`, `getALEntitlement`, `getBaseShift`, `formatISO`, `isSunday`, `escapeHtml` from `roster-data.js`; `getAllOverrides`, `recordRangeOverrides`, `formatDisplay` from `admin-overrides.js`; `buildRangePicker` from `admin-rangepicker.js`.
+Annual Leave Booking section (extracted v9.93; thin config wrapper over `admin-range-booking.js` since v16.08).
+- `initALSection(deps)` — supplies the AL config to `createRangeBookingSection`: the 60-day cap, the 🏖️ preview with the CEA/CES spare-shift warning, and the over-entitlement pre-save check that drives the confirm bar. Receives DOM handles and callbacks via `deps` to avoid circular imports.
+- `triggerConfirmedALSave()` — called by the confirm bar in `admin-app.js` when the user accepts booking over their AL entitlement; sets internal flag and re-fires the save button (`_alSaveBtnRef`, captured from the factory return).
+- Imports `getALEntitlement`, `getBaseShift`, `isSunday`, `escapeHtml` from `roster-data.js`; `getAllOverrides`, `isWorkingDate`, `buildMemberDateMap` from `admin-overrides.js`; `createRangeBookingSection` from `admin-range-booking.js`.
 
 ### `admin-sick.js`
-Sick Days Recording section (extracted v9.93).
-- `initSickSection(deps)` — sets up date picker, preview, and Firestore save. Receives DOM handles and callbacks via `deps` to avoid circular imports.
-- Imports `teamMembers`, `getBaseShift`, `formatISO`, `isSunday`, `escapeHtml` from `roster-data.js`; `getAllOverrides`, `recordRangeOverrides`, `formatDisplay` from `admin-overrides.js`; `buildRangePicker` from `admin-rangepicker.js`. No `lsSet` or `confirmNavigate` needed — the sick section has no member-change handler.
+Sick Days Recording section (extracted v9.93; thin config wrapper over `admin-range-booking.js` since v16.08).
+- `initSickSection(deps)` — supplies the sick config to `createRangeBookingSection`: the 1-year cap (maternity / long-term absence) and the 🪑 preview. No entitlement check and no confirm bar (absence is not capped). Receives DOM handles and callbacks via `deps` to avoid circular imports.
+- Imports `escapeHtml` from `roster-data.js`; `createRangeBookingSection` from `admin-range-booking.js`.
 
 ### `admin-overrides.js`
 The Change a Shift module. Owns the week grid and override list entirely.
@@ -303,9 +309,9 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `loadOverrides()` / `renderTable()` — Saved Changes list
 - `executeSave()` — writes override to Firestore
 - `updateSaveBtn()` — exported so swipe carousel can call it
-- State accessors: `getAllOverrides()` / `setAllOverrides()` — used by `admin-al.js` and `admin-sick.js`
-- `recordRangeOverrides({ type, value, memberName, dates, changedBy })` — shared batch-write helper used by both `admin-al.js` and `admin-sick.js`; filters out Sundays and RD days, writes Sunday RD corrections alongside AL/sick overrides, updates `_allOverrides` cache, and re-renders the week grid and override list
-- `formatDisplay(value, type)` — shared shift/override display formatter; imported by `admin-al.js` and `admin-sick.js`
+- State accessors: `getAllOverrides()` / `setAllOverrides()` — `getAllOverrides()` used by `admin-al.js` (entitlement check)
+- `recordRangeOverrides({ type, value, memberName, dates, changedBy })` — shared batch-write helper called by `admin-range-booking.js` on behalf of both booking sections; filters out Sundays and RD days, writes Sunday RD corrections alongside AL/sick overrides, updates `_allOverrides` cache, and re-renders the week grid and override list
+- `formatDisplay(value, type)` — shared shift/override display formatter; imported by `admin-range-booking.js`
 - `getEffectiveShift(member, date, overrides)` / `validateShiftRules(...)` / `buildMemberDateMap(overrides)` — pure shift-resolution + validation helpers, covered by `admin-overrides.test.mjs`
 - `isWorkingDate(memberObj, dateStr, ovByDate)` — SINGLE SOURCE for the AL/absence "is this a working day" rule (Sunday→override→base). Used by recordRangeOverrides AND the AL/sick previews; previously reimplemented 4× and the previews had drifted from the save path (v16.06 unified + fixed).
 - Also exported (grid/bulk internals reused across the module and by `admin-app.js`): `resetTableMemberFilter()`, `updateWeekNavLabel()`, `buildWeekGridInto(container)`, `resetBulkPills()`
