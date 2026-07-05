@@ -318,6 +318,9 @@ Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
 - Imported directly by `admin-al.js` and `admin-sick.js` (no longer goes through `admin-app.js`)
 
 ### `huddle.js`
+
+### `doc-upload.js`
+Shared Operations upload-card skeleton (v16.07). `initDocUploadCard(cfg)` owns file-pick → validate (type + 20 MB) → optional pre-upload `transform` → upload → feedback + the date cap; per-card config (accepted types, transform, `maxDateOffsetDays`, uploadFn, copy). Drives Circular + Newsletter (operations-app.js) and the Huddle (huddle.js, which passes its DOCX→HTML Mammoth transform). `isPdfFile(f)` exported as the default accept predicate. Imports only `roster-data.js` (formatISO) + `session.js` (sessionReady).
 Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 - `initHuddleUpload(opts)` — called by `operations-app.js`; wires Huddle upload card + Huddle collapse toggle (admin-only)
 - `initHuddleNotifications()` — called by `settings-app.js`; wires the Notifications card (all staff, settings page)

@@ -10,10 +10,9 @@
  *   Huddle file upload form, Huddle card toggle.
  */
 
-import { formatISO } from './roster-data.js';
 import { uploadHuddle } from './firebase-client.js';
+import { initDocUploadCard, isPdfFile } from './doc-upload.js';
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, isIOS } from './notif.js';
-import { sessionReady } from './session.js';
 import { initCardCollapse } from './overlay.js';
 
 /**
@@ -114,152 +113,84 @@ export function initHuddleNotifications() {
 // The card HTML is always in the DOM but hidden via style="display:none".
 // This block reveals it and wires up the upload flow only when the signed-in
 // user is an admin. Non-admins never see the card.
-function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {string|null} */ currentUser) {
-    if (!currentIsAdmin) return;
+/** @param {File} f */
+function _isDocx(f) {
+    return f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        || f.name.toLowerCase().endsWith('.docx');
+}
 
-    const card      = document.getElementById('huddleUploadCard');
-    const dateInput = /** @type {HTMLInputElement|null} */ (document.getElementById('huddleDate'));
-    const fileInput = /** @type {HTMLInputElement|null} */ (document.getElementById('huddleFileInput'));
-    const fileLabel = document.getElementById('huddleFileName');
-    const uploadBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('huddleUploadBtn'));
-    const feedback  = document.getElementById('huddleFeedback');
-
-    if (!card || !dateInput || !fileInput || !uploadBtn || !fileLabel || !feedback) return;
-
-    const _fileLabel = /** @type {HTMLElement} */ (fileLabel);
-    const _uploadBtn = /** @type {HTMLButtonElement} */ (uploadBtn);
-    const _feedback  = /** @type {HTMLElement} */ (feedback);
-    const _fileInput = /** @type {HTMLInputElement} */ (fileInput);
-
-    // Reveal card for admin
-    card.style.display = '';
-
-    // Default date to today, and cap at TOMORROW — not today: the Huddle is sent the evening
-    // before for the next day's plan (see .claude/rules/notifications.md), so the manual upload
-    // (the fallback when Power Automate fails) legitimately carries tomorrow's date. The cap still
-    // blocks the far-future typo that would win the orderBy('date','desc') latest-Huddle query and
-    // shadow every real daily Huddle (pruneOldHuddles' 3-month-past cutoff can't remove a future doc).
-    const _tomorrow = new Date();
-    _tomorrow.setDate(_tomorrow.getDate() + 1);
-    dateInput.value = formatISO(new Date());
-    dateInput.max   = formatISO(_tomorrow);
-
-    function _rejectFile(/** @type {string} */ reason) {
-        _fileLabel.classList.remove('visible');
-        _uploadBtn.disabled = true;
-        _feedback.textContent = reason;
-        _feedback.className = 'huddle-feedback huddle-feedback--err';
-        _fileInput.value = '';
-    }
-
-    // Show chosen filename and enable upload button when a file is selected
-    _fileInput.addEventListener('change', () => {
-        const file = (_fileInput.files || [])[0];
-        _feedback.textContent = '';
-        _feedback.className = 'huddle-feedback';
-        if (!file) {
-            _fileLabel.classList.remove('visible');
-            _uploadBtn.disabled = true;
-            return;
-        }
-        const isPdf  = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-        const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                    || file.name.toLowerCase().endsWith('.docx');
-        if (!isPdf && !isDocx) {
-            _rejectFile('Please choose a PDF or Word (.docx) file');
-            return;
-        }
-        if (file.size > 20 * 1024 * 1024) {
-            _rejectFile('File too large — maximum 20 MB');
-            return;
-        }
-        _fileLabel.textContent = file.name;
-        _fileLabel.classList.add('visible');
-        _uploadBtn.disabled = false;
-    });
-
-    _uploadBtn.addEventListener('click', async () => {
-        const date = dateInput.value;
-        const file = (_fileInput.files || [])[0];
-        if (!date || !file) return;
-
-        _uploadBtn.disabled = true;
-        _feedback.textContent = '';
-        _feedback.className = 'huddle-feedback';
-
-        let htmlContent = null;
-        const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                    || file.name.toLowerCase().endsWith('.docx');
-        if (isDocx) {
-            _uploadBtn.textContent = 'Converting…';
-            try {
-                await new Promise(/** @param {(v?: any) => void} resolve @param {(e: any) => void} reject */ (resolve, reject) => {
-                    if (/** @type {any} */ (window).mammoth) { resolve(); return; }
-                    const s = document.createElement('script');
-                    s.src         = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
-                    s.crossOrigin = 'anonymous';
-                    s.integrity   = 'sha384-fWLn06AIo00H32MDcWUZTT+4Ru3OuoYn1DRH0o6JkhDl89YFSF4tJ4odze9bI+4r';
-                    s.onload      = resolve;
-                    s.onerror     = () => reject(new Error('load'));
-                    document.head.appendChild(s);
-                });
-                const arrayBuffer = await file.arrayBuffer();
-                // @ts-ignore
-                const result      = await mammoth.convertToHtml({ arrayBuffer });
-                const html        = result.value || null;
-                // Cap at 200 KB — a Huddle is a short daily briefing; anything larger
-                // indicates an unexpected document or conversion anomaly. Fall back to
-                // the Storage URL so the viewer downloads the file directly.
-                // Matches the cap in functions/index.js so inline behaviour is consistent
-                // regardless of whether the Huddle arrived via Power Automate or manual upload.
-                htmlContent = html && html.length < 200_000 ? html : null;
-            } catch (convErr) {
-                console.error('[Huddle] DOCX conversion failed:', convErr);
-                if ((/** @type {any} */ (convErr)).message === 'load') {
-                    // The converter CDN was unreachable — but the .docx itself is fine.
-                    // Don't block the upload: proceed with htmlContent = null so the file
-                    // still reaches Storage and the viewer falls back to its "Open Huddle"
-                    // download button (exactly the PDF path). Better a download-only Huddle
-                    // than no Huddle when the admin is on a poor connection.
-                    console.warn('[Huddle] Word converter unavailable — uploading DOCX without inline preview.');
-                    htmlContent = null;
-                    // fall through to the upload step
-                } else {
-                    // A real parse failure: the file could not be read as a valid .docx.
-                    // Abort rather than store a file that may be corrupt or mislabelled.
-                    _feedback.textContent = "Couldn't read the Word file — make sure it is a valid .docx";
-                    _feedback.className = 'huddle-feedback huddle-feedback--err';
-                    _uploadBtn.disabled = false;
-                    _uploadBtn.textContent = 'Upload Huddle';
-                    return;
-                }
-            }
-        }
-
-        _uploadBtn.textContent = 'Uploading…';
-
-        try {
-            // sessionReady resolves once the page coordinator confirms the Firebase
-            // Auth session. A returning admin skips the login handler so auth.currentUser
-            // may still be null when the page opens — awaiting here prevents a fast click
-            // hitting a permission failure before the session is live.
-            await sessionReady;
-            await uploadHuddle(date, file, currentUser || '', htmlContent);
-            _feedback.textContent = `Huddle uploaded for ${date} — staff will see it on the main app`;
-            _feedback.className = 'huddle-feedback huddle-feedback--ok';
-            _fileInput.value = '';
-            _fileLabel.textContent = '';
-            _fileLabel.classList.remove('visible');
-        } catch (err) {
-            console.error('[Huddle] Upload failed:', err);
-            _feedback.textContent = (/** @type {any} */ (err))?.message === 'SIGNATURE_MISMATCH'
-                ? "That file isn't a valid PDF or Word document — please choose the original file"
-                : 'Upload failed — please try again';
-            _feedback.className = 'huddle-feedback huddle-feedback--err';
-            _uploadBtn.disabled = false;
-        }
-
-        _uploadBtn.textContent = 'Upload Huddle';
+/**
+ * Load the Mammoth DOCX→HTML converter from CDN once (SRI-pinned; the hash is patched by
+ * generate-sri.mjs — do not edit by hand). Resolves when window.mammoth is available.
+ * @returns {Promise<void>}
+ */
+function _loadMammoth() {
+    return new Promise((resolve, reject) => {
+        if (/** @type {any} */ (window).mammoth) { resolve(); return; }
+        const sc = document.createElement('script');
+        sc.src         = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
+        sc.crossOrigin = 'anonymous';
+        sc.integrity   = 'sha384-fWLn06AIo00H32MDcWUZTT+4Ru3OuoYn1DRH0o6JkhDl89YFSF4tJ4odze9bI+4r';
+        sc.onload      = () => resolve();
+        sc.onerror     = () => reject(new Error('load'));
+        document.head.appendChild(sc);
     });
 }
 
+/**
+ * doc-upload transform for the Huddle: a PDF passes straight through (htmlContent = null); a DOCX
+ * is converted to inline HTML via Mammoth, capped at 200 KB (matches functions/index.js so inline
+ * behaviour is identical whether the Huddle arrived via Power Automate or manual upload). A CDN
+ * failure is NON-fatal (upload the .docx download-only, like a PDF); only a genuine parse failure
+ * aborts. Returns { extraArgs: [htmlContent] } (the 4th arg to uploadHuddle) or { abortMsg }.
+ * @param {File} file
+ * @param {{ setBtnText: (t: string) => void }} ctx
+ * @returns {Promise<{ extraArgs?: any[], abortMsg?: string }>}
+ */
+async function _convertHuddleDocx(file, { setBtnText }) {
+    if (!_isDocx(file)) return { extraArgs: [null] }; // PDF → no inline HTML
+    setBtnText('Converting…');
+    let htmlContent = null;
+    try {
+        await _loadMammoth();
+        const arrayBuffer = await file.arrayBuffer();
+        // @ts-ignore — mammoth is loaded onto window by _loadMammoth
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        const html = result.value || null;
+        htmlContent = html && html.length < 200_000 ? html : null;
+    } catch (convErr) {
+        console.error('[Huddle] DOCX conversion failed:', convErr);
+        if ((/** @type {any} */ (convErr)).message === 'load') {
+            // Converter CDN unreachable — the .docx is fine; upload download-only (the PDF path).
+            console.warn('[Huddle] Word converter unavailable — uploading DOCX without inline preview.');
+            // htmlContent stays null → the viewer falls back to its "Open Huddle" download (the PDF path).
+        } else {
+            return { abortMsg: "Couldn't read the Word file — make sure it is a valid .docx" };
+        }
+    }
+    return { extraArgs: [htmlContent] };
+}
+
+function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {string|null} */ currentUser) {
+    if (!currentIsAdmin) return;
+    const card = document.getElementById('huddleUploadCard');
+    if (!card) return;
+    card.style.display = ''; // reveal for admin
+
+    // Shared upload skeleton (doc-upload.js) with the Huddle's differences: accepts PDF OR .docx,
+    // caps the date at TOMORROW (Huddle is sent the evening before — see notifications.md; the cap
+    // still blocks a far-future typo shadowing the latest-Huddle query), converts DOCX via the
+    // transform above, and passes htmlContent as uploadHuddle's 4th arg.
+    initDocUploadCard({
+        dateId: 'huddleDate', fileId: 'huddleFileInput', fileLabelId: 'huddleFileName',
+        uploadBtnId: 'huddleUploadBtn', feedbackId: 'huddleFeedback',
+        uploadFn: uploadHuddle, currentUser,
+        successMsg: date => `Huddle uploaded for ${date} — staff will see it on the main app`,
+        btnLabel: 'Upload Huddle', logPrefix: 'Huddle',
+        maxDateOffsetDays: 1,
+        isAccepted: f => isPdfFile(f) || _isDocx(f),
+        rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
+        sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
+        transform: _convertHuddleDocx,
+    });
+}
