@@ -93,6 +93,13 @@ describe('normaliseShift', () => {
     test('RDW with raw digit time → pipe encoding', () => {
         assert.equal(normaliseShift('RDW 1430-2200'), 'RDW|14:30-22:00');
     });
+    test('time-FIRST RDW (paper-roster order) → pipe encoding, RDW not dropped', () => {
+        assert.equal(normaliseShift('14:30-22:00 RDW'), 'RDW|14:30-22:00');
+        assert.equal(normaliseShift('1430-2200 RDW'), 'RDW|14:30-22:00');
+    });
+    test('a bare time (no RDW) does NOT get RDW-encoded', () => {
+        assert.equal(normaliseShift('14:30-22:00'), '14:30-22:00');
+    });
     test('lowercase input normalised', () => {
         assert.equal(normaliseShift('al'), 'AL');
     });

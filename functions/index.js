@@ -507,7 +507,15 @@ async function fanOutPush(payload, logTag) {
         try {
             await webpush.sendNotification({ endpoint, keys }, payloadStr);
         } catch (err) {
-            if (err.statusCode === 410 || err.statusCode === 404 || err.statusCode === 401) {
+            // 410 Gone / 404 Not Found = the subscription itself is dead → delete it.
+            // 401 Unauthorized is NOT a dead subscription — it is the push service rejecting
+            // our VAPID auth JWT (e.g. VAPID_PRIVATE_KEY rotated/typo'd against the unchanged
+            // public key). In that misconfig EVERY send 401s; deleting on 401 would wipe the
+            // whole pushSubscriptions collection in one run, and because the client VAPID
+            // fingerprint (derived from the unchanged public key) wouldn't change, no device
+            // would ever re-subscribe → a permanent, silent notification outage. So 401 is
+            // logged, never deleted.
+            if (err.statusCode === 410 || err.statusCode === 404) {
                 await docSnap.ref.delete();
                 console.log(`${logTag} Removed dead subscription ${docSnap.id}`);
             } else {
@@ -1149,7 +1157,7 @@ exports.setupRosterAuth = onRequest(
         } catch (_) {
             return res.status(401).json({ error: 'Unauthorised' });
         }
-        if (!decodedAuth.admin) {
+        if (decodedAuth.admin !== true) {   // strict, matching parseRosterPDF — fail closed on any non-true claim
             return res.status(403).json({ error: 'Forbidden — admin claim required' });
         }
 
