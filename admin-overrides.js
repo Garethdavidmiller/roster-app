@@ -1408,11 +1408,13 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
           })
         : [];
 
-    // Only skip the write when there is genuinely nothing to do. A range with zero working
-    // days can still carry Sunday RD corrections (e.g. Sat[RD] + a worked-base Sunday) — those
-    // must still be written, or the worked Sunday keeps showing through the "absence"; the old
-    // `!workingDates.length` guard skipped them yet reported sundayCount as if done.
-    if (!workingDates.length && !sundayCorrections.length) return { workingCount: 0, sundayCount: 0 };
+    // No working days → record nothing (and report sundayCount:0 accurately). A Sunday RD
+    // correction only makes sense ALONGSIDE an AL/absence booking (so a worked Sunday inside the
+    // absence range shows as RD, not its shift). With zero working days there is no absence to
+    // accompany, so writing a standalone correction/RD would SILENTLY erase a worked (possibly
+    // RDW/overtime) Sunday — worse than doing nothing. (This is UI-unreachable anyway: the AL/sick
+    // save button is disabled when workDays === 0, computed with the same isWorkingDate rule.)
+    if (!workingDates.length) return { workingCount: 0, sundayCount: 0 };
 
     // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a stale-claim
     // `permission-denied` (a just-provisioned manager booking AL/absence on-behalf before their

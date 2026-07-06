@@ -188,6 +188,10 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     }
 
     function open(/** @type {any[]} */...args) {
+        // Idempotent: a second open() while already open would push a duplicate lockBodyScroll
+        // (depth counter → the lock never releases on close) and re-run onOpen. Reachable via a
+        // fast double-tap on a trigger during the opener's slide-out (e.g. the nav-drawer logo).
+        if (overlay.classList.contains('visible')) return;
         _focusReturn = document.activeElement;
         onOpen?.(...args);
         lockBodyScroll();
