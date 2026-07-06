@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.15
+// MYB Roster — Service Worker v16.16
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.15';
+const APP_VERSION = '16.16';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -499,7 +499,13 @@ self.addEventListener("fetch", event => {
 
             let networkSettled = false;
             const networkPromise = (event.preloadResponse
-                ? event.preloadResponse.then(pre => pre || fetch(freshReq))
+                // The preload promise RESOLVES undefined when preload is disabled/unsupported
+                // (→ fall back to our own fetch) but REJECTS when the preload network request
+                // itself errors — so it needs a reject handler too, or on a cache MISS a preload
+                // failure would reach serveFallback and show the offline page to an ONLINE user
+                // whose own fetch would have worked. Two-arg .then (not trailing .catch) so a
+                // genuine offline fetch rejection still propagates instead of re-fetching.
+                ? event.preloadResponse.then(pre => pre || fetch(freshReq), () => fetch(freshReq))
                 : Promise.resolve().then(() => fetch(freshReq))
             ).then(response => {
                 networkSettled = true;
@@ -608,6 +614,10 @@ self.addEventListener("fetch", event => {
                         return response;
                     });
                 })
+                // Match the SDK/managed branches' resilience: on a broken Cache Storage or an
+                // offline miss, degrade to a network-error response instead of a rejected
+                // respondWith (a hard browser error).
+                .catch(() => caches.match(event.request).then(r => r || Response.error()))
         );
     }
 });

@@ -45,6 +45,12 @@ export function normaliseCustomShift(raw) {
     const [, h1, m1, h2, m2] = m;
     if (+h1 > 23 || +h2 > 23 || +m1 > 59 || +m2 > 59) return null;
     if (+h1 >= 21 || +h1 < 4) return null; // night start — not a CEA shift
+    // Reject a wrapping (over-midnight) shift, e.g. "20:00-04:00". The start-hour guard
+    // alone let an evening start through, but a next-day end breaks the module's
+    // "CEA shifts never wrap" invariant: calcHourlyCoverage drops the past-midnight hours
+    // and runDesignChecks computes a phantom ~26h rest, reporting a genuinely dangerous
+    // short turnaround as compliant. Enforce non-wrapping at the input boundary.
+    if ((+h2 * 60 + +m2) <= (+h1 * 60 + +m1)) return null;
     return `${h1.padStart(2, '0')}:${m1}-${h2.padStart(2, '0')}:${m2}`;
 }
 

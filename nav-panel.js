@@ -345,12 +345,17 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     });
 
     // Brand (logo + title + version) opens the page's About lightbox.
-    // Close the panel first (same pattern as the coming-soon link) so the
-    // About lightbox isn't stacked behind the open drawer.
+    // About opens via createLightbox, which pushes its OWN history entry — so, unlike the
+    // coming-soon link (which reuses the drawer's entry), we must POP the drawer's entry here,
+    // not abandon it. closePanelForNavigation() only cleared _historyPushed without calling
+    // history.back(), leaking a dead same-URL entry that swallowed the next Android Back press
+    // (and accumulated on each About-from-drawer cycle). closePanel() pops it; About opens on
+    // the next tick, AFTER the back()'s popstate settles, so About's fresh entry isn't
+    // immediately consumed by the queued back().
     const brandBtn = document.getElementById('navPanelBrand');
     brandBtn?.addEventListener('click', () => {
-        closePanelForNavigation();
-        onLogoClick?.();
+        closePanel();
+        setTimeout(() => onLogoClick?.(), 0);
     });
 
     // Guides submenu accordion — an in-panel toggle, so the panel stays open.

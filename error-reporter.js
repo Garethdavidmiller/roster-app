@@ -60,7 +60,11 @@ function _report(err, src = '') {
         _seen.add(dedupKey);
 
         const stack      = (err instanceof Error ? (err.stack ?? '') : '').slice(0, 800);
-        const memberName = JSON.parse(lsGet(AUTH_KEY) ?? 'null')?.name ?? 'unknown';
+        // Guard the parse: a corrupted AUTH_KEY blob would throw here, and the reporter's
+        // outer catch would then swallow EVERY error for the session — the broken-session
+        // case (most likely to be generating errors) is exactly when this must still write.
+        let memberName = 'unknown';
+        try { memberName = JSON.parse(lsGet(AUTH_KEY) ?? 'null')?.name ?? 'unknown'; } catch { /* corrupt blob → 'unknown', still report */ }
         const page       = location.pathname.replace(/^.*\//, '') || 'index.html';
 
         // Fire-and-forget — no await; logClientError swallows its own write errors.

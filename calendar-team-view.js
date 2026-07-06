@@ -416,6 +416,11 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
     function restoreTeamView() {
         teamViewMode = true;
         applyTeamViewChrome();
+        // Push the same Back-handler the toggle path uses (v16.16). Without it, a user who
+        // relaunches the PWA into team view has no history entry for hardware Back to consume,
+        // so Back exits the app instead of returning to the month calendar — inconsistent with
+        // entering team view via the toggle.
+        _pushOverlayState(toggleTeamView);
         renderTeamView(currentTeamGrade);
     }
 
