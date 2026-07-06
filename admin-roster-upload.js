@@ -512,6 +512,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const normParsed = normRest(restSafe);
                 const normBase   = normRest(baseShift);
 
+                // The DISPLAY/SAVE value must keep the "RDW|" marker (restSafe/normParsed stay
+                // STRIPPED for COVERED/DIFF comparison against stored plain-time docs — so this
+                // adds no re-import churn). Without this, a weekday rest-day-worked import saved
+                // the bare time "14:30-22:00" → shiftValueToOverrideType returned 'shift' (not
+                // 'rdw', since `isTime && isSun` is false on a weekday) → the RDW overtime was
+                // dropped from the calendar badge AND from paycalc's roster-assist RDW pre-fill
+                // (pay under-fill). Re-attaching RDW| makes the save write {type:'rdw'} and the
+                // review row render the 💼 RDW badge. (Sunday RDW was already promoted by
+                // shiftValueToOverrideType's isSun branch, so this only corrects weekdays.)
+                const displayValue = (isRdwEncoded(parsedShift) && restSafe !== 'RD')
+                    ? `${RDW_PREFIX}${restSafe}` : restSafe;
+
                 let state;
                 if (!existing || !isManual) {
                     // No override, or only a previous import.
@@ -550,10 +562,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 states.set(key, {
                     state,
                     parsedShift,
-                    // What the row DISPLAYS as the incoming value. Differs from parsedShift only
-                    // where a value was normalised to RD (Sunday AL/SICK/Other, or absence on a base
-                    // rest day) — the row must show what will actually be saved.
-                    displayShift: restSafe,
+                    // What the row DISPLAYS and SAVES as the incoming value. Keeps the RDW| marker
+                    // (see displayValue above); differs from parsedShift only where a value was
+                    // normalised to RD (Sunday AL/SICK/Other, or absence on a base rest day).
+                    displayShift: displayValue,
                     baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,

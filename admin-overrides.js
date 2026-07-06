@@ -1408,7 +1408,11 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
           })
         : [];
 
-    if (!workingDates.length) return { workingCount: 0, sundayCount: sundayCorrections.length };
+    // Only skip the write when there is genuinely nothing to do. A range with zero working
+    // days can still carry Sunday RD corrections (e.g. Sat[RD] + a worked-base Sunday) — those
+    // must still be written, or the worked Sunday keeps showing through the "absence"; the old
+    // `!workingDates.length` guard skipped them yet reported sundayCount as if done.
+    if (!workingDates.length && !sundayCorrections.length) return { workingCount: 0, sundayCount: 0 };
 
     // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a stale-claim
     // `permission-denied` (a just-provisioned manager booking AL/absence on-behalf before their
