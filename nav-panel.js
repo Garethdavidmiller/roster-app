@@ -124,10 +124,14 @@ export function archiveNotice({ id, title, section, date, body }) {
         const records = Array.isArray(parsed) ? parsed : [];
 
         const existing = records
+            // Drop non-object members first: a null/garbage element would otherwise become
+            // `{ ...null, archivedAt }` = a content-less record that survives the expiry filter
+            // and later renders as a blank App Notices card (v16.19).
+            .filter(n => n && typeof n === 'object')
             // Migrate legacy pre-v13.41 records (no archivedAt) by stamping them with
             // `now` instead of dropping them — otherwise the first archive write after
             // an upgrade would silently wipe the user's whole notice history.
-            .map(n => (n && n.archivedAt) ? n : { ...n, archivedAt: nowIso })
+            .map(n => n.archivedAt ? n : { ...n, archivedAt: nowIso })
             .filter(n => {
                 const t = new Date(n.archivedAt).getTime();
                 return Number.isFinite(t) && (now - t) < expiryMs;
@@ -292,7 +296,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         _docFetching = true;
         const newTab = window.open('', '_blank');
         if (newTab) newTab.opener = null;
-        fetchFn().then(/** @param {any} data */ data => {
+        // Race the fetch against a timeout: a wedged Firestore promise that never settles would
+        // otherwise leave _docFetching stuck true, killing BOTH doc nav-links until a reload and
+        // orphaning the blank tab. On timeout the .catch closes the tab and shows the fallback (v16.19).
+        const timed = new Promise((_res, reject) =>
+            setTimeout(() => reject(new Error('doc-fetch-timeout')), 8000));
+        Promise.race([fetchFn(), timed]).then(/** @param {any} data */ data => {
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {

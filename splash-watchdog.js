@@ -15,7 +15,10 @@
     'use strict';
     if (typeof document === 'undefined') return;   // test/SSR context — no splash to watch
 
-    var TIMEOUT_MS = 10000;                 // splash clears within ~1-2s once JS runs; 10s ⇒ the app never started
+    var TIMEOUT_MS = 20000;                 // splash clears within ~1-2s once JS runs. 20s (not 10s): a genuine
+                                            // FIRST install over poor mobile can take >10s to fetch ~400 KB of
+                                            // gstatic SDK + the module graph — a 10s window auto-reloaded a healthy
+                                            // slow load and then showed a false "stale copy" panel (v16.19)
     var RELOAD_KEY = 'myb_splash_reloaded'; // sessionStorage guard: AT MOST one auto-reload per launch (no loop)
 
     setTimeout(function () {
@@ -54,7 +57,10 @@
         title.style.cssText = 'font:600 18px/1.3 system-ui,-apple-system,sans-serif;color:#fff;text-align:center;margin-bottom:8px';
 
         var sub = document.createElement('div');
-        sub.textContent = 'This is usually a stale copy saved on this device.';
+        // Neutral wording: by the time this panel shows we've already tried one auto-reload, so
+        // the cause could be a slow network OR a stale/broken cache — don't assert "stale copy"
+        // (factually wrong for a first install that has no cache yet). Reload / Reset cover both.
+        sub.textContent = 'The app took too long to start. Try reloading.';
         sub.style.cssText = 'font:14px/1.4 system-ui,-apple-system,sans-serif;color:#fff;opacity:.8;text-align:center;max-width:280px;margin-bottom:22px';
 
         var reloadBtn = document.createElement('button');
@@ -86,10 +92,19 @@
      *  reload guard, then reload. Resolves the stale/broken-cache cause without the user needing
      *  to hunt through OS app-storage settings. Best-effort — always reloads even if a step fails. */
     function resetApp() {
+        var done = false;
         var reload = function () {
+            if (done) return;               // race guard: fire the reload exactly once
+            done = true;
             try { sessionStorage.removeItem(RELOAD_KEY); } catch (_e) { /* ignore */ }
             location.reload();
         };
+        // Guarantee a reload even if a SW/cache op HANGS (never settles) — the wedged-storage
+        // state this last-resort recovery targets. Promise.all only settles when EVERY job
+        // settles; a hung getRegistrations()/caches.keys() would otherwise leave the button on
+        // "Resetting…" forever with no path forward. A .catch only handles a rejection, not a
+        // hang, so we need a real timeout race (v16.19).
+        setTimeout(reload, 4000);
         var jobs = [];
         if ('serviceWorker' in navigator) {
             jobs.push(navigator.serviceWorker.getRegistrations()

@@ -22,6 +22,8 @@ const VAPID_PUBLIC_KEY  = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5F
 const VAPID_VER_KEY     = 'myb_vapid_ver';
 const VAPID_FINGERPRINT = VAPID_PUBLIC_KEY.slice(0, 12);
 const PROMPT_DISMISSED  = 'myb_notif_prompt_done';
+const SUB_RESAVE_KEY    = 'myb_push_resave_at';   // throttle for the periodic subscription re-save
+const SUB_RESAVE_MS     = 86400000;               // at most one keep-alive re-save per ~24h/device
 
 /** True on iOS/iPadOS (incl. iPadOS reporting as MacIntel with touch). */
 export function isIOS() {
@@ -110,7 +112,16 @@ export async function getNotifState() {
             await sub.unsubscribe().catch(e => console.warn('[Notifications] Old sub cleanup failed (non-fatal):', /** @type {any} */ (e).message));
             sub = await subscribe();
         } else {
-            await savePushSubscription(sub);
+            // Re-persist the subscription to self-heal a record fanOutPush deleted on a transient
+            // error — but THROTTLE it. getNotifState runs on EVERY calendar load (the most-used,
+            // offline-first page), so an unconditional write here was a redundant pushSubscriptions
+            // write competing with the page's own Firestore traffic every launch. Once per ~24h
+            // per device keeps the self-heal without the per-open write (v16.19).
+            const lastSave = parseInt(lsGet(SUB_RESAVE_KEY) || '0', 10);
+            if (!Number.isFinite(lastSave) || Date.now() - lastSave > SUB_RESAVE_MS) {
+                await savePushSubscription(sub);
+                lsSet(SUB_RESAVE_KEY, String(Date.now()));
+            }
         }
         return sub ? 'on' : 'off-lapsed';
     } catch (err) {

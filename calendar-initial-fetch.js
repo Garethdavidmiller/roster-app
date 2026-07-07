@@ -37,6 +37,11 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
   /** @type {any} */
   let syncStatus = null;
   let syncResolved = false;
+  // Distinct from syncResolved (which means "settled" — set true on BOTH success AND failure): this
+  // is set true ONLY when a fetch actually POPULATED the cache. The retry catch uses it so a failed
+  // retry that follows an already-SUCCEEDED original doesn't needlessly clear fetchedMonths, WITHOUT
+  // breaking the ordinary offline path (original failed → retry failed) where syncResolved is also true.
+  let _dataLoaded = false;
   const calGrid = document.getElementById('calendarDisplay');
 
   // Announce sync state via a dedicated visually-hidden role="status" region.
@@ -107,6 +112,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
     try {
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
+      _dataLoaded  = true;
       if (syncChip) { syncChip.remove(); syncChip = null; }
       // A user-initiated retry succeeded — confirm it to screen readers, then clear.
       // (The initial silent fetch below stays silent so it isn't announced on every load.)
@@ -115,7 +121,12 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       if (!isTeamViewMode()) renderCalendar();
     } catch (err) {
       console.error('[Firestore] Retry failed:', err);
-      if (_retryGen !== _fetchGen) return; // a later retry superseded this one
+      // Bail if a later retry superseded this one OR if a fetch has meanwhile actually LOADED the
+      // cache (_dataLoaded — success only, NOT the settle-on-failure syncResolved): a failed retry
+      // that follows an already-succeeded original must not un-mark the three months as fetched and
+      // force a needless re-query. Using syncResolved here would have wrongly bailed on the ordinary
+      // offline path (original failed → retry failed) and stranded the chip on "Retrying…" (v16.19).
+      if (_retryGen !== _fetchGen || _dataLoaded) return;
       // Mirror the initial fetch's failure path: release the re-claimed months so a later
       // render/navigation can re-fetch them — otherwise a failed retry re-strands all three
       // for the session (the chip is a recovery path only while the calendar header exists).
@@ -138,6 +149,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
 
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
+      _dataLoaded  = true;
       if (!isTeamViewMode()) renderCalendar();
 
       if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }

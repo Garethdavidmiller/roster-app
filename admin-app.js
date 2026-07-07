@@ -15,7 +15,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail } from './roster-data.js';
-import { db, doc, writeBatch, writeWithClaimRetry, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
+import { db, auth, doc, writeBatch, writeWithClaimRetry, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage } from './auth-policy.js';
@@ -997,6 +997,11 @@ function handleEdit(e) {
         _setSelectValue(sickMember, memberName);
         syncMemberDisplay();
         syncSickMemberDisplay();
+        // Also re-run the preview refreshers the fieldMember change handler would fire — since
+        // _setSelectValue dispatches no 'change', an already-selected AL/absence date range would
+        // otherwise keep naming the PREVIOUS member and their rest-day count (stale-preview, v16.19).
+        _refreshAlPreview?.();
+        _refreshSickPreview?.();
         lsSet('adminLastMember', memberName);
         lsSet('myb_roster_selected_member', memberName);
         renderWeekGrid();
@@ -1023,6 +1028,9 @@ function showInChangeAShift(memberName, date) {
         _setSelectValue(sickMember, memberName);
         syncMemberDisplay();
         syncSickMemberDisplay();
+        // Keep the AL/absence previews pointed at the new member (see handleEdit — stale-preview, v16.19).
+        _refreshAlPreview?.();
+        _refreshSickPreview?.();
         // Align the saved-changes month filter so the new days aren't filtered out.
         const monthFilter = /** @type {HTMLSelectElement} */ (document.getElementById('overridesMonthFilter'));
         if (monthFilter) monthFilter.value = date.substring(0, 7);
@@ -1183,6 +1191,19 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     const idSet = new Set(deleteIds);
     // User-facing count = leave days only (exclude the Sunday RD corrections from the tally).
     const leaveCount = allForDelete.filter(o => idSet.has(o.id) && o.type === type).length;
+    // Wait for the Firebase Auth session to (re-)establish before writing, and surface a clear
+    // message if it hasn't — parity with executeSave(). A returning user has a valid LOCAL session
+    // but auth.currentUser is briefly null while Firebase restores; a delete fired in that window
+    // gets a permission-denied that writeWithClaimRetry can't recover (no currentUser to refresh),
+    // showing a false "Delete failed" for a session that is merely still loading (v16.19).
+    await sessionReady;
+    if (!auth.currentUser) {
+        if (feedbackEl) {
+            feedbackEl.textContent = '⚠ Session expired — please sign out and sign back in.';
+            feedbackEl.className = 'feedback error';
+        }
+        return;
+    }
     btn.disabled    = true;
     btn.textContent = '…';
     try {
@@ -1478,9 +1499,15 @@ async function purgeSundayAL() {
             return;
         }
 
-        const batch = writeBatch(db);
-        toDelete.forEach(o => batch.delete(doc(db, COLLECTIONS.overrides, o.id)));
-        await batch.commit();
+        // Wrap in writeWithClaimRetry for parity with every other override write path — a transient
+        // stale-claim permission-denied then self-heals instead of logging + leaving
+        // purgeSundayAL_done UNSET, which re-ran this cleanup on every admin load until the claim
+        // refreshed. Fresh batch per attempt (a WriteBatch can't be re-committed). (v16.19)
+        await writeWithClaimRetry(async () => {
+            const batch = writeBatch(db);
+            toDelete.forEach(o => batch.delete(doc(db, COLLECTIONS.overrides, o.id)));
+            await batch.commit();
+        });
         lsSet('purgeSundayAL_done', '1');
 
         // Update in-memory cache so Saved Changes reflects the cleanup

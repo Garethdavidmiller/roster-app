@@ -462,6 +462,11 @@ export function init() {
         design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
         loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null;
         dirty           = false;
+        // Clear a prior design's "✓ Saved" / "Save failed" status — updateSaveBtn only clears it
+        // while dirty, so without this it carried over to the newly selected design, falsely
+        // implying that design's save state (v16.19).
+        const _switchStatus = document.getElementById('linksSaveStatus');
+        if (_switchStatus) _switchStatus.textContent = '';
         dearmBrush();
         renderDesignPicker();
         renderGrid();
@@ -480,6 +485,11 @@ export function init() {
     /** Toggle between single-design and compare views. */
     function toggleCompareMode() {
         if (designs.length < 2) return;
+        // Disarm any painting brush before toggling — like every other renderBrushBar caller.
+        // renderBrushBar early-returns while compare is ON (so it never rebuilds/clears the chips),
+        // so a brush left armed here survived the compare round-trip with no visible highlight, and
+        // the next cell tap silently PAINTED instead of opening the edit dropdown (v16.19).
+        dearmBrush();
         compareMode = !compareMode;
         if (compareMode && !compareDesignId) {
             compareDesignId = designs.find(d => d.id !== activeDesignId)?.id ?? null;
@@ -1295,11 +1305,17 @@ export function init() {
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
             });
+            // Refresh the in-memory cache entry UNCONDITIONALLY after the successful write — the
+            // saved patterns are authoritative regardless of whether the updatedAt read-back below
+            // succeeds. Previously this lived inside the getDoc try, so a read-back failure left the
+            // designs[] entry with STALE patterns while design.patterns held the new content, and
+            // switching away then back reverted the grid to the pre-save patterns (v16.19).
+            const entry = designs.find(x => x.id === activeDesignId);
+            if (entry) { entry.patterns = deepCopyPatterns(design.patterns); entry.updatedBy = currentUser; }
             try {
                 const after = await getDoc(designRef);
                 loadedUpdatedAt = after.data()?.updatedAt?.toMillis?.() ?? null;
-                const entry = designs.find(x => x.id === activeDesignId);
-                if (entry) { entry.patterns = deepCopyPatterns(design.patterns); entry.updatedAt = after.data()?.updatedAt; entry.updatedBy = currentUser; }
+                if (entry) entry.updatedAt = after.data()?.updatedAt;
             } catch { loadedUpdatedAt = null; }
 
             dirty = false;

@@ -302,12 +302,28 @@ function renderCalendar() {
 // EVENT LISTENERS
 // ============================================
 
-(/** @type {HTMLElement} */ (document.getElementById('teamMemberSelect'))).addEventListener('change', (e) => {
-    if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
-    saveSelectedMember(parseInt(/** @type {HTMLSelectElement} */ (e.target).value, 10));
+const _teamMemberSelect = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
+/** Apply the dropdown's CURRENT selection (read live so a value change during the wait is honoured). */
+function _applyTeamMemberChange() {
+    saveSelectedMember(parseInt(_teamMemberSelect.value, 10));
     renderCalendar();
     // Close AL lightbox if open — data would be stale for the new member
     closeALLightbox?.();
+}
+_teamMemberSelect.addEventListener('change', () => {
+    // During the ~400ms swipe cooldown, don't apply immediately (it would fight the swipe
+    // animation) — but NEVER silently drop the change: the native <select> value has already
+    // moved, so bare-returning left the dropdown showing member B over member A's roster
+    // permanently (getCurrentMember keeps reading the saved OLD member) until a reselect/reload.
+    // Defer instead, re-reading the live value so a later pick during the wait still wins (v16.19).
+    if (isSwipeCooldown()) {
+        setTimeout(function retry() {
+            if (isSwipeCooldown()) { setTimeout(retry, 60); return; }
+            _applyTeamMemberChange();
+        }, 60);
+        return;
+    }
+    _applyTeamMemberChange();
 });
 
 

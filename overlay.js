@@ -37,8 +37,12 @@ export function lockBodyScroll() {
 
 /** Restore body scroll after an overlay closes. Only the outermost unlock restores. */
 export function unlockBodyScroll() {
-    if (_lbDepth > 0) _lbDepth--;
-    if (_lbDepth > 0) return;      // an outer overlay is still open — keep the lock
+    // Already fully unlocked → do nothing. Without this, an UNBALANCED second unlock at depth 0
+    // (e.g. Android Back closes the nav drawer mid doc-fetch, then the fetch's own close fires a
+    // second unlock) fell straight through to scrollTo(0, _lbScrollY) with a now-stale offset,
+    // yanking the reader back to where the overlay opened. Restore only when we truly go 1→0 (v16.19).
+    if (_lbDepth === 0) return;
+    if (--_lbDepth > 0) return;    // an outer overlay is still open — keep the lock
     document.body.classList.remove('lb-open');
     document.body.style.removeProperty('--lb-scroll-y');
     window.scrollTo(0, _lbScrollY);
