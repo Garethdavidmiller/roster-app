@@ -46,6 +46,14 @@ test('normaliseCustomShift rejects night starts (CEAs do not work nights)', () =
     assert.equal(normaliseCustomShift('20:59-23:59'), '20:59-23:59'); // boundary: last valid start
 });
 
+test('normaliseCustomShift rejects a wrapping (over-midnight) shift', () => {
+    // Evening start passed the start-hour guard but wraps past midnight — coverage + rest maths
+    // break (phantom ~26h rest hides a real short turnaround), so it must be rejected.
+    assert.equal(normaliseCustomShift('20:00-04:00'), null);
+    assert.equal(normaliseCustomShift('14:00-06:00'), null);
+    assert.equal(normaliseCustomShift('12:00-12:00'), null); // zero-length / equal
+});
+
 test('normaliseCustomShift rejects garbage', () => {
     assert.equal(normaliseCustomShift(null), null);
     assert.equal(normaliseCustomShift(''), null);

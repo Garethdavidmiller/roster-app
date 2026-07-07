@@ -144,6 +144,19 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
         assert.equal(_idTokenRefreshes, 0);
     });
 
+    test('weekday RDW import (RDW-encoded value from computeCellStates) saves type rdw, not shift', async () => {
+        // Regression: a weekday rest-day-worked import used to save the BARE time → type 'shift'
+        // (RDW overtime dropped from the calendar badge + paycalc RDW pre-fill). computeCellStates
+        // now hands _saveOverrideBatches the RDW-encoded value; the save must write {type:'rdw'}
+        // with the plain time (the RDW| encoding stripped).
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: 'RDW|14:30-22:00', baseShift: 'RD' }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.equal(sets.length, 1);
+        assert.equal(sets[0].data.type, 'rdw');
+        assert.equal(sets[0].data.value, '14:30-22:00');
+    });
+
     test('permission-denied once → force token refresh → batch REBUILT → success', async () => {
         let n = 0;
         _commitBehavior = () => { if (n++ === 0) throw _denied(); };   // first commit denied, second ok

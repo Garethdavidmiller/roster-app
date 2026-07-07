@@ -449,6 +449,11 @@ export function saveSession(name) {
  *  logout should fully tear down the Firebase identity too. (No anon-auth bootstrap
  *  races this: the page reloads immediately after, starting auth cleanly.) */
 export function clearSession() {
+    // Bump the generation so an explicit sign-out SUPERSEDES any in-flight ensureNamedSession:
+    // its `gen === _authGen` guard then fails and it won't dispatch a late terminal NAMED after
+    // this SIGN_OUT (which would leave the store `named` while the local session is cleared —
+    // e.g. the login-overlay 8s-timeout path that calls clearSession while an attempt runs on).
+    ++_authGen;
     lsDel(AUTH_KEY);
     firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
     _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut (observing only — Phase 2)

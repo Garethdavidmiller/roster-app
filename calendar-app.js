@@ -395,9 +395,14 @@ function announceMonthChange() {
     let period  = null;
 
     for (const yr of [today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1]) {
-        const { paydays } = getPaydaysAndCutoffs(yr);
-        for (const payday of paydays) {
-            const cutoff = new Date(payday); cutoff.setDate(cutoff.getDate() - 6);
+        const { paydays, cutoffs } = getPaydaysAndCutoffs(yr);
+        for (let i = 0; i < paydays.length; i++) {
+            const payday = paydays[i];
+            // Use the cutoff getPaydaysAndCutoffs already computed ("most recent Saturday before
+            // payday") instead of a fixed payday−6. When a bank holiday shifts a payday off Friday
+            // (e.g. Good Friday → Thursday), payday−6 lands on Friday, one day before the true
+            // Saturday cutoff — so the displayed range and the on/off window were a day early.
+            const cutoff = cutoffs[i];
             const start  = new Date(cutoff);  start.setDate(start.getDate() - 27);
             // Compare date-only strings: payday is at noon, so today <= payday (timestamp)
             // would hide the strip from midday onwards on the actual payday. ISO string

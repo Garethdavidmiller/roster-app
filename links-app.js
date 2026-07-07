@@ -355,7 +355,12 @@ export function init() {
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
             });
-            const d = { id: ref.id, name, patterns: {}, updatedAt: null, updatedBy: currentUser };
+            // Arm the concurrency baseline: read back the server updatedAt so loadedUpdatedAt
+            // is non-null from the first content-save. Without this, a just-created design's
+            // guard was bypassed (updatedAt:null) and a concurrent edit was silently clobbered.
+            let createdTs = null;
+            try { createdTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline — no concurrent editor to guard */ }
+            const d = { id: ref.id, name, patterns: {}, updatedAt: createdTs, updatedBy: currentUser };
             designs.push(d);
             _activateDesign(d);
         } catch (err) {
@@ -378,7 +383,10 @@ export function init() {
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
             });
-            const d = { id: ref.id, name, patterns, updatedAt: null, updatedBy: currentUser };
+            // Arm the concurrency baseline (see createDesign).
+            let dupTs = null;
+            try { dupTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline */ }
+            const d = { id: ref.id, name, patterns, updatedAt: dupTs, updatedBy: currentUser };
             designs.push(d);
             _activateDesign(d);
         } catch (err) {

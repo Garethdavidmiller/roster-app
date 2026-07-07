@@ -400,6 +400,13 @@ describe('huddles', () => {
         );
     });
 
+    test('admin cannot create with a malformed date (must be YYYY-MM-DD)', async () => {
+        // Parity with circulars/newsletters — a malformed date would break the string-range prune.
+        await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), date: '2026-6-5' }));
+        await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), date: '2026/06/25' }));
+        await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), date: '2026-13-01' }));
+    });
+
     test('admin cannot create with an invalid fileType', async () => {
         // A MIME type (the old fixture value) or anything outside ['pdf','docx'] is rejected.
         await assertFails(

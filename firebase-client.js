@@ -646,11 +646,15 @@ export async function getStaffContact(memberName) {
  * @returns {Promise<void>}
  */
 export async function saveStaffContact(memberName, workEmail) {
-    await setDoc(doc(db, COLLECTIONS.staffContact, memberName), {
+    // writeWithClaimRetry: staffContact writes require the member's own `name` claim. A
+    // just-provisioned member (or one whose token predates the claim) would otherwise get an
+    // unrecoverable permission-denied when saving their email before the ~hourly token
+    // refresh — self-heal by forcing a refresh + one retry, like every other name-gated write.
+    await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.staffContact, memberName), {
         memberName,
         workEmail,
         updatedAt: serverTimestamp(),
-    }, { merge: true });
+    }, { merge: true }));
 }
 
 /**
@@ -660,7 +664,7 @@ export async function saveStaffContact(memberName, workEmail) {
  * @returns {Promise<void>}
  */
 export async function deleteStaffContact(memberName) {
-    await deleteDoc(doc(db, COLLECTIONS.staffContact, memberName));
+    await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.staffContact, memberName)));
 }
 
 /**

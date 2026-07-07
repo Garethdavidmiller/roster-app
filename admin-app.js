@@ -987,7 +987,16 @@ function handleEdit(e) {
     const go = () => {
         _setSelectValue(fieldMember, memberName);
         fieldDate.value   = date;
+        lastFieldMember   = memberName;
         lastFieldDate     = date;
+        // _setSelectValue fires no 'change' event, so the fieldMember change handler (which
+        // re-syncs these) never runs on this path. Sync the AL/Absence selects + labels here
+        // exactly like showInChangeAShift, or a booking made from those cards right after an
+        // ✏️ edit would record against the PREVIOUSLY-selected member, not the edited one.
+        _setSelectValue(alMember, memberName);
+        _setSelectValue(sickMember, memberName);
+        syncMemberDisplay();
+        syncSickMemberDisplay();
         lsSet('adminLastMember', memberName);
         lsSet('myb_roster_selected_member', memberName);
         renderWeekGrid();
@@ -1075,7 +1084,7 @@ function hideFeedback() {
 const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
 const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
 const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
-const alConfirmSaveBtn   = /** @type {HTMLElement} */ (document.getElementById('alConfirmSaveBtn'));
+const alConfirmSaveBtn   = /** @type {HTMLButtonElement} */ (document.getElementById('alConfirmSaveBtn'));
 const alConfirmCancelBtn = /** @type {HTMLElement} */ (document.getElementById('alConfirmCancelBtn'));
 
 /**
@@ -1092,6 +1101,7 @@ function showALConfirm(msg, sub, pendingSave, pendingDelete = []) {
     _alPendingDelete = pendingDelete;
     alConfirmMsg.textContent = msg;
     alConfirmSub.textContent = sub;
+    alConfirmSaveBtn.disabled = false;   // re-arm (the click handler disables to block a double-tap)
     alConfirmBar.classList.add('visible');
     alConfirmSaveBtn.focus();
 }
@@ -1103,6 +1113,12 @@ function hideALConfirm() {
 }
 
 alConfirmSaveBtn.addEventListener('click', async () => {
+    // Disable immediately: the bar's slide-out keeps it hit-testable for 0.25s (CSS visibility
+    // delay), so without this a fast double-tap on the week-editor path would see _alPendingSave
+    // already nulled by hideALConfirm and fall into the AL-booking branch — an unintended,
+    // entitlement-unchecked AL write. Re-enabled by showALConfirm the next time the bar opens.
+    if (alConfirmSaveBtn.disabled) return;
+    alConfirmSaveBtn.disabled = true;
     if (_alPendingSave) {
         // Week editor path — toSave is an array of override entries
         const toSave   = _alPendingSave;

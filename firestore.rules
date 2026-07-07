@@ -144,6 +144,11 @@ service cloud.firestore {
         // timestamp so the display order is authoritative.
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy', 'htmlContent']) &&
         request.resource.data.date is string &&
+        // Bound the date to a real YYYY-MM-DD, matching circulars/newsletters. A malformed
+        // date would break pruneOldHuddles' string-range (`date < cutoffISO`) prune, leaving
+        // that doc + its Storage object un-pruned indefinitely.
+        request.resource.data.date.size() == 10 &&
+        request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
         // Browser writes (uploadHuddle) set fileType to the short form 'pdf'|'docx'.
         // The Cloud Function ingest path uses the Admin SDK and bypasses these rules.

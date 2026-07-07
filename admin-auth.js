@@ -76,6 +76,7 @@ export function initAuthSetup({ currentIsAdmin }) {
             if (!tokenResult.claims.admin) {
                 resultEl.innerHTML = '<p class="auth-result-info">⚠️ Your account is missing the admin claim, which this setup requires — the server will reject this call. Set the admin claim in the Firebase console, then sign out and back in.</p>';
                 resultEl.classList.add('visible');
+                return;   // without this, the fetch below 403s and the catch overwrites this guidance with a raw error
             }
 
             const resp = await fetch(SETUP_AUTH_URL, {

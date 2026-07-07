@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '16.14';
+export const APP_VERSION = '16.17';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -411,13 +411,21 @@ function calculateBankHolidays(year) {
     holidays.push(new Date(year, 7, augLast.getDate() - augDaysBack));
 
     // Christmas Day and Boxing Day (with weekend substitutes)
-    // Sat/Sun: both substitutes fall on Mon 27 and Tue 28
-    // Fri: Christmas stays Fri 25, Boxing Day substitute Mon 28
-    // Weekday: no substitutes needed
+    // Sat 25: Christmas sub → Mon 27, Boxing Day (Sun 26) sub → Tue 28  ⇒ {27, 28}
+    // Sun 25: Boxing Day is Mon 26 (a bank holiday in its own right, no sub),
+    //         Christmas sub → Tue 27                                     ⇒ {26, 27}
+    //   (NOT {27,28} — lumping Sunday into the Saturday branch dropped the real Dec 26
+    //    BH and invented a spurious Dec 28. Latent until Dec 25 is a Sunday — first in
+    //    2033, past today's MAX_YEAR — but a live trap when the range extends.)
+    // Fri 25: Christmas stays Fri 25, Boxing Day (Sat 26) sub → Mon 28
+    // Other weekday: Dec 25 + Dec 26, no substitutes needed
     const xmasDay = new Date(year, 11, 25).getDay();
-    if (xmasDay === 6 || xmasDay === 0) {
+    if (xmasDay === 6) {          // Saturday
         holidays.push(new Date(year, 11, 27));
         holidays.push(new Date(year, 11, 28));
+    } else if (xmasDay === 0) {   // Sunday
+        holidays.push(new Date(year, 11, 26));
+        holidays.push(new Date(year, 11, 27));
     } else if (xmasDay === 5) {
         holidays.push(new Date(year, 11, 25));
         holidays.push(new Date(year, 11, 28));
@@ -855,7 +863,8 @@ export function escapeHtml(str) {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');   // also escape ' — defence-in-depth for any single-quoted attribute interpolation
 }
 
 /**

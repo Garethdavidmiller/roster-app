@@ -101,8 +101,13 @@ function makeEl({ tagName = 'DIV', classes = [], attrs = {} } = {}) {
 
 // ── lockBodyScroll / unlockBodyScroll ─────────────────────────────────────────
 
+// lockBodyScroll/unlockBodyScroll are DEPTH-COUNTED (v16.16) via a module-level counter, so
+// drain any leaked depth between tests (10 unlocks is far more than any test nests).
+function _drainLock() { for (let i = 0; i < 10; i++) unlockBodyScroll(); }
+
 describe('lockBodyScroll', () => {
     beforeEach(() => {
+        _drainLock();
         _bodyClasses.clear();
         _bodyStyle.clear();
         global.window.scrollY = 100;
@@ -122,11 +127,12 @@ describe('lockBodyScroll', () => {
 
 describe('unlockBodyScroll', () => {
     beforeEach(() => {
+        _drainLock();
         _bodyClasses.clear();
         _bodyStyle.clear();
         _lastScrollTo = { x: 0, y: 0 };
         global.window.scrollY = 100;
-        lockBodyScroll(); // establish locked state
+        lockBodyScroll(); // establish locked state (depth 0→1)
     });
 
     test('removes lb-open class from body', () => {
@@ -142,6 +148,30 @@ describe('unlockBodyScroll', () => {
     test('restores the scroll position saved by lockBodyScroll', () => {
         unlockBodyScroll();
         assert.equal(_lastScrollTo.y, 100);
+    });
+});
+
+describe('lockBodyScroll — nesting (depth counter, v16.16)', () => {
+    beforeEach(() => {
+        _drainLock();
+        _bodyClasses.clear();
+        _bodyStyle.clear();
+        _lastScrollTo = { x: 0, y: 0 };
+        global.window.scrollY = 100;
+    });
+
+    test('a nested lock/unlock keeps the lock until the OUTERMOST unlock', () => {
+        lockBodyScroll();                 // outer: depth 0→1, captures scrollY=100
+        global.window.scrollY = 0;        // once .lb-open (position:fixed) is applied, scrollY reads 0
+        lockBodyScroll();                 // inner: depth 1→2, must NOT re-capture (would clobber to 0)
+        assert.equal(_bodyStyle.get('--lb-scroll-y'), '-100px', 'inner lock did not overwrite the baseline');
+
+        unlockBodyScroll();               // inner: depth 2→1, still locked
+        assert.equal(_bodyClasses.has('lb-open'), true, 'still locked after the inner unlock');
+
+        unlockBodyScroll();               // outer: depth 1→0, restores
+        assert.equal(_bodyClasses.has('lb-open'), false);
+        assert.equal(_lastScrollTo.y, 100, 'restored the ORIGINAL scroll position, not 0');
     });
 });
 

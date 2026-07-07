@@ -21,16 +21,24 @@
  */
 
 let _lbScrollY = 0;
+// Depth-counted so nesting is safe (the v15.69 history stack made nested overlays a
+// supported case). Once `.lb-open` is applied (position:fixed) window.scrollY reads 0, so a
+// naive second lock would capture 0 and the inner unlock would strip the lock (background
+// jumps to top) while the outer overlay is still open. Capture only on 0→1, restore on 1→0.
+let _lbDepth = 0;
 
-/** Lock body scroll for an open overlay (iOS Safari fix). */
+/** Lock body scroll for an open overlay (iOS Safari fix). Re-entrant / nesting-safe. */
 export function lockBodyScroll() {
+    if (_lbDepth++ > 0) return;   // already locked by an outer overlay — keep its scroll baseline
     _lbScrollY = window.scrollY;
     document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
     document.body.classList.add('lb-open');
 }
 
-/** Restore body scroll after an overlay closes. */
+/** Restore body scroll after an overlay closes. Only the outermost unlock restores. */
 export function unlockBodyScroll() {
+    if (_lbDepth > 0) _lbDepth--;
+    if (_lbDepth > 0) return;      // an outer overlay is still open — keep the lock
     document.body.classList.remove('lb-open');
     document.body.style.removeProperty('--lb-scroll-y');
     window.scrollTo(0, _lbScrollY);
@@ -180,6 +188,10 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     }
 
     function open(/** @type {any[]} */...args) {
+        // Idempotent: a second open() while already open would push a duplicate lockBodyScroll
+        // (depth counter → the lock never releases on close) and re-run onOpen. Reachable via a
+        // fast double-tap on a trigger during the opener's slide-out (e.g. the nav-drawer logo).
+        if (overlay.classList.contains('visible')) return;
         _focusReturn = document.activeElement;
         onOpen?.(...args);
         lockBodyScroll();

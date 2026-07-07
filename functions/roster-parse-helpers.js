@@ -39,11 +39,15 @@ function normaliseShift(raw) {
     // become a real working shift.
     const validHHMM = (h, m) => +h >= 0 && +h <= 23 && +m >= 0 && +m <= 59;
 
-    // RDW with time: "RDW 14:30-22:00" or "RDW 1430-2200" → "RDW|14:30-22:00".
+    // RDW with time, RDW on EITHER side: "RDW 14:30-22:00" / "RDW 1430-2200" AND the
+    // time-first paper-roster form "14:30-22:00 RDW" → "RDW|14:30-22:00". Matching only the
+    // RDW-first form silently dropped a time-first RDW to a plain worked shift (a pay-
+    // correctness bug — RDW is overtime), mirroring the one-sided gap the training parser
+    // already avoids. The `s.includes('RDW')` guard keeps a bare time out of this branch.
     // Hours may be 1 or 2 digits (OCR sometimes drops the leading zero, e.g. "6:30");
     // pad to 2 so a single-digit hour isn't silently lost as a rest day.
-    const rdwMatch = s.match(/^RDW\s+(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})$/);
-    if (rdwMatch && validHHMM(rdwMatch[1], rdwMatch[2]) && validHHMM(rdwMatch[3], rdwMatch[4])) {
+    const rdwMatch = s.match(/^(?:RDW\s+)?(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})(?:\s+RDW)?$/);
+    if (rdwMatch && s.includes('RDW') && validHHMM(rdwMatch[1], rdwMatch[2]) && validHHMM(rdwMatch[3], rdwMatch[4])) {
         return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
     }
 
@@ -242,6 +246,10 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
     const seenMembers = new Set();
     for (const entry of parsedMembers) {
+        // Guard against a non-object array element (e.g. the AI returns `"parsed": [null]`):
+        // `entry.memberName` on null throws a TypeError, and this runs OUTSIDE the AI-call
+        // try/catch, so it would surface as an ungraceful 500 instead of the clean 502.
+        if (!entry || typeof entry !== 'object') continue;
         if (typeof entry.memberName !== 'string' || !entry.memberName.trim()) continue;
         // Skip a repeated member (e.g. a two-page roster that lists someone on both pages, or an AI
         // hallucinated duplicate). Two rows for the same member would render duplicate review rows and,
