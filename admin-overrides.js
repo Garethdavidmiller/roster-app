@@ -736,7 +736,36 @@ function _initBulkBar() {
         });
     }
 
+    /**
+     * Deselect one out-of-selection row for the bulk tick buttons (v16.23). Three cases:
+     *  · UNTOUCHED prefilled row (existingId + prefilled-existing): visually uncheck only —
+     *    _deactivateRow would clear dataset.type and stage a DELETE of the saved doc.
+     *  · EDITED saved-override row (existingId, prefilled class removed): leave the checkbox
+     *    CHECKED and the edit staged — unchecking it visually while the collector still saved
+     *    the edit made the box lie, and deactivating staged a silent delete. The bulk buttons
+     *    only tick days; they never unstage an edit.
+     *  · Plain staged row (no existingId): deactivate as before. Returns true when staged
+     *    state actually changed (drives _markChanged, which must not fire for mere ticking).
+     * @param {HTMLElement} row @param {HTMLInputElement} checkbox
+     * @returns {boolean} staged state changed
+     */
+    function _bulkDeselectRow(row, checkbox) {
+        if (row.dataset.existingId) {
+            if (row.classList.contains('prefilled-existing')) {
+                checkbox.checked = false;
+                row.classList.remove('selected');
+            }
+            return false;   // edited row: untouched (checkbox stays ticked, edit stays staged)
+        }
+        const hadStaged = !!row.dataset.type;
+        _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
+            /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start')),
+            /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end')));
+        return hadStaged;
+    }
+
     document.getElementById('bulkSelMonFri')?.addEventListener('click', () => {
+        let stagedChanged = false;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const dayIdx   = new Date((row.dataset.date ?? '') + 'T12:00:00').getDay();
@@ -746,26 +775,17 @@ function _initBulkBar() {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
-                // ANY row with a saved override (existingId) is only visually unchecked — calling
-                // _deactivateRow clears dataset.type, converting the row into a STAGED DELETE of
-                // the saved doc. Previously only untouched 'prefilled-existing' rows were spared,
-                // so a row the user had just EDITED (prefilled class removed) was silently queued
-                // for deletion by a button whose job is only ticking days (v16.23).
-                if (row.dataset.existingId) {
-                    checkbox.checked = false;
-                    row.classList.remove('selected');
-                } else {
-                    _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
-                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start')),
-                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end')));
-                }
+                stagedChanged = _bulkDeselectRow(row, checkbox) || stagedChanged;
             }
         });
-        _markChanged();   // programmatic checkbox writes fire no 'change' — flag the staged edits (v16.23)
+        // Only when staged state genuinely changed — mere ticking stages nothing, and a false
+        // unsaved-changes flag also froze the admin week-swipe gesture (v16.23).
+        if (stagedChanged) _markChanged();
         updateSaveBtn(); _updateBulkSelCount();
     });
 
     document.getElementById('bulkSelWorking')?.addEventListener('click', () => {
+        let stagedChanged = false;
         const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
         const member = memberName ? teamMembers.find(m => m.name === memberName) : null;
         // Build priority-correct override map once — manual beats roster_import per date.
@@ -784,18 +804,10 @@ function _initBulkBar() {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
-                // Spare ANY saved-override row from _deactivateRow — see bulkSelMonFri (v16.23).
-                if (row.dataset.existingId) {
-                    checkbox.checked = false;
-                    row.classList.remove('selected');
-                } else {
-                    _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
-                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start')),
-                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end')));
-                }
+                stagedChanged = _bulkDeselectRow(row, checkbox) || stagedChanged;   // see bulkSelMonFri (v16.23)
             }
         });
-        _markChanged();   // programmatic checkbox writes fire no 'change' (v16.23)
+        if (stagedChanged) _markChanged();
         updateSaveBtn(); _updateBulkSelCount();
     });
 
@@ -807,7 +819,7 @@ function _initBulkBar() {
             checkbox.checked = true;
             if (!row.dataset.type) row.classList.add('selected');
         });
-        _markChanged();   // programmatic checkbox writes fire no 'change' (v16.23)
+        // No _markChanged: ticking alone stages nothing (the collector keys off dataset.type).
         updateSaveBtn(); _updateBulkSelCount();
     });
 

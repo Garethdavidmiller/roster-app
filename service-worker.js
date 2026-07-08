@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.23
+// MYB Roster — Service Worker v16.24
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.23';
+const APP_VERSION = '16.24';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -427,7 +427,10 @@ self.addEventListener("fetch", event => {
             caches.open(SDK_CACHE_NAME).then(cache =>
                 cache.match(event.request).then(cached => cached
                     || fetch(event.request).then(response => {
-                        if (response && response.status === 200) {
+                        // ctSafe (v16.23): match the warm-up/SWR puts — never cache an HTML
+                        // interstitial masquerading as an SDK module (the runtime path was the
+                        // one remaining unguarded put).
+                        if (response && response.status === 200 && ctSafe(url.pathname, response)) {
                             const clone = response.clone();
                             cache.put(event.request, clone).catch(() => {});
                         }

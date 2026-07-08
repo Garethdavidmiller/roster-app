@@ -319,6 +319,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                 // the primary button disabled on "Signed in — opening …" forever. The session IS
                 // saved at this point, so recover the UI and let the user retry (v16.23).
                 console.warn('[Login] onSuccess failed after a successful sign-in:', e);
+                clearLoginStart();   // drop the perf marker — a later open must not log an inflated loginTotal
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Sign in →';
                 showError('Signed in, but the page couldn’t open — try again.');

@@ -91,5 +91,9 @@ export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
                 }
             });
         })
-        .catch(e => console.warn('[SW] Registration failed:', e));
+        // Release the once-guard on failure (v16.23): _registered latches synchronously, so a
+        // transient register() rejection would otherwise leave the page PERMANENTLY without a
+        // SW registration — the in-place sign-in re-invocation (the very flow the guard exists
+        // for) used to retry it, and still can this way.
+        .catch(e => { _registered = false; console.warn('[SW] Registration failed:', e); });
 }

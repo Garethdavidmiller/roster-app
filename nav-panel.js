@@ -85,6 +85,10 @@ registerPopInterceptor(() => _historyPushed);
 // surviving a reset would consume the shared flags against a detached panel).
 /** @type {any} */ let _docKeydownHandler = null;
 /** @type {any} */ let _popstateHandler   = null;
+// The coming-soon / notices lightbox keydown handlers, held so resetNavPanel can remove them too
+// (v16.23) — a copy surviving a reset-while-open closed over the detached lightbox and could steal
+// the REBUILT drawer's history entry on Escape (the in-handler open-flag guards remain as backup).
+/** @type {any[]} */ let _navLbKeyHandlers = [];
 
 /** localStorage key for the archived notices list. */
 const NOTICES_KEY = 'myb_app_notices';
@@ -175,6 +179,8 @@ export function resetNavPanel() {
     // Android Back and leave the rebuilt drawer stuck open.
     if (_docKeydownHandler) { document.removeEventListener('keydown', _docKeydownHandler); _docKeydownHandler = null; }
     if (_popstateHandler)   { window.removeEventListener('popstate', _popstateHandler);   _popstateHandler = null; }
+    _navLbKeyHandlers.forEach(fn => document.removeEventListener('keydown', fn));
+    _navLbKeyHandlers = [];
     ['navPanel', 'navPanelOverlay', 'navComingSoonLightbox', 'navNoticesLightbox']
         .forEach(id => document.getElementById(id)?.remove());
     const burger = document.getElementById('navMenuBtn');
@@ -648,6 +654,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (e.key === 'Escape') { _closeNotices(); return; }
         if (e.key === 'Tab')    { e.preventDefault(); noticesClose?.focus(); }
     }
+    // Register both with resetNavPanel's teardown list (v16.23) — this init's handlers replace
+    // any earlier init's (already removed by the reset that preceded this init).
+    _navLbKeyHandlers = [_onComingSoonKey, _onNoticesKey];
 
     noticesClose?.addEventListener('click', _closeNotices);
     noticesLightbox?.addEventListener('click', e => {
