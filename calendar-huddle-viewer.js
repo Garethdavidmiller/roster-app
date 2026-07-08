@@ -31,7 +31,10 @@
 /** @type {Promise<any>|null} */
 let _purifyPromise = null;
 function _loadPurify() {
-    return (_purifyPromise ||= import('./purify.es.mjs').then(m => m.default));
+    // Reset on rejection (v16.23): ||= never re-assigns over a rejected (truthy) promise, so one
+    // failed load (offline + evicted cache) permanently broke every DOCX render until reload.
+    return (_purifyPromise ||= import('./purify.es.mjs').then(m => m.default)
+        .catch(err => { _purifyPromise = null; throw err; }));
 }
 import { subscribeToLatestHuddle, isSafeStorageUrl } from './firebase-client.js';
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus } from './overlay.js';
@@ -122,6 +125,34 @@ export function initHuddleViewer() {
         trapFocus(viewer, e);
     }
 
+    // PDF path, DOCX-conversion-failed path, AND the inline-render failure fallback (v16.23):
+    // show an explicit button. A notification tap carries no in-page user activation, so calling
+    // window.open() directly here would be blocked as a pop-up — and navigating the standalone
+    // window itself (location.href) to the cross-origin file knocks the app out of standalone
+    // mode (it comes back wrapped in browser chrome). Instead, open the viewer with an explicit
+    // button: tapping it IS a real gesture, so the file opens as a separate Custom Tab over the
+    // intact standalone app, and Back returns to the clean app.
+    /** @param {any} huddle */
+    function showOpenFileButton(huddle) {
+        body.innerHTML = '<div class="huddle-open-prompt">'
+            + '<p>The latest Huddle is ready.</p>'
+            + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn">📄 Open Huddle</button>'
+            + '</div>';
+        openViewer();
+        const openBtn = document.getElementById('huddleOpenFileBtn');
+        openBtn?.addEventListener('click', () => {
+            // Defence-in-depth: only open a recognised Firebase Storage HTTPS URL
+            // (same validator the Circular/Newsletter openers use). Guards against
+            // malformed Firestore data or a compromised write opening an arbitrary URL.
+            if (isSafeStorageUrl(huddle.storageUrl)) {
+                window.open(huddle.storageUrl, '_blank', 'noopener');
+            } else {
+                body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact the admin.</p>';
+            }
+        });
+        openBtn?.focus();
+    }
+
     // Render a DOCX-converted huddle inline — memoises sanitised HTML per storageUrl
     // so DOMPurify doesn't re-parse the same document on every reopen.
     /** @param {any} huddle */
@@ -135,9 +166,13 @@ export function initHuddleViewer() {
             openViewer();
             close?.focus();
         } catch (err) {
-            // DOMPurify failed to load (offline + evicted) or sanitise threw — never
-            // render unsanitised HTML; leave the viewer in its prior state.
+            // DOMPurify failed to load (offline + evicted) or sanitise threw — never render
+            // unsanitised HTML. Previously this left the viewer CLOSED with the notification tap
+            // already consumed (_autoOpened=true) and no retry path — the tap silently did
+            // nothing. Fall back to the Open-file button instead: the storageUrl is still
+            // perfectly openable, matching the documented DOCX-conversion-failed UX (v16.23).
             console.error('[Huddle] inline render failed:', err);
+            showOpenFileButton(huddle);
         }
     }
 
@@ -153,33 +188,8 @@ export function initHuddleViewer() {
                 // DOCX converted to HTML server-side — render inline.
                 showInlineHuddle(huddle);
             } else {
-                // PDF, or DOCX where conversion failed — show an explicit button.
-                // A notification tap carries no in-page user activation, so calling
-                // window.open() directly here would be blocked as a pop-up — and
-                // navigating the standalone window itself (location.href) to the
-                // cross-origin file knocks the app out of standalone mode (it comes
-                // back wrapped in browser chrome). Instead, open the viewer with an
-                // explicit button: tapping it IS a real gesture, so the file opens as
-                // a separate Custom Tab over the intact standalone app, and Back
-                // returns to the clean app. (The button click here is itself a real
-                // gesture, so window.open is allowed.)
-                body.innerHTML = '<div class="huddle-open-prompt">'
-                    + '<p>The latest Huddle is ready.</p>'
-                    + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn">📄 Open Huddle</button>'
-                    + '</div>';
-                openViewer();
-                const openBtn = document.getElementById('huddleOpenFileBtn');
-                openBtn?.addEventListener('click', () => {
-                    // Defence-in-depth: only open a recognised Firebase Storage HTTPS URL
-                    // (same validator the Circular/Newsletter openers use). Guards against
-                    // malformed Firestore data or a compromised write opening an arbitrary URL.
-                    if (isSafeStorageUrl(huddle.storageUrl)) {
-                        window.open(huddle.storageUrl, '_blank', 'noopener');
-                    } else {
-                        body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact the admin.</p>';
-                    }
-                });
-                openBtn?.focus();
+                // PDF, or DOCX where conversion failed.
+                showOpenFileButton(huddle);
             }
         } catch (err) {
             console.error('[Huddle] Auto-open error:', err);

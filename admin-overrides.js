@@ -746,9 +746,12 @@ function _initBulkBar() {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
-                // Prefilled rows (existing override, unedited) are only visually unchecked —
-                // calling _deactivateRow would clear dataset.type and queue them for deletion.
-                if (row.dataset.existingId && row.classList.contains('prefilled-existing')) {
+                // ANY row with a saved override (existingId) is only visually unchecked — calling
+                // _deactivateRow clears dataset.type, converting the row into a STAGED DELETE of
+                // the saved doc. Previously only untouched 'prefilled-existing' rows were spared,
+                // so a row the user had just EDITED (prefilled class removed) was silently queued
+                // for deletion by a button whose job is only ticking days (v16.23).
+                if (row.dataset.existingId) {
                     checkbox.checked = false;
                     row.classList.remove('selected');
                 } else {
@@ -758,6 +761,7 @@ function _initBulkBar() {
                 }
             }
         });
+        _markChanged();   // programmatic checkbox writes fire no 'change' — flag the staged edits (v16.23)
         updateSaveBtn(); _updateBulkSelCount();
     });
 
@@ -780,7 +784,8 @@ function _initBulkBar() {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
-                if (row.dataset.existingId && row.classList.contains('prefilled-existing')) {
+                // Spare ANY saved-override row from _deactivateRow — see bulkSelMonFri (v16.23).
+                if (row.dataset.existingId) {
                     checkbox.checked = false;
                     row.classList.remove('selected');
                 } else {
@@ -790,6 +795,7 @@ function _initBulkBar() {
                 }
             }
         });
+        _markChanged();   // programmatic checkbox writes fire no 'change' (v16.23)
         updateSaveBtn(); _updateBulkSelCount();
     });
 
@@ -801,6 +807,7 @@ function _initBulkBar() {
             checkbox.checked = true;
             if (!row.dataset.type) row.classList.add('selected');
         });
+        _markChanged();   // programmatic checkbox writes fire no 'change' (v16.23)
         updateSaveBtn(); _updateBulkSelCount();
     });
 
@@ -855,13 +862,20 @@ export async function executeSave(toSave, toDelete = []) {
     const removes     = toDelete.length;
     const total       = toSave.length + removes;
 
+    // Disable the button BEFORE awaiting sessionReady (v16.23). While sessionReady is still
+    // pending (early after a slow-auth page load), a double-tap could pass the collector twice —
+    // each run deletes existingId idempotently but MINTS ITS OWN new doc → duplicate overrides
+    // for the same member/date. The finally below re-enables on every exit path.
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
+
     await sessionReady;
     if (!auth.currentUser) {
         _showError('Session expired — please sign out and sign back in.');
+        // This early return is before the try/finally — restore the button state it can't.
+        if (saveBtn) { saveBtn.textContent = 'Save changes'; }
+        updateSaveBtn();
         return;
     }
-
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
 
     try {
         // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a

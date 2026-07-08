@@ -27,7 +27,13 @@ const _seen = new Set();
  */
 function _report(err, src = '') {
     try {
-        const message = (err instanceof Error ? err.message : String(err ?? '')).trim();
+        // Plain-object rejections (reject({code:…})) stringify to "[object Object]" — one useless
+        // record whose dedup key then suppressed every OTHER distinct object rejection for the
+        // session. Serialise them (bounded) so the Error Log shows the actual payload (v16.23).
+        const message = (err instanceof Error ? err.message
+            : (err !== null && typeof err === 'object')
+                ? (() => { try { return JSON.stringify(err).slice(0, 300); } catch { return String(err); } })()
+                : String(err ?? '')).trim();
 
         // Cross-origin script errors arrive as the literal string "Script error."
         // with no useful stack — useless and very frequent from browser extensions.

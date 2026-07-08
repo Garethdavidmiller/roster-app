@@ -21,6 +21,11 @@ export function tsToMillis(ts) {
     if (!ts) return 0;
     if (typeof ts.toMillis === 'function') return ts.toMillis();
     if (typeof ts.seconds === 'number') return ts.seconds * 1000;
+    // Plain JS Date (v16.23): the write paths stamp cache-inserted docs with `createdAt: new Date()`.
+    // Returning 0 for those made shouldReplaceOverride rank a JUST-SAVED override below a lingering
+    // same-source duplicate with a real Firestore timestamp — the grid kept showing the stale value
+    // until the next full reload.
+    if (ts instanceof Date) return ts.getTime();
     return 0;
 }
 

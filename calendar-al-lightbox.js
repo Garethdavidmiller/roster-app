@@ -13,6 +13,7 @@ import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getALEntitlement, isSunday, formatISO } from './roster-data.js';
+import { shouldReplaceOverride } from './override-utils.js';
 
 /**
  * Initialise the Annual Leave lightbox and the day-detail lightbox.
@@ -80,16 +81,25 @@ export function initCalendarLightboxes() {
         new Promise((_, reject) => { _alTimer = setTimeout(() => reject(new Error('AL load timeout')), 15_000); }),
       ]);
       if (myGen !== _alLoadGen) return;   // a newer load started while this was in flight — discard
+      // Resolve ONE winner per date before counting (v16.23) — every other consumer applies
+      // shouldReplaceOverride, but this loop counted every DOC: a superseded/duplicate AL doc
+      // sharing a date with a winning non-AL override (two-device race, offline retry, legacy
+      // data) counted as a day taken and UNDERSTATED remaining AL.
+      /** @type {Map<string, any>} */
+      const byDate = new Map();
       snap.forEach(/** @param {any} d */ d => {
         const data = d.data();
         if (data.memberName !== /** @type {any} */ (member).name) return;
         memberOverrides.push(data);
-        // Rule: see CLAUDE.md — "Sundays are non-contracted" (AL entitlement count)
-        if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr) &&
-            !isSunday(data.date)) {
-          if (data.date <= todayStr) taken++; else booked++;
-        }
+        const ex = byDate.get(data.date);
+        if (!ex || shouldReplaceOverride(ex, data)) byDate.set(data.date, data);
       });
+      for (const [date, ov] of byDate) {
+        // Rule: see CLAUDE.md — "Sundays are non-contracted" (AL entitlement count)
+        if (ov.type === 'annual_leave' && date && date.startsWith(yearStr) && !isSunday(date)) {
+          if (date <= todayStr) taken++; else booked++;
+        }
+      }
       const entitlement = getALEntitlement(member, year, memberOverrides);
       entEl.textContent  = String(entitlement);
       const remaining = entitlement - taken - booked;

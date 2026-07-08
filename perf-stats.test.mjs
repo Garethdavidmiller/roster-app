@@ -15,7 +15,7 @@ function samplesFrom(rows) {
 
 describe('bucketDuration', () => {
     test('maps each range to the right bucket (boundaries are inclusive-low)', () => {
-        assert.equal(bucketDuration(0), 'lt500ms');
+        assert.equal(bucketDuration(1), 'lt500ms');
         assert.equal(bucketDuration(499), 'lt500ms');
         assert.equal(bucketDuration(500), '500ms-1s');
         assert.equal(bucketDuration(999), '500ms-1s');
@@ -28,12 +28,14 @@ describe('bucketDuration', () => {
     });
 
     test('every returned bucket is a member of PERF_BUCKETS', () => {
-        for (const ms of [0, 700, 1500, 5000, 20000]) {
+        for (const ms of [1, 700, 1500, 5000, 20000]) {
             assert.ok(PERF_BUCKETS.includes(/** @type {string} */ (bucketDuration(ms))));
         }
     });
 
-    test('returns null for non-finite / negative / non-number (skip the sample)', () => {
+    test('returns null for non-finite / zero / negative / non-number (skip the sample)', () => {
+        // 0 = an UNPOPULATED PerformanceNavigationTiming field, not a real duration (v16.23)
+        assert.equal(bucketDuration(0), null);
         assert.equal(bucketDuration(-1), null);
         assert.equal(bucketDuration(NaN), null);
         assert.equal(bucketDuration(Infinity), null);

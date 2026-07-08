@@ -20,7 +20,10 @@ export const PERF_BUCKETS = ['lt500ms', '500ms-1s', '1-3s', '3-8s', 'over8s'];
  * @returns {string|null}
  */
 export function bucketDuration(ms) {
-    if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) return null;
+    // <= 0 (not < 0): an UNPOPULATED PerformanceNavigationTiming field reads 0, not negative —
+    // bucketing it as lt500ms recorded a fake "Quick" sample. A genuine 0ms duration is not a
+    // real page-load measurement, so dropping 0 loses nothing (v16.23).
+    if (typeof ms !== 'number' || !isFinite(ms) || ms <= 0) return null;
     if (ms < 500)  return 'lt500ms';
     if (ms < 1000) return '500ms-1s';
     if (ms < 3000) return '1-3s';

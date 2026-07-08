@@ -135,9 +135,29 @@ export function _clearOverlayHistory(closeHandler) {
     history.back();
 }
 
+// External pop owners (v16.23). nav-panel.js manages its OWN history entry (the drawer) outside
+// this stack; without coordination, the popstate from the drawer's history.back() — or a hardware
+// Back while the drawer is open — reached this handler and POPPED an unrelated overlay handler
+// (concretely: closing the nav drawer while Team Week View was active invoked toggleTeamView and
+// kicked the user out of team view). An interceptor returning true claims the pop; this stack is
+// left untouched. Registered once at module level by the owner (survives resetNavPanel cycles).
+/** @type {Array<() => boolean>} */
+const _popInterceptors = [];
+/** @param {() => boolean} fn — return true iff the current popstate belongs to you. */
+export function registerPopInterceptor(fn) { _popInterceptors.push(fn); }
+/** Absorb the NEXT popstate before it reaches the overlay stack — for an external owner's
+ *  button-initiated history.back() (its ownership flag is already cleared by then, so the
+ *  interceptor can't claim the echo). */
+export function suppressNextPop() { _suppressPops++; }
+
 window.addEventListener('popstate', () => {
-    // Absorb the echo from our own button-initiated history.back().
+    // Absorb the echo from our own button-initiated history.back() (or an external owner's — see
+    // suppressNextPop). Checked FIRST so a claimed/suppressed pop can never leak the counter.
     if (_suppressPops > 0) { _suppressPops--; return; }
+    // An external owner (the nav drawer) claims pops for its own live history entry.
+    for (const claims of _popInterceptors) {
+        try { if (claims()) return; } catch (_e) { /* interceptor must never break the stack */ }
+    }
     if (_backHandlers.length === 0) return;
     const fn = _backHandlers.pop();
     // Guard so the handler's own _clearOverlayHistory() call is a no-op (the entry is gone).

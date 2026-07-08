@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.22
+// MYB Roster — Service Worker v16.23
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.22';
+const APP_VERSION = '16.23';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -280,6 +280,30 @@ async function fetchInBatches(assets, precacheFn) {
     }
 }
 
+/** Content-type sanity check before caching an asset (v16.23). A trusted-cert intermediary
+ *  (corporate MITM / managed-device proxy) can return a 200 HTML interstitial for ANY URL;
+ *  caching that body under a module path poisons the version cache for its whole life
+ *  (SyntaxError → stuck splash; the doc branch got this guard in v16.19, the warm-up and
+ *  JS/CSS puts did not). Rule: .html assets accept html-or-missing; everything else rejects
+ *  a PRESENT text/html type (real types here are text/javascript, text/css, font/woff2,
+ *  image/png, application/manifest+json — none contain "text/html"). */
+function ctSafe(assetPath, res) {
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    const isHtml = assetPath.endsWith('.html') || assetPath.endsWith('/') || assetPath === './';
+    return isHtml ? (!ct || ct.includes('text/html')) : !ct.includes('text/html');
+}
+
+/** fetch with a hard timeout (v16.23). The warm-up had NO per-fetch timeout, so one hung
+ *  fetch (half-open TCP on flaky mobile) stalled its batch forever — the marker was never
+ *  written and every fetch event's waitUntil(_warmupInFlight) kept the SW pinned alive.
+ *  An abort REJECTS, which the per-asset .catch records as a miss → normal retry-next-wake. */
+function fetchWithTimeout(req, ms = 30000) {
+    if (typeof AbortController === 'undefined') return fetch(req);
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), ms);
+    return fetch(new Request(req, { signal: c.signal })).finally(() => clearTimeout(t));
+}
+
 async function warmCacheAndSweepOld() {
     const cache = await openCache();
     if (await cache.match(PRECACHE_MARKER)) return;   // already fully warmed + swept
@@ -293,10 +317,10 @@ async function warmCacheAndSweepOld() {
         // the same moment — skip anything already present instead of fetching it twice.
         // (Everything in this version-pinned cache was fetched fresh from the origin.)
         if (await cache.match(asset)) return;
-        const res = await fetch(new Request(asset, revalidate ? { cache: 'no-cache' } : {}));
-        if (res.ok) return cache.put(asset, unredirect(res));
-        allOk = false;
-        console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}): HTTP ${res.status}`);
+        const res = await fetchWithTimeout(new Request(asset, revalidate ? { cache: 'no-cache' } : {}));
+        if (res.ok && ctSafe(asset, res)) return cache.put(asset, unredirect(res));
+        allOk = false;   // non-ok OR wrong content-type (interstitial) — don't cache, don't sweep, retry next wake
+        console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}): ${res.ok ? 'unexpected content-type' : `HTTP ${res.status}`}`);
     })().catch(err => { allOk = false; console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err); });
     await fetchInBatches(CORE_ASSETS, a => precache(a, true));
     await fetchInBatches(SUPPLEMENTARY_ASSETS, a => precache(a, true));
@@ -309,10 +333,10 @@ async function warmCacheAndSweepOld() {
     const sdkCache = await caches.open(SDK_CACHE_NAME);
     const precacheSdk = sdkUrl => (async () => {
         if (await sdkCache.match(sdkUrl)) return;   // runtime route may have cached it already
-        const res = await fetch(sdkUrl);
-        if (res.ok) return sdkCache.put(sdkUrl, res);
-        sdkOk = false;
-        console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}): HTTP ${res.status}`);
+        const res = await fetchWithTimeout(sdkUrl);
+        if (res.ok && ctSafe(sdkUrl, res)) return sdkCache.put(sdkUrl, res);
+        sdkOk = false;   // non-ok OR an HTML interstitial masquerading as the SDK module
+        console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}): ${res.ok ? 'unexpected content-type' : `HTTP ${res.status}`}`);
     })().catch(err => { sdkOk = false; console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}):`, err); });
     await fetchInBatches(SDK_ASSETS, precacheSdk);
 
@@ -410,7 +434,13 @@ self.addEventListener("fetch", event => {
                         return response;
                     })
                 )
-            ).catch(() => caches.match(event.request)).then(r => r || Response.error())
+            // Terminal backstop hardening (v16.23): the fallback caches.match can ITSELF reject on a
+            // fully-broken Cache Storage (rejecting respondWith → failed SDK import → app won't boot),
+            // and when caches.open rejected the fetch above was never reached — so an ONLINE device
+            // with wedged storage got Response.error() without ever trying the network. Catch the
+            // fallback lookup and end with a real network attempt, mirroring the doc branch.
+            ).catch(() => caches.match(event.request).catch(() => null))
+             .then(r => r || fetch(event.request).catch(() => Response.error()))
         );
         return;
     }
@@ -470,9 +500,13 @@ self.addEventListener("fetch", event => {
             // pressure — synthesise a minimal offline page so the request still resolves.
             // ignoreSearch: navigations are cached under the bare path (no ?query — see the
             // network handler), so a deep link like paycalc.html?payday=… must match it.
-            return openCache().then(c => c.match(event.request, { ignoreSearch: true }))
-                .then(r => r || caches.match(event.request, { ignoreSearch: true }))
-                .then(r => r || (fallback ? openCache().then(c => c.match(fallback)).then(fr => fr || caches.match(fallback)) : null))
+            // Every cache lookup below is .catch-guarded (v16.23): a rejecting openCache/match on
+            // broken storage previously rejected the WHOLE fallback chain — skipping the synthesized
+            // offline page exactly when it was designed to appear (the rejection then landed in the
+            // untimed outer network backstop). The offline page must always be reachable.
+            return openCache().then(c => c.match(event.request, { ignoreSearch: true })).catch(() => null)
+                .then(r => r || caches.match(event.request, { ignoreSearch: true }).catch(() => null))
+                .then(r => r || (fallback ? openCache().then(c => c.match(fallback)).then(fr => fr || caches.match(fallback)).catch(() => null) : null))
                 .then(r => r || (isDoc
                     ? new Response(
                         `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Offline — Marylebone Roster</title></head><body><h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">${offlineMsg}</p></body></html>`,
@@ -599,7 +633,10 @@ self.addEventListener("fetch", event => {
                 _revalidated.add(relPath);
                 network = fetch(event.request)
                     .then(response => {
-                        if (response && response.status === 200) {
+                        // ctSafe (v16.23): never cache a text/html body under a JS/CSS path — a
+                        // proxy interstitial 200 would otherwise poison the module for the whole
+                        // version (this branch never serves .html; isDoc routes those first).
+                        if (response && response.status === 200 && ctSafe(relPath, response)) {
                             cache.put(event.request, response.clone())
                                 .catch(err => console.warn(`[SW ${APP_VERSION}] SWR cache.put failed (quota?):`, err));
                         }
@@ -621,11 +658,15 @@ self.addEventListener("fetch", event => {
             // the splash — the doc branch already falls back on !response.ok, this mirrors it (v16.19).
             const net = await network;
             return (net && net.ok ? net : null) || (await caches.match(event.request)) || Response.error();
-        })().catch(() => caches.match(event.request).then(r => r || Response.error())));
+        })().catch(() => caches.match(event.request).catch(() => null)
+            .then(r => r || fetch(event.request).catch(() => Response.error()))));
         // A rejected respondWith for a <script type=module> fails the import and breaks the
         // module graph → calendar-app.js never runs → the splash sticks. A broken Cache
         // Storage at the initial openCache()/cache.match must degrade like the else-branch,
-        // not hard-fail the module load (v16.19).
+        // not hard-fail the module load (v16.19). v16.23: the backstop's own caches.match can
+        // ALSO reject on fully-broken storage, and when openCache rejected the branch's fetch
+        // was never reached — so catch the lookup and end with a real network attempt (an
+        // online device with wedged storage must still get its modules).
     } else {
         // Cache-first: icons/manifest served from cache instantly, fetched if missing
         event.respondWith(
@@ -645,8 +686,10 @@ self.addEventListener("fetch", event => {
                 })
                 // Match the SDK/managed branches' resilience: on a broken Cache Storage or an
                 // offline miss, degrade to a network-error response instead of a rejected
-                // respondWith (a hard browser error).
-                .catch(() => caches.match(event.request).then(r => r || Response.error()))
+                // respondWith (a hard browser error). v16.23: guard the fallback lookup itself
+                // and end with a network attempt, like the other branches.
+                .catch(() => caches.match(event.request).catch(() => null)
+                    .then(r => r || fetch(event.request).catch(() => Response.error())))
         );
     }
 });
@@ -765,6 +808,10 @@ self.addEventListener("notificationclick", event => {
                         return focusedClient.navigate(targetUrl)
                             .catch(() => clients.openWindow(targetUrl));
                     }
+                    // navigate() unsupported (defensive — universal on push-capable browsers):
+                    // fall back to a fresh window rather than dead-ending the tap with only a
+                    // focus and no deep link (v16.23).
+                    return clients.openWindow(targetUrl);
                 }).catch(() => clients.openWindow(targetUrl));
             }
             return clients.openWindow(targetUrl);

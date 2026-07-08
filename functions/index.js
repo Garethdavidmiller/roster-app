@@ -489,7 +489,9 @@ function setupWebPush(vapidPrivate) {
 
 /**
  * Fan out Web Push notifications to all subscribed devices for a given JSON payload.
- * Dead subscriptions (HTTP 410/404/401) are silently deleted from Firestore.
+ * Dead subscriptions (HTTP 410/404 — genuinely gone) are deleted from Firestore. A 401 is a
+ * VAPID-AUTH failure (server misconfig, not a dead endpoint) and is logged, NEVER deleted —
+ * deleting on 401 would wipe the whole collection on any VAPID key error (v16.15).
  *
  * @param {object} payload   Object that will be JSON.stringify'd — must include title, body, url, tag
  * @param {string} logTag    Short string for console log lines, e.g. '[push]'
@@ -550,7 +552,13 @@ async function pruneOldHuddles(excludeDate) {
     // setMonth(getMonth() - N) overflows on a month-end run (e.g. 31 May → 31 Feb →
     // 3 Mar), which would over-prune by a few days. Mirrors _pruneOldDocs in
     // firebase-client.js (the browser circular/newsletter prune).
-    const now = new Date();
+    // nowInLondon (v16.23): huddle dates are London dates; a bare new Date() on UTC Cloud Run
+    // skews the 3-month cutoff by a day during BST (midnight–1am London) — this file's own
+    // convention (the pay reminder) already derives London dates this way. nowInLondon returns
+    // {year, month, day} parts; rebuild a Date carrying the LONDON calendar date so the
+    // month-arithmetic below is TZ-independent.
+    const ldn = nowInLondon();
+    const now = new Date(ldn.year, ldn.month, ldn.day);
     const tm  = now.getMonth() - HUDDLE_RETENTION_MONTHS;
     const daysInTargetMonth = new Date(now.getFullYear(), tm + 1, 0).getDate();
     const cutoff = new Date(now.getFullYear(), tm, Math.min(now.getDate(), daysInTargetMonth));
@@ -1282,30 +1290,40 @@ exports.setupRosterAuth = onRequest(
         }
 
         // Disable accounts for leavers — anyone with @myb-roster.local not in the
-        // validated active set (built during the main loop above).
+        // validated active set (built during the main loop above). Wrapped so a transient
+        // listUsers failure can't 500 the whole request AFTER the account-creation loop
+        // already ran — that discarded the populated created/skipped/failed report and left
+        // the admin unable to tell which accounts WERE provisioned (v16.23). Re-running is
+        // idempotent, so a partial report + orphanSweepFailed flag beats a raw failure.
+        let orphanSweepFailed = false;
         if (removeOrphans) {
-            let pageToken;
-            do {
-                const page = await admin.auth().listUsers(1000, pageToken);
-                for (const user of page.users) {
-                    if (user.email &&
-                        user.email.endsWith('@myb-roster.local') &&
-                        !activeEmails.has(user.email) &&
-                        !user.disabled) {
-                        try {
-                            await admin.auth().updateUser(user.uid, { disabled: true });
-                            disabled.push(user.displayName || user.email);
-                            console.log(`[setupRosterAuth] Disabled leaver: ${user.email}`);
-                        } catch (err) {
-                            failed.push(user.email);
-                            console.error(`[setupRosterAuth] Failed to disable ${user.email}: ${err.message}`);
+            try {
+                let pageToken;
+                do {
+                    const page = await admin.auth().listUsers(1000, pageToken);
+                    for (const user of page.users) {
+                        if (user.email &&
+                            user.email.endsWith('@myb-roster.local') &&
+                            !activeEmails.has(user.email) &&
+                            !user.disabled) {
+                            try {
+                                await admin.auth().updateUser(user.uid, { disabled: true });
+                                disabled.push(user.displayName || user.email);
+                                console.log(`[setupRosterAuth] Disabled leaver: ${user.email}`);
+                            } catch (err) {
+                                failed.push(user.email);
+                                console.error(`[setupRosterAuth] Failed to disable ${user.email}: ${err.message}`);
+                            }
                         }
                     }
-                }
-                pageToken = page.pageToken;
-            } while (pageToken);
+                    pageToken = page.pageToken;
+                } while (pageToken);
+            } catch (err) {
+                orphanSweepFailed = true;
+                console.error(`[setupRosterAuth] Leaver sweep failed (accounts above were still processed): ${err.message}`);
+            }
         }
 
-        res.json({ created, skipped, disabled, failed });
+        res.json({ created, skipped, disabled, failed, ...(orphanSweepFailed ? { orphanSweepFailed: true } : {}) });
     }
 );

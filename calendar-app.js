@@ -31,7 +31,7 @@ import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, clea
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
-import { initSwipeHandler, isSwipeCooldown } from './calendar-swipe.js';
+import { initSwipeHandler, isSwipeCooldown, isSwipeGestureActive } from './calendar-swipe.js';
 import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
@@ -279,7 +279,7 @@ function renderCalendar() {
         if (!_initialFetchInProgress) {
             const _mAtFetch = getSelectedMemberIndex();
             ensureOverridesCached(getDisplayYear(), getDisplayMonth(), () => {
-                if (!teamView.isTeamViewMode() && getSelectedMemberIndex() === _mAtFetch) renderCalendar();
+                if (!teamView.isTeamViewMode() && getSelectedMemberIndex() === _mAtFetch) renderCalendarWhenIdle();
             });
         }
 
@@ -302,6 +302,23 @@ function renderCalendar() {
 // EVENT LISTENERS
 // ============================================
 
+// Deferred background render (v16.23). renderCalendar wipes #calendarDisplay — a BACKGROUND
+// caller (initial-fetch resolution, override-fetch callback) firing mid-gesture detached the
+// swipe carousel's panels: the commit then animated dead nodes and the screen stayed frozen on
+// the OLD month while title/legend/persisted state advanced to the new one. Defer until no
+// gesture is live (pointerdown → resolution, plus the commit cooldown). Single pending timer.
+/** @type {ReturnType<typeof setTimeout>|null} */
+let _pendingIdleRender = null;
+function renderCalendarWhenIdle() {
+    if (!isSwipeGestureActive()) { renderCalendar(); return; }
+    if (_pendingIdleRender) return;
+    _pendingIdleRender = setTimeout(function retry() {
+        if (isSwipeGestureActive()) { _pendingIdleRender = setTimeout(retry, 120); return; }
+        _pendingIdleRender = null;
+        if (!teamView.isTeamViewMode()) renderCalendar();
+    }, 120);
+}
+
 const _teamMemberSelect = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
 /** @type {ReturnType<typeof setTimeout>|null} */
 let _pendingMemberApply = null;
@@ -321,12 +338,15 @@ _teamMemberSelect.addEventListener('change', () => {
     // moved, so bare-returning left the dropdown showing member B over member A's roster
     // permanently (getCurrentMember keeps reading the saved OLD member) until a reselect/reload.
     // Defer instead, re-reading the live value so a later pick during the wait still wins (v16.19).
-    if (isSwipeCooldown()) {
+    // Gate on the FULL gesture window (v16.23), not just the post-intent cooldown — the poll
+    // could otherwise fire renderCalendar inside a NEW gesture's pre-intent dead zone (finger
+    // down, <5px moved), detaching the freshly-parked carousel panels (the D1 desync).
+    if (isSwipeGestureActive()) {
         // Single pending timer: repeated changes during the cooldown must not stack N independent
         // pollers (each would fire its own apply). The live re-read means the latest pick wins (v16.21).
         if (_pendingMemberApply) return;
         _pendingMemberApply = setTimeout(function retry() {
-            if (isSwipeCooldown()) { _pendingMemberApply = setTimeout(retry, 60); return; }
+            if (isSwipeGestureActive()) { _pendingMemberApply = setTimeout(retry, 60); return; }
             _pendingMemberApply = null;
             _applyTeamMemberChange();
         }, 60);
@@ -382,6 +402,7 @@ function announceMonthChange() {
 
 (/** @type {HTMLElement} */ (document.getElementById('todayBtn'))).addEventListener('click', () => {
     if (isSwipeCooldown()) return;
+    if (isFirstRun()) return;   // prompt is up — don't pulse/announce a month the user can't see (v16.23)
     if (teamView.isTeamViewMode()) {
         teamView.jumpToCurrentWeek();
     } else {
@@ -508,6 +529,18 @@ try {
         const staleAtLoad = takeStaleMemberName();
         if (staleAtLoad) _showStaleMemberBanner(staleAtLoad, (/** @type {any} */ (getCurrentMember())).name);
 
+        // Start the initial 3-month override fetch BEFORE the first render (v16.23). It sets
+        // _initialFetchInProgress + pre-claims the window's months, so the first renderCalendar's
+        // ensureOverridesCached no longer fires a COMPETING per-month fetch for the display month —
+        // that duplicate read logged a bogus "[Firestore] Duplicate override" warn per doc on
+        // every launch and doubled the month's reads. (Previously called at the module tail.)
+        initInitialFetch({
+            isTeamViewMode: () => teamView.isTeamViewMode(),
+            // Deferred: the 3-month fetch can resolve mid-swipe on a slow connection — an immediate
+            // render would wipe the carousel and freeze the grid on the old month (v16.23).
+            renderCalendar: renderCalendarWhenIdle,
+        });
+
         // Restore team view if the user was in it before the last refresh; else render the
         // personal calendar. renderCalendar() itself shows the first-run "choose your name"
         // prompt when no member is picked and no session exists (see its guard). (H1)
@@ -536,7 +569,9 @@ try {
         initSwipeHandler({
             isTeamViewMode: () => teamView.isTeamViewMode(),
             changeMonth,
-            renderCalendar,
+            // Deferred: this dep only fires from restoreIncoming's background fetch callback,
+            // which can resolve during a NEW gesture (v16.23).
+            renderCalendar: renderCalendarWhenIdle,
             updateLegend,
             updateNavButtonState,
             navigateToPaycalc,
@@ -716,10 +751,8 @@ try {
 // INITIAL 3-MONTH FETCH + SYNC CHIP + VISIBILITY GUARD
 // See calendar-initial-fetch.js.
 // ============================================
-initInitialFetch({
-    isTeamViewMode: () => teamView.isTeamViewMode(),
-    renderCalendar,
-});
+// initInitialFetch moved into the init try-block ABOVE the first renderCalendar (v16.23) — it
+// must set _initialFetchInProgress + pre-claim the 3 months before any render can fetch.
 
 // ============================================
 // PRINT HEADER — stamp timestamp before printing
@@ -806,7 +839,22 @@ const calendarAuthReady = authReady
 
     enableBtn.addEventListener('click', async () => {
         hide();
-        calendarAuthReady.then(() => enableNotifications()).catch((/** @type {any} */ err) => console.warn('[Notifications] Enable failed:', err.message));
+        try {
+            // Request the permission FIRST, inside the click's transient user activation (v16.23).
+            // Awaiting calendarAuthReady first (a live signInAnonymously round-trip on a first
+            // visit — exactly when this prompt shows) ran requestPermission outside the gesture:
+            // iOS/WebKit silently rejects a no-gesture request and Chrome demotes it to the quiet
+            // UI, so the tap did nothing. Only the Firestore subscription SAVE needs auth.
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') {
+                lsSet('myb_notif_prompt_done', '1');   // asked and declined — don't re-prompt
+                return;
+            }
+            await calendarAuthReady;
+            await enableNotifications();   // permission already granted → goes straight to subscribe
+        } catch (err) {
+            console.warn('[Notifications] Enable failed:', /** @type {any} */ (err).message);
+        }
     });
 
     dismissBtn.addEventListener('click', () => {

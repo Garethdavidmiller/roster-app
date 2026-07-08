@@ -1152,7 +1152,25 @@ export function init() {
     // the estimated lump on the right payslip; the result card labels it "estimated"
     // (_bpIsEstimate) and links to the card to fine-tune. A saved-but-CLEARED state returns true
     // from restoreBpState, so a member who blanked the card stays opted out.
-    restoreBpState() ? _runCalcBackPay() : _refreshBackPayCard();
+    if (restoreBpState()) {
+        // Re-seed the "these New values were AUTO-derived" markers from the restored figures
+        // (v16.23): _bpAutoNewR/_bpAutoNewL reset to '' on every load, so after a restore the
+        // fill-guard in _applyBpRisePct saw a non-blank box that matched neither marker and
+        // NEVER refilled — editing the "Pay rise %" became a dead control (the % changed, the
+        // lump didn't). A restored New value that exactly equals raiseByPercent(Old, pct) was
+        // auto-derived (a hand-typed identical figure behaves the same — refilling reproduces it).
+        const _rv = /** @param {string} id */ id => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
+        const _pct = parseFloat(_rv('bpRisePct'));
+        if (_pct > 0) {
+            const dR = raiseByPercent(parseFloat(_rv('oldRate'))   || 0, _pct);
+            const dL = raiseByPercent(parseFloat(_rv('oldLondon')) || 0, _pct);
+            if (dR && _rv('newRateInput') === dR.toFixed(2)) _bpAutoNewR = _rv('newRateInput');
+            if (dL && _rv('newLondon')    === dL.toFixed(2)) _bpAutoNewL = _rv('newLondon');
+        }
+        _runCalcBackPay();
+    } else {
+        _refreshBackPayCard();
+    }
 
     // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 

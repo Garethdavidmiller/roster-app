@@ -165,8 +165,11 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
 
     overlay.addEventListener('keydown', e => {
         // Ignore Escape while a sign-in is in progress — navigating mid-submit would leave the
-        // user neither signed in nor on the calendar.
-        if (e.key === 'Escape') { if (!submitBtn.disabled) window.location.href = './'; return; }
+        // user neither signed in nor on the calendar. Keyed on _signingIn, NOT submitBtn.disabled
+        // (v16.23): the button is also disabled for the whole 30s password lockout, which made
+        // Escape-to-calendar silently dead there — the back link already uses this exact narrower
+        // guard for the same reason.
+        if (e.key === 'Escape') { if (!_signingIn) window.location.href = './'; return; }
         trapFocus(overlay, e);
     });
 
@@ -307,8 +310,19 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             // "did it work?" gap between the click and the destination page appearing.
             clearStatusProgress();
             submitBtn.textContent = `Signed in — opening ${pageLabel}…`;
-            await onSuccess(name);
-            // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
+            try {
+                await onSuccess(name);
+                // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
+            } catch (e) {
+                // onSuccess CAN reject (the admin path does inline work before reloading). The
+                // rejection used to be swallowed by the click handler's .catch(()=>{}), stranding
+                // the primary button disabled on "Signed in — opening …" forever. The session IS
+                // saved at this point, so recover the UI and let the user retry (v16.23).
+                console.warn('[Login] onSuccess failed after a successful sign-in:', e);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign in →';
+                showError('Signed in, but the page couldn’t open — try again.');
+            }
         } finally {
             // Release the in-flight mutex on completion — EXCEPT during the 30s lockout, whose own
             // timer (above) releases it when it expires. Keyed on `_lockedUntil` (not the button's

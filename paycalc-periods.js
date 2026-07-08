@@ -261,7 +261,11 @@ export function buildPeriodSelect() {
     if (_matched) defPNum = _matched.num;
   } else if (_monthParam) {
     const [_my, _mm] = _monthParam.split('-').map(Number);
-    const _mid = new Date(_my, _mm - 1, 15);
+    // NOON, matching the period anchors (v16.23): every p.start/p.cutoff is noon-anchored
+    // (ANCHOR_DATE invariant). A midnight 15th fell in the 12-hour gap whenever a period STARTS
+    // on the 15th (start noon > midnight; prior cutoff Sat 14th noon < midnight) — e.g. Nov 2026
+    // (P59 starts Sun 15 Nov) — so the ?month= deep link silently matched no period at all.
+    const _mid = new Date(_my, _mm - 1, 15, 12);
     const _matched = periods.find((/** @type {any} */ p) => p.start <= _mid && _mid <= p.cutoff);
     if (_matched) defPNum = _matched.num;
   }
