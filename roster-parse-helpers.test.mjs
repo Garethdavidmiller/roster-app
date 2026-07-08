@@ -110,6 +110,10 @@ describe('normaliseShift', () => {
     test('a leading time with a NON-RDW annotation stays a plain shift', () => {
         assert.equal(normaliseShift('06:00-12:00 GER'), '06:00-12:00');
     });
+    test('a trailing word merely CONTAINING "rdw" as a substring does NOT force an RDW encode', () => {
+        // \bRDW\b is word-boundaried, so "HARDWARE" (…hARDWare…) must not trigger the RDW branch.
+        assert.equal(normaliseShift('06:00-12:00 HARDWARE FAULT'), '06:00-12:00');
+    });
     test('lowercase input normalised', () => {
         assert.equal(normaliseShift('al'), 'AL');
     });

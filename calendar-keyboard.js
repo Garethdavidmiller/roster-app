@@ -36,7 +36,19 @@ export function initCalendarTooltip() {
   });
 
   document.addEventListener('mousemove', e => {
-    if (tip.hidden) return;
+    // Re-resolve the cell under the pointer on every move (not only on mouseover). A month change
+    // (keyboard PageUp/Down, Enter, a swipe) re-renders the grid under a stationary cursor, swapping
+    // the cell's DOM node without firing mouseover — so without re-reading here the tip kept showing
+    // the PREVIOUS month's text until the cursor next crossed a cell boundary (v16.22).
+    const cell = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.calendar-day[data-tooltip]'));
+    if (!cell) { tip.hidden = true; return; }
+    const text = cell.dataset.tooltip ?? '';
+    if (tip.hidden || tip.textContent !== text) {
+      tip.textContent = text;
+      tip.hidden = false;
+      const r = tip.getBoundingClientRect();
+      _tipW = r.width; _tipH = r.height;
+    }
     tip.style.left = Math.min(e.clientX + 14, window.innerWidth  - _tipW - 8) + 'px';
     tip.style.top  = Math.min(e.clientY + 16, window.innerHeight - _tipH - 8) + 'px';
   });

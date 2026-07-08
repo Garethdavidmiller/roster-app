@@ -501,7 +501,7 @@ test('operations: App speed card renders both sections + empty-state verdict (no
     // Two journeys: "Signing in" (login) + "Opening pages" (page-open), both empty on a stubbed read.
     await expect(page.locator('#pageSpeedContent')).toContainText('Signing in');
     await expect(page.locator('#pageSpeedContent')).toContainText('Opening pages');
-    await expect(page.locator('#pageSpeedContent')).toContainText('No sign-ins recorded yet'); // login empty state
+    await expect(page.locator('#pageSpeedContent')).toContainText('No sign-ins recorded'); // login empty state (month-neutral copy, v16.22)
     await expect(page.locator('#pageSpeedContent')).toContainText('Not enough data yet');       // pages empty state
 });
 

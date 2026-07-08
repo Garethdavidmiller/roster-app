@@ -157,7 +157,11 @@ export function archiveNotice({ id, title, section, date, body }) {
  * Removes the injected DOM, drops the burger's listeners (via clone-replace) and clears the guard.
  */
 export function resetNavPanel() {
-    if (_panelOpen) unlockBodyScroll();
+    // Balance the scroll lock for ANY open surface, not just the drawer: the coming-soon / notices
+    // lightboxes visually close the panel (_panelOpen=false) but hold their OWN lockBodyScroll, so
+    // tearing down while one is open would leave _lbDepth ≥ 1 and body.lb-open (position:fixed)
+    // stuck. (unlockBodyScroll is depth-counted + depth-0-safe, so an extra call is harmless.) (v16.22)
+    if (_panelOpen || _comingSoonOpen || _noticesOpen) unlockBodyScroll();
     // Remove the document/window-level listeners the previous initNavPanel registered — the
     // clone-replace below only drops the BURGER's listeners; these two close over the old panel
     // and share the module flags, so a surviving copy would fire first on the next Escape /
@@ -417,7 +421,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const state = bell.dataset.notifState;
         // Browser-blocked: nothing we can do programmatically. The blocked status is
         // already conveyed by the bell's aria-label (set in _paintBell), so just no-op.
-        if (state === 'denied') return;
+        // 'loading' (the initial state before peekNotifState resolves — swReady can take up to 8s)
+        // is also a no-op: toggling then would re-prompt/re-subscribe a device that may already be
+        // subscribed. _refreshBell resolves the real state on panel open (v16.22).
+        if (state === 'denied' || state === 'loading') return;
         _bellBusy = true;
         bell.dataset.notifState = 'loading';
         bell.disabled = true;

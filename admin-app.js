@@ -1203,7 +1203,7 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     // keeps a Sunday correction whenever a remaining AL/sick override is adjacent to it.
     const allForDelete = getAllOverrides();
     const deleteIds = computePeriodDeleteIds(allForDelete, { type, memberName, start, end });
-    if (!deleteIds.length) return;
+    if (!deleteIds.length) { btn.classList.remove('confirming'); btn.textContent = 'Delete'; return; }
     const idSet = new Set(deleteIds);
     // User-facing count = leave days only (exclude the Sunday RD corrections from the tally).
     const leaveCount = allForDelete.filter(o => idSet.has(o.id) && o.type === type).length;
@@ -1218,6 +1218,9 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
             feedbackEl.textContent = '⚠ Session expired — please sign out and sign back in.';
             feedbackEl.className = 'feedback error';
         }
+        // Reset the button off its "⚠ Confirm?" state (these early returns skip the try/finally) (v16.22).
+        btn.classList.remove('confirming');
+        btn.textContent = 'Delete';
         return;
     }
     btn.disabled    = true;

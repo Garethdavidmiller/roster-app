@@ -115,7 +115,7 @@ function normaliseShift(raw) {
         // worked OVERTIME with a depot annotation. The anchored rdwMatch above ($-terminated) rejects
         // the trailing token, so without this the RDW was dropped and the day saved as a plain `shift`
         // (normal pay) — the exact pay-loss rdwMatch guards, leaking through the annotated-time path (v16.19).
-        if (s.includes('RDW')) {
+        if (/\bRDW\b/.test(s)) {   // word-boundaried so a stray substring (e.g. "…hARDWare…") can't force an RDW encode (v16.22)
             console.warn(`[parseRosterPDF] Extracted leading RDW time from "${raw}" (trailing content ignored) — review table will show it`);
             return `RDW|${time}`;
         }
