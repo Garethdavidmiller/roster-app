@@ -138,7 +138,11 @@ export function rolesFor(member) {
  * @returns {AuthDecision}
  */
 export function requirePage(snapshot, pageName) {
-    const policy = PAGE_POLICIES[pageName];
+    // Object.hasOwn: a bare index would also match Object.prototype members ('toString',
+    // 'constructor', …), returning a truthy FUNCTION as the "policy" — requirePageAuth would then
+    // see requireNamed undefined and ALLOW it as a public page, inverting the fail-closed
+    // guarantee for exactly the misconfiguration class this guard exists for (v16.23).
+    const policy = Object.hasOwn(PAGE_POLICIES, pageName) ? PAGE_POLICIES[pageName] : null;
     const roles  = rolesFor(snapshot && snapshot.member);
     if (!policy) {
         console.error(`[auth-policy] unknown page "${pageName}" — failing closed (named admin required)`);

@@ -113,6 +113,10 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
       _dataLoaded  = true;
+      // Release the in-progress flag before rendering — same reason as the original success path:
+      // the render's ensureOverridesCached must be able to top up an out-of-window display month.
+      // Reachable here when the ORIGINAL fetch is still hung (its finally hasn't run) (v16.23).
+      setInitialFetchInProgress(false);
       if (syncChip) { syncChip.remove(); syncChip = null; }
       // A user-initiated retry succeeded — confirm it to screen readers, then clear.
       // (The initial silent fetch below stays silent so it isn't announced on every load.)
@@ -150,6 +154,11 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
       _dataLoaded  = true;
+      // Release the in-progress flag BEFORE the success render (v16.23): initInitialFetch now
+      // starts before the first renderCalendar, so if the persisted display month sits OUTSIDE
+      // the 3-month window, this render's ensureOverridesCached must be allowed to top it up —
+      // waiting for the finally would skip that fetch and leave the month override-less.
+      setInitialFetchInProgress(false);
       if (!isTeamViewMode()) renderCalendar();
 
       if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }

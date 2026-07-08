@@ -171,9 +171,17 @@ export function prefillBackPay() {
 /** Persist the card's raw inputs + the award year they belong to. Called from calcBackPay. */
 function _saveBpState() {
   try {
+    // Persist ONLY the CURRENT (today's) award year's state (v16.23). While viewing a historic
+    // year — the calendar Pay pill / a past payday-cell tap deep-links init onto a past period,
+    // and prev-period browsing with the card open recomputes too — an unconditional save
+    // overwrote the member's current-year blob (include-tick, hand-corrected rates) with a
+    // historic-year one. Trade-off (accepted): hand-entered figures for a HISTORIC award year
+    // don't persist across reloads; they re-prefill from AWARD_RATES.
+    const year = _bpAwardTaxYear(_backdatedFromPNum()).label;
+    if (year !== _bpAwardTaxYear(todaysPeriodNum()).label) return;
     const v = /** @param {string} id */ (id) => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
     lsSet(bpKey(), JSON.stringify({
-      year: _bpAwardTaxYear(_backdatedFromPNum()).label,
+      year,
       pct:  v('bpRisePct'), oldR: v('oldRate'), newR: v('newRateInput'),
       oldL: v('oldLondon'), newL: v('newLondon'), paidIn: v('backPayPeriod'),
       inc:  /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked ? '1' : '',
@@ -198,7 +206,15 @@ export function restoreBpState() {
   try { s = JSON.parse(lsGet(bpKey()) || 'null'); } catch { /* corrupted — treat as absent */ }
   if (!s) return false;
   const year = _bpAwardTaxYear(_backdatedFromPNum()).label;
-  if (s.year !== year) { lsDel(bpKey()); return false; }
+  if (s.year !== year) {
+    // Delete ONLY a genuinely stale (past-year) blob — the April-rollover clean slate. When the
+    // member is merely VIEWING a historic period (the calendar Pay pill / a past payday tap
+    // deep-links init onto one), their CURRENT-year blob — include-tick, hand-corrected rates —
+    // must survive; deleting it here silently dropped the lump from the paid-in payslip's
+    // estimate on the next normal load (v16.23).
+    if (s.year !== _bpAwardTaxYear(todaysPeriodNum()).label) lsDel(bpKey());
+    return false;
+  }
   const set = /** @param {string} id @param {any} val */ (id, val) => {
     const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
     if (el && val != null) el.value = String(val);

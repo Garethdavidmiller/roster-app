@@ -44,7 +44,25 @@ import {
  * `return`s, and lets a test import this module WITHOUT auto-running it. Body
  * unchanged otherwise — same statements, same order, one indent level in.
  */
+
+// Read-through to the CURRENT init pass's `dirty` flag (v16.23). The SW registration now runs at
+// the top of init() (so a signed-out visit still registers/updates the SW — the operations v16.21
+// fix, applied here too), but `dirty` is declared inside the authorised body, and with in-place
+// sign-in init() runs TWICE (login pass registers; authorised pass is a no-op via sw-register's
+// once-guard). A direct closure would read the login pass's forever-false `dirty` and reload
+// without the unsaved-changes confirm — this indirection always reads the latest pass's flag.
+let _isDirty = () => false;
+
 export function init() {
+    // Register the SW before the access gate — a signed-out visit early-returns below and would
+    // otherwise never register/update the SW for that load (v16.23; matches operations/settings).
+    registerServiceWorker({
+        beforeReload() {
+            if (!_isDirty() || confirm('An update is available. Reload to apply it? Unsaved changes will be lost.')) {
+                window.location.reload();
+            }
+        },
+    });
     // ============================================
     // SESSION — guard access to LINKS_DESIGNERS only
     // ============================================
@@ -163,6 +181,7 @@ export function init() {
      */
     let design = null;
     let dirty  = false;
+    _isDirty = () => dirty;   // point the SW beforeReload at THIS pass's flag (v16.23)
     let loadFailed      = false;
     /** @type {any} */ let loadedUpdatedAt = null; // millis — for save concurrency check
 
@@ -416,16 +435,31 @@ export function init() {
             // Bump updatedAt/updatedBy too (was name-only): otherwise a rename was invisible to the
             // concurrency guard — a co-editor's loadedUpdatedAt stayed unchanged, so their next save
             // wrote their stale cached name and silently REVERTED the rename with no prompt (v16.19).
+            //
+            // BUT advance our local baseline ONLY when nobody else saved since we loaded (v16.23).
+            // Pre-read the doc BEFORE the rename write: if its updatedAt already differs from our
+            // baseline, a co-editor's save landed in between — blindly advancing the baseline to
+            // OUR rename's timestamp made the next saveChanges skip the "X saved a different
+            // version" confirm and silently overwrite their patterns with our stale copy. On
+            // mismatch (or an offline pre-read) the baseline stays put, so the next save prompts.
+            let baselineFresh = false;
+            const _preBaseline = (id === activeDesignId) ? loadedUpdatedAt : (d.updatedAt?.toMillis?.() ?? null);
+            try {
+                const preTs = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt?.toMillis?.() ?? null;
+                baselineFresh = preTs === _preBaseline;
+            } catch { /* offline — treat as mismatch, don't advance */ }
             await setDoc(doc(db, COLLECTIONS.linkDesigns, id),
                 { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true });
             d.name = name;
-            d.updatedBy = currentUser;
-            try { d.updatedAt = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt ?? d.updatedAt; }
-            catch { /* offline — baseline stays as-is */ }
-            if (id === activeDesignId) {
-                if (design) design.name = name;
-                loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? loadedUpdatedAt;
-                updateLastSaved(d.updatedBy, d.updatedAt);
+            if (id === activeDesignId && design) design.name = name;
+            if (baselineFresh) {
+                d.updatedBy = currentUser;
+                try { d.updatedAt = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt ?? d.updatedAt; }
+                catch { /* offline — baseline stays as-is */ }
+                if (id === activeDesignId) {
+                    loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? loadedUpdatedAt;
+                    updateLastSaved(d.updatedBy, d.updatedAt);
+                }
             }
             _sortDesigns();
             renderDesignPicker();
@@ -1587,13 +1621,7 @@ export function init() {
     })();
 
     // ============================================
-    registerServiceWorker({
-        beforeReload() {
-            if (!dirty || confirm('An update is available. Reload to apply it? Unsaved changes will be lost.')) {
-                window.location.reload();
-            }
-        },
-    });
+    // registerServiceWorker moved to the top of init() (before the access gate) — v16.23.
     sessionReady.then(() => { initErrorReporter(); recordUsage('links', currentUser); recordPageLatency('links', currentUser); });
 
     // ============================================

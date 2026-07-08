@@ -56,10 +56,22 @@ export function initDocUploadCard(cfg) {
   const sigMismatchMsg = cfg.sigMismatchMsg
     || "That file isn't a valid PDF — please choose the original file";
 
-  dateInput.value = formatISO(new Date());
-  const _maxDate = new Date();
-  _maxDate.setDate(_maxDate.getDate() + (cfg.maxDateOffsetDays || 0));
-  dateInput.max = formatISO(_maxDate);
+  // Date default + max are recomputed on every submit, NOT frozen at page-init (v16.23). This is
+  // a long-lived PWA: an Operations tab left open overnight would otherwise (a) upload an
+  // untouched date under YESTERDAY — and these documents are date-keyed setDoc replaces, so it
+  // OVERWRITES yesterday's real document and deletes its Storage file; (b) reject a correctly
+  // TYPED today/tomorrow date against the stale max ("That date is in the future").
+  // "Touched" is tracked with a listener (not a value comparison, which would misclassify an
+  // admin who deliberately re-picked the same date).
+  let _dateTouched = false;
+  ['input', 'change'].forEach(ev => dateInput.addEventListener(ev, () => { _dateTouched = true; }));
+  function _refreshDateBounds() {
+    const _maxDate = new Date();
+    _maxDate.setDate(_maxDate.getDate() + (cfg.maxDateOffsetDays || 0));
+    dateInput.max = formatISO(_maxDate);
+    if (!_dateTouched) dateInput.value = formatISO(new Date());
+  }
+  _refreshDateBounds();
 
   function _reject(/** @type {string} */ msg) {
     /** @type {HTMLElement} */ (fileLabel).classList.remove('visible');
@@ -86,6 +98,7 @@ export function initDocUploadCard(cfg) {
   });
 
   uploadBtn.addEventListener('click', async () => {
+    _refreshDateBounds();   // stale-tab guard — see the init comment (v16.23)
     const date = dateInput.value;
     const file = (fileInput.files || [])[0];
     if (!date || !file) return;

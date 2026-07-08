@@ -478,7 +478,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (!member) continue;
 
             for (const date of parsedResult.dates) {
-                const parsedShift  = entry.shifts?.[date] || 'RD';
+                let parsedShift  = entry.shifts?.[date] || 'RD';
+                // Bare 'RDW' = the AI omitted the shift time. The server passes it through so the
+                // review can flag it, but there is NO edit affordance and it previously classified
+                // as a default-ticked DIFF whose save produced {type:'rdw', value:'RDW'} — which
+                // firestore.rules rejects (rdw requires HH:MM-HH:MM), failing the WHOLE ≤200-row
+                // chunk as permission-denied with a misleading "session may have expired" error.
+                // Route it to the skip-only UNREADABLE row instead — never written (v16.23).
+                if (parsedShift === 'RDW') parsedShift = 'UNKNOWN|RDW (no time on roster)';
                 const baseShift    = getBaseShift(member, new Date(date + 'T12:00:00'));
                 const key          = `${entry.memberName}|${date}`;
                 const existing     = overrideMap.get(key);
@@ -546,9 +553,19 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     ? `${RDW_PREFIX}${restSafe}` : restSafe;
 
                 let state;
+                // RDW-ness of the existing override vs the incoming value must MATCH for a timed
+                // value to count as COVERED (v16.23): stored {type:'shift', 14:30-22:00} vs an
+                // incoming RDW|14:30-22:00 compared equal on the bare time and the shift→RDW
+                // reclassification (overtime pay) was silently dropped — and the reverse stuck as
+                // COVERED too. Sundays are EXCLUDED from the type check: a worked Sunday is stored
+                // as type rdw but arrives as a plain time (the save path promotes it), so requiring
+                // flag equality there would false-CONFLICT every Sunday on every re-upload.
+                const rdwMatches = isSun
+                    || !/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(normParsed)
+                    || ((existing?.type === 'rdw') === isRdwEncoded(parsedShift));
                 if (!existing || !isManual) {
                     // No override, or only a previous import.
-                    if (existing && !isManual && normRest(existing.value) === normParsed) {
+                    if (existing && !isManual && normRest(existing.value) === normParsed && rdwMatches) {
                         state = 'COVERED';  // previous import already equals the PDF — nothing to re-approve
                     } else if (normParsed === normBase) {
                         // PDF now matches the base roster.
@@ -567,7 +584,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     }
                 } else {
                     // A manual override exists — check if it already matches the PDF
-                    if (normRest(existing.value) === normParsed) {
+                    if (normRest(existing.value) === normParsed && rdwMatches) {
                         state = 'COVERED';   // manual is already correct — nothing to do
                     } else if ((existing.value === 'SICK' || existing.value === 'AL') && normBase === 'RD' && normParsed === 'RD') {
                         // Absence OR annual leave on a base rest day AND the PDF also shows rest —

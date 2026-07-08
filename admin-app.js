@@ -1018,6 +1018,11 @@ function handleEdit(e) {
         // otherwise keep naming the PREVIOUS member and their rest-day count (stale-preview, v16.19).
         _refreshAlPreview?.();
         _refreshSickPreview?.();
+        // Refresh the AL banner + booked boxes like the fieldMember change handler does (v16.23):
+        // after ✏️ Edit on member B, the banner otherwise kept showing member A's entitlement/
+        // taken/booked — and the booked boxes kept A's periods with LIVE Delete buttons — while
+        // every other control targeted B.
+        updateALBanner(); updateALBookedBox(); updateSickBookedBox();
         lsSet('adminLastMember', memberName);
         lsSet('myb_roster_selected_member', memberName);
         renderWeekGrid();
@@ -1158,8 +1163,11 @@ alConfirmSaveBtn.addEventListener('click', async () => {
 
 alConfirmCancelBtn.addEventListener('click', () => {
     hideALConfirm();
-    saveBtn.disabled    = false;
     saveBtn.textContent = 'Save changes';
+    // Let staged-row state govern the week-editor Save's disabled state (v16.23). The confirm bar
+    // is shared by the AL-BOOKING card too — force-enabling here on that path left a primary
+    // action enabled with ZERO staged rows (clicking only yielded "No changes to save").
+    updateSaveBtn();
 });
 
 // ============================================
@@ -1455,6 +1463,11 @@ function applyPermissions() {
     alMember.disabled     = true;
     _setSelectValue(sickMember, currentUser);
     sickMember.disabled   = true;
+    // Refresh the absence card's display label too (v16.23) — the module-scope restore may have
+    // stamped a COLLEAGUE's name into #sickMemberDisplay (myb_roster_selected_member follows
+    // whichever calendar the user last viewed), and with the select disabled no change event
+    // ever corrects it. The write targeted sickMember.value (self) — display-only, but alarming.
+    syncSickMemberDisplay();
     lsSet('adminLastMember', currentUser);
     lsSet('myb_roster_selected_member', currentUser);
 

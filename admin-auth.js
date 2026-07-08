@@ -98,13 +98,16 @@ export function initAuthSetup({ currentIsAdmin }) {
                 throw new Error(`Server responded ${resp.status}: ${err}`);
             }
 
-            const { created = [], skipped = [], disabled = [], failed = [] } = await resp.json();
+            const { created = [], skipped = [], disabled = [], failed = [], orphanSweepFailed = false } = await resp.json();
 
             const lines = [];
             if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
             if (skipped.length)  lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
             if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
             if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
+            // The server reports a leaver-sweep failure as a FLAG on an otherwise-200 response
+            // (the accounts above WERE processed) — surface it or the failure is silent (v16.23).
+            if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were NOT disabled. Run Set up accounts again.');
             if (!lines.length)   lines.push('Nothing to do — all accounts already up to date.');
 
             resultEl.innerHTML = lines.map(l => `<p class="auth-result-line">${escapeHtml(l)}</p>`).join('');

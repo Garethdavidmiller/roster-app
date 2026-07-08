@@ -222,7 +222,11 @@ function _getStorageSdk() {
         // @ts-ignore
         _storagePromise = import('https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js')
             .then(({ getStorage, ref, uploadBytes, getDownloadURL, deleteObject }) =>
-                ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL, deleteObject }));
+                ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL, deleteObject }))
+            // Reset on rejection (v16.23): a rejected promise is truthy, so without this ONE
+            // transient CDN failure was memoised forever — every later upload failed instantly
+            // ("Upload failed — please try again" that could never succeed) until a full reload.
+            .catch(err => { _storagePromise = null; throw err; });
     }
     return _storagePromise;
 }

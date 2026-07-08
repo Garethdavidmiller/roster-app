@@ -19,7 +19,7 @@
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
-import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
 
 /**
@@ -73,11 +73,22 @@ let _panelOpen      = false;
 let _historyPushed  = false;
 let _comingSoonOpen = false;
 let _noticesOpen    = false;
+
+// Claim the drawer's live history entry with overlay.js's shared popstate handler (v16.23).
+// Without this, a hardware Back with the drawer open reached the overlay STACK first and popped
+// an unrelated handler — concretely, it invoked toggleTeamView and kicked the user out of Team
+// Week View while also closing the drawer (one press, two surfaces). Registered once at module
+// level (the flags are module-level too, so this survives resetNavPanel→initNavPanel cycles).
+registerPopInterceptor(() => _historyPushed);
 // The document keydown + window popstate handlers registered by initNavPanel — held at module
 // level so resetNavPanel() can remove them (they close over the injected panel; a stale copy
 // surviving a reset would consume the shared flags against a detached panel).
 /** @type {any} */ let _docKeydownHandler = null;
 /** @type {any} */ let _popstateHandler   = null;
+// The coming-soon / notices lightbox keydown handlers, held so resetNavPanel can remove them too
+// (v16.23) — a copy surviving a reset-while-open closed over the detached lightbox and could steal
+// the REBUILT drawer's history entry on Escape (the in-handler open-flag guards remain as backup).
+/** @type {any[]} */ let _navLbKeyHandlers = [];
 
 /** localStorage key for the archived notices list. */
 const NOTICES_KEY = 'myb_app_notices';
@@ -168,6 +179,8 @@ export function resetNavPanel() {
     // Android Back and leave the rebuilt drawer stuck open.
     if (_docKeydownHandler) { document.removeEventListener('keydown', _docKeydownHandler); _docKeydownHandler = null; }
     if (_popstateHandler)   { window.removeEventListener('popstate', _popstateHandler);   _popstateHandler = null; }
+    _navLbKeyHandlers.forEach(fn => document.removeEventListener('keydown', fn));
+    _navLbKeyHandlers = [];
     ['navPanel', 'navPanelOverlay', 'navComingSoonLightbox', 'navNoticesLightbox']
         .forEach(id => document.getElementById(id)?.remove());
     const burger = document.getElementById('navMenuBtn');
@@ -246,6 +259,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         unlockBodyScroll();
         if (_historyPushed) {
             _historyPushed = false;
+            // The flag is already false when the echo pop arrives, so the interceptor can't claim
+            // it — absorb it explicitly or it reaches the overlay STACK and pops an unrelated
+            // handler (the close-drawer-exits-Team-View bug, v16.23).
+            suppressNextPop();
             history.back(); // removes the state we pushed — triggers popstate
         }
     }
@@ -511,6 +528,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         csLightbox.classList.remove('open');
         if (_historyPushed) {
             _historyPushed = false;
+            suppressNextPop();   // don't let the echo reach the overlay stack (v16.23)
             history.back();
         }
         _finishComingSoonClose();
@@ -530,6 +548,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // focusable element (the ✕ button) so Tab would immediately escape otherwise.
     /** @param {any} e */
     function _onComingSoonKey(e) {
+        // Stale-survivor guard (v16.23): resetNavPanel removes the panel DOM + flags but not this
+        // document-level listener — a copy surviving a reset-while-open would swallow every Tab
+        // page-wide and its Escape would steal the REBUILT drawer's history entry. Self-remove.
+        if (!_comingSoonOpen) { document.removeEventListener('keydown', _onComingSoonKey); return; }
         if (e.key === 'Escape') { _closeComingSoon(); return; }
         if (e.key === 'Tab')    { e.preventDefault(); csClose?.focus(); }
     }
@@ -610,6 +632,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         noticesLightbox.classList.remove('open');
         if (_historyPushed) {
             _historyPushed = false;
+            suppressNextPop();   // don't let the echo reach the overlay stack (v16.23)
             history.back();
         }
         _finishNoticesClose();
@@ -626,9 +649,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     /** @param {any} e */
     function _onNoticesKey(e) {
+        // Stale-survivor guard — see _onComingSoonKey (v16.23).
+        if (!_noticesOpen) { document.removeEventListener('keydown', _onNoticesKey); return; }
         if (e.key === 'Escape') { _closeNotices(); return; }
         if (e.key === 'Tab')    { e.preventDefault(); noticesClose?.focus(); }
     }
+    // Register both with resetNavPanel's teardown list (v16.23) — this init's handlers replace
+    // any earlier init's (already removed by the reset that preceded this init).
+    _navLbKeyHandlers = [_onComingSoonKey, _onNoticesKey];
 
     noticesClose?.addEventListener('click', _closeNotices);
     noticesLightbox?.addEventListener('click', e => {

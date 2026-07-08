@@ -132,7 +132,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
     // Single delegated click listener — replaces per-cell listener attachment.
     grid.addEventListener('click', (e) => {
         const cell = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.calendar-day'));
-        if (!cell) return;
+        // Exclude the greyed adjacent-month filler cells (v16.23): they carry no data-detail-*
+        // attributes (and are aria-hidden), so a touch tap opened a BLANK day-detail lightbox.
+        if (!cell || cell.classList.contains('other-month')) return;
         const paydayIso = cell.dataset.paydayIso;
         if (paydayIso) { navigateToPaycalc?.(paydayIso); return; }
         const cutoffIso = cell.dataset.cutoffIso;

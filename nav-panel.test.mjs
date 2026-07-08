@@ -42,7 +42,10 @@ mock.module('./notif.js', {
     },
 });
 mock.module('./overlay.js', {
-    namedExports: { lockBodyScroll: () => {}, unlockBodyScroll: () => {} },
+    namedExports: {
+        lockBodyScroll: () => {}, unlockBodyScroll: () => {},
+        suppressNextPop: () => {}, registerPopInterceptor: () => {},   // v16.23 pop-ownership hooks
+    },
 });
 mock.module('./ls.js', {
     namedExports: {

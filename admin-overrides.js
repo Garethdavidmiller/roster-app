@@ -736,7 +736,36 @@ function _initBulkBar() {
         });
     }
 
+    /**
+     * Deselect one out-of-selection row for the bulk tick buttons (v16.23). Three cases:
+     *  · UNTOUCHED prefilled row (existingId + prefilled-existing): visually uncheck only —
+     *    _deactivateRow would clear dataset.type and stage a DELETE of the saved doc.
+     *  · EDITED saved-override row (existingId, prefilled class removed): leave the checkbox
+     *    CHECKED and the edit staged — unchecking it visually while the collector still saved
+     *    the edit made the box lie, and deactivating staged a silent delete. The bulk buttons
+     *    only tick days; they never unstage an edit.
+     *  · Plain staged row (no existingId): deactivate as before. Returns true when staged
+     *    state actually changed (drives _markChanged, which must not fire for mere ticking).
+     * @param {HTMLElement} row @param {HTMLInputElement} checkbox
+     * @returns {boolean} staged state changed
+     */
+    function _bulkDeselectRow(row, checkbox) {
+        if (row.dataset.existingId) {
+            if (row.classList.contains('prefilled-existing')) {
+                checkbox.checked = false;
+                row.classList.remove('selected');
+            }
+            return false;   // edited row: untouched (checkbox stays ticked, edit stays staged)
+        }
+        const hadStaged = !!row.dataset.type;
+        _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
+            /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start')),
+            /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end')));
+        return hadStaged;
+    }
+
     document.getElementById('bulkSelMonFri')?.addEventListener('click', () => {
+        let stagedChanged = false;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const dayIdx   = new Date((row.dataset.date ?? '') + 'T12:00:00').getDay();
@@ -746,22 +775,17 @@ function _initBulkBar() {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
-                // Prefilled rows (existing override, unedited) are only visually unchecked —
-                // calling _deactivateRow would clear dataset.type and queue them for deletion.
-                if (row.dataset.existingId && row.classList.contains('prefilled-existing')) {
-                    checkbox.checked = false;
-                    row.classList.remove('selected');
-                } else {
-                    _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
-                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start')),
-                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end')));
-                }
+                stagedChanged = _bulkDeselectRow(row, checkbox) || stagedChanged;
             }
         });
+        // Only when staged state genuinely changed — mere ticking stages nothing, and a false
+        // unsaved-changes flag also froze the admin week-swipe gesture (v16.23).
+        if (stagedChanged) _markChanged();
         updateSaveBtn(); _updateBulkSelCount();
     });
 
     document.getElementById('bulkSelWorking')?.addEventListener('click', () => {
+        let stagedChanged = false;
         const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
         const member = memberName ? teamMembers.find(m => m.name === memberName) : null;
         // Build priority-correct override map once — manual beats roster_import per date.
@@ -780,16 +804,10 @@ function _initBulkBar() {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
-                if (row.dataset.existingId && row.classList.contains('prefilled-existing')) {
-                    checkbox.checked = false;
-                    row.classList.remove('selected');
-                } else {
-                    _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
-                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start')),
-                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end')));
-                }
+                stagedChanged = _bulkDeselectRow(row, checkbox) || stagedChanged;   // see bulkSelMonFri (v16.23)
             }
         });
+        if (stagedChanged) _markChanged();
         updateSaveBtn(); _updateBulkSelCount();
     });
 
@@ -801,6 +819,7 @@ function _initBulkBar() {
             checkbox.checked = true;
             if (!row.dataset.type) row.classList.add('selected');
         });
+        // No _markChanged: ticking alone stages nothing (the collector keys off dataset.type).
         updateSaveBtn(); _updateBulkSelCount();
     });
 
@@ -855,13 +874,20 @@ export async function executeSave(toSave, toDelete = []) {
     const removes     = toDelete.length;
     const total       = toSave.length + removes;
 
+    // Disable the button BEFORE awaiting sessionReady (v16.23). While sessionReady is still
+    // pending (early after a slow-auth page load), a double-tap could pass the collector twice —
+    // each run deletes existingId idempotently but MINTS ITS OWN new doc → duplicate overrides
+    // for the same member/date. The finally below re-enables on every exit path.
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
+
     await sessionReady;
     if (!auth.currentUser) {
         _showError('Session expired — please sign out and sign back in.');
+        // This early return is before the try/finally — restore the button state it can't.
+        if (saveBtn) { saveBtn.textContent = 'Save changes'; }
+        updateSaveBtn();
         return;
     }
-
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
 
     try {
         // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a

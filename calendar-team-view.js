@@ -260,7 +260,12 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         if (tvPrev) tvPrev.addEventListener('click', () => {
             const d = new Date(currentTeamWeekStart);
             d.setDate(d.getDate() - 7);
-            if (d.getFullYear() < CONFIG.MIN_YEAR) return;
+            // Clamp on the week's END (Saturday), not its start (v16.23): the week containing
+            // 1 Jan of MIN_YEAR starts the previous December (e.g. Sun 31 Dec 2023 for Mon
+            // 1 Jan 2024), so a week-start check made 1–6 Jan of MIN_YEAR unreachable.
+            const end = new Date(d);
+            end.setDate(end.getDate() + 6);
+            if (end.getFullYear() < CONFIG.MIN_YEAR) return;
             currentTeamWeekStart = d;
             renderTeamView(currentTeamGrade);
             announceTeamWeek();

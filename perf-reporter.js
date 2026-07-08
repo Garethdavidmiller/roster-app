@@ -7,7 +7,7 @@
  *
  * v1 metrics (both from the PerformanceNavigationTiming entry, so they cost nothing and are NOT
  * confounded by the in-place-login flow — they measure DOCUMENT/shell load, not "time to signed-in"):
- *   ttfb     — responseEnd               (server + network to first byte received)
+ *   ttfb     — responseStart             (server + network to first byte received)
  *   domReady — domContentLoadedEventEnd  (document parsed + deferred modules' first tick)
  * Login-to-usable timing (myb:login-* marks) is a separate, later metric — it belongs with the
  * in-place-login validation, since with INPLACE_LOGIN off that span crosses a reload.
@@ -93,7 +93,9 @@ export function recordPageLatency(page, identity = null) {
         const nav = /** @type {any} */ (performance.getEntriesByType?.('navigation')?.[0]);
         if (!nav) return;   // Navigation Timing L2 unsupported (old Safari) — skip silently
         /** @type {Record<string, number>} */
-        const metrics = { ttfb: nav.responseEnd, domReady: nav.domContentLoadedEventEnd };
+        // responseStart IS time-to-first-byte; responseEnd is the LAST byte (it silently included
+        // the full HTML download on slow connections, inflating the App Speed bands) (v16.23).
+        const metrics = { ttfb: nav.responseStart, domReady: nav.domContentLoadedEventEnd };
         for (const metric of Object.keys(metrics)) {
             const bucket = bucketDuration(metrics[metric]);
             if (bucket) recordPerfSample({ page, metric, bucket, mode, conn });
