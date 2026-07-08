@@ -294,7 +294,15 @@ const formFeedback = /** @type {HTMLElement} */ (document.getElementById('formFe
 // ============================================
 // POPULATE MEMBER DROPDOWNS
 // ============================================
-const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))];
+// Order the optgroups by an explicit grade order (matching login-overlay's GRADE_ORDER) rather than
+// teamMembers insertion order — otherwise reordering a member row could silently break the documented
+// CEA·CES·Dispatcher·Management grouping. Any role not listed falls to the end, order preserved. (v16.21)
+const _GRADE_ORDER = ['CEA', 'CES', 'Dispatcher', 'Management'];
+const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))]
+    .sort((a, b) => {
+        const ia = _GRADE_ORDER.indexOf(a), ib = _GRADE_ORDER.indexOf(b);
+        return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
+    });
 
 /** @param {any} select */
 function populateMemberDropdown(select) {
@@ -317,7 +325,8 @@ populateMemberDropdown(fieldMember);
  * @param {any} val
  */
 function _setSelectValue(sel, val) {
-    for (const o of sel.options) if (o.value === val) { o.selected = true; return; }
+    for (const o of sel.options) if (o.value === val) { o.selected = true; return true; }
+    return false;   // no matching option — caller may need to handle (e.g. a hidden/leaver member)
 }
 
 // Restore last used member — prefer the shared cross-page key (written by both index and admin)
@@ -444,12 +453,19 @@ function shiftWeek(delta) {
         fieldDate.value = formatISO(d);
         lastFieldDate = fieldDate.value;
         renderWeekGrid();
+        // Match the swipe-commit + fieldDate-change paths: refresh the AL banner + booked boxes so a
+        // Dec→Jan week jump doesn't leave the previous year's entitlement/taken figures showing
+        // (updateALBanner infers the year from fieldDate when no range is picked) (v16.21).
+        updateALBanner(); updateALBookedBox(); updateSickBookedBox();
     };
     if (confirmNavigate(go)) go();
 }
 
 /** @type {HTMLElement} */ (document.getElementById('thisWeekBtn')).addEventListener('click', () => {
-    const go = () => { fieldDate.value = formatISO(new Date()); lastFieldDate = fieldDate.value; renderWeekGrid(); };
+    const go = () => {
+        fieldDate.value = formatISO(new Date()); lastFieldDate = fieldDate.value; renderWeekGrid();
+        updateALBanner(); updateALBookedBox(); updateSickBookedBox();   // keep the banner year in sync (v16.21)
+    };
     if (confirmNavigate(go)) go();
 });
 
@@ -1412,7 +1428,24 @@ function applyPermissions() {
     // pinning it would just cost vertical space. Admins/managers (who switch between
     // people and can lose track on scroll) keep the sticky bar.
     document.body.classList.add('member-locked');
-    _setSelectValue(fieldMember, currentUser);
+    const _memberSelectable = _setSelectValue(fieldMember, currentUser);
+    if (!_memberSelectable) {
+        // currentUser isn't a selectable (non-hidden) member — a leaver whose Firebase account
+        // wasn't disabled yet but still holds a valid 30-day session. Without this, the three
+        // DISABLED selects stay pinned to the FIRST member in the dropdown, so any AL/absence/shift
+        // booking would silently target the WRONG person (changedBy is real, target is not). Clear
+        // the selects so their value is '' and every write path's `if (!member) return` guard blocks,
+        // and surface a clear message. (v16.21)
+        fieldMember.selectedIndex = -1;
+        alMember.selectedIndex = -1;
+        sickMember.selectedIndex = -1;
+        fieldMember.disabled = alMember.disabled = sickMember.disabled = true;
+        const _msg = 'Your account is no longer on the roster — please contact the admin.';
+        document.querySelectorAll('#alToggleHeader .hint, #sickToggleHeader .hint, #overridesToggleHeader .hint')
+            .forEach(el => { el.textContent = _msg; });
+        console.warn(`[Admin] Signed-in member "${currentUser}" is not a selectable roster member (hidden/leaver) — booking selectors blocked.`);
+        return;
+    }
     fieldMember.disabled  = true;
     syncMemberDisplay();
     _setSelectValue(alMember, currentUser);

@@ -306,12 +306,18 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {
                 if (newTab) {
+                    // Doc opened in a SEPARATE tab — this page STAYS put, so close with a real
+                    // history.back() to CONSUME the drawer's pushed entry. closePanelForNavigation()
+                    // only clears the flag (no back()), leaving a dead same-URL entry that swallows
+                    // the next Android Back press — the exact leak the brand→About handler fixed (v16.21).
                     newTab.location.href = safeUrl;
+                    closePanel();
                 } else {
-                    // Popup was blocked — fall back to current-tab navigation.
+                    // Popup was blocked — THIS tab navigates away, so the pushed entry goes with it;
+                    // closePanelForNavigation() (no back()) is correct here.
                     location.href = safeUrl;
+                    closePanelForNavigation();
                 }
-                closePanelForNavigation();
             } else {
                 if (newTab) newTab.close();
                 _closePanelVisualOnly();
@@ -541,7 +547,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const list  = noticesList;
         const empty = noticesEmpty;
         let notices = [];
-        try { notices = JSON.parse(lsGet(NOTICES_KEY) || '[]'); } catch (_) {}
+        // Array.isArray guard like archiveNotice: a valid-JSON NON-array (e.g. `{}` from corruption)
+        // would pass JSON.parse, then notices.forEach throws a TypeError and breaks the panel (v16.21).
+        try { const p = JSON.parse(lsGet(NOTICES_KEY) || '[]'); notices = Array.isArray(p) ? p : []; } catch (_) {}
         const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar' };
         if (list) {
             list.innerHTML = '';

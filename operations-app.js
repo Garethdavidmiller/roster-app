@@ -40,6 +40,10 @@ import { registerServiceWorker } from './sw-register.js';
  * Body unchanged otherwise — same statements, same order, one indent level in.
  */
 export function init() {
+    // Register the service worker UNCONDITIONALLY, before the access gate — a signed-out (or
+    // non-admin) visit returns early below and would otherwise never register/update the SW for
+    // that page load. Matches settings-app.js (module-scope registration). (v16.21)
+    registerServiceWorker();
     // ============================================
     // SESSION — read from localStorage (shared with admin-app.js via session.js)
     // ============================================
@@ -1216,7 +1220,7 @@ export function init() {
     }
 
     // ============================================
-    registerServiceWorker();
+    // registerServiceWorker() moved to the top of init() (runs before the access gate) — v16.21.
     sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations', currentUser); });
 
 }

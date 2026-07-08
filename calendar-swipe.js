@@ -266,7 +266,15 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
 
             if (discardPanel && discardPanel.parentNode) discardPanel.remove();
 
+            let _restored = false;
             function restoreIncoming() {
+                // Idempotent: the safety timer AND a late transitionend must not both run. A late
+                // transitionend (backgrounded/janky tab, firing >50ms after the safety timer) would
+                // otherwise re-null the SHARED prev/next/gestureCurrentPanel — wiping the state of a
+                // NEW gesture the user has already started, silently dropping that swipe (v16.21).
+                if (_restored) return;
+                _restored = true;
+                incomingPanel?.removeEventListener('transitionend', onEnd);
                 if (incomingPanel) {
                     incomingPanel.classList.remove('carousel-panel');
                     incomingPanel.style.transition = '';
@@ -289,10 +297,16 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
             }
 
             const safetyTimer = setTimeout(restoreIncoming, TRANSITION_DURATION_MS + 50);
-            incomingPanel.addEventListener('transitionend', () => {
+            // transitionend BUBBLES — a descendant element finishing any transition would fire this
+            // early and snap the slide into place. Only the incoming panel's own `transform` ending
+            // counts (v16.21). (Not {once:true}: a filtered-out descendant event must not consume it.)
+            /** @param {TransitionEvent} ev */
+            function onEnd(ev) {
+                if (ev.target !== incomingPanel || ev.propertyName !== 'transform') return;
                 clearTimeout(safetyTimer);
                 restoreIncoming();
-            }, { once: true });
+            }
+            incomingPanel.addEventListener('transitionend', onEnd);
 
         } else {
             // No swipe threshold met — snap back to current month
