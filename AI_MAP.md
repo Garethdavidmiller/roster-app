@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v16.10 · Updated every 0.10 version*
+*Last updated: July 2026 — v16.20 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -235,6 +235,12 @@ Shared service worker registration + update lifecycle (v12.28). All six app page
 - **First-install guard (v16.09):** `hadController` is captured before registering; the controllerchange fired by the first install's `clients.claim()` (uncontrolled → controlled) is swallowed — the page was just loaded from the network so it already IS the newest version. Pre-v16.09 this reloaded every brand-new device (the old `registration.waiting && controller` guard only suppressed the redundant SKIP_WAITING *message*, not the reload — the SW self-activates via install-time `skipWaiting()` regardless).
 - **No `{once:true}` (v16.09):** the controllerchange listener stays armed so a `beforeReload` that declines (links' `confirm()` → Cancel) still receives the NEXT update's event; the default path double-reload is guarded by a `reloadFired` flag instead. Tested by `sw-register.test.mjs` (test:hygiene).
 - Per-page variants: `calendar-app.js` — 500ms reload delay + bfcache; `admin-app.js` — defers reload if `hasUnsavedChanges()`; `links-app.js` — shows `confirm()` if the design is dirty; others — plain reload.
+
+### `splash-watchdog.js`
+CLASSIC (non-module) launch-recovery script for index.html only (v16.18). Loaded via `<script defer src="./splash-watchdog.js">` — deliberately NOT `type="module"`, so it is independent of the ES-module graph and runs even when that graph fails to load. The launch splash (`#splash`) is otherwise removed ONLY by calendar-app.js (on first render or in its own catch), so a failed module load (broken gstatic SDK import, corrupt/mixed/stale SW cache, any broken module) would leave the splash up forever with no recovery.
+- After `TIMEOUT_MS` (10s) with `#splash` still in the DOM: (1) one **guarded** auto-reload — `sessionStorage['myb_splash_reloaded']` ensures at most one per launch (no loop); skipped if sessionStorage is unavailable; picks up a freshly-deployed SW and re-runs the module load. (2) On the next stuck detection (flag already set): a self-contained recovery panel (inline styles, textContent only) with **Reload** and **Reset the app** (unregister every SW + delete every cache, then reload — fixes a stale/broken cache without the user finding OS storage settings).
+- Runtime-only: the whole IIFE is guarded on `typeof document !== 'undefined'`, so importing it in tests (module-parse) is a no-op and schedules no timer.
+- No imports/exports. Registered in service-worker.js NETWORK_FIRST_FILES + CORE_ASSETS like any app asset.
 
 ### `session.js`
 Shared auth/session module — canonical source for session logic (v11.40).

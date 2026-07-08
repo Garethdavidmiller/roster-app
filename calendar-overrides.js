@@ -148,7 +148,11 @@ export function getShiftTypesInMonth(member, year, month) {
         const dateStr = formatISO(date);
         const ov = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
         if (ov && !(ov.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr)))
+               && !(ov.type === 'annual_leave' && isSunday(dateStr))
                && !(ov.type === 'other' && isSunday(dateStr))) {
+            // AL/other on a Sunday are suppressed alongside sick — mirrors the calendar-renderer
+            // display chain so the month legend can't light 'AL' from a legacy Sunday AL override.
+            // Sundays are non-contracted (CLAUDE.md layer 5). (v16.19)
             shift = ov.type === 'rdw' ? 'RDW' : ov.value;
         }
         if (shift === 'SPARE') types.add('SPARE');

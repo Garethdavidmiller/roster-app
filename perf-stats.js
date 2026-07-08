@@ -135,7 +135,7 @@ const VERDICT_TEXT = {
         good: 'Signing in is quick for staff.',
         ok:   'Signing in mostly feels quick, with some slower sign-ins.',
         bad:  'Signing in is taking too long for some staff.',
-        none: 'No sign-ins recorded yet this month.',
+        none: 'No sign-ins recorded for this period.',   // month-neutral: this headline also renders in the Last-month view (v16.22)
     },
 };
 

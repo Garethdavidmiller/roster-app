@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '16.17';
+export const APP_VERSION = '16.22';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -754,12 +754,18 @@ export function getShiftBadge(timeStr) {
 export function resolveMemberRoster(member, date) {
     if (!member || !member.rosterChanges || !member.rosterChanges.length) return member;
     const dateMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    // Order-independent: pick the change with the LATEST `from` that is ≤ date, not the
+    // last-iterated match. The ascending-sort invariant is still documented, but relying on it
+    // meant an out-of-order array (easy to author wrong with 2+ entries) resolved to the wrong
+    // rosterType/currentWeek silently; this makes the result correct regardless of order (v16.19).
     let eff = member;
+    let bestFrom = null;
     for (const change of member.rosterChanges) {
         const f = change.from;
         const fromMidnight = new Date(f.getFullYear(), f.getMonth(), f.getDate());
-        if (dateMidnight >= fromMidnight) {
+        if (dateMidnight >= fromMidnight && (bestFrom === null || fromMidnight > bestFrom)) {
             eff = { ...member, rosterType: change.rosterType, currentWeek: change.currentWeek };
+            bestFrom = fromMidnight;
         }
     }
     return eff;

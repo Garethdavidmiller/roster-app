@@ -176,8 +176,13 @@ export function createRangeBookingSection(cfg) {
                 ? '⚠ Session expired — please sign out and sign back in.'
                 : "⚠ Couldn't save — check your connection and try again.";
         } finally {
-            saveBtn.disabled    = false;
+            // Restore the button LABEL only — let updatePreview() govern the disabled state. On the
+            // SUCCESS path picker.reset() has already cleared the range and updatePreview() disabled
+            // the button (empty selection); forcing disabled=false here left the primary action
+            // clickable with nothing selected and an empty-state preview. updatePreview() is correct
+            // for BOTH outcomes (success → empty → disabled; error/no-op → range kept → enabled) (v16.19).
             saveBtn.textContent = cfg.savingLabel;
+            updatePreview();
         }
     });
 

@@ -51,6 +51,7 @@ export function initCalendarLightboxes() {
     takenEl.textContent  = '…';
     bookedEl.textContent = '…';
     remEl.textContent    = '…';
+    remEl.className      = 'al-lb-val';   // reset a prior load's low/empty colour so the '…' placeholder isn't stale-tinted red/amber (v16.22)
     if (alErrorEl) alErrorEl.hidden = true;
 
     if (!member) {
@@ -62,6 +63,8 @@ export function initCalendarLightboxes() {
     entEl.textContent = '…';
 
     const todayStr = formatISO(new Date());
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    let _alTimer;
 
     try {
       let taken = 0;
@@ -74,7 +77,7 @@ export function initCalendarLightboxes() {
           where('date', '>=', `${yearStr}-01-01`),
           where('date', '<=', `${yearStr}-12-31`)
         )),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('AL load timeout')), 15_000)),
+        new Promise((_, reject) => { _alTimer = setTimeout(() => reject(new Error('AL load timeout')), 15_000); }),
       ]);
       if (myGen !== _alLoadGen) return;   // a newer load started while this was in flight — discard
       snap.forEach(/** @param {any} d */ d => {
@@ -109,6 +112,10 @@ export function initCalendarLightboxes() {
       takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
       if (breakdownEl) breakdownEl.hidden = true;
       if (alErrorEl) alErrorEl.hidden = false;
+    } finally {
+      // Stop the 15s timeout once the race has settled (success / error / timeout) — on the fast
+      // path getDocs wins in ~1s but the timer kept running to 15s, accumulating one per open (v16.22).
+      clearTimeout(_alTimer);
     }
   }
 

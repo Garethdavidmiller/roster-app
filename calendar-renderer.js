@@ -190,6 +190,12 @@ export function buildCalendarContainer(month, year, opts = {}) {
                 } else if (override.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr))) {
                     // Sick override on a base rest day, or ANY Sunday — suppress it.
                     // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 5: display suppression)
+                } else if (override.type === 'annual_leave' && isSunday(dateStr)) {
+                    // Legacy AL override that landed on a Sunday — suppress it, mirroring the sick
+                    // branch. Sundays are non-contracted, so AL can never be booked on one (the
+                    // write paths filter Sundays out of workingDates); this backstops legacy /
+                    // hand-written data. CLAUDE.md "Sundays are non-contracted" (layer 5):
+                    // "A worked Sunday time is always RDW, never AL/Absent." (v16.19)
                 } else if (override.type === 'other' && isSunday(dateStr)) {
                     // Sunday training suppressed — Sundays can never be training days
                     // (OTHER_PLAN.md; layer 5 of the Sunday block, mirrors sick above).

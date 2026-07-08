@@ -302,17 +302,46 @@ function renderCalendar() {
 // EVENT LISTENERS
 // ============================================
 
-(/** @type {HTMLElement} */ (document.getElementById('teamMemberSelect'))).addEventListener('change', (e) => {
-    if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
-    saveSelectedMember(parseInt(/** @type {HTMLSelectElement} */ (e.target).value, 10));
-    renderCalendar();
+const _teamMemberSelect = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
+/** @type {ReturnType<typeof setTimeout>|null} */
+let _pendingMemberApply = null;
+/** Apply the dropdown's CURRENT selection (read live so a value change during the wait is honoured). */
+function _applyTeamMemberChange() {
+    saveSelectedMember(parseInt(_teamMemberSelect.value, 10));
+    // Only repaint the personal calendar when NOT in team view. A change deferred past the swipe
+    // cooldown can resolve AFTER the user entered Team View; renderCalendar would then paint the
+    // personal calendar into the shared display while the mode/button still read "team view" (v16.21).
+    if (!teamView.isTeamViewMode()) renderCalendar();
     // Close AL lightbox if open — data would be stale for the new member
     closeALLightbox?.();
+}
+_teamMemberSelect.addEventListener('change', () => {
+    // During the ~400ms swipe cooldown, don't apply immediately (it would fight the swipe
+    // animation) — but NEVER silently drop the change: the native <select> value has already
+    // moved, so bare-returning left the dropdown showing member B over member A's roster
+    // permanently (getCurrentMember keeps reading the saved OLD member) until a reselect/reload.
+    // Defer instead, re-reading the live value so a later pick during the wait still wins (v16.19).
+    if (isSwipeCooldown()) {
+        // Single pending timer: repeated changes during the cooldown must not stack N independent
+        // pollers (each would fire its own apply). The live re-read means the latest pick wins (v16.21).
+        if (_pendingMemberApply) return;
+        _pendingMemberApply = setTimeout(function retry() {
+            if (isSwipeCooldown()) { _pendingMemberApply = setTimeout(retry, 60); return; }
+            _pendingMemberApply = null;
+            _applyTeamMemberChange();
+        }, 60);
+        return;
+    }
+    _applyTeamMemberChange();
 });
 
 
 (/** @type {HTMLElement} */ (document.getElementById('prevMonth'))).addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
+    // During first run renderCalendar() early-returns to keep the "choose your name" prompt up, so
+    // changeMonth() would silently drift the hidden month/year and the calendar later renders on the
+    // wrong month instead of today. No-op the relative nav until a name is chosen (v16.21).
+    if (isFirstRun()) return;
     // aria-disabled is set at the boundary — honour it as a true no-op so AT users
     // (and PageUp via .click()) don't trigger a pointless re-render/announce.
     if (/** @type {Element} */ (e.currentTarget).getAttribute('aria-disabled') === 'true') return;
@@ -367,6 +396,7 @@ function announceMonthChange() {
 
 (/** @type {HTMLElement} */ (document.getElementById('nextMonth'))).addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
+    if (isFirstRun()) return;   // don't drift the hidden month behind the first-run prompt (v16.21)
     if (/** @type {Element} */ (e.currentTarget).getAttribute('aria-disabled') === 'true') return;
     changeMonth(1);
     renderCalendar();
@@ -546,12 +576,19 @@ try {
                 },
                 // Team view prints in landscape; calendar uses the stylesheet's portrait @page.
                 printFn() {
+                    // Always clear a leaked team-view @page from a PRIOR print first. afterprint is
+                    // unreliable on iOS Safari and when the dialog is cancelled, so the landscape rule
+                    // could linger and flip the NEXT (portrait) calendar print to landscape. Clearing
+                    // at the top of BOTH branches, plus a single reused id (never stack orphans),
+                    // guarantees each print starts from the right page orientation (v16.21).
+                    document.getElementById('tvPrintPage')?.remove();
                     if (teamView.isTeamViewMode()) {
                         const ls = document.createElement('style');
+                        ls.id = 'tvPrintPage';
                         ls.textContent = '@page { size: A4 landscape; margin: 1cm; }';
                         document.head.appendChild(ls);
                         window.print();
-                        window.addEventListener('afterprint', () => ls.remove(), { once: true });
+                        window.addEventListener('afterprint', () => document.getElementById('tvPrintPage')?.remove(), { once: true });
                     } else {
                         window.print();
                     }
@@ -641,6 +678,7 @@ try {
             // change the month behind the overlay and p would print it.
             if (document.querySelector('.lb-overlay.visible')) return;
             if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
+            if (isFirstRun()) return;      // don't drift the hidden month behind the first-run prompt (v16.21)
             if (teamView.isTeamViewMode()) {
                 if (e.key === 'ArrowLeft')  document.getElementById('tvPrevWeek')?.click();
                 if (e.key === 'ArrowRight') document.getElementById('tvNextWeek')?.click();
@@ -649,8 +687,13 @@ try {
             }
             // Guard: when a calendar day cell has focus, arrow keys move between cells
             // (handled by initCalendarKeyboard). Only navigate months when no cell is focused.
-            if (e.key === 'ArrowLeft'  && !document.activeElement?.classList.contains('calendar-day')) { changeMonth(-1); renderCalendar(); announceMonthChange(); }
-            if (e.key === 'ArrowRight' && !document.activeElement?.classList.contains('calendar-day')) { changeMonth(1);  renderCalendar(); announceMonthChange(); }
+            // Honour the year-boundary no-op like the Prev/Next buttons do (they check aria-disabled,
+            // set at the boundary during render) — otherwise at Dec MAX_YEAR / Jan MIN_YEAR this
+            // re-rendered and screen-reader-announced the identical clamped month (v16.21).
+            if (e.key === 'ArrowLeft'  && !document.activeElement?.classList.contains('calendar-day')
+                && document.getElementById('prevMonth')?.getAttribute('aria-disabled') !== 'true') { changeMonth(-1); renderCalendar(); announceMonthChange(); }
+            if (e.key === 'ArrowRight' && !document.activeElement?.classList.contains('calendar-day')
+                && document.getElementById('nextMonth')?.getAttribute('aria-disabled') !== 'true') { changeMonth(1);  renderCalendar(); announceMonthChange(); }
             if (e.key === 't' || e.key === 'T') { const now = new Date(); setDisplayMonth(now.getMonth()); setDisplayYear(now.getFullYear()); renderCalendar(); pulseToday(); announceMonthChange(); }
             if (e.key === 'p' || e.key === 'P') {
                 if (!document.getElementById('huddleViewer')?.classList.contains('open')) window.print();

@@ -124,10 +124,14 @@ export function archiveNotice({ id, title, section, date, body }) {
         const records = Array.isArray(parsed) ? parsed : [];
 
         const existing = records
+            // Drop non-object members first: a null/garbage element would otherwise become
+            // `{ ...null, archivedAt }` = a content-less record that survives the expiry filter
+            // and later renders as a blank App Notices card (v16.19).
+            .filter(n => n && typeof n === 'object')
             // Migrate legacy pre-v13.41 records (no archivedAt) by stamping them with
             // `now` instead of dropping them — otherwise the first archive write after
             // an upgrade would silently wipe the user's whole notice history.
-            .map(n => (n && n.archivedAt) ? n : { ...n, archivedAt: nowIso })
+            .map(n => n.archivedAt ? n : { ...n, archivedAt: nowIso })
             .filter(n => {
                 const t = new Date(n.archivedAt).getTime();
                 return Number.isFinite(t) && (now - t) < expiryMs;
@@ -153,7 +157,11 @@ export function archiveNotice({ id, title, section, date, body }) {
  * Removes the injected DOM, drops the burger's listeners (via clone-replace) and clears the guard.
  */
 export function resetNavPanel() {
-    if (_panelOpen) unlockBodyScroll();
+    // Balance the scroll lock for ANY open surface, not just the drawer: the coming-soon / notices
+    // lightboxes visually close the panel (_panelOpen=false) but hold their OWN lockBodyScroll, so
+    // tearing down while one is open would leave _lbDepth ≥ 1 and body.lb-open (position:fixed)
+    // stuck. (unlockBodyScroll is depth-counted + depth-0-safe, so an extra call is harmless.) (v16.22)
+    if (_panelOpen || _comingSoonOpen || _noticesOpen) unlockBodyScroll();
     // Remove the document/window-level listeners the previous initNavPanel registered — the
     // clone-replace below only drops the BURGER's listeners; these two close over the old panel
     // and share the module flags, so a surviving copy would fire first on the next Escape /
@@ -292,17 +300,28 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         _docFetching = true;
         const newTab = window.open('', '_blank');
         if (newTab) newTab.opener = null;
-        fetchFn().then(/** @param {any} data */ data => {
+        // Race the fetch against a timeout: a wedged Firestore promise that never settles would
+        // otherwise leave _docFetching stuck true, killing BOTH doc nav-links until a reload and
+        // orphaning the blank tab. On timeout the .catch closes the tab and shows the fallback (v16.19).
+        const timed = new Promise((_res, reject) =>
+            setTimeout(() => reject(new Error('doc-fetch-timeout')), 8000));
+        Promise.race([fetchFn(), timed]).then(/** @param {any} data */ data => {
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {
                 if (newTab) {
+                    // Doc opened in a SEPARATE tab — this page STAYS put, so close with a real
+                    // history.back() to CONSUME the drawer's pushed entry. closePanelForNavigation()
+                    // only clears the flag (no back()), leaving a dead same-URL entry that swallows
+                    // the next Android Back press — the exact leak the brand→About handler fixed (v16.21).
                     newTab.location.href = safeUrl;
+                    closePanel();
                 } else {
-                    // Popup was blocked — fall back to current-tab navigation.
+                    // Popup was blocked — THIS tab navigates away, so the pushed entry goes with it;
+                    // closePanelForNavigation() (no back()) is correct here.
                     location.href = safeUrl;
+                    closePanelForNavigation();
                 }
-                closePanelForNavigation();
             } else {
                 if (newTab) newTab.close();
                 _closePanelVisualOnly();
@@ -402,7 +421,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const state = bell.dataset.notifState;
         // Browser-blocked: nothing we can do programmatically. The blocked status is
         // already conveyed by the bell's aria-label (set in _paintBell), so just no-op.
-        if (state === 'denied') return;
+        // 'loading' (the initial state before peekNotifState resolves — swReady can take up to 8s)
+        // is also a no-op: toggling then would re-prompt/re-subscribe a device that may already be
+        // subscribed. _refreshBell resolves the real state on panel open (v16.22).
+        if (state === 'denied' || state === 'loading') return;
         _bellBusy = true;
         bell.dataset.notifState = 'loading';
         bell.disabled = true;
@@ -532,7 +554,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const list  = noticesList;
         const empty = noticesEmpty;
         let notices = [];
-        try { notices = JSON.parse(lsGet(NOTICES_KEY) || '[]'); } catch (_) {}
+        // Array.isArray guard like archiveNotice: a valid-JSON NON-array (e.g. `{}` from corruption)
+        // would pass JSON.parse, then notices.forEach throws a TypeError and breaks the panel (v16.21).
+        try { const p = JSON.parse(lsGet(NOTICES_KEY) || '[]'); notices = Array.isArray(p) ? p : []; } catch (_) {}
         const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar' };
         if (list) {
             list.innerHTML = '';

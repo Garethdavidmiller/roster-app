@@ -173,6 +173,19 @@ describe('lockBodyScroll — nesting (depth counter, v16.16)', () => {
         assert.equal(_bodyClasses.has('lb-open'), false);
         assert.equal(_lastScrollTo.y, 100, 'restored the ORIGINAL scroll position, not 0');
     });
+
+    test('an UNBALANCED second unlock at depth 0 does NOT re-run scrollTo (v16.19 double-unlock guard)', () => {
+        lockBodyScroll();                 // depth 0→1, captures scrollY=100
+        unlockBodyScroll();               // depth 1→0, restores to 100
+        assert.equal(_lastScrollTo.y, 100);
+        // Reader scrolls away after the overlay closed; then a stray second unlock fires (Android
+        // Back closes the nav drawer mid doc-fetch, then the fetch's own close unlocks again). It
+        // must be a no-op — previously it re-ran scrollTo(0, staleOffset=100), yanking the reader back.
+        global.window.scrollY = 500;
+        _lastScrollTo = { x: 0, y: 0 };
+        unlockBodyScroll();               // depth already 0 → must NOT scroll
+        assert.equal(_lastScrollTo.y, 0, 'depth-0 unlock re-ran scrollTo with a stale offset');
+    });
 });
 
 // ── trapFocus ─────────────────────────────────────────────────────────────────

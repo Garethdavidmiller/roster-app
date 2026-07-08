@@ -110,8 +110,17 @@ function normaliseShift(raw) {
     // appear in these PDFs, gate the extraction on the trailing text instead of removing it.
     const lead = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})\b/);
     if (lead && validHHMM(lead[1], lead[2]) && validHHMM(lead[3], lead[4])) {
+        const time = `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
+        // Preserve an RDW marker carried in the trailing content: "06:00-12:00 RDW GER" is rest-day-
+        // worked OVERTIME with a depot annotation. The anchored rdwMatch above ($-terminated) rejects
+        // the trailing token, so without this the RDW was dropped and the day saved as a plain `shift`
+        // (normal pay) — the exact pay-loss rdwMatch guards, leaking through the annotated-time path (v16.19).
+        if (/\bRDW\b/.test(s)) {   // word-boundaried so a stray substring (e.g. "…hARDWare…") can't force an RDW encode (v16.22)
+            console.warn(`[parseRosterPDF] Extracted leading RDW time from "${raw}" (trailing content ignored) — review table will show it`);
+            return `RDW|${time}`;
+        }
         console.warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
-        return `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
+        return time;
     }
 
     // A genuinely blank cell is a rest day — nothing to flag. (buildSafeEntries already maps

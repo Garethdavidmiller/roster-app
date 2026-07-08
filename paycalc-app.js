@@ -1249,9 +1249,14 @@ export function init() {
       // v16.12: no desktop skip — the bar runs at every width now. On desktop it backstops
       // the footer rows below the sticky col-3 result rail (v16.14): the rail keeps the live
       // figure visible across the work area, the bar covers the scroll past it.
-      // Guard against bfcache double-init: if the page is restored from the back/forward
-      // cache, this IIFE runs again — without this flag a second IntersectionObserver
-      // would be created and leak listeners.
+      // Defensive single-init guard. init() runs exactly once (paycalc-boot.js), and a bfcache
+      // restore THAWS the frozen document rather than re-executing module code — so this IIFE
+      // does NOT re-run on a Back/Forward restore. The guard only matters if init() is ever
+      // wired to run twice. An IntersectionObserver survives the bfcache freeze/thaw intact,
+      // so there is deliberately NO pagehide-disconnect: a prior version disconnected the
+      // observer on navigate-away and, because the IIFE never re-runs, nothing reconnected it —
+      // after any Back/Forward restore the sticky bar froze over the footer for the rest of
+      // the session (v16.19).
       if (stickyBar.dataset.obsInit) return;
       stickyBar.dataset.obsInit = '1';
       // Observe the £ amount display specifically, not the whole card.
@@ -1269,8 +1274,6 @@ export function init() {
         });
       }, { threshold: 0, rootMargin: '-8px 0px 0px 0px' });
       obs.observe(netDisplay);
-      // Disconnect on pagehide so a bfcache restore doesn't end up with two observers.
-      window.addEventListener('pagehide', () => obs.disconnect(), { once: true });
       // Hide the sticky bar while the iOS soft keyboard is up, otherwise it covers
       // the field the user is typing into. visualViewport shrinks when the keyboard
       // appears; a >150px drop is a reliable keyboard signal.
@@ -1285,16 +1288,21 @@ export function init() {
 
         document.addEventListener('focusout', () => {
           _inputFocused = false;
-          stickyBar.classList.remove('keyboard-up');
-          // Refresh the keyboard-down baseline after dismissal (orientation may have changed) —
-          // but ONLY when no input is focused, i.e. the keyboard is genuinely down. Moving directly
-          // from one field to another fires focusout→focusin, so an input is still focused when this
-          // timer runs; rebasing then pinned _baseVVH to the keyboard-SHRUNK height, after which
-          // keyboardUp never tripped and the bar overlaid the keyboard for the rest of the session.
-          // (Guard is strictly conservative — it can only skip a bad rebase. Needs real-iOS
+          // Defer BOTH the keyboard-up removal AND the baseline rebase behind the same
+          // !_inputFocused check. Moving directly from one field to the next fires
+          // focusout→focusin, so an input is refocused before this timer runs and the soft
+          // keyboard never actually goes down — meaning no visualViewport 'resize' fires to
+          // re-add keyboard-up. Removing the class UNCONDITIONALLY on focusout therefore
+          // re-showed the bar floating over the keyboard/active field the moment you tabbed
+          // between hours fields, for the rest of the typing session (v16.19). Rebasing
+          // _baseVVH here (only when the keyboard is genuinely down) is the pre-existing guard.
+          // (Both are conservative — they can only skip a bad update. Needs real-iOS
           // verification: visualViewport keyboard behaviour can't be reproduced in headless/e2e.)
           setTimeout(() => {
-            if (!_inputFocused) _baseVVH = _vv.height;
+            if (!_inputFocused) {
+              stickyBar.classList.remove('keyboard-up');
+              _baseVVH = _vv.height;
+            }
           }, 300);
         });
 

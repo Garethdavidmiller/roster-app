@@ -57,6 +57,23 @@ function shiftDisplay(shiftStr, _baseShift = null, date = null) {
 }
 
 /**
+ * Render a stored MANUAL override value for the review table, restoring the 💼 RDW badge when the
+ * override's type is 'rdw'. A stored rdw override's value is the bare time ("14:30-22:00") — the
+ * RDW-ness lives in `type`, not the value — so shiftDisplay(value) alone showed an ordinary
+ * Early/Late badge, and the admin couldn't tell a saved RDW from a normal shift when resolving a
+ * CONFLICT or reviewing a REMOVE_IMPORT. Re-encode as "RDW|<time>" so shiftDisplay picks the badge (v16.19).
+ * @param {{manualValue: string|null, manualType?: string|null}} s
+ * @returns {string} HTML
+ */
+function manualShiftDisplay(s) {
+    const v = s.manualValue;
+    if (s.manualType === 'rdw' && v && /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(v)) {
+        return shiftDisplay(`${RDW_PREFIX}${v}`);
+    }
+    return shiftDisplay(/** @type {string} */ (v));
+}
+
+/**
  * Write the reviewed roster changes to Firestore in chunked batches. Each chunk's batch is
  * built and committed INSIDE a `writeWithClaimRetry` thunk, so a freshly-provisioned or
  * claim-changed admin whose ID token is stale self-heals (permission-denied → force token
@@ -507,7 +524,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // for blanket Mon–Fri "OD" markings on long-term sick members — rest days inside
                 // the blanket classify MATCH (never written), and a STALE imported absence on a
                 // rest day becomes REMOVE_IMPORT on re-upload (deleted, nothing written).
-                const restSafe   = (normRest(sundaySafe) === 'SICK' && normRest(baseShift) === 'RD')
+                // AL added alongside SICK (v16.19): a blanket week-long "AL" written across the
+                // paper roster (incl. the RD) must not consume an AL-entitlement day for a rest
+                // day. The manual AL path already excludes rest days (isWorkingDate); this closes
+                // the import-vs-manual asymmetry that left AL on a base rest day unguarded.
+                const restSafe   = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
                     ? 'RD' : sundaySafe;
                 const normParsed = normRest(restSafe);
                 const normBase   = normRest(baseShift);
@@ -548,11 +569,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // A manual override exists — check if it already matches the PDF
                     if (normRest(existing.value) === normParsed) {
                         state = 'COVERED';   // manual is already correct — nothing to do
-                    } else if (existing.value === 'SICK' && normBase === 'RD' && normParsed === 'RD') {
-                        // Absence on a rest day AND the PDF also shows rest — not a real
-                        // conflict (the calendar suppresses absence on base-RD days anyway).
-                        // If the PDF instead shows a worked shift (an RDW on the rest day),
-                        // fall through to CONFLICT so the genuine shift isn't dropped.
+                    } else if ((existing.value === 'SICK' || existing.value === 'AL') && normBase === 'RD' && normParsed === 'RD') {
+                        // Absence OR annual leave on a base rest day AND the PDF also shows rest —
+                        // not a real conflict; leave the manual override untouched. AL joined SICK
+                        // here in lockstep with the restSafe AL→RD normalisation (v16.19): without
+                        // it, a manual AL on a base-rest weekday + a re-uploaded AL classified as
+                        // CONFLICT, and "Use new roster" then wrote correction/RD, DELETING the AL.
+                        // If the PDF instead shows a worked shift (an RDW on the rest day), fall
+                        // through to CONFLICT so the genuine shift isn't dropped.
                         state = 'COVERED';
                     } else {
                         state = 'CONFLICT';  // manual differs from PDF — flag it
@@ -568,6 +592,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     displayShift: displayValue,
                     baseShift,
                     manualValue: existing?.value ?? null,
+                    // Carry the override TYPE so the review table can render the 💼 RDW badge for a
+                    // saved rest-day-worked override: its stored value is the bare time ("14:30-22:00")
+                    // — the RDW-ness lives in `type`, not the value — so shiftDisplay(value) alone
+                    // showed an ordinary Early/Late badge and the admin couldn't tell RDW from a
+                    // normal shift when resolving a CONFLICT (v16.19).
+                    manualType:  existing?.type  ?? null,
                     manualId:    existing?.id    ?? null,
                     editedValue: null,    // set if admin edits a DIFF cell
                     chosen:      (state === 'DIFF' || state === 'REMOVE_IMPORT') ? true : null,
@@ -695,7 +725,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <span class="roster-day-date">${dateStr}</span>
                         </div>
                         <div class="roster-chg-vals">
-                            <span class="roster-from-val">${shiftDisplay(s.manualValue)}</span>
+                            <span class="roster-from-val">${manualShiftDisplay(s)}</span>
                             <span class="roster-arrow">→</span>
                             <span class="roster-to-val">${shiftDisplay(s.baseShift, s.baseShift, date)}</span>
                             <span class="roster-remove-note">no longer on the roster</span>
@@ -731,7 +761,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             </div>
                             <div class="roster-cb-opt">
                                 <span class="roster-cb-lab">Saved</span>
-                                <span class="roster-cv-manual${usesPDF ? ' cv-dim' : ''}">${shiftDisplay(s.manualValue)}</span>
+                                <span class="roster-cv-manual${usesPDF ? ' cv-dim' : ''}">${manualShiftDisplay(s)}</span>
                             </div>
                             <div class="roster-cb-opt">
                                 <span class="roster-cb-lab">New roster</span>

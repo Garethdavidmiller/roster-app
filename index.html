@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v16.17 -->
+<!-- MYB Roster — Calendar v16.22 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -81,6 +81,12 @@
     <link rel="modulepreload" href="./sw-register.js">
     <link rel="modulepreload" href="./usage-reporter.js">
     <link rel="modulepreload" href="./usage-stats.js">
+
+    <!-- Splash watchdog: a CLASSIC (non-module) script, independent of the ES-module graph, so it
+         still runs when that graph fails to load — the only case that leaves the launch splash up
+         forever (the splash is otherwise removed only by calendar-app.js). Gives a stuck launch a
+         recovery path. defer = runs after parse, doesn't block the modulepreloads. -->
+    <script defer src="./splash-watchdog.js"></script>
 
     <!-- Preload the self-hosted Inter typeface so it's ready before first paint (crossorigin is required even same-origin for fonts) -->
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>

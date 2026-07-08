@@ -100,6 +100,20 @@ describe('normaliseShift', () => {
     test('a bare time (no RDW) does NOT get RDW-encoded', () => {
         assert.equal(normaliseShift('14:30-22:00'), '14:30-22:00');
     });
+    test('time-first RDW with a TRAILING annotation keeps RDW (not dropped to a plain shift)', () => {
+        // "06:00-12:00 RDW GER": the anchored rdwMatch rejects the trailing " GER", so it fell to
+        // the leading-time extractor and returned a PLAIN shift, silently losing the RDW overtime
+        // marker → the day was saved as normal pay (v16.19 pay-loss fix).
+        assert.equal(normaliseShift('06:00-12:00 RDW GER'), 'RDW|06:00-12:00');
+        assert.equal(normaliseShift('0600-1200 GER RDW'), 'RDW|06:00-12:00');
+    });
+    test('a leading time with a NON-RDW annotation stays a plain shift', () => {
+        assert.equal(normaliseShift('06:00-12:00 GER'), '06:00-12:00');
+    });
+    test('a trailing word merely CONTAINING "rdw" as a substring does NOT force an RDW encode', () => {
+        // \bRDW\b is word-boundaried, so "HARDWARE" (…hARDWare…) must not trigger the RDW branch.
+        assert.equal(normaliseShift('06:00-12:00 HARDWARE FAULT'), '06:00-12:00');
+    });
     test('lowercase input normalised', () => {
         assert.equal(normaliseShift('al'), 'AL');
     });

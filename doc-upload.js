@@ -89,6 +89,15 @@ export function initDocUploadCard(cfg) {
     const date = dateInput.value;
     const file = (fileInput.files || [])[0];
     if (!date || !file) return;
+    // The date field's `max` only constrains the picker widget + the :invalid state — it does NOT
+    // block a typed/pasted out-of-range value. Enforce it at submit: a far-future typo would
+    // otherwise upload and, because the latest-document queries order by date desc, SHADOW the real
+    // current document for every staff member until it's deleted (v16.19).
+    if (dateInput.max && date > dateInput.max) {
+      /** @type {HTMLElement} */ (feedback).textContent = 'That date is in the future — please choose a valid date.';
+      /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
+      return;
+    }
     uploadBtn.disabled = true;
     /** @type {HTMLElement} */ (feedback).textContent = '';
     /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback';
@@ -97,7 +106,20 @@ export function initDocUploadCard(cfg) {
     // text (e.g. "Converting…") and either yield extra upload args or abort with a message.
     let extraArgs = [];
     if (cfg.transform) {
-      const r = await cfg.transform(file, { setBtnText: t => { uploadBtn.textContent = t; } });
+      let r;
+      try {
+        r = await cfg.transform(file, { setBtnText: t => { uploadBtn.textContent = t; } });
+      } catch (err) {
+        // A transform that REJECTS (rather than returning {abortMsg}) must not strand the button
+        // disabled on "Converting…" with no recovery. Today's only transform (_convertHuddleDocx)
+        // swallows its own throws, but the skeleton is generic — restore the button on any escape (v16.19).
+        console.error(`[${cfg.logPrefix}] Transform failed:`, err);
+        /** @type {HTMLElement} */ (feedback).textContent = 'Upload failed — please try again';
+        /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = cfg.btnLabel;
+        return;
+      }
       if (r.abortMsg) {
         /** @type {HTMLElement} */ (feedback).textContent = r.abortMsg;
         /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';

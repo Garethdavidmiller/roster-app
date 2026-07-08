@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.17
+// MYB Roster — Service Worker v16.22
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.17';
+const APP_VERSION = '16.22';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -86,7 +86,7 @@ const NETWORK_FIRST_FILES = [
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
     'admin-al.js', 'admin-sick.js', 'admin-range-booking.js',
     'operations-app.js', 'operations-boot.js', 'settings-app.js', 'links-app.js', 'links-boot.js', 'links-design.js',
-    'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js',
+    'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js',
     'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'client-errors.js',
@@ -163,6 +163,7 @@ const CORE_ASSETS = [
     "./auth-state.js",
     "./auth-policy.js",
     "./sw-register.js",
+    "./splash-watchdog.js",
     "./about-lightbox.js",
     "./tips-lightbox.js",
     "./login-overlay.js",
@@ -493,9 +494,17 @@ self.addEventListener("fetch", event => {
             // EXACT-page match only — '/' (the scope root) additionally tries the warm-up's
             // './index.html' key. Never map one page to another here: serveFallback's
             // index-default is OFFLINE-fallback behaviour, not an instant-serve rule.
-            const cache = await openCache();
-            const cachedDoc = await cache.match(event.request, { ignoreSearch: true })
-                || (relPath === '' ? await cache.match('./index.html') : null);
+            // A broken Cache Storage (corrupt IndexedDB backing, iOS eviction mid-read) must
+            // DEGRADE to the network path, never reject: a rejected respondWith on a navigation
+            // makes the browser render its own error page, so index.html — and therefore the
+            // splash — never even loads (the stuck-launch class the watchdog papers over). The
+            // SDK and cache-first branches already .catch their cache access; the two SWR
+            // branches were the odd ones out (v16.19).
+            const cache = await openCache().catch(() => null);
+            const cachedDoc = cache
+                ? (await cache.match(event.request, { ignoreSearch: true }).catch(() => null)
+                    || (relPath === '' ? await cache.match('./index.html').catch(() => null) : null))
+                : null;
 
             let networkSettled = false;
             const networkPromise = (event.preloadResponse
@@ -509,7 +518,14 @@ self.addEventListener("fetch", event => {
                 : Promise.resolve().then(() => fetch(freshReq))
             ).then(response => {
                 networkSettled = true;
-                if (response && response.status === 200) {
+                // Only cache a genuine HTML document. A 200 that is NOT html (a host
+                // interstitial or a JSON error page returned with status 200) would otherwise
+                // be written under the page path and served instantly by SWR for the life of
+                // the version cache. A MISSING content-type still caches (offline-first
+                // guarantee: Firebase always sets it, so absence means a stub we shouldn't
+                // second-guess) — only a present, clearly-non-html type is skipped (v16.19).
+                const ct = response ? (response.headers.get('content-type') || '') : '';
+                if (response && response.status === 200 && (!ct || ct.includes('text/html'))) {
                     // Cache under the bare path (query stripped): every distinct
                     // paycalc.html?payday=… would otherwise pile up as its own ~40 KB entry
                     // for the life of the version cache. serveFallback matches ignoreSearch.
@@ -559,7 +575,10 @@ self.addEventListener("fetch", event => {
                 return serveFallback(`Navigation got ${response.status} — falling back to cache:`);
             }
             return response;
-        })());
+        })().catch(() => fetch(event.request).catch(() => Response.error())));
+        // Ultimate backstop: if ANYTHING in the doc branch rejects (a broken Cache Storage
+        // reaching serveFallback's own un-caught openCache().then chain), degrade to a plain
+        // network fetch, then a network-error response — never a rejected navigation (v16.19).
     } else if (isManagedAsset) {
         // Stale-while-revalidate for JS/CSS: respond from cache immediately when present and
         // refresh the cache in the background; on a cold cache, wait for the network. The
@@ -594,12 +613,19 @@ self.addEventListener("fetch", event => {
                 if (network) { try { event.waitUntil(network); } catch (_e) { /* settled */ } }
                 return cached;
             }
-            // Cold current-version cache AND network failed: fall back to ANY cached copy
-            // (caches.match searches every cache, incl. the previous version's — which the
-            // warm-up deliberately keeps until the new cache is fully populated). This keeps
-            // the app offline-usable during the brief post-update transition window.
-            return (await network) || (await caches.match(event.request)) || Response.error();
-        })());
+            // Cold current-version cache: prefer a GOOD (2xx) network response, but if the network
+            // resolved a 4xx/5xx (a transient 502 mid-deploy, a hosting hiccup) fall back to ANY
+            // cached copy — the previous version's cache still holds a working module (caches.match
+            // searches every cache; the warm-up keeps the old one until the new is fully populated).
+            // Returning the bad response to a <script type=module> would break the import and stick
+            // the splash — the doc branch already falls back on !response.ok, this mirrors it (v16.19).
+            const net = await network;
+            return (net && net.ok ? net : null) || (await caches.match(event.request)) || Response.error();
+        })().catch(() => caches.match(event.request).then(r => r || Response.error())));
+        // A rejected respondWith for a <script type=module> fails the import and breaks the
+        // module graph → calendar-app.js never runs → the splash sticks. A broken Cache
+        // Storage at the initial openCache()/cache.match must degrade like the else-branch,
+        // not hard-fail the module load (v16.19).
     } else {
         // Cache-first: icons/manifest served from cache instantly, fetched if missing
         event.respondWith(
@@ -609,7 +635,10 @@ self.addEventListener("fetch", event => {
                     return fetch(event.request).then(response => {
                         if (response && response.status === 200) {
                             const clone = response.clone();
-                            openCache().then(cache => cache.put(event.request, clone));
+                            // .catch to match the SWR/SDK puts — an unguarded put rejects (quota /
+                            // broken Cache Storage) as an unhandled rejection; respondWith still
+                            // returns the response independently, so caching is best-effort (v16.19).
+                            openCache().then(cache => cache.put(event.request, clone)).catch(() => {});
                         }
                         return response;
                     });

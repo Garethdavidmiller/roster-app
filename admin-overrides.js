@@ -50,6 +50,11 @@ export const TYPES = {
  */
 export const PILL_TYPES = ['annual_leave', 'shift', 'rdw', 'sick', 'correction', 'other'];
 
+// Override types that represent genuinely WORKED days — a Sunday RD-correction during an AL/absence
+// booking must never overwrite one of these (real overtime). Covers the current creatable worked
+// types plus the legacy-but-still-in-data ones (see CLAUDE.md → overrides `type`). (v16.19)
+const WORKED_OVERRIDE_TYPES = new Set(['rdw', 'shift', 'spare_shift', 'allocated', 'overtime', 'swap']);
+
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 /** @type {any[]} */
 let _allOverrides   = [];
@@ -1402,8 +1407,16 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             if (!isSunday(dateStr)) return false;
             const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
             if (isRestShift(base)) return false;
+            // Skip the RD correction when the existing override is already a rest shift (RD/OFF —
+            // nothing to correct, avoid churn) OR is a genuinely WORKED override that correction/RD
+            // would silently ERASE. WORKED_OVERRIDE_TYPES covers both the current types
+            // (rdw/shift/spare_shift) AND the legacy-but-still-in-data ones (allocated/overtime/swap
+            // — Sunday work is always overtime, so these are the most likely to appear on a Sunday);
+            // omitting them clobbered a legacy Sunday overtime doc. A NON-worked override that
+            // shouldn't be on a Sunday (sick/AL) still gets corrected to RD, preserving the v12.61
+            // masking behaviour for those. (v16.19)
             const ov = ovByDate.get(dateStr);
-            if (ov && isRestShift(ov.value)) return false;
+            if (ov && (isRestShift(ov.value) || WORKED_OVERRIDE_TYPES.has(ov.type))) return false;
             return true;
           })
         : [];
@@ -1416,42 +1429,46 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // save button is disabled when workDays === 0, computed with the same isWorkingDate rule.)
     if (!workingDates.length) return { workingCount: 0, sundayCount: 0 };
 
-    // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a stale-claim
-    // `permission-denied` (a just-provisioned manager booking AL/absence on-behalf before their
-    // `manager` claim has propagated). The batch, newDocs and deletedIds are rebuilt on each attempt
-    // — a WriteBatch can't be re-committed — and the thunk RETURNS them so the retry's fresh doc IDs
-    // are the ones cached below.
-    const { newDocs, deletedIds } = await writeWithClaimRetry(async () => {
-        /** @type {any[]} */
-        const docs   = [];
-        const delIds = new Set();
-        const batch  = writeBatch(db);
-
-        workingDates.forEach(date => {
-            const existing = ovByDate.get(date);
-            if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
-            const newRef = doc(collection(db, COLLECTIONS.overrides));
-            batch.set(newRef, {
-                memberName, date, type, value, note: '', source: 'manual',
-                createdAt: serverTimestamp(), changedBy,
+    // Combine the two write sets into one op list and CHUNK it. A single un-chunked batch —
+    // delete existing + set new = up to 2 ops per date — blows Firestore's hard 500-writes-per-
+    // batch cap on a long absence range: ~250 working days each already carrying a roster_import
+    // override → ~500 ops, so the WHOLE commit was rejected and the booking silently lost
+    // (admin-sick allows a ~1-year range). Mirror _saveOverrideBatches' CHUNK=200 (200 dates ×
+    // 2 ops = 400 ops < 500). Each chunk is its own re-runnable writeWithClaimRetry thunk (a
+    // just-provisioned manager's stale `manager` claim self-heals per chunk), rebuilt on each
+    // attempt because a WriteBatch can't be re-committed. Accepts the same partial-commit-on-
+    // mid-range-failure trade-off _saveOverrideBatches already carries (v16.19).
+    const ops = [
+        ...workingDates.map(date => ({ date, type, value })),
+        ...sundayCorrections.map(date => ({ date, type: 'correction', value: 'RD' })),
+    ];
+    const CHUNK = 200;
+    /** @type {any[]} */
+    const newDocs = [];
+    const deletedIds = new Set();
+    for (let i = 0; i < ops.length; i += CHUNK) {
+        const slice = ops.slice(i, i + CHUNK);
+        const res = await writeWithClaimRetry(async () => {
+            /** @type {any[]} */
+            const docs   = [];
+            const delIds = new Set();
+            const batch  = writeBatch(db);
+            slice.forEach(op => {
+                const existing = ovByDate.get(op.date);
+                if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
+                const newRef = doc(collection(db, COLLECTIONS.overrides));
+                batch.set(newRef, {
+                    memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual',
+                    createdAt: serverTimestamp(), changedBy,
+                });
+                docs.push({ id: newRef.id, memberName, date: op.date, type: op.type, value: op.value, source: 'manual', note: '', createdAt: new Date() });
             });
-            docs.push({ id: newRef.id, memberName, date, type, value, source: 'manual', note: '', createdAt: new Date() });
+            await batch.commit();
+            return { docs, delIds };
         });
-
-        sundayCorrections.forEach(date => {
-            const existing = ovByDate.get(date);
-            if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
-            const newRef = doc(collection(db, COLLECTIONS.overrides));
-            batch.set(newRef, {
-                memberName, date, type: 'correction', value: 'RD', note: '', source: 'manual',
-                createdAt: serverTimestamp(), changedBy,
-            });
-            docs.push({ id: newRef.id, memberName, date, type: 'correction', value: 'RD', source: 'manual', note: '', createdAt: new Date() });
-        });
-
-        await batch.commit();
-        return { newDocs: docs, deletedIds: delIds };
-    });
+        newDocs.push(...res.docs);
+        res.delIds.forEach(id => deletedIds.add(id));
+    }
 
     // Update in-memory cache — no Firestore round-trip needed
     _allOverrides = _allOverrides.filter(o => !deletedIds.has(o.id));
