@@ -50,6 +50,11 @@ export const TYPES = {
  */
 export const PILL_TYPES = ['annual_leave', 'shift', 'rdw', 'sick', 'correction', 'other'];
 
+// Override types that represent genuinely WORKED days — a Sunday RD-correction during an AL/absence
+// booking must never overwrite one of these (real overtime). Covers the current creatable worked
+// types plus the legacy-but-still-in-data ones (see CLAUDE.md → overrides `type`). (v16.19)
+const WORKED_OVERRIDE_TYPES = new Set(['rdw', 'shift', 'spare_shift', 'allocated', 'overtime', 'swap']);
+
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 /** @type {any[]} */
 let _allOverrides   = [];
@@ -1403,13 +1408,15 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
             if (isRestShift(base)) return false;
             // Skip the RD correction when the existing override is already a rest shift (RD/OFF —
-            // nothing to correct, avoid churn) OR is a genuinely WORKED override (rdw/shift/spare —
-            // real overtime that correction/RD would silently ERASE; the original bug spared only
-            // rest overrides, so a worked-Sunday rdw was clobbered). A legacy NON-worked override
-            // that shouldn't be on a Sunday (sick/AL) still gets corrected to RD, preserving the
-            // v12.61 masking behaviour for those. (v16.19)
+            // nothing to correct, avoid churn) OR is a genuinely WORKED override that correction/RD
+            // would silently ERASE. WORKED_OVERRIDE_TYPES covers both the current types
+            // (rdw/shift/spare_shift) AND the legacy-but-still-in-data ones (allocated/overtime/swap
+            // — Sunday work is always overtime, so these are the most likely to appear on a Sunday);
+            // omitting them clobbered a legacy Sunday overtime doc. A NON-worked override that
+            // shouldn't be on a Sunday (sick/AL) still gets corrected to RD, preserving the v12.61
+            // masking behaviour for those. (v16.19)
             const ov = ovByDate.get(dateStr);
-            if (ov && (isRestShift(ov.value) || ['rdw', 'shift', 'spare_shift'].includes(ov.type))) return false;
+            if (ov && (isRestShift(ov.value) || WORKED_OVERRIDE_TYPES.has(ov.type))) return false;
             return true;
           })
         : [];

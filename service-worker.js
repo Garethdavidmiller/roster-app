@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.19
+// MYB Roster — Service Worker v16.20
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.19';
+const APP_VERSION = '16.20';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -613,11 +613,14 @@ self.addEventListener("fetch", event => {
                 if (network) { try { event.waitUntil(network); } catch (_e) { /* settled */ } }
                 return cached;
             }
-            // Cold current-version cache AND network failed: fall back to ANY cached copy
-            // (caches.match searches every cache, incl. the previous version's — which the
-            // warm-up deliberately keeps until the new cache is fully populated). This keeps
-            // the app offline-usable during the brief post-update transition window.
-            return (await network) || (await caches.match(event.request)) || Response.error();
+            // Cold current-version cache: prefer a GOOD (2xx) network response, but if the network
+            // resolved a 4xx/5xx (a transient 502 mid-deploy, a hosting hiccup) fall back to ANY
+            // cached copy — the previous version's cache still holds a working module (caches.match
+            // searches every cache; the warm-up keeps the old one until the new is fully populated).
+            // Returning the bad response to a <script type=module> would break the import and stick
+            // the splash — the doc branch already falls back on !response.ok, this mirrors it (v16.19).
+            const net = await network;
+            return (net && net.ok ? net : null) || (await caches.match(event.request)) || Response.error();
         })().catch(() => caches.match(event.request).then(r => r || Response.error())));
         // A rejected respondWith for a <script type=module> fails the import and breaks the
         // module graph → calendar-app.js never runs → the splash sticks. A broken Cache
@@ -632,7 +635,10 @@ self.addEventListener("fetch", event => {
                     return fetch(event.request).then(response => {
                         if (response && response.status === 200) {
                             const clone = response.clone();
-                            openCache().then(cache => cache.put(event.request, clone));
+                            // .catch to match the SWR/SDK puts — an unguarded put rejects (quota /
+                            // broken Cache Storage) as an unhandled rejection; respondWith still
+                            // returns the response independently, so caching is best-effort (v16.19).
+                            openCache().then(cache => cache.put(event.request, clone)).catch(() => {});
                         }
                         return response;
                     });

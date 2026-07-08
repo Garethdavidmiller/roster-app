@@ -569,11 +569,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // A manual override exists — check if it already matches the PDF
                     if (normRest(existing.value) === normParsed) {
                         state = 'COVERED';   // manual is already correct — nothing to do
-                    } else if (existing.value === 'SICK' && normBase === 'RD' && normParsed === 'RD') {
-                        // Absence on a rest day AND the PDF also shows rest — not a real
-                        // conflict (the calendar suppresses absence on base-RD days anyway).
-                        // If the PDF instead shows a worked shift (an RDW on the rest day),
-                        // fall through to CONFLICT so the genuine shift isn't dropped.
+                    } else if ((existing.value === 'SICK' || existing.value === 'AL') && normBase === 'RD' && normParsed === 'RD') {
+                        // Absence OR annual leave on a base rest day AND the PDF also shows rest —
+                        // not a real conflict; leave the manual override untouched. AL joined SICK
+                        // here in lockstep with the restSafe AL→RD normalisation (v16.19): without
+                        // it, a manual AL on a base-rest weekday + a re-uploaded AL classified as
+                        // CONFLICT, and "Use new roster" then wrote correction/RD, DELETING the AL.
+                        // If the PDF instead shows a worked shift (an RDW on the rest day), fall
+                        // through to CONFLICT so the genuine shift isn't dropped.
                         state = 'COVERED';
                     } else {
                         state = 'CONFLICT';  // manual differs from PDF — flag it

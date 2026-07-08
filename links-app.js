@@ -362,6 +362,7 @@ export function init() {
             try { createdTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline — no concurrent editor to guard */ }
             const d = { id: ref.id, name, patterns: {}, updatedAt: createdTs, updatedBy: currentUser };
             designs.push(d);
+            _sortDesigns();
             _activateDesign(d);
         } catch (err) {
             console.error('[Links] Create design failed:', err);
@@ -388,10 +389,18 @@ export function init() {
             try { dupTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline */ }
             const d = { id: ref.id, name, patterns, updatedAt: dupTs, updatedBy: currentUser };
             designs.push(d);
+            _sortDesigns();
             _activateDesign(d);
         } catch (err) {
             console.error('[Links] Duplicate design failed:', err);
         }
+    }
+
+    /** Keep `designs` in the same alpha order loadDesigns applies, so in-session
+     *  create / duplicate / rename don't drift the picker + compare-chip order vs a fresh
+     *  reload (they used to push to the end and only re-sort on reload). (v16.19) */
+    function _sortDesigns() {
+        designs.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
     }
 
     /**
@@ -404,9 +413,21 @@ export function init() {
         const name = prompt('New name:', d.name)?.trim();
         if (!name || name === d.name) return;
         try {
-            await setDoc(doc(db, COLLECTIONS.linkDesigns, id), { name }, { merge: true });
+            // Bump updatedAt/updatedBy too (was name-only): otherwise a rename was invisible to the
+            // concurrency guard — a co-editor's loadedUpdatedAt stayed unchanged, so their next save
+            // wrote their stale cached name and silently REVERTED the rename with no prompt (v16.19).
+            await setDoc(doc(db, COLLECTIONS.linkDesigns, id),
+                { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true });
             d.name = name;
-            if (id === activeDesignId && design) design.name = name;
+            d.updatedBy = currentUser;
+            try { d.updatedAt = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt ?? d.updatedAt; }
+            catch { /* offline — baseline stays as-is */ }
+            if (id === activeDesignId) {
+                if (design) design.name = name;
+                loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? loadedUpdatedAt;
+                updateLastSaved(d.updatedBy, d.updatedAt);
+            }
+            _sortDesigns();
             renderDesignPicker();
         } catch (err) {
             console.error('[Links] Rename failed:', err);
@@ -425,12 +446,16 @@ export function init() {
         try {
             await deleteDoc(doc(db, COLLECTIONS.linkDesigns, id));
             designs = designs.filter(x => x.id !== id);
-            // Exit compare mode if the compare target was deleted OR the delete drops below the 2
-            // designs compare needs. Deleting the ACTIVE design (not the compare target) while
-            // comparing used to leave compareMode true with <2 designs — a self-compare with the
-            // editable grid hidden and both compare controls disabled = soft-lock until reload.
-            if (id === compareDesignId || designs.length < 2) { compareDesignId = null; compareMode = false; }
-            if (id === activeDesignId) _activateDesign(designs[0]);
+            const newActive = (id === activeDesignId) ? designs[0] : null;
+            // Exit compare mode if the compare target was deleted, the delete drops below the 2
+            // designs compare needs, OR the newly-promoted active design IS the current compare
+            // target — otherwise a design would be compared against ITSELF (every cell "identical",
+            // its compare chip filtered out) until the user manually toggles compare off. Deleting
+            // the ACTIVE design while comparing also used to leave a <2-design self-compare soft-lock.
+            if (id === compareDesignId || designs.length < 2 || (newActive && newActive.id === compareDesignId)) {
+                compareDesignId = null; compareMode = false;
+            }
+            if (newActive) _activateDesign(newActive);
             else { renderDesignPicker(); renderGrid(); renderCompare(); }
         } catch (err) {
             console.error('[Links] Delete failed:', err);
@@ -1268,6 +1293,7 @@ export function init() {
                 } catch { loadedUpdatedAt = null; }
                 const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), updatedAt: savedAt, updatedBy: currentUser };
                 designs.push(newEntry);
+                _sortDesigns();
                 dirty = false;
                 updateSaveBtn();
                 renderDesignPicker();

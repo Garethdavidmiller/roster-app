@@ -232,10 +232,12 @@ export function initHuddleViewer() {
     }
     startHuddleSubscription();
 
-    // If the tab was discarded while still loading, re-subscribe on return so
-    // the Huddle button doesn't stay stuck in 'loading'.
+    // If the tab was discarded while still loading — OR the subscription errored (an onSnapshot
+    // error terminates the listener; the 8s timeout also flips 'loading'→'error') — re-subscribe on
+    // return so the Huddle doesn't stay permanently broken until a full reload. startHuddleSubscription
+    // unsubscribes any prior listener first, so this can't stack listeners (v16.19).
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && _huddleState === 'loading') {
+        if (!document.hidden && (_huddleState === 'loading' || _huddleState === 'error')) {
             startHuddleSubscription();
         }
     });
