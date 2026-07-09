@@ -720,7 +720,11 @@ exports.parseRosterPDF = onRequest(
         secrets:        [ANTHROPIC_API_KEY],
         region:         'europe-west2',
         cors:           ADMIN_FUNCTION_ORIGINS,
-        timeoutSeconds: 120,            // PDF parse + AI call can take up to ~30s
+        // 300s (was 120): with thinking ENABLED (v16.27) the AI call streams an 8k-token thinking
+        // pass before the JSON, which can push total latency past 2 min on a large roster. The
+        // request streams (finalMessage) so the function stays alive for the whole generation —
+        // the timeout must comfortably exceed it.
+        timeoutSeconds: 300,
         memory:         '512MiB',       // pdf-parse needs a little headroom
     },
     async (req, res) => {
@@ -1005,18 +1009,20 @@ Every column header must appear as a key in every member object.`;
         try {
             const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
 
-            const message = await client.messages.create({
+            // Thinking ENABLED (v16.27) for reading accuracy. Reading a roster table is a spatial
+            // alignment task — with thinking OFF, Sonnet 5 intermittently dropped a blank Sunday cell
+            // and shifted the whole row one day left (the reported day-shift). A thinking budget lets
+            // it reason column-by-column and align cells to day headers before committing. It was
+            // DISABLED earlier only because default adaptive thinking + Sonnet 5's ~30%-larger token
+            // count truncated the JSON past the old max_tokens=8192; that is avoided here by keeping
+            // the OUTPUT budget (max_tokens − thinking budget = 16000) exactly as before and STREAMING
+            // (per the guidance) so a longer thinking pass can't hit the non-streaming request timeout.
+            // The response handler below already skips leading thinking blocks. To revert: set
+            // `thinking: { type: 'disabled' }` and `max_tokens: 16000` (one-line rollback).
+            const stream = client.messages.stream({
                 model:      CLAUDE_MODEL,
-                // Sonnet 5 runs ADAPTIVE THINKING by default when `thinking` is omitted (Sonnet 4.6
-                // ran thinking-off). Left on, thinking consumes part of max_tokens, and Sonnet 5's
-                // tokenizer emits ~30% more tokens for the same JSON — together they truncated the
-                // roster JSON mid-object, surfacing as "The AI returned an unreadable response".
-                // This is deterministic structured extraction (read the table → JSON), so disable
-                // thinking to restore the 4.6 behaviour, with generous max_tokens headroom for large
-                // rosters. If we ever want thinking on for parse accuracy, raise max_tokens well
-                // above the JSON size (and stream) so the output isn't truncated.
-                thinking:   { type: 'disabled' },
-                max_tokens: 16000,
+                thinking:   { type: 'enabled', budget_tokens: 8000 },
+                max_tokens: 24000,   // 8000 thinking + 16000 output headroom (unchanged from before)
                 messages: [{
                     role: 'user',
                     content: [
@@ -1035,6 +1041,7 @@ Every column header must appear as a key in every member object.`;
                     ],
                 }],
             });
+            const message = await stream.finalMessage();
 
             // Scan for the first text block rather than assuming content[0] is text —
             // a leading non-text block (e.g. a thinking block) would otherwise yield
