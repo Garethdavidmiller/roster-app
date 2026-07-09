@@ -354,9 +354,21 @@ another *served* JS file, obscure-filename/URL-obscurity, or leaving it in `rost
 
 1. **Track 1 — Auth state machine** — highest; **before B3**, no debate. Behaviour-preserving.
 2. **Track 3 — Testable coordinators** — high; it is *how* Track 1 lands (Phases 4–7). Operations first.
-3. **Track 2 — Split `roster-data.js`** — medium-high; SW-aware order
+3. **Track 2 — Split `roster-data.js`** — ❌ **REJECTED (Jul 2026) — WON'T DO** (step 1,
+   `MILLER_ACTUALS`, was already done for a privacy reason and stands). Original plan: SW-aware order
    (`MILLER_ACTUALS → CONFIG/APP_VERSION → team → roster-logic`), barrel-shim, change direct imports
-   last. Deliberately **not** concurrent with the auth work.
+   last, not concurrent with the auth work.
+   **Why rejected:** the payoff is purely cosmetic (smaller files) with a wide blast radius and no
+   correctness/security benefit. `roster-data.js` is ~1,020 lines but well-organised (CONFIG →
+   `teamMembers` → roster-logic) and stable — it isn't causing bugs or merge conflicts. Against that:
+   it's imported by ~40 files, sits in the SW precache list AND the modulepreload graphs, and holds
+   `APP_VERSION` (the primary version source the bump script + 9 locations + the SW cache key off) —
+   so a split touches all of that. The barrel-shim keeps `roster-data.js` as a re-export, so you end
+   up with MORE files, not fewer, unless you also rewrite all 40 imports (the risky step). Step 1 was
+   worth it only because of its privacy driver; the rest has none.
+   **Revisit only if:** `roster-data.js` becomes a genuine pain point (frequent merge conflicts, or a
+   section that needs independent testing/reuse), OR a Vite build step is adopted (which also makes
+   Track 4 solvable and changes the calculus). Absent one of those, leave it as-is.
 4. **Track 4 — CJS/ESM duplication** — leave alone (parity tests cover it; surname passwords are
    slated to retire in security Track C).
 
