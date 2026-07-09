@@ -9,7 +9,7 @@
 
 import { CONFIG, isValidEmail, isChilternWorkEmail } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
-import { initNavPanel } from './nav-panel.js';
+import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
@@ -102,7 +102,11 @@ function initAuthorised() {
     // `requirePage(getAuthSnapshot(), 'settings')` returns 'login' exactly when this member's OWN named
     // session could not be confirmed. Flag OFF → resolves to 'allow', so this never fires (unchanged).
     _setAuth.then(() => {
-        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'settings').decision === 'login') { clearSession(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); }
+        // resetNavPanel() before the overlay (v16.25, mirrors admin-app's stale-session path):
+        // clearSession() drops the identity, but the nav drawer was already wired to the OLD
+        // member — on a shared/stale device that stale identity stayed behind the overlay until
+        // reload. Reset tears it down; the fresh login → reload re-wires it.
+        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'settings').decision === 'login') { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); }
     });
     initApp();
     wireNavPanel();   // deduped by initNavPanel's navPanelInit guard if the nav was already wired above

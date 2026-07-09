@@ -172,9 +172,14 @@ export function createRangeBookingSection(cfg) {
             console.error(`[Admin] ${cfg.logLabel} save failed:`, err);
             clearTimeout(feedbackTimer);
             feedbackEl.className = 'feedback error';
-            feedbackEl.textContent = (/** @type {any} */ (err)).message === 'auth/session-expired'
-                ? '⚠ Session expired — please sign out and sign back in.'
-                : "⚠ Couldn't save — check your connection and try again.";
+            feedbackEl.textContent = (/** @type {any} */ (err)).partialCommit
+                // A long range failed mid-way after earlier chunks committed. recordRangeOverrides
+                // has already resynced the Saved-changes list from Firestore, so the admin can see
+                // exactly what did land before retrying (v16.25).
+                ? '⚠ The connection dropped part-way — some days may already be saved. The saved changes list has been refreshed; check it before trying again.'
+                : (/** @type {any} */ (err)).message === 'auth/session-expired'
+                    ? '⚠ Session expired — please sign out and sign back in.'
+                    : "⚠ Couldn't save — check your connection and try again.";
         } finally {
             // Restore the button LABEL only — let updatePreview() govern the disabled state. On the
             // SUCCESS path picker.reset() has already cleared the range and updatePreview() disabled
