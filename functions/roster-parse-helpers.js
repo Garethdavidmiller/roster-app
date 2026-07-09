@@ -308,22 +308,30 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
 /**
  * Apply Sunday scan corrections to safe entries (modifies in place).
  *
- * The AI commits to what it sees in each Sunday cell via sundayScan before
- * producing the full parsed output. This catches two failure modes:
- *   Case A: blank Sunday misread as Monday — sundayScan="blank" but parsed has a time
- *   Case B: worked Sunday with RDW stripped — sundayScan="RDW HH:MM" but parsed has plain time
+ * The AI commits to what it sees in each Sunday cell via sundayScan (a dedicated "look at ONLY
+ * the Sunday column" pass) before producing the full parsed output. sundayScan is far more
+ * reliable for Sunday than the row read, so it is the authority when the two disagree.
+ * This catches three failure modes:
+ *   Case A — DAY-SHIFT (the common Sonnet-5 regression): the AI skips the blank Sunday cell and
+ *     shifts the whole row LEFT — Monday's shift lands in the Sun key, Tuesday's in Mon, …, and
+ *     Saturday ends up empty. Signature: sundayScan="blank", parsed Sun ≠ RD, AND parsed Sat = RD
+ *     (the empty trailing slot the dropped leading blank pushed in). That signature is exactly a
+ *     one-day left-shift, so a one-day RIGHT-shift deterministically undoes it. If Sat is NOT RD
+ *     the shift can't be cleanly reversed → fall back to fixing only the Sunday cell + warn.
+ *   Case B — worked Sunday with RDW stripped — sundayScan="RDW HH:MM" but parsed has plain time.
  *
  * @param {object[]} safeEntries    - modified in place
  * @param {object}   sundayScan     - { memberName: scanValue } from AI output
  * @param {boolean}  hasSundayColumn
- * @param {string[]} dates          - 7 ISO dates; dates[0] is the Sunday
+ * @param {string[]} dates          - 7 ISO dates; dates[0] is Sunday, dates[6] Saturday
  */
 function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates) {
     if (!sundayScan || typeof sundayScan !== 'object') return;
     if (!hasSundayColumn) return;
-    if (dates.length < 2) return;
+    if (dates.length < 7) return;   // a full Sun→Sat week is required for the shift repair
 
     const sunDate     = dates[0];
+    const satDate     = dates[6];
     const isPlainTime = v => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v);
 
     for (const entry of safeEntries) {
@@ -333,11 +341,23 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
         const scanStr  = String(scanRaw).trim().toUpperCase();
         const sunShift = entry.shifts[sunDate];
 
-        // Case A: scan says blank but parsed has a plain time → blank misread
+        // Case A: scan says the Sunday cell is blank, but the AI put SOMETHING there. The AI's own
+        // separate Sunday scan is the authority, so this is a misread — almost always the
+        // dropped-blank-Sunday LEFT-SHIFT of the whole row.
         const isBlank = ['BLANK', '', 'RD', 'EMPTY', '-', 'N/A', 'NA'].includes(scanStr);
-        if (isBlank && isPlainTime(sunShift)) {
-            console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (blank) but parsed Sunday="${sunShift}" — correcting to RD`);
-            entry.shifts[sunDate] = 'RD';
+        if (isBlank && sunShift !== 'RD') {
+            if (entry.shifts[satDate] === 'RD') {
+                // Clean left-shift signature (Sat empty) → RIGHT-shift the whole row to undo it:
+                // each day takes the value the AI mis-placed one slot earlier; Sunday becomes RD;
+                // the old (empty) Saturday slot falls off. Provably reverses a one-day left-shift.
+                for (let i = 6; i >= 1; i--) entry.shifts[dates[i]] = entry.shifts[dates[i - 1]];
+                entry.shifts[sunDate] = 'RD';
+                console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (blank) but parsed Sunday="${sunShift}" and Saturday empty — day-shift detected, RIGHT-shifted the week to realign`);
+            } else {
+                // Can't cleanly reverse (Saturday is occupied) — at least honour the blank Sunday.
+                entry.shifts[sunDate] = 'RD';
+                console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (blank) but parsed Sunday="${sunShift}" with a non-empty Saturday — set Sunday to RD; a wider shift may remain, CHECK THE REVIEW TABLE`);
+            }
             continue;
         }
 
