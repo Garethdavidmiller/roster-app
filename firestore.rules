@@ -37,9 +37,10 @@ rules_version = '2';
 //   overrides hasAll→hasOnly (verified 8-field allowlist incl. createdAt/changedBy; no path
 //   writes other fields), date must match YYYY-MM-DD, shift/rdw time bounded to 00-23:00-59
 //   (rejects impossible times like 99:99), createdAt required-as-timestamp; pushSubscriptions
-//   nested keys map restricted to exactly p256dh+auth. DEFERRED (need owner input): staffContact
-//   work-email DOMAIN enforcement (exact Chiltern domain unconfirmed → lockout risk) and the
-//   circular/newsletter/huddle storagePath prefix check (low value).
+//   nested keys map restricted to exactly p256dh+auth. DEFERRED-then (need owner input): staffContact
+//   work-email DOMAIN enforcement (exact Chiltern domain unconfirmed → lockout risk) — **SHIPPED
+//   later, v14.97** (see the staffContact block, `@chilternrailways.co.uk`); local-part tightened to
+//   reject whitespace v16.34. Still open: the circular/newsletter/huddle storagePath prefix check (low value).
 // v12.79 — staffContact create/update hardened: hasOnly (not hasAll) so
 //   clients can't add extra fields (e.g. a future server-only `verified`); updatedAt must be a timestamp.
 // v12.68 — staffContact collection added (owner-only read/write via name claim).
@@ -205,9 +206,10 @@ service cloud.firestore {
         request.resource.data.workEmail.size() >= 5 &&
         request.resource.data.workEmail.size() <= 200 &&
         // Must be a Chiltern work email — exactly the @chilternrailways.co.uk domain
-        // (case-insensitive; the "@" + anchors reject look-alikes and subdomains). The client
-        // validator isChilternWorkEmail() in roster-data.js mirrors this — keep the two in sync.
-        request.resource.data.workEmail.matches('(?i)^[^@]+@chilternrailways\\.co\\.uk$') &&
+        // (case-insensitive; the "@" + anchors reject look-alikes and subdomains). The local part
+        // is `[^\s@]+` (NO whitespace) to mirror the client validator isChilternWorkEmail() /
+        // isValidEmail() in roster-data.js (`/^[^\s@]+@.../`) — keep the two in sync.
+        request.resource.data.workEmail.matches('(?i)^[^\\s@]+@chilternrailways\\.co\\.uk$') &&
         request.resource.data.updatedAt is timestamp;
       allow delete: if request.auth != null &&
         (request.auth.token.name == memberName || request.auth.token.admin == true);

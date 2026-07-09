@@ -555,6 +555,21 @@ describe('staffContact', () => {
         }
     });
 
+    test('cannot create with whitespace in the local part (mirrors client no-whitespace rule)', async () => {
+        for (const bad of [
+            'john smith@chilternrailways.co.uk',
+            ' john@chilternrailways.co.uk',
+            'john\t@chilternrailways.co.uk',
+            'john\n@chilternrailways.co.uk',
+        ]) {
+            await assertFails(
+                setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                    ...VALID_CONTACT(MEMBER), workEmail: bad,
+                })
+            );
+        }
+    });
+
     test('accepts the Chiltern domain in any case', async () => {
         await assertSucceeds(
             setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {

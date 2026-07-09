@@ -75,12 +75,16 @@ export function initAuthSetup({ currentIsAdmin }) {
                 return;   // without this, the fetch below 403s and the catch overwrites this guidance with a raw error
             }
 
-            // Body carries ACTION flags only (B4 — server owns the member/role lists). Reusable so the
-            // orphan-removal confirm step can re-submit with the same token.
+            // Body carries ACTION flags only (B4 — server owns the member/role lists). Fetches a
+            // FRESH ID token on EVERY call — never reuses a token captured once. The orphan dry-run
+            // may be CONFIRMED >1h later (past the Firebase ID-token lifetime), so a retry that reused
+            // the captured token would keep hitting the same expired token and could never recover
+            // without a page reload. forceRefresh:true mints a current, non-expired token each time.
             const doSetup = async (/** @type {Record<string, any>} */ extraBody) => {
+                const fresh = await currentUser.getIdTokenResult(/* forceRefresh */ true);
                 const r = await fetch(SETUP_AUTH_URL, {
                     method:  'POST',
-                    headers: { 'Authorization': `Bearer ${tokenResult.token}`, 'Content-Type': 'application/json' },
+                    headers: { 'Authorization': `Bearer ${fresh.token}`, 'Content-Type': 'application/json' },
                     body:    JSON.stringify(extraBody),
                 });
                 if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }

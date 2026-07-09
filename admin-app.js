@@ -1714,6 +1714,11 @@ async function _runEmailCheck(member) {
         });
 
         saveBtn.addEventListener('click', async () => {
+            // Mirror the blur handler: append the work domain if the user typed only a username and
+            // reached Save WITHOUT blurring (keyboard / assistive flows don't always fire blur first).
+            // Matches the settings/operations save paths, which append inside the save action.
+            const rawSave = input.value.trim();
+            if (rawSave && !rawSave.includes('@')) input.value = rawSave + '@' + CONFIG.WORK_EMAIL_DOMAIN;
             const email = input.value.trim();
             errorEl.textContent = '';
             if (!email) {
