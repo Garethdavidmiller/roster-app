@@ -140,6 +140,34 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
 }
 
 /**
+ * Fetch all override documents for a specific set of dates from Firestore.
+ * We only fetch dates in the roster week — no need to load the full cache.
+ *
+ * FAIL CLOSED (v16.25): a getDocs failure must NOT resolve to "no existing overrides". The whole
+ * point of this read is to know about manual AL/absence/shift changes and prior imports before the
+ * review table classifies rows — returning [] let the review mark rows safe while BLIND to that
+ * data, so Save could silently overwrite/duplicate manual changes (the prior Tier-1 bug). On error
+ * this throws a tagged `conflictReadFailed` error; the parse handler stops, shows a clear message,
+ * and never renders an applyable review. Hoisted to module scope + exported for regression testing;
+ * uses only module-scope Firebase imports (db/query/collection/where/getDocs/COLLECTIONS), no closure state.
+ *
+ * @param {string[]} dates - Array of YYYY-MM-DD strings (the 7 days of the week)
+ * @returns {Promise<Array<any>>} Array of override objects { id, memberName, date, value, source, ... }
+ */
+export async function fetchOverridesForWeek(dates) {
+    try {
+        const q    = query(collection(db, COLLECTIONS.overrides), where('date', 'in', dates));
+        const snap = await getDocs(q);
+        return snap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+        console.error('[RosterUpload] Could not fetch existing overrides:', err);
+        const e = new Error('CONFLICT_READ_FAILED');
+        /** @type {any} */ (e).conflictReadFailed = true;
+        throw e;
+    }
+}
+
+/**
  * Initialise the weekly roster upload pipeline.
  * Wires up all DOM event listeners for the Roster Upload card in admin.html.
  *
@@ -456,32 +484,6 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             reader.onerror = () => reject(new Error('Could not read the file'));
             reader.readAsDataURL(file);
         });
-    }
-
-    /**
-     * Fetch all override documents for a specific set of dates from Firestore.
-     * We only fetch dates in the roster week — no need to load the full cache.
-     *
-     * @param {string[]} dates - Array of YYYY-MM-DD strings (the 7 days of the week)
-     * @returns {Promise<Array<any>>} Array of override objects { id, memberName, date, value, source, ... }
-     */
-    async function fetchOverridesForWeek(dates) {
-        try {
-            const q    = query(collection(db, COLLECTIONS.overrides), where('date', 'in', dates));
-            const snap = await getDocs(q);
-            return snap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
-        } catch (err) {
-            // FAIL CLOSED (v16.25): a failed conflict-read must NOT proceed as "no existing
-            // overrides". The whole point of this read is to know about manual AL/absence/shift
-            // changes and prior imports before the review table classifies rows — returning []
-            // let the review mark rows safe while BLIND to that data, so Save could silently
-            // overwrite/duplicate manual changes. Re-throw a tagged error; the parse handler
-            // stops, shows a clear message, and never renders an applyable review.
-            console.error('[RosterUpload] Could not fetch existing overrides:', err);
-            const e = new Error('CONFLICT_READ_FAILED');
-            /** @type {any} */ (e).conflictReadFailed = true;
-            throw e;
-        }
     }
 
     /**
