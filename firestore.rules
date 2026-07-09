@@ -179,7 +179,7 @@ service cloud.firestore {
       // Writes require the linksDesigner claim (or admin, who outranks). setupRosterAuth
       // sets linksDesigner:true for CONFIG.LINKS_DESIGNERS. Closes H2 — before this, the
       // links-app.js client redirect was the ONLY control and the server accepted a write
-      // from any authenticated session. See B3_STRICT_CUTOVER.HELD.md → Sibling cutover.
+      // from any authenticated session. See SECURITY_RELEASE_PLAN.md → H2.
       // A designer on a pre-cutover token self-heals: links-app.js wraps every linkDesigns
       // write in writeWithClaimRetry (v16.29), so a permission-denied forces a token refresh
       // and one retry — no manual sign-out needed.
