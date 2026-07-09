@@ -41,6 +41,10 @@ const {
     nameToPassword,
     fileSignatureMatches,
     buildPushPayload,
+    parseSetupActionFlags,
+    resolveRosterAuthConfig,
+    claimsForTier,
+    computeOrphanLabels,
 } = require('./roster-parse-helpers');
 const rosterMembers = require('./roster-members.json');
 
@@ -1191,50 +1195,27 @@ exports.setupRosterAuth = onRequest(
         // firebase-functions v2 auto-parses req.body only when Content-Type: application/json
         // is sent. Fall back to rawBody so callers that omit the header still work, and so
         // admin claims are never silently skipped due to an unparsed body.
-        // B4: only ACTION flags are honoured from the request body — the member + role lists are
-        // SERVER-OWNED (below). The body may arrive parsed (Content-Type: application/json) or as raw
-        // text. A NON-json content type makes firebase-functions populate req.body with a wrong-shape
-        // object (e.g. form-urlencoded → a single bogus key), so re-parse rawBody as JSON whenever
-        // req.body does not already expose `removeOrphans` as a boolean — otherwise the action flags
-        // would be silently dropped on the documented raw-body curl fallback. The admin UI always
-        // sends application/json (flags present as booleans), so it never hits the re-parse.
-        let body = (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) ? req.body : {};
-        if (typeof body.removeOrphans !== 'boolean' && req.rawBody) {
-            try {
-                const parsed = JSON.parse(req.rawBody.toString('utf8'));
-                if (parsed && typeof parsed === 'object') body = parsed;
-            } catch (_e) { /* not JSON — keep req.body; flags default off (fail-safe: no sweep) */ }
-        }
-        const removeOrphans        = body.removeOrphans === true;
-        // Orphan disabling is DESTRUCTIVE — it only EXECUTES with an explicit confirm flag.
-        // `removeOrphans` alone returns a DRY-RUN preview of what WOULD be disabled (see below).
-        const confirmOrphanRemoval = body.confirmOrphanRemoval === true;
+        // B4: only ACTION flags are honoured from the request body (member + role lists are
+        // SERVER-OWNED below). parseSetupActionFlags owns the raw-body fallback (a non-JSON
+        // Content-Type would otherwise drop the flags). Unit-tested in roster-parse-helpers.test.mjs.
+        const { removeOrphans, confirmOrphanRemoval } = parseSetupActionFlags(req.body, req.rawBody);
 
         // ── Server-owned member + role lists (B4) ────────────────────────────────────────────────
-        // Read from roster-members.json (generated from roster-data.js by generate-roster-members.mjs),
-        // NOT the client payload, so a tampered request cannot self-promote a claim tier (admin/manager/
-        // linksDesigner) or create/keep a rogue account. The client (admin-auth.js) no longer sends
-        // member/role lists. admin outranks manager; linksDesigner is additive (set below).
-        const members = Array.isArray(rosterMembers.activeMembers) ? rosterMembers.activeMembers : [];
-        const roles   = rosterMembers.roles || {};
-        const adminMembers    = new Set(Array.isArray(roles.admin)    ? roles.admin    : []);
-        const managerMembers  = new Set(Array.isArray(roles.manager)  ? roles.manager  : []);
-        const designerMembers = new Set(Array.isArray(roles.designer) ? roles.designer : []);
-        // Fail closed on a broken server config rather than provisioning with the wrong lists. An empty
-        // members list, or an empty admin list (which would strip the admin claim on the next run and
-        // lock admin provisioning out), aborts before any write. Both recover by regenerating the file.
-        if (members.length === 0) {
+        // Read from roster-members.json (generated from roster-data.js), NOT the client payload, so a
+        // tampered request cannot self-promote a claim tier or create/keep a rogue account. resolve...
+        // fails closed on a broken config and unions the role names into `processMembers` so a leaver
+        // sweep can never disable an admin/manager/designer. Unit-tested in roster-parse-helpers.test.mjs.
+        const cfg = resolveRosterAuthConfig(rosterMembers);
+        if (cfg.error === 'missing-active-members') {
             return res.status(500).json({ error: 'Server roster config missing activeMembers — run `npm run generate:roster-members`' });
         }
-        if (adminMembers.size === 0) {
+        if (cfg.error === 'empty-admin') {
             return res.status(500).json({ error: 'Server roster config has no admin — refusing to run (would lock out admin)' });
         }
-        // Belt-and-braces against a lockout the empty-admin guard alone doesn't cover: every role-holder
-        // MUST be provisioned AND land in the never-orphan `activeEmails` set, even if a hand-edit ever
-        // dropped an admin/manager/designer from `activeMembers`. Union the role names into the processed
-        // set (idempotent — the CI sync test keeps roles ⊆ activeMembers, so normally this is a no-op;
-        // it just makes "a role-holder is never disabled" structural rather than a config invariant).
-        const processMembers = [...new Set([...members, ...adminMembers, ...managerMembers, ...designerMembers])];
+        const processMembers = cfg.processMembers;
+        const adminMembers    = new Set(cfg.admin);
+        const managerMembers  = new Set(cfg.manager);
+        const designerMembers = new Set(cfg.designer);
         const created  = [];
         const skipped  = [];
         const disabled = [];
@@ -1316,17 +1297,13 @@ exports.setupRosterAuth = onRequest(
             // admin outranks manager: an admin is never also given manager (admin already
             // satisfies every rule the manager claim would).
             if (uid) {
-                const isAdmin   = adminMembers.has(name);
-                const isManager = !isAdmin && managerMembers.has(name);
-                const isDesigner = designerMembers.has(name); // additive — not part of the admin/manager tier
-                /** @type {Record<string, any>} */
-                const claims = { name };
-                if (isAdmin)        claims.admin   = true;
-                else if (isManager) claims.manager = true;
-                if (isDesigner)     claims.linksDesigner = true;
+                // claimsForTier (unit-tested) owns the tier logic: admin outranks manager, linksDesigner
+                // is additive, every account gets `name`. setCustomUserClaims REPLACES all claims, so a
+                // demoted member loses the elevated claim on the next run.
+                const claims = claimsForTier(name, { adminSet: adminMembers, managerSet: managerMembers, designerSet: designerMembers });
                 try {
                     await admin.auth().setCustomUserClaims(uid, claims);
-                    const tier = (isAdmin ? 'admin+name' : isManager ? 'manager+name' : 'name') + (isDesigner ? '+designer' : '');
+                    const tier = (claims.admin ? 'admin+name' : claims.manager ? 'manager+name' : 'name') + (claims.linksDesigner ? '+designer' : '');
                     console.log(`[setupRosterAuth] Set ${tier} claim: ${email}`);
                 } catch (claimErr) {
                     failed.push(`${name} (claim-failed: ${claimErr.message})`);
@@ -1353,27 +1330,23 @@ exports.setupRosterAuth = onRequest(
                 let pageToken;
                 do {
                     const page = await admin.auth().listUsers(1000, pageToken);
-                    for (const user of page.users) {
-                        if (user.email &&
-                            user.email.endsWith('@myb-roster.local') &&
-                            !activeEmails.has(user.email) &&
-                            !user.disabled) {
-                            const label = user.displayName || user.email;
-                            if (!confirmOrphanRemoval) {
-                                orphansToDisable.push(label);   // DRY RUN — preview only, disable nothing
-                                continue;
-                            }
-                            try {
-                                await admin.auth().updateUser(user.uid, { disabled: true });
-                                // Revoke so an already-issued ID token for this account is rejected on
-                                // its next refresh (within the hour), not just future sign-ins. Best-effort.
-                                try { await admin.auth().revokeRefreshTokens(user.uid); } catch (_) { /* non-fatal */ }
-                                disabled.push(label);
-                                console.log(`[setupRosterAuth] Disabled + revoked leaver: ${user.email}`);
-                            } catch (err) {
-                                failed.push(user.email);
-                                console.error(`[setupRosterAuth] Failed to disable ${user.email}: ${err.message}`);
-                            }
+                    // computeOrphanLabels (unit-tested) owns the "which accounts are leaver orphans"
+                    // filter (@myb-roster.local, not in activeEmails, not already disabled).
+                    for (const { uid, label } of computeOrphanLabels(page.users, activeEmails)) {
+                        if (!confirmOrphanRemoval) {
+                            orphansToDisable.push(label);   // DRY RUN — preview only, disable nothing
+                            continue;
+                        }
+                        try {
+                            await admin.auth().updateUser(uid, { disabled: true });
+                            // Revoke so an already-issued ID token for this account is rejected on
+                            // its next refresh (within the hour), not just future sign-ins. Best-effort.
+                            try { await admin.auth().revokeRefreshTokens(uid); } catch (_) { /* non-fatal */ }
+                            disabled.push(label);
+                            console.log(`[setupRosterAuth] Disabled + revoked leaver: ${label}`);
+                        } catch (err) {
+                            failed.push(label);
+                            console.error(`[setupRosterAuth] Failed to disable ${label}: ${err.message}`);
                         }
                     }
                     pageToken = page.pageToken;

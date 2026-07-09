@@ -204,6 +204,7 @@ roster-app/
 ├── roster-data.js          ← shared: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only
 ├── firebase-client.js      ← shared: Firebase init, db, all Firestore helpers
+├── storage-utils.js        ← pure Storage helpers extracted from firebase-client (no Firebase import, so unit-testable): isSafeStorageUrl (download-URL allowlist — a security control), isDocxUpload (upload file-type detect). Re-exported by firebase-client.js
 ├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors
 ├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS

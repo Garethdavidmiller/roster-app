@@ -10,6 +10,10 @@
 
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+// The REAL isSafeStorageUrl — it lives in the pure, import-free storage-utils.js (firebase-client.js
+// re-exports it), so the mock below uses production behaviour directly instead of a hand-copied
+// mirror that could drift from the real bucket-allowlist rule.
+import { isSafeStorageUrl } from './storage-utils.js';
 
 // In-memory localStorage backing the ls.js mock — seeded/read directly by tests.
 const store = new Map();
@@ -18,19 +22,7 @@ mock.module('./firebase-client.js', {
     namedExports: {
         getLatestCircular:    async () => null,
         getLatestNewsletter:  async () => null,
-        // Mirror the PRODUCTION isSafeStorageUrl (firebase-client.js), which was
-        // narrowed to this project's bucket — keep this stub in lockstep so the test
-        // exercises the same bucket-path constraint the real opener enforces.
-        isSafeStorageUrl: (url) => {
-            if (typeof url !== 'string' || !url) return false;
-            try {
-                const p = new URL(url);
-                if (p.protocol !== 'https:') return false;
-                if (p.hostname === 'firebasestorage.googleapis.com') return p.pathname.startsWith('/v0/b/myb-roster');
-                if (p.hostname === 'storage.googleapis.com')         return p.pathname.startsWith('/myb-roster');
-                return false;
-            } catch { return false; }
-        },
+        isSafeStorageUrl,   // the real function (see the import note above) — no mirror to keep in sync
     },
 });
 mock.module('./notif.js', {

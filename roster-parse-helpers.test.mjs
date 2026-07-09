@@ -26,6 +26,10 @@ const {
     fileSignatureMatches,
     NOTIFICATION_FEATURES,
     buildPushPayload,
+    parseSetupActionFlags,
+    resolveRosterAuthConfig,
+    claimsForTier,
+    computeOrphanLabels,
 } = require('./functions/roster-parse-helpers.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
@@ -674,5 +678,144 @@ describe('parseStrictIsoDate', () => {
     test('non-string input → null', () => {
         assert.equal(parseStrictIsoDate(null), null);
         assert.equal(parseStrictIsoDate(20260411), null);
+    });
+});
+
+// ── setupRosterAuth pure decision helpers (B4) ────────────────────────────────
+// The onRequest handler uses the Firebase Admin SDK and can't run in the sandbox; these are the
+// pure decision functions it delegates to, so the B4 logic is covered here.
+
+describe('parseSetupActionFlags', () => {
+    test('parsed JSON body (application/json) → flags read straight off req.body', () => {
+        assert.deepEqual(parseSetupActionFlags({ removeOrphans: true, confirmOrphanRemoval: true }, null),
+            { removeOrphans: true, confirmOrphanRemoval: true });
+        assert.deepEqual(parseSetupActionFlags({ removeOrphans: false }, null),
+            { removeOrphans: false, confirmOrphanRemoval: false });
+        assert.deepEqual(parseSetupActionFlags({}, null),
+            { removeOrphans: false, confirmOrphanRemoval: false });
+    });
+    test('a wrong-shape req.body (non-JSON Content-Type) falls back to rawBody JSON', () => {
+        // firebase-functions gives a bogus single-key object for a form-urlencoded body; the raw
+        // body still holds the real JSON — the flags must come from there, not be dropped.
+        const bogus = { '{"removeOrphans":true,"confirmOrphanRemoval":true}': '' };
+        assert.deepEqual(parseSetupActionFlags(bogus, '{"removeOrphans":true,"confirmOrphanRemoval":true}'),
+            { removeOrphans: true, confirmOrphanRemoval: true });
+    });
+    test('rawBody is used when req.body is empty/undefined', () => {
+        assert.deepEqual(parseSetupActionFlags(undefined, '{"removeOrphans":true}'),
+            { removeOrphans: true, confirmOrphanRemoval: false });
+        assert.deepEqual(parseSetupActionFlags(null, Buffer.from('{"removeOrphans":true,"confirmOrphanRemoval":true}')),
+            { removeOrphans: true, confirmOrphanRemoval: true });
+    });
+    test('a real parsed body with removeOrphans present is NOT overridden by rawBody', () => {
+        // If req.body already exposes the boolean, trust it (don't re-parse a possibly-stale rawBody).
+        assert.deepEqual(parseSetupActionFlags({ removeOrphans: false }, '{"removeOrphans":true}'),
+            { removeOrphans: false, confirmOrphanRemoval: false });
+    });
+    test('malformed rawBody → flags default off (fail-safe: no sweep), never throws', () => {
+        assert.deepEqual(parseSetupActionFlags(undefined, 'not json {{{'),
+            { removeOrphans: false, confirmOrphanRemoval: false });
+        assert.deepEqual(parseSetupActionFlags(undefined, ''),
+            { removeOrphans: false, confirmOrphanRemoval: false });
+    });
+    test('only strict boolean true counts (truthy strings/1 do not enable)', () => {
+        assert.deepEqual(parseSetupActionFlags({ removeOrphans: 'true', confirmOrphanRemoval: 1 }, null),
+            { removeOrphans: false, confirmOrphanRemoval: false });
+    });
+    test('an array body is treated as no-body (falls through to rawBody/empty)', () => {
+        assert.deepEqual(parseSetupActionFlags(['x'], null),
+            { removeOrphans: false, confirmOrphanRemoval: false });
+    });
+});
+
+describe('resolveRosterAuthConfig', () => {
+    const GOOD = {
+        activeMembers: ['G. Miller', 'A. Staff', 'S. Silva', 'S. Stewart'],
+        roles: { admin: ['G. Miller'], manager: ['S. Stewart'], designer: ['G. Miller', 'S. Silva'] },
+    };
+    test('valid config returns the lists + a deduped processMembers union', () => {
+        const r = resolveRosterAuthConfig(GOOD);
+        assert.equal(r.error, undefined);
+        assert.deepEqual(r.admin, ['G. Miller']);
+        assert.deepEqual(r.manager, ['S. Stewart']);
+        assert.deepEqual(r.designer, ['G. Miller', 'S. Silva']);
+        // processMembers = union(active, admin, manager, designer), deduped, no duplicates.
+        assert.deepEqual([...r.processMembers].sort(), ['A. Staff', 'G. Miller', 'S. Silva', 'S. Stewart']);
+    });
+    test('a role-holder MISSING from activeMembers is still unioned in (lockout guard)', () => {
+        const r = resolveRosterAuthConfig({
+            activeMembers: ['A. Staff'],
+            roles: { admin: ['G. Miller'], manager: [], designer: ['S. Silva'] },
+        });
+        assert.equal(r.error, undefined);
+        assert.ok(r.processMembers.includes('G. Miller'), 'admin unioned in even if absent from activeMembers');
+        assert.ok(r.processMembers.includes('S. Silva'), 'designer unioned in too');
+    });
+    test('empty activeMembers → error (fail closed)', () => {
+        assert.equal(resolveRosterAuthConfig({ activeMembers: [], roles: { admin: ['G. Miller'] } }).error, 'missing-active-members');
+        assert.equal(resolveRosterAuthConfig({ roles: { admin: ['G. Miller'] } }).error, 'missing-active-members');
+        assert.equal(resolveRosterAuthConfig(null).error, 'missing-active-members');
+    });
+    test('empty admin list → error (would lock out admin)', () => {
+        assert.equal(resolveRosterAuthConfig({ activeMembers: ['A. Staff'], roles: { admin: [] } }).error, 'empty-admin');
+        assert.equal(resolveRosterAuthConfig({ activeMembers: ['A. Staff'], roles: {} }).error, 'empty-admin');
+        assert.equal(resolveRosterAuthConfig({ activeMembers: ['A. Staff'] }).error, 'empty-admin');
+    });
+    test('missing manager/designer lists default to empty (not an error)', () => {
+        const r = resolveRosterAuthConfig({ activeMembers: ['A. Staff'], roles: { admin: ['G. Miller'] } });
+        assert.equal(r.error, undefined);
+        assert.deepEqual(r.manager, []);
+        assert.deepEqual(r.designer, []);
+    });
+});
+
+describe('claimsForTier', () => {
+    const sets = (a, m, d) => ({ adminSet: new Set(a), managerSet: new Set(m), designerSet: new Set(d) });
+    test('plain member → { name } only', () => {
+        assert.deepEqual(claimsForTier('A. Staff', sets([], [], [])), { name: 'A. Staff' });
+    });
+    test('admin → { name, admin }', () => {
+        assert.deepEqual(claimsForTier('G. Miller', sets(['G. Miller'], [], [])), { name: 'G. Miller', admin: true });
+    });
+    test('manager → { name, manager }', () => {
+        assert.deepEqual(claimsForTier('S. Stewart', sets([], ['S. Stewart'], [])), { name: 'S. Stewart', manager: true });
+    });
+    test('admin OUTRANKS manager — a member in both gets admin only, never manager', () => {
+        const c = claimsForTier('G. Miller', sets(['G. Miller'], ['G. Miller'], []));
+        assert.deepEqual(c, { name: 'G. Miller', admin: true });
+        assert.equal(c.manager, undefined);
+    });
+    test('linksDesigner is additive — an admin who is also a designer gets both', () => {
+        assert.deepEqual(claimsForTier('G. Miller', sets(['G. Miller'], [], ['G. Miller'])),
+            { name: 'G. Miller', admin: true, linksDesigner: true });
+    });
+    test('an ordinary designer (S. Silva) → { name, linksDesigner } (no admin/manager)', () => {
+        assert.deepEqual(claimsForTier('S. Silva', sets([], [], ['S. Silva'])),
+            { name: 'S. Silva', linksDesigner: true });
+    });
+});
+
+describe('computeOrphanLabels', () => {
+    const active = new Set(['g.miller@myb-roster.local', 'a.staff@myb-roster.local']);
+    test('flags a @myb-roster.local account not in the active set', () => {
+        const users = [{ uid: 'u1', email: 'leaver@myb-roster.local', displayName: 'B. Gone' }];
+        assert.deepEqual(computeOrphanLabels(users, active), [{ uid: 'u1', label: 'B. Gone' }]);
+    });
+    test('never flags an active member, an already-disabled account, a non-@myb-roster email, or an email-less account', () => {
+        const users = [
+            { uid: 'u1', email: 'g.miller@myb-roster.local', displayName: 'G. Miller' }, // active → keep
+            { uid: 'u2', email: 'old@myb-roster.local', disabled: true },                // already disabled → skip
+            { uid: 'u3', email: 'someone@gmail.com' },                                   // not our domain → skip
+            { uid: 'u4' },                                                               // no email → skip
+        ];
+        assert.deepEqual(computeOrphanLabels(users, active), []);
+    });
+    test('falls back to email as the label when displayName is absent', () => {
+        const users = [{ uid: 'u9', email: 'leaver@myb-roster.local' }];
+        assert.deepEqual(computeOrphanLabels(users, active), [{ uid: 'u9', label: 'leaver@myb-roster.local' }]);
+    });
+    test('empty / missing user list → []', () => {
+        assert.deepEqual(computeOrphanLabels([], active), []);
+        assert.deepEqual(computeOrphanLabels(undefined, active), []);
     });
 });

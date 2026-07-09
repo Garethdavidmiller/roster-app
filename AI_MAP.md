@@ -555,6 +555,9 @@ Pure latency maths for the perf pipeline — no DOM, no Firebase, no timing read
 - `SPEED_GROUPS` — the three plain-language bands (`quick`/`ok`/`slow`) the buckets roll up into, with labels + tone, for the Operations "App speed" card
 - `summarisePerf(samples, {metric})` — rolls the raw samples into overall + per-page quick/ok/slow band counts (and percentages) for one metric; `perfVerdict(overall, kind?)` — a one-line plain-English verdict + status tone, with `kind: 'pages'|'login'` copy. `loginDurationBucket(t0, now, maxMs?)` — buckets a login-to-usable span from the sign-in marker, null if missing/invalid/stale (`LOGIN_MAX_MS` = 2 min). All pure, tested.
 
+### `storage-utils.js`
+Pure Storage helpers extracted from `firebase-client.js` (v16.32) so they're unit-testable — firebase-client can't be imported in a Node test because it statically imports the Firebase SDK from the gstatic CDN. No imports of its own. `isSafeStorageUrl(url)` — the download-URL allowlist (a SECURITY control: HTTPS + a firebasestorage/GCS host under one of THIS project's buckets, trailing-slash-anchored so a look-alike bucket can't match) guarding every Huddle/Circular/Newsletter open button; `isDocxUpload(file)` — upload file-type detect (extension OR the docx MIME, matching the accept predicates). `firebase-client.js` re-exports `isSafeStorageUrl` so existing importers are unaffected and uses `isDocxUpload` internally. Tested by `storage-utils.test.mjs`.
+
 ### `client-errors.js`
 Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by `firebase-client.js` only.
 - `CLIENT_ERROR_RETENTION_MS` — 90-day retention window constant (measured from resolution, not error time)

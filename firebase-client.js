@@ -83,32 +83,13 @@ export const COLLECTIONS = {
     analytics:         'analytics',
 };
 
-/**
- * Returns true only for HTTPS URLs on a Firebase Storage hostname this app uses.
- * Single source of truth for "is this download URL safe to open in a new tab" —
- * guards against malformed Firestore data, a compromised admin account, or a future
- * rule mistake causing an arbitrary URL to be opened. Used by the nav-panel
- * Circular/Newsletter openers and the Huddle viewer's "Open Huddle" button.
- * @param {any} url
- * @returns {boolean}
- */
-export function isSafeStorageUrl(url) {
-    if (typeof url !== 'string' || !url) return false;
-    try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== 'https:') return false;
-        // Narrowed to THIS project's buckets so a malformed/compromised write can't point a
-        // Huddle/Circular button at an unrelated Google Storage object. Firebase download URLs are
-        // …/v0/b/<bucket>/o/<path>; GCS URLs are storage.googleapis.com/<bucket>/<path>. The bucket
-        // segment MUST be anchored with a trailing '/' — a bare prefix ('/myb-roster') would also
-        // match an attacker-registered global bucket named 'myb-rosterX' (GCS bucket names are
-        // globally unique and unclaimed variants can be registered), defeating the whole check.
-        const BUCKETS = ['myb-roster.appspot.com', 'myb-roster.firebasestorage.app'];
-        if (parsed.hostname === 'firebasestorage.googleapis.com') return BUCKETS.some(b => parsed.pathname.startsWith(`/v0/b/${b}/`));
-        if (parsed.hostname === 'storage.googleapis.com')         return BUCKETS.some(b => parsed.pathname.startsWith(`/${b}/`));
-        return false;
-    } catch (_) { return false; }
-}
+// isSafeStorageUrl + isDocxUpload live in the pure, import-free storage-utils.js so they can be
+// unit-tested directly (this module can't be imported in a Node test — it pulls the Firebase SDK
+// from the gstatic CDN). isSafeStorageUrl is re-exported so existing `from './firebase-client.js'`
+// importers (nav-panel, calendar-doc-viewer, the Huddle viewer) are unaffected; isDocxUpload is used
+// internally by the upload paths.
+import { isSafeStorageUrl, isDocxUpload } from './storage-utils.js';
+export { isSafeStorageUrl };
 
 // ---- Firebase Authentication ----
 
@@ -270,18 +251,6 @@ export async function assertFileSignature(file, expectedType) {
 
 /** Firestore error codes that warrant a single retry — transient service unavailability only. */
 const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal']);
-
-/**
- * True if this upload should be treated as a Word (.docx) file. Matches the accept predicates
- * (`isDocxFile` in doc-upload.js / `_isDocx` in huddle.js) — extension OR the exact docx MIME —
- * so upload-side type detection agrees with what the picker accepted. Kept local (not imported
- * from doc-upload.js) to avoid firebase-client depending on a UI module.
- * @param {File} file
- */
-function isDocxUpload(file) {
-    return file.name.toLowerCase().endsWith('.docx')
-        || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-}
 
 /**
  * Upload a Huddle file (PDF or Word .docx) for a given date.
