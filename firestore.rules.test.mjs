@@ -50,6 +50,8 @@ function adminDb()                     { return testEnv.authenticatedContext('ui
 function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid, { name }).firestore(); }
 /** Authenticated manager (manager + name claims) — writes overrides on behalf of any member (B2). */
 function managerDb(name, uid = 'uid_mgr') { return testEnv.authenticatedContext(uid, { manager: true, name }).firestore(); }
+/** Authenticated links designer (linksDesigner + name claims) — writes linkDesigns (H2). */
+function designerDb(name = 'S. Silva', uid = 'uid_designer') { return testEnv.authenticatedContext(uid, { name, linksDesigner: true }).firestore(); }
 
 // ── Data builders ─────────────────────────────────────────────────────────────
 
@@ -448,21 +450,29 @@ describe('huddles', () => {
 // linkDesigns
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('linkDesigns', () => {
+describe('linkDesigns — designer-write enforcement (H2)', () => {
+    const DESIGN = () => ({ name: 'Line 1', patterns: {}, updatedAt: serverTimestamp(), updatedBy: 'S. Silva' });
+
     test('anon cannot read', async () => {
         await assertFails(getDocs(collection(anonDb(), 'linkDesigns')));
     });
-
-    test('auth can read', async () => {
+    test('any authenticated user can READ (reads stay open)', async () => {
         await assertSucceeds(getDocs(collection(staffDb(), 'linkDesigns')));
     });
-
-    test('anon cannot write', async () => {
-        await assertFails(setDoc(doc(anonDb(), 'linkDesigns', uid()), { name: 'test', patterns: [] }));
+    test('a designer can WRITE', async () => {
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), DESIGN()));
     });
-
-    test('auth can write', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'linkDesigns', uid()), { name: 'test', patterns: [] }));
+    test('an admin can WRITE (admin outranks)', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('a plain authenticated user (name only, no designer/admin) CANNOT WRITE', async () => {
+        await assertFails(setDoc(doc(namedDb('J. Davies'), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('a name-less authenticated session CANNOT WRITE', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('an anonymous session CANNOT WRITE', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'linkDesigns', uid()), DESIGN()));
     });
 });
 
