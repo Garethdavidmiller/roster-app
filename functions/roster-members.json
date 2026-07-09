@@ -48,5 +48,74 @@
         "S. Clarke",
         "A. Atkins",
         "K. Yeboah"
-    ]
+    ],
+    "activeMembers": [
+        "L. Springer",
+        "A. Hared",
+        "G. Miller",
+        "M. Robson",
+        "J. Davies",
+        "I. Cooper",
+        "A. Panchal",
+        "C. Francisco-Charles",
+        "O. Mylla",
+        "S. Boyle",
+        "L. Atrakimaviciene",
+        "J. Haque",
+        "M. Okeke",
+        "N. Tuck",
+        "R. Forrester-Blackstock",
+        "S. Langley",
+        "S. Silva",
+        "J. Sumaili",
+        "T. Bibi",
+        "T. Nsuala",
+        "D. Irvine",
+        "T. Gherbi",
+        "C. Reen",
+        "K. Jedlinski",
+        "F. Mohamed",
+        "P. Lloyd",
+        "P. Prashanthan",
+        "B. Khalil",
+        "G. Rotaru",
+        "L. Webster",
+        "Z. Lewis",
+        "M. Bowler",
+        "W. Cummings",
+        "S. Horsman",
+        "D. Minto",
+        "A. Targanov",
+        "S. Warman",
+        "S. Faure",
+        "L. Szpejer",
+        "K. Porter",
+        "A. Murray",
+        "S. Clarke",
+        "A. Atkins",
+        "K. Yeboah",
+        "S. Stewart",
+        "D. Watts",
+        "D. Harris",
+        "S. Gumbo",
+        "N. Bedingfield",
+        "H. Croft"
+    ],
+    "roles": {
+        "admin": [
+            "G. Miller"
+        ],
+        "manager": [
+            "S. Stewart",
+            "D. Watts",
+            "D. Harris",
+            "S. Gumbo",
+            "N. Bedingfield",
+            "H. Croft"
+        ],
+        "designer": [
+            "G. Miller",
+            "S. Silva"
+        ]
+    }
 }

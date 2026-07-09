@@ -428,33 +428,42 @@ async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, delete
  *
  * @param {string}   collectionName - 'circulars' | 'newsletters'
  * @param {string}   date           - ISO date string, e.g. "2026-06-27"
- * @param {File}     file           - PDF file chosen by the admin
+ * @param {File}     file           - PDF or Word (.docx) file chosen by the admin
  * @param {string}   uploadedBy     - memberName of the uploading admin
  * @returns {Promise<string>} Download URL of the stored file
  */
-async function _uploadPdf(collectionName, date, file, uploadedBy) {
-    await assertFileSignature(file, 'pdf');   // reject a renamed non-PDF before it reaches Storage
+async function _uploadDoc(collectionName, date, file, uploadedBy) {
+    // Accept PDF or Word (.docx). Both open straight from the tokenised URL — the viewers just
+    // window.open() it, so a PDF previews in-tab and a .docx opens/downloads in Word (no inline
+    // conversion for these two, unlike the Huddle). Detect the type from the extension and set the
+    // MIME explicitly — Android sometimes reports .docx as application/zip. Mirrors uploadHuddle.
+    const fileType = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
+    await assertFileSignature(file, fileType);   // reject a renamed/mismatched file before Storage
+    const mimeType = fileType === 'docx'
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/pdf';
     const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
 
     // Read the existing doc (if any) to obtain the old storagePath for post-commit cleanup.
     const oldDocSnap = await getDoc(doc(db, collectionName, date));
     const oldData = oldDocSnap.exists() ? /** @type {any} */ (oldDocSnap.data()) : null;
-    // storagePath added at v13.99; fall back for legacy docs.
+    // storagePath added at v13.99; fall back for legacy docs (using the old doc's fileType so a
+    // PDF↔DOCX swap still finds and cleans up the previous file).
     const oldStoragePath = oldData
-        ? (oldData.storagePath ?? `${collectionName}/${date}.pdf`)
+        ? (oldData.storagePath ?? `${collectionName}/${date}.${oldData.fileType ?? 'pdf'}`)
         : null;
 
     // Versioned path keeps the old file alive until Firestore is committed.
     const uploadId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const newStoragePath = `${collectionName}/${date}-${uploadId}.pdf`;
+    const newStoragePath = `${collectionName}/${date}-${uploadId}.${fileType}`;
     const storageRef = ref(storage, newStoragePath);
 
     let storageUrl;
     try {
-        await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+        await uploadBytes(storageRef, file, { contentType: mimeType });
         storageUrl = await getDownloadURL(storageRef);
         const firestoreData = {
-            date, storageUrl, storagePath: newStoragePath, fileType: 'pdf',
+            date, storageUrl, storagePath: newStoragePath, fileType,
             uploadedAt: serverTimestamp(), uploadedBy,
         };
         // Retry setDoc once after 2 s on retriable failures. Old file is still live until
@@ -463,7 +472,7 @@ async function _uploadPdf(collectionName, date, file, uploadedBy) {
             await setDoc(doc(db, collectionName, date), firestoreData);
         } catch (setDocErr) {
             const e = /** @type {any} */ (setDocErr);
-            console.warn(`[uploadPdf] ${collectionName} setDoc attempt 1 failed (${e?.code})`);
+            console.warn(`[uploadDoc] ${collectionName} setDoc attempt 1 failed (${e?.code})`);
             if (!_RETRIABLE_FIRESTORE_CODES.has(e?.code)) throw setDocErr;
             await new Promise(r => setTimeout(r, 2000));
             await setDoc(doc(db, collectionName, date), firestoreData);
@@ -476,9 +485,9 @@ async function _uploadPdf(collectionName, date, file, uploadedBy) {
         // tap 404s until re-upload). Leaving the file on ambiguity costs at most one orphaned object,
         // which the next upload's old-file cleanup tolerates. Mirrors uploadHuddle.
         if (!_RETRIABLE_FIRESTORE_CODES.has(/** @type {any} */ (err)?.code)) {
-            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[uploadPdf] ${collectionName} rollback failed:`, e));
+            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[uploadDoc] ${collectionName} rollback failed:`, e));
         } else {
-            console.warn(`[uploadPdf] ${collectionName} commit-ambiguous failure — leaving new Storage object in place:`, /** @type {any} */ (err)?.code);
+            console.warn(`[uploadDoc] ${collectionName} commit-ambiguous failure — leaving new Storage object in place:`, /** @type {any} */ (err)?.code);
         }
         throw err;
     }
@@ -486,7 +495,7 @@ async function _uploadPdf(collectionName, date, file, uploadedBy) {
     // Firestore committed: asynchronously remove the superseded old Storage file.
     if (oldStoragePath) {
         deleteObject(ref(storage, oldStoragePath)).catch(
-            /** @param {any} e */ e => console.warn(`[uploadPdf] ${collectionName} old-file cleanup failed (orphaned):`, e)
+            /** @param {any} e */ e => console.warn(`[uploadDoc] ${collectionName} old-file cleanup failed (orphaned):`, e)
         );
     }
 
@@ -495,19 +504,19 @@ async function _uploadPdf(collectionName, date, file, uploadedBy) {
 }
 
 /**
- * Upload a Weekly Retail Circular PDF for a given date.
+ * Upload a Weekly Retail Circular (PDF or Word .docx) for a given date.
  * Stores at circulars/YYYY-MM-DD.pdf in Firebase Storage and writes a metadata
  * document to the `circulars` Firestore collection. Uploading for the same date
  * overwrites the previous file (latest wins). Documents older than 6 months are
  * pruned automatically after each upload.
  *
  * @param {string} date       - ISO date string, e.g. "2026-06-27"
- * @param {File}   file       - PDF file chosen by the admin
+ * @param {File}   file       - PDF or Word (.docx) file chosen by the admin
  * @param {string} uploadedBy - memberName of the uploading admin
  * @returns {Promise<string>} Download URL of the stored file
  */
 export async function uploadCircular(date, file, uploadedBy) {
-    return _uploadPdf(COLLECTIONS.circulars, date, file, uploadedBy);
+    return _uploadDoc(COLLECTIONS.circulars, date, file, uploadedBy);
 }
 
 /**
@@ -523,15 +532,15 @@ export async function getLatestCircular() {
 }
 
 /**
- * Upload a Newsletter PDF to Firebase Storage and record it in Firestore.
+ * Upload a Newsletter (PDF or Word .docx) to Firebase Storage and record it in Firestore.
  * Documents older than 6 months are pruned automatically after each upload.
  * @param {string} date       - ISO date string, e.g. "2026-06-27"
- * @param {File}   file       - PDF file chosen by the admin
+ * @param {File}   file       - PDF or Word (.docx) file chosen by the admin
  * @param {string} uploadedBy - memberName of the uploading admin
  * @returns {Promise<string>} Download URL of the stored file
  */
 export async function uploadNewsletter(date, file, uploadedBy) {
-    return _uploadPdf(COLLECTIONS.newsletters, date, file, uploadedBy);
+    return _uploadDoc(COLLECTIONS.newsletters, date, file, uploadedBy);
 }
 
 /**

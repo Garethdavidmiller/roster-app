@@ -330,8 +330,8 @@ Two independent document-upload flows with identical mechanics: an admin uploads
 2. Selects an upload date using the date input (capped to today — `dateInput.max = formatISO(new Date())`).
 3. Selects a PDF file and clicks **Upload**.
 4. `uploadCircular(date, file, uploadedBy)` / `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`:
-   - Writes the PDF to Firebase Storage at a versioned path: `circulars/{date}-{uploadId}.pdf` / `newsletters/{date}-{uploadId}.pdf` (the random suffix prevents overwriting the existing file before Firestore has committed the new doc)
-   - Upserts the Firestore doc at `circulars/{date}` / `newsletters/{date}` with `{ date, storageUrl, storagePath, fileType: "pdf", uploadedAt, uploadedBy }`; the `storagePath` field records the exact Storage path for cleanup tracking
+   - Writes the file (PDF or Word .docx) to Firebase Storage at a versioned path: `circulars/{date}-{uploadId}.{ext}` / `newsletters/{date}-{uploadId}.{ext}` (the random suffix prevents overwriting the existing file before Firestore has committed the new doc)
+   - Upserts the Firestore doc at `circulars/{date}` / `newsletters/{date}` with `{ date, storageUrl, storagePath, fileType: "pdf"|"docx", uploadedAt, uploadedBy }`; the `storagePath` field records the exact Storage path for cleanup tracking
    - After a successful Firestore upsert, deletes the previous Storage file at the old `storagePath` (if one existed)
    - Fire-and-forget: calls `_pruneOldDocs()` to delete documents and Storage files older than 6 months
 
@@ -351,7 +351,7 @@ Re-uploading for the same date overwrites the Firestore doc and replaces the Sto
 2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps).
 3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
 4. `getLatestCircular()` / `getLatestNewsletter()` is awaited:
-   - On success with a `storageUrl`: `newTab.location.href = url` opens the PDF; `closePanelForNavigation()` closes the drawer.
+   - On success with a `storageUrl`: `newTab.location.href = url` opens the file (a PDF previews in the tab; a Word `.docx` opens/downloads in Word — there is no inline conversion for these two, unlike the Huddle); `closePanelForNavigation()` closes the drawer.
    - On success with no document (null): `newTab.close()` cancels the blank tab; the coming-soon lightbox is shown.
    - On Firestore error: same as null — cancels the blank tab, shows a retry message in the coming-soon lightbox.
 5. `_docFetching` is reset to `false` in `.finally()`.

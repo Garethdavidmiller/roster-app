@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Operations v16.30 -->
+<!-- MYB Roster — Operations v16.31 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -96,15 +96,15 @@
     <div class="card" id="circularUploadCard">
         <div class="card-header card-collapsible-header" id="circularUploadToggleHeader">
             <h3><span aria-hidden="true">📰</span> Weekly Retail Circular <button type="button" class="btn-card-tips" data-card="weekly-circular" aria-label="Tips for Weekly Retail Circular" title="Tips for Weekly Retail Circular">?</button></h3>
-            <span class="hint">Upload the Weekly Retail Circular PDF — staff open it from ☰ → Weekly Retail Circular</span>
+            <span class="hint">Upload the Weekly Retail Circular (PDF or Word) — staff open it from ☰ → Weekly Retail Circular</span>
             <span class="collapse-chevron" id="circularUploadChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="circularUploadBody">
             <div class="card-body">
                 <div class="huddle-row">
                     <input type="date" id="circularDate" aria-label="Circular date">
-                    <label for="circularFileInput" class="huddle-file-label">Choose PDF</label>
-                    <input type="file" id="circularFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose Retail Circular PDF">
+                    <label for="circularFileInput" class="huddle-file-label">Choose file</label>
+                    <input type="file" id="circularFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose Retail Circular PDF or Word document">
                 </div>
                 <p id="circularFileName" class="huddle-filename" aria-live="polite"></p>
                 <button type="button" id="circularUploadBtn" class="huddle-upload-btn" disabled>Upload Circular</button>
@@ -117,15 +117,15 @@
     <div class="card" id="newsletterUploadCard">
         <div class="card-header card-collapsible-header" id="newsletterUploadToggleHeader">
             <h3><span aria-hidden="true">🗞️</span> Marylebone Newsletter <button type="button" class="btn-card-tips" data-card="newsletter" aria-label="Tips for Marylebone Newsletter" title="Tips for Marylebone Newsletter">?</button></h3>
-            <span class="hint">Upload the latest Marylebone Newsletter PDF — staff open it from ☰ → Marylebone Newsletter</span>
+            <span class="hint">Upload the latest Marylebone Newsletter (PDF or Word) — staff open it from ☰ → Marylebone Newsletter</span>
             <span class="collapse-chevron" id="newsletterUploadChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="newsletterUploadBody">
             <div class="card-body">
                 <div class="huddle-row">
                     <input type="date" id="newsletterDate" aria-label="Newsletter date">
-                    <label for="newsletterFileInput" class="huddle-file-label">Choose PDF</label>
-                    <input type="file" id="newsletterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose Newsletter PDF">
+                    <label for="newsletterFileInput" class="huddle-file-label">Choose file</label>
+                    <input type="file" id="newsletterFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose Newsletter PDF or Word document">
                 </div>
                 <p id="newsletterFileName" class="huddle-filename" aria-live="polite"></p>
                 <button type="button" id="newsletterUploadBtn" class="huddle-upload-btn" disabled>Upload Newsletter</button>

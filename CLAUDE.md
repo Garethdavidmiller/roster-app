@@ -276,7 +276,7 @@ roster-app/
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
     ├── roster-parse-helpers.js   ← pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
-    ├── roster-members.json       ← generated staff name list — do NOT hand-edit; run `npm run generate:roster-members`
+    ├── roster-members.json       ← generated from roster-data.js — do NOT hand-edit; run `npm run generate:roster-members`. Holds the AI-parsing name lists (cea/ces/dispatcher) AND the B4 server-owned auth lists (`activeMembers` + `roles.admin`/`manager`/`designer`) that setupRosterAuth trusts instead of the client payload. CI-locked by sw-asset-check.test.mjs
     └── package.json
 ```
 
@@ -579,11 +579,11 @@ storageUrl   Permanent tokenised download URL
 storagePath  Firebase Storage object path, e.g. "circulars/2026-06-25-lv9kab12.pdf" — added v13.99
              (versioned suffix prevents overwriting the old file before Firestore commits);
              absent on docs uploaded before v13.99 — _pruneOldDocs falls back to "{collection}/{date}.pdf"
-fileType     "pdf" (always)
+fileType     "pdf" | "docx" (Word uploads allowed since v16.31 — download-only, no inline HTML conversion; rule-constrained to [pdf,docx])
 uploadedAt   Firestore server timestamp
 uploadedBy   Member name string
 ```
-Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
+Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
 Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
 Read by: `getLatestCircular()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Weekly Retail Circular — opens the PDF **directly** in a new tab, one tap) and from **`calendar-doc-viewer.js`** (the `#circular` in-app viewer used by **notification taps only**, which have no user gesture to open the file directly).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
@@ -594,11 +594,11 @@ date         "YYYY-MM-DD" — also used as the document ID; re-uploading the sam
 storageUrl   Permanent tokenised download URL
 storagePath  Firebase Storage object path, e.g. "newsletters/2026-06-25-lv9kab12.pdf" — added v13.99;
              absent on docs uploaded before v13.99 — _pruneOldDocs falls back to "{collection}/{date}.pdf"
-fileType     "pdf" (always)
+fileType     "pdf" | "docx" (Word uploads allowed since v16.31 — download-only, no inline HTML conversion; rule-constrained to [pdf,docx])
 uploadedAt   Firestore server timestamp
 uploadedBy   Member name string
 ```
-Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
+Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
 Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
 Read by: `getLatestNewsletter()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Marylebone Newsletter — opens the PDF **directly** in a new tab, one tap) and from **`calendar-doc-viewer.js`** (the `#newsletter` in-app viewer used by **notification taps only**).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.

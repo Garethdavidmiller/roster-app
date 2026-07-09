@@ -7,7 +7,7 @@
  *
  * Covers all three named match blocks in storage.rules:
  *   huddles   — read: auth required; write: admin + ≤20 MB + PDF or DOCX
- *   circulars — read: auth required; create/update: admin + ≤20 MB + PDF only;
+ *   circulars — read: auth required; create/update: admin + ≤20 MB + PDF or DOCX;
  *               delete: admin only (no request.resource check)
  *   newsletters — identical rules to circulars
  *   catch-all — everything else: allow read, write: if false
@@ -204,8 +204,8 @@ describe('circulars', () => {
         );
     });
 
-    test('admin cannot upload a DOCX (PDF-only collection)', async () => {
-        await assertFails(
+    test('admin CAN upload a DOCX (Word uploads allowed)', async () => {
+        await assertSucceeds(
             uploadBytes(ref(adminStorage(), upath('circulars')), DOCX_BYTES, { contentType: DOCX_CONTENT_TYPE })
         );
     });
@@ -274,8 +274,8 @@ describe('newsletters', () => {
         );
     });
 
-    test('admin cannot upload a DOCX (PDF-only collection)', async () => {
-        await assertFails(
+    test('admin CAN upload a DOCX (Word uploads allowed)', async () => {
+        await assertSucceeds(
             uploadBytes(ref(adminStorage(), upath('newsletters')), DOCX_BYTES, { contentType: DOCX_CONTENT_TYPE })
         );
     });

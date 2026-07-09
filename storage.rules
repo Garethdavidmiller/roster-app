@@ -30,7 +30,7 @@ service firebase.storage {
           && request.auth.token.admin == true;
     }
     match /circulars/{fileName} {
-      // Weekly Retail Circular PDFs. As with huddles, this read rule only gates direct
+      // Weekly Retail Circular files — PDF or Word (.docx). As with huddles, this read rule only gates direct
       // SDK reads; staff open the tokenised bearer download URL from the Firestore doc,
       // which bypasses these rules. Don't store confidential files here.
       // create/update validates size + MIME; delete omits request.resource checks
@@ -40,17 +40,23 @@ service firebase.storage {
       allow create, update: if request.auth != null
           && request.auth.token.admin == true
           && request.resource.size < 20 * 1024 * 1024
-          && request.resource.contentType == 'application/pdf';
+          && request.resource.contentType in [
+              'application/pdf',
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          ];
       allow delete:         if request.auth != null
           && request.auth.token.admin == true;
     }
     match /newsletters/{fileName} {
-      // Marylebone Newsletter PDFs — same split (and same bearer-URL read model) as circulars.
+      // Marylebone Newsletter files (PDF or Word .docx) — same split (and bearer-URL read model) as circulars.
       allow read:           if request.auth != null;
       allow create, update: if request.auth != null
           && request.auth.token.admin == true
           && request.resource.size < 20 * 1024 * 1024
-          && request.resource.contentType == 'application/pdf';
+          && request.resource.contentType in [
+              'application/pdf',
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          ];
       allow delete:         if request.auth != null
           && request.auth.token.admin == true;
     }
