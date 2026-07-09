@@ -17,6 +17,7 @@ import {
     isPayday,
     isCutoffDate,
     getALEntitlement,
+    projectAnnualLeaveOverage,
     validateRosterPatterns,
     isChristmasRD,
     isEarlyShift,
@@ -199,6 +200,45 @@ test('getALEntitlement: all CEAs incl. fixed-line (C. Reen) get the standard 32 
 
 test('getALEntitlement: null member returns default 32 days', () => {
     assert.equal(getALEntitlement(null), 32);
+});
+
+// ---------------------------------------------------------------------------
+// projectAnnualLeaveOverage — the shared over-entitlement projection (v16.40)
+// ---------------------------------------------------------------------------
+const _proj = (existing, newDates, entitlement, name = 'G. Miller', year = '2026') =>
+    projectAnnualLeaveOverage({ name, year, existingALDates: new Set(existing), newALDates: newDates, entitlement });
+
+test('projectAnnualLeaveOverage: within entitlement → null', () => {
+    assert.equal(_proj(['2026-01-05', '2026-01-06'], ['2026-02-10'], 32), null);
+});
+
+test('projectAnnualLeaveOverage: exactly at the cap → null (not over)', () => {
+    assert.equal(_proj([], ['2026-02-10', '2026-02-11'], 2), null);
+});
+
+test('projectAnnualLeaveOverage: one over the cap → over:1 with the confirm strings', () => {
+    const r = _proj(['2026-02-10'], ['2026-02-11', '2026-02-12'], 2);
+    assert.equal(r.over, 1);
+    assert.equal(r.projectedTotal, 3);
+    assert.equal(r.headline, 'G. Miller will be 1 day over their 2026 AL entitlement');
+    assert.equal(r.detail, '3 days used of 2 allowed in 2026');
+});
+
+test('projectAnnualLeaveOverage: pluralises "days" when 2+ over', () => {
+    const r = _proj([], ['2026-03-01', '2026-03-02', '2026-03-03'], 1);
+    assert.equal(r.over, 2);
+    assert.match(r.headline, /will be 2 days over/);
+});
+
+test('projectAnnualLeaveOverage: a new date already in existing is NOT double-counted', () => {
+    // Re-booking a day already marked AL must not consume a second entitlement day.
+    const r = _proj(['2026-04-01', '2026-04-02'], ['2026-04-02', '2026-04-03'], 3);
+    // existing 2 + new (only 04-03 is genuinely new) 1 = 3 → within a 3-day cap → null.
+    assert.equal(r, null);
+});
+
+test('projectAnnualLeaveOverage: full overlap adds nothing (all new dates already existing)', () => {
+    assert.equal(_proj(['2026-05-01', '2026-05-02'], ['2026-05-01', '2026-05-02'], 2), null);
 });
 
 // ---------------------------------------------------------------------------

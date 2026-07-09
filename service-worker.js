@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.39
+// MYB Roster — Service Worker v16.40
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.39';
+const APP_VERSION = '16.40';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages

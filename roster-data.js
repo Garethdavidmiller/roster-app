@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '16.39';
+export const APP_VERSION = '16.40';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -285,6 +285,35 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     // the standard 32. There is no fixed-roster AL premium
     // (corrected June 2026: C. Reen is contractually CEA, not CEA-BL, so 32, not 34).
     return 32;
+}
+
+/**
+ * Project a member's annual-leave total for ONE calendar year and return the over-entitlement
+ * overage, or null when still within entitlement. SINGLE SOURCE for the over-cap warning shown by
+ * both AL write paths — the Change-a-Shift week editor (admin-app.js) and the AL booking flow
+ * (admin-al.js) — which previously computed this with subtly different data shapes and could drift.
+ *
+ * Each caller pre-filters Sundays (uncontracted) and its own exclusions into `existingALDates`:
+ *  - the week editor excludes the dates this batch OVERWRITES or DELETES;
+ *  - the booking flow passes ALL existing AL for the year.
+ * A new date already present in `existingALDates` is never double-counted (re-booking a day that is
+ * already AL doesn't consume a second entitlement day) — so both mechanisms reduce to the same maths.
+ *
+ * @param {{ name: string, year: string, existingALDates: Set<string>, newALDates: string[], entitlement: number }} p
+ *   name → member display name; year → "YYYY"; newALDates → the AL dates being written this year.
+ * @returns {{ over: number, projectedTotal: number, headline: string, detail: string } | null}
+ *   null when within entitlement; otherwise the overage + the two ready-to-show confirm-bar strings.
+ */
+export function projectAnnualLeaveOverage({ name, year, existingALDates, newALDates, entitlement }) {
+    const newCount = newALDates.filter(d => !existingALDates.has(d)).length;
+    const projectedTotal = existingALDates.size + newCount;
+    if (projectedTotal <= entitlement) return null;
+    const over = projectedTotal - entitlement;
+    return {
+        over, projectedTotal,
+        headline: `${name} will be ${over} day${over !== 1 ? 's' : ''} over their ${year} AL entitlement`,
+        detail:   `${projectedTotal} days used of ${entitlement} allowed in ${year}`,
+    };
 }
 
 // ============================================

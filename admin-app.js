@@ -14,7 +14,7 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail, TIME_RE } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -885,25 +885,22 @@ saveBtn.addEventListener('click', async () => {
         const years = [...new Set(alInBatch.map(e => e.date.substring(0, 4)))];
         for (const yearStr of years) {
             const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
-            // Sundays are uncontracted — exclude from entitlement counts
-            const existingAL = getAllOverrides().filter(o =>
-                o.memberName === memberName &&
-                o.type       === 'annual_leave' &&
-                o.date       && o.date.startsWith(yearStr) &&
-                !overwriteDates.has(o.date) &&
-                !deletedALDates.has(o.date) &&
-                !isSunday(o.date)
-            ).length;
+            // Existing AL for the year, excluding Sundays (uncontracted) and the dates this batch
+            // OVERWRITES or DELETES (they're re-accounted via newALDates / removed).
+            const existingALDates = new Set(
+                getAllOverrides().filter(o =>
+                    o.memberName === memberName &&
+                    o.type       === 'annual_leave' &&
+                    o.date       && o.date.startsWith(yearStr) &&
+                    !overwriteDates.has(o.date) &&
+                    !deletedALDates.has(o.date) &&
+                    !isSunday(o.date)
+                ).map(o => o.date)
+            );
             const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
-            const projectedTotal = existingAL + newALDates.length;
-            if (projectedTotal > entitlement) {
-                const over = projectedTotal - entitlement;
-                showALConfirm(
-                    `${memberName} will be ${over} day${over !== 1 ? 's' : ''} over their ${yearStr} AL entitlement`,
-                    `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
-                    toSave,
-                    toDelete
-                );
+            const overage = projectAnnualLeaveOverage({ name: memberName, year: yearStr, existingALDates, newALDates, entitlement });
+            if (overage) {
+                showALConfirm(overage.headline, overage.detail, toSave, toDelete);
                 return;
             }
         }
