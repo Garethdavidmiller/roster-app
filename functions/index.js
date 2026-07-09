@@ -1142,24 +1142,29 @@ Every column header must appear as a key in every member object.`;
  * disables accounts for anyone who has left. Run any time membership changes —
  * it is fully idempotent (existing accounts are skipped).
  *
- * The member list comes from the request body, not a hardcoded array, so there
- * is no separate list to keep in sync with teamMembers in roster-data.js. Claude
- * generates the curl command with the current active members each time.
+ * B4: the member + role (admin/manager/linksDesigner) lists are SERVER-OWNED — read from
+ * roster-members.json (generated from roster-data.js by generate-roster-members.mjs), NOT the
+ * request body. The client no longer sends them, so a tampered payload cannot self-promote a
+ * claim tier or create/keep a rogue account. The function fails closed if the server config is
+ * missing activeMembers or has an empty admin list (which would lock admin provisioning out).
  *
- * Body (JSON):
+ * Body (JSON) — ACTION flags only:
  *   {
- *     "members": ["G. Miller", "L. Springer", ...],  // active non-hidden teamMembers
- *     "removeOrphans": true                           // optional, default false
+ *     "removeOrphans": true,          // optional — preview which leaver accounts WOULD be disabled
+ *     "confirmOrphanRemoval": true    // optional — actually disable them (dry-run without it)
  *   }
  *
- * removeOrphans: scans all @myb-roster.local Firebase Auth accounts and disables
- * any that are not in the members list. Disabled accounts cannot sign in.
- * They are not deleted — use the Firebase Console to delete permanently if needed.
+ * removeOrphans: scans all @myb-roster.local accounts not in the server active set. WITHOUT
+ * confirmOrphanRemoval it is a DRY RUN — returns `orphansToDisable` (a preview) and disables
+ * nothing. WITH confirmOrphanRemoval it disables them AND revokes their refresh tokens. Disabled
+ * accounts cannot sign in; they are not deleted (use the Firebase Console to delete permanently).
  *
  * Auth: Authorization: Bearer <Firebase ID token with admin custom claim>
  *
  * Response:
- *   { created: string[], skipped: string[], disabled: string[], failed: string[] }
+ *   { created, skipped, disabled, failed: string[],
+ *     orphanSweepFailed?: true,
+ *     orphanDryRun?: true, orphansToDisable?: string[] }   // last two: dry-run preview only
  */
 exports.setupRosterAuth = onRequest(
     {
@@ -1186,29 +1191,37 @@ exports.setupRosterAuth = onRequest(
         // firebase-functions v2 auto-parses req.body only when Content-Type: application/json
         // is sent. Fall back to rawBody so callers that omit the header still work, and so
         // admin claims are never silently skipped due to an unparsed body.
-        let body = req.body || {};
-        if (!body.members && req.rawBody) {
-            try { body = JSON.parse(req.rawBody.toString('utf8')); } catch (_e) { /* malformed — caught below */ }
+        // B4: only ACTION flags are honoured from the request body — the member + role lists are
+        // SERVER-OWNED (below). The body may arrive parsed (Content-Type: application/json) or as raw
+        // text; parse rawBody when req.body is empty so the flags are never silently dropped.
+        let body = (req.body && Object.keys(req.body).length) ? req.body : {};
+        if (!Object.keys(body).length && req.rawBody) {
+            try { body = JSON.parse(req.rawBody.toString('utf8')); } catch (_e) { body = {}; }
         }
-        const members = body.members;
-        if (!Array.isArray(members) || members.length === 0) {
-            return res.status(400).json({ error: '`members` array is required — send Content-Type: application/json' });
-        }
+        const removeOrphans        = body.removeOrphans === true;
+        // Orphan disabling is DESTRUCTIVE — it only EXECUTES with an explicit confirm flag.
+        // `removeOrphans` alone returns a DRY-RUN preview of what WOULD be disabled (see below).
+        const confirmOrphanRemoval = body.confirmOrphanRemoval === true;
 
-        // adminMembers: names that should receive the Firebase Auth admin:true custom claim.
-        // This claim gates parseRosterPDF — it is set here so there is one place to manage membership.
-        const adminMembers   = Array.isArray(body.adminMembers) ? new Set(body.adminMembers) : new Set();
-        // managerMembers: names that should receive the manager:true custom claim (B2). Managers
-        // write overrides on behalf of staff (AL/sick/shift) but are NOT admins — the Firestore
-        // override isolation rule accepts admin||manager, while master-admin collections
-        // (huddles/circulars/newsletters/roster/auth) stay admin-only. Sent by the (admin-only)
-        // client today; B4 moves this list server-side. admin outranks manager (set below).
-        const managerMembers = Array.isArray(body.managerMembers) ? new Set(body.managerMembers) : new Set();
-        // designerMembers: names that should receive the linksDesigner:true claim (H2). Orthogonal to
-        // admin/manager — a designer may be ordinary staff (e.g. S. Silva) or also an admin (G. Miller).
-        // Gates linkDesigns writes in firestore.rules; the client redirect was the only control before.
-        const designerMembers = Array.isArray(body.designerMembers) ? new Set(body.designerMembers) : new Set();
-        const removeOrphans  = body.removeOrphans === true;
+        // ── Server-owned member + role lists (B4) ────────────────────────────────────────────────
+        // Read from roster-members.json (generated from roster-data.js by generate-roster-members.mjs),
+        // NOT the client payload, so a tampered request cannot self-promote a claim tier (admin/manager/
+        // linksDesigner) or create/keep a rogue account. The client (admin-auth.js) no longer sends
+        // member/role lists. admin outranks manager; linksDesigner is additive (set below).
+        const members = Array.isArray(rosterMembers.activeMembers) ? rosterMembers.activeMembers : [];
+        const roles   = rosterMembers.roles || {};
+        const adminMembers    = new Set(Array.isArray(roles.admin)    ? roles.admin    : []);
+        const managerMembers  = new Set(Array.isArray(roles.manager)  ? roles.manager  : []);
+        const designerMembers = new Set(Array.isArray(roles.designer) ? roles.designer : []);
+        // Fail closed on a broken server config rather than provisioning with the wrong lists. An empty
+        // members list, or an empty admin list (which would strip the admin claim on the next run and
+        // lock admin provisioning out), aborts before any write. Both recover by regenerating the file.
+        if (members.length === 0) {
+            return res.status(500).json({ error: 'Server roster config missing activeMembers — run `npm run generate:roster-members`' });
+        }
+        if (adminMembers.size === 0) {
+            return res.status(500).json({ error: 'Server roster config has no admin — refusing to run (would lock out admin)' });
+        }
         const created  = [];
         const skipped  = [];
         const disabled = [];
@@ -1315,7 +1328,13 @@ exports.setupRosterAuth = onRequest(
         // already ran — that discarded the populated created/skipped/failed report and left
         // the admin unable to tell which accounts WERE provisioned (v16.23). Re-running is
         // idempotent, so a partial report + orphanSweepFailed flag beats a raw failure.
+        // Leaver handling (B4: DRY-RUN by default; disables only with an explicit confirm). An orphan
+        // is any @myb-roster.local account not in the server active set. `removeOrphans` alone returns
+        // the list that WOULD be disabled (orphansToDisable) for the admin to review; a second call with
+        // `confirmOrphanRemoval` then disables + REVOKES refresh tokens (so a disabled account's existing
+        // session stops being accepted for writes within the hour, not just blocked from re-signing-in).
         let orphanSweepFailed = false;
+        const orphansToDisable = [];  // dry-run preview: labels that WOULD be disabled
         if (removeOrphans) {
             try {
                 let pageToken;
@@ -1326,10 +1345,18 @@ exports.setupRosterAuth = onRequest(
                             user.email.endsWith('@myb-roster.local') &&
                             !activeEmails.has(user.email) &&
                             !user.disabled) {
+                            const label = user.displayName || user.email;
+                            if (!confirmOrphanRemoval) {
+                                orphansToDisable.push(label);   // DRY RUN — preview only, disable nothing
+                                continue;
+                            }
                             try {
                                 await admin.auth().updateUser(user.uid, { disabled: true });
-                                disabled.push(user.displayName || user.email);
-                                console.log(`[setupRosterAuth] Disabled leaver: ${user.email}`);
+                                // Revoke so an already-issued ID token for this account is rejected on
+                                // its next refresh (within the hour), not just future sign-ins. Best-effort.
+                                try { await admin.auth().revokeRefreshTokens(user.uid); } catch (_) { /* non-fatal */ }
+                                disabled.push(label);
+                                console.log(`[setupRosterAuth] Disabled + revoked leaver: ${user.email}`);
                             } catch (err) {
                                 failed.push(user.email);
                                 console.error(`[setupRosterAuth] Failed to disable ${user.email}: ${err.message}`);
@@ -1344,6 +1371,12 @@ exports.setupRosterAuth = onRequest(
             }
         }
 
-        res.json({ created, skipped, disabled, failed, ...(orphanSweepFailed ? { orphanSweepFailed: true } : {}) });
+        res.json({
+            created, skipped, disabled, failed,
+            ...(orphanSweepFailed ? { orphanSweepFailed: true } : {}),
+            // Present only for a removeOrphans request WITHOUT confirm — the admin previews these,
+            // then re-submits with confirmOrphanRemoval:true to actually disable them.
+            ...(removeOrphans && !confirmOrphanRemoval ? { orphanDryRun: true, orphansToDisable } : {}),
+        });
     }
 );

@@ -276,7 +276,7 @@ roster-app/
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
     ├── roster-parse-helpers.js   ← pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
-    ├── roster-members.json       ← generated staff name list — do NOT hand-edit; run `npm run generate:roster-members`
+    ├── roster-members.json       ← generated from roster-data.js — do NOT hand-edit; run `npm run generate:roster-members`. Holds the AI-parsing name lists (cea/ces/dispatcher) AND the B4 server-owned auth lists (`activeMembers` + `roles.admin`/`manager`/`designer`) that setupRosterAuth trusts instead of the client payload. CI-locked by sw-asset-check.test.mjs
     └── package.json
 ```
 

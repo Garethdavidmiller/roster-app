@@ -763,9 +763,10 @@ These are interlocking; most remain and should ship together, but the headline g
 - **Remove browser-side account creation** — stop the client auto-creating a Firebase account once
   server-side provisioning + recovery exist (today a missing account would otherwise become a
   staff-access outage).
-- **Server-owned roster/role lists** — `setupRosterAuth` still trusts the member/admin lists sent
-  by the client; move to server-owned config, with recent-login/revocation-aware checks, dry-run
-  orphan removal, explicit destructive confirmation, and token revocation after demotion/disable.
+- **Server-owned roster/role lists (B4)** — ✅ **SHIPPED v16.30.** `setupRosterAuth` reads the member
+  + admin/manager/designer lists from `roster-members.json` (generated from `roster-data.js`,
+  CI-locked) instead of the client payload, with dry-run orphan removal (preview → confirm), refresh-
+  token revocation on disable, and fail-closed guards on an empty admin/members config.
 - **Surname-password retirement** — the existing five-stage plan (verify work email → change →
   recovery → migrate → retire) under "Password security improvements"; do not rush, since locking
   staff out of the core roster is a bigger operational risk than the present small-team model.
@@ -1004,8 +1005,8 @@ zero, enforced by the fail-closed `scripts/typecheck.mjs` CI gate:
 
 A thorough external review of v14.96 confirmed no release blocker for current small-team use. Most
 findings were already done (B1 re-enabled v14.98; App-speed admin-exclusion v14.95; B3 strict
-override isolation shipped v16.29) or already sequenced (B4 server-side role lists, the C-series
-password track, in-place login rollout, the app-perf caching pass). Quick wins (fail-closed uploads, stale auth-doc fixes, a
+override isolation shipped v16.29; B4 server-owned role lists shipped v16.30) or already sequenced
+(the C-series password track, in-place login rollout, the app-perf caching pass). Quick wins (fail-closed uploads, stale auth-doc fixes, a
 MILLER_ACTUALS export guard, the primeAuth comment) shipped at v14.99. Two items captured here:
 
 ### M8 — lazy-load heavy Cloud Function dependencies (cold-start)

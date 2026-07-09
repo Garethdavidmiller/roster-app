@@ -12,7 +12,7 @@
  * No hardcoded secret — the request uses a short-lived signed JWT from Firebase Auth.
  */
 
-import { CONFIG, escapeHtml, getMembersForGrade } from './roster-data.js';
+import { escapeHtml } from './roster-data.js';
 import { auth, onAuthStateChanged } from './firebase-client.js';
 import { sessionReady } from './session.js';
 
@@ -36,13 +36,9 @@ export function initAuthSetup({ currentIsAdmin }) {
 
     // Collapse is wired centrally in operations-app.js via initCardCollapse.
 
-    // Active members: all non-hidden staff plus management/clerk accounts (so everyone who can log in gets an account)
-    const ACTIVE_MEMBERS = [
-        ...getMembersForGrade('CEA'),
-        ...getMembersForGrade('CES'),
-        ...getMembersForGrade('Dispatcher'),
-        ...getMembersForGrade('Management'),
-    ].map(m => /** @type {any} */ (m).name);
+    // B4: the member + role lists are now SERVER-OWNED (setupRosterAuth reads them from
+    // roster-members.json, generated from roster-data.js). The client no longer sends them —
+    // it only asks the server to provision and, optionally, to sweep leavers (dry-run first).
 
     btn.addEventListener('click', async () => {
         /** @type {HTMLButtonElement} */ (btn).disabled    = true;
@@ -79,40 +75,60 @@ export function initAuthSetup({ currentIsAdmin }) {
                 return;   // without this, the fetch below 403s and the catch overwrites this guidance with a raw error
             }
 
-            const resp = await fetch(SETUP_AUTH_URL, {
-                method:  'POST',
-                headers: {
-                    'Authorization': `Bearer ${tokenResult.token}`,
-                    'Content-Type':  'application/json',
-                },
-                body: JSON.stringify({
-                    members:        ACTIVE_MEMBERS,
-                    adminMembers:   CONFIG.ADMIN_NAMES,
-                    managerMembers: CONFIG.MANAGER_NAMES,   // B2: managers get the manager:true claim (write on behalf, not admin)
-                    designerMembers: CONFIG.LINKS_DESIGNERS, // H2: designers get the linksDesigner:true claim (gate linkDesigns writes)
-                    removeOrphans:  /** @type {HTMLInputElement} */ (orphansCb).checked,
-                }),
-            });
+            // Body carries ACTION flags only (B4 — server owns the member/role lists). Reusable so the
+            // orphan-removal confirm step can re-submit with the same token.
+            const doSetup = async (/** @type {Record<string, any>} */ extraBody) => {
+                const r = await fetch(SETUP_AUTH_URL, {
+                    method:  'POST',
+                    headers: { 'Authorization': `Bearer ${tokenResult.token}`, 'Content-Type': 'application/json' },
+                    body:    JSON.stringify(extraBody),
+                });
+                if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
+                return r.json();
+            };
 
-            if (!resp.ok) {
-                const err = await resp.text();
-                throw new Error(`Server responded ${resp.status}: ${err}`);
-            }
+            /** Render a setupRosterAuth response, wiring the dry-run → confirm step for leaver removal. */
+            const renderResult = (/** @type {any} */ data) => {
+                const { created = [], skipped = [], disabled = [], failed = [],
+                        orphanSweepFailed = false, orphanDryRun = false, orphansToDisable = [] } = data;
+                const lines = [];
+                if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
+                if (skipped.length)  lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
+                if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
+                if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
+                // Leaver-sweep failure is a FLAG on an otherwise-200 response — surface it (v16.23).
+                if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were NOT disabled. Run Set up accounts again.');
+                if (!lines.length && !orphanDryRun) lines.push('Nothing to do — all accounts already up to date.');
 
-            const { created = [], skipped = [], disabled = [], failed = [], orphanSweepFailed = false } = await resp.json();
+                resultEl.innerHTML = lines.map(l => `<p class="auth-result-line">${escapeHtml(l)}</p>`).join('');
 
-            const lines = [];
-            if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
-            if (skipped.length)  lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
-            if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
-            if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
-            // The server reports a leaver-sweep failure as a FLAG on an otherwise-200 response
-            // (the accounts above WERE processed) — surface it or the failure is silent (v16.23).
-            if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were NOT disabled. Run Set up accounts again.');
-            if (!lines.length)   lines.push('Nothing to do — all accounts already up to date.');
+                // B4 dry-run: the server previewed which accounts WOULD be disabled — require an
+                // explicit confirm before any account is disabled (no accidental leaver sweeps).
+                if (orphanDryRun) {
+                    if (orphansToDisable.length) {
+                        const n = orphansToDisable.length;
+                        resultEl.insertAdjacentHTML('beforeend',
+                            `<p class="auth-result-line">🔍 <strong>${n}</strong> account${n !== 1 ? 's' : ''} would be disabled as leaver${n !== 1 ? 's' : ''}: ${escapeHtml(orphansToDisable.join(', '))}</p>`
+                            + `<button type="button" id="authConfirmOrphans" class="btn-action">Confirm — disable ${n} leaver${n !== 1 ? 's' : ''}</button>`);
+                        const confirmBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('authConfirmOrphans'));
+                        confirmBtn?.addEventListener('click', async () => {
+                            confirmBtn.disabled = true;
+                            confirmBtn.textContent = 'Disabling…';
+                            try {
+                                renderResult(await doSetup({ removeOrphans: true, confirmOrphanRemoval: true }));
+                            } catch (e) {
+                                resultEl.insertAdjacentHTML('beforeend', `<p class="auth-result-error">❌ ${escapeHtml(/** @type {any} */ (e).message)}</p>`);
+                            }
+                        });
+                    } else {
+                        resultEl.insertAdjacentHTML('beforeend', '<p class="auth-result-line">✓ No leaver accounts to disable.</p>');
+                    }
+                }
+                resultEl.classList.add('visible');
+            };
 
-            resultEl.innerHTML = lines.map(l => `<p class="auth-result-line">${escapeHtml(l)}</p>`).join('');
-            resultEl.classList.add('visible');
+            // First call: provision + (if the checkbox is set) a DRY-RUN leaver preview.
+            renderResult(await doSetup({ removeOrphans: /** @type {HTMLInputElement} */ (orphansCb).checked }));
         } catch (err) {
             resultEl.innerHTML = `<p class="auth-result-error">❌ ${escapeHtml(/** @type {any} */ (err).message)}</p>`;
             resultEl.classList.add('visible');

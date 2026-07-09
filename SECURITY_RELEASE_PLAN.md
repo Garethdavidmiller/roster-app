@@ -18,8 +18,9 @@
   `CONFIG.LINKS_DESIGNERS`, and every `links-app.js` write is wrapped in `writeWithClaimRetry` so a
   stale designer token self-heals. This SUPERSEDES the earlier "leave `linkDesigns` at
   `request.auth != null`" owner decision.*
+- *B4 (server-owned role lists) ✅ SHIPPED v16.30.*
 - *Remaining security roadmap: surname-derived credential replacement (Track C), App Check enforcement
-  (Track D), public-read / tokenised-document-URL decisions, and B4 (server-owned role lists).*
+  (Track D), and the public-read / tokenised-document-URL decisions.*
 
 *This is the master **ordering + go/no-go** doc; the detailed designs live in ROADMAP.md /
 KNOWN_LIMITATIONS.md and are NOT duplicated here. Not version-stamped; not a runtime asset.*
@@ -482,10 +483,17 @@ huddle/circular/newsletter/roster/auth; admin edits others' ✓; roster upload s
 **Rollback:** re-add the two escape lines and redeploy the permissive rule (instant), or revert
 `overrides` to `request.auth != null`. No data migration either way.
 
-### B4 — server-owned roster/role lists
-- **Goal:** `setupRosterAuth` stops trusting the member/admin lists sent by the client; move to
-  server-owned config with recent-login/revocation-aware checks, **dry-run** orphan removal,
-  explicit destructive confirmation, and token revocation after demote/disable.
+### B4 — server-owned roster/role lists — ✅ SHIPPED (v16.30)
+- **Shipped:** `setupRosterAuth` no longer trusts client-sent member/role lists. All four
+  (`activeMembers` + `admin`/`manager`/`designer`) are read from `functions/roster-members.json`,
+  generated from `roster-data.js` (CONFIG + `getMembersForGrade`, mirroring `ACTIVE_MEMBERS` exactly)
+  by `generate-roster-members.mjs` and CI-locked by `sw-asset-check.test.mjs`. The function fails
+  closed on a missing `activeMembers` or an empty `admin` list (admin-lockout guard). Orphan removal
+  is now **dry-run by default** — `removeOrphans` returns `orphansToDisable` (a preview) and disables
+  nothing; a second call with `confirmOrphanRemoval` disables **and revokes refresh tokens**. The
+  client (`admin-auth.js`) stopped sending the lists and shows the preview → confirm step.
+- **Original goal (for reference):** move member/admin lists server-side with **dry-run** orphan
+  removal, explicit destructive confirmation, and token revocation after demote/disable.
 - **All three tier lists move server-side, not just the member + admin lists.** Today the client
   sends `members` (`ACTIVE_MEMBERS`) and `adminMembers` (`CONFIG.ADMIN_NAMES`); B2 adds a manager
   list. B4 must own **`ADMIN_NAMES` + `MANAGER_NAMES` + `LINKS_DESIGNERS`** server-side so none of
@@ -599,7 +607,9 @@ huddle/circular/newsletter/roster/auth; admin edits others' ✓; roster upload s
       `admin-auth.js` sends `designerMembers`, and every `links-app.js` write is wrapped in
       `writeWithClaimRetry` so a stale designer token self-heals. Superseded the earlier
       "leave at `request.auth != null`" decision.
-- [ ] B4 — server-owned role lists (**admin + manager + designer**, all generated server-side)
+- [x] B4 — server-owned role lists (**admin + manager + designer** + activeMembers, generated into
+      roster-members.json, CI-locked) — **✓ SHIPPED v16.30.** Plus dry-run orphan removal (preview →
+      confirm) and refresh-token revocation on disable; fail-closed on empty admin/members config.
 - [ ] C2 — email verification
 - [ ] C4 — forgotten-password reset
 - [ ] C3 — self-service password change
