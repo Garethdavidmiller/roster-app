@@ -268,7 +268,7 @@ service cloud.firestore {
         // Bounded YYYY-MM-DD (month 01-12, day 01-31) — rejects impossible ISO-shaped dates.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
-        request.resource.data.fileType == 'pdf' &&
+        request.resource.data.fileType in ['pdf', 'docx'] &&
         request.resource.data.uploadedAt is timestamp &&
         request.resource.data.uploadedBy is string;
       allow delete: if request.auth != null && request.auth.token.admin == true;
@@ -286,7 +286,7 @@ service cloud.firestore {
         // Bounded YYYY-MM-DD (month 01-12, day 01-31) — rejects impossible ISO-shaped dates.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
-        request.resource.data.fileType == 'pdf' &&
+        request.resource.data.fileType in ['pdf', 'docx'] &&
         request.resource.data.uploadedAt is timestamp &&
         request.resource.data.uploadedBy is string;
       allow delete: if request.auth != null && request.auth.token.admin == true;

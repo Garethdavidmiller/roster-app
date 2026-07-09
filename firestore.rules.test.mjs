@@ -701,9 +701,15 @@ describe('circulars', () => {
         await assertSucceeds(setDoc(doc(adminDb(), 'circulars', uid()), VALID_CIRCULAR()));
     });
 
-    test('admin cannot create with wrong fileType', async () => {
-        await assertFails(
+    test('admin can create a DOCX circular (Word uploads allowed)', async () => {
+        await assertSucceeds(
             setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), fileType: 'docx' })
+        );
+    });
+
+    test('admin cannot create with an invalid fileType (not pdf/docx)', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), fileType: 'txt' })
         );
     });
 
@@ -769,6 +775,10 @@ describe('newsletters', () => {
 
     test('admin can create a valid newsletter', async () => {
         await assertSucceeds(setDoc(doc(adminDb(), 'newsletters', uid()), VALID_CIRCULAR()));
+    });
+
+    test('admin can create a DOCX newsletter (Word uploads allowed)', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), fileType: 'docx' }));
     });
 
     test('admin cannot create with wrong fileType', async () => {

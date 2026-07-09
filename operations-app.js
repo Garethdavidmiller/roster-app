@@ -18,7 +18,7 @@ import { recordPageLatency } from './perf-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
-import { initDocUploadCard } from './doc-upload.js';
+import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -578,6 +578,9 @@ export function init() {
             dateId: 'newsletterDate', fileId: 'newsletterFileInput',
             fileLabelId: 'newsletterFileName', uploadBtnId: 'newsletterUploadBtn',
             feedbackId: 'newsletterFeedback', uploadFn: uploadNewsletter, currentUser,
+            isAccepted: f => isPdfFile(f) || isDocxFile(f),
+            rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
+            sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
             successMsg: date => `Newsletter uploaded for ${date} — staff can open it from ☰ → Marylebone Newsletter`,
             btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter',
         });
@@ -591,6 +594,9 @@ export function init() {
             dateId: 'circularDate', fileId: 'circularFileInput',
             fileLabelId: 'circularFileName', uploadBtnId: 'circularUploadBtn',
             feedbackId: 'circularFeedback', uploadFn: uploadCircular, currentUser,
+            isAccepted: f => isPdfFile(f) || isDocxFile(f),
+            rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
+            sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
             successMsg: date => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`,
             btnLabel: 'Upload Circular', logPrefix: 'Circular',
         });
@@ -634,7 +640,7 @@ export function init() {
             'weekly-circular': {
                 title: 'Weekly Retail Circular',
                 sections: [{ items: [
-                    { icon: '📰', html: 'Upload the Weekly Retail Circular PDF — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
+                    { icon: '📰', html: 'Upload the Weekly Retail Circular (PDF or Word) — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
                     { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
                     { icon: '📅', html: 'Set the date to the week the circular covers — usually the Friday it was issued' },
                     { icon: '🤖', html: 'In a future update this will upload automatically, like the Huddle' },
@@ -643,7 +649,7 @@ export function init() {
             'newsletter': {
                 title: 'Marylebone Newsletter',
                 sections: [{ items: [
-                    { icon: '🗞️', html: 'Upload the latest Marylebone Newsletter PDF — staff open it from <strong>☰ → Marylebone Newsletter</strong>' },
+                    { icon: '🗞️', html: 'Upload the latest Marylebone Newsletter (PDF or Word) — staff open it from <strong>☰ → Marylebone Newsletter</strong>' },
                     { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
                     { icon: '📅', html: 'Set the date to the issue date of the newsletter' },
                 ]}],

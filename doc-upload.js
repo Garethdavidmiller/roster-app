@@ -21,9 +21,16 @@ import { sessionReady } from './session.js';
 /** 20 MB — matches functions/index.js MAX_FILE_BYTES and storage.rules request.resource.size. */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
-/** Default accept predicate — PDF only (Circular/Newsletter). @param {File} f */
+/** Default accept predicate — PDF. @param {File} f */
 export function isPdfFile(f) {
   return f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+}
+
+/** Word (.docx) accept predicate. Matches by extension because Android often reports a .docx as
+ *  application/zip or application/octet-stream (DOCX is a ZIP archive). @param {File} f */
+export function isDocxFile(f) {
+  return f.name.toLowerCase().endsWith('.docx')
+    || f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 }
 
 /**
