@@ -1193,6 +1193,10 @@ exports.setupRosterAuth = onRequest(
         // (huddles/circulars/newsletters/roster/auth) stay admin-only. Sent by the (admin-only)
         // client today; B4 moves this list server-side. admin outranks manager (set below).
         const managerMembers = Array.isArray(body.managerMembers) ? new Set(body.managerMembers) : new Set();
+        // designerMembers: names that should receive the linksDesigner:true claim (H2). Orthogonal to
+        // admin/manager — a designer may be ordinary staff (e.g. S. Silva) or also an admin (G. Miller).
+        // Gates linkDesigns writes in firestore.rules; the client redirect was the only control before.
+        const designerMembers = Array.isArray(body.designerMembers) ? new Set(body.designerMembers) : new Set();
         const removeOrphans  = body.removeOrphans === true;
         const created  = [];
         const skipped  = [];
@@ -1277,13 +1281,15 @@ exports.setupRosterAuth = onRequest(
             if (uid) {
                 const isAdmin   = adminMembers.has(name);
                 const isManager = !isAdmin && managerMembers.has(name);
+                const isDesigner = designerMembers.has(name); // additive — not part of the admin/manager tier
                 /** @type {Record<string, any>} */
                 const claims = { name };
                 if (isAdmin)        claims.admin   = true;
                 else if (isManager) claims.manager = true;
+                if (isDesigner)     claims.linksDesigner = true;
                 try {
                     await admin.auth().setCustomUserClaims(uid, claims);
-                    const tier = isAdmin ? 'admin+name' : isManager ? 'manager+name' : 'name';
+                    const tier = (isAdmin ? 'admin+name' : isManager ? 'manager+name' : 'name') + (isDesigner ? '+designer' : '');
                     console.log(`[setupRosterAuth] Set ${tier} claim: ${email}`);
                 } catch (claimErr) {
                     failed.push(`${name} (claim-failed: ${claimErr.message})`);

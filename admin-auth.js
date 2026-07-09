@@ -89,6 +89,7 @@ export function initAuthSetup({ currentIsAdmin }) {
                     members:        ACTIVE_MEMBERS,
                     adminMembers:   CONFIG.ADMIN_NAMES,
                     managerMembers: CONFIG.MANAGER_NAMES,   // B2: managers get the manager:true claim (write on behalf, not admin)
+                    designerMembers: CONFIG.LINKS_DESIGNERS, // H2: designers get the linksDesigner:true claim (gate linkDesigns writes)
                     removeOrphans:  /** @type {HTMLInputElement} */ (orphansCb).checked,
                 }),
             });
