@@ -1605,8 +1605,8 @@ export function init() {
 
         const beta = createLightbox({
             overlay:  lb,
-            content:  /** @type {any} */ (document.getElementById('betaLightboxContent')),
-            closeBtn: /** @type {any} */ (document.getElementById('betaLightboxClose')),
+            content:  /** @type {HTMLElement} */ (document.getElementById('betaLightboxContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('betaLightboxClose')),
             onClose() {
                 lsSet(BETA_KEY, '1');
                 archiveNotice({

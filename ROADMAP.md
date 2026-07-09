@@ -985,7 +985,16 @@ zero, enforced by the fail-closed `scripts/typecheck.mjs` CI gate:
   casts (33 files); gate now enforces zero errors of any kind.
 - **9c** — `strict: true`; null-safety guards + implicit-any annotations across 46 files; **no**
   `// @ts-ignore` — all explicit annotations or runtime-safe guards.
-- **9d** (replace `any` casts with precise types) — unblocked, not started.
+- **9d** (replace `any` casts with precise types) — **partially done (v16.29).** All DOM-element
+  casts (`/** @type {any} */ (document.getElementById(…))` → precise `HTMLElement`/`HTMLButtonElement`)
+  are converted (admin-roster-upload, calendar-al-lightbox, links-app), typecheck stays at zero errors.
+  **Remaining ~180 `@type {any}` casts, deliberately not converted:** ~56 are genuinely dynamic and
+  SHOULD stay `any` (Firestore `doc.data()`, caught errors, snapshots — no static type without generated
+  Firestore types); the rest are object-shape params (period/member/override objects) that would want a
+  shared `@typedef` (e.g. a `Period` type across the paycalc cluster) — a larger, higher-regression-risk
+  refactor for marginal real-world safety, since strict null/DOM checking (9a–9c) already catches the
+  bugs that matter. Do the `Period` typedef as its own focused pass if pursued; otherwise the current
+  `any` on dynamic data is correct, not debt.
 
 ## Deferred backlog (from the v14.96 external review)
 

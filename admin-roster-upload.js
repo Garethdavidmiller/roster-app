@@ -187,16 +187,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     const rosterTypeEl   = /** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'));
     const weekEndingEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('rosterWeekEnding'));
     const fileInput      = /** @type {HTMLInputElement|null} */ (document.getElementById('rosterFileInput'));
-    const fileNameEl     = /** @type {any} */ (document.getElementById('rosterFileName'));
+    const fileNameEl     = /** @type {HTMLElement} */ (document.getElementById('rosterFileName'));
     const parseBtn       = /** @type {HTMLButtonElement|null} */ (document.getElementById('rosterParseBtn'));
-    const parseFeedback  = /** @type {any} */ (document.getElementById('rosterParseFeedback'));
-    const reviewSection  = /** @type {any} */ (document.getElementById('rosterReviewSection'));
-    const outcomeEl      = /** @type {any} */ (document.getElementById('rosterOutcome'));
-    const reviewLabel    = /** @type {any} */ (document.getElementById('rosterReviewLabel'));
-    let   changeList     = /** @type {any} */ (document.getElementById('rosterChangeList'));
-    const applyBtn       = /** @type {any} */ (document.getElementById('rosterApplyBtn'));
-    const cancelBtn      = /** @type {any} */ (document.getElementById('rosterCancelBtn'));
-    const applyFeedback  = /** @type {any} */ (document.getElementById('rosterApplyFeedback'));
+    const parseFeedback  = /** @type {HTMLElement} */ (document.getElementById('rosterParseFeedback'));
+    const reviewSection  = /** @type {HTMLElement} */ (document.getElementById('rosterReviewSection'));
+    const outcomeEl      = /** @type {HTMLElement} */ (document.getElementById('rosterOutcome'));
+    const reviewLabel    = /** @type {HTMLElement} */ (document.getElementById('rosterReviewLabel'));
+    let   changeList     = /** @type {HTMLElement} */ (document.getElementById('rosterChangeList'));
+    const applyBtn       = /** @type {HTMLButtonElement} */ (document.getElementById('rosterApplyBtn'));
+    const cancelBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('rosterCancelBtn'));
+    const applyFeedback  = /** @type {HTMLElement} */ (document.getElementById('rosterApplyFeedback'));
 
     if (!card || !rosterTypeEl || !weekEndingEl || !fileInput || !parseBtn) return;
 
