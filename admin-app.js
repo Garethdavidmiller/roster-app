@@ -783,9 +783,9 @@ saveBtn.addEventListener('click', async () => {
 
         let value;
         if (type === 'other') {
-            // Compose the training grammar from the row's sub-controls:
+            // Compose the Other-family grammar from the row's sub-controls:
             // FLAVOUR[" RDW"][" HH:MM-HH:MM"]. Times are OPTIONAL — blank means the pay
-            // defaults apply (base shift on a rostered day, 8h RDW on a training rest-day) —
+            // defaults apply (base shift on a rostered day, 8h RDW on an Other rest-day) —
             // but a half-filled or malformed pair is still an error.
             const flavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour;
             // Force an explicit flavour choice — no silent Training default (owner decision,
@@ -799,7 +799,7 @@ saveBtn.addEventListener('click', async () => {
             if (flavour === 'SPARE') {
                 // Spare lives under the Other pill but is its OWN override type — a standby
                 // placeholder (not a worked day; keeps its 📋 purple badge; no RDW/times). Write
-                // it directly as spare_shift and skip the training grammar below. (v15.57)
+                // it directly as spare_shift and skip the Other-family grammar below. (v15.57)
                 toSave.push({ memberName, date, type: 'spare_shift', value: 'SPARE', note, existingId: row.dataset.existingId || null });
                 return;
             }

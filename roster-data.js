@@ -732,7 +732,7 @@ export function getShiftBadge(timeStr) {
     if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw" title="Rest day worked — extra shift on your rostered day off"><span aria-hidden="true">💼</span><span>RDW</span></span>`;
     if (timeStr === 'AL')    return `<span class="shift-badge badge-al"><span aria-hidden="true">🏖️</span><span>AL</span></span>`;
     if (timeStr === 'SICK')  return `<span class="shift-badge badge-sick"><span aria-hidden="true">🪑</span><span>Absent</span></span>`;
-    // Training family — 🏷️ + the SHORT flavour word (Train/Ind/Assess); the FULL word
+    // Other family — 🏷️ + the SHORT flavour word (Train/Ind/Assess); the FULL word
     // (Training/Induction/Assessment) is shown on tap via the day-detail label instead.
     const _trg = parseOtherValue(timeStr);
     if (_trg) return `<span class="shift-badge badge-other"><span aria-hidden="true">🏷️</span><span>${OTHER_FLAVOURS[_trg.flavour].badge}</span></span>`;

@@ -30,7 +30,7 @@ export const TYPES = {
     sick:         { label: 'Absent',           pill: 'Absent',   fixed: true,  fixedValue: 'SICK' },
     // Training / Induction / Assessment (OTHER_PLAN.md). NOT fixed — the time inputs show —
     // but times are OPTIONAL: blank is VALID (pay defaults apply: base shift on a rostered
-    // day, 8h RDW on a training rest-day). Value is composed at save time from the row's
+    // day, 8h RDW on an Other rest-day). Value is composed at save time from the row's
     // flavour buttons + RDW tick + optional times: FLAVOUR[" RDW"][" HH:MM-HH:MM"].
     // `timesOptional` is DESCRIPTIVE metadata — consumers branch on type === 'other'
     // explicitly (collector, validateShiftRules, prefill); keep it for the next such type.
@@ -426,8 +426,8 @@ export function buildWeekGridInto(container, dateStr) {
             endEl.addEventListener('change',   onTimeEdit);
         }
 
-        // Training sub-controls: flavour is a one-of-three toggle; the RDW tick marks a
-        // training rest-day. Both mark the grid changed like any other edit.
+        // Other-family sub-controls: flavour is a single-select toggle; the RDW tick marks an
+        // Other rest-day. Both mark the grid changed like any other edit.
         row.querySelectorAll('.other-flavour-btn').forEach(btnEl => {
             const btn = /** @type {HTMLButtonElement} */ (btnEl);
             btn.addEventListener('click', () => {
@@ -437,7 +437,7 @@ export function buildWeekGridInto(container, dateStr) {
                     b.setAttribute('aria-pressed', String(on));
                 });
                 row.classList.remove('prefilled-existing');
-                _syncOtherSpareMode(row);   // Spare hides RDW/times; training flavours restore them
+                _syncOtherSpareMode(row);   // Spare hides RDW/times; Other-family flavours restore them
                 _markChanged(); updateSaveBtn();
             });
         });
@@ -509,7 +509,7 @@ function _syncOtherRdwWarn(row) {
  * Reflect a "Spare" choice inside the Other submenu (v15.57 — Spare moved under Other).
  * Spare is a fixed placeholder: no RDW, no times. Reuse the `.fixed-type` machinery to hide
  * the time inputs (and show "No time needed"), and `.other-spare` to hide the RDW tick + hint.
- * Picking any training flavour clears it (training keeps its optional times). The collector
+ * Picking any Other-family flavour clears it (Other days keep their optional times). The collector
  * reads the active flavour and, when it's SPARE, writes a `spare_shift`/'SPARE' override.
  * @param {HTMLElement} row
  */
@@ -552,7 +552,7 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
     }
     row.classList.remove('other-spare');   // clear any stale Spare-mode when (re)activating a type
     row.dataset.type = type;
-    // Training options strip: visible only while the Training pill is active. The RDW tick
+    // Other-family options strip: visible only while the Other pill is active. The RDW tick
     // pre-ticks itself when the day's base roster is a rest day (OTHER_PLAN.md decision 8)
     // — smart default, still adjustable. Runs on BOTH the pill and bulk-apply paths.
     const otherOpts = /** @type {HTMLElement|null} */ (row.querySelector('.other-opts'));
@@ -1350,9 +1350,9 @@ export function validateShiftRules(toSave, memberName) {
             adjDate.setDate(adjDate.getDate() + delta);
             const adjISO   = formatISO(adjDate);
             let adjShift = getEffectiveShift(memberName, adjISO, toSave);
-            // Adjacent training values: a TIMED training constrains via its actual times; an
-            // untimed as-base training constrains via its BASE shift (the member attends those
-            // hours); only an untimed training REST-day is exempt (its hours are unknowable here).
+            // Adjacent Other-family values: a TIMED Other day constrains via its actual times; an
+            // untimed as-base Other day constrains via its BASE shift (the member attends those
+            // hours); only an untimed Other REST-day is exempt (its hours are unknowable here).
             const _adjOther = parseOtherValue(adjShift);
             if (_adjOther) {
                 if (_adjOther.time) {

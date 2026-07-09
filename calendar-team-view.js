@@ -81,7 +81,7 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         const cacheKey = `${member.name}|${dateStr}`;
 
         let shift = getBaseShift(member, date);
-        const baseShiftTV = shift;   // kept for training's derived-RDW label (base is overwritten below)
+        const baseShiftTV = shift;   // kept for an Other day's derived-RDW label (base is overwritten below)
 
         const override = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(cacheKey) : null;
         if (override) {
@@ -90,7 +90,7 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
             else if (override.type === 'correction')   shift = 'RD';
             else if (override.type === 'rdw')          shift = 'RDW|' + (override.value || '');
             else if (override.type === 'spare_shift')  shift = 'SPARE';
-            // Sunday training suppressed — Sundays can never be training days
+            // Sunday Other days suppressed — Sundays can never be Other-family days
             // (OTHER_PLAN.md; layer 5 of the Sunday block, mirrors sick above).
             else if (override.type === 'other' && isSunday(dateStr)) { /* keep base */ }
             else if (override.value && override.type !== 'sick') shift = override.value;

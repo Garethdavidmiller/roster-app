@@ -42,7 +42,7 @@ function normaliseShift(raw) {
     // RDW with time, RDW on EITHER side: "RDW 14:30-22:00" / "RDW 1430-2200" AND the
     // time-first paper-roster form "14:30-22:00 RDW" → "RDW|14:30-22:00". Matching only the
     // RDW-first form silently dropped a time-first RDW to a plain worked shift (a pay-
-    // correctness bug — RDW is overtime), mirroring the one-sided gap the training parser
+    // correctness bug — RDW is overtime), mirroring the one-sided gap the Other-family parser
     // already avoids. The `s.includes('RDW')` guard keeps a bare time out of this branch.
     // Hours may be 1 or 2 digits (OCR sometimes drops the leading zero, e.g. "6:30");
     // pad to 2 so a single-digit hour isn't silently lost as a rest day.

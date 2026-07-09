@@ -195,7 +195,7 @@ export function getRosterSuggestion(p, member) {
     // Training / Induction / Assessment (OTHER_PLAN.md) — the ONLY override that means
     // "fall back to the day underneath" (every other override REPLACES the base). The pay
     // mapping lives in ONE place: resolveOtherPay (override-utils.js).
-    //   rdw     → a training rest-day: credit the RDW bucket (actual times, or the 8h
+    //   rdw     → an Other-family rest-day: credit the RDW bucket (actual times, or the 8h
     //             default the member adjusts) and move on — never split into overtime.
     //   timed   → actual times on a rostered day: classify like a shift override, so the
     //             existing base-cap + excess→overtime split applies unchanged below.
@@ -210,10 +210,10 @@ export function getRosterSuggestion(p, member) {
       effValue = baseValue; effType = null;
     }
     const _otherParsed = ov && ov.type === 'other' ? parseOtherValue(ov.value) : null;
-    let _otherFromOv = null;   // null = not a training day; boolean = fromOv override below
+    let _otherFromOv = null;   // null = not an Other day; boolean = fromOv override below
     if (_otherParsed) {
       if (cur.getDay() === 0) {
-        // Sunday training cannot exist (blocked at every write layer). A legacy/out-of-band doc
+        // A Sunday Other-family day cannot exist (blocked at every write layer). A legacy/out-of-band doc
         // falls back to the BASE shift — matching the display layers, which suppress the override
         // and show the base. (Skipping the whole day would silently DROP a worked base Sunday's
         // 1.5× hours from the suggestion while the calendar still showed them.)
@@ -273,7 +273,7 @@ export function getRosterSuggestion(p, member) {
       }
       // NEVER-LESS floor (OTHER_PLAN.md decision 5): a timed Other day that ran SHORT of the
       // rostered shift still pays the FULL shift. Without this, the shift-override split below
-      // (Math.min(mins, baseMins) on the Sat/BH branches) credited only the training duration —
+      // (Math.min(mins, baseMins) on the Sat/BH branches) credited only the Other-day duration —
       // e.g. training 12:00-16:00 on a base Saturday 13:30-21:00 suggested 4h sat instead of 7.5h.
       // Over-runs are unaffected (mins > baseMins); weekdays were already safe (excess-only).
       if (_otherFromOv === true && baseWorked && mins < baseMins) mins = baseMins;
