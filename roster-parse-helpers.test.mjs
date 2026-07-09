@@ -449,6 +449,51 @@ describe('applySundayScanCorrections', () => {
             applySundayScanCorrections(entries, null, true, DATES),
         );
     });
+
+    // ── Day-shift repair (the Sonnet-5 blank-Sunday left-shift) ──
+    // Full-week entries: dates[0]=Sun … dates[6]=Sat.
+    const fullWeek = (vals) => ({ memberName: 'G. Miller', shifts: Object.fromEntries(DATES.map((d, i) => [d, vals[i]])) });
+
+    test('Case A day-shift: scan=blank, Sun has a value, Sat empty → RIGHT-shift the whole week', () => {
+        // AI dropped the blank Sunday and shifted everything one day LEFT:
+        //   parsed = [Sun=Mon's, Mon=Tue's, Tue=Wed's, …, Fri=Sat's, Sat=RD]
+        const entries = [fullWeek(['06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', 'RD', 'AL', 'RD'])];
+        applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
+        const s = entries[0].shifts;
+        assert.equal(s[DATES[0]], 'RD',           'Sunday → RD (the blank)');
+        assert.equal(s[DATES[1]], '06:00-14:00',  'Monday takes the value the AI mis-placed in Sunday');
+        assert.equal(s[DATES[2]], '07:00-15:00',  'Tuesday ← old Monday');
+        assert.equal(s[DATES[3]], 'RD',           'Wednesday ← old Tuesday');
+        assert.equal(s[DATES[4]], '08:00-16:00',  'Thursday ← old Wednesday');
+        assert.equal(s[DATES[5]], 'RD',           'Friday ← old Thursday');
+        assert.equal(s[DATES[6]], 'AL',           'Saturday ← old Friday (the value that had been pushed to Fri)');
+    });
+
+    test('Case A but Saturday OCCUPIED → cannot cleanly reverse; only Sunday is set to RD', () => {
+        const entries = [fullWeek(['06:00-14:00', '07:00-15:00', 'RD', 'RD', 'RD', 'RD', '09:00-17:00'])];
+        applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
+        const s = entries[0].shifts;
+        assert.equal(s[DATES[0]], 'RD',           'Sunday honoured as blank');
+        assert.equal(s[DATES[1]], '07:00-15:00',  'Mon–Sat left as-is (no unsafe shift)');
+        assert.equal(s[DATES[6]], '09:00-17:00',  'occupied Saturday preserved');
+    });
+
+    test('correctly-read blank Sunday (parsed Sun already RD) is untouched — no false shift', () => {
+        const entries = [fullWeek(['RD', '06:00-14:00', '07:00-15:00', 'RD', 'RD', 'RD', 'RD'])];
+        applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
+        const s = entries[0].shifts;
+        assert.equal(s[DATES[1]], '06:00-14:00', 'Monday unchanged');
+        assert.equal(s[DATES[2]], '07:00-15:00', 'Tuesday unchanged');
+    });
+
+    test('day-shift where the leaked value is AL/SPARE (not a time) is still repaired', () => {
+        const entries = [fullWeek(['SPARE', '06:00-14:00', 'RD', 'RD', 'RD', 'RD', 'RD'])];
+        applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
+        const s = entries[0].shifts;
+        assert.equal(s[DATES[0]], 'RD',          'Sunday → RD');
+        assert.equal(s[DATES[1]], 'SPARE',       'Monday ← the SPARE the AI mis-placed in Sunday');
+        assert.equal(s[DATES[2]], '06:00-14:00', 'Tuesday ← old Monday');
+    });
 });
 
 // ── isPayCutoffDay ────────────────────────────────────────────────────────────
