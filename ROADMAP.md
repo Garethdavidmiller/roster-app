@@ -559,12 +559,13 @@ a placeholder so the idea isn't lost.
 
 **Depends on:** Approval workflows (above). The Cloud Function infrastructure for push is already in place — extending it to cover other event types is a smaller lift now that the foundation exists.
 
-### Notification badge — monochrome silhouette asset (deferred)
-**What:** Add a proper monochrome badge PNG (`icon-badge.png`, white-on-transparent, ~96×96) and point the service worker's `badge:` at it. Today `badge:` uses `icon-192.png` (the full-colour app icon) — Android masks the badge to a single colour in the status bar, so a full-colour icon renders as a muddy blob on every notification. See `.claude/rules/notifications.md` → "Icon, badge, tag".
-
-**Blocked on:** the silhouette decision + the actual PNG asset — the **Chiltern/MYB mark** (most branded, only if it reads clearly at ~24px monochrome) or a **generic glyph** (calendar/bell — safest for legibility). A small Node generator script could produce it reproducibly.
-
-**When to do it:** whenever the asset exists. It's a **one-line service-worker swap** (`badge:` → `${scope}icon-badge.png`) in the same commit the PNG lands — no other code changes. Until then `badge:` stays on `icon-192.png` (no regression; just the blob).
+### Notification badge — monochrome silhouette asset — ✅ DONE
+**What:** A dedicated monochrome badge PNG (`icon-badge.png`, white-on-transparent, 96px) so Android
+doesn't mask the full-colour app icon into a muddy blob in the status bar. **Shipped:** the asset
+exists, is precached by the service worker (`service-worker.js` asset list), and the push handler
+sets `badge: ${self.registration.scope}icon-badge.png` (not `icon-192.png`). CLAUDE.md lists it as an
+asset and `.claude/rules/notifications.md` → "Icon, badge, tag" documents the rule (never use
+`icon-192.png` as the badge). No further work.
 
 ### Formal AL management
 **What:** Official AL request and approval workflow with entitlement tracking across the year.
