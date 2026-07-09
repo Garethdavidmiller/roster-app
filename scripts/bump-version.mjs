@@ -32,9 +32,7 @@ if (!newVersion || !/^\d+\.\d+$/.test(newVersion)) {
 function patch(file, pattern, replacement) {
     const filePath = join(ROOT, file);
     const src = readFileSync(filePath, 'utf8');
-    const patched = typeof replacement === 'function'
-        ? src.replace(pattern, replacement)
-        : src.replace(pattern, replacement);
+    const patched = src.replace(pattern, replacement);   // String.replace accepts a string OR a function
     if (patched === src) {
         throw new Error(`Pattern not matched in ${file}: ${pattern}`);
     }

@@ -25,11 +25,6 @@
             margin: 20px;
         }
 
-        .calendar-error-message {
-            font-size: 14px;
-            color: var(--text-dark);
-            margin-top: 10px;
-        }
 
         body {
             font-family: var(--font-sans);
@@ -2368,12 +2363,6 @@
             border-radius: 20px;
             padding: 3px 9px;
             animation: sync-pulse 1.2s ease-in-out infinite;
-        }
-        .sync-chip-ok {
-            animation: none;
-            color: var(--success-green);
-            background: rgba(46,125,50,0.10);
-            border-color: rgba(46,125,50,0.25);
         }
         .sync-chip-error {
             animation: none;

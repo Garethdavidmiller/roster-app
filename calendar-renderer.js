@@ -14,7 +14,7 @@ import {
     isSameDay, isBankHoliday, isChristmasDay, isEasterSunday,
     isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge,
     getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday,
-    SWIPE_THRESHOLD, SWIPE_VELOCITY, getPaydaysAndCutoffs, escapeHtml,
+    SWIPE_THRESHOLD, SWIPE_VELOCITY, paydayForCutoff, escapeHtml,
 } from './roster-data.js';
 import { isBeforeMemberStart, isRestShift, isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { getCurrentMember } from './calendar-member.js';
@@ -139,12 +139,8 @@ export function buildCalendarContainer(month, year, opts = {}) {
         if (paydayIso) { navigateToPaycalc?.(paydayIso); return; }
         const cutoffIso = cell.dataset.cutoffIso;
         if (cutoffIso) {
-            // Look up the payday paired with this cutoff rather than using a fixed offset —
-            // paydays shift backwards over bank holidays so the gap is not constant.
-            const cutoffYear = Number(cutoffIso.slice(0, 4));
-            const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
-            const idx = cutoffs.findIndex((/** @type {any} */ c) => formatISO(c) === cutoffIso);
-            if (idx !== -1) navigateToPaycalc?.(formatISO(paydays[idx]));
+            const payday = paydayForCutoff(cutoffIso);
+            if (payday) navigateToPaycalc?.(payday);
             return;
         }
         // Any other in-month cell: on touch devices open the day-detail lightbox.

@@ -14,7 +14,7 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail, TIME_RE } from './roster-data.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -813,7 +813,7 @@ saveBtn.addEventListener('click', async () => {
             const e = (/** @type {HTMLInputElement} */ (row.querySelector('.day-end'))).value.trim();
             let time = '';
             if (s || e) {
-                const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+                const timeRe = TIME_RE;
                 if (!s || !e) {
                     row.classList.add('row-error');
                     errors.push(`${formatDisplay(date)}: fill in both times, or leave both blank to use the default hours`);
@@ -839,7 +839,7 @@ saveBtn.addEventListener('click', async () => {
         } else {
             const s = startEl.value.trim();
             const e = endEl.value.trim();
-            const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+            const timeRe = TIME_RE;
             if (!s || !e) {
                 row.classList.add('row-error');
                 errors.push(`${formatDisplay(date)}: fill in the start and end time`);

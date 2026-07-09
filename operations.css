@@ -635,8 +635,6 @@ select:focus-visible, input:focus-visible {
 /* Review section and conflict banner start hidden; JS adds .visible to show them */
 #rosterReviewSection           { display: none; }
 #rosterReviewSection.visible   { display: block; }
-#rosterConflictBanner          { display: none; }
-#rosterConflictBanner.visible  { display: flex; }
 
 /* ---- Error Log card ---- */
 /* Discrete cards (matches the admin day-card / roster-review row treatment): flat --surface

@@ -29,11 +29,10 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * Sunday shift is by definition overtime.
  *
  * @param {string} shiftStr
- * @param {string|null} _baseShift  reserved for call-site symmetry (unused)
  * @param {string|null} date       ISO date — detects a Sunday worked shift
  * @returns {string} HTML
  */
-function shiftDisplay(shiftStr, _baseShift = null, date = null) {
+function shiftDisplay(shiftStr, date = null) {
     if (isUnknownEncoded(shiftStr)) {
         return `<span class="review-shift-unreadable">⚠ couldn't read “${escapeHtml(stripUnknown(shiftStr))}”</span>`;
     }
@@ -771,7 +770,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${shiftDisplay(s.baseShift)}</span>
                             <span class="roster-arrow">→</span>
-                            <span class="roster-to-val">${shiftDisplay(s.displayShift ?? s.parsedShift, s.baseShift, date)}</span>
+                            <span class="roster-to-val">${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
                         </div>
                         <span class="roster-act act-update">Update</span>`;
                 } else if (s.state === 'REMOVE_IMPORT') {
@@ -789,7 +788,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${manualShiftDisplay(s)}</span>
                             <span class="roster-arrow">→</span>
-                            <span class="roster-to-val">${shiftDisplay(s.baseShift, s.baseShift, date)}</span>
+                            <span class="roster-to-val">${shiftDisplay(s.baseShift, date)}</span>
                             <span class="roster-remove-note">no longer on the roster</span>
                         </div>
                         <span class="roster-act act-clear">Clear old</span>`;
@@ -827,7 +826,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             </div>
                             <div class="roster-cb-opt">
                                 <span class="roster-cb-lab">New roster</span>
-                                <span class="roster-cv-pdf${usesPDF ? '' : ' cv-dim'}">${shiftDisplay(s.displayShift ?? s.parsedShift, s.baseShift, date)}</span>
+                                <span class="roster-cv-pdf${usesPDF ? '' : ' cv-dim'}">${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
                             </div>
                             <div class="roster-pick" role="group" aria-label="Resolve conflict">
                                 <button type="button" class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Keep saved</button>

@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '16.35';
+export const APP_VERSION = '16.36';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -301,7 +301,10 @@ export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster
 // SHARED CONSTANTS
 // ============================================
 
-export const DAY_KEYS    = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const DAY_KEYS    = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+/** HH:MM 24-hour validator (00:00–23:59) — single source for admin time-input validation. */
+export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const DAY_NAMES   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const MONTH_ABB   = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -367,7 +370,7 @@ export function isSameDay(date1, date2) {
 //
 // None currently scheduled for 2024–2030. Check gov.uk each autumn.
 /** @type {Array<any>} */
-export const SPECIAL_BANK_HOLIDAYS = [
+const SPECIAL_BANK_HOLIDAYS = [
     // Add future one-off bank holidays here when announced by the government.
 ];
 
@@ -567,6 +570,19 @@ function _getCutoffSet(year) {
         _cutoffSetCache.set(year, new Set(getPaydaysAndCutoffs(year).cutoffs.map(formatISO)));
     }
     return _cutoffSetCache.get(year);
+}
+
+/**
+ * The ISO payday paired with a given cutoff ISO date, or null if not found.
+ * Paydays shift backwards over bank holidays so the cutoff→payday gap isn't constant —
+ * always pair by index, never a fixed offset.
+ * @param {string} cutoffIso "YYYY-MM-DD"
+ * @returns {string|null}
+ */
+export function paydayForCutoff(cutoffIso) {
+    const { paydays, cutoffs } = getPaydaysAndCutoffs(Number(cutoffIso.slice(0, 4)));
+    const idx = cutoffs.findIndex((/** @type {Date} */ c) => formatISO(c) === cutoffIso);
+    return idx !== -1 ? formatISO(paydays[idx]) : null;
 }
 
 /** @param {any} date */

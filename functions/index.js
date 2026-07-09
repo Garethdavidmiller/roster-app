@@ -232,13 +232,10 @@ exports.ingestHuddle = onRequest(
         }
 
         // ---- Decode file ----
-        let fileBuffer;
-        try {
-            fileBuffer = Buffer.from(base64Content, 'base64');
-        } catch {
-            res.status(400).json({ error: 'Body must be valid base64' });
-            return;
-        }
+        // Buffer.from(..., 'base64') never throws — it silently drops non-base64 chars — which is
+        // why the base64 charset is validated above. (Mirrors parseRosterPDF's decode; the old
+        // try/catch here was dead code.)
+        const fileBuffer = Buffer.from(base64Content, 'base64');
 
         if (fileBuffer.length === 0) {
             res.status(400).json({ error: 'Decoded file is empty' });

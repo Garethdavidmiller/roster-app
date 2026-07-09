@@ -191,8 +191,8 @@ export function primeAuth() {
  * 4. signInAnonymously — fallback when email/password provider is disabled in
  *    Firebase Console, or account has a mismatched password. Anonymous sessions
  *    satisfy `request.auth != null` and are stable across page loads on Android
- *    PWAs. The error code from step 2 is stored on window._mybAuthError so it
- *    can be surfaced in diagnostic messages.
+ *    PWAs. The error code from step 2 is exposed via getFirebaseAuthError() so
+ *    it can be surfaced in diagnostic messages.
  *
  * @param {string} name - Member display name (exact teamMembers match)
  * @param {number} [_gen] - Internal: the caller's auth-attempt generation (stale-completion guard).
@@ -211,8 +211,7 @@ export async function ensureFirebaseSession(name, _gen) {
     /** Record auth-error diagnostics for the CURRENT attempt only. @param {string|undefined} code */
     const recordError = (code) => {
         if (!fresh()) return;
-        _fbAuthError = code;
-        if (typeof window !== 'undefined') /** @type {any} */ (window)._mybAuthError = code; // surfaced by admin-auth.js
+        _fbAuthError = code;   // read via getFirebaseAuthError() (admin-auth.js, operations-app.js)
     };
 
     // Reset for this attempt — but ONLY while it is still current. A SUPERSEDED retry (ensureNamedSession

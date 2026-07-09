@@ -14,7 +14,7 @@
 
 import { escapeHtml } from './roster-data.js';
 import { auth, onAuthStateChanged } from './firebase-client.js';
-import { sessionReady } from './session.js';
+import { sessionReady, getFirebaseAuthError } from './session.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 
@@ -58,7 +58,8 @@ export function initAuthSetup({ currentIsAdmin }) {
                 const unsub = onAuthStateChanged(auth, /** @param {any} user */ user => { unsub(); resolve(user); });
             });
             if (!currentUser) {
-                const code = /** @type {any} */ (window)._mybAuthError ? ` (Firebase error: ${/** @type {any} */ (window)._mybAuthError})` : '';
+                const authErr = getFirebaseAuthError();
+                const code = authErr ? ` (Firebase error: ${authErr})` : '';
                 throw new Error(`Firebase Auth session not found${code} — please sign out and sign back in`);
             }
             // forceRefresh:true fetches a fresh token from Firebase so any recent
