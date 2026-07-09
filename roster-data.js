@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '16.31';
+export const APP_VERSION = '16.32';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -62,6 +62,11 @@ export const CONFIG = {
     //   session ONLY after auth resolves (v14.75), reinforced by the stale-auth generation guard
     //   (v14.87); and B1 was EXONERATED in diagnosis (the freeze persisted with B1 OFF, so B1 was
     //   never the cause). The KILL-SWITCH above still applies — set back to `false` to revert instantly.
+    // ⚠️ NOW SAFETY-COUPLED WITH B3 STRICT RULES: with the no-name override-write escape removed
+    //   (firestore.rules, B3 v16.29), only a named/admin/manager session can write overrides. That is
+    //   safe ONLY because this flag is `true` — it disables the anonymous fallback + account self-heal
+    //   in session.js, so no no-name session ever reaches an override write. If you flip this back to
+    //   `false`, anonymous-fallback sessions would be silently DENIED override writes by the strict rule.
     ENFORCE_NAMED_SESSION:            true,
     // B3 claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every
     // device to refresh its Firebase ID token ONCE on next app open — picking up newly-set custom

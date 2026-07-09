@@ -1193,10 +1193,17 @@ exports.setupRosterAuth = onRequest(
         // admin claims are never silently skipped due to an unparsed body.
         // B4: only ACTION flags are honoured from the request body — the member + role lists are
         // SERVER-OWNED (below). The body may arrive parsed (Content-Type: application/json) or as raw
-        // text; parse rawBody when req.body is empty so the flags are never silently dropped.
-        let body = (req.body && Object.keys(req.body).length) ? req.body : {};
-        if (!Object.keys(body).length && req.rawBody) {
-            try { body = JSON.parse(req.rawBody.toString('utf8')); } catch (_e) { body = {}; }
+        // text. A NON-json content type makes firebase-functions populate req.body with a wrong-shape
+        // object (e.g. form-urlencoded → a single bogus key), so re-parse rawBody as JSON whenever
+        // req.body does not already expose `removeOrphans` as a boolean — otherwise the action flags
+        // would be silently dropped on the documented raw-body curl fallback. The admin UI always
+        // sends application/json (flags present as booleans), so it never hits the re-parse.
+        let body = (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) ? req.body : {};
+        if (typeof body.removeOrphans !== 'boolean' && req.rawBody) {
+            try {
+                const parsed = JSON.parse(req.rawBody.toString('utf8'));
+                if (parsed && typeof parsed === 'object') body = parsed;
+            } catch (_e) { /* not JSON — keep req.body; flags default off (fail-safe: no sweep) */ }
         }
         const removeOrphans        = body.removeOrphans === true;
         // Orphan disabling is DESTRUCTIVE — it only EXECUTES with an explicit confirm flag.
@@ -1222,6 +1229,12 @@ exports.setupRosterAuth = onRequest(
         if (adminMembers.size === 0) {
             return res.status(500).json({ error: 'Server roster config has no admin — refusing to run (would lock out admin)' });
         }
+        // Belt-and-braces against a lockout the empty-admin guard alone doesn't cover: every role-holder
+        // MUST be provisioned AND land in the never-orphan `activeEmails` set, even if a hand-edit ever
+        // dropped an admin/manager/designer from `activeMembers`. Union the role names into the processed
+        // set (idempotent — the CI sync test keeps roles ⊆ activeMembers, so normally this is a no-op;
+        // it just makes "a role-holder is never disabled" structural rather than a config invariant).
+        const processMembers = [...new Set([...members, ...adminMembers, ...managerMembers, ...designerMembers])];
         const created  = [];
         const skipped  = [];
         const disabled = [];
@@ -1238,7 +1251,7 @@ exports.setupRosterAuth = onRequest(
         const seenEmails = new Map();
 
         // Create accounts for all current members, then (re)apply custom claims.
-        for (const name of members) {
+        for (const name of processMembers) {
             if (typeof name !== 'string' || !name.trim()) {
                 failed.push(String(name));
                 console.error(`[setupRosterAuth] Skipping invalid member entry: ${JSON.stringify(name)}`);

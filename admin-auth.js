@@ -111,13 +111,19 @@ export function initAuthSetup({ currentIsAdmin }) {
                             `<p class="auth-result-line">🔍 <strong>${n}</strong> account${n !== 1 ? 's' : ''} would be disabled as leaver${n !== 1 ? 's' : ''}: ${escapeHtml(orphansToDisable.join(', '))}</p>`
                             + `<button type="button" id="authConfirmOrphans" class="btn-action">Confirm — disable ${n} leaver${n !== 1 ? 's' : ''}</button>`);
                         const confirmBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('authConfirmOrphans'));
+                        const confirmLabel = confirmBtn ? confirmBtn.textContent : '';
                         confirmBtn?.addEventListener('click', async () => {
                             confirmBtn.disabled = true;
                             confirmBtn.textContent = 'Disabling…';
                             try {
                                 renderResult(await doSetup({ removeOrphans: true, confirmOrphanRemoval: true }));
                             } catch (e) {
-                                resultEl.insertAdjacentHTML('beforeend', `<p class="auth-result-error">❌ ${escapeHtml(/** @type {any} */ (e).message)}</p>`);
+                                // Re-enable so a transient/expired-token failure (the dry-run may be
+                                // confirmed >1h later, after the ID token expired) is retryable — don't
+                                // strand the button on "Disabling…".
+                                resultEl.insertAdjacentHTML('beforeend', `<p class="auth-result-error">❌ ${escapeHtml(/** @type {any} */ (e).message)} — tap Confirm to retry.</p>`);
+                                confirmBtn.disabled = false;
+                                confirmBtn.textContent = confirmLabel;
                             }
                         });
                     } else {
