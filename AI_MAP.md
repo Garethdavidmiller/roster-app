@@ -642,7 +642,7 @@ Server-side Firestore security rules — deployed via `firebase deploy --only fi
 Firebase Storage security rules.
 - `huddles/{fileName}` read: requires auth.
 - `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `huddle.js`.
-- `circulars/{fileName}` / `newsletters/{fileName}` read: open (no auth — matches Huddle model). Write: requires auth + `admin == true` + size ≤ 20 MB + MIME type `application/pdf` (v13.58/v13.59).
+- `circulars/{fileName}` / `newsletters/{fileName}` read: open (no auth — matches Huddle model). Write: requires auth + `admin == true` + size ≤ 20 MB + MIME type PDF or DOCX (v13.58/v13.59; Word .docx allowed since v16.31).
 - All other paths: denied.
 
 ### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css` / `links.css`

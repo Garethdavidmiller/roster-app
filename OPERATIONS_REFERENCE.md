@@ -370,9 +370,9 @@ Re-uploading for the same date overwrites the Firestore doc and replaces the Sto
 | Resource | Path |
 |----------|------|
 | Circular Firestore doc | `circulars/{YYYY-MM-DD}` |
-| Circular Storage file | `circulars/{YYYY-MM-DD}-{uploadId}.pdf` (versioned suffix, added v13.99) |
+| Circular Storage file | `circulars/{YYYY-MM-DD}-{uploadId}.{ext}` (`ext` = pdf or docx; versioned suffix, added v13.99) |
 | Newsletter Firestore doc | `newsletters/{YYYY-MM-DD}` |
-| Newsletter Storage file | `newsletters/{YYYY-MM-DD}-{uploadId}.pdf` (versioned suffix, added v13.99) |
+| Newsletter Storage file | `newsletters/{YYYY-MM-DD}-{uploadId}.{ext}` (`ext` = pdf or docx; versioned suffix, added v13.99) |
 
 ---
 
