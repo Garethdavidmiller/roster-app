@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
@@ -368,12 +368,12 @@ export function init() {
         if (!name) return;
         if (dirty && !confirm('You have unsaved changes in the current design. Create a new one anyway?')) return;
         try {
-            const ref = await addDoc(DESIGNS_COL, {
+            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
                 name,
                 patterns:  {},
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
-            });
+            }));
             // Arm the concurrency baseline: read back the server updatedAt so loadedUpdatedAt
             // is non-null from the first content-save. Without this, a just-created design's
             // guard was bypassed (updatedAt:null) and a concurrent edit was silently clobbered.
@@ -397,12 +397,12 @@ export function init() {
         if (!name) return;
         const patterns = deepCopyPatterns(design.patterns);
         try {
-            const ref = await addDoc(DESIGNS_COL, {
+            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
                 name,
                 patterns,
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
-            });
+            }));
             // Arm the concurrency baseline (see createDesign).
             let dupTs = null;
             try { dupTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline */ }
@@ -448,8 +448,8 @@ export function init() {
                 const preTs = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt?.toMillis?.() ?? null;
                 baselineFresh = preTs === _preBaseline;
             } catch { /* offline — treat as mismatch, don't advance */ }
-            await setDoc(doc(db, COLLECTIONS.linkDesigns, id),
-                { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true });
+            await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkDesigns, id),
+                { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true }));
             d.name = name;
             if (id === activeDesignId && design) design.name = name;
             if (baselineFresh) {
@@ -478,7 +478,7 @@ export function init() {
         const d = designs.find(x => x.id === id);
         if (!d || !confirm(`Delete "${d.name}"? This can't be undone.`)) return;
         try {
-            await deleteDoc(doc(db, COLLECTIONS.linkDesigns, id));
+            await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkDesigns, id)));
             designs = designs.filter(x => x.id !== id);
             const newActive = (id === activeDesignId) ? designs[0] : null;
             // Exit compare mode if the compare target was deleted, the delete drops below the 2
@@ -1309,12 +1309,13 @@ export function init() {
 
             if (!activeDesignId) {
                 // First save of a generator-created design — create the Firestore document
-                const ref = await addDoc(DESIGNS_COL, {
-                    name:      design.name || 'Design 1',
-                    patterns:  design.patterns,
+                const dsn = design; // capture non-null (guarded above) so the retry closure keeps narrowing
+                const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
+                    name:      dsn.name || 'Design 1',
+                    patterns:  dsn.patterns,
                     updatedAt: serverTimestamp(),
                     updatedBy: currentUser,
-                });
+                }));
                 activeDesignId = ref.id;
                 design.id = ref.id;
                 lsSet(ACTIVE_KEY, ref.id);
@@ -1359,12 +1360,13 @@ export function init() {
                 }
             } catch { /* offline — proceed */ }
 
-            await setDoc(designRef, {
-                name:      design.name || 'Design 1',
-                patterns:  design.patterns,
+            const dsn = design; // capture non-null (guarded above) so the retry closure keeps narrowing
+            await writeWithClaimRetry(() => setDoc(designRef, {
+                name:      dsn.name || 'Design 1',
+                patterns:  dsn.patterns,
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
-            });
+            }));
             // Refresh the in-memory cache entry UNCONDITIONALLY after the successful write — the
             // saved patterns are authoritative regardless of whether the updatedAt read-back below
             // succeeds. Previously this lived inside the getDoc try, so a read-back failure left the
@@ -1419,12 +1421,12 @@ export function init() {
 
             // One-time migration: convert combined-28 to a named design
             if (named.length === 0 && legacyData) {
-                const ref = await addDoc(DESIGNS_COL, {
+                const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
                     name:      'Design 1',
                     patterns:  legacyData.patterns,
                     updatedAt: legacyData.updatedAt ?? serverTimestamp(),
                     updatedBy: legacyData.updatedBy ?? currentUser,
-                });
+                }));
                 named.push({
                     id:        ref.id,
                     name:      'Design 1',
