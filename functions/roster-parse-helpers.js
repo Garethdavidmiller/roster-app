@@ -511,6 +511,92 @@ function buildPushPayload({ feature, body, baseUrl, headline, url }) {
     return { title: `${f.emoji} ${finalHeadline}`, body, tag: f.tag, url: finalUrl };
 }
 
+// ── setupRosterAuth — pure decision helpers (B4) ───────────────────────────────
+// Extracted from the setupRosterAuth onRequest handler so the auth-provisioning logic (which uses
+// the Firebase Admin SDK and cannot be exercised in the test sandbox) is unit-tested here. The
+// handler calls each of these; keep them the single source so the handler and tests can't drift.
+
+/**
+ * Parse the ACTION flags from a setupRosterAuth request. Only `removeOrphans`/`confirmOrphanRemoval`
+ * are honoured (member/role lists are server-owned). A non-JSON Content-Type makes firebase-functions
+ * populate `reqBody` with a wrong-shape object, so re-parse `rawBody` as JSON whenever `removeOrphans`
+ * isn't already a boolean — otherwise the flags would silently drop on the raw-body curl fallback.
+ * @param {any} reqBody  req.body (parsed by firebase-functions, or a wrong-shape object)
+ * @param {any} rawBody  req.rawBody (Buffer/string) — the raw request body
+ * @returns {{ removeOrphans: boolean, confirmOrphanRemoval: boolean }}
+ */
+function parseSetupActionFlags(reqBody, rawBody) {
+    let body = (reqBody && typeof reqBody === 'object' && !Array.isArray(reqBody)) ? reqBody : {};
+    if (typeof body.removeOrphans !== 'boolean' && rawBody) {
+        try {
+            const parsed = JSON.parse(rawBody.toString('utf8'));
+            if (parsed && typeof parsed === 'object') body = parsed;
+        } catch (_e) { /* not JSON — keep reqBody; flags default off (fail-safe: no sweep) */ }
+    }
+    return { removeOrphans: body.removeOrphans === true, confirmOrphanRemoval: body.confirmOrphanRemoval === true };
+}
+
+/**
+ * Resolve the SERVER-OWNED member + role lists from roster-members.json and fail closed on a broken
+ * config. Returns `{ error }` (a short code) when unusable — an empty active-members list, or an empty
+ * admin list (which would strip the admin claim on the next run and lock admin provisioning out).
+ * `processMembers` unions the role names into the member set so every role-holder is provisioned AND
+ * lands in the never-orphan set (a leaver sweep can then never disable an admin/manager/designer).
+ * @param {any} rosterMembers  the parsed roster-members.json
+ * @returns {{ error?: string, members?: string[], admin?: string[], manager?: string[], designer?: string[], processMembers?: string[] }}
+ */
+function resolveRosterAuthConfig(rosterMembers) {
+    const members  = Array.isArray(rosterMembers && rosterMembers.activeMembers) ? rosterMembers.activeMembers : [];
+    const roles    = (rosterMembers && rosterMembers.roles) || {};
+    const admin    = Array.isArray(roles.admin)    ? roles.admin    : [];
+    const manager  = Array.isArray(roles.manager)  ? roles.manager  : [];
+    const designer = Array.isArray(roles.designer) ? roles.designer : [];
+    if (members.length === 0) return { error: 'missing-active-members' };
+    if (admin.length === 0)   return { error: 'empty-admin' };
+    const processMembers = [...new Set([...members, ...admin, ...manager, ...designer])];
+    return { members, admin, manager, designer, processMembers };
+}
+
+/**
+ * The custom-claims object for one member. admin outranks manager (a member in both gets `admin`
+ * only); `linksDesigner` is additive (orthogonal to the admin/manager tier). Every account gets `name`.
+ * @param {string} name
+ * @param {{ adminSet: Set<string>, managerSet: Set<string>, designerSet: Set<string> }} sets
+ * @returns {Record<string, any>}
+ */
+function claimsForTier(name, { adminSet, managerSet, designerSet }) {
+    const isAdmin    = adminSet.has(name);
+    const isManager  = !isAdmin && managerSet.has(name);
+    const isDesigner = designerSet.has(name);
+    /** @type {Record<string, any>} */
+    const claims = { name };
+    if (isAdmin)        claims.admin = true;
+    else if (isManager) claims.manager = true;
+    if (isDesigner)     claims.linksDesigner = true;
+    return claims;
+}
+
+/**
+ * Which Firebase Auth accounts are leaver ORPHANS: a `@myb-roster.local` account not in the active
+ * set and not already disabled. Pure detection — the handler decides whether to preview (dry-run) or
+ * disable+revoke them. Skips accounts with no email and never returns an already-disabled account.
+ * @param {Array<{ uid?: string, email?: string, displayName?: string, disabled?: boolean }>} users
+ * @param {Set<string>} activeEmails  emails of currently-provisioned members (never disabled)
+ * @returns {Array<{ uid: string|undefined, label: string }>}
+ */
+function computeOrphanLabels(users, activeEmails) {
+    const out = [];
+    for (const user of users || []) {
+        if (user && user.email &&
+            user.email.endsWith('@myb-roster.local') &&
+            !activeEmails.has(user.email) &&
+            !user.disabled) {
+            out.push({ uid: user.uid, label: user.displayName || user.email });
+        }
+    }
+    return out;
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -528,4 +614,8 @@ module.exports = {
     nameToPassword,
     NOTIFICATION_FEATURES,
     buildPushPayload,
+    parseSetupActionFlags,
+    resolveRosterAuthConfig,
+    claimsForTier,
+    computeOrphanLabels,
 };
