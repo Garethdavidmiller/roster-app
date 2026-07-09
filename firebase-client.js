@@ -272,6 +272,18 @@ export async function assertFileSignature(file, expectedType) {
 const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal']);
 
 /**
+ * True if this upload should be treated as a Word (.docx) file. Matches the accept predicates
+ * (`isDocxFile` in doc-upload.js / `_isDocx` in huddle.js) — extension OR the exact docx MIME —
+ * so upload-side type detection agrees with what the picker accepted. Kept local (not imported
+ * from doc-upload.js) to avoid firebase-client depending on a UI module.
+ * @param {File} file
+ */
+function isDocxUpload(file) {
+    return file.name.toLowerCase().endsWith('.docx')
+        || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+}
+
+/**
  * Upload a Huddle file (PDF or Word .docx) for a given date.
  *
  * Stores the file at huddles/YYYY-MM-DD.pdf or huddles/YYYY-MM-DD.docx in
@@ -287,7 +299,11 @@ const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 
  * @returns {Promise<string>} Publicly accessible download URL of the stored file
  */
 export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
-    const fileType   = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
+    // Detect by extension OR the docx MIME — must match the accept predicates (isDocxFile in
+    // doc-upload.js / _isDocx in huddle.js), or a file accepted via its MIME (a cloud/Android picker
+    // that supplies a name WITHOUT the .docx extension) would be mis-detected as 'pdf' here and then
+    // rejected by the signature check with a confusing "not a valid PDF/Word" error.
+    const fileType   = isDocxUpload(file) ? 'docx' : 'pdf';
     await assertFileSignature(file, fileType);   // reject a renamed non-PDF/DOCX before it reaches Storage
     const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
     // Explicitly set the content type rather than relying on the browser to report it.
@@ -435,9 +451,11 @@ async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, delete
 async function _uploadDoc(collectionName, date, file, uploadedBy) {
     // Accept PDF or Word (.docx). Both open straight from the tokenised URL — the viewers just
     // window.open() it, so a PDF previews in-tab and a .docx opens/downloads in Word (no inline
-    // conversion for these two, unlike the Huddle). Detect the type from the extension and set the
+    // conversion for these two, unlike the Huddle). Detect by extension OR the docx MIME so this
+    // matches the accept predicate (isDocxFile) — otherwise a .docx accepted via its MIME (no .docx
+    // in the picked name) would be mis-detected as 'pdf' and rejected by the signature check. Set the
     // MIME explicitly — Android sometimes reports .docx as application/zip. Mirrors uploadHuddle.
-    const fileType = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
+    const fileType = isDocxUpload(file) ? 'docx' : 'pdf';
     await assertFileSignature(file, fileType);   // reject a renamed/mismatched file before Storage
     const mimeType = fileType === 'docx'
         ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
