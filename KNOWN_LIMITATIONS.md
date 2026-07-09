@@ -55,11 +55,12 @@ itself create a Firebase Auth identity. **B1 (v14.42, `ENFORCE_NAMED_SESSION = t
 closed the anonymous-fallback write path:** the write pages (admin/operations/settings/links)
 now require the member's OWN named Firebase session — a session that can't establish one is
 bounced to re-login rather than proceeding as a nameless guest, so anonymous writes from a
-forged UI session no longer occur there. Firestore rules are still `request.auth != null`
-(per-member isolation is B2, not yet shipped), and the named password is still surname-derived,
-so this is hardening, not full remediation. Local UI checks remain non-security controls.
-Practical risk is low for a small known team. Remaining remediation (per-member role-based
-rules) is tracked in `SECURITY_RELEASE_PLAN.md` → B2, and task #2 below for the suspended
+forged UI session no longer occur there. Per-member write isolation on `overrides` has since
+**shipped strict (B3, v16.29)** — create/update/delete require
+`token.name == memberName || token.admin || token.manager` — though the named password is still
+surname-derived, so this remains hardening, not full remediation. Local UI checks remain
+non-security controls. Practical risk is low for a small known team. The per-member role-based
+rules are tracked in `SECURITY_RELEASE_PLAN.md` → B2/B3, and task #2 below for the suspended
 first attempt.
 
 ### Firebase Auth session is re-established on page load (v10.93)
@@ -72,9 +73,10 @@ self-heals a missing account). Full description and the "do not remove this call
 
 ### ⏰ The four v11 security tasks — current status
 
-Originally pencilled in for v10.50, deferred to v11. Status as of v14.29:
-**#1 done** (with a critical allowlist caveat — see below) · **#2 suspended** (caused a
-production outage) · **#3 done** · **#4 done** (verified live 27 June 2026).
+Originally pencilled in for v10.50, deferred to v11. Current status:
+**#1 done** (with a critical allowlist caveat — see below) · **#2 SHIPPED strict at v16.29**
+(was suspended after the v10.94 outage; rebuilt as B2 v14.53, hardened to strict B3 v16.29) ·
+**#3 done** · **#4 done** (verified live 27 June 2026).
 
 **1. Firebase web API key — restrict to HTTP referrers ✓ DONE (May 2026) ⚠️ SEE NOTE**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
@@ -101,19 +103,19 @@ domain the app is served from. Current allowlist must include:
 If you ever add a custom domain, add it here too — or ALL Firebase Auth and API calls
 will silently fail for users on that domain, with no visible error in the app UI.
 
-**2. Firestore security rules — member write isolation ✅ REBUILT as B2 (v14.53, pending deploy)**
-> **Status update:** the original suspended isolation has been reintroduced the *cautious* way as
-> phase **B2** (`SECURITY_RELEASE_PLAN.md`). `overrides` create/update/delete now check
-> `token.name == memberName || token.admin || token.manager || !('name' in token)` — the **permissive
-> 3-tier** form. The two v10.94 root causes are both fixed years ago (the `name` claim is set for
-> everyone by `setupRosterAuth`; the page-load Firebase session is reliably established via
-> `ensureFirebaseSession`, B1). The new design avoids the original outage by (a) keeping the
-> `!('name' in token)` escape so no legacy/anonymous token is ever hard-rejected (B3 removes it after
-> a re-auth sweep), and (b) adding the **`manager` tier** the original lacked — the 6 managers edit
-> staff data on behalf and would otherwise be locked out. Emulator-tested (3-tier matrix + delete +
-> date bounding, all green). **Deploy prerequisite:** re-run "Set up accounts" so managers gain the
-> `manager` claim, and have them token-refresh, before relying on the rule. The historical
-> post-mortem below is retained for context.
+**2. Firestore security rules — member write isolation ✅ SHIPPED, strict (B2 v14.53 → B3 strict v16.29)**
+> **Status update:** the original suspended isolation was reintroduced the *cautious* way as
+> phase **B2** (`SECURITY_RELEASE_PLAN.md`), then hardened to the **strict B3 form at v16.29**.
+> `overrides` create/update/delete now require
+> `token.name == memberName || token.admin || token.manager` — the `!('name' in token)` no-name/legacy
+> escape has been **removed**. The two v10.94 root causes were both fixed years ago (the `name` claim is
+> set for everyone by `setupRosterAuth`; the page-load Firebase session is reliably established via
+> `ensureFirebaseSession`, B1). B2 first avoided the original outage by (a) an interim `!('name' in token)`
+> escape so no legacy/anonymous token was hard-rejected, and (b) adding the **`manager` tier** the original
+> lacked — the 6 managers edit staff data on behalf and would otherwise be locked out. B3 (v16.29) then
+> dropped the escape and went strict, after the CLAIM_EPOCH=2 token sweep + manager re-provision; stale
+> tokens self-heal via `writeWithClaimRetry`, so no mass sign-out was needed. Emulator-tested (tier matrix
+> + delete + date bounding, all green). The historical post-mortem below is retained for context.
 
 Originally implemented in v10.72 (`firestore.rules`). Per-member write isolation required
 every write to carry a custom JWT claim (`request.auth.token.name` = memberName,
@@ -140,7 +142,7 @@ staff member may write, matching the pre-v10.72 model that ran without incident 
 months. Field validation (type whitelist, size limits, required keys) is still enforced
 for data integrity.
 
-**To re-introduce (deferred to a future version):**
+**To re-introduce (RE-INTRODUCED as B2 v14.53, then shipped STRICT as B3 v16.29):**
 - Confirm `setupRosterAuth` reliably sets `name` claims for all staff (v10.88 fixed this)
 - Confirm page-load Firebase Auth session is reliably established (v10.93 fixed this)
 - Re-add the per-member claim checks to `firestore.rules`
@@ -173,7 +175,7 @@ non-cutoff days (`[payReminder] Not a cutoff date — skipping`).
 **✓ Verified live on Saturday 27 June 2026** (cutoff for the 3 Jul payday): the reminder
 push arrived on a real device. The full scheduled path — Cloud Scheduler trigger →
 cutoff-date detection → fan-out — now works end to end. All four v11 security tasks are
-resolved or consciously deferred (#1 done, #2 suspended, #3 done, #4 done).
+now resolved (#1 done, #2 shipped strict v16.29, #3 done, #4 done).
 
 ### Firebase App Check — considered and declined (June 2026)
 App Check (register the app's hosting domains so only requests from our own pages can reach
@@ -194,12 +196,14 @@ Firestore/Storage) was considered as a defence-in-depth measure and **declined f
   bulk reads/writes from outside our pages, which is a real but low-probability attack here.
 
 **When to revisit:** if the app is advertised more widely or becomes official Chiltern
-infrastructure. Of the deferred security work, per-member write isolation (task #2 above) has
-the higher real value. Its old blocker — the Firestore emulator test suite (ROADMAP Phase 7) —
-is now **in place** (`firestore.rules.test.mjs` + `storage.rules.test.mjs`, run via
-`npm run test:rules`, gating `deploy-rules.yml`), so the rules change could finally be tested
-before shipping. The remaining barrier is the operational fragility of the multi-step claim
-recovery (that exact change caused the v10.94 outage), not a missing test harness.
+infrastructure. Of the deferred security work, per-member write isolation (task #2 above) had
+the higher real value and has now **SHIPPED strict at v16.29** (B3). Its old blocker — the
+Firestore emulator test suite (ROADMAP Phase 7) — was put **in place** (`firestore.rules.test.mjs`
++ `storage.rules.test.mjs`, run via `npm run test:rules`, gating `deploy-rules.yml`), letting the
+rules change be tested before shipping. The old operational-fragility barrier (the multi-step claim
+recovery that caused the v10.94 outage) was resolved by shipping after the CLAIM_EPOCH=2 sweep +
+manager re-provision, with stale tokens self-healing via `writeWithClaimRetry` — so no mass sign-out
+was needed.
 
 ---
 

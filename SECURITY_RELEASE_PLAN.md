@@ -1,6 +1,6 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: in progress (created v14.38). **Current state (as of v15.32):***
+*Status: in progress (created v14.38). **Current state (as of v16.29):***
 - *Track A — **A2 Workload Identity Federation ✓ DONE (v14.93)** (keyless OIDC deploys; SA JSON key +
   secret deleted — see Appendix A2); A3 doc-only ✓ DONE (v14.38); **A1 ✓ DONE (v15.32)** — the `uuid`
   advisories were cleared with a scoped `uuid` override on the supported firebase-admin `^13`, NOT the
@@ -9,10 +9,17 @@
   rolled back during the v14.72 login freeze, **re-enabled v14.98** after the freeze was fixed and B1
   exonerated — see LOGIN_INCIDENT.md); **B2 per-member override isolation BUILT + DEPLOYED permissive**
   (v14.53: the 3-tier `name || admin || manager || !name` rule + `manager` claim in `setupRosterAuth`,
-  incl. delete + bounded date validation; `linkDesigns` deliberately left at `request.auth != null`
-  per owner decision Jul 2026 — see B2; full Firestore + Storage rules suite green); **B3 — the strict
-  cutover (drop the `!name` escape) — is the next step** (still permissive today).*
-- *Tracks C (password) + D (App Check) — not started.*
+  incl. delete + bounded date validation); **B3 — the strict cutover ✓ SHIPPED (v16.29)** — the
+  `!name` legacy escape was removed from the `overrides` create/update AND delete rules, so writes now
+  require `token.name == memberName || token.admin || token.manager`, shipped after re-provision + the
+  `CLAIM_EPOCH == 2` sweep with `writeWithClaimRetry` self-healing stale tokens (no mass sign-out
+  needed). **H2 ✓ SHIPPED (v16.29)** — `linkDesigns` writes now require `token.linksDesigner == true ||
+  token.admin == true` (reads stay open); `setupRosterAuth` sets `linksDesigner` from
+  `CONFIG.LINKS_DESIGNERS`, and every `links-app.js` write is wrapped in `writeWithClaimRetry` so a
+  stale designer token self-heals. This SUPERSEDES the earlier "leave `linkDesigns` at
+  `request.auth != null`" owner decision.*
+- *Remaining security roadmap: surname-derived credential replacement (Track C), App Check enforcement
+  (Track D), public-read / tokenised-document-URL decisions, and B4 (server-owned role lists).*
 
 *This is the master **ordering + go/no-go** doc; the detailed designs live in ROADMAP.md /
 KNOWN_LIMITATIONS.md and are NOT duplicated here. Not version-stamped; not a runtime asset.*
@@ -73,7 +80,7 @@ B-track phase reference them.
 | **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
 | **Management** | `CONFIG.MANAGER_NAMES` (6 names) | **`{ manager: true, name }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
 | **Staff** | everyone else | `{ name }` | Only their **own** overrides (`token.name == memberName`) |
-| *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva']`) | *cross-cuts the above* — S. Silva is a **CEA**, not a manager. **No `linksDesigner` claim exists yet** — a dedicated one is the deferred H2 cutover (add claim → re-provision → refresh → gate `linkDesigns` write). Full apply-ready patch: **B3_STRICT_CUTOVER.HELD.md → "Sibling cutover — `linksDesigner` claim"**; rides the B3 window | `linkDesigns` (designs are **not** member-owned) — server-write control **still client-redirect only** until H2 |
+| *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva']`) | *cross-cuts the above* — S. Silva is a **CEA**, not a manager. **The `linksDesigner` claim is LIVE (H2 ✓ SHIPPED v16.29)** — `setupRosterAuth` sets it from `CONFIG.LINKS_DESIGNERS` and `linkDesigns` writes are gated on it. What was done: add claim → re-provision → refresh → gate `linkDesigns` write. Historical apply record: **B3_STRICT_CUTOVER.HELD.md → "Sibling cutover — `linksDesigner` claim"**; shipped in the B3 window | `linkDesigns` (designs are **not** member-owned) — server-write control is now the **`linksDesigner`/`admin` claim** (was client-redirect only until H2) |
 
 **The gap B2 closed (pre-v14.53):** originally only `ADMIN_NAMES` was sent to `setupRosterAuth` as
 `adminMembers`, so only G. Miller carried `admin: true`; managers carried just `{ name }`. The
@@ -84,14 +91,16 @@ but a silent lockout the moment a rule needed a claim. B2 (v14.53) shipped the f
 design points that flowed from this, still governing B3/B4:
 
 - **B2 introduced the `manager: true` claim** (set by `setupRosterAuth` for `MANAGER_NAMES`) and the
-  override rule checks `name == memberName || admin == true || manager == true`. (`linkDesigns` was
-  deliberately left at `request.auth != null` — see B2 — so the "Links rules" are not part of this
-  check.) The master-admin-only collections (huddles, circulars, newsletters, roster upload, auth
-  setup) stay `admin == true` only — do **not** grant managers `admin: true`, which would let them
-  reach those APIs directly and dissolve the very tier separation `MANAGER_NAMES` exists to enforce.
-- **B3's claims audit + token-refresh sweep must cover all three tiers** — a manager on a token
-  minted before the `manager` claim existed is rejected by the strict rule exactly like a staff
-  member on a pre-`name` token.
+  override rule checks `name == memberName || admin == true || manager == true`. (`linkDesigns` has its
+  own separate `linksDesigner`/`admin` write gate — H2 ✓ SHIPPED v16.29 — so the "Links rules" are not
+  part of this override check.) The master-admin-only collections (huddles, circulars, newsletters,
+  roster upload, auth setup) stay `admin == true` only — do **not** grant managers `admin: true`, which
+  would let them reach those APIs directly and dissolve the very tier separation `MANAGER_NAMES` exists
+  to enforce.
+- **B3's claims audit + token-refresh sweep covered all three tiers** (✓ SHIPPED v16.29) — a manager
+  on a token minted before the `manager` claim existed would be rejected by the strict rule exactly
+  like a staff member on a pre-`name` token, so the sweep + `writeWithClaimRetry` self-heal handled
+  both before the escape was removed.
 - **B4's server-owned lists must carry all three tiers** (admin + manager + designer), generated
   from `roster-data.js` so they cannot drift.
 
@@ -155,7 +164,8 @@ surface to debug when something goes silent.
 3. **B1 → B2** — named-session separation + per-member isolation rule (B2 also tightens the
    `pushSubscriptions` delete rule), all branch-safe with emulator tests (no deploy until merge).
 4. **B3** — claims audit + permissive→strict token-refresh rollout in a low-traffic window.
-   **The single highest-risk step in the entire plan.**
+   **Was the single highest-risk step in the entire plan — ✓ SHIPPED v16.29** (no lockout; the
+   `writeWithClaimRetry` self-heal meant no mass sign-out).
 5. **B4** — server-owned roster/role lists.
 6. **C2 → C4 → C3 → C5** — password release.
 7. **D1 → D2** — App Check monitor-then-enforce, once B is stable.
@@ -257,13 +267,13 @@ in `session.test.mjs`.
     create/update, or isolation on writes is pointless (anyone could still delete anyone's data).
 - **Goal (`linkDesigns`) — NOT member-isolated.** Link designs are keyed by **design name, not
   member**, so `token.name == memberName` is meaningless, and the designer **S. Silva is a CEA**
-  (no admin/manager claim). Member-name isolation does not fit this collection. **Decision (owner,
-  Jul 2026): (a) — leave `linkDesigns` at `request.auth != null`.** The real access control is the
-  client redirect on `CONFIG.LINKS_DESIGNERS`, and the blast radius is one niche internal design
-  tool. Revisit only if the workspace opens to more people — at which point option (b) (a dedicated
-  **`linksDesigner: true`** claim for the `LINKS_DESIGNERS` names, gating writes on
-  `admin || linksDesigner`) is the intended upgrade, best folded into B4's server-owned role lists
-  (see B4). Do **not** fold `linkDesigns` into the override member-name model either way.
+  (no admin/manager claim). Member-name isolation does not fit this collection. **The original owner
+  decision (Jul 2026) was (a) — leave `linkDesigns` at `request.auth != null`**, treating the client
+  redirect on `CONFIG.LINKS_DESIGNERS` as the real control given a one-tool blast radius. **That
+  decision was SUPERSEDED: H2 ✓ SHIPPED (v16.29)** — option (b) landed. A dedicated
+  **`linksDesigner: true`** claim is now set by `setupRosterAuth` for the `LINKS_DESIGNERS` names, and
+  `linkDesigns` writes are gated on `admin || linksDesigner` (reads stay open). Do **not** fold
+  `linkDesigns` into the override member-name model — its gate is the orthogonal `linksDesigner` claim.
 - **Goal (date validation hardening) — folded in from an external v14.51 review.** The `overrides`
   date rule validates *shape* only (`matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')`), so an impossible date
   like `2026-99-99` or `2026-02-31` passes; the `circulars`/`newsletters` date rules are weaker
@@ -295,16 +305,17 @@ in `session.test.mjs`.
   re-provisioned + refreshed **in the B2 window — not deferred to B3.** See the B2 deploy runbook below.
 - **Risk:** the rule is correct but rollout locks out cached-token sessions — for **managers too**,
   now (see B3).
-- **Mitigation:** this phase ships **only** the permissive interim isolation rule + tests; the strict
-  tighten happens in B3 after the re-auth sweep. Mirror the pattern already live on `staffContact`
-  (which is already three-tier-correct: `name == memberName || admin`).
+- **Mitigation:** this phase shipped **only** the permissive interim isolation rule + tests; the strict
+  tighten then happened in B3 after the re-auth sweep (✓ SHIPPED v16.29). Mirrors the pattern already
+  live on `staffContact` (which is already three-tier-correct: `name == memberName || admin`).
 - **Rollback:** revert the rule; `request.auth != null` restored. The `manager` claim is additive
   (an extra claim on a token harms nothing if the rule is rolled back).
 - **Gate:** emulator tests prove (a) staff member A cannot write or delete member B's override,
   (b) **a manager CAN write and delete any member's override**, (c) admin can write/delete anyone's,
   (d) the `roster_import` path still saves, (e) a **manager is still rejected** by the master-admin
   collections (huddles/circulars/newsletters/roster/auth) — tier separation holds, (f) `linkDesigns`
-  behaves per the chosen option, (g) a device can still delete its own push subscription,
+  behaved per the interim decision at B2 time (later tightened to the `linksDesigner`/`admin` gate —
+  H2 ✓ SHIPPED v16.29), (g) a device can still delete its own push subscription,
   (h) impossible dates (`2026-13-01`, `2026-99-99`) are denied while real dates still save.
 
 #### B2 deploy runbook (the order matters — a stale manager token has `name` but not `manager`)
@@ -324,7 +335,15 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
   first, run Set up accounts + manager refresh, *then* merge the rules in a follow-up — ask if you
   want B2 split into two merges.
 
-### B3 — claims audit + token-refresh rollout (HIGHEST RISK)
+### B3 — claims audit + token-refresh rollout (HIGHEST RISK) — ✅ COMPLETED (v16.29)
+
+> ✅ **COMPLETED (v16.29) — the steps below are what was executed; this is now a historical record.**
+> The `!('name' in token)` legacy escape was removed from the `overrides` create/update AND delete
+> rules; writes now require `token.name == memberName || token.admin || token.manager`. It shipped
+> after re-provision + the `CLAIM_EPOCH == 2` sweep, with `writeWithClaimRetry` self-healing any stale
+> token on first write — no mass sign-out was needed. Rollback (re-add the two escape lines) remains
+> instant. The runbook and diffs below record what was done.
+
 - **Goal:** every active session carries a fresh claim **of its correct tier** (`admin`, `manager`,
   or plain `name`), then tighten the interim rule to strict.
 - **Who:** Owner (Console + chosen window) + Claude (the two rule versions + verification script).
@@ -349,17 +368,20 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
      sessions you **bump `CLAIM_EPOCH` and deploy**, and every device refreshes on its next app open.
      Shipped at `CLAIM_EPOCH: 1`, which also accelerates B2 (managers pick up the `manager` claim on
      next open instead of waiting for the hourly auto-refresh). 6 unit tests in `session.test.mjs`.
-     For the strict cutover: bump `CLAIM_EPOCH` → 2, deploy, let the sweep window pass, then ship strict.
-  3. After the window, deploy the **strict** rule (drop the `|| no-name` branch).
-  - Pick a low-traffic window. **Verify in a fresh private window, never your installed phone.**
+     For the strict cutover this ran as: `CLAIM_EPOCH` → 2 (armed v15.33), deploy, let the sweep window
+     pass, then ship strict (done v16.29).
+  3. After the window, the **strict** rule was deployed (dropped the `|| no-name` branch) — ✓ v16.29.
+  - A low-traffic window was used. **Verified in a fresh private window, never an installed phone.**
 - **Rollback:** redeploy the permissive rule (instant), or revert to `request.auth != null`.
-- **Gate:** in a private window — a **staff** member writes their own AL/sick AND cannot write/delete
-  another member's; a **manager** writes AND deletes another member's AL/sick (on-behalf works) but
-  is still blocked from huddle/circular/newsletter/roster/auth; **admin** still writes for others;
-  roster upload still saves — *then* tighten to strict.
+- **Gate (verified before the strict tighten, ✓ v16.29):** in a private window — a **staff** member
+  writes their own AL/sick AND cannot write/delete another member's; a **manager** writes AND deletes
+  another member's AL/sick (on-behalf works) but is still blocked from
+  huddle/circular/newsletter/roster/auth; **admin** still writes for others; roster upload still saves
+  — the strict rule was then shipped.
 - **Write-side stale-claim retry (v15.07 review H3) — ✓ DONE (v15.18).** This is **only the
-  write-side retry** — NOT the whole B3 claim-freshness story (re-provision, `CLAIM_EPOCH` sweep,
-  matrix verify, and removing the no-name Rules escape all still remain; see the checklist below).
+  write-side retry** — one part of the B3 claim-freshness story (re-provision, `CLAIM_EPOCH` sweep,
+  matrix verify, and removing the no-name Rules escape were the rest — all now DONE, strict shipped
+  v16.29; see the checklist below).
   `writeWithClaimRetry(writeFn)` in `firebase-client.js` (the write-side equivalent of
   `adminReadWithRetry`) retries **exactly once**, and **only** on `err.code === 'permission-denied'`
   with a live `auth.currentUser`, after a **forced** token refresh (`getIdToken(true)`); any other
@@ -377,21 +399,22 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
   (which already ran — armed to `2` at v15.33, so `refreshClaimsIfStale` is now active).
   See LOGIN_INCIDENT.md.
 
-#### B3 cutover runbook (staged, pre-window — nothing here is deployed)
+#### B3 cutover runbook — ✅ COMPLETED (v16.29) — the steps below are what was executed; this is now a historical record
 
-> **Exact, line-verified patch:** `B3_STRICT_CUTOVER.HELD.md` (repo root) holds the ready-to-apply
-> `firestore.rules` diff AND the `firestore.rules.test.mjs` rework, verified against the live files
-> at v15.32. It is a `.md` (the strict rules live in fenced text, so nothing deploys). Apply it on a
-> fresh window-time branch. The steps below are the surrounding overview; that file is the patch.
-> **Note the test rework is broader than a naive "create tests" swap:** the whole `describe('overrides')`
-> field-validation block uses `staffDb()` (no-name), which strict denies — every one must move to
-> `namedDb('G. Miller')`, and the no-name escape test flips to `assertFails` (+ a delete mirror).
+> **Exact, line-verified patch (as applied):** `B3_STRICT_CUTOVER.HELD.md` (repo root) holds the
+> `firestore.rules` diff AND the `firestore.rules.test.mjs` rework that shipped, verified against the
+> live files at v15.32 (dry-run re-verified v16.28) and deployed v16.29. The steps below are the
+> surrounding overview; that file is the patch that was applied.
+> **Note the test rework was broader than a naive "create tests" swap:** the whole
+> `describe('overrides')` field-validation block used `staffDb()` (no-name), which strict denies — every
+> one moved to `namedDb('G. Miller')`, and the no-name escape test flipped to `assertFails` (+ a delete
+> mirror).
 
-Everything below is **HELD**. It must NOT be committed to `firestore.rules` on any branch you will
-merge before the window — merging to `main` runs `deploy-rules.yml` and ships the rule LIVE. Apply it
-on a **fresh branch cut at window time**, in this order. (The write-side retry net, v15.18, is already
-live and means a manager who misses the sweep self-heals on first write — so this is safer than a cold
-cutover, but still do the sweep.)
+Everything below **WAS HELD until the v16.29 window**, then applied on a fresh branch, gated by the
+`test:rules` emulator suite, and merged (merging to `main` runs `deploy-rules.yml` and ships the rule
+LIVE). It was executed in this order. (The write-side retry net, v15.18, was already live and meant a
+manager who missed the sweep self-healed on first write — so the cutover was safer than a cold one; the
+sweep was still done.)
 
 **Pre-window checks:** `CLAIM_EPOCH == 2` (sweep already armed v15.33 — see Progress below),
 `ENFORCE_NAMED_SESSION == true`, in-place-login rollout deployed and settled; `CONFIG.MANAGER_NAMES`
@@ -407,8 +430,8 @@ device force-refreshes once on next open regardless of its stored `myb_claim_epo
 again** unless deliberately forcing a fresh sweep. What remains of this step at window time: confirm
 active devices have re-opened since the v15.33 hosting deploy, and force sign-out any stragglers.
 
-**Step 3 — Strict rule diff (Claude).** Remove the no-name escape from the `overrides` create/update
-AND delete blocks in `firestore.rules`:
+**Step 3 — Strict rule diff (Claude) — ✓ DONE (v16.29).** Removed the no-name escape from the
+`overrides` create/update AND delete blocks in `firestore.rules`:
 
 ```diff
            request.auth.token.name == request.resource.data.memberName ||
@@ -448,12 +471,13 @@ describe('overrides — strict isolation (B3)', () => {
 });
 ```
 
-**Step 6 — Deploy strict rules (owner).** Merge the strict branch → `deploy-rules.yml` runs the reworked
-suite as a gate, then ships. Do this **after** the Step 2 sweep window, never before.
+**Step 6 — Deploy strict rules (owner) — ✓ DONE (v16.29).** The strict branch was merged →
+`deploy-rules.yml` ran the reworked suite as a gate, then shipped. Done **after** the Step 2 sweep
+window, never before.
 
-**Step 7 — Verify live (owner, private window):** staff writes own AL/absence ✓; staff cannot edit
-another's ✗; manager edits another's ✓ and is still blocked from huddle/circular/newsletter/roster/auth;
-admin edits others' ✓; roster upload saves ✓.
+**Step 7 — Verify live (owner, private window) — ✓ DONE (v16.29):** staff writes own AL/absence ✓;
+staff cannot edit another's ✗; manager edits another's ✓ and is still blocked from
+huddle/circular/newsletter/roster/auth; admin edits others' ✓; roster upload saves ✓.
 
 **Rollback:** re-add the two escape lines and redeploy the permissive rule (instant), or revert
 `overrides` to `request.auth != null`. No data migration either way.
@@ -519,8 +543,8 @@ admin edits others' ✓; roster upload saves ✓.
 | ~~Confirmed Chiltern **work-email domain**~~ | ~~staffContact domain validation~~; C2/C4 email recovery | **✓ RESOLVED (v14.97): `chilternrailways.co.uk`** — `CONFIG.WORK_EMAIL_DOMAIN` (single source) + `isChilternWorkEmail()` in `roster-data.js`, enforced client-side AND in `firestore.rules`. (Was deferred in v14.24 for lockout risk.) Still confirm it's the right domain before C2/C4 email *recovery* relies on it. |
 | Email relay choice — Power Automate vs Firebase Trigger Email | C2, C4 | Power Automate relay already exists (Huddle ingest). |
 | Code expiry / retry-rate-limit policy | C2, C4 | 10-minute expiry + 3-attempt lockout is the documented default. |
-| A low-traffic **re-auth window** | B3 | The single highest-risk step; pick when a brief staff re-login is acceptable. **The window must re-provision + refresh tokens for the 6 managers too** (new `manager` claim) — not just staff. |
-| ~~`linkDesigns` isolation: leave open vs. add a `linksDesigner` claim~~ | ~~B2~~ | **✓ DECIDED (Jul 2026): leave at `request.auth != null`** (designs aren't member-owned; S. Silva is a CEA; client redirect on `LINKS_DESIGNERS` is the real control). Upgrade path → B4 if the tool opens up. |
+| ~~A low-traffic **re-auth window**~~ | ~~B3~~ | **✓ DONE (v16.29): strict cutover shipped.** The window re-provisioned + refreshed tokens for the 6 managers too (`manager` claim), the `CLAIM_EPOCH == 2` sweep + `writeWithClaimRetry` self-heal meant no mass sign-out, and the no-name escape was removed. |
+| ~~`linkDesigns` isolation: leave open vs. add a `linksDesigner` claim~~ | ~~B2~~ | **SUPERSEDED — ✓ H2 SHIPPED (v16.29): added the `linksDesigner` claim.** The earlier "leave at `request.auth != null`" decision (Jul 2026) was replaced: `linkDesigns` writes now require `linksDesigner`/`admin` (reads stay open); `setupRosterAuth` sets the claim from `CONFIG.LINKS_DESIGNERS`. |
 | `pushSubscriptions` delete: keep `request.auth != null` vs. add a stored owner field | B2 | Recommendation: keep as-is (no member identity on the doc; the id already requires knowing the endpoint). |
 | ~~GCP **Workload Identity Pool** setup~~ | ~~A2~~ | **✓ DONE (v14.93)** — pool/provider/binding built with the repo-scoped `assertion.repository` condition (Appendix A2). |
 | reCAPTCHA Enterprise provider | D1/D2 | Required before App Check can attest. |
@@ -561,19 +585,20 @@ admin edits others' ✓; roster upload saves ✓.
 - [x] B2 — per-member override isolation (permissive, **3-tier: name/admin/manager**, incl. delete)
       + `setupRosterAuth` `manager` claim + `linkDesigns`/`pushSubscriptions` decisions + emulator tests.
       **BUILT + DEPLOYED permissive (v14.53)** (Firestore + Storage rules suite green); managers re-provisioned per the
-      B2 deploy runbook. **B3 is the strict tighten** (drop the `!('name' in token)` escape).
-- [~] B3 — claims audit + permissive→strict token-refresh rollout (**re-provision the manager claim too**).
-      **Client sweep BUILT v14.71** (`CONFIG.CLAIM_EPOCH` + `refreshClaimsIfStale()`, 6 tests) — the
-      deterministic token-refresh mechanism. **Write-side stale-claim retry net BUILT v15.18**
-      (`writeWithClaimRetry`, all three override write paths). **Full cutover runbook STAGED** (exact
-      rule diff + reworked/added rules tests + ordered steps + rollback) — see "B3 cutover runbook"
-      above. **Progress:** managers re-provisioned (warm-up runs ~1–2 Jul 2026); **`CLAIM_EPOCH`
-      ARMED → 2 at v15.33** (the pre-cutover sweep — set to 2 because 1 shipped in v14.71 then was
-      hotfixed to 0 in v14.72, so some devices hold `myb_claim_epoch=1`). **Remaining (owner-gated):**
-      health-check the v15.33 hosting deploy in a private window → let the sweep settle ~3–7 days of
-      normal use (force-sign-out stragglers) → re-run Set up accounts in-window → apply the staged
-      strict rule + tests (`B3_STRICT_CUTOVER.HELD.md`) on a fresh branch → verify the private-window
-      matrix → THEN deploy the strict rule (a SEPARATE deploy from this sweep).
+      B2 deploy runbook. **B3 shipped the strict tighten** (dropped the `!('name' in token)` escape — v16.29).
+- [x] B3 — claims audit + permissive→strict token-refresh rollout (**re-provisioned the manager claim too**)
+      — **✓ SHIPPED v16.29.** **Client sweep BUILT v14.71** (`CONFIG.CLAIM_EPOCH` + `refreshClaimsIfStale()`,
+      6 tests) — the deterministic token-refresh mechanism. **Write-side stale-claim retry net BUILT v15.18**
+      (`writeWithClaimRetry`, all three override write paths). **`CLAIM_EPOCH` ARMED → 2 at v15.33** (the
+      pre-cutover sweep). **Executed (v16.29):** health-checked the sweep in a private window → let it settle
+      → re-ran Set up accounts in-window → applied the strict rule + reworked tests
+      (`B3_STRICT_CUTOVER.HELD.md`) on a fresh branch → verified the private-window matrix → deployed the
+      strict rule. `writeWithClaimRetry` self-healed stale tokens, so no mass sign-out was needed.
+- [x] H2 — `linkDesigns` write requires the `linksDesigner`/`admin` claim (reads stay open)
+      — **✓ SHIPPED v16.29.** `setupRosterAuth` sets `linksDesigner` from `CONFIG.LINKS_DESIGNERS`,
+      `admin-auth.js` sends `designerMembers`, and every `links-app.js` write is wrapped in
+      `writeWithClaimRetry` so a stale designer token self-heals. Superseded the earlier
+      "leave at `request.auth != null`" decision.
 - [ ] B4 — server-owned role lists (**admin + manager + designer**, all generated server-side)
 - [ ] C2 — email verification
 - [ ] C4 — forgotten-password reset

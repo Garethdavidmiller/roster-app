@@ -17,6 +17,8 @@ let   _idTokenRefreshes = 0;
 let   _refreshShouldFail = false;     // model getIdToken(true) failing (offline/flaky)
 let   _commitBehavior   = () => {};   // called on each batch.commit(); may throw
 const _batchOps         = [];         // one ops-array per writeBatch() call
+// getDocs impl the fetchOverridesForWeek tests swap in (default: empty result set).
+let   _getDocsImpl      = async () => ({ docs: [] });
 
 /** A permission-denied error shaped like Firestore's (writeWithClaimRetry keys on .code). */
 function _denied() {
@@ -32,7 +34,7 @@ mock.module('./firebase-client.js', {
         collection: () => ({}),
         query: () => null,
         where: () => null,
-        getDocs: async () => ({ forEach: () => {} }),
+        getDocs: async (/** @type {any} */ ...args) => _getDocsImpl(...args),
         doc: () => ({}),
         writeBatch: () => {
             const ops = [];
@@ -66,7 +68,7 @@ mock.module('./firebase-client.js', {
     },
 });
 
-const { shiftValueToOverrideType, _saveOverrideBatches } = await import('./admin-roster-upload.js');
+const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek } = await import('./admin-roster-upload.js');
 
 // 2026-06-21 is a Sunday; 2026-06-15 is a Monday.
 const SUN = '2026-06-21';
@@ -203,5 +205,50 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
             'G. Miller');
         assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 1);
         assert.equal(_batchOps[0].filter(o => o.op === 'set').length, 1);
+    });
+});
+
+// ── Roster Upload conflict-read FAIL-CLOSED (regression for the v16.24 Tier-1 bug) ──
+// The existing-overrides read gates the review classification. If it fails, the upload must
+// NOT proceed as "no existing overrides" — that let the review mark rows safe while blind to
+// manual AL/absence/shift changes, so Save could silently overwrite/duplicate them. The fix:
+// fetchOverridesForWeek THROWS a tagged `conflictReadFailed` error (never returns []) so the
+// parse handler stops, hides the review, clears _cellStates, and shows the fail-closed message.
+describe('fetchOverridesForWeek — fail-closed conflict read (v16.25 regression)', () => {
+    beforeEach(() => { _getDocsImpl = async () => ({ docs: [] }); });
+
+    test('a getDocs rejection throws a tagged conflictReadFailed error — NOT []', async () => {
+        _getDocsImpl = async () => { throw new Error('unavailable'); };
+        await assert.rejects(
+            () => fetchOverridesForWeek(['2026-06-15', '2026-06-16']),
+            (/** @type {any} */ err) => {
+                // The tag is what routes the parse handler to fail-closed (hide review, clear
+                // _cellStates, show "Couldn't check your existing saved changes"). Without it the
+                // handler would treat the failure as a generic error, and a [] return would have
+                // let the review apply blind — the exact Tier-1 bug.
+                assert.equal(err.conflictReadFailed, true);
+                assert.equal(err.message, 'CONFLICT_READ_FAILED');
+                return true;
+            });
+    });
+
+    test('a permission-denied rejection also fails closed (does not swallow to [])', async () => {
+        _getDocsImpl = async () => { throw _denied(); };
+        await assert.rejects(
+            () => fetchOverridesForWeek(['2026-06-15']),
+            (/** @type {any} */ err) => err.conflictReadFailed === true);
+    });
+
+    test('happy path returns the mapped overrides (id + data spread), never throws', async () => {
+        _getDocsImpl = async () => ({
+            docs: [
+                { id: 'o1', data: () => ({ memberName: 'G. Miller', date: '2026-06-15', value: 'AL', source: 'manual' }) },
+                { id: 'o2', data: () => ({ memberName: 'S. Boyle',  date: '2026-06-16', value: 'SICK', source: 'manual' }) },
+            ],
+        });
+        const rows = await fetchOverridesForWeek(['2026-06-15', '2026-06-16']);
+        assert.equal(rows.length, 2);
+        assert.deepEqual(rows[0], { id: 'o1', memberName: 'G. Miller', date: '2026-06-15', value: 'AL', source: 'manual' });
+        assert.equal(rows[1].id, 'o2');
     });
 });
