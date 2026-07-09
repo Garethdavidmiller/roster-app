@@ -182,6 +182,7 @@ roster-app/
 ├── huddle.js               ← initHuddleUpload (→ operations) + initHuddleNotifications (→ settings)
 ├── doc-upload.js           ← shared Operations upload-card skeleton (Circular/Newsletter/Huddle): file-pick → validate (type + 20 MB) → optional transform (Huddle DOCX→HTML) → upload → feedback. initDocUploadCard(cfg)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card: initAuthSetup()
+├── admin-email-check.js    ← one-time work-email confirmation overlay (extracted from admin-app.js v16.41): initEmailCheck(member). Self-contained (imports ls/firebase-client/roster-data/overlay/session + DOM only) — shown once per fresh login, ~3-monthly, mandatory once shown; never blocks the app. The login `myb_email_check_pending_<member>` marker is still SET by admin-app.js's login onSuccess and CONSUMED here.
 ├── admin-al.js             ← Annual Leave Booking: initALSection(deps), triggerConfirmedALSave() — thin config wrapper over admin-range-booking.js (60-day cap, 🏖️ preview + spare warning, over-entitlement confirm bar)
 ├── admin-sick.js           ← Sick Days Recording: initSickSection(deps) — thin config wrapper over admin-range-booking.js (1-year cap, 🪑 preview; no entitlement cap)
 ├── admin-range-booking.js  ← shared skeleton for the two date-range booking sections: createRangeBookingSection(cfg) — dropdown + range picker → live preview → recordRangeOverrides save flow. Per-section differences (range rule, preview copy, AL pre-save entitlement check, refresh hooks) injected via config

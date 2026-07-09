@@ -14,8 +14,8 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
-import { db, auth, doc, writeBatch, writeWithClaimRetry, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
+import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage } from './auth-policy.js';
@@ -26,7 +26,8 @@ import { initSickSection } from './admin-sick.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
-import { lockBodyScroll, unlockBodyScroll, initCardCollapse } from './overlay.js';
+import { initCardCollapse } from './overlay.js';
+import { initEmailCheck } from './admin-email-check.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift, computePeriodDeleteIds } from './override-utils.js';
@@ -1571,191 +1572,6 @@ async function purgeSundayAL() {
 // ---- One-time work email check (shown once per device after login) ----
 
 /** ~3-monthly work-email re-confirmation cadence (v14.77). */
-const EMAIL_CHECK_INTERVAL_MS = 90 * 24 * 60 * 60 * 1000;
-
-/** True if the member is DUE a work-email confirmation: never confirmed, a legacy/non-timestamp
- *  flag, or last confirmed ≥ 3 months ago. `myb_email_check_done_<member>` stores the last-confirmed
- *  time in ms. The pre-v14.77 flag was the literal '1' (done-forever) — that and any junk parse
- *  small (< a real ms timestamp), so they read as due and the new cadence starts cleanly.
- */
-function _emailCheckDue(/** @type {string} */ member) {
-    const raw  = lsGet(`myb_email_check_done_${member}`);
-    const last = raw ? parseInt(raw, 10) : 0;
-    if (!Number.isFinite(last) || last < 1e12) return true;   // never / legacy '1' / junk → due
-    return Date.now() - last >= EMAIL_CHECK_INTERVAL_MS;
-}
-
-/**
- * Inner promise-based engine for the email check overlay.
- * Returns without showing unless this is a fresh login (pending marker) AND the check is due
- * (≥ 3 months since last confirmed), or if the Firestore fetch fails (never blocks the app).
- * Resolves when the user confirms or saves their email.
- * @param {any} member
- */
-async function _runEmailCheck(member) {
-    // Fix 4 + cadence (v14.77): prompt ONLY right after a fresh login (the one-shot pending marker
-    // set in showAdminLogin) — never on a random Admin page load — and only when actually due
-    // (≥ 3 months since last confirmed). Consume the marker as soon as we decide, so the modal can
-    // never reappear on a later non-login load this session; the result is stamped on dismiss.
-    const pendingKey = `myb_email_check_pending_${member}`;
-    if (!lsGet(pendingKey)) return;            // not a fresh login → don't prompt
-    lsDel(pendingKey);                         // one-shot: consume the login marker now
-    if (!_emailCheckDue(member)) return;       // confirmed within the last ~3 months — nothing to do
-
-    // Time-box the Firestore read so a slow/hung getStaffContact can't hang the (now async,
-    // off-login-path) check. On timeout/error we skip it this load — it reappears on the next login.
-    let existing = null;
-    try {
-        existing = await Promise.race([
-            getStaffContact(member),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('email-check read timed out')), 4000)),
-        ]);
-    } catch { return; }
-
-    const overlayEl   = document.getElementById('emailCheckOverlay');
-    if (!overlayEl) return;
-    const overlay     = /** @type {HTMLElement} */ (overlayEl);
-    const confirmView = /** @type {HTMLElement} */ (document.getElementById('emailCheckConfirmView'));
-    const editView    = /** @type {HTMLElement} */ (document.getElementById('emailCheckEditView'));
-    const storedEl    = /** @type {HTMLElement} */ (document.getElementById('emailCheckStoredEmail'));
-    const yesBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('emailCheckYesBtn'));
-    const changeBtn   = /** @type {HTMLElement} */ (document.getElementById('emailCheckChangeBtn'));
-    const backBtn     = /** @type {HTMLElement} */ (document.getElementById('emailCheckBackBtn'));
-    const input       = /** @type {HTMLInputElement} */ (document.getElementById('emailCheckInput'));
-    const errorEl     = /** @type {HTMLElement} */ (document.getElementById('emailCheckError'));
-    const saveBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('emailCheckSaveBtn'));
-
-    // Hide the login overlay from assistive tech when the email check stacks on top.
-    const loginOverlay = document.getElementById('loginOverlay');
-    loginOverlay?.setAttribute('aria-hidden', 'true');
-
-    return /** @type {Promise<void>} */ (new Promise(resolve => {
-        function _showConfirm() {
-            confirmView.hidden = false;
-            editView.hidden = true;
-            backBtn.hidden = true;
-            overlay.setAttribute('aria-label', 'Confirm work email');
-        }
-
-        /**
-         * @param {any} prefill
-         * @param {any} showBack
-         */
-        function _showEdit(prefill, showBack) {
-            editView.hidden = false;
-            confirmView.hidden = true;
-            if (prefill !== undefined) input.value = prefill;
-            backBtn.hidden = !showBack;
-            overlay.setAttribute('aria-label', showBack ? 'Edit work email' : 'Add work email');
-        }
-
-        function _dismiss() {
-            // Stamp the confirmation time so the check is not due again for ~3 months (v14.77).
-            lsSet(`myb_email_check_done_${member}`, String(Date.now()));
-            loginOverlay?.removeAttribute('aria-hidden');
-            overlay.classList.remove('open');
-            const content = /** @type {HTMLElement} */ (document.getElementById('emailCheckContent'));
-            let _done = false;
-            const onEnd = () => {
-                // Idempotent (v16.25): transitionend AND the 500ms fallback both call this — without
-                // the guard a second run fired a second unlockBodyScroll (depth-counted, so it could
-                // drop an outer overlay's lock). Mirrors the shared dismissOverlay lifecycle.
-                if (_done) return;
-                _done = true;
-                overlay.classList.remove('visible');
-                unlockBodyScroll();
-                resolve();
-            };
-            content.addEventListener('transitionend', onEnd, { once: true });
-            setTimeout(onEnd, 500);
-        }
-
-        if (existing?.workEmail) {
-            storedEl.textContent = existing.workEmail;
-            _showConfirm();
-        } else {
-            _showEdit('', false);
-        }
-
-        lockBodyScroll();
-        overlay.classList.add('visible');
-        requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('open')));
-        setTimeout(() => (existing?.workEmail ? yesBtn : input).focus(), 60);
-
-        overlay.addEventListener('keydown', e => {
-            if (e.key !== 'Tab') return;
-            const focusable = /** @type {HTMLElement[]} */ (Array.from(overlay.querySelectorAll(
-                'button:not([disabled]), input'
-            ))).filter(el => !el.closest('[hidden]') && el.offsetParent !== null);
-            if (!focusable.length) return;
-            const first = focusable[0], last = focusable[focusable.length - 1];
-            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-            if (!e.shiftKey && document.activeElement === last)  { e.preventDefault(); first.focus(); }
-        });
-
-        yesBtn.addEventListener('click', _dismiss, { once: true });
-
-        changeBtn.addEventListener('click', () => {
-            _showEdit(existing?.workEmail ?? '', true);
-            input.focus();
-        });
-
-        backBtn.addEventListener('click', () => {
-            _showConfirm();
-            yesBtn.focus();
-        });
-
-        input.addEventListener('blur', () => {
-            const v = input.value.trim();
-            if (v && !v.includes('@')) input.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
-        });
-
-        saveBtn.addEventListener('click', async () => {
-            // Mirror the blur handler: append the work domain if the user typed only a username and
-            // reached Save WITHOUT blurring (keyboard / assistive flows don't always fire blur first).
-            // Matches the settings/operations save paths, which append inside the save action.
-            const rawSave = input.value.trim();
-            if (rawSave && !rawSave.includes('@')) input.value = rawSave + '@' + CONFIG.WORK_EMAIL_DOMAIN;
-            const email = input.value.trim();
-            errorEl.textContent = '';
-            if (!email) {
-                errorEl.textContent = 'Please enter your work email address.';
-                input.focus(); return;
-            }
-            if (!isValidEmail(email)) {
-                errorEl.textContent = 'That doesn\'t look like a valid email address.';
-                input.focus(); return;
-            }
-            if (!isChilternWorkEmail(email)) {
-                errorEl.textContent = `Please use a Chiltern work email (@${CONFIG.WORK_EMAIL_DOMAIN}).`;
-                input.focus(); return;
-            }
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving…';
-            try {
-                await saveStaffContact(member, email);
-                _dismiss();
-            } catch {
-                errorEl.textContent = 'Couldn\'t save — check your connection and try again.';
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Save email →';
-                saveBtn.focus();
-            }
-        });
-    }));
-}
-
-/**
- * Called on every admin page load for an authenticated user.
- * Awaits sessionReady so getStaffContact() doesn't run before authentication
- * is restored (returning-user path re-establishes Firebase Auth asynchronously).
- * @param {any} member
- */
-async function initEmailCheck(member) {
-    await sessionReady;
-    await _runEmailCheck(member);
-}
-
 // Page-access decision via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 6).
 // Admin's policy is "any named user" (role null) — staff get self-service; the admin/manager split
 // gates ACTIONS (applyPermissions below), NOT page access, so there is no 'forbidden' path here.

@@ -343,6 +343,11 @@ Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 ### `doc-upload.js`
 Shared Operations upload-card skeleton (v16.07). `initDocUploadCard(cfg)` owns file-pick → validate (type + 20 MB) → optional pre-upload `transform` → upload → feedback + the date cap; per-card config (accepted types, transform, `maxDateOffsetDays`, uploadFn, copy). Drives Circular + Newsletter (operations-app.js) and the Huddle (huddle.js, which passes its DOCX→HTML Mammoth transform). `isPdfFile(f)` + `isDocxFile(f)` exported as accept predicates; Circular/Newsletter accept both (PDF or Word .docx, download-only — no transform, v16.31), the Huddle also converts DOCX→HTML. Imports only `roster-data.js` (formatISO) + `session.js` (sessionReady).
 
+### `admin-email-check.js`
+The one-time work-email confirmation overlay, extracted from admin-app.js (v16.41) as a self-contained feature module. Imports only `ls.js`, `firebase-client.js` (getStaffContact/saveStaffContact), `roster-data.js` (CONFIG/isValidEmail/isChilternWorkEmail), `overlay.js` (lock/unlockBodyScroll), `session.js` (sessionReady), plus the `#emailCheckOverlay` DOM — no admin-app coupling.
+- `initEmailCheck(member)` — awaits `sessionReady`, then runs the check. Called fire-and-forget on every authenticated admin page load.
+- `_runEmailCheck` — the promise-based overlay engine: prompts ONLY when a fresh-login `myb_email_check_pending_<member>` marker is present (set by admin-app.js's login onSuccess) AND the member is DUE (`_emailCheckDue`: ≥ 3 months since `myb_email_check_done_<member>`, or never/legacy). 4s-timeboxed `getStaffContact`; confirm vs add/edit views; focus-trap; mandatory (no close); stamps `myb_email_check_done` on dismiss.
+
 ### `admin-auth.js`
 Staff Firebase Auth account setup (admin only).
 - `initAuthSetup(opts)` — called once by `operations-app.js`
