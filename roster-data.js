@@ -67,15 +67,17 @@ export const CONFIG = {
     // device to refresh its Firebase ID token ONCE on next app open — picking up newly-set custom
     // claims (e.g. the B2 `manager` claim) immediately instead of waiting for the ~hourly
     // auto-refresh. Gated per-device by localStorage `myb_claim_epoch`; a force-refresh is a no-op
-    // when the token is already current, so bumping is harmless. Bump again immediately before the
-    // B3 strict-rule cutover so every active token carries its correct-tier claim first.
+    // when the token is already current, so bumping is harmless. Do NOT bump CLAIM_EPOCH casually —
+    // each bump forces every device to re-refresh its ID token on next open; only bump when a new
+    // custom-claim change genuinely needs to reach every active session before a rule relies on it.
     // Was DISABLED (0) alongside the B1 kill-switch (v14.72) while diagnosing the login freeze.
     //   ARMED (2) at v15.33 to run the B3 pre-cutover token sweep: managers were re-provisioned
     //   (Jul 2026), so this forces every active device to pick up its correct-tier claim on next
     //   open. Set to 2 — NOT 1 — because 1 already shipped once (v14.71) so some devices recorded
     //   `myb_claim_epoch=1`; only a value above every previously-shipped epoch re-sweeps them all.
-    //   This is the SWEEP, deployed hosting-only and separate from the strict rule; let it settle
-    //   ~3–7 days before the strict cutover. See SECURITY_RELEASE_PLAN.md → B3 + B3_STRICT_CUTOVER.HELD.md.
+    //   The sweep has SETTLED and the B3 STRICT override-isolation rule shipped (v16.29): the
+    //   no-name/legacy escape is gone and overrides now require a matching `name`/admin/manager claim.
+    //   See SECURITY_RELEASE_PLAN.md → B3.
     CLAIM_EPOCH:                      2,
     // In-place sign-in (ARCHITECTURE_PLAN.md → "Phase 9 — Remove the post-login reload"). When a
     // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the

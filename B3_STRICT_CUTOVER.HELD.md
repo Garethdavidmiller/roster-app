@@ -1,4 +1,4 @@
-# B3 strict cutover — HELD patch (do NOT apply before the window)
+# B3 strict cutover — applied patch (✅ SHIPPED v16.29; historical record)
 
 > ✅ **SHIPPED (v16.29, ~Jul 2026). Both cutovers are now LIVE — this file is a historical record.**
 > B3 (strict override isolation — no-name escape removed) and H2 (linkDesigns write requires the
@@ -28,21 +28,21 @@
 > only thing gating deployment is the owner's re-auth window (Steps 1–2). Nothing was committed
 > to `firestore.rules` on a mergeable branch — the dry-run lived on a local throwaway branch.
 
-## Pre-window checklist (must all hold before applying)
+## Pre-window checklist — ✅ all satisfied at the v16.29 window (historical record)
 
 - [x] `CONFIG.CLAIM_EPOCH == 2` already (token sweep armed v15.33), `ENFORCE_NAMED_SESSION == true`, in-place login settled.
-- [ ] **Step 1 — Re-provision:** Operations → Set up accounts (sets `admin`/`manager`/`name` on every account). Idempotent.
-- [x] **Step 2 — Token sweep ✓ DONE (v15.33):** `CONFIG.CLAIM_EPOCH` is already `2`, so devices force-refresh once on open. Do NOT bump again unless deliberately forcing a fresh sweep. At window time, confirm active devices have re-opened since v15.33 and force-sign-out stragglers.
-- [ ] `CONFIG.MANAGER_NAMES` matches current staff (a stale manager token has `name` but not `manager`).
-- [ ] The write-side `writeWithClaimRetry` net is live (v15.18) — a manager who misses the sweep self-heals on first write. Still do the sweep.
+- [x] **Step 1 — Re-provision ✓ DONE (v16.29):** Operations → Set up accounts ran (sets `admin`/`manager`/`name` on every account). Idempotent.
+- [x] **Step 2 — Token sweep ✓ DONE (v15.33):** `CONFIG.CLAIM_EPOCH` is `2`, so devices force-refresh once on open. Was NOT bumped again. At window time active devices had re-opened since v15.33 and stragglers were force-signed-out.
+- [x] `CONFIG.MANAGER_NAMES` matched current staff at the window (a stale manager token has `name` but not `manager`).
+- [x] The write-side `writeWithClaimRetry` net was live (v15.18) — a manager who missed the sweep self-heals on first write. The sweep was still done.
 
-Only after the sweep window: cut a fresh branch, apply the two changes below, let CI's `test:rules` gate pass, merge, verify live in a **private window** (never your installed phone).
+The sweep window passed, then a fresh branch was cut, the two changes below were applied, CI's `test:rules` gate passed, it merged, and it was verified live in a **private window** (never an installed phone) — all at v16.29.
 
-> **Sibling in this same window:** the **`linksDesigner` claim cutover (H2)** — same shape (add claim →
-> re-provision → refresh → tighten `linkDesigns` write rule), and it reuses Step 1 (re-provision) and the
-> token sweep here. Full apply-ready patch at the **bottom of this file** ("Sibling cutover — `linksDesigner`
-> claim"). Do it alongside, or standalone in its own smaller window — but never tighten its rule before the
-> designers hold the claim.
+> **Sibling shipped in the same window:** the **`linksDesigner` claim cutover (H2)** — same shape (add
+> claim → re-provision → refresh → tighten `linkDesigns` write rule), reusing Step 1 (re-provision) and
+> the token sweep here. Applied patch at the **bottom of this file** ("Sibling cutover — `linksDesigner`
+> claim"). It shipped alongside B3 at v16.29; its rule was tightened only after the designers held the
+> claim.
 
 ---
 
@@ -131,22 +131,24 @@ Re-add the two `!('name' in …)` escape lines to both blocks and redeploy (inst
 
 # Sibling cutover — `linksDesigner` claim (review H2)
 
-> ⚠️ **HELD, same as above.** Nothing here is live. The `linkDesigns` rule in `firestore.rules`
-> is still `allow read, write: if request.auth != null;`. This is a **claim cutover with the same
-> shape as the B3 override cutover** (add a claim → re-provision → refresh tokens → tighten the
-> rule), so it should ride the **same window** and reuse the same re-provision + token-sweep steps.
-> Verified against `firestore.rules` / `functions/index.js` / `admin-auth.js` / `firestore.rules.test.mjs`
-> as of v16.03.
+> ✅ **SHIPPED (v16.29). This is now live — historical record.** The `linkDesigns` rule in
+> `firestore.rules` now gates writes on `linksDesigner`/`admin` (reads stay open); it is no longer
+> `allow read, write: if request.auth != null;`. This was a **claim cutover with the same shape as
+> the B3 override cutover** (add a claim → re-provision → refresh tokens → tighten the rule), and it
+> rode the **same v16.29 window**, reusing the same re-provision + token-sweep steps. Verified against
+> `firestore.rules` / `functions/index.js` / `admin-auth.js` / `firestore.rules.test.mjs` as of v16.03;
+> dry-run re-verified v16.28; applied v16.29.
 >
-> **Dry-run re-verified at v16.28:** all four changes (A functions, B client, C rules, D tests)
-> still apply cleanly. One reconciliation vs this doc: the suite now already HAS a `linkDesigns`
-> describe block (added since v16.03), whose `auth can write` test asserted `staffDb()` succeeds —
-> under the strict rule that must FLIP to `assertFails`, so the block was REWORKED (not added fresh):
-> a `designerDb()` helper + the full matrix (designer ✓, admin ✓, plain-named ✗, name-less ✗, anon ✗,
-> authed read ✓). Full `npm run test:rules` passed **188/188**. `node --check` + typecheck + the 123
-> functions tests stayed green. The dry-run lived on a local throwaway branch — nothing committed to
-> a mergeable branch. **Deploy order still stands:** A+B (claim) must ship + re-provision + S. Silva
-> re-auth BEFORE C+D (rule tighten), because the Links save/delete are raw writes with no self-heal.
+> **Dry-run re-verified at v16.28 (then applied v16.29):** all four changes (A functions, B client,
+> C rules, D tests) applied cleanly. One reconciliation vs this doc: the suite already HAD a
+> `linkDesigns` describe block (added since v16.03), whose `auth can write` test asserted `staffDb()`
+> succeeds — under the strict rule that FLIPPED to `assertFails`, so the block was REWORKED (not added
+> fresh): a `designerDb()` helper + the full matrix (designer ✓, admin ✓, plain-named ✗, name-less ✗,
+> anon ✗, authed read ✓). Full `npm run test:rules` passed **188/188**. `node --check` + typecheck +
+> the 123 functions tests stayed green. **Deploy order that was followed:** A+B (claim) shipped +
+> re-provision + S. Silva re-auth BEFORE C+D (rule tighten) — but note that in the final v16.29 shape
+> the Links save/delete were ALSO wrapped in `writeWithClaimRetry` (see below), so a stale designer
+> token self-heals rather than requiring a manual re-auth.
 
 **Why:** `linkDesigns` writes are gated only by the client redirect (`links-app.js` bounces anyone
 not in `CONFIG.LINKS_DESIGNERS`). The server accepts a write from **any** authenticated session. This
@@ -158,25 +160,25 @@ closes that gap with a dedicated `linksDesigner` custom claim.
 everyone (design patterns are non-sensitive internal data; keeping read open also avoids locking out
 a designer whose token hasn't refreshed).
 
-**⚠️ No write-side self-heal here.** Unlike overrides (`writeWithClaimRetry`, which force-refreshes a
-stale token on the first `permission-denied` and retries), the links design save/delete in
-`links-app.js` are **raw** `setDoc`/`deleteDoc`. So a designer with a pre-cutover token will NOT
-self-heal — **`S. Silva` must sign out and back in** after re-provisioning. (Optional hardening, do
-this FIRST if you want the seamless path: wrap the links save/delete in `writeWithClaimRetry`, then a
-stale designer token self-heals like the override path and the manual re-auth is unnecessary.)
+**✓ Write-side self-heal WAS added (v16.29).** The optional hardening below was taken: every
+`linkDesigns` save/delete in `links-app.js` is now wrapped in `writeWithClaimRetry` (which
+force-refreshes a stale token on the first `permission-denied` and retries once), matching the override
+path. So a designer with a pre-cutover token self-heals on first write — **`S. Silva` did not need a
+manual sign-out/in.** (The original plan noted the raw `setDoc`/`deleteDoc` path would have required
+`S. Silva` to sign out and back in after re-provisioning; wrapping the writes removed that step.)
 
-## Sequence (safe order — claim before rule)
+## Sequence (safe order — claim before rule) — ✅ executed at v16.29
 
-1. **Apply Changes A + B (functions + client), merge → `deploy-functions.yml`.** Safe on its own —
-   adding a claim locks nobody out; the rule still allows any auth at this point.
-2. **Re-provision:** Operations → Set up accounts. It now sends `designerMembers` and sets
-   `linksDesigner: true` on `G. Miller` + `S. Silva`. Idempotent; this is the SAME run as the B3
+1. **Applied Changes A + B (functions + client), merged → `deploy-functions.yml`.** Safe on its own —
+   adding a claim locked nobody out; the rule still allowed any auth at that point.
+2. **Re-provisioned:** Operations → Set up accounts. It now sends `designerMembers` and sets
+   `linksDesigner: true` on `G. Miller` + `S. Silva`. Idempotent; this was the SAME run as the B3
    Step-1 re-provision.
-3. **Refresh tokens:** `S. Silva` signs out and back in (raw writes = no self-heal). `G. Miller`
-   unaffected. If riding the B3 window, the `CLAIM_EPOCH == 2` sweep refreshes tokens on app open —
-   but still confirm `S. Silva` has re-opened since, because her *write* needs the fresh claim.
-4. **Apply Changes C + D (rules + tests), merge → `deploy-rules.yml`** (the `test:rules` gate must
-   pass first). Only after step 3 is confirmed.
+3. **Refreshed tokens:** the `CLAIM_EPOCH == 2` sweep refreshed tokens on app open. Because the
+   `linkDesigns` writes were also wrapped in `writeWithClaimRetry` (see above), a stale designer token
+   self-heals on first write — no manual `S. Silva` sign-out/in was required. `G. Miller` unaffected.
+4. **Applied Changes C + D (rules + tests), merged → `deploy-rules.yml`** (the `test:rules` gate
+   passed first). Done after step 3.
 
 ## Change A — `functions/index.js` (setupRosterAuth: set the claim)
 

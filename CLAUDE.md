@@ -227,8 +227,8 @@ roster-app/
 │   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)
 ├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs
 ├── SECURITY_RELEASE_PLAN.md ← master sequencing/risk plan for the deferred security release (per-member isolation, named sessions, App Check, password retirement, WIF, firebase-admin bump). Not version-stamped; not a runtime asset.
-├── ARCHITECTURE_PLAN.md     ← auth/session consolidation plan (Track 1: identity state machine + page-auth policy map, behaviour-preserving, lands before B3) + supporting refactors (testable coordinators, roster-data split) and the MILLER_ACTUALS privacy decision. Companion to SECURITY_RELEASE_PLAN.md. Not version-stamped; not a runtime asset.
-├── LOGIN_INCIDENT.md        ← incident log for the v14.72–74 login freeze/slowness — RESOLVED (freeze fixed v14.75; B1 re-enabled v14.98). Records the diagnosis, the current auth-flag state (B1 `ENFORCE_NAMED_SESSION=true`; B2 live permissive; B3 token sweep DONE — `CLAIM_EPOCH=2` since v15.33 — with the B3 strict Rules cutover still pending), and the re-enable checklist. READ THIS before touching login/auth or starting the B3 strict cutover. Not version-stamped.
+├── ARCHITECTURE_PLAN.md     ← auth/session consolidation plan (Track 1: identity state machine + page-auth policy map, behaviour-preserving, landed ahead of the B3 strict cutover) + supporting refactors (testable coordinators, roster-data split) and the MILLER_ACTUALS privacy decision. Companion to SECURITY_RELEASE_PLAN.md. Not version-stamped; not a runtime asset.
+├── LOGIN_INCIDENT.md        ← incident log for the v14.72–74 login freeze/slowness — RESOLVED (freeze fixed v14.75; B1 re-enabled v14.98). Records the diagnosis, the current auth-flag state (B1 `ENFORCE_NAMED_SESSION=true`; B2/B3 shipped — override write-isolation is now STRICT (v16.29), `CLAIM_EPOCH=2` since v15.33), and the re-enable checklist. READ THIS before touching login/auth. Not version-stamped.
 ├── override-utils.test.mjs            ← tests for override-utils.js
 ├── roster-data.test.mjs    ← tests for roster-data.js
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
@@ -536,8 +536,9 @@ Client read: denied (`allow read: if false`) — no client may enumerate endpoin
 any authenticated session, shape-validated (`endpoint`, `keys.p256dh`, `keys.auth` only). **Delete:
 any authenticated session (`request.auth != null`) — there is no per-owner check, so an authenticated
 identity that knows a doc id could delete that subscription.** Low risk (the id is a hash of the
-endpoint, so it must be known) but a real hardening gap — tightening the delete rule is folded into
-the per-member isolation phase (B2) in `SECURITY_RELEASE_PLAN.md`.
+endpoint, so it must be known) but a real hardening gap. Per-member override isolation shipped strict
+(v16.29), but this pushSubscriptions delete-rule tightening is a separate item that remains open —
+see `SECURITY_RELEASE_PLAN.md`.
 
 **clientErrors** (v13.31)
 ```
@@ -693,11 +694,14 @@ without the page-load sign-in, `auth.currentUser` stays null and all Firestore w
 (to detect any IndexedDB-persisted session), then signs in if none exists, self-healing a
 missing account via `createUserWithEmailAndPassword` if needed. Do not remove this call.
 
-**Per-member write isolation (REINTRODUCED — B2, built v14.53):** `overrides` create/update/delete
-require the member's own `name` claim, OR an `admin`/`manager` claim (both write on behalf), in the
-**PERMISSIVE interim form** — a token with no `name` claim is still allowed so legacy/anonymous
-sessions never lock out (this avoids the v10.94 hard-cutover outage; B3 drops that escape and goes
-strict after a re-auth sweep). **Three claim tiers**, all set by `setupRosterAuth`:
+**Per-member write isolation (STRICT — B2 built v14.53, B3 strict cutover shipped v16.29):**
+`overrides` create/update/delete require the member's own `name` claim, OR an `admin`/`manager`
+claim (both write on behalf). The rule is now **STRICT** — the old permissive `!('name' in token)`
+escape (which allowed a token with no `name` claim so legacy/anonymous sessions could never lock
+out) has been REMOVED. The v10.94 hard-cutover outage was avoided this time by the permissive→strict
+CLAIM_EPOCH=2 token sweep (v15.33), which force-refreshed every active device onto its correct-tier
+claim before the strict rule shipped; stale tokens now self-heal via `writeWithClaimRetry`, so no
+mass sign-out is needed. **Three claim tiers**, all set by `setupRosterAuth`:
 `{ admin: true, name }` for `ADMIN_NAMES`, `{ manager: true, name }` for `MANAGER_NAMES`, `{ name }`
 for everyone else (admin outranks manager). The `manager` tier is load-bearing: managers edit staff
 AL/sick/shifts on behalf daily — without the `manager` bypass the isolation rule silently locks
@@ -705,8 +709,8 @@ them out. Master-admin collections (huddles/circulars/newsletters/roster/auth) s
 do NOT grant managers `admin: true`. **Deploy prerequisite:** managers must be re-provisioned
 (Operations → Set up accounts, which now sets the `manager` claim) AND token-refreshed before the
 isolation rule is relied upon — a stale manager token has `name` but not `manager`. Full scope,
-runbook, and the B3 strict step: `SECURITY_RELEASE_PLAN.md` → B2; history: KNOWN_LIMITATIONS.md
-task #2.
+runbook, and the B3 strict step (shipped v16.29): `SECURITY_RELEASE_PLAN.md` → B2/B3; history:
+KNOWN_LIMITATIONS.md task #2.
 
 **New starter:** invoke `/new-starter` — the skill has the full 3-step checklist, mid-year field reference, and pro-rata formula invariant.
 

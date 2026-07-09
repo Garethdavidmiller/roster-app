@@ -131,7 +131,7 @@ experiments"). Cross-page navigation is clean without occupying fixed screen spa
 
 Progress on the four v11 security tasks. Authoritative current status and the re-introduction checklist live in **KNOWN_LIMITATIONS.md → "The four v11 security tasks"**.
 
-- **v10.72 — Firestore member write isolation ⚠️ later suspended (v10.94):** `firestore.rules` was updated so each staff member could only write overrides for themselves (`memberName == request.auth.token.name`), with an admin claim bypass for G. Miller. This was **reverted at v10.94** after it caused a production outage; rules are back to `request.auth != null` with field validation retained. See KNOWN_LIMITATIONS.md task #2 for the full post-mortem and re-introduction checklist.
+- **v10.72 — Firestore member write isolation ⚠️ later suspended (v10.94):** `firestore.rules` was updated so each staff member could only write overrides for themselves (`memberName == request.auth.token.name`), with an admin claim bypass for G. Miller. This was **reverted at v10.94** after it caused a production outage (rules went back to `request.auth != null` with field validation retained). Per-member isolation was later **rebuilt as the three-tier permissive rule (B2, v14.53)** and then **made strict (B3, shipped v16.29)** — overrides create/update/delete now require `token.name == memberName || token.admin || token.manager`, with the legacy no-name escape removed. See KNOWN_LIMITATIONS.md task #2 for the full post-mortem and re-introduction history.
 
 - **v10.73 — Back pay variable pay included in HPP:** G. Miller's period 32 payslip confirmed Chiltern itemises back pay per category with explicit `(Back Pay)` suffix lines. `calcBackPay()` now computes `_bpVarAmount` (overtime, RDW, Sunday, BH, London Allowance uplifts in the rate-difference period). `calcHPP()` adds `_bpVarAmount` to `totalVar` for the paid-in period — HPP estimate is now correct after a back pay event.
 
@@ -691,11 +691,13 @@ step-by-step upgrade checklist live in **KNOWN_LIMITATIONS.md**.
 
 ## Security project — per-member override write isolation
 
-**Now BUILT (permissive) and tracked in `SECURITY_RELEASE_PLAN.md` (phase B2) — this section is a
-pointer, not the live plan.** Make `overrides` writes require the member's own `name` claim (with
+**Now SHIPPED (strict) and tracked in `SECURITY_RELEASE_PLAN.md` (phases B2/B3) — this section is a
+pointer, not the live plan.** `overrides` writes require the member's own `name` claim (with
 admin + manager bypass) so a signed-in member can only write their own overrides. Tried at v10.72,
 **suspended at v10.94 after a production outage** (post-mortem: KNOWN_LIMITATIONS.md task #2), then
-rebuilt as the three-tier permissive rule **B2 (built v14.53)**; the strict cutover is **B3**.
+rebuilt as the three-tier permissive rule **B2 (built v14.53)**, and made **strict (B3, shipped v16.29)** —
+the legacy no-name escape branch has been removed, so overrides create/update/delete now require
+`token.name == memberName || token.admin || token.manager`.
 
 Two load-bearing facts that survive here so they aren't lost when reading the roadmap alone:
 - **The admin/manager bypass is load-bearing, not optional.** Admin + managers write overrides for
@@ -703,9 +705,10 @@ Two load-bearing facts that survive here so they aren't lost when reading the ro
   rule must keep `|| admin || manager` or roster upload and on-behalf booking break.
 - **The one real rollout risk is cached tokens, not code.** A valid 30-day session carries a token
   minted before the claim existed; a strict rule would fail its writes until re-auth — essentially
-  the v10.94 outage. B3 handles this with the permissive→strict `CLAIM_EPOCH` token-refresh sweep.
+  the v10.94 outage. B3 handled this with the permissive→strict `CLAIM_EPOCH` token-refresh sweep
+  (`CONFIG.CLAIM_EPOCH = 2`), and stale tokens self-heal via `writeWithClaimRetry` on the write path.
 
-Full staged plan, deploy runbook, and the B3 strict step: **`SECURITY_RELEASE_PLAN.md` → B2/B3**.
+Full staged plan and deploy runbook: **`SECURITY_RELEASE_PLAN.md` → B2/B3** (B3 strict cutover shipped v16.29).
 
 ---
 
@@ -738,10 +741,15 @@ Firebase out too, pinned roster-transition tests, and the Calendar duplicate-ret
 > the isolation rollout" constraint, and the owner-decision checklist. Read it before starting
 > any item here.
 
-These are interlocking and should ship as one planned release, not piecemeal:
-- **Per-member override + Links write isolation** — the headline authorisation gap (any
-  authenticated identity can write/delete any member's overrides and any Links design). Full staged
-  plan with the cached-token rollout risk is in the "Security project — per-member override write
+These are interlocking; most remain and should ship together, but the headline gap is now closed:
+- **Per-member override + Links write isolation — ✓ DONE (v16.29).** This was the headline
+  authorisation gap (any authenticated identity could write/delete any member's overrides and any
+  Links design). Override isolation went **strict (B3, v16.29)** — create/update/delete require
+  `token.name == memberName || token.admin || token.manager`, no-name escape removed — and Links
+  write isolation shipped in the same release (**H2, v16.29**): `linkDesigns` writes require
+  `token.linksDesigner || token.admin` (reads stay open to any auth), with `linksDesigner` set by
+  `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS` and stale tokens self-healing via
+  `writeWithClaimRetry`. Full history is in the "Security project — per-member override write
   isolation" section above.
 - **Separate named sessions from the anonymous public session** — confine anonymous auth to the
   genuinely public Calendar reads; require a named session for Admin/Operations/Links/Settings/Pay.
@@ -958,9 +966,10 @@ improvements — staged plan"** below — do not re-number the stages here. In b
 Stages 2–5 are parked pending the owner setting up Power Automate (the email-delivery channel).
 
 **Note:** per-member Firestore write isolation (`request.auth.token.name == memberName`,
-suspended at v10.94) is a **separate** security project — see "Security project — per-member
-override write isolation" below and KNOWN_LIMITATIONS.md task #2. It is *not* a stage of the
-password plan; earlier drafts of this section conflated the two.
+suspended at v10.94, rebuilt permissive at v14.53, now **strict and LIVE as of v16.29**) is a
+**separate** security project — see "Security project — per-member override write isolation" below
+and KNOWN_LIMITATIONS.md task #2. It is *not* a stage of the password plan; earlier drafts of this
+section conflated the two.
 
 ### Phase 9 — TypeScript zero-diagnostic baseline ✓ (9a–9c complete, June 2026)
 
@@ -978,9 +987,9 @@ zero, enforced by the fail-closed `scripts/typecheck.mjs` CI gate:
 ## Deferred backlog (from the v14.96 external review)
 
 A thorough external review of v14.96 confirmed no release blocker for current small-team use. Most
-findings were already done (B1 re-enabled v14.98; App-speed admin-exclusion v14.95) or already
-sequenced (B3 strict cutover, B4 server-side role lists, the C-series password track, in-place login
-rollout, the app-perf caching pass). Quick wins (fail-closed uploads, stale auth-doc fixes, a
+findings were already done (B1 re-enabled v14.98; App-speed admin-exclusion v14.95; B3 strict
+override isolation shipped v16.29) or already sequenced (B4 server-side role lists, the C-series
+password track, in-place login rollout, the app-perf caching pass). Quick wins (fail-closed uploads, stale auth-doc fixes, a
 MILLER_ACTUALS export guard, the primeAuth comment) shipped at v14.99. Two items captured here:
 
 ### M8 — lazy-load heavy Cloud Function dependencies (cold-start)
