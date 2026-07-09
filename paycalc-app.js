@@ -50,7 +50,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
-import { SK, periodKey, hppEstKey, hppActualKey, runMigrations, readPayslipActuals } from './paycalc-migrations.js';
+import { SK, periodKey, hppEstKey, hppActualKey, runMigrations, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
 'use strict';
@@ -846,7 +846,7 @@ export function init() {
       // (readPayslipActuals — imported once per device, never served), show the
       // actual figures; the breakdown below still shows the estimate for comparison.
       const _actualKey  = _curP ? formatISO(_curP.payday) : null;
-      const _actual     = _actualKey && getLoggedMember()?.name === 'G. Miller'
+      const _actual     = _actualKey && isActualsDev(getLoggedMember())
         ? readPayslipActuals()[_actualKey] : null;
       const _netLabel   = document.getElementById('netLabel');
 

@@ -123,7 +123,6 @@ details[id], div[id] { scroll-margin-top: 68px; }
 }
 .price-item { flex: 1; }
 .price-amount { font-size: 26px; font-weight: 800; color: var(--navy); line-height: 1; margin-bottom: 3px; }
-.price-amount.grey { color: var(--light); }
 .price-desc { font-size: 12px; color: var(--mid); }
 
 .detail-list { padding: 12px 16px; }

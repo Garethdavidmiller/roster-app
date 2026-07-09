@@ -1,7 +1,7 @@
 # ARCHITECTURE_PLAN.md — Auth/session consolidation (Track 1) and supporting refactors
 
-*Status: **Track 1 COMPLETE (v14.57–v14.67) — all coordinator migrations landed; only B3 (Phase 8,
-behaviour change, owner-gated in `SECURITY_RELEASE_PLAN.md`) remains.** Phase 0: characterisation
+*Status: **Track 1 COMPLETE (v14.57–v14.67) — all coordinator migrations landed. B3 (Phase 8, the
+strict override-isolation cutover, owner-gated in `SECURITY_RELEASE_PLAN.md`) has since SHIPPED (v16.29).** Phase 0: characterisation
 net (`session.test.mjs`, `firestore.rules.test.mjs` B2, flag-ON e2e) pins current behaviour. Phase 1
 (v14.58): `auth-state-core.js` pure `reduceAuthState` machine. Phase 2 (v14.59): `auth-state.js`
 store + `session.js` feed bridge (observing only; `sessionReady` untouched). Phase 3 (v14.60):
@@ -12,8 +12,8 @@ coordinators (Operations, Links, Paycalc) wrapped in an exported `init()` + `*-b
 (branch-style Admin/Settings intentionally left inline). The whole refactor is behaviour-preserving
 (665 unit + 173 rules + 68 e2e pass unchanged throughout). Companion to `SECURITY_RELEASE_PLAN.md`.
 This plan is a **behaviour-preserving structural refactor** of how the app reasons about identity and
-page access. It must land **before B3** (the strict token-refresh sweep) and must NOT change runtime
-auth behaviour itself — B3 changes behaviour later, on top of the clean base this builds. Not
+page access. It landed **before B3** (the strict token-refresh sweep) and did NOT change runtime
+auth behaviour itself — B3 then changed behaviour on top of this clean base, shipping v16.29. Not
 version-stamped; not a runtime asset.*
 
 This is the architectural counterpart to the security release: `SECURITY_RELEASE_PLAN.md` decides
@@ -286,10 +286,10 @@ Wrap each coordinator body in an exported `init()` called by a 2-line bootstrap;
 - **Calendar** is left until last (or untouched) unless B3 requires it — it is the most
   staff-visible page.
 
-### Phase 8 — B3 (handed back to `SECURITY_RELEASE_PLAN.md`)
-Strict token-refresh sweep, now a **policy-led change** rather than a scattered coordinator
-rewrite. (Not "one line" — B3 still needs rule changes, Functions claim checks, the re-auth window,
-tests, and docs — but the *client* change becomes a policy edit, not six coordinator rewrites.)
+### Phase 8 — B3 (handed back to `SECURITY_RELEASE_PLAN.md`) — ✅ SHIPPED v16.29
+Strict token-refresh sweep — shipped v16.29 as a **policy-led change** rather than a scattered
+coordinator rewrite. (It needed rule changes, Functions claim checks, the re-auth window, tests, and
+docs — but the *client* change was a policy edit, not six coordinator rewrites.)
 
 ---
 

@@ -86,7 +86,7 @@ The single source of truth for all roster data.
 - `teamMembers` array — names, roles, roster types, start dates
 - `getBaseShift(member, date)` — **always use this, never read roster.data directly**
 - `getBankHolidays(year)` — algorithmic UK bank holiday list
-- `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`
+- `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`, `paydayForCutoff(cutoffIso)` (the ISO payday paired with a cutoff, or null — single source for the calendar's payday-cell navigation)
 - `parseSmartFloat(str)` — number parse that strips iOS smart hyphens/curly quotes first; single source for paycalc `numVal()` and the HPP rate read in `paycalc-hpp.js`
 - `resolveMemberRoster(member, date)` — applies `rosterChanges` (latest `from` ≤ date wins); the basis for `getBaseShift`/`getWeekNumberForDate`. Never special-case rosterType at a call site — go through this.
 - `getWeekNumberForDate(member, date)` · `getALEntitlement(member, year)` · `getMembersForGrade(grade)` · `isSunday(dateStr)`
@@ -139,7 +139,7 @@ Initial 3-month Firestore fetch and sync-chip UI for `index.html` — extracted 
 Keyboard navigation and hover tooltip for `index.html` — extracted from `calendar-app.js` at v13.86.
 - `initCalendarTooltip()` — no-op on touch/pointer-coarse devices; creates a single floating `#calTooltip` div, repositions it on `mousemove`; reads `data-tooltip` set per cell by `buildCalendarContainer()`
 - `initCalendarKeyboard({ navigateToPaycalc, openDayDetail })` — arrow-key cell navigation (roving tabindex), PageUp/Down month jump, Enter/Space cell activation (payday → paycalc, cutoff → paycalc, other → day-detail lightbox)
-- Imports: `calendar-swipe.js` (isSwipeCooldown), `roster-data.js` (getPaydaysAndCutoffs, formatISO)
+- Imports: `calendar-swipe.js` (isSwipeCooldown), `roster-data.js` (paydayForCutoff, formatISO)
 
 ### `calendar-overrides.js`
 Firestore override cache for `index.html` — extracted from `calendar-app.js` at v13.82.
@@ -251,6 +251,7 @@ Shared auth/session module — canonical source for session logic (v11.40).
 - `primeAuth()` — **login latency pre-warm (v14.80).** Called once when the login overlay mounts. Kicks off `authReady` + the first `onAuthStateChanged` restore in the background and caches that promise; `ensureFirebaseSession` consumes it **once** instead of starting the restore itself, so the IndexedDB restore overlaps the user's typing and the sign-in click pays only for the network sign-in. Best-effort, idempotent, side-effect-free — on failure or when not primed (e.g. tests) `ensureFirebaseSession` does a fresh restore, so there is **no** behaviour or security change, only latency overlap.
 - `getFirebaseIdentity()` → `'named' | 'anonymous' | 'none'` · `firebaseSessionIsNamed()` → boolean · `getFirebaseAuthError()` → error code. **B0** (SECURITY_RELEASE_PLAN.md): expose whether `ensureFirebaseSession` established the member's own named account or only the anonymous fallback. `firebaseSessionIsNamed()` is the signal per-member write isolation (B2) will depend on — the anonymous fallback satisfies `request.auth != null` today but carries no `name` claim. **Observability only — no behaviour change in B0.** (v14.39)
 - `ensureNamedSession(name, opts?)` → `Promise<boolean>` · `isTransientAuthError(code)` → boolean. **B1.2** (v14.41; now ENABLED, v14.98): the write pages call `ensureNamedSession` instead of `ensureFirebaseSession`. With `CONFIG.ENFORCE_NAMED_SESSION` **on** (the current state), a failed named sign-in is retried a couple of times only for transient (connectivity) errors, then returns whether the member's own named session is active — admin/settings re-show the login overlay, operations/links clear + redirect to admin, paycalc soft-logs (never blocks). Flipping the flag **off** makes it return `ensureFirebaseSession`'s result unchanged (anonymous fallback counts) — identical-to-legacy behaviour, the kill-switch. See SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope".
+- `refreshClaimsIfStale(epoch)` — the B3 CLAIM_EPOCH sweep: force-refreshes the Firebase ID token once per device when `CONFIG.CLAIM_EPOCH` exceeds the device's stored `myb_claim_epoch`, so newly-set custom claims reach every active session. Covered by `session.test.mjs`.
 - `sessionReady` — module-level `Promise<boolean>` that resolves once the page coordinator calls `resolveSession()`. Feature modules `await sessionReady` instead of reading `window._mybSession`. (v13.74)
 - `resolveSession(result)` — fulfils `sessionReady`; pass the return value of `ensureFirebaseSession()` (a `Promise<boolean>`) on the auth path, or `false` on the non-auth path. Call exactly once per page-load from the page coordinator. (v13.74)
 - `window._mybAuthError` — set on `ensureFirebaseSession()` failure; surfaced by `admin-auth.js` for diagnostics. Stores the primary Firebase error code, or `"${primaryCode} + anon:${anonCode}"` if the anonymous-sign-in fallback also failed.
@@ -319,7 +320,7 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `updateSaveBtn()` — exported so swipe carousel can call it
 - State accessors: `getAllOverrides()` / `setAllOverrides()` — `getAllOverrides()` used by `admin-al.js` (entitlement check)
 - `recordRangeOverrides({ type, value, memberName, dates, changedBy })` — shared batch-write helper called by `admin-range-booking.js` on behalf of both booking sections; filters out Sundays and RD days, writes Sunday RD corrections alongside AL/sick overrides, updates `_allOverrides` cache, and re-renders the week grid and override list
-- `formatDisplay(value, type)` — shared shift/override display formatter; imported by `admin-range-booking.js`
+- `formatDisplay(str)` — shared date formatter (`YYYY-MM-DD` → `18 Mar 2026`); imported by `admin-range-booking.js` for the AL/absence range labels
 - `getEffectiveShift(member, date, overrides)` / `validateShiftRules(...)` / `buildMemberDateMap(overrides)` — pure shift-resolution + validation helpers, covered by `admin-overrides.test.mjs`
 - `isWorkingDate(memberObj, dateStr, ovByDate)` — SINGLE SOURCE for the AL/absence "is this a working day" rule (Sunday→override→base). Used by recordRangeOverrides AND the AL/sick previews; previously reimplemented 4× and the previews had drifted from the save path (v16.06 unified + fixed).
 - Also exported (grid/bulk internals reused across the module and by `admin-app.js`): `resetTableMemberFilter()`, `updateWeekNavLabel()`, `buildWeekGridInto(container)`, `resetBulkPills()`
@@ -332,15 +333,15 @@ Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
 - Imported directly by `admin-al.js` and `admin-sick.js` (no longer goes through `admin-app.js`)
 
 ### `huddle.js`
-
-### `doc-upload.js`
-Shared Operations upload-card skeleton (v16.07). `initDocUploadCard(cfg)` owns file-pick → validate (type + 20 MB) → optional pre-upload `transform` → upload → feedback + the date cap; per-card config (accepted types, transform, `maxDateOffsetDays`, uploadFn, copy). Drives Circular + Newsletter (operations-app.js) and the Huddle (huddle.js, which passes its DOCX→HTML Mammoth transform). `isPdfFile(f)` + `isDocxFile(f)` exported as accept predicates; Circular/Newsletter accept both (PDF or Word .docx, download-only — no transform, v16.31), the Huddle also converts DOCX→HTML. Imports only `roster-data.js` (formatISO) + `session.js` (sessionReady).
 Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 - `initHuddleUpload(opts)` — called by `operations-app.js`; wires Huddle upload card + Huddle collapse toggle (admin-only)
 - `initHuddleNotifications()` — called by `settings-app.js`; wires the Notifications card (all staff, settings page)
 - Notifications card: VAPID key handling, fingerprint-based re-subscription on key rotation
 - Huddle upload: file validation, DOCX conversion via mammoth.js, upload to Firebase Storage via `uploadHuddle`
 - Huddle card: collapse/expand toggle
+
+### `doc-upload.js`
+Shared Operations upload-card skeleton (v16.07). `initDocUploadCard(cfg)` owns file-pick → validate (type + 20 MB) → optional pre-upload `transform` → upload → feedback + the date cap; per-card config (accepted types, transform, `maxDateOffsetDays`, uploadFn, copy). Drives Circular + Newsletter (operations-app.js) and the Huddle (huddle.js, which passes its DOCX→HTML Mammoth transform). `isPdfFile(f)` + `isDocxFile(f)` exported as accept predicates; Circular/Newsletter accept both (PDF or Word .docx, download-only — no transform, v16.31), the Huddle also converts DOCX→HTML. Imports only `roster-data.js` (formatISO) + `session.js` (sessionReady).
 
 ### `admin-auth.js`
 Staff Firebase Auth account setup (admin only).
@@ -514,7 +515,7 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
 - `COLLECTIONS` — frozen object mapping logical names to Firestore collection strings (`circulars`, `newsletters`, `clientErrors`, etc.). Use this instead of bare string literals to prevent typo-silent failures.
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
-- `assertFileSignature(file, expectedType)` — magic-byte guard called at the top of `uploadHuddle` and `_uploadDoc` before any Storage write: rejects a renamed non-PDF/DOCX (browser uploads otherwise trust only the extension/MIME). Mirrors the server-side `fileSignatureMatches` in `functions/roster-parse-helpers.js` (PDF `%PDF-`, DOCX `PK\x03\x04`). **Fails open** on a read error (never blocks a genuine upload); throws `Error('SIGNATURE_MISMATCH')` only on a positive mismatch, which the upload UIs surface as a specific "not a valid PDF/Word document" message.
+- `assertFileSignature(file, expectedType)` (module-internal; not exported) — magic-byte guard called at the top of `uploadHuddle` and `_uploadDoc` before any Storage write: rejects a renamed non-PDF/DOCX (browser uploads otherwise trust only the extension/MIME). Mirrors the server-side `fileSignatureMatches` in `functions/roster-parse-helpers.js` (PDF `%PDF-`, DOCX `PK\x03\x04`). **Fails open** on a read error (never blocks a genuine upload); throws `Error('SIGNATURE_MISMATCH')` only on a positive mismatch, which the upload UIs surface as a specific "not a valid PDF/Word document" message.
 - `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — transactional manual-upload path (mirrors the Cloud Function ingest + circular/newsletter `_uploadDoc`): verifies the file signature, then writes a **versioned** Storage object `huddles/{date}-{uploadId}.{ext}`, records its path in the `storagePath` field, writes the `huddles/{date}` Firestore doc, then deletes the previous object only after the commit (rolls the new object back on failure) so a re-upload never orphans the old file. `htmlContent` is the converted HTML for DOCX uploads (null for PDFs). Browser delete requires the admin-delete `/huddles` Storage rule (v14.29). Age-based pruning is handled server-side by `pruneOldHuddles()` (3-month), not here.
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-huddle-viewer.js` (initialised from `calendar-app.js`) to keep the Huddle viewer content live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
@@ -642,7 +643,7 @@ Server-side Firestore security rules — deployed via `firebase deploy --only fi
 Firebase Storage security rules.
 - `huddles/{fileName}` read: requires auth.
 - `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `huddle.js`.
-- `circulars/{fileName}` / `newsletters/{fileName}` read: open (no auth — matches Huddle model). Write: requires auth + `admin == true` + size ≤ 20 MB + MIME type `application/pdf` (v13.58/v13.59).
+- `circulars/{fileName}` / `newsletters/{fileName}` read: requires auth (`request.auth != null`), same as huddles — actual file access is via the tokenised bearer download URL, which bypasses these rules. (The open-read "matches Huddle model" applies to the **Firestore** metadata docs, not the Storage files.) Write: requires auth + `admin == true` + size ≤ 20 MB + MIME type PDF or DOCX (v13.58/v13.59; Word .docx allowed since v16.31).
 - All other paths: denied.
 
 ### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css` / `links.css`

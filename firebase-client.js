@@ -232,7 +232,7 @@ function _getStorageSdk() {
  * @param {'pdf'|'docx'}    expectedType - the type derived from the filename
  * @returns {Promise<void>} resolves when valid; throws `Error('SIGNATURE_MISMATCH')` when invalid/unreadable
  */
-export async function assertFileSignature(file, expectedType) {
+async function assertFileSignature(file, expectedType) {
     let bytes;
     try {
         bytes = new Uint8Array(await file.slice(0, 5).arrayBuffer());

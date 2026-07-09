@@ -16,7 +16,7 @@ import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { lsGet, lsSet } from './ls.js';
 import { GRADES } from './paycalc-calc.js';
 import { SK, NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
-         readPayslipActuals, writePayslipActuals, clearPayslipActuals } from './paycalc-migrations.js';
+         readPayslipActuals, writePayslipActuals, clearPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { getLoggedMember } from './paycalc-settings.js';
 
 // Shared seen-flag key — used by the welcome lightbox and the YTD notice (which
@@ -207,7 +207,7 @@ export function initPaycalcLightboxes() {
   // G. Miller seeds them once per device here; paycalc-app.js/-hpp.js then show the
   // actual-vs-estimate comparison from localStorage. Only ever visible to G. Miller.
   (function () {
-    if (getLoggedMember()?.name !== 'G. Miller') return;
+    if (!isActualsDev(getLoggedMember())) return;
     const trigger = document.getElementById('actualsImportBtn');
     const lb      = document.getElementById('actualsLightbox');
     if (!trigger || !lb) return;

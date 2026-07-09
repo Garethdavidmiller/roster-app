@@ -22,12 +22,7 @@ download URL to `storageUrl`. It does NOT use a signed URL — GCS caps v4 signe
 7 days, far shorter than the 3-month Huddle retention window (the old "1-year signed URL" code
 always threw and silently fell back to the token path anyway).
 
-Signed URL format:
-```
-https://storage.googleapis.com/myb-roster.firebasestorage.app/huddles%2FYYYY-MM-DD-{uploadId}.pdf?X-Goog-...
-```
-
-Download token fallback format:
+Download-token URL format (`ingestHuddle` always writes this — it never uses a signed URL):
 ```
 https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD-{uploadId}.pdf?alt=media&token={uuid}
 ```
@@ -44,7 +39,7 @@ Document ID = `YYYY-MM-DD` (the London date of the huddle).
 
 ```
 date         string     "YYYY-MM-DD"
-storageUrl   string     Signed URL or download-token URL (see above)
+storageUrl   string     Download-token URL (see above)
 storagePath  string     Versioned Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf"
                         (absent on docs written before versioned paths — prune falls back to "huddles/{date}.{fileType}")
 fileType     string     "pdf" | "docx" (browser writes are rule-constrained to these since v14.29)
@@ -225,7 +220,7 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 
 **Important:** Both triggers (nav-panel link and notification tap) reach the viewer through the `#huddle` hash and the single `_triggerAutoOpen` path, so the no-`htmlContent` case always opens the file via the in-overlay button — never a direct `window.open`/`location.href` at open time. A notification tap carries no user activation (direct `window.open` would be pop-up-blocked; a `location.href` to the cross-origin file would knock the PWA out of standalone mode), and routing both triggers through the explicit button avoids relying on activation that may not be present. DOCX files with `htmlContent` bypass this entirely — they render inline.
 
-**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/index.js`, Huddle ingestion succeeds but no push is sent. To re-enable: set it back to `false`, redeploy Functions, and verify `STAFF_SITE_URL` ends with the served `/roster-app` path so notification taps open the app rather than a 404 (that mismatch was the real cause of the 16 Jun 2026 pause).
+**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/index.js`, Huddle ingestion succeeds but no push is sent. To re-enable: set it back to `false`, redeploy Functions, and verify `STAFF_SITE_URL` is correct (since v14.29 it is the bare `https://myb-roster.web.app` origin — the service worker discards the payload origin/path and re-bases only the trailing page/hash onto its own `registration.scope`, so no `/roster-app` sub-path is needed; a notification-target mismatch was the real cause of the 16 Jun 2026 pause).
 
 ---
 
@@ -328,7 +323,7 @@ Two independent document-upload flows with identical mechanics: an admin uploads
 
 1. Admin opens the Operations page and expands the relevant card (Weekly Retail Circular or Marylebone Newsletter).
 2. Selects an upload date using the date input (capped to today — `dateInput.max = formatISO(new Date())`).
-3. Selects a PDF file and clicks **Upload**.
+3. Selects a PDF or Word (.docx) file and clicks **Upload**.
 4. `uploadCircular(date, file, uploadedBy)` / `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`:
    - Writes the file (PDF or Word .docx) to Firebase Storage at a versioned path: `circulars/{date}-{uploadId}.{ext}` / `newsletters/{date}-{uploadId}.{ext}` (the random suffix prevents overwriting the existing file before Firestore has committed the new doc)
    - Upserts the Firestore doc at `circulars/{date}` / `newsletters/{date}` with `{ date, storageUrl, storagePath, fileType: "pdf"|"docx", uploadedAt, uploadedBy }`; the `storagePath` field records the exact Storage path for cleanup tracking
@@ -362,7 +357,7 @@ Re-uploading for the same date overwrites the Firestore doc and replaces the Sto
 |-----------|-------------|
 | Reads | Open — no auth required. `calendar-app.js` has no Firebase session (matches Huddle model). The download URL is a tokenised Firebase Storage URL; access to the Firestore metadata alone does not bypass Storage rules. |
 | Writes | `request.auth.token.admin == true` (admin claim only) |
-| Storage create/update | Rules enforce PDF MIME type + ≤20 MB per file |
+| Storage create/update | Rules enforce PDF or Word (.docx) MIME type + ≤20 MB per file (Word added v16.31) |
 | Storage delete | Admin-only; MIME/size checks omitted (no `request.resource` on delete) |
 
 ### Firestore / Storage paths
@@ -370,9 +365,9 @@ Re-uploading for the same date overwrites the Firestore doc and replaces the Sto
 | Resource | Path |
 |----------|------|
 | Circular Firestore doc | `circulars/{YYYY-MM-DD}` |
-| Circular Storage file | `circulars/{YYYY-MM-DD}-{uploadId}.pdf` (versioned suffix, added v13.99) |
+| Circular Storage file | `circulars/{YYYY-MM-DD}-{uploadId}.{ext}` (`ext` = pdf or docx; versioned suffix, added v13.99) |
 | Newsletter Firestore doc | `newsletters/{YYYY-MM-DD}` |
-| Newsletter Storage file | `newsletters/{YYYY-MM-DD}-{uploadId}.pdf` (versioned suffix, added v13.99) |
+| Newsletter Storage file | `newsletters/{YYYY-MM-DD}-{uploadId}.{ext}` (`ext` = pdf or docx; versioned suffix, added v13.99) |
 
 ---
 

@@ -221,20 +221,20 @@ export function updateRosterHint() {
         totalText = fmtH(r.h, r.m);
         metaText  = confHtml ? `${dayStr} · ${confHtml}` : dayStr;
         arrowHtml = `<span class="roster-cat-arrow" aria-hidden="true">→</span>`;
-        ariaLabel = `Fill ${r.label} hours from roster`;
+        ariaLabel = `Fill ${r.label} hours from your calendar`;
       } else if (enteredMins === suggestMins) {
         rowClass  = 'roster-row roster-row--matched';
         totalText = fmtH(r.h, r.m);
         metaText  = dayStr;
         arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
-        ariaLabel = `${r.label} matches roster: ${fmtH(r.h, r.m)}`;
+        ariaLabel = `${r.label} matches your calendar: ${fmtH(r.h, r.m)}`;
       } else {
         const entH = Math.floor(enteredMins / 60), entM = enteredMins % 60;
         rowClass  = 'roster-row roster-row--differs';
         totalText = `${fmtH(entH, entM)} entered`;
-        metaText  = confHtml ? `Roster: ${fmtH(r.h, r.m)} · ${confHtml}` : `Roster: ${fmtH(r.h, r.m)}`;
+        metaText  = confHtml ? `Calendar: ${fmtH(r.h, r.m)} · ${confHtml}` : `Calendar: ${fmtH(r.h, r.m)}`;
         arrowHtml = `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>`;
-        ariaLabel = `${r.label}: you have ${fmtH(entH, entM)}, roster says ${fmtH(r.h, r.m)}. Tap to use roster`;
+        ariaLabel = `${r.label}: you have ${fmtH(entH, entM)}, your calendar says ${fmtH(r.h, r.m)}. Tap to use calendar values`;
       }
 
       return `<button class="${rowClass}" type="button" data-cat="${r.cat}" ` +
@@ -256,7 +256,7 @@ export function updateRosterHint() {
   if (hintTextEl) {
     hintTextEl.textContent = getOverridesFetchState() === 'loaded'
       ? 'Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are already included in basic pay. Check against what you actually worked.'
-      : 'Base roster only — recorded shift changes not yet loaded. Special-rate hours only; standard contracted hours are already included in basic pay.';
+      : 'Calendar (base pattern only) — recorded shift changes not yet loaded. Special-rate hours only; standard contracted hours are already included in basic pay.';
   }
 
   const fillBtn = document.getElementById('fillFromRosterBtn');

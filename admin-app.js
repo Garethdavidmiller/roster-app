@@ -14,7 +14,7 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail, TIME_RE } from './roster-data.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -813,10 +813,10 @@ saveBtn.addEventListener('click', async () => {
             const e = (/** @type {HTMLInputElement} */ (row.querySelector('.day-end'))).value.trim();
             let time = '';
             if (s || e) {
-                const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+                const timeRe = TIME_RE;
                 if (!s || !e) {
                     row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: fill in BOTH times, or leave both blank for the training default`);
+                    errors.push(`${formatDisplay(date)}: fill in both times, or leave both blank to use the default hours`);
                     return;
                 }
                 if (!timeRe.test(s) || !timeRe.test(e)) {
@@ -839,7 +839,7 @@ saveBtn.addEventListener('click', async () => {
         } else {
             const s = startEl.value.trim();
             const e = endEl.value.trim();
-            const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+            const timeRe = TIME_RE;
             if (!s || !e) {
                 row.classList.add('row-error');
                 errors.push(`${formatDisplay(date)}: fill in the start and end time`);
@@ -1223,7 +1223,7 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     await sessionReady;
     if (!auth.currentUser) {
         if (feedbackEl) {
-            feedbackEl.textContent = '⚠ Session expired — please sign out and sign back in.';
+            feedbackEl.textContent = "⚠ You've been signed out — please sign in again.";
             feedbackEl.className = 'feedback error';
         }
         // Reset the button off its "⚠ Confirm?" state (these early returns skip the try/finally) (v16.22).
@@ -1714,6 +1714,11 @@ async function _runEmailCheck(member) {
         });
 
         saveBtn.addEventListener('click', async () => {
+            // Mirror the blur handler: append the work domain if the user typed only a username and
+            // reached Save WITHOUT blurring (keyboard / assistive flows don't always fire blur first).
+            // Matches the settings/operations save paths, which append inside the save action.
+            const rawSave = input.value.trim();
+            if (rawSave && !rawSave.includes('@')) input.value = rawSave + '@' + CONFIG.WORK_EMAIL_DOMAIN;
             const email = input.value.trim();
             errorEl.textContent = '';
             if (!email) {

@@ -27,9 +27,9 @@ import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl } from './fire
  */
 const DOCS = {
     circular:   { emoji: '📰',  label: 'Weekly Retail Circular', fetch: getLatestCircular,
-                  empty: "No circular has been uploaded yet — it's usually available on Friday." },
+                  empty: "No Weekly Retail Circular has been uploaded yet — it's usually available on Friday." },
     newsletter: { emoji: '🗞️', label: 'Marylebone Newsletter',  fetch: getLatestNewsletter,
-                  empty: 'No newsletter has been uploaded yet — check back soon.' },
+                  empty: 'No Marylebone Newsletter has been uploaded yet.' },
 };
 
 /** Wire up the document viewer and open it if the page loaded on a #circular/#newsletter deep link. */

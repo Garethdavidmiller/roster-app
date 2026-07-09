@@ -14,7 +14,7 @@
 
 import { escapeHtml } from './roster-data.js';
 import { auth, onAuthStateChanged } from './firebase-client.js';
-import { sessionReady } from './session.js';
+import { sessionReady, getFirebaseAuthError } from './session.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 
@@ -58,7 +58,8 @@ export function initAuthSetup({ currentIsAdmin }) {
                 const unsub = onAuthStateChanged(auth, /** @param {any} user */ user => { unsub(); resolve(user); });
             });
             if (!currentUser) {
-                const code = /** @type {any} */ (window)._mybAuthError ? ` (Firebase error: ${/** @type {any} */ (window)._mybAuthError})` : '';
+                const authErr = getFirebaseAuthError();
+                const code = authErr ? ` (Firebase error: ${authErr})` : '';
                 throw new Error(`Firebase Auth session not found${code} — please sign out and sign back in`);
             }
             // forceRefresh:true fetches a fresh token from Firebase so any recent
@@ -75,12 +76,16 @@ export function initAuthSetup({ currentIsAdmin }) {
                 return;   // without this, the fetch below 403s and the catch overwrites this guidance with a raw error
             }
 
-            // Body carries ACTION flags only (B4 — server owns the member/role lists). Reusable so the
-            // orphan-removal confirm step can re-submit with the same token.
+            // Body carries ACTION flags only (B4 — server owns the member/role lists). Fetches a
+            // FRESH ID token on EVERY call — never reuses a token captured once. The orphan dry-run
+            // may be CONFIRMED >1h later (past the Firebase ID-token lifetime), so a retry that reused
+            // the captured token would keep hitting the same expired token and could never recover
+            // without a page reload. forceRefresh:true mints a current, non-expired token each time.
             const doSetup = async (/** @type {Record<string, any>} */ extraBody) => {
+                const fresh = await currentUser.getIdTokenResult(/* forceRefresh */ true);
                 const r = await fetch(SETUP_AUTH_URL, {
                     method:  'POST',
-                    headers: { 'Authorization': `Bearer ${tokenResult.token}`, 'Content-Type': 'application/json' },
+                    headers: { 'Authorization': `Bearer ${fresh.token}`, 'Content-Type': 'application/json' },
                     body:    JSON.stringify(extraBody),
                 });
                 if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
@@ -97,7 +102,7 @@ export function initAuthSetup({ currentIsAdmin }) {
                 if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
                 if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
                 // Leaver-sweep failure is a FLAG on an otherwise-200 response — surface it (v16.23).
-                if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were NOT disabled. Run Set up accounts again.');
+                if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were not disabled. Run Set up accounts again.');
                 if (!lines.length && !orphanDryRun) lines.push('Nothing to do — all accounts already up to date.');
 
                 resultEl.innerHTML = lines.map(l => `<p class="auth-result-line">${escapeHtml(l)}</p>`).join('');

@@ -12,7 +12,7 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE } from './roster-data.js';
 import { isRestShift, shouldReplaceOverride } from './override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
@@ -882,7 +882,7 @@ export async function executeSave(toSave, toDelete = []) {
 
     await sessionReady;
     if (!auth.currentUser) {
-        _showError('Session expired — please sign out and sign back in.');
+        _showError("You've been signed out — please sign in again.");
         // This early return is before the try/finally — restore the button state it can't.
         if (saveBtn) { saveBtn.textContent = 'Save changes'; }
         updateSaveBtn();
@@ -940,7 +940,7 @@ export async function executeSave(toSave, toDelete = []) {
     } catch (err) {
         console.error('[Admin] Save failed:', err);
         _showError((/** @type {any} */ (err))?.code === 'permission-denied'
-            ? "Couldn't save — your session may have expired. Please sign out and sign back in."
+            ? "Couldn't save — you may have been signed out. Please sign in again."
             : "Couldn't save — check your connection and try again.");
     } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }
@@ -1252,7 +1252,7 @@ function _initTimeInputs() {
         const timeInput = /** @type {HTMLInputElement} */ (e.target);
         const val = timeInput.value.trim();
         if (!val) { timeInput.classList.remove('input-error'); timeInput.removeAttribute('aria-invalid'); return; }
-        const invalid = !/^([01]\d|2[0-3]):[0-5]\d$/.test(val);
+        const invalid = !TIME_RE.test(val);
         timeInput.classList.toggle('input-error', invalid);
         // Expose the failure to assistive tech, not just via the CSS class. The input
         // already points at its error span through aria-describedby.

@@ -470,17 +470,12 @@
         /* Idle text colours darkened to pass WCAG AA 4.5:1 on white (v13.50).
            Active state inherits white text from .type-pill-btn.active — these
            colour overrides only affect the outlined idle state. */
-        .pill-spare_shift  { color: var(--purple);                  } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
         .pill-shift        { color: oklch(42.0% 0.1323 273.8deg);  } .pill-shift.active        { background: var(--ot);       border-color: var(--ot);       }
         .pill-rdw          { color: var(--rdw-text);                } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
         .pill-annual_leave { color: oklch(43.0% 0.1010 182.5deg);  } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
         .pill-sick         { color: var(--absence-text);            } .pill-sick.active         { background: var(--absence);  border-color: var(--absence);  }
         .pill-correction   { color: oklch(44.0% 0.1741 64.1deg);   } .pill-correction.active   { background: var(--orange);   border-color: var(--orange);   }
         .pill-other     { color: var(--other);                      } .pill-other.active     { background: var(--other);      border-color: var(--other);      }
-        .pill-swap         { color: var(--blue-sky); } .pill-swap.active  { background: var(--blue-sky); border-color: var(--blue-sky); }
-        /* Legacy pill colours — used for old Saved Changes records only, no active buttons */
-        .pill-allocated    { color: var(--green);    }
-        .pill-overtime     { color: var(--ot);       }
 
         .bulk-time-group {
             display: flex;
@@ -1421,12 +1416,6 @@
 
         /* Absence preview — reuses al-preview layout */
         .sick-preview.ready { background: var(--absence-light); color: var(--absence-text); }
-        /* Absence visibility note */
-        .absence-visibility-note {
-            font-size: var(--type-small);
-            color: var(--text-mid);
-            margin: 4px 0 8px;
-        }
         /* Absence period count in the booked-dates list */
 
         /* ---- Touch device enhancements ---- */
@@ -1883,36 +1872,6 @@
         .btn-show-all-overrides:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
 
         /* Checkbox column in the override table */
-        /* ---- Work email notice lightbox ---- */
-        #workEmailNoticeLightbox { z-index: 9000; }
-        #workEmailNoticeContent {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            gap: 8px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 24px;
-            padding: 28px 24px 24px;
-            width: min(340px, calc(100vw - 48px));
-            max-height: 80vh;
-            transform: scale(0.85);
-        }
-        #workEmailNoticeLightbox.open #workEmailNoticeContent { transform: scale(1); }
-        .notice-lb-emoji { font-size: 56px; line-height: 1; margin-bottom: 4px; }
-        .notice-lb-desc {
-            margin: 0;
-            font-size: 13px;
-            line-height: 1.6;
-            color: rgba(255, 255, 255, 0.68);
-        }
-        #workEmailNoticeContent strong { color: rgba(255, 255, 255, 0.9); }
-        #workEmailNoticeClose { color: rgba(255, 255, 255, 0.45); }
-        #workEmailNoticeClose:active { color: white; }
-        @media (hover: hover) and (pointer: fine) {
-            #workEmailNoticeClose:hover { color: white; }
-        }
 
 /* ---- One-time email check (login-card design) ---- */
 /* Overlay and card structure shared with #loginOverlay / #loginCard in shared.css. */

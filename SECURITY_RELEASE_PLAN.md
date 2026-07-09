@@ -1,6 +1,6 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: in progress (created v14.38). **Current state (as of v16.29):***
+*Status: in progress (created v14.38). **Current state (as of v16.34):***
 - *Track A — **A2 Workload Identity Federation ✓ DONE (v14.93)** (keyless OIDC deploys; SA JSON key +
   secret deleted — see Appendix A2); A3 doc-only ✓ DONE (v14.38); **A1 ✓ DONE (v15.32)** — the `uuid`
   advisories were cleared with a scoped `uuid` override on the supported firebase-admin `^13`, NOT the
@@ -81,7 +81,7 @@ B-track phase reference them.
 | **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
 | **Management** | `CONFIG.MANAGER_NAMES` (6 names) | **`{ manager: true, name }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
 | **Staff** | everyone else | `{ name }` | Only their **own** overrides (`token.name == memberName`) |
-| *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva']`) | *cross-cuts the above* — S. Silva is a **CEA**, not a manager. **The `linksDesigner` claim is LIVE (H2 ✓ SHIPPED v16.29)** — `setupRosterAuth` sets it from `CONFIG.LINKS_DESIGNERS` and `linkDesigns` writes are gated on it. What was done: add claim → re-provision → refresh → gate `linkDesigns` write. Historical apply record: **B3_STRICT_CUTOVER.HELD.md → "Sibling cutover — `linksDesigner` claim"**; shipped in the B3 window | `linkDesigns` (designs are **not** member-owned) — server-write control is now the **`linksDesigner`/`admin` claim** (was client-redirect only until H2) |
+| *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva']`) | *cross-cuts the above* — S. Silva is a **CEA**, not a manager. **The `linksDesigner` claim is LIVE (H2 ✓ SHIPPED v16.29)** — `setupRosterAuth` sets it from `CONFIG.LINKS_DESIGNERS` and `linkDesigns` writes are gated on it. What was done: add claim → re-provision → refresh → gate `linkDesigns` write; shipped in the B3 window (v16.29). The exact apply patch is live in `firestore.rules` (linkDesigns block) + `firestore.rules.test.mjs` (the H2 `describe`) | `linkDesigns` (designs are **not** member-owned) — server-write control is now the **`linksDesigner`/`admin` claim** (was client-redirect only until H2) |
 
 **The gap B2 closed (pre-v14.53):** originally only `ADMIN_NAMES` was sent to `setupRosterAuth` as
 `adminMembers`, so only G. Miller carried `admin: true`; managers carried just `{ name }`. The
@@ -402,10 +402,11 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
 
 #### B3 cutover runbook — ✅ COMPLETED (v16.29) — the steps below are what was executed; this is now a historical record
 
-> **Exact, line-verified patch (as applied):** `B3_STRICT_CUTOVER.HELD.md` (repo root) holds the
-> `firestore.rules` diff AND the `firestore.rules.test.mjs` rework that shipped, verified against the
-> live files at v15.32 (dry-run re-verified v16.28) and deployed v16.29. The steps below are the
-> surrounding overview; that file is the patch that was applied.
+> **Exact, line-verified patch (as applied):** the `firestore.rules` diff and the
+> `firestore.rules.test.mjs` rework that shipped are reproduced inline in Steps 3–5 below; the live
+> rules + tests are the source of truth. (Historically these lived in a standalone
+> `B3_STRICT_CUTOVER.HELD.md` "held patch" file — retired Jul 2026 once B3/H2 shipped and the patch
+> was live; recover the full artifact from git history if ever needed.)
 > **Note the test rework was broader than a naive "create tests" swap:** the whole
 > `describe('overrides')` field-validation block used `staffDb()` (no-name), which strict denies — every
 > one moved to `namedDb('G. Miller')`, and the no-name escape test flipped to `assertFails` (+ a delete
@@ -482,6 +483,15 @@ huddle/circular/newsletter/roster/auth; admin edits others' ✓; roster upload s
 
 **Rollback:** re-add the two escape lines and redeploy the permissive rule (instant), or revert
 `overrides` to `request.auth != null`. No data migration either way.
+
+**Post-deploy production check (v16.29 — folded in from the retired `POST_DEPLOY_V16.29.md` one-time
+checklist).** The deploy ORDER is load-bearing: **function first → re-provision (Set up accounts) →
+then the strict Rule** — because `writeWithClaimRetry` only self-heals a claim that *already exists
+server-side*; it cannot help if `setupRosterAuth` has not yet SET the claim. Getting the repo rules
+right is necessary but not sufficient — the live project (deployed function + provisioned claims +
+refreshed tokens) must also be right. Verified in production at v16.29 across roles: member writes own
+✓ / cannot write another's ✗; manager + admin on-behalf ✓; designer Links write ✓ / non-designer ✗;
+roster upload saves ✓ — all in a private window, never an installed phone.
 
 ### B4 — server-owned roster/role lists — ✅ SHIPPED (v16.30)
 - **Shipped:** `setupRosterAuth` no longer trusts client-sent member/role lists. All four
@@ -599,9 +609,9 @@ huddle/circular/newsletter/roster/auth; admin edits others' ✓; roster upload s
       6 tests) — the deterministic token-refresh mechanism. **Write-side stale-claim retry net BUILT v15.18**
       (`writeWithClaimRetry`, all three override write paths). **`CLAIM_EPOCH` ARMED → 2 at v15.33** (the
       pre-cutover sweep). **Executed (v16.29):** health-checked the sweep in a private window → let it settle
-      → re-ran Set up accounts in-window → applied the strict rule + reworked tests
-      (`B3_STRICT_CUTOVER.HELD.md`) on a fresh branch → verified the private-window matrix → deployed the
-      strict rule. `writeWithClaimRetry` self-healed stale tokens, so no mass sign-out was needed.
+      → re-ran Set up accounts in-window → applied the strict rule + reworked tests (patch inline in
+      Steps 3–5 above) on a fresh branch → verified the private-window matrix → deployed the strict
+      rule. `writeWithClaimRetry` self-healed stale tokens, so no mass sign-out was needed.
 - [x] H2 — `linkDesigns` write requires the `linksDesigner`/`admin` claim (reads stay open)
       — **✓ SHIPPED v16.29.** `setupRosterAuth` sets `linksDesigner` from `CONFIG.LINKS_DESIGNERS`,
       `admin-auth.js` sends `designerMembers`, and every `links-app.js` write is wrapped in

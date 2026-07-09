@@ -71,7 +71,7 @@ export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession,
             ? 'Couldn’t complete sign-in — check your connection and try again.'
             : isTransient(getAuthError())
                 ? 'Couldn’t reach sign-in — check your connection and try again.'
-                : 'Couldn’t complete sign-in. Ask your manager to set up your account.' };
+                : 'Couldn’t complete sign-in. Ask the admin to set up your account.' };
     }
     // Commit ONLY now that auth has genuinely resolved. If the write is swallowed (storage blocked —
     // iOS Private Browsing), fail cleanly: without the local session every page re-check returns null,

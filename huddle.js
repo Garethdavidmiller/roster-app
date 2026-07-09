@@ -11,7 +11,7 @@
  */
 
 import { uploadHuddle } from './firebase-client.js';
-import { initDocUploadCard, isPdfFile } from './doc-upload.js';
+import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, isIOS } from './notif.js';
 import { initCardCollapse } from './overlay.js';
 
@@ -70,7 +70,7 @@ export function initHuddleNotifications() {
             _statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when the Daily Huddle is ready or payday is approaching.';
             _disableBtn.style.display = 'block';
         } else if (state === 'off-lapsed') {
-            _statusMsg.textContent   = 'Notifications are enabled in your browser but your subscription has lapsed. Tap Enable to resubscribe.';
+            _statusMsg.textContent   = 'Notifications were switched on but have stopped. Tap Enable to turn them back on.';
             _enableBtn.style.display = 'block';
         } else if (state === 'denied') {
             _statusMsg.textContent   = 'Notifications are blocked. To re-enable, check your browser or device settings.';
@@ -113,11 +113,6 @@ export function initHuddleNotifications() {
 // The card HTML is always in the DOM but hidden via style="display:none".
 // This block reveals it and wires up the upload flow only when the signed-in
 // user is an admin. Non-admins never see the card.
-/** @param {File} f */
-function _isDocx(f) {
-    return f.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        || f.name.toLowerCase().endsWith('.docx');
-}
 
 /**
  * Load the Mammoth DOCX→HTML converter from CDN once (SRI-pinned; the hash is patched by
@@ -148,7 +143,7 @@ function _loadMammoth() {
  * @returns {Promise<{ extraArgs?: any[], abortMsg?: string }>}
  */
 async function _convertHuddleDocx(file, { setBtnText }) {
-    if (!_isDocx(file)) return { extraArgs: [null] }; // PDF → no inline HTML
+    if (!isDocxFile(file)) return { extraArgs: [null] }; // PDF → no inline HTML
     setBtnText('Converting…');
     let htmlContent = null;
     try {
@@ -188,7 +183,7 @@ function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {str
         successMsg: date => `Huddle uploaded for ${date} — staff will see it on the main app`,
         btnLabel: 'Upload Huddle', logPrefix: 'Huddle',
         maxDateOffsetDays: 1,
-        isAccepted: f => isPdfFile(f) || _isDocx(f),
+        isAccepted: f => isPdfFile(f) || isDocxFile(f),
         rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
         sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
         transform: _convertHuddleDocx,

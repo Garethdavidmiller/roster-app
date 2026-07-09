@@ -111,7 +111,12 @@ export const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_shown';
 // served file (real pay figures were moved out of roster-data.js at v14.68 for
 // privacy). Seeded once per device via the owner-only import in paycalc.html.
 /** The active member's payslip-actuals storage key (namespaced → per-member). */
-export function payslipActualsKey() { return `${pcPrefix()}actuals`; }
+function payslipActualsKey() { return `${pcPrefix()}actuals`; }
+
+/** True for the developer account with a device-local payslip-actuals overlay (dev-only feature gate).
+ *  Single source for the hardcoded name literal that used to be repeated across paycalc modules.
+ *  @param {{name?:string}|null|undefined} member */
+export function isActualsDev(member) { return member?.name === 'G. Miller'; }
 
 /** Read the active member's device-local payslip actuals. Returns {} when none are
  *  stored or the stored JSON is unparseable. @returns {Record<string, any>} */

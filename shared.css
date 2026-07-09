@@ -468,13 +468,6 @@ body.lb-open #stickyTotal { display: none !important; }
     letter-spacing: -0.3px;
 }
 
-.lightbox-subtitle {
-    color: rgba(255,255,255,0.5);
-    font-size: 13px;
-    font-weight: 500;
-    margin-bottom: 4px;
-}
-
 .lightbox-version {
     color: rgba(255,255,255,0.65); /* raised from 0.45 — was ~4.45:1, now clears WCAG AA */
     font-size: 12px;
@@ -1482,14 +1475,6 @@ button.nav-panel-link--notices {
     .nav-panel-bell:hover { opacity: 0.7; }
 }
 .nav-panel-bell:active { opacity: 0.5; }
-
-/* Browser-blocked hint, revealed when a denied bell is tapped.
-   Lifted toward white so the red clears AA on the navy footer. */
-.nav-panel-bell-hint {
-    font-size: 11px;
-    color: color-mix(in oklch, var(--error-red) 65%, white);
-    text-align: right;
-}
 
 /* Name + nationality flags grouped on the left; name truncates, flags stay */
 .nav-panel-member-wrap {

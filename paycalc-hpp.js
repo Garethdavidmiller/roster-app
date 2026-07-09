@@ -16,7 +16,7 @@ import {
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { periodKey, hppEstKey, hppActualKey, readPayslipActuals } from './paycalc-migrations.js';
+import { periodKey, hppEstKey, hppActualKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
 import { fmt } from './paycalc-format.js';
 
@@ -119,7 +119,7 @@ export function calcHPP(bpVarAmount, bpPNum) {
   // Device-local payslip actuals (G. Miller only; imported once per device, never served).
   // When a period has real figures, its actual varPay is used instead of the entered-hours
   // estimate — read once here, not per period.
-  const _actuals = getLoggedMember()?.name === 'G. Miller' ? readPayslipActuals() : null;
+  const _actuals = isActualsDev(getLoggedMember()) ? readPayslipActuals() : null;
 
   periods.forEach(/** @param {any} p */ p => {
     try {
@@ -218,7 +218,7 @@ export function updatePriorHpp(ty) {
       return o >= priorTy.first && o <= priorTy.last;
     });
 
-    if (getLoggedMember()?.name === 'G. Miller') {
+    if (isActualsDev(getLoggedMember())) {
       const _act = readPayslipActuals();
       const _priorVar = _priorPeriods.reduce((/** @type {number} */ sum, /** @type {any} */ p) => {
         const a = _act[formatISO(p.payday)];

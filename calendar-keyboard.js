@@ -9,7 +9,7 @@
  */
 
 import { isSwipeCooldown } from './calendar-swipe.js';
-import { getPaydaysAndCutoffs, formatISO } from './roster-data.js';
+import { paydayForCutoff } from './roster-data.js';
 
 /**
  * Initialise the desktop hover tooltip. No-op on touch/pointer-coarse devices.
@@ -88,11 +88,8 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
         e.preventDefault();
         if (focused.dataset.paydayIso) { navigateToPaycalc(focused.dataset.paydayIso); return; }
         if (focused.dataset.cutoffIso) {
-          const cutoffIso  = focused.dataset.cutoffIso;
-          const cutoffYear = Number(cutoffIso.slice(0, 4));
-          const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
-          const i = cutoffs.findIndex(/** @param {any} c */ c => formatISO(c) === cutoffIso);
-          if (i !== -1) navigateToPaycalc(formatISO(paydays[i]));
+          const payday = paydayForCutoff(focused.dataset.cutoffIso);
+          if (payday) navigateToPaycalc(payday);
           return;
         }
         openDayDetail?.(/** @type {HTMLElement} */ (focused));

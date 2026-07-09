@@ -22,7 +22,7 @@ import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
+import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse } from './overlay.js';
@@ -560,7 +560,7 @@ export function init() {
     // Cloud Functions and Storage both require a valid admin token — they'll
     // reject silently without this warning.
     sessionReady.then(ok => {
-        if (!ok || /** @type {any} */ (window)._mybAuthError) {
+        if (!ok || getFirebaseAuthError()) {
             const main   = document.querySelector('.container');
             if (!main) return;
             const banner = document.createElement('p');

@@ -178,7 +178,7 @@ export function createRangeBookingSection(cfg) {
                 // exactly what did land before retrying (v16.25).
                 ? '⚠ The connection dropped part-way — some days may already be saved. The saved changes list has been refreshed; check it before trying again.'
                 : (/** @type {any} */ (err)).message === 'auth/session-expired'
-                    ? '⚠ Session expired — please sign out and sign back in.'
+                    ? "⚠ You've been signed out — please sign in again."
                     : "⚠ Couldn't save — check your connection and try again.";
         } finally {
             // Restore the button LABEL only — let updatePreview() govern the disabled state. On the

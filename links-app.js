@@ -1065,7 +1065,7 @@ export function init() {
         rows.push(
             `<div class="check-row ${stretchOk ? 'check-good' : 'check-warn-row'}">` +
             `${stretchOk ? tick : warn}<div class="check-body">` +
-            `<strong>Longest run</strong> — ${longestStretch} consecutive working days in a row` +
+            `<strong>Longest run</strong> — ${longestStretch} consecutive working days` +
             (longestStretch > 7 ? `<div class="check-sub">Over 7 days without a rest — worth reviewing.</div>` : '') +
             `</div></div>`
         );
@@ -1582,7 +1582,7 @@ export function init() {
                         { icon: '↺', html: 'The table starts <strong>pre-filled from the current roster</strong> — what today\'s 22 active lines actually provide. Edit from there, or use the reset link to get back to it.' },
                         { icon: '➕', html: '<strong>+ Add another shift</strong> for a new start time; ✕ removes a row. Pick times from the dropdown or choose Custom time….' },
                         { icon: '⚠️', html: 'Each day\'s total (all shifts + spare) can\'t exceed 28 — watch the Total row.' },
-                        { icon: '3️⃣', html: 'Tap <strong>Generate link</strong>, then review the Coverage heat map and Design Checks before saving.' },
+                        { icon: '3️⃣', html: 'Tap <strong>Generate link</strong>, then review the Coverage analysis and Design checks before saving.' },
                     ]},
                 ],
             },
