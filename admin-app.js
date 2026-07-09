@@ -30,7 +30,7 @@ import { initCardCollapse } from './overlay.js';
 import { initEmailCheck } from './admin-email-check.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { isRestShift, computePeriodDeleteIds } from './override-utils.js';
+import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods } from './override-utils.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
@@ -1332,31 +1332,9 @@ function _renderBookedPeriods({ type, memberName, boxId, bodyId, countFn, countC
     const memberObj = teamMembers.find(m => m.name === memberName);
     const dateList  = [...new Set(entries.map(e => e.date))].filter(d => !isSunday(d)).sort();
     if (!dateList.length) { box.hidden = true; return; }
-    const periods   = [];
-    let periodStart = dateList[0];
-    let periodEnd   = dateList[0];
-    let count       = 1;
-
-    for (let i = 1; i < dateList.length; i++) {
-        const prev = dateList[i - 1];
-        const curr = dateList[i];
-        let gapAllRest = true;
-        let cursor = _addDays(prev, 1);
-        while (cursor < curr) {
-            if (!_isRestGap(cursor, memberObj)) { gapAllRest = false; break; }
-            cursor = _addDays(cursor, 1);
-        }
-        if (gapAllRest) {
-            periodEnd = curr;
-            count++;
-        } else {
-            periods.push({ start: periodStart, end: periodEnd, count });
-            periodStart = curr;
-            periodEnd   = curr;
-            count       = 1;
-        }
-    }
-    periods.push({ start: periodStart, end: periodEnd, count });
+    // Gap-merge is the pure, unit-tested override-utils helper; the day-of-week / base-roster
+    // knowledge stays here via the two injected closures (v16.42).
+    const periods = mergeBookedPeriods(dateList, d => _isRestGap(d, memberObj), d => _addDays(d, 1));
 
     const byMonth = /** @type {Record<string, any[]>} */ ({});
     for (const p of periods) {

@@ -35,6 +35,47 @@ export function isOverrideDisplaySuppressed(override, baseShift, sunday) {
 }
 
 /**
+ * Group a sorted, Sunday-excluded list of AL/absence dates into contiguous "periods" for the admin
+ * booked-dates boxes, merging two dates into ONE period when every calendar day BETWEEN them is a
+ * "rest gap" (a Sunday or a base rest day) — so e.g. a Fri + the following Mon reads as one period
+ * across the weekend. Pure: the day-of-week / base-roster knowledge stays with the caller, which
+ * supplies `isRestGap(dateStr)` and `addDay(dateStr)`. Extracted from admin-app.js `_renderBookedPeriods`
+ * (v16.42) so this previously-untested merge logic is unit-testable.
+ * @param {string[]} dateList  sorted ascending "YYYY-MM-DD", already Sunday-filtered
+ * @param {(dateStr: string) => boolean} isRestGap  true if the date is a skippable rest gap
+ * @param {(dateStr: string) => string} addDay      the next calendar day after `dateStr`
+ * @returns {{ start: string, end: string, count: number }[]}
+ */
+export function mergeBookedPeriods(dateList, isRestGap, addDay) {
+    if (!dateList.length) return [];
+    const periods = [];
+    let periodStart = dateList[0];
+    let periodEnd   = dateList[0];
+    let count       = 1;
+    for (let i = 1; i < dateList.length; i++) {
+        const prev = dateList[i - 1];
+        const curr = dateList[i];
+        let gapAllRest = true;
+        let cursor = addDay(prev);
+        while (cursor < curr) {
+            if (!isRestGap(cursor)) { gapAllRest = false; break; }
+            cursor = addDay(cursor);
+        }
+        if (gapAllRest) {
+            periodEnd = curr;
+            count++;
+        } else {
+            periods.push({ start: periodStart, end: periodEnd, count });
+            periodStart = curr;
+            periodEnd   = curr;
+            count       = 1;
+        }
+    }
+    periods.push({ start: periodStart, end: periodEnd, count });
+    return periods;
+}
+
+/**
  * Converts a Firestore Timestamp or plain {seconds} object to milliseconds.
  * Returns 0 for null/undefined or unrecognised shapes.
  * @param {any} ts
