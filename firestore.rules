@@ -14,7 +14,16 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v14.53 — B2 per-member override isolation (permissive 3-tier: name/admin/manager
+// Last updated: v16.25 — no rule CHANGE this revision; header re-stamped after a doc-drift review.
+//   Current posture: B2 per-member override isolation is live in the PERMISSIVE 3-tier form
+//   (name / admin / manager claim, PLUS the `!('name' in token)` no-name escape so legacy/
+//   anonymous sessions never lock out — the escape is HELD for the B3 strict cutover, NOT a bug).
+//   clientErrors pins `timestamp == request.time` (server clock), admin-only read/update.
+//   Override `value` grammar accepts the other-family sentinels (TRG/IND/ASSESS/TEAM ± RDW ± times).
+//   linkDesigns deliberately open to any authed session (not member-owned; a linksDesigner claim
+//   is the eventual fix — see its block). staffContact owner+admin; analytics any-auth write /
+//   admin read; pushSubscriptions shape-validated, delete auth-only (B2 hardening deferred).
+// v14.53 — B2 per-member override isolation (permissive 3-tier: name/admin/manager
 //   + no-name escape), override delete tightened to match, override/circular/newsletter dates
 //   bounded to real month/day ranges. linkDesigns deliberately left open (see its block).
 // v14.29 — huddles create/update brought to parity with circulars/newsletters:

@@ -1474,24 +1474,38 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     const deletedIds = new Set();
     for (let i = 0; i < ops.length; i += CHUNK) {
         const slice = ops.slice(i, i + CHUNK);
-        const res = await writeWithClaimRetry(async () => {
-            /** @type {any[]} */
-            const docs   = [];
-            const delIds = new Set();
-            const batch  = writeBatch(db);
-            slice.forEach(op => {
-                const existing = ovByDate.get(op.date);
-                if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
-                const newRef = doc(collection(db, COLLECTIONS.overrides));
-                batch.set(newRef, {
-                    memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual',
-                    createdAt: serverTimestamp(), changedBy,
+        let res;
+        try {
+            res = await writeWithClaimRetry(async () => {
+                /** @type {any[]} */
+                const docs   = [];
+                const delIds = new Set();
+                const batch  = writeBatch(db);
+                slice.forEach(op => {
+                    const existing = ovByDate.get(op.date);
+                    if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
+                    const newRef = doc(collection(db, COLLECTIONS.overrides));
+                    batch.set(newRef, {
+                        memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual',
+                        createdAt: serverTimestamp(), changedBy,
+                    });
+                    docs.push({ id: newRef.id, memberName, date: op.date, type: op.type, value: op.value, source: 'manual', note: '', createdAt: new Date() });
                 });
-                docs.push({ id: newRef.id, memberName, date: op.date, type: op.type, value: op.value, source: 'manual', note: '', createdAt: new Date() });
+                await batch.commit();
+                return { docs, delIds };
             });
-            await batch.commit();
-            return { docs, delIds };
-        });
+        } catch (err) {
+            // A chunk failed AFTER earlier chunks committed → Firestore holds partial data the
+            // in-memory cache doesn't reflect (the cache update below never runs). Resync from
+            // Firestore so the Saved-changes list is TRUTHFUL, and tag the error so the caller can
+            // warn the user that some of the range may already have saved (v16.25). A first-chunk
+            // failure committed nothing, so the cache is still consistent — no resync needed.
+            if (newDocs.length || deletedIds.size) {
+                try { await loadOverrides(); } catch { /* best-effort resync */ }
+                /** @type {any} */ (err).partialCommit = true;
+            }
+            throw err;
+        }
         newDocs.push(...res.docs);
         res.delIds.forEach(id => deletedIds.add(id));
     }

@@ -88,8 +88,10 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
     // Firestore batches are capped at 500 ops. Each item can be a delete + a set (2 ops),
     // so chunk at 200 to stay well under the limit.
     const CHUNK = 200;
+    let _committedChunks = 0;
     for (let i = 0; i < toWrite.length; i += CHUNK) {
         const chunk = toWrite.slice(i, i + CHUNK);
+        try {
         await writeWithClaimRetry(async () => {
             const batch = writeBatch(db);
             for (const { memberName, date, value, baseShift, replaceId, deleteOnly } of chunk) {
@@ -126,6 +128,14 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
             }
             await batch.commit();
         });
+        _committedChunks++;
+        } catch (err) {
+            // A chunk failed after earlier chunks committed → partial roster import is now in
+            // Firestore. Tag the error so the caller can resync + warn rather than imply nothing
+            // saved (v16.25). First-chunk failure committed nothing — no tag.
+            if (_committedChunks > 0) /** @type {any} */ (err).partialCommit = true;
+            throw err;
+        }
     }
 }
 
@@ -297,16 +307,26 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         } catch (err) {
             console.error('[RosterUpload] Parse failed:', err);
             const _err = /** @type {any} */ (err);
-            let userMsg;
-            if (_err.name === 'AbortError' || (_err.name === 'TypeError' && _err.message.includes('Load failed'))) {
-                userMsg = 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
-            } else if (_err instanceof TypeError && _err.message === 'Failed to fetch') {
-                userMsg = "Couldn't reach the server — check your internet connection or try again later.";
+            if (_err.conflictReadFailed) {
+                // The PDF parsed fine, but the existing-overrides SAFETY read failed — fail closed:
+                // wipe any stale review state so an earlier parse's table can't be applied against
+                // this now-unverified upload, and keep the review hidden (v16.25).
+                _cellStates = null;
+                reviewSection.classList.remove('visible');
+                parseFeedback.textContent = "Couldn't check your existing saved changes, so the roster was NOT applied. Check your connection and try again.";
+                parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             } else {
-                userMsg = 'Unexpected error — please try again or contact support.';
+                let userMsg;
+                if (_err.name === 'AbortError' || (_err.name === 'TypeError' && _err.message.includes('Load failed'))) {
+                    userMsg = 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
+                } else if (_err instanceof TypeError && _err.message === 'Failed to fetch') {
+                    userMsg = "Couldn't reach the server — check your internet connection or try again later.";
+                } else {
+                    userMsg = 'Unexpected error — please try again or contact support.';
+                }
+                parseFeedback.textContent = `Couldn't read the roster: ${userMsg}`;
+                parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             }
-            parseFeedback.textContent = `Couldn't read the roster: ${userMsg}`;
-            parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
         } finally {
             parseBtn.disabled     = false;
             parseBtn.textContent  = 'Read roster';
@@ -391,6 +411,21 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         } catch (err) {
             console.error('[RosterUpload] Apply failed:', err);
             const _applyErr = /** @type {any} */ (err);
+            if (_applyErr?.partialCommit) {
+                // Earlier chunks committed before the failure — partial import is live in Firestore.
+                // Resync the Saved-changes list and CLOSE the review (its remaining rows are now
+                // ambiguous against the partially-applied state; a fresh re-upload re-reads truth
+                // via the v16.25 fail-closed conflict-read) (v16.25).
+                try { await loadOverrides(); } catch { /* best-effort */ }
+                reviewSection.classList.remove('visible');
+                _parsedResult = null;
+                _cellStates   = null;
+                applyFeedback.textContent = "The connection dropped part-way — some of the roster may already be saved. The saved changes list has been refreshed; re-read the roster to check before applying again.";
+                applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
+                applyBtn.disabled    = true;
+                applyBtn.textContent = 'Save changes';
+                return;
+            }
             const detail = _applyErr?.code === 'permission-denied'
                 ? 'your session may have expired. Try signing out and back in.'
                 : (_applyErr?.message || 'Unknown error — check the browser console.');
@@ -436,8 +471,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const snap = await getDocs(q);
             return snap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
         } catch (err) {
+            // FAIL CLOSED (v16.25): a failed conflict-read must NOT proceed as "no existing
+            // overrides". The whole point of this read is to know about manual AL/absence/shift
+            // changes and prior imports before the review table classifies rows — returning []
+            // let the review mark rows safe while BLIND to that data, so Save could silently
+            // overwrite/duplicate manual changes. Re-throw a tagged error; the parse handler
+            // stops, shows a clear message, and never renders an applyable review.
             console.error('[RosterUpload] Could not fetch existing overrides:', err);
-            return [];   // Non-fatal — means we may miss conflicts, but won't crash
+            const e = new Error('CONFLICT_READ_FAILED');
+            /** @type {any} */ (e).conflictReadFailed = true;
+            throw e;
         }
     }
 

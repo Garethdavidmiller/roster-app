@@ -1658,7 +1658,13 @@ async function _runEmailCheck(member) {
             loginOverlay?.removeAttribute('aria-hidden');
             overlay.classList.remove('open');
             const content = /** @type {HTMLElement} */ (document.getElementById('emailCheckContent'));
+            let _done = false;
             const onEnd = () => {
+                // Idempotent (v16.25): transitionend AND the 500ms fallback both call this — without
+                // the guard a second run fired a second unlockBodyScroll (depth-counted, so it could
+                // drop an outer overlay's lock). Mirrors the shared dismissOverlay lifecycle.
+                if (_done) return;
+                _done = true;
                 overlay.classList.remove('visible');
                 unlockBodyScroll();
                 resolve();
