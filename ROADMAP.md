@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: July 2026 — v16.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v16.30 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -420,31 +420,37 @@ git if revisited.)
 
 Design review against a 10-point modernisation list. Already well-implemented: shadows (minimal, 10% opacity), 5-tier type scale (`--type-micro` → `--type-large`), motion tokens, WCAG AA colour contrast across all shift types, touch targets, safe-area padding, and reduced-motion support. Navigation was the one real gap — addressed by the nav panel overhaul (v10.57). **Shipped from this audit:** Pay result hierarchy (v7.67) — period line and hint text brightened from 72%/48% to 88%/62% opacity.
 
-### Design — low-risk visual wins (planned, June 2026)
+### Design — low-risk visual wins (planned June 2026) — ✅ COMPLETE (audited v16.30)
 
-A short batch of **no/low-risk, additive-CSS** polish items. None changes layout, behaviour, or JS;
-each is verifiable by eye plus the existing e2e geometry checks (no horizontal overflow). Sequenced
-cheapest-first. Higher-effort/higher-risk ideas (View Transitions on the swipe carousel, `:has()`
-state refactors, container queries, an SVG icon set, dark mode) are deliberately **excluded** from
-this batch — they're tracked separately under Future capabilities / UX experiments.
+A short batch of **no/low-risk, additive-CSS** polish items. Reviewed v16.30: most were already
+shipped incrementally; the batch is now closed. Higher-effort/higher-risk ideas (View Transitions on
+the swipe carousel, `:has()` state refactors, container queries, an SVG icon set, dark mode) remain
+deliberately **excluded** — tracked under Future capabilities / UX experiments.
 
-1. **Tabular numerals on data** — `font-variant-numeric: tabular-nums` on the Pay Calculator
-   figures, shift times, and AL counts so digits align in columns. **No risk** (Inter supports it;
-   no layout shift). Highest perceptual payoff for the effort.
-2. **`text-wrap: balance` on headings, `text-wrap: pretty` on paragraphs** — kills ragged headings
-   and orphan lines. **No risk** (degrades gracefully on older engines).
-3. **Display-heading typography** — fluid `clamp()` on `--type-xl` only (small/body/input sizes stay
-   fixed — the iOS-zoom floor logic is deliberate) + a slight `letter-spacing: -0.01em` on large
-   headings (Inter benefits from tighter tracking at display sizes). **Low risk**, scoped to display
-   headings.
-4. **Motion completeness audit** — confirm every animation (e.g. `today-pulse`) honours
-   `prefers-reduced-motion`; optional `scroll-behavior: smooth` behind the same guard. **Low risk**,
-   accessibility-positive.
-5. **Focus-visible / tap-target consistency audit** — ensure every interactive element has a visible
-   focus ring and meets the ~44px touch-target minimum; fix only clear gaps (no blanket size
-   changes, which could shift layout). **Low risk** (audit-led).
-
-Each ships as its own small commit with a version bump, so any one can be reverted independently.
+1. **Tabular numerals on data** — ✅ **DONE** (shipped incrementally; verified v16.29).
+   `font-variant-numeric: tabular-nums` is live on every intended surface: all Pay Calculator
+   figures (`.net-amount`, `.sum-row .val`, `.b-val`, `.bp-val`, `.hpp-amount`, `.sticky-amount` in
+   `paycalc.css`), calendar shift times (`index.css`, v14.54), and admin AL/date counts (`admin.css`).
+2. **`text-wrap: balance` on headings, `text-wrap: pretty` on paragraphs** — ✅ **DONE.** Live on all
+   6 app pages via `shared.css` (`:where(h1..h6){balance}` / `p{pretty}`), and extended to the four
+   guide pages via `guide-shell.css` (v16.30 — they don't import `shared.css`).
+3. **Display-heading typography** — ✅ **DONE / N-A.** Every genuinely-large heading already carries
+   display-appropriate negative tracking (`.app-header h1` −0.3px, `.month-year` −0.5px, `.net-amount`
+   −2px). The proposed fluid `clamp()` on `--type-xl` was **dropped**: that token is used in exactly one
+   place (an operations heading), so a clamp buys nothing and would only add a shared-token risk.
+4. **Motion completeness audit** — ✅ **DONE.** All six keyframe animations (`todayPulse`, `sync-pulse`,
+   `shimmer`, `pulse-confirm`, `spin`, `beta-sheen`) already sit behind `prefers-reduced-motion`
+   guards, plus the shared press-scale override. The optional global `scroll-behavior: smooth` was
+   **skipped** (optional; changes scroll feel app-wide for marginal benefit).
+5. **Focus-visible / tap-target audit** — ✅ **DONE (audit-led).** Focus: fully covered — a
+   zero-specificity safety net in `shared.css` rings every button/link/`[role=button]`, on top of ~60
+   explicit `:focus-visible` rules; guides carry their own. Tap targets: every primary and
+   mobile-facing control meets the 44px minimum (explicit `min-height/width:44px` on lightbox close,
+   burger, week-nav, range-picker, type-pills, help, guide buttons). The only sub-44px controls are
+   niche **desktop-admin/designer** controls — the ✎/✕ chip buttons (`links.css`, 2 designers) and the
+   `.roster-tick` (`operations.css`, admin) — where a proper 44px fix needs spacing/resizing (the ✎/✕
+   sit adjacent, so equal 44px hit areas would overlap). That's a layout change this batch explicitly
+   excludes, so they are **left as-is by design** (mouse-driven admin surfaces, not mobile thumbs).
 
 ---
 
@@ -557,12 +563,13 @@ a placeholder so the idea isn't lost.
 
 **Depends on:** Approval workflows (above). The Cloud Function infrastructure for push is already in place — extending it to cover other event types is a smaller lift now that the foundation exists.
 
-### Notification badge — monochrome silhouette asset (deferred)
-**What:** Add a proper monochrome badge PNG (`icon-badge.png`, white-on-transparent, ~96×96) and point the service worker's `badge:` at it. Today `badge:` uses `icon-192.png` (the full-colour app icon) — Android masks the badge to a single colour in the status bar, so a full-colour icon renders as a muddy blob on every notification. See `.claude/rules/notifications.md` → "Icon, badge, tag".
-
-**Blocked on:** the silhouette decision + the actual PNG asset — the **Chiltern/MYB mark** (most branded, only if it reads clearly at ~24px monochrome) or a **generic glyph** (calendar/bell — safest for legibility). A small Node generator script could produce it reproducibly.
-
-**When to do it:** whenever the asset exists. It's a **one-line service-worker swap** (`badge:` → `${scope}icon-badge.png`) in the same commit the PNG lands — no other code changes. Until then `badge:` stays on `icon-192.png` (no regression; just the blob).
+### Notification badge — monochrome silhouette asset — ✅ DONE
+**What:** A dedicated monochrome badge PNG (`icon-badge.png`, white-on-transparent, 96px) so Android
+doesn't mask the full-colour app icon into a muddy blob in the status bar. **Shipped:** the asset
+exists, is precached by the service worker (`service-worker.js` asset list), and the push handler
+sets `badge: ${self.registration.scope}icon-badge.png` (not `icon-192.png`). CLAUDE.md lists it as an
+asset and `.claude/rules/notifications.md` → "Icon, badge, tag" documents the rule (never use
+`icon-192.png` as the badge). No further work.
 
 ### Formal AL management
 **What:** Official AL request and approval workflow with entitlement tracking across the year.
@@ -982,7 +989,16 @@ zero, enforced by the fail-closed `scripts/typecheck.mjs` CI gate:
   casts (33 files); gate now enforces zero errors of any kind.
 - **9c** — `strict: true`; null-safety guards + implicit-any annotations across 46 files; **no**
   `// @ts-ignore` — all explicit annotations or runtime-safe guards.
-- **9d** (replace `any` casts with precise types) — unblocked, not started.
+- **9d** (replace `any` casts with precise types) — **partially done (v16.29).** All DOM-element
+  casts (`/** @type {any} */ (document.getElementById(…))` → precise `HTMLElement`/`HTMLButtonElement`)
+  are converted (admin-roster-upload, calendar-al-lightbox, links-app), typecheck stays at zero errors.
+  **Remaining ~180 `@type {any}` casts, deliberately not converted:** ~56 are genuinely dynamic and
+  SHOULD stay `any` (Firestore `doc.data()`, caught errors, snapshots — no static type without generated
+  Firestore types); the rest are object-shape params (period/member/override objects) that would want a
+  shared `@typedef` (e.g. a `Period` type across the paycalc cluster) — a larger, higher-regression-risk
+  refactor for marginal real-world safety, since strict null/DOM checking (9a–9c) already catches the
+  bugs that matter. Do the `Period` typedef as its own focused pass if pursued; otherwise the current
+  `any` on dynamic data is correct, not debt.
 
 ## Deferred backlog (from the v14.96 external review)
 
@@ -1000,10 +1016,13 @@ inside the function that needs it — Anthropic only in `parseRosterPDF`, `mammo
 huddle ingest, `web-push` only in the notification fan-out. Medium value (functions cold-start),
 low risk (mechanical), independent of the auth release. Functions tests already cover the helpers.
 
-### L4 — paycalc collapsible fixed `max-height` can clip long content
+### L4 — paycalc collapsible fixed `max-height` — ✅ CHECKED, within cap (no fix needed)
 
-`paycalc.css` (~line 256) gives open collapsible bodies a fixed `max-height` for the open/close
-animation. Very long dynamically-generated content (e.g. a large back-pay breakdown) could exceed
-the cap and clip. Fix options: measure height and remove the cap after the transition, or drop the
-animation for the long generated sections. Verify it actually clips at realistic content sizes
-before changing — it may be within the cap in practice. Low priority.
+`paycalc.css` gives open collapsible bodies a fixed `max-height` for the open/close animation.
+**Checked (v16.29):** the tallest real content is well within the cap. The `.bd-body` back-pay
+breakdown accrues at most one row per period in a single award tax year (≤ ~13 rows, capped at
+`todaysPeriodNum()` and excluding the paid-in period) and the result breakdown is a fixed ~20-line
+category list — ~550–800px against the 1400px cap; print already unclips it. So it does not clip at
+realistic sizes, and `max-height:none` would break the animation. A finite cap is correct here; the
+`paycalc.css` comment records the reasoning. Only revisit if a future breakdown could exceed the cap
+(then prefer measure-height-and-drop-cap-after-`transitionend` over a bigger magic number).

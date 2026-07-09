@@ -256,6 +256,13 @@
     .bd-arrow { font-size: 9px; transition: transform 0.25s; display: inline-block; }
     .bd-btn.open .bd-arrow { transform: rotate(180deg); }
     .bd-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+    /* 1400px is a deliberate finite cap so the open/close can ANIMATE (max-height:none can't
+       transition). It is sized well above the tallest real content: the back-pay breakdown accrues
+       at most one row per period in a single award tax year (≤ ~13 rows, capped at todaysPeriodNum
+       and excluding the paid-in period) and the result breakdown is a fixed ~20-line category list —
+       ~550–800px in practice. Print unclips it (@media print below). Checked for the L4 clip concern:
+       within cap, no clipping at realistic sizes. If a future breakdown could exceed this, prefer
+       measuring height and dropping the cap after transitionend over a bigger magic number. */
     .bd-body.open { max-height: 1400px; }
     .bd-row {
       display: flex; justify-content: space-between; align-items: center;

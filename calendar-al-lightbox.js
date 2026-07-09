@@ -34,8 +34,8 @@ export function initCalendarLightboxes() {
 
   const alLb = createLightbox({
     overlay:  /** @type {any} */ (lb),
-    content:  /** @type {any} */ (document.getElementById('alLightboxContent')),
-    closeBtn: /** @type {any} */ (document.getElementById('alLightboxClose')),
+    content:  /** @type {HTMLElement} */ (document.getElementById('alLightboxContent')),
+    closeBtn: /** @type {HTMLElement} */ (document.getElementById('alLightboxClose')),
     onOpen:   () => loadALStats(),
   });
 
@@ -143,8 +143,8 @@ export function initCalendarLightboxes() {
 
   const detailLb = dayLb ? createLightbox({
     overlay:  /** @type {any} */ (dayLb),
-    content:  /** @type {any} */ (document.getElementById('dayDetailContent')),
-    closeBtn: /** @type {any} */ (document.getElementById('dayDetailClose')),
+    content:  /** @type {HTMLElement} */ (document.getElementById('dayDetailContent')),
+    closeBtn: /** @type {HTMLElement} */ (document.getElementById('dayDetailClose')),
   }) : null;
 
   /** @param {any} cell */
