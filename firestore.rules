@@ -14,16 +14,18 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v16.29 — B3 STRICT cutover: removed the `!('name' in token)` no-name escape from
-//   the overrides create/update AND delete blocks (only that line changed; the name/admin/manager
-//   3-tier is retained). Shipped after re-provision + the CLAIM_EPOCH=2 sweep. Rollback = re-add the
-//   two escape lines and redeploy (instant, no data migration).
+// Last updated: v16.29 — B3 STRICT + H2 linkDesigns cutover (two rules deploys on the 16.29 line).
+//   B3: removed the `!('name' in token)` no-name escape from the overrides create/update AND delete
+//   blocks (only that line changed; the name/admin/manager 3-tier is retained). Shipped after
+//   re-provision + the CLAIM_EPOCH=2 sweep. Rollback = re-add the two escape lines and redeploy.
+//   H2 (this deploy): linkDesigns write now requires the `linksDesigner` claim (or admin); reads stay
+//   open to any authed session. setupRosterAuth sets linksDesigner for CONFIG.LINKS_DESIGNERS; a stale
+//   designer token self-heals via writeWithClaimRetry in links-app.js. Rollback = restore
+//   `allow read, write: if request.auth != null;`. Both rollbacks are instant, no data migration.
 //   clientErrors pins `timestamp == request.time` (server clock), admin-only read/update.
 //   Override `value` grammar accepts the other-family sentinels (TRG/IND/ASSESS/TEAM ± RDW ± times).
-//   linkDesigns STILL open to any authed session — the `linksDesigner` claim is now provisionable
-//   (H2 Changes A+B), but its write rule is only tightened in the follow-up H2 C+D step (after a
-//   re-provision-with-the-new-function + designer re-auth). staffContact owner+admin; analytics
-//   any-auth write / admin read; pushSubscriptions shape-validated, delete auth-only.
+//   staffContact owner+admin; analytics any-auth write / admin read; pushSubscriptions
+//   shape-validated, delete auth-only.
 // v14.53 — B2 per-member override isolation (permissive 3-tier: name/admin/manager
 //   + no-name escape), override delete tightened to match, override/circular/newsletter dates
 //   bounded to real month/day ranges. linkDesigns deliberately left open (see its block).
@@ -170,17 +172,19 @@ service cloud.firestore {
     }
 
     match /linkDesigns/{document=**} {
-      // Link design workspace data — read/write restricted to authenticated users.
-      // Client-side: links-app.js redirects anyone not in CONFIG.LINKS_DESIGNERS
-      // before any Firestore call is made, so per-designer isolation is not needed here.
-      // B2 DECISION (v14.53): deliberately NOT folded into the override member-name model.
-      // Designs are keyed by design name, not member, so token.name == memberName is
-      // meaningless here, and a designer (e.g. S. Silva) may be ordinary staff with no
-      // admin/manager claim — member-name isolation would lock them out. The real access
-      // control is the LINKS_DESIGNERS client redirect; the blast radius is one niche
-      // internal design tool. Revisit (a dedicated linksDesigner claim) only if the
-      // workspace opens to more people. See SECURITY_RELEASE_PLAN.md → B2.
-      allow read, write: if request.auth != null;
+      // Link design workspace data. Reads stay open to any authenticated session
+      // (design patterns are non-sensitive internal data; keeping read open also avoids
+      // locking out a designer whose token hasn't refreshed the linksDesigner claim yet).
+      allow read: if request.auth != null;
+      // Writes require the linksDesigner claim (or admin, who outranks). setupRosterAuth
+      // sets linksDesigner:true for CONFIG.LINKS_DESIGNERS. Closes H2 — before this, the
+      // links-app.js client redirect was the ONLY control and the server accepted a write
+      // from any authenticated session. See B3_STRICT_CUTOVER.HELD.md → Sibling cutover.
+      // A designer on a pre-cutover token self-heals: links-app.js wraps every linkDesigns
+      // write in writeWithClaimRetry (v16.29), so a permission-denied forces a token refresh
+      // and one retry — no manual sign-out needed.
+      allow write: if request.auth != null &&
+        (request.auth.token.linksDesigner == true || request.auth.token.admin == true);
     }
 
     match /staffContact/{memberName} {

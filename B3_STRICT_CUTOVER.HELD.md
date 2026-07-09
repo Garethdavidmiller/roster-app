@@ -1,9 +1,18 @@
 # B3 strict cutover — HELD patch (do NOT apply before the window)
 
-> ⚠️ **HELD. Nothing in this file is live.** The strict rule below is written as fenced
-> text on purpose — it is NOT in `firestore.rules`, so it is not deployed. Merging to `main`
+> ✅ **SHIPPED (v16.29, ~Jul 2026). Both cutovers are now LIVE — this file is a historical record.**
+> B3 (strict override isolation — no-name escape removed) and H2 (linkDesigns write requires the
+> `linksDesigner` claim) were both applied to `firestore.rules` and deployed via `deploy-rules.yml`
+> after re-provision + the CLAIM_EPOCH=2 sweep, with the writeWithClaimRetry self-heal live on both the
+> override paths and (v16.29) the links-app.js writes. The patches below are what was applied; the
+> current live rules are in `firestore.rules` (see its header changelog). Rollback for either is
+> instant (re-add the removed escape / restore `allow read, write: if request.auth != null;`).
+> Nothing below still needs applying.
+
+> ⚠️ **(Original HELD note, pre-cutover — kept for context.)** The strict rule below is written as
+> fenced text on purpose — it was NOT in `firestore.rules` while held. Merging to `main`
 > runs `deploy-rules.yml` and ships `firestore.rules` **live**, so the actual rule edit +
-> test rework must be applied on a **fresh branch cut at window time**, verified by the
+> test rework had to be applied on a **fresh branch cut at window time**, verified by the
 > emulator suite gate, then merged during the chosen low-traffic window — never before.
 >
 > This artifact is the exact, line-verified companion to **SECURITY_RELEASE_PLAN.md → B3**
