@@ -460,12 +460,19 @@ roster suggestions (`paycalc-roster-suggestions.test.mjs`), Cloud Function parse
 and link-design pure maths including generator, coverage, and design checks
 (`links-design.test.mjs`, added v12.40).
 
-Not currently tested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
-`calendar-renderer.js` and `calendar-*` state modules now have unit tests; the coordinators
-themselves do not), the Firestore read/write layer in all page modules, push notification
-subscribe/unsubscribe flow (`notif.js`), and Cloud Function HTTP endpoints (no integration tests).
-Before adding new untested behaviour in these modules, consider whether a unit or
-integration test can be added first.
+**Closed v16.32–16.33:** the push-notification state machine + subscribe/unsubscribe flow
+(`notif.test.mjs`, 23 tests — Push APIs stubbed on globalThis), the `setupRosterAuth` (B4) decision
+logic (extracted to `functions/roster-parse-helpers.js` and unit-tested: `parseSetupActionFlags`,
+`resolveRosterAuthConfig`, `claimsForTier`, `computeOrphanLabels`), and the `isSafeStorageUrl`
+download-URL allowlist (extracted to `storage-utils.js` + `storage-utils.test.mjs`).
+
+Still not tested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
+`calendar-renderer.js` / `calendar-*` state modules have unit tests; the coordinators themselves do
+not — e2e covers their page-load), the Firestore read/write layer in the page modules (behind the
+gstatic-CDN import), and the Cloud Function HTTP *handlers* end-to-end (the Admin-SDK orchestration —
+their pure decision logic IS now tested; a full handler test needs firebase-admin mocking). Before
+adding new untested behaviour in these modules, consider whether a unit or integration test can be
+added first.
 
 ### E2E smoke tests — REMOVED v12.75, RESTORED v13.95 (no longer a limitation)
 
