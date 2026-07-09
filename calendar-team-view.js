@@ -14,7 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, shouldReplaceOverride, parseOtherValue, OTHER_FLAVOURS, isRestShift } from './override-utils.js';
+import { isBeforeMemberStart, shouldReplaceOverride, parseOtherValue, OTHER_FLAVOURS, isRestShift, isOverrideDisplaySuppressed } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -84,15 +84,16 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
 
         const override = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(cacheKey) : null;
         if (override) {
-            if      (override.type === 'annual_leave') shift = 'AL';
-            else if (override.type === 'sick' && shift !== 'RD' && shift !== 'OFF' && !isSunday(dateStr)) shift = 'SICK';
+            // Suppress non-contracted overrides (sick on rest/Sunday, AL/Other on Sunday) via the
+            // shared single source, so the Team view can never disagree with the calendar / legend
+            // (v16.37 — this also fixes the previously-missing Sunday-AL suppression here).
+            if      (isOverrideDisplaySuppressed(override, shift, isSunday(dateStr))) { /* keep base */ }
+            else if (override.type === 'annual_leave') shift = 'AL';
+            else if (override.type === 'sick')         shift = 'SICK';
             else if (override.type === 'correction')   shift = 'RD';
             else if (override.type === 'rdw')          shift = 'RDW|' + (override.value || '');
             else if (override.type === 'spare_shift')  shift = 'SPARE';
-            // Sunday Other days suppressed — Sundays can never be Other-family days
-            // (OTHER_PLAN.md; layer 5 of the Sunday block, mirrors sick above).
-            else if (override.type === 'other' && isSunday(dateStr)) { /* keep base */ }
-            else if (override.value && override.type !== 'sick') shift = override.value;
+            else if (override.value)                   shift = override.value;
         }
 
         // `label` is the accessible name (used as the cell's aria-label) so meaning

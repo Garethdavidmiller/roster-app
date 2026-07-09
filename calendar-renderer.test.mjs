@@ -89,6 +89,12 @@ mock.module('./override-utils.js', {
         // Real (pure) training-grammar helpers — inlined because a module mock replaces the
         // WHOLE module: the renderer needs these to classify training values faithfully.
         isRestShift: (s) => s === 'RD' || s === 'OFF',
+        // Faithful copy of the real display-suppression predicate (v16.37).
+        isOverrideDisplaySuppressed: (ov, baseShift, sunday) =>
+            ov.type === 'sick'         ? (baseShift === 'RD' || baseShift === 'OFF' || sunday)
+          : ov.type === 'annual_leave' ? sunday
+          : ov.type === 'other'        ? sunday
+          : false,
         isOtherValue: (v) => typeof v === 'string' && /^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/.test(v),
         parseOtherValue: (v) => {
             const m = typeof v === 'string' ? v.match(/^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/) : null;

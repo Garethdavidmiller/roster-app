@@ -68,7 +68,8 @@ mock.module('./firebase-client.js', {
     },
 });
 
-const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek } = await import('./admin-roster-upload.js');
+const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates } = await import('./admin-roster-upload.js');
+const { teamMembers, getBaseShift } = await import('./roster-data.js');
 
 // 2026-06-21 is a Sunday; 2026-06-15 is a Monday.
 const SUN = '2026-06-21';
@@ -250,5 +251,62 @@ describe('fetchOverridesForWeek — fail-closed conflict read (v16.25 regression
         assert.equal(rows.length, 2);
         assert.deepEqual(rows[0], { id: 'o1', memberName: 'G. Miller', date: '2026-06-15', value: 'AL', source: 'manual' });
         assert.equal(rows[1].id, 'o2');
+    });
+});
+
+// ── computeCellStates — the review state machine (hoisted to module scope + exported v16.37) ──
+// Uses a real main-roster member and reads the actual base shift at setup, so the expectations
+// track the real getBaseShift source rather than a brittle mock.
+describe('computeCellStates — review state machine', () => {
+    const member = teamMembers.find(/** @param {any} m */ m => !m.hidden && !m.managerOnly && m.rosterType === 'main');
+    const mname  = member.name;
+    const WD     = '2026-06-15';   // a Monday (non-Sunday)
+    const base   = getBaseShift(member, new Date(WD + 'T12:00:00'));
+    const differ = (base === 'RD' || base === 'OFF') ? '07:00-15:00' : 'RD';   // guaranteed != base
+
+    /** @param {string} shiftVal @param {any[]} [existing] */
+    const run = (shiftVal, existing = []) =>
+        computeCellStates(
+            { parsed: [{ memberName: mname, shifts: { [WD]: shiftVal } }], dates: [WD] },
+            existing,
+        ).get(`${mname}|${WD}`);
+
+    test('parsed == base, no override → MATCH', () => {
+        assert.equal(run(base).state, 'MATCH');
+    });
+
+    test('parsed differs from base, no override → DIFF (pre-approved)', () => {
+        const c = run(differ);
+        assert.equal(c.state, 'DIFF');
+        assert.equal(c.chosen, true);
+    });
+
+    test('manual override already equals the PDF → COVERED', () => {
+        const c = run(differ, [{ memberName: mname, date: WD, value: differ, type: 'shift', source: 'manual', id: 'm1' }]);
+        assert.equal(c.state, 'COVERED');
+    });
+
+    test('manual override differs from the PDF → CONFLICT', () => {
+        const c = run(differ, [{ memberName: mname, date: WD, value: '23:00-06:00', type: 'shift', source: 'manual', id: 'm2' }]);
+        assert.equal(c.state, 'CONFLICT');
+    });
+
+    test('stale roster_import, PDF now matches base → REMOVE_IMPORT (delete, write nothing)', () => {
+        const c = run(base, [{ memberName: mname, date: WD, value: differ, type: 'shift', source: 'roster_import', id: 'i1' }]);
+        assert.equal(c.state, 'REMOVE_IMPORT');
+    });
+
+    test('bare "RDW" (AI omitted the time) → UNREADABLE, never written (chosen stays null)', () => {
+        const c = run('RDW');
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.chosen, null);
+    });
+
+    test('a Sunday "AL" is normalised to RD — never written as AL', () => {
+        // SUN (2026-06-21) is the module-level Sunday constant.
+        const c = computeCellStates(
+            { parsed: [{ memberName: mname, shifts: { [SUN]: 'AL' } }], dates: [SUN] }, [],
+        ).get(`${mname}|${SUN}`);
+        assert.equal(c.displayShift, 'RD');   // the invariant: Sunday AL never surfaces/saves as AL
     });
 });
