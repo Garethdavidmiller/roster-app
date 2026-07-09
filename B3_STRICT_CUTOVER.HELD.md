@@ -128,6 +128,16 @@ Re-add the two `!('name' in …)` escape lines to both blocks and redeploy (inst
 > rule), so it should ride the **same window** and reuse the same re-provision + token-sweep steps.
 > Verified against `firestore.rules` / `functions/index.js` / `admin-auth.js` / `firestore.rules.test.mjs`
 > as of v16.03.
+>
+> **Dry-run re-verified at v16.28:** all four changes (A functions, B client, C rules, D tests)
+> still apply cleanly. One reconciliation vs this doc: the suite now already HAS a `linkDesigns`
+> describe block (added since v16.03), whose `auth can write` test asserted `staffDb()` succeeds —
+> under the strict rule that must FLIP to `assertFails`, so the block was REWORKED (not added fresh):
+> a `designerDb()` helper + the full matrix (designer ✓, admin ✓, plain-named ✗, name-less ✗, anon ✗,
+> authed read ✓). Full `npm run test:rules` passed **188/188**. `node --check` + typecheck + the 123
+> functions tests stayed green. The dry-run lived on a local throwaway branch — nothing committed to
+> a mergeable branch. **Deploy order still stands:** A+B (claim) must ship + re-provision + S. Silva
+> re-auth BEFORE C+D (rule tighten), because the Links save/delete are raw writes with no self-heal.
 
 **Why:** `linkDesigns` writes are gated only by the client redirect (`links-app.js` bounces anyone
 not in `CONFIG.LINKS_DESIGNERS`). The server accepts a write from **any** authenticated session. This
