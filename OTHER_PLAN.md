@@ -56,9 +56,12 @@ from `OTHER_FLAVOURS` and the server uses an explicit alias lookup, so neither n
    `paycalc-help.js` — plus the docs sweep (CLAUDE.md shift-types row, AI_MAP, OPERATIONS_REFERENCE).
 7. One version bump; verify a new-flavour day at 375px in a private window.
 
-Also do at Phase B: the deferred comment-vocabulary sweep — shared-code comments still say
+~~Also do at Phase B: the deferred comment-vocabulary sweep — shared-code comments still say
 "training" where they mean the family (fine while training is the only live flavour; factually
-wrong the day a MEET ships).
+wrong the day a MEET ships).~~ ✓ **DONE (Jul 2026, comment-only, no version bump):** shared-code
+comments that used "training" to mean the whole family were reworded to "Other family" / "Other
+day" across 9 files. Left as-is: peer-training (a separate pay item), user-facing copy, the `TRG`
+flavour data, and the "Training / Induction / Assessment …" enumeration headers.
 
 ---
 
