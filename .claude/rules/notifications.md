@@ -85,8 +85,8 @@ adding the feature. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notifica
 
 - Huddle → `#huddle` (opens the in-app Huddle viewer overlay).
 - Pay → `paycalc.html?payday=YYYY-MM-DD` (calculator opens on the right period).
-- Circular / Newsletter → see the notification implementation scope (these have no in-app
-  viewer yet; the tap destination is a deliberate decision recorded there).
+- Circular / Newsletter → `#circular` / `#newsletter` (opens the in-app document viewer,
+  `calendar-doc-viewer.js`, used on notification taps).
 
 ## The builder (single source of truth)
 

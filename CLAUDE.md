@@ -235,6 +235,8 @@ roster-app/
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
 ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs / perf-stats.test.mjs
+├── storage-utils.test.mjs ← tests for isSafeStorageUrl (bucket allowlist) + isDocxUpload; part of test:hygiene
+├── notif.test.mjs         ← tests for notif.js: notifSupported/isIOS, getNotifState VAPID rotation, peekNotifState (no side effects), enable/disableNotifications (--experimental-test-module-mocks)
 ├── surname-parity.test.mjs ← asserts normaliseSurname (firebase-client.js) and nameToPassword (functions/roster-parse-helpers.js) stay in sync (behavioural + source-equivalence); part of test:hygiene
 ├── import-graph.test.mjs   ← detects circular imports across all root ES modules (regex-based, no build step)
 ├── admin-overrides.test.mjs ← tests for getEffectiveShift, validateShiftRules, buildMemberDateMap (--experimental-test-module-mocks)
@@ -289,7 +291,7 @@ npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay, usage-stats
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, storage-rules-static, storage-utils, auth-state-core, auth-state, auth-policy, sw-register
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions pure-helper tests (roster-parse-helpers.test.mjs) — not part of npm test
@@ -493,6 +495,7 @@ value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annu
              marker, optional actual times (see OTHER_PLAN.md; grammar single-source: override-utils.js)
 note         Free text — "" if none. Field must always be present.
 source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths
+changedBy    Optional — display name of who last changed the override; type-checked by the rules when present
 createdAt    Firestore server timestamp
 ```
 
@@ -526,15 +529,16 @@ Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffCo
 
 **pushSubscriptions**
 ```
-endpoint   Browser push endpoint URL — also used (hashed) as the document ID
+endpoint     Browser push endpoint URL — also used (hashed) as the document ID
 keys.p256dh  base64url-encoded p256dh public key
 keys.auth    base64url-encoded auth secret
+subscribedAt Firestore server timestamp — required by the rules
 ```
 Written by `savePushSubscription`, deleted by `deletePushSubscription` in `firebase-client.js`.
 Each document ID is a SHA-256 hash of the endpoint URL (first 20 hex chars). One doc per subscribed browser/device.
 Read by the `ingestHuddle` Cloud Function (Admin SDK) when fanning out push notifications.
 Client read: denied (`allow read: if false`) — no client may enumerate endpoints/keys. Create/update:
-any authenticated session, shape-validated (`endpoint`, `keys.p256dh`, `keys.auth` only). **Delete:
+any authenticated session, shape-validated (`endpoint`, `keys.p256dh`, `keys.auth`, `subscribedAt` only). **Delete:
 any authenticated session (`request.auth != null`) — there is no per-owner check, so an authenticated
 identity that knows a doc id could delete that subscription.** Low risk (the id is a hash of the
 endpoint, so it must be known) but a real hardening gap. Per-member override isolation shipped strict
@@ -603,6 +607,16 @@ Read: open (no auth required — `calendar-app.js` has no session; matches Huddl
 Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
 Read by: `getLatestNewsletter()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Marylebone Newsletter — opens the PDF **directly** in a new tab, one tap) and from **`calendar-doc-viewer.js`** (the `#newsletter` in-app viewer used by **notification taps only**).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
+
+**linkDesigns** (v12.09)
+```
+name        Design name
+patterns    28-line full-rotation pattern data
+updatedAt   Firestore server timestamp
+updatedBy   Member name string
+```
+Read: any authenticated session (`request.auth != null`). Write: requires the `linksDesigner` claim OR `admin` (H2, shipped v16.29 — was any-authenticated write until then). `linksDesigner` is set by `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS`; `links-app.js` wraps every write in `writeWithClaimRetry` so a stale token self-heals. Designs are **not** member-owned (no per-member isolation — any designer edits any design).
+Written/read by: `links-app.js` (the multi-design workspace collection).
 
 Override cache key: `"memberName|YYYY-MM-DD"`
 

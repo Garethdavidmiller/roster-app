@@ -17,7 +17,7 @@ Individual staff log in and enter their own overrides. Admin (G. Miller) has ele
 **What was built:**
 - admin.html — self-service portal for all staff plus admin tools
 - Individual login per staff member (name + surname password)
-- AL booking with entitlement tracking (32 days CEA, 34 days CES & Fixed, 22 + 1 lieu per worked BH for Dispatcher)
+- AL booking with entitlement tracking (32 days CEA incl. Fixed, 34 days CES, 22 + 1 lieu per worked BH for Dispatcher)
 - Bulk override operations and override history
 - Cultural calendar marker preference per member (Islamic, Hindu, Chinese, Jamaican, Congolese, Portuguese)
 - Dispatcher and fixed roster types
@@ -31,7 +31,7 @@ Individual staff log in and enter their own overrides. Admin (G. Miller) has ele
 
 ### Daily Huddle viewer ✓ (v5.53–v6.95)
 
-The daily Huddle PDF arrives by email and appears automatically in the `📋 Huddle` button in index.html.
+The daily Huddle PDF arrives by email and opens via the nav drawer's **Daily Huddle** link and notification taps (through the `#huddle` hash). The old `📋 Huddle` header button was removed at v12.57.
 
 - ✅ Manual upload via admin.html (Phase 1, v5.53)
 - ✅ Automated upload via Power Automate → Cloud Function `ingestHuddle` (Phase 2, v5.66)
@@ -92,7 +92,7 @@ All logged-in staff can view the whole team's shifts for any week directly from 
 
 - CEA, CES, and Dispatcher rosters are tab-selectable
 - Firestore overrides are fetched and overlaid on the base roster in real time
-- The 📋 Huddle button appears in the header so staff can open the day's briefing without leaving the view
+- The day's Huddle is opened via the nav drawer's Daily Huddle link (the header 📋 Huddle button was removed v12.57)
 - Week navigation: Prev / Next buttons; the Today button snaps back to the current week
 - Shift cells are colour-coded identically to the personal calendar (☀️ early / 🌙 late / 🌃 night / 🏠 RD / 🏖️ AL / 💼 RDW etc.)
 - Print-ready — the table prints cleanly on A4 landscape
@@ -849,7 +849,7 @@ mobile (throttled Slow-4G + 4× CPU) in a private window** before/after — the 
 loads from the SW cache and hides the cold-load cost real first-time staff pay (same lesson as
 "the installed PWA masks live-site breakage").
 
-**Where we are (v15.07) — two independent latency tracks:**
+**Where we are (latency work current to v16.10) — two independent latency tracks:**
 - **Cold page-load (this section):** Batches 1/3/4 shipped (preconnect, stale-while-revalidate JS/CSS,
   paycalc modulepreload). **Next:** the deferred lazy-Firebase pass below — but **only if** the
   App-speed data shows the Firebase SDK dominating paycalc's cold load; otherwise leave it.
@@ -1021,15 +1021,15 @@ A thorough external review of v14.96 confirmed no release blocker for current sm
 findings were already done (B1 re-enabled v14.98; App-speed admin-exclusion v14.95; B3 strict
 override isolation shipped v16.29; B4 server-owned role lists shipped v16.30) or already sequenced
 (the C-series password track, in-place login rollout, the app-perf caching pass). Quick wins (fail-closed uploads, stale auth-doc fixes, a
-MILLER_ACTUALS export guard, the primeAuth comment) shipped at v14.99. Two items captured here:
+MILLER_ACTUALS export guard, the primeAuth comment) shipped at v14.99. Two items were captured here — **both now resolved:**
 
-### M8 — lazy-load heavy Cloud Function dependencies (cold-start)
+### M8 — lazy-load heavy Cloud Function dependencies (cold-start) — ✅ SHIPPED
 
-`functions/index.js` requires `@anthropic-ai/sdk`, `mammoth`, and `web-push` at the top level, so
-every function pays their load cost even when it doesn't use them. Move each to a lazy `require()`
-inside the function that needs it — Anthropic only in `parseRosterPDF`, `mammoth` only for DOCX
-huddle ingest, `web-push` only in the notification fan-out. Medium value (functions cold-start),
-low risk (mechanical), independent of the auth release. Functions tests already cover the helpers.
+`functions/index.js` now lazy-`require`s all three heavy deps inside the paths that use them, each
+tagged with an `M8:` comment: `mammoth` only for DOCX huddle conversion, `web-push` via a cached
+`_webpush` accessor in the notification fan-out, and `@anthropic-ai/sdk` only in `parseRosterPDF`. No
+top-level require of the three remains, so a function no longer pays their load cost when it doesn't
+use them.
 
 ### L4 — paycalc collapsible fixed `max-height` — ✅ CHECKED, within cap (no fix needed)
 

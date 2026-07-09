@@ -396,9 +396,11 @@ the JSON in the same commit. (The `/new-starter` skill already includes this ste
 
 ### firebase-admin upgrade to v14 blocked on firebase-functions compatibility (June 2026)
 
-`firebase-admin@14.0.0` is available and would fix 9 moderate-severity vulnerabilities
-in the dependency chain (`uuid < 11.1.1` via `@google-cloud/firestore → google-gax → uuid`).
-The upgrade is blocked by one thing:
+`firebase-admin@14.0.0` is available. Its original driver — a `uuid < 11.1.1` advisory in the
+transitive dependency chain — is **already mitigated**: `functions/package.json` pins
+`"overrides": { "uuid": "^11.1.1" }` (see that file's comment for the exact advisory), and
+`cd functions && npm audit --omit=dev` now reports **0 vulnerabilities**. So the v14 bump is no
+longer a vulnerability fix — it is hygiene / staying-current only. It remains blocked by one thing:
 
 - `firebase-functions@7.x` (all released versions as of June 2026) declares
   `firebase-admin@"^11 || ^12 || ^13"` — it does not yet list v14 as a supported peer.
@@ -406,9 +408,8 @@ The upgrade is blocked by one thing:
 (The Node-runtime prerequisite that previously also blocked this is already met:
 `functions/package.json` `engines` is on Node 22.)
 
-**Practical risk:** The `uuid` vulnerability only triggers when a caller passes an explicit
-`buf` argument to UUID generation. Firebase's internals never do this, so the vulnerability
-is present in the dependency tree but not reachable in normal operation. Severity: moderate.
+**Practical risk:** none outstanding — the `uuid` advisory is pinned out entirely by the `overrides`
+entry (production audit = 0). The v14 bump is deferred purely on the `firebase-functions` peer range.
 
 **When to upgrade:** once `firebase-functions` releases a version adding `firebase-admin@^14`
 to its peer dependency range. Check with `npm outdated` in `functions/`. When unblocked:

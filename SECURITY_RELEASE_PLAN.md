@@ -1,6 +1,6 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: in progress (created v14.38). **Current state (as of v16.29):***
+*Status: in progress (created v14.38). **Current state (as of v16.34):***
 - *Track A — **A2 Workload Identity Federation ✓ DONE (v14.93)** (keyless OIDC deploys; SA JSON key +
   secret deleted — see Appendix A2); A3 doc-only ✓ DONE (v14.38); **A1 ✓ DONE (v15.32)** — the `uuid`
   advisories were cleared with a scoped `uuid` override on the supported firebase-admin `^13`, NOT the

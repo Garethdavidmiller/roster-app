@@ -18,7 +18,7 @@ paths:
 
 ## Shared rules (all four guide pages)
 
-- Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't use). They share only `guide-shell.css`. Each page has its own external CSS file (`guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip.css`) — extracted from inline `<style>` blocks at v12.04. Do not add a `shared.css` import to any guide.
+- Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't use). All four share `guide-shell.css`; the two **document-style** guides (`guide.html`, `paycalc-guide.html`) additionally load `guide-doc.css` (the shared two-column print layout + 760px content wrapper) between the shell and their own CSS. Each page then has its own external CSS file (`guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip.css`) — extracted from inline `<style>` blocks at v12.04. Do not add a `shared.css` import to any guide.
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP (`script-src 'self'`) blocks them. All guide JS is in external files: `railcard-guide.js` (v10.84) and `guide-print.js` (v10.84, shared by `guide.html` and `paycalc-guide.html`). Do not add inline scripts or `onclick` attributes.
 - Back buttons on `railcard-guide.html` and `fip.html` link to `./index.html` (not `./admin.html`) — guides are accessed from the nav panel.
 
@@ -32,7 +32,7 @@ All four guide pages share one chrome for consistent behaviour on iOS, Android, 
 
 **Still per-page in each page's own CSS file (keep aligned by eye):**
 - **Background:** flat `#f4f5f8` edge-to-edge. No white "page" card.
-- **Content width:** `max-width: 760px`, centred. guide/paycalc keep their two-column `.cols` grid inside this for print density; railcard/fip are single-column.
+- **Content width:** `max-width: 760px`, centred. For `guide.html`/`paycalc-guide.html` the 760px wrapper **and** the two-column `.cols` print grid live in the shared **`guide-doc.css`** (not the page's own file); `railcard-guide.html`/`fip.html` set their own 760px single-column width in their page CSS.
 - **Safe-area:** side insets `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom `max(40px, env(safe-area-inset-bottom))`.
 - **PDF button markup:** `<button id="savePdfBtn" class="btn-print btn-pdf">⤓ PDF</button>`. Wired by `guide-print.js` (`.btn-print`) on guide/paycalc/fip; `railcard-guide.js` wires `#savePdfBtn` itself because it also owns the chip-bar.
 
