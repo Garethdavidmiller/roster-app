@@ -674,6 +674,33 @@ can't be established (reuse the login overlay pre-filled with their name; branch
 involved. Verify on the live URLs in a private window across every role (admin/manager/CEA/CES/
 dispatcher/designer) **and** a deliberately-unprovisioned account — never an installed phone.
 
+### Deferred residual — retire the anonymous fallback + kill-switch (NOT YET; held on purpose)
+
+With the flag ON, two branches in `session.js` `ensureFirebaseSession` are **unreachable dead code**:
+the `signInAnonymously` fallback and the `createUserWithEmailAndPassword` self-heal (both sit *below*
+the `if (CONFIG.ENFORCE_NAMED_SESSION) return commit('none', false)` guard). "Finishing" the ROADMAP
+items *"Separate named sessions…"* and *"Remove browser-side account creation"* means deleting that
+dead code and the flag itself, making named-only **permanent**. Because the flag is already on, this
+is a pure refactor with **no staff-visible behaviour change** — but it is deliberately **deferred**:
+
+- **Why held:** the flag is *the* rollback for the entire B1/B2/B3 named-session + per-member isolation
+  release — flip to `false`, one-line deploy, no rules change. While the release is still soaking, that
+  instant escape hatch is worth more than the tidiness of removing ~2 dead branches. (Decision Jul 2026,
+  owner: keep the switch, revisit in a few weeks.)
+- **Go/no-go before removing:**
+  - [ ] Several weeks of clean production running with `ENFORCE_NAMED_SESSION = true` and B3 strict —
+        no auth-lockout reports, no need to have flipped the switch.
+  - [ ] Self-service recovery (C4) shipped, or admin break-glass confirmed sufficient — so losing the
+        one-line rollback no longer matters.
+  - [ ] Confirmed no wish to ever re-enable the anonymous write fallback.
+- **Removal scope (~10 files, one version bump when done):** delete the two dead branches + the flag in
+  `session.js`; drop `ENFORCE_NAMED_SESSION` from `CONFIG` (`roster-data.js`); drop the flag guard from
+  the 5 write coordinators (`admin`/`operations`/`settings`/`links`/`paycalc`-app.js) and `login-overlay.js`'s
+  `enforce` param (always-on); rewrite the flag-on/flag-off matrix in `session.test.mjs` to a single
+  always-enforced path; simplify `e2e/fixtures.js` `enforceNamedSession` (no longer needs to rewrite the
+  flag); re-stamp this appendix, LOGIN_INCIDENT.md, KNOWN_LIMITATIONS.md, and the ROADMAP bullets from
+  "gated behind a kill-switch" to "permanent".
+
 ---
 
 ## Appendix: A2 — Workload Identity Federation ✓ COMPLETE (v14.93)

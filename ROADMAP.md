@@ -758,11 +758,25 @@ These are interlocking; most remain and should ship together, but the headline g
   `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS` and stale tokens self-healing via
   `writeWithClaimRetry`. Full history is in the "Security project — per-member override write
   isolation" section above.
-- **Separate named sessions from the anonymous public session** — confine anonymous auth to the
-  genuinely public Calendar reads; require a named session for Admin/Operations/Links/Settings/Pay.
-- **Remove browser-side account creation** — stop the client auto-creating a Firebase account once
-  server-side provisioning + recovery exist (today a missing account would otherwise become a
-  staff-access outage).
+- **Separate named sessions from the anonymous public session** — ✓ **effectively SHIPPED via B1**
+  (`ENFORCE_NAMED_SESSION = true`, v14.98). Anonymous auth is already confined to the public Calendar
+  read bootstrap (`calendarAuthReady`); the four write pages (Admin/Operations/Links/Settings) already
+  refuse the anonymous fallback and re-prompt a named login, and Pay stays soft (it writes no isolated
+  data). B1.1 (v14.40) removed the anonymous fallback + self-heal from `ensureFirebaseSession` on the
+  write path. **One dormant residual, deliberately held:** the `signInAnonymously` fallback branch and
+  the `CONFIG.ENFORCE_NAMED_SESSION` flag still physically exist in `session.js` — the fallback is
+  unreachable *while the flag is on*, so retiring both (and making named-only permanent) is pure dead-
+  code removal, **not** a behaviour change. It is being left in place on purpose: the flag is the
+  one-line, no-rules-deploy rollback for the whole B1/B2/B3 named-session + isolation release, and the
+  release is still soaking. **Do it only after a few weeks of clean production running** and once
+  self-service recovery (C4) reduces the value of an instant rollback. Retirement scope + checklist:
+  SECURITY_RELEASE_PLAN.md → "B1 detailed scope" → "Deferred residual".
+- **Remove browser-side account creation** — ✓ **effectively DONE via B1.1** (v14.40):
+  `ensureFirebaseSession` no longer self-creates a Firebase account with `createUserWithEmailAndPassword`
+  on the write path. The provisioning prerequisite (every member has a server account before B1) is in
+  place, and `/new-starter` marks "Set up accounts" mandatory. Same dormant residual as above — the
+  self-heal `create` call sits alongside the anonymous fallback under the `ENFORCE_NAMED_SESSION` guard
+  and is retired in the same cleanup.
 - **Server-owned roster/role lists (B4)** — ✅ **SHIPPED v16.30.** `setupRosterAuth` reads the member
   + admin/manager/designer lists from `roster-members.json` (generated from `roster-data.js`,
   CI-locked) instead of the client payload, with dry-run orphan removal (preview → confirm), refresh-
