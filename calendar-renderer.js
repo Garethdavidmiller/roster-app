@@ -56,8 +56,8 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
  * rdwTime — actual shift time for RDW overrides, since shift='RDW' sentinel.
  */
 export function createDayCell(/** @type {any} */ date, /** @type {any} */ shift, /** @type {any} */ permanentShift, /** @type {any} */ isWorkedDay, rdwTime = '') {
-    // RDW and Training use rdwTime as a side-channel display string (shift itself is a
-    // sentinel: 'RDW', or a training value like 'TRG RDW'). Both always keep their OWN
+    // RDW and Other days use rdwTime as a side-channel display string (shift itself is a
+    // sentinel: 'RDW', or an Other-family value like 'TRG RDW'). Both always keep their OWN
     // badge regardless of permanentShift — distinct pay/day categories, never Early/Late.
     const isOther = isOtherValue(shift);
     let badge;
@@ -180,7 +180,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // for Dec 25, while Dec 26 (Boxing Day) can still become RDW for overtime.
         let overrideNote = '';
         let rdwTime = '';
-        let otherDerivedRdw = false;   // training on a rest-day base — RDW even without the flag
+        let otherDerivedRdw = false;   // an Other day on a rest-day base — RDW even without the flag
         const dateStr = formatISO(currentDate);
         {
             const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
@@ -199,14 +199,14 @@ export function buildCalendarContainer(month, year, opts = {}) {
                     // hand-written data. CLAUDE.md "Sundays are non-contracted" (layer 5):
                     // "A worked Sunday time is always RDW, never AL/Absent." (v16.19)
                 } else if (override.type === 'other' && isSunday(dateStr)) {
-                    // Sunday training suppressed — Sundays can never be training days
+                    // Sunday Other days suppressed — Sundays can never be Other-family days
                     // (OTHER_PLAN.md; layer 5 of the Sunday block, mirrors sick above).
                 } else if (override.type === 'other' && parseOtherValue(override.value)) {
-                    // Training / Induction / Assessment: shift becomes the training value (drives
-                    // the other-day class + 🏷️ badge); the hours slot shows, in priority order,
-                    // the ACTUAL times (admin-entered) → 'RDW' (training rest-day, no times) →
-                    // the BASE shift time (rostered-day training happens during your shift) →
-                    // blank (e.g. spare-week training: badge only).
+                    // An Other-family day (Training / Induction / Assessment / Team Day): shift
+                    // becomes the Other-family value (drives the other-day class + 🏷️ badge); the
+                    // hours slot shows, in priority order, the ACTUAL times (admin-entered) →
+                    // 'RDW' (Other rest-day, no times) → the BASE shift time (a rostered-day Other
+                    // day happens during your shift) → blank (e.g. spare-week Other day: badge only).
                     const _t = /** @type {any} */ (parseOtherValue(override.value));
                     otherDerivedRdw = _t.rdw || isRestShift(shift);
                     rdwTime = _t.time ?? (otherDerivedRdw ? 'RDW'
@@ -235,7 +235,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
             : shift === 'AL'    ? 'Annual leave'
             : shift === 'SICK'  ? 'Absence'
             : shift === 'RDW'   ? 'Rest day worked'
-            // Training: the FULL word on tap/tooltip/aria (badge carries the short word).
+            // Other family: the FULL word on tap/tooltip/aria (badge carries the short word).
             : _otherParsed ? OTHER_FLAVOURS[_otherParsed.flavour].full
                 + ((_otherParsed.rdw || otherDerivedRdw) ? ' — Rest Day Worked' : '')
                 + (_otherParsed.time ? ` ${_otherParsed.time}` : '')

@@ -144,7 +144,7 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
 //   FLAVOUR := "TRG" | "IND" | "ASSESS" | "TEAM"
 //
 // Examples: 'TRG' · 'IND RDW' · 'ASSESS 08:00-16:00' · 'TRG RDW 08:00-16:00' · 'TEAM'.
-// " RDW" marks a training rest-day (explicitly written on the roster as "TRG RDW");
+// " RDW" marks an Other-family rest-day (explicitly written on the roster as "TRG RDW");
 // the optional time range is the trainer's ACTUAL hours, entered manually by the
 // admin (roster uploads never carry times). This module is the client-side single
 // source for the grammar; a deliberate duplicate of the RECOGNITION grammar (the
@@ -152,7 +152,7 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
 // Cloud Functions are CommonJS and cannot import this module (same accepted
 // pattern as normaliseSurname). If the grammar changes, update both.
 
-/** Badge (short) and full display words per training flavour. Badge word shows in the
+/** Badge (short) and full display words per Other-family flavour. Badge word shows in the
  *  calendar-cell badge next to 🏷️; full word is used on tap (day detail / tooltip / aria). */
 export const OTHER_FLAVOURS = {
     TRG:    { badge: 'Train',  full: 'Training'   },
@@ -161,17 +161,17 @@ export const OTHER_FLAVOURS = {
     TEAM:   { badge: 'Team',   full: 'Team Day'   },
 };
 
-/** Default duration credited to a training REST-DAY (TRG RDW) when no actual times are
+/** Default duration credited to an Other-family REST-DAY (e.g. TRG RDW) when no actual times are
  *  recorded: 8 hours, pre-filled into the pay calculator's RDW bucket for the member to
  *  correct to the real hours (confirmed by Gareth, Jul 2026). Single source — never inline 480. */
 export const OTHER_RDW_DEFAULT_MINS = 480;
 
 // Anchored full-string grammar. Time range is bounded HH:MM (00-23 / 00-59) so an
-// impossible time can never ride in on a training value.
+// impossible time can never ride in on an Other-family value.
 const _OTHER_RE = /^(TRG|IND|ASSESS|TEAM)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/;
 
 /**
- * True when a stored override/shift value is a training-family value (any flavour,
+ * True when a stored override/shift value is an Other-family value (any flavour,
  * with or without the RDW marker and optional times).
  * @param {any} v
  * @returns {boolean}
@@ -181,7 +181,7 @@ export function isOtherValue(v) {
 }
 
 /**
- * Parse a training value into its parts, or null when it isn't one.
+ * Parse an Other-family value into its parts, or null when it isn't one.
  * @param {any} v
  * @returns {{ flavour: 'TRG'|'IND'|'ASSESS'|'TEAM', rdw: boolean, time: string|null } | null}
  */
@@ -213,16 +213,16 @@ function _shiftMins(time) {
 /**
  * Resolve how an Other-family day PAYS (OTHER_PLAN.md — the pay mapping, in one place).
  * Display deliberately does NOT use this — it shows the 🏷️ badge; only pay consumers
- * (paycalc-roster-suggestions.js) resolve training to the day underneath it.
+ * (paycalc-roster-suggestions.js) resolve an Other day to the day underneath it.
  *
  * Modes:
- *   'rdw'     — a training rest-day: explicit " RDW" flag OR (belt-and-braces) the base
+ *   'rdw'     — an Other-family rest-day: explicit " RDW" flag OR (belt-and-braces) the base
  *               is itself a rest day. mins = actual times when recorded, else the 8h
  *               default (OTHER_RDW_DEFAULT_MINS). All hours stay RDW — never split into OT.
  *   'timed'   — a rostered day with actual times recorded: classify like a shift
  *               override (the existing base-cap + excess→overtime split applies).
  *   'as-base' — a rostered day, no times: pay exactly as the base shift (the member is
- *               never paid less than their rostered shift, even if training runs short).
+ *               never paid less than their rostered shift, even if the Other day runs short).
  *
  * @param {{ flavour: string, rdw: boolean, time: string|null }} parsed  from parseOtherValue()
  * @param {string} baseValue  the member's base roster shift for that date

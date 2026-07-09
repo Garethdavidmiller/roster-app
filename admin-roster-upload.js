@@ -561,9 +561,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const parsedValue = isRdwEncoded(parsedShift) ? stripRdw(parsedShift) : parsedShift;
 
                 // Sundays are non-contracted for all grades — a PDF marking a Sunday as
-                // AL, Absent (SICK), or Training is invalid. Treat it as RD so it matches
+                // AL, Absent (SICK), or an Other-family day is invalid. Treat it as RD so it matches
                 // the rest-day base, classifies as MATCH, and is never written as a Sunday
-                // AL/absence/training override. (Worked Sunday times remain RDW — handled below.)
+                // AL/absence/Other override. (Worked Sunday times remain RDW — handled below.)
                 const isSun      = isSunday(date);
                 const sundaySafe = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK' || isOtherValue(parsedValue)))
                     ? 'RD' : parsedValue;
@@ -968,7 +968,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
  * @returns {string}  override type
  */
 export function shiftValueToOverrideType(value, baseShift, date = null) {
-    // Sundays are non-contracted — AL, Absent, and Training cannot apply; treat as RD correction
+    // Sundays are non-contracted — AL, Absent, and Other days cannot apply; treat as RD correction
     const isSun = date !== null && isSunday(date);
     if (isSun && (value === 'AL' || value === 'SICK' || isOtherValue(value))) return 'correction';
     if (value === 'AL')    return 'annual_leave';
@@ -976,7 +976,7 @@ export function shiftValueToOverrideType(value, baseShift, date = null) {
     if (value === 'SPARE') return 'spare_shift';
     // Training / Induction / Assessment (OTHER_PLAN.md) — flavour sentinel, optional
     // " RDW" marker, optional actual times. Checked before RD/RDW: a 'TRG RDW' value must
-    // classify as training, not fall through on its RDW substring (no clash today — the
+    // classify as an Other day, not fall through on its RDW substring (no clash today — the
     // bare-'RDW' and pipe checks are exact/prefix — but the ordering makes that explicit).
     if (isOtherValue(value)) return 'other';
     if (value === 'RD' || value === 'OFF') return 'correction';
