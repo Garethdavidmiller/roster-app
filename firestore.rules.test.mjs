@@ -114,7 +114,7 @@ describe('overrides', () => {
     });
 
     test('auth can create a valid override', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'overrides', uid()), VALID_OVERRIDE()));
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), VALID_OVERRIDE()));
     });
 
     test('auth can create with all valid type+value combinations', async () => {
@@ -134,44 +134,44 @@ describe('overrides', () => {
         };
         for (const [type, value] of Object.entries(TYPE_VALUE_MAP)) {
             await assertSucceeds(
-                setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type, value })
+                setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type, value })
             );
         }
     });
 
     test('auth cannot create a spare_shift with a time-range value (must be SPARE)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'spare_shift', value: '06:30-14:30' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'spare_shift', value: '06:30-14:30' })
         );
     });
 
     test('auth cannot create a correction with a non-RD value (e.g. OFF)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'correction', value: 'OFF' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'correction', value: 'OFF' })
         );
     });
 
     test('auth cannot create with mismatched type and value (shift type needs HH:MM-HH:MM)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'AL' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'AL' })
         );
     });
 
     test('auth cannot create with mismatched type and value (annual_leave needs AL)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'annual_leave', value: '09:00-17:00' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'annual_leave', value: '09:00-17:00' })
         );
     });
 
     test('auth cannot create with malformed time value for shift type', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'garbage' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'garbage' })
         );
     });
 
     test('auth cannot create with invalid type', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'overtime' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'overtime' })
         );
     });
 
@@ -181,136 +181,136 @@ describe('overrides', () => {
         for (const value of ['TRG', 'IND', 'ASSESS', 'TEAM', 'TRG RDW', 'ASSESS RDW', 'TEAM RDW',
                              'IND 08:00-16:00', 'TRG RDW 08:00-16:00']) {
             await assertSucceeds(
-                setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value })
+                setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value })
             );
         }
     });
 
     test('training rejects a bare time value (flavour is mandatory)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value: '06:00-12:00' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value: '06:00-12:00' })
         );
     });
 
     test('training rejects malformed grammar and impossible times', async () => {
         for (const value of ['TRAINING', 'TRG BAD', 'ASS', 'TRG 25:00-30:00', 'RDW TRG', 'TRG RDW extra']) {
             await assertFails(
-                setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value })
+                setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'other', value })
             );
         }
     });
 
     test('a training value on a NON-training type is rejected (shift needs a time)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'TRG' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'TRG' })
         );
     });
 
     test('auth cannot create with invalid source', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), source: 'unknown' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), source: 'unknown' })
         );
     });
 
     test('auth cannot create with date wrong length (not 10 chars)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-6-5' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-6-5' })
         );
     });
 
     test('auth cannot create with missing required field', async () => {
         const { note: _n, ...missing } = VALID_OVERRIDE();
-        await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), missing));
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), missing));
     });
 
     test('auth can create with changedBy (manual / AL / sick path)', async () => {
         await assertSucceeds(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), changedBy: 'G. Miller' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), changedBy: 'G. Miller' })
         );
     });
 
     test('auth cannot create with an unknown extra field (hasOnly)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), injected: 'x' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), injected: 'x' })
         );
     });
 
     test('auth cannot create with changedBy of the wrong type', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), changedBy: 123 })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), changedBy: 123 })
         );
     });
 
     test('auth cannot create with a 10-char but malformed date', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026/06/25' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026/06/25' })
         );
     });
 
     test('auth cannot create a shift with an impossible time (99:99)', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: '99:99-10:00' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: '99:99-10:00' })
         );
     });
 
     test('auth can create a shift with a valid bounded time (overnight)', async () => {
         await assertSucceeds(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: '23:00-05:30' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: '23:00-05:30' })
         );
     });
 
     test('auth cannot create with note over 499 chars', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), note: 'x'.repeat(500) })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), note: 'x'.repeat(500) })
         );
     });
 
     test('auth cannot create with empty memberName', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), memberName: '' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), memberName: '' })
         );
     });
 
     test('auth cannot create with empty value string', async () => {
         await assertFails(
-            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), value: '' })
+            setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), value: '' })
         );
     });
 
     test('auth can delete', async () => {
         const id = uid();
-        await setDoc(doc(staffDb(), 'overrides', id), VALID_OVERRIDE());
-        await assertSucceeds(deleteDoc(doc(staffDb(), 'overrides', id)));
+        await setDoc(doc(namedDb('G. Miller'), 'overrides', id), VALID_OVERRIDE());
+        await assertSucceeds(deleteDoc(doc(namedDb('G. Miller'), 'overrides', id)));
     });
 
     test('anon cannot delete', async () => {
         const id = uid();
-        await setDoc(doc(staffDb(), 'overrides', id), VALID_OVERRIDE());
+        await setDoc(doc(namedDb('G. Miller'), 'overrides', id), VALID_OVERRIDE());
         await assertFails(deleteDoc(doc(anonDb(), 'overrides', id)));
     });
 
     // ── B2 date hardening: shape was validated but not real month/day ranges ──
     test('auth cannot create with impossible month (2026-13-01)', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-13-01' }));
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-13-01' }));
     });
     test('auth cannot create with impossible date (2026-99-99)', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-99-99' }));
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-99-99' }));
     });
     test('auth cannot create with month 00 / day 00 (2026-00-00)', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-00-00' }));
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-00-00' }));
     });
     test('auth CAN create with a real edge date (2026-12-31)', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-12-31' }));
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-12-31' }));
     });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// overrides — B2 per-member write isolation (PERMISSIVE 3-tier)
+// overrides — per-member write isolation (STRICT, B3)
 // namedDb(name) carries a `name` claim (models a real provisioned member, whose token's
 // `name` mirrors the memberName); managerDb carries manager:true; adminDb carries admin:true;
-// staffDb carries NO claim (models the legacy/anonymous no-name escape, removed in B3).
+// staffDb carries NO claim (models the legacy/anonymous session — DENIED under B3 strict).
 // ─────────────────────────────────────────────────────────────────────────────
-describe('overrides — B2 per-member isolation (permissive)', () => {
+describe('overrides — per-member isolation (STRICT, B3)', () => {
     const OWN = (name) => ({ ...VALID_OVERRIDE(), memberName: name });
 
     test('named staff CAN write their OWN override', async () => {
@@ -329,8 +329,13 @@ describe('overrides — B2 per-member isolation (permissive)', () => {
         await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()),
             { ...OWN('G. Miller'), source: 'roster_import', type: 'shift', value: '06:30-14:30' }));
     });
-    test('a name-less (legacy) session is still permitted — permissive escape, removed in B3', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'overrides', uid()), OWN('G. Miller')));
+    test('a name-less (legacy) session is DENIED create (permissive escape removed)', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), OWN('G. Miller')));
+    });
+    test('a name-less (legacy) session is DENIED delete (permissive escape removed)', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        await assertFails(deleteDoc(doc(staffDb(), 'overrides', id)));
     });
 
     // deletes mirror the same three-tier check against the EXISTING doc's memberName

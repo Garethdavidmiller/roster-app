@@ -9,6 +9,15 @@
 > This artifact is the exact, line-verified companion to **SECURITY_RELEASE_PLAN.md → B3**
 > (read that first for the full rationale, risk register, and the CLAIM_EPOCH sweep). It was
 > verified against `firestore.rules` and `firestore.rules.test.mjs` as of v15.32.
+>
+> **Dry-run re-verified at v16.28:** Change 1 (rules) and Change 2 (test rework) still apply
+> cleanly against the current files — the `overrides` create/update + delete blocks matched the
+> diff exactly, only the `!('name' in token)` escape was removed (manager bypass retained). The
+> full `npm run test:rules` emulator suite passed **186/186** with the strict block in place,
+> including the flipped no-name create/delete DENIED tests and the field-validation block moved
+> from `staffDb()` → `namedDb('G. Miller')`. So the code side of Step 3 is proven current; the
+> only thing gating deployment is the owner's re-auth window (Steps 1–2). Nothing was committed
+> to `firestore.rules` on a mergeable branch — the dry-run lived on a local throwaway branch.
 
 ## Pre-window checklist (must all hold before applying)
 
@@ -119,6 +128,16 @@ Re-add the two `!('name' in …)` escape lines to both blocks and redeploy (inst
 > rule), so it should ride the **same window** and reuse the same re-provision + token-sweep steps.
 > Verified against `firestore.rules` / `functions/index.js` / `admin-auth.js` / `firestore.rules.test.mjs`
 > as of v16.03.
+>
+> **Dry-run re-verified at v16.28:** all four changes (A functions, B client, C rules, D tests)
+> still apply cleanly. One reconciliation vs this doc: the suite now already HAS a `linkDesigns`
+> describe block (added since v16.03), whose `auth can write` test asserted `staffDb()` succeeds —
+> under the strict rule that must FLIP to `assertFails`, so the block was REWORKED (not added fresh):
+> a `designerDb()` helper + the full matrix (designer ✓, admin ✓, plain-named ✗, name-less ✗, anon ✗,
+> authed read ✓). Full `npm run test:rules` passed **188/188**. `node --check` + typecheck + the 123
+> functions tests stayed green. The dry-run lived on a local throwaway branch — nothing committed to
+> a mergeable branch. **Deploy order still stands:** A+B (claim) must ship + re-provision + S. Silva
+> re-auth BEFORE C+D (rule tighten), because the Links save/delete are raw writes with no self-heal.
 
 **Why:** `linkDesigns` writes are gated only by the client redirect (`links-app.js` bounces anyone
 not in `CONFIG.LINKS_DESIGNERS`). The server accepts a write from **any** authenticated session. This

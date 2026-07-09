@@ -1,28 +1,29 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
 //
-// Write policy: PER-MEMBER ISOLATION is being reintroduced via the B2 phase (see
-// SECURITY_RELEASE_PLAN.md). `overrides` create/update/delete now require the member's own
-// `name` claim, OR an `admin`/`manager` claim (both write on behalf), in the PERMISSIVE interim
-// form — a token with no `name` claim is still allowed so legacy/anonymous sessions never lock
-// out (the v10.94 outage was caused by a hard cutover). B3 drops that escape hatch (STRICT) after
-// a forced re-auth sweep. All other collections keep their existing posture; field validation is
-// enforced everywhere for data integrity. NOTE the claim prerequisite: managers must be
-// provisioned (Operations → Set up accounts, which sets the `manager` claim) AND token-refreshed
-// before this isolation rule is relied upon.
+// Write policy: PER-MEMBER ISOLATION is now STRICT (B3, see SECURITY_RELEASE_PLAN.md).
+// `overrides` create/update/delete require the member's own `name` claim, OR an `admin`/`manager`
+// claim (both write on behalf). The B2 permissive `!('name' in token)` legacy/anonymous escape has
+// been REMOVED (B3 strict cutover) after the CLAIM_EPOCH=2 forced re-auth sweep + a re-provision.
+// A stale token that has not refreshed since the sweep is self-healed on its first write by the
+// writeWithClaimRetry net (v15.18: permission-denied → force token refresh → retry). All other
+// collections keep their existing posture; field validation is enforced everywhere for integrity.
+// NOTE the claim prerequisite: managers must be provisioned (Operations → Set up accounts, which
+// sets the `manager` claim) AND token-refreshed before this isolation rule is relied upon.
 //
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v16.25 — no rule CHANGE this revision; header re-stamped after a doc-drift review.
-//   Current posture: B2 per-member override isolation is live in the PERMISSIVE 3-tier form
-//   (name / admin / manager claim, PLUS the `!('name' in token)` no-name escape so legacy/
-//   anonymous sessions never lock out — the escape is HELD for the B3 strict cutover, NOT a bug).
+// Last updated: v16.29 — B3 STRICT cutover: removed the `!('name' in token)` no-name escape from
+//   the overrides create/update AND delete blocks (only that line changed; the name/admin/manager
+//   3-tier is retained). Shipped after re-provision + the CLAIM_EPOCH=2 sweep. Rollback = re-add the
+//   two escape lines and redeploy (instant, no data migration).
 //   clientErrors pins `timestamp == request.time` (server clock), admin-only read/update.
 //   Override `value` grammar accepts the other-family sentinels (TRG/IND/ASSESS/TEAM ± RDW ± times).
-//   linkDesigns deliberately open to any authed session (not member-owned; a linksDesigner claim
-//   is the eventual fix — see its block). staffContact owner+admin; analytics any-auth write /
-//   admin read; pushSubscriptions shape-validated, delete auth-only (B2 hardening deferred).
+//   linkDesigns STILL open to any authed session — the `linksDesigner` claim is now provisionable
+//   (H2 Changes A+B), but its write rule is only tightened in the follow-up H2 C+D step (after a
+//   re-provision-with-the-new-function + designer re-auth). staffContact owner+admin; analytics
+//   any-auth write / admin read; pushSubscriptions shape-validated, delete auth-only.
 // v14.53 — B2 per-member override isolation (permissive 3-tier: name/admin/manager
 //   + no-name escape), override delete tightened to match, override/circular/newsletter dates
 //   bounded to real month/day ranges. linkDesigns deliberately left open (see its block).
@@ -111,30 +112,27 @@ service cloud.firestore {
         // manual/AL/sick paths — validate its type when present without requiring it.
         request.resource.data.createdAt is timestamp &&
         (!request.resource.data.keys().hasAny(['changedBy']) || (request.resource.data.changedBy is string && request.resource.data.changedBy.size() <= 100)) &&
-        // ── Per-member write isolation (B2, PERMISSIVE interim form) ──────────────────────
+        // ── Per-member write isolation (B3, STRICT form) ──────────────────────────────────
         // A staff member may write only their OWN override (token.name == the doc's memberName).
         // Two load-bearing bypasses: ADMIN writes for everyone (AL/sick on behalf + every
-        // source:'roster_import' row) and MANAGER does the same on-behalf editing daily. The
-        // final `!('name' in token)` branch is the migration safety net — a legacy/anonymous
-        // token minted before the name claim keeps working (same posture as today, no lockout).
-        // B3 drops that branch (STRICT) after a forced re-auth sweep. Managers must be
+        // source:'roster_import' row) and MANAGER does the same on-behalf editing daily.
+        // The B2 permissive `!('name' in token)` legacy/anonymous escape has been REMOVED
+        // (B3 strict cutover) after the CLAIM_EPOCH=2 forced re-auth sweep. Managers must be
         // provisioned (Set up accounts) AND token-refreshed before this rule is relied upon —
         // a stale manager token has name but not manager, so it would be isolated to its own
-        // (non-existent) roster. See SECURITY_RELEASE_PLAN.md → B2.
+        // (non-existent) roster. See SECURITY_RELEASE_PLAN.md → B3.
         (
           request.auth.token.name == request.resource.data.memberName ||
           request.auth.token.admin == true ||
-          request.auth.token.manager == true ||
-          !('name' in request.auth.token)
+          request.auth.token.manager == true
         );
-      // Delete mirrors the same three-tier permissive check against the EXISTING doc's
+      // Delete mirrors the same three-tier STRICT check against the EXISTING doc's
       // memberName (request.resource is null on delete). Previously any authenticated user
       // could delete any override — isolation on writes is moot without it.
       allow delete: if request.auth != null && (
         request.auth.token.name == resource.data.memberName ||
         request.auth.token.admin == true ||
-        request.auth.token.manager == true ||
-        !('name' in request.auth.token)
+        request.auth.token.manager == true
       );
     }
 
