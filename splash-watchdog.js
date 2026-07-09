@@ -71,7 +71,7 @@
 
         var resetBtn = document.createElement('button');
         resetBtn.type = 'button';
-        resetBtn.textContent = 'Still stuck? Reset the app (clears the cache)';
+        resetBtn.textContent = 'Still stuck? Reset the app (start fresh)';
         resetBtn.style.cssText = 'font:13px system-ui,-apple-system,sans-serif;padding:8px 16px;border:0;background:transparent;color:#fff;opacity:.85;text-decoration:underline;cursor:pointer';
         resetBtn.addEventListener('click', function () {
             resetBtn.disabled = true;

@@ -341,7 +341,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // this now-unverified upload, and keep the review hidden (v16.25).
                 _cellStates = null;
                 reviewSection.classList.remove('visible');
-                parseFeedback.textContent = "Couldn't check your existing saved changes, so the roster was NOT applied. Check your connection and try again.";
+                parseFeedback.textContent = "Couldn't check your existing saved changes, so the roster was not applied. Check your connection and try again.";
                 parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             } else {
                 let userMsg;

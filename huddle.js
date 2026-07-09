@@ -70,7 +70,7 @@ export function initHuddleNotifications() {
             _statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when the Daily Huddle is ready or payday is approaching.';
             _disableBtn.style.display = 'block';
         } else if (state === 'off-lapsed') {
-            _statusMsg.textContent   = 'Notifications are enabled in your browser but your subscription has lapsed. Tap Enable to resubscribe.';
+            _statusMsg.textContent   = 'Notifications were switched on but have stopped. Tap Enable to turn them back on.';
             _enableBtn.style.display = 'block';
         } else if (state === 'denied') {
             _statusMsg.textContent   = 'Notifications are blocked. To re-enable, check your browser or device settings.';

@@ -101,7 +101,7 @@ export function initAuthSetup({ currentIsAdmin }) {
                 if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
                 if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
                 // Leaver-sweep failure is a FLAG on an otherwise-200 response — surface it (v16.23).
-                if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were NOT disabled. Run Set up accounts again.');
+                if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were not disabled. Run Set up accounts again.');
                 if (!lines.length && !orphanDryRun) lines.push('Nothing to do — all accounts already up to date.');
 
                 resultEl.innerHTML = lines.map(l => `<p class="auth-result-line">${escapeHtml(l)}</p>`).join('');

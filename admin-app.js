@@ -816,7 +816,7 @@ saveBtn.addEventListener('click', async () => {
                 const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
                 if (!s || !e) {
                     row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: fill in BOTH times, or leave both blank for the training default`);
+                    errors.push(`${formatDisplay(date)}: fill in both times, or leave both blank to use the default hours`);
                     return;
                 }
                 if (!timeRe.test(s) || !timeRe.test(e)) {
@@ -1223,7 +1223,7 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     await sessionReady;
     if (!auth.currentUser) {
         if (feedbackEl) {
-            feedbackEl.textContent = '⚠ Session expired — please sign out and sign back in.';
+            feedbackEl.textContent = "⚠ You've been signed out — please sign in again.";
             feedbackEl.className = 'feedback error';
         }
         // Reset the button off its "⚠ Confirm?" state (these early returns skip the try/finally) (v16.22).

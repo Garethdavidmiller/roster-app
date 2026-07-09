@@ -233,7 +233,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         const shiftLabel = shift === 'RD' || shift === 'OFF' ? 'Rest day'
             : shift === 'SPARE' ? 'Spare day'
             : shift === 'AL'    ? 'Annual leave'
-            : shift === 'SICK'  ? 'Absence'
+            : shift === 'SICK'  ? 'Absent'
             : shift === 'RDW'   ? 'Rest day worked'
             // Other family: the FULL word on tap/tooltip/aria (badge carries the short word).
             : _otherParsed ? OTHER_FLAVOURS[_otherParsed.flavour].full

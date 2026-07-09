@@ -63,7 +63,7 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         const { deps, calls } = makeDeps({ ensureNamedSession: async () => false });
         const r = await runNamedSignIn(deps);
         assert.equal(r.ok, false);
-        assert.match(/** @type {string} */ (r.error), /Ask your manager to set up your account/);
+        assert.match(/** @type {string} */ (r.error), /Ask the admin to set up your account/);
         assert.equal(calls.save, 0);
         assert.equal(calls.clear, 1);
     });

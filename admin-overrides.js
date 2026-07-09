@@ -882,7 +882,7 @@ export async function executeSave(toSave, toDelete = []) {
 
     await sessionReady;
     if (!auth.currentUser) {
-        _showError('Session expired — please sign out and sign back in.');
+        _showError("You've been signed out — please sign in again.");
         // This early return is before the try/finally — restore the button state it can't.
         if (saveBtn) { saveBtn.textContent = 'Save changes'; }
         updateSaveBtn();
@@ -940,7 +940,7 @@ export async function executeSave(toSave, toDelete = []) {
     } catch (err) {
         console.error('[Admin] Save failed:', err);
         _showError((/** @type {any} */ (err))?.code === 'permission-denied'
-            ? "Couldn't save — your session may have expired. Please sign out and sign back in."
+            ? "Couldn't save — you may have been signed out. Please sign in again."
             : "Couldn't save — check your connection and try again.");
     } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }
