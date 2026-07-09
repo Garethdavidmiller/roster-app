@@ -9,6 +9,15 @@
 > This artifact is the exact, line-verified companion to **SECURITY_RELEASE_PLAN.md → B3**
 > (read that first for the full rationale, risk register, and the CLAIM_EPOCH sweep). It was
 > verified against `firestore.rules` and `firestore.rules.test.mjs` as of v15.32.
+>
+> **Dry-run re-verified at v16.28:** Change 1 (rules) and Change 2 (test rework) still apply
+> cleanly against the current files — the `overrides` create/update + delete blocks matched the
+> diff exactly, only the `!('name' in token)` escape was removed (manager bypass retained). The
+> full `npm run test:rules` emulator suite passed **186/186** with the strict block in place,
+> including the flipped no-name create/delete DENIED tests and the field-validation block moved
+> from `staffDb()` → `namedDb('G. Miller')`. So the code side of Step 3 is proven current; the
+> only thing gating deployment is the owner's re-auth window (Steps 1–2). Nothing was committed
+> to `firestore.rules` on a mergeable branch — the dry-run lived on a local throwaway branch.
 
 ## Pre-window checklist (must all hold before applying)
 
