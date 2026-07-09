@@ -25,9 +25,10 @@ const { onSchedule }        = require('firebase-functions/v2/scheduler');
 const { defineSecret }  = require('firebase-functions/params');
 const admin             = require('firebase-admin');
 const crypto            = require('crypto');
-const { Anthropic }     = require('@anthropic-ai/sdk');
-const mammoth           = require('mammoth');
-const webpush           = require('web-push');
+// M8: @anthropic-ai/sdk, mammoth and web-push are LAZY-required inside the one function that
+// each needs (parseRosterPDF / ingestHuddle DOCX branch / the push fan-out helpers) rather than
+// at module load, so a cold start of a function that doesn't use them (e.g. setupRosterAuth) does
+// not pay their load cost. Node caches the module after first require, so warm calls are free.
 const {
     buildWeekDates,
     extractAIJson,
@@ -309,6 +310,7 @@ exports.ingestHuddle = onRequest(
             let htmlContent = null;
             if (isDocx) {
                 try {
+                    const mammoth = require('mammoth'); // M8: lazy-loaded only for DOCX conversion
                     const result = await mammoth.convertToHtml({ buffer: fileBuffer });
                     htmlContent  = result.value || null;
                     console.log(`[ingestHuddle] DOCX converted to HTML (${htmlContent ? htmlContent.length : 0} chars)`);
@@ -476,10 +478,18 @@ exports.onNewsletterCreated = onDocumentCreated(
 // Secrets are not available at module init, so we defer to first call.
 let _vapidConfigured = false;
 
+// M8: web-push loaded on first push only (see the require note at the top). Cached after first use.
+let _webpush = null;
+/** @returns {any} the web-push module, required lazily on first use. */
+function getWebPush() {
+    if (!_webpush) _webpush = require('web-push');
+    return _webpush;
+}
+
 /** Configures web-push VAPID credentials once per process lifetime. */
 function setupWebPush(vapidPrivate) {
     if (_vapidConfigured) return;
-    webpush.setVapidDetails(
+    getWebPush().setVapidDetails(
         'mailto:noreply@myb-roster.web.app',
         VAPID_PUBLIC_KEY,
         vapidPrivate.value(),
@@ -507,7 +517,7 @@ async function fanOutPush(payload, logTag) {
     const sends = snapshot.docs.map(async docSnap => {
         const { endpoint, keys } = docSnap.data();
         try {
-            await webpush.sendNotification({ endpoint, keys }, payloadStr);
+            await getWebPush().sendNotification({ endpoint, keys }, payloadStr);
         } catch (err) {
             // 410 Gone / 404 Not Found = the subscription itself is dead → delete it.
             // 401 Unauthorized is NOT a dead subscription — it is the push service rejecting
@@ -1003,6 +1013,7 @@ Every column header must appear as a key in every member object.`;
         // the table structure and causes day-column misalignment).
         let parsed;
         try {
+            const { Anthropic } = require('@anthropic-ai/sdk'); // M8: lazy-loaded here only
             const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
 
             // Thinking DISABLED. Sonnet 5 runs ADAPTIVE THINKING by default when `thinking` is

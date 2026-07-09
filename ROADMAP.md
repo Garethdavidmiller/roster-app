@@ -428,9 +428,11 @@ cheapest-first. Higher-effort/higher-risk ideas (View Transitions on the swipe c
 state refactors, container queries, an SVG icon set, dark mode) are deliberately **excluded** from
 this batch — they're tracked separately under Future capabilities / UX experiments.
 
-1. **Tabular numerals on data** — `font-variant-numeric: tabular-nums` on the Pay Calculator
-   figures, shift times, and AL counts so digits align in columns. **No risk** (Inter supports it;
-   no layout shift). Highest perceptual payoff for the effort.
+1. **Tabular numerals on data** — ✅ **DONE** (shipped incrementally; verified v16.29).
+   `font-variant-numeric: tabular-nums` is live on every intended surface: all Pay Calculator
+   figures (`.net-amount`, `.sum-row .val`, `.b-val`, `.bp-val`, `.hpp-amount`, `.sticky-amount` in
+   `paycalc.css`), calendar shift times (`index.css`, v14.54), and admin AL/date counts (`admin.css`).
+   No further work.
 2. **`text-wrap: balance` on headings, `text-wrap: pretty` on paragraphs** — kills ragged headings
    and orphan lines. **No risk** (degrades gracefully on older engines).
 3. **Display-heading typography** — fluid `clamp()` on `--type-xl` only (small/body/input sizes stay
@@ -1000,10 +1002,13 @@ inside the function that needs it — Anthropic only in `parseRosterPDF`, `mammo
 huddle ingest, `web-push` only in the notification fan-out. Medium value (functions cold-start),
 low risk (mechanical), independent of the auth release. Functions tests already cover the helpers.
 
-### L4 — paycalc collapsible fixed `max-height` can clip long content
+### L4 — paycalc collapsible fixed `max-height` — ✅ CHECKED, within cap (no fix needed)
 
-`paycalc.css` (~line 256) gives open collapsible bodies a fixed `max-height` for the open/close
-animation. Very long dynamically-generated content (e.g. a large back-pay breakdown) could exceed
-the cap and clip. Fix options: measure height and remove the cap after the transition, or drop the
-animation for the long generated sections. Verify it actually clips at realistic content sizes
-before changing — it may be within the cap in practice. Low priority.
+`paycalc.css` gives open collapsible bodies a fixed `max-height` for the open/close animation.
+**Checked (v16.29):** the tallest real content is well within the cap. The `.bd-body` back-pay
+breakdown accrues at most one row per period in a single award tax year (≤ ~13 rows, capped at
+`todaysPeriodNum()` and excluding the paid-in period) and the result breakdown is a fixed ~20-line
+category list — ~550–800px against the 1400px cap; print already unclips it. So it does not clip at
+realistic sizes, and `max-height:none` would break the animation. A finite cap is correct here; the
+`paycalc.css` comment records the reasoning. Only revisit if a future breakdown could exceed the cap
+(then prefer measure-height-and-drop-cap-after-`transitionend` over a bigger magic number).
