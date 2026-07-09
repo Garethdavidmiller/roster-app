@@ -167,6 +167,192 @@ export async function fetchOverridesForWeek(dates) {
 }
 
 /**
+ * Compute the state of every (member, date) cell in the review table.
+ *
+ * Returns a Map keyed by "memberName|date" with values:
+ *   { state: 'MATCH'|'DIFF'|'CONFLICT'|'COVERED', parsedShift, baseShift,
+ *     manualValue?, manualId?, chosen }
+ *
+ * State meanings:
+ *   MATCH    — PDF matches base roster, no override → nothing to do
+ *   DIFF     — PDF differs from base roster, no manual override → propose change
+ *   CONFLICT — A manually entered override exists that differs from the PDF → flag it
+ *   COVERED  — A manual override exists and already matches the PDF → nothing to do
+ *
+ * @param {any} parsedResult  - Response from parseRosterPDF
+ * @param {Array<any>}  existingOverrides - Overrides already in Firestore for this week
+ * @returns {Map<string, any>}
+ */
+export function computeCellStates(parsedResult, existingOverrides) {
+    const states = new Map();
+
+    // Build a quick lookup: "memberName|date" → best override doc.
+    // Use shouldReplaceOverride so manual entries always beat roster imports,
+    // and newer docs beat older ones within the same source class.
+    const overrideMap = new Map();
+    for (const o of existingOverrides) {
+        const key = `${o.memberName}|${o.date}`;
+        if (shouldReplaceOverride(overrideMap.get(key), o)) {
+            overrideMap.set(key, o);
+        }
+    }
+
+    for (const entry of parsedResult.parsed) {
+        // Only process names that exist in teamMembers (not hidden)
+        const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
+        if (!member) continue;
+
+        for (const date of parsedResult.dates) {
+            let parsedShift  = entry.shifts?.[date] || 'RD';
+            // Bare 'RDW' = the AI omitted the shift time. The server passes it through so the
+            // review can flag it, but there is NO edit affordance and it previously classified
+            // as a default-ticked DIFF whose save produced {type:'rdw', value:'RDW'} — which
+            // firestore.rules rejects (rdw requires HH:MM-HH:MM), failing the WHOLE ≤200-row
+            // chunk as permission-denied with a misleading "session may have expired" error.
+            // Route it to the skip-only UNREADABLE row instead — never written (v16.23).
+            if (parsedShift === 'RDW') parsedShift = 'UNKNOWN|RDW (no time on roster)';
+            const baseShift    = getBaseShift(member, new Date(date + 'T12:00:00'));
+            const key          = `${entry.memberName}|${date}`;
+            const existing     = overrideMap.get(key);
+
+            // Unreadable PDF value (normaliseShift couldn't parse it — see UNKNOWN_PREFIX). Surface
+            // it as a skip-only UNREADABLE row so a garbled real shift isn't silently dropped, but
+            // NEVER write the sentinel: chosen stays null and the save path only writes DIFF/CONFLICT.
+            // The admin fixes the source PDF and re-uploads, or records the shift manually.
+            if (isUnknownEncoded(parsedShift)) {
+                states.set(key, {
+                    state: 'UNREADABLE',
+                    parsedShift, baseShift,
+                    manualValue: existing?.value ?? null,
+                    manualId:    existing?.id    ?? null,
+                    editedValue: null,
+                    chosen:      null,
+                });
+                continue;
+            }
+
+            // Determine whether the existing override is manual or a previous import
+            const isManual = existing
+                ? (existing.source !== 'roster_import')   // no source field → treat as manual
+                : false;
+
+            // Normalise parsedShift for comparisons — strip the "RDW|" encoding so
+            // "RDW|14:30-22:00" compares correctly against a stored value "14:30-22:00"
+            const parsedValue = isRdwEncoded(parsedShift) ? stripRdw(parsedShift) : parsedShift;
+
+            // Sundays are non-contracted for all grades — a PDF marking a Sunday as
+            // AL, Absent (SICK), or an Other-family day is invalid. Treat it as RD so it matches
+            // the rest-day base, classifies as MATCH, and is never written as a Sunday
+            // AL/absence/Other override. (Worked Sunday times remain RDW — handled below.)
+            const isSun      = isSunday(date);
+            const sundaySafe = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK' || isOtherValue(parsedValue)))
+                ? 'RD' : parsedValue;
+
+            // Bilingual roster uses 'OFF' for rest days; AI always returns 'RD'.
+            // Treat them as identical for all comparison purposes.
+            const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
+            // Absence on a BASE REST DAY normalises to RD (owner, Jul 2026): full-pay absence
+            // only applies to days the member was rostered to work. This is the overpay guard
+            // for blanket Mon–Fri "OD" markings on long-term sick members — rest days inside
+            // the blanket classify MATCH (never written), and a STALE imported absence on a
+            // rest day becomes REMOVE_IMPORT on re-upload (deleted, nothing written).
+            // AL added alongside SICK (v16.19): a blanket week-long "AL" written across the
+            // paper roster (incl. the RD) must not consume an AL-entitlement day for a rest
+            // day. The manual AL path already excludes rest days (isWorkingDate); this closes
+            // the import-vs-manual asymmetry that left AL on a base rest day unguarded.
+            const restSafe   = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
+                ? 'RD' : sundaySafe;
+            const normParsed = normRest(restSafe);
+            const normBase   = normRest(baseShift);
+
+            // The DISPLAY/SAVE value must keep the "RDW|" marker (restSafe/normParsed stay
+            // STRIPPED for COVERED/DIFF comparison against stored plain-time docs — so this
+            // adds no re-import churn). Without this, a weekday rest-day-worked import saved
+            // the bare time "14:30-22:00" → shiftValueToOverrideType returned 'shift' (not
+            // 'rdw', since `isTime && isSun` is false on a weekday) → the RDW overtime was
+            // dropped from the calendar badge AND from paycalc's roster-assist RDW pre-fill
+            // (pay under-fill). Re-attaching RDW| makes the save write {type:'rdw'} and the
+            // review row render the 💼 RDW badge. (Sunday RDW was already promoted by
+            // shiftValueToOverrideType's isSun branch, so this only corrects weekdays.)
+            const displayValue = (isRdwEncoded(parsedShift) && restSafe !== 'RD')
+                ? `${RDW_PREFIX}${restSafe}` : restSafe;
+
+            let state;
+            // RDW-ness of the existing override vs the incoming value must MATCH for a timed
+            // value to count as COVERED (v16.23): stored {type:'shift', 14:30-22:00} vs an
+            // incoming RDW|14:30-22:00 compared equal on the bare time and the shift→RDW
+            // reclassification (overtime pay) was silently dropped — and the reverse stuck as
+            // COVERED too. Sundays are EXCLUDED from the type check: a worked Sunday is stored
+            // as type rdw but arrives as a plain time (the save path promotes it), so requiring
+            // flag equality there would false-CONFLICT every Sunday on every re-upload.
+            const rdwMatches = isSun
+                || !/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(normParsed)
+                || ((existing?.type === 'rdw') === isRdwEncoded(parsedShift));
+            if (!existing || !isManual) {
+                // No override, or only a previous import.
+                if (existing && !isManual && normRest(existing.value) === normParsed && rdwMatches) {
+                    state = 'COVERED';  // previous import already equals the PDF — nothing to re-approve
+                } else if (normParsed === normBase) {
+                    // PDF now matches the base roster.
+                    //  • No override to clean up → genuinely nothing to do (MATCH).
+                    //  • A stale previous import still exists (and can't equal the PDF, or it would
+                    //    be COVERED above) → REMOVE_IMPORT: delete the stale doc and write NOTHING.
+                    //    Writing a fresh base-matching override (the old DIFF behaviour) was
+                    //    redundant AND would MASK a later base-roster change (an override always
+                    //    beats the base), so a "matches base today" row silently kept the old value.
+                    state = existing ? 'REMOVE_IMPORT' : 'MATCH';
+                } else {
+                    // PDF differs from base (a genuine change), OR a stale differing import must be
+                    // replaced with a new value. Approving deletes the old import (replaceId) and
+                    // writes the corrected value.
+                    state = 'DIFF';
+                }
+            } else {
+                // A manual override exists — check if it already matches the PDF
+                if (normRest(existing.value) === normParsed && rdwMatches) {
+                    state = 'COVERED';   // manual is already correct — nothing to do
+                } else if ((existing.value === 'SICK' || existing.value === 'AL') && normBase === 'RD' && normParsed === 'RD') {
+                    // Absence OR annual leave on a base rest day AND the PDF also shows rest —
+                    // not a real conflict; leave the manual override untouched. AL joined SICK
+                    // here in lockstep with the restSafe AL→RD normalisation (v16.19): without
+                    // it, a manual AL on a base-rest weekday + a re-uploaded AL classified as
+                    // CONFLICT, and "Use new roster" then wrote correction/RD, DELETING the AL.
+                    // If the PDF instead shows a worked shift (an RDW on the rest day), fall
+                    // through to CONFLICT so the genuine shift isn't dropped.
+                    state = 'COVERED';
+                } else {
+                    state = 'CONFLICT';  // manual differs from PDF — flag it
+                }
+            }
+
+            states.set(key, {
+                state,
+                parsedShift,
+                // What the row DISPLAYS and SAVES as the incoming value. Keeps the RDW| marker
+                // (see displayValue above); differs from parsedShift only where a value was
+                // normalised to RD (Sunday AL/SICK/Other, or absence on a base rest day).
+                displayShift: displayValue,
+                baseShift,
+                manualValue: existing?.value ?? null,
+                // Carry the override TYPE so the review table can render the 💼 RDW badge for a
+                // saved rest-day-worked override: its stored value is the bare time ("14:30-22:00")
+                // — the RDW-ness lives in `type`, not the value — so shiftDisplay(value) alone
+                // showed an ordinary Early/Late badge and the admin couldn't tell RDW from a
+                // normal shift when resolving a CONFLICT (v16.19).
+                manualType:  existing?.type  ?? null,
+                manualId:    existing?.id    ?? null,
+                editedValue: null,    // set if admin edits a DIFF cell
+                chosen:      (state === 'DIFF' || state === 'REMOVE_IMPORT') ? true : null,
+                // 'chosen' for DIFF / REMOVE_IMPORT = true (approved) or false (skipped)
+                // 'chosen' for CONFLICT = 'manual' (default) or 'pdf'
+            });
+        }
+    }
+
+    return states;
+}
+
+/**
  * Initialise the weekly roster upload pipeline.
  * Wires up all DOM event listeners for the Roster Upload card in admin.html.
  *
@@ -483,192 +669,6 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             reader.onerror = () => reject(new Error('Could not read the file'));
             reader.readAsDataURL(file);
         });
-    }
-
-    /**
-     * Compute the state of every (member, date) cell in the review table.
-     *
-     * Returns a Map keyed by "memberName|date" with values:
-     *   { state: 'MATCH'|'DIFF'|'CONFLICT'|'COVERED', parsedShift, baseShift,
-     *     manualValue?, manualId?, chosen }
-     *
-     * State meanings:
-     *   MATCH    — PDF matches base roster, no override → nothing to do
-     *   DIFF     — PDF differs from base roster, no manual override → propose change
-     *   CONFLICT — A manually entered override exists that differs from the PDF → flag it
-     *   COVERED  — A manual override exists and already matches the PDF → nothing to do
-     *
-     * @param {any} parsedResult  - Response from parseRosterPDF
-     * @param {Array<any>}  existingOverrides - Overrides already in Firestore for this week
-     * @returns {Map<string, any>}
-     */
-    function computeCellStates(parsedResult, existingOverrides) {
-        const states = new Map();
-
-        // Build a quick lookup: "memberName|date" → best override doc.
-        // Use shouldReplaceOverride so manual entries always beat roster imports,
-        // and newer docs beat older ones within the same source class.
-        const overrideMap = new Map();
-        for (const o of existingOverrides) {
-            const key = `${o.memberName}|${o.date}`;
-            if (shouldReplaceOverride(overrideMap.get(key), o)) {
-                overrideMap.set(key, o);
-            }
-        }
-
-        for (const entry of parsedResult.parsed) {
-            // Only process names that exist in teamMembers (not hidden)
-            const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
-            if (!member) continue;
-
-            for (const date of parsedResult.dates) {
-                let parsedShift  = entry.shifts?.[date] || 'RD';
-                // Bare 'RDW' = the AI omitted the shift time. The server passes it through so the
-                // review can flag it, but there is NO edit affordance and it previously classified
-                // as a default-ticked DIFF whose save produced {type:'rdw', value:'RDW'} — which
-                // firestore.rules rejects (rdw requires HH:MM-HH:MM), failing the WHOLE ≤200-row
-                // chunk as permission-denied with a misleading "session may have expired" error.
-                // Route it to the skip-only UNREADABLE row instead — never written (v16.23).
-                if (parsedShift === 'RDW') parsedShift = 'UNKNOWN|RDW (no time on roster)';
-                const baseShift    = getBaseShift(member, new Date(date + 'T12:00:00'));
-                const key          = `${entry.memberName}|${date}`;
-                const existing     = overrideMap.get(key);
-
-                // Unreadable PDF value (normaliseShift couldn't parse it — see UNKNOWN_PREFIX). Surface
-                // it as a skip-only UNREADABLE row so a garbled real shift isn't silently dropped, but
-                // NEVER write the sentinel: chosen stays null and the save path only writes DIFF/CONFLICT.
-                // The admin fixes the source PDF and re-uploads, or records the shift manually.
-                if (isUnknownEncoded(parsedShift)) {
-                    states.set(key, {
-                        state: 'UNREADABLE',
-                        parsedShift, baseShift,
-                        manualValue: existing?.value ?? null,
-                        manualId:    existing?.id    ?? null,
-                        editedValue: null,
-                        chosen:      null,
-                    });
-                    continue;
-                }
-
-                // Determine whether the existing override is manual or a previous import
-                const isManual = existing
-                    ? (existing.source !== 'roster_import')   // no source field → treat as manual
-                    : false;
-
-                // Normalise parsedShift for comparisons — strip the "RDW|" encoding so
-                // "RDW|14:30-22:00" compares correctly against a stored value "14:30-22:00"
-                const parsedValue = isRdwEncoded(parsedShift) ? stripRdw(parsedShift) : parsedShift;
-
-                // Sundays are non-contracted for all grades — a PDF marking a Sunday as
-                // AL, Absent (SICK), or an Other-family day is invalid. Treat it as RD so it matches
-                // the rest-day base, classifies as MATCH, and is never written as a Sunday
-                // AL/absence/Other override. (Worked Sunday times remain RDW — handled below.)
-                const isSun      = isSunday(date);
-                const sundaySafe = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK' || isOtherValue(parsedValue)))
-                    ? 'RD' : parsedValue;
-
-                // Bilingual roster uses 'OFF' for rest days; AI always returns 'RD'.
-                // Treat them as identical for all comparison purposes.
-                const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
-                // Absence on a BASE REST DAY normalises to RD (owner, Jul 2026): full-pay absence
-                // only applies to days the member was rostered to work. This is the overpay guard
-                // for blanket Mon–Fri "OD" markings on long-term sick members — rest days inside
-                // the blanket classify MATCH (never written), and a STALE imported absence on a
-                // rest day becomes REMOVE_IMPORT on re-upload (deleted, nothing written).
-                // AL added alongside SICK (v16.19): a blanket week-long "AL" written across the
-                // paper roster (incl. the RD) must not consume an AL-entitlement day for a rest
-                // day. The manual AL path already excludes rest days (isWorkingDate); this closes
-                // the import-vs-manual asymmetry that left AL on a base rest day unguarded.
-                const restSafe   = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
-                    ? 'RD' : sundaySafe;
-                const normParsed = normRest(restSafe);
-                const normBase   = normRest(baseShift);
-
-                // The DISPLAY/SAVE value must keep the "RDW|" marker (restSafe/normParsed stay
-                // STRIPPED for COVERED/DIFF comparison against stored plain-time docs — so this
-                // adds no re-import churn). Without this, a weekday rest-day-worked import saved
-                // the bare time "14:30-22:00" → shiftValueToOverrideType returned 'shift' (not
-                // 'rdw', since `isTime && isSun` is false on a weekday) → the RDW overtime was
-                // dropped from the calendar badge AND from paycalc's roster-assist RDW pre-fill
-                // (pay under-fill). Re-attaching RDW| makes the save write {type:'rdw'} and the
-                // review row render the 💼 RDW badge. (Sunday RDW was already promoted by
-                // shiftValueToOverrideType's isSun branch, so this only corrects weekdays.)
-                const displayValue = (isRdwEncoded(parsedShift) && restSafe !== 'RD')
-                    ? `${RDW_PREFIX}${restSafe}` : restSafe;
-
-                let state;
-                // RDW-ness of the existing override vs the incoming value must MATCH for a timed
-                // value to count as COVERED (v16.23): stored {type:'shift', 14:30-22:00} vs an
-                // incoming RDW|14:30-22:00 compared equal on the bare time and the shift→RDW
-                // reclassification (overtime pay) was silently dropped — and the reverse stuck as
-                // COVERED too. Sundays are EXCLUDED from the type check: a worked Sunday is stored
-                // as type rdw but arrives as a plain time (the save path promotes it), so requiring
-                // flag equality there would false-CONFLICT every Sunday on every re-upload.
-                const rdwMatches = isSun
-                    || !/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(normParsed)
-                    || ((existing?.type === 'rdw') === isRdwEncoded(parsedShift));
-                if (!existing || !isManual) {
-                    // No override, or only a previous import.
-                    if (existing && !isManual && normRest(existing.value) === normParsed && rdwMatches) {
-                        state = 'COVERED';  // previous import already equals the PDF — nothing to re-approve
-                    } else if (normParsed === normBase) {
-                        // PDF now matches the base roster.
-                        //  • No override to clean up → genuinely nothing to do (MATCH).
-                        //  • A stale previous import still exists (and can't equal the PDF, or it would
-                        //    be COVERED above) → REMOVE_IMPORT: delete the stale doc and write NOTHING.
-                        //    Writing a fresh base-matching override (the old DIFF behaviour) was
-                        //    redundant AND would MASK a later base-roster change (an override always
-                        //    beats the base), so a "matches base today" row silently kept the old value.
-                        state = existing ? 'REMOVE_IMPORT' : 'MATCH';
-                    } else {
-                        // PDF differs from base (a genuine change), OR a stale differing import must be
-                        // replaced with a new value. Approving deletes the old import (replaceId) and
-                        // writes the corrected value.
-                        state = 'DIFF';
-                    }
-                } else {
-                    // A manual override exists — check if it already matches the PDF
-                    if (normRest(existing.value) === normParsed && rdwMatches) {
-                        state = 'COVERED';   // manual is already correct — nothing to do
-                    } else if ((existing.value === 'SICK' || existing.value === 'AL') && normBase === 'RD' && normParsed === 'RD') {
-                        // Absence OR annual leave on a base rest day AND the PDF also shows rest —
-                        // not a real conflict; leave the manual override untouched. AL joined SICK
-                        // here in lockstep with the restSafe AL→RD normalisation (v16.19): without
-                        // it, a manual AL on a base-rest weekday + a re-uploaded AL classified as
-                        // CONFLICT, and "Use new roster" then wrote correction/RD, DELETING the AL.
-                        // If the PDF instead shows a worked shift (an RDW on the rest day), fall
-                        // through to CONFLICT so the genuine shift isn't dropped.
-                        state = 'COVERED';
-                    } else {
-                        state = 'CONFLICT';  // manual differs from PDF — flag it
-                    }
-                }
-
-                states.set(key, {
-                    state,
-                    parsedShift,
-                    // What the row DISPLAYS and SAVES as the incoming value. Keeps the RDW| marker
-                    // (see displayValue above); differs from parsedShift only where a value was
-                    // normalised to RD (Sunday AL/SICK/Other, or absence on a base rest day).
-                    displayShift: displayValue,
-                    baseShift,
-                    manualValue: existing?.value ?? null,
-                    // Carry the override TYPE so the review table can render the 💼 RDW badge for a
-                    // saved rest-day-worked override: its stored value is the bare time ("14:30-22:00")
-                    // — the RDW-ness lives in `type`, not the value — so shiftDisplay(value) alone
-                    // showed an ordinary Early/Late badge and the admin couldn't tell RDW from a
-                    // normal shift when resolving a CONFLICT (v16.19).
-                    manualType:  existing?.type  ?? null,
-                    manualId:    existing?.id    ?? null,
-                    editedValue: null,    // set if admin edits a DIFF cell
-                    chosen:      (state === 'DIFF' || state === 'REMOVE_IMPORT') ? true : null,
-                    // 'chosen' for DIFF / REMOVE_IMPORT = true (approved) or false (skipped)
-                    // 'chosen' for CONFLICT = 'manual' (default) or 'pdf'
-                });
-            }
-        }
-
-        return states;
     }
 
     /**

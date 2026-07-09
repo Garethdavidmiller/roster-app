@@ -92,6 +92,54 @@ const MAX_FILE_BYTES       = 20 * 1024 * 1024; // decoded file cap — MUST matc
 const MAX_HUDDLE_HTML_CHARS = 200_000;         // converted-DOCX htmlContent cap
 
 /**
+ * Read the raw base64 plain-text request body (bypasses the JSON body-size limit), size-capped at
+ * MAX_RAW_BODY_BYTES so an oversized upload is rejected DURING streaming rather than after buffering
+ * + decoding the whole thing (which could OOM the 512 MiB instance). Shared by ingestHuddle and
+ * parseRosterPDF (extracted v16.39 — the streaming/size-cap block was byte-identical bar the log tag).
+ * On any failure it sends the HTTP error response itself and returns null; otherwise returns the
+ * trimmed base64 string. The caller does its own whitespace-strip / charset-validate / decode.
+ * @param {import('express').Request}  req
+ * @param {import('express').Response} res
+ * @param {string} logTag  console prefix (the calling function's name)
+ * @returns {Promise<string|null>} trimmed base64 body, or null if a response was already sent
+ */
+async function readRawBody(req, res, logTag) {
+    try {
+        if (req.rawBody) {
+            if (req.rawBody.length > MAX_RAW_BODY_BYTES) {
+                res.status(413).json({ error: 'File exceeds the size limit' });
+                return null;
+            }
+            return req.rawBody.toString('utf8').trim();
+        }
+        const chunks = [];
+        let total = 0;
+        await new Promise((resolve, reject) => {
+            req.on('data', chunk => {
+                total += chunk.length;
+                if (total > MAX_RAW_BODY_BYTES) {
+                    req.destroy();
+                    reject(new Error('BODY_TOO_LARGE'));
+                    return;
+                }
+                chunks.push(chunk);
+            });
+            req.on('end', resolve);
+            req.on('error', reject);
+        });
+        return Buffer.concat(chunks).toString('utf8').trim();
+    } catch (err) {
+        if (err.message === 'BODY_TOO_LARGE') {
+            res.status(413).json({ error: 'File exceeds the size limit' });
+            return null;
+        }
+        console.error(`[${logTag}] Failed to read body:`, err.message);
+        res.status(400).json({ error: 'Could not read request body' });
+        return null;
+    }
+}
+
+/**
  * Returns {year, month(0-based), day} in London local time, derived directly from
  * Intl.DateTimeFormat parts so the result is never dependent on the server's TZ setting.
  * @returns {{ year: number, month: number, day: number }}
@@ -175,44 +223,10 @@ exports.ingestHuddle = onRequest(
         }
 
         // ---- Read raw body ----
-        // The file arrives as a base64 plain-text body, bypassing JSON body-size limits.
-        // 20 MB decoded ≈ 27 MB of base64; cap raw body slightly above that.
-        const MAX_BODY_BYTES = MAX_RAW_BODY_BYTES;
-        let base64Content;
-        try {
-            if (req.rawBody) {
-                if (req.rawBody.length > MAX_BODY_BYTES) {
-                    res.status(413).json({ error: 'File exceeds the size limit' });
-                    return;
-                }
-                base64Content = req.rawBody.toString('utf8').trim();
-            } else {
-                const chunks = [];
-                let total = 0;
-                await new Promise((resolve, reject) => {
-                    req.on('data', chunk => {
-                        total += chunk.length;
-                        if (total > MAX_BODY_BYTES) {
-                            req.destroy();
-                            reject(new Error('body_too_large'));
-                            return;
-                        }
-                        chunks.push(chunk);
-                    });
-                    req.on('end', resolve);
-                    req.on('error', reject);
-                });
-                base64Content = Buffer.concat(chunks).toString('utf8').trim();
-            }
-        } catch (err) {
-            if (err.message === 'body_too_large') {
-                res.status(413).json({ error: 'File exceeds the size limit' });
-                return;
-            }
-            console.error('[ingestHuddle] Failed to read body:', err.message);
-            res.status(400).json({ error: 'Could not read request body' });
-            return;
-        }
+        // The file arrives as a base64 plain-text body (bypasses the JSON body-size limit);
+        // readRawBody streams + size-caps it (rejecting oversized uploads mid-stream).
+        let base64Content = await readRawBody(req, res, 'ingestHuddle');
+        if (base64Content === null) return;   // helper already sent the 413/400 response
 
         console.log(`[ingestHuddle] base64 length received: ${base64Content.length}`);
 
@@ -791,46 +805,11 @@ exports.parseRosterPDF = onRequest(
             return;
         }
 
-        // ---- Read raw body ----
-        // 20 MB decoded ≈ 27 MB of base64; cap the raw body a little above that so
-        // an oversized upload is rejected *during* streaming rather than after the
-        // whole thing is buffered + decoded (which could OOM the 512MiB instance).
-        const MAX_BODY_BYTES = MAX_RAW_BODY_BYTES;
-        let base64Content;
-        try {
-            if (req.rawBody) {
-                if (req.rawBody.length > MAX_BODY_BYTES) {
-                    res.status(413).json({ error: 'File exceeds the size limit' });
-                    return;
-                }
-                base64Content = req.rawBody.toString('utf8').trim();
-            } else {
-                const chunks = [];
-                let total = 0;
-                await new Promise((resolve, reject) => {
-                    req.on('data', chunk => {
-                        total += chunk.length;
-                        if (total > MAX_BODY_BYTES) {
-                            req.destroy();
-                            reject(new Error('BODY_TOO_LARGE'));
-                            return;
-                        }
-                        chunks.push(chunk);
-                    });
-                    req.on('end', resolve);
-                    req.on('error', reject);
-                });
-                base64Content = Buffer.concat(chunks).toString('utf8').trim();
-            }
-        } catch (err) {
-            if (err.message === 'BODY_TOO_LARGE') {
-                res.status(413).json({ error: 'File exceeds the size limit' });
-                return;
-            }
-            console.error('[parseRosterPDF] Failed to read body:', err.message);
-            res.status(400).json({ error: 'Could not read request body' });
-            return;
-        }
+        // ---- Read raw body ---- (readRawBody streams + size-caps it; same pattern as
+        // ingestHuddle — an oversized upload is rejected DURING streaming, not after buffering
+        // + decoding the whole thing, which could OOM the 512MiB instance).
+        const base64Content = await readRawBody(req, res, 'parseRosterPDF');
+        if (base64Content === null) return;   // helper already sent the 413/400 response
 
         if (!base64Content) {
             res.status(400).json({ error: 'Request body is empty' });

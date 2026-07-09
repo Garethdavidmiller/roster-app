@@ -12,6 +12,29 @@ export function isRestShift(shift) {
 }
 
 /**
+ * Display-suppression rule (CLAUDE.md "Sundays are non-contracted", layer 5) — SINGLE SOURCE for the
+ * calendar renderer, Team Week View, and month legend so they can never disagree. True when an
+ * override must NOT replace the base shift on the calendar: a `sick` override on a rest-day base OR
+ * any Sunday, and `annual_leave` / Other-family (`other`) on any Sunday. (A worked Sunday is always
+ * RDW, never AL/Absent; Sundays and rest days are non-contracted — such overrides are only ever
+ * legacy/hand-written data.) `rdw`, `correction`, `spare_shift`, and plain `shift` are never suppressed.
+ * Takes `sunday` as a boolean (not the date) so this module stays free of a roster-data import — that
+ * would be a cycle, since roster-data imports from here. Callers pass `isSunday(dateStr)`.
+ * @param {{type: string}} override
+ * @param {string} baseShift  the member's base roster shift for that date
+ * @param {boolean} sunday    whether the date is a Sunday
+ * @returns {boolean} true → ignore the override, keep the base shift
+ */
+export function isOverrideDisplaySuppressed(override, baseShift, sunday) {
+    switch (override.type) {
+        case 'sick':         return isRestShift(baseShift) || sunday;
+        case 'annual_leave': return sunday;
+        case 'other':        return sunday;
+        default:             return false;
+    }
+}
+
+/**
  * Converts a Firestore Timestamp or plain {seconds} object to milliseconds.
  * Returns 0 for null/undefined or unrecognised shapes.
  * @param {any} ts

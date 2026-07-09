@@ -12,7 +12,7 @@
 
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
-import { shouldReplaceOverride, isBeforeMemberStart, isOtherValue } from './override-utils.js';
+import { shouldReplaceOverride, isBeforeMemberStart, isOtherValue, isOverrideDisplaySuppressed } from './override-utils.js';
 
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();
@@ -147,12 +147,10 @@ export function getShiftTypesInMonth(member, year, month) {
         let shift = getBaseShift(member, date);
         const dateStr = formatISO(date);
         const ov = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
-        if (ov && !(ov.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr)))
-               && !(ov.type === 'annual_leave' && isSunday(dateStr))
-               && !(ov.type === 'other' && isSunday(dateStr))) {
-            // AL/other on a Sunday are suppressed alongside sick — mirrors the calendar-renderer
-            // display chain so the month legend can't light 'AL' from a legacy Sunday AL override.
-            // Sundays are non-contracted (CLAUDE.md layer 5). (v16.19)
+        if (ov && !isOverrideDisplaySuppressed(ov, shift, isSunday(dateStr))) {
+            // Suppression (sick on rest/Sunday, AL/Other on Sunday) uses the shared single source so
+            // the month legend can't light 'AL' from a legacy Sunday AL override, and can never drift
+            // from the calendar renderer / Team view. Sundays are non-contracted (CLAUDE.md layer 5).
             shift = ov.type === 'rdw' ? 'RDW' : ov.value;
         }
         if (shift === 'SPARE') types.add('SPARE');

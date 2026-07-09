@@ -16,7 +16,7 @@ import {
     getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, paydayForCutoff, escapeHtml,
 } from './roster-data.js';
-import { isBeforeMemberStart, isRestShift, isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isBeforeMemberStart, isRestShift, isOtherValue, parseOtherValue, OTHER_FLAVOURS, isOverrideDisplaySuppressed } from './override-utils.js';
 import { getCurrentMember } from './calendar-member.js';
 import { rosterOverridesCache } from './calendar-overrides.js';
 
@@ -181,22 +181,14 @@ export function buildCalendarContainer(month, year, opts = {}) {
         {
             const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
             if (override) {
-                if (override.type === 'rdw') {
+                if (isOverrideDisplaySuppressed(override, shift, isSunday(dateStr))) {
+                    // Suppressed (Sundays + rest days are non-contracted — CLAUDE.md layer 5):
+                    // a sick day on a rest-day/Sunday base, or a legacy AL/Other on a Sunday.
+                    // Keep the base shift. Single source: isOverrideDisplaySuppressed (v16.37).
+                } else if (override.type === 'rdw') {
                     rdwTime = override.value;
                     shift   = 'RDW';
                     overrideNote = override.note;
-                } else if (override.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr))) {
-                    // Sick override on a base rest day, or ANY Sunday — suppress it.
-                    // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 5: display suppression)
-                } else if (override.type === 'annual_leave' && isSunday(dateStr)) {
-                    // Legacy AL override that landed on a Sunday — suppress it, mirroring the sick
-                    // branch. Sundays are non-contracted, so AL can never be booked on one (the
-                    // write paths filter Sundays out of workingDates); this backstops legacy /
-                    // hand-written data. CLAUDE.md "Sundays are non-contracted" (layer 5):
-                    // "A worked Sunday time is always RDW, never AL/Absent." (v16.19)
-                } else if (override.type === 'other' && isSunday(dateStr)) {
-                    // Sunday Other days suppressed — Sundays can never be Other-family days
-                    // (OTHER_PLAN.md; layer 5 of the Sunday block, mirrors sick above).
                 } else if (override.type === 'other' && parseOtherValue(override.value)) {
                     // An Other-family day (Training / Induction / Assessment / Team Day): shift
                     // becomes the Other-family value (drives the other-day class + 🏷️ badge); the

@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
-         OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay } from './override-utils.js';
+         OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay,
+         isOverrideDisplaySuppressed } from './override-utils.js';
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 
@@ -141,6 +142,45 @@ describe('isRestShift', () => {
     it('returns false for empty string', () => {
         assert.equal(isRestShift(''), false);
     });
+});
+
+// ── isOverrideDisplaySuppressed ───────────────────────────────────────────────
+
+describe('isOverrideDisplaySuppressed', () => {
+    // sick: suppressed on a rest-day base OR any Sunday
+    it('suppresses sick on a rest-day base (RD), any weekday', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'sick' }, 'RD', false), true);
+    });
+    it('suppresses sick on an OFF base', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'sick' }, 'OFF', false), true);
+    });
+    it('suppresses sick on ANY Sunday even with a worked base', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'sick' }, '09:00-17:00', true), true);
+    });
+    it('does NOT suppress sick on a worked weekday base', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'sick' }, '09:00-17:00', false), false);
+    });
+
+    // annual_leave + other: suppressed on any Sunday only
+    it('suppresses annual_leave on a Sunday (legacy backstop)', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'annual_leave' }, 'RD', true), true);
+    });
+    it('does NOT suppress annual_leave on a weekday', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'annual_leave' }, '09:00-17:00', false), false);
+    });
+    it('suppresses Other-family on a Sunday', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'other' }, '09:00-17:00', true), true);
+    });
+    it('does NOT suppress Other-family on a weekday', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'other' }, 'RD', false), false);
+    });
+
+    // never suppressed
+    for (const type of ['rdw', 'correction', 'spare_shift', 'shift']) {
+        it(`never suppresses ${type} (even on a Sunday rest-day base)`, () => {
+            assert.equal(isOverrideDisplaySuppressed({ type }, 'RD', true), false);
+        });
+    }
 });
 
 // ── computePeriodDeleteIds ────────────────────────────────────────────────────
