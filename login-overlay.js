@@ -124,6 +124,7 @@ function overlayHtml(/** @type {string} */ pageLabel) {
         <button type="button" id="loginSubmit">Sign in →</button>
         <div id="loginStatus" class="login-status" aria-live="polite"></div>
         <a href="./" class="login-back">← Back to roster</a>
+        <p class="login-help">Trouble signing in? Ask the admin.</p>
     </div>`;
 }
 

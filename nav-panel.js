@@ -413,6 +413,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // Notification toggle — an in-panel action, so the panel stays open.
     const bell      = /** @type {HTMLButtonElement|null} */ (document.getElementById('navNotifBell'));
     const bellIcon  = document.getElementById('navNotifIcon');
+    const bellState = document.getElementById('navNotifState');
     let _bellBusy   = false;
 
     /** Apply a state string to the toggle glyph and accessible name.
@@ -421,6 +422,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (!bell) return;
         const on = state === 'on';
         if (bellIcon)  bellIcon.textContent  = on ? '🔔' : '🔕';
+        if (bellState) bellState.textContent =
+            on ? 'On'
+          : state === 'denied'  ? 'Blocked'
+          : state === 'loading' ? 'Checking…'
+          : 'Off';
         bell.setAttribute('aria-pressed', on ? 'true' : 'false');
         bell.dataset.notifState = state;
         bell.setAttribute('aria-label',
@@ -773,20 +779,22 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // A labelled full-width row (not a bare glyph) so the app's core feature —
     // push alerts — is discoverable, and separated from the destructive Sign out.
     const bellHtml = notifSupported() ? `
-                <button class="nav-panel-bell" id="navNotifBell" type="button"
+                <button class="nav-panel-notif" id="navNotifBell" type="button"
                         aria-pressed="false" aria-label="Checking notification status…"
                         data-notif-state="loading">
-                    <span id="navNotifIcon" aria-hidden="true">🔔</span>
+                    <span id="navNotifIcon" class="nav-panel-notif-icon" aria-hidden="true">🔔</span>
+                    <span class="nav-panel-notif-label">Notifications</span>
+                    <span id="navNotifState" class="nav-panel-notif-state" aria-hidden="true">Checking…</span>
                 </button>` : '';
     const footerHtml = onSignOut ? `
         <div class="nav-panel-footer">
+            ${bellHtml}
             <div class="nav-panel-footer-row">
                 <div class="nav-panel-member-wrap">
                     <span class="nav-panel-avatar" id="navPanelAvatar" aria-hidden="true"></span>
                     <span class="nav-panel-member" id="navPanelMember"></span>
                 </div>
                 <div class="nav-panel-footer-actions">
-                    ${bellHtml}
                     <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
                 </div>
             </div>

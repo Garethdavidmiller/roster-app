@@ -1469,28 +1469,35 @@ button.nav-panel-link--notices {
     flex-shrink: 0;
 }
 
-/* Notification bell toggle — discrete icon button, 44px tap target */
-.nav-panel-bell {
+/* Notifications toggle — a LABELLED full-width row (not a bare glyph) so the app's core
+   feature is discoverable; sits above the member/sign-out row in the drawer footer. */
+.nav-panel-notif {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px;
+    margin-bottom: 6px;
     background: none;
     border: none;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    min-width: 44px;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    touch-action: manipulation;
     font-family: inherit;
+    color: var(--nav-text);
+    font-size: 14px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
-.nav-panel-bell[data-notif-state="loading"] { opacity: 0.4; }
-.nav-panel-bell:disabled { cursor: default; }
+.nav-panel-notif-icon  { font-size: 18px; line-height: 1; flex-shrink: 0; }
+.nav-panel-notif-label { flex: 1; text-align: left; }
+.nav-panel-notif-state { color: var(--nav-text-muted); font-size: 13px; flex-shrink: 0; }
+.nav-panel-notif[data-notif-state="loading"] { opacity: 0.6; }
+.nav-panel-notif:disabled { cursor: default; }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-bell:hover { opacity: 0.7; }
+    .nav-panel-notif:hover { background: var(--nav-raised); }
 }
-.nav-panel-bell:active { opacity: 0.5; }
+.nav-panel-notif:active { opacity: 0.6; }
 
 /* Name + nationality flags grouped on the left; name truncates, flags stay */
 .nav-panel-member-wrap {
@@ -1564,7 +1571,7 @@ button.nav-panel-link--notices {
 .nav-panel-link:focus-visible,
 .nav-panel-brand:focus-visible,
 .nav-panel-close:focus-visible,
-.nav-panel-bell:focus-visible,
+.nav-panel-notif:focus-visible,
 .nav-panel-signout:focus-visible,
 .nav-panel-guides-toggle:focus-visible {
     outline: 2px solid var(--accent-gold);
@@ -1733,6 +1740,14 @@ button.nav-panel-link--notices {
     line-height: 1.35;
 }
 .login-status.visible { display: block; }
+/* Persistent "can't get in?" signpost so a forgotten-surname / not-in-list / rate-limited user
+   is never a dead-end — account matters route to "the admin" per the wording conventions. */
+.login-help {
+    font-size: var(--type-small);
+    color: var(--text-light);
+    margin-top: 16px;
+    line-height: 1.35;
+}
 
 
 /* ══════════════════════════════════════════════════════════════════
