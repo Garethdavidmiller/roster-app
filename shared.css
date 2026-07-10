@@ -200,9 +200,12 @@
     /* --text-light / --text-faint darkened v13.43 to meet WCAG AA 4.5:1 on the
        card surface (was 68.3% / 73.8% ≈ 2.5:1 / 1.9:1 — both failed). At 50% L
        both clear 4.5:1; they necessarily converge because anything lighter
-       fails the contrast floor on a near-white background. */
+       fails the contrast floor on a near-white background. So --text-faint is now
+       a named ALIAS of --text-light (one source value — they can't drift apart as
+       two independent literals); give it a genuinely lighter value only if it is
+       ever scoped to large/decorative text that still passes AA. */
     --text-light: oklch(50.0% 0 0);
-    --text-faint: oklch(50.0% 0 0);
+    --text-faint: var(--text-light);
 
     --border-light: oklch(93.1% 0 0);
     --border-mid:   oklch(84.5% 0 0);
@@ -254,6 +257,7 @@
     --radius-md:    16px;
     --radius-lg:    18px;
     --radius-button: 10px;  /* action/save buttons — between sm and md */
+    --radius:       12px;   /* the app's common discrete-CARD corner (day-row, override/error/usage rows) — was hardcoded in ~8 places */
 
     /* ── Typography scale ─────────────────────────────────────────
        16px form input size is intentional — iOS zooms inputs < 16px. */

@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.49
+// MYB Roster — Service Worker v16.50
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.49';
+const APP_VERSION = '16.50';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -89,7 +89,7 @@ const NETWORK_FIRST_FILES = [
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js',
-    'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'storage-utils.js', 'client-errors.js',
+    'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'storage-utils.js', 'auth-identity.js', 'client-errors.js',
     'shared.css',
     'paycalc.html', 'paycalc-app.js', 'paycalc-boot.js', 'paycalc-calc.js',
     'paycalc-help.js', 'paycalc-migrations.js',
@@ -161,6 +161,7 @@ const CORE_ASSETS = [
     "./doc-upload.js",
     "./overlay.js",
     "./session.js",
+    "./auth-identity.js",
     "./auth-state-core.js",
     "./auth-state.js",
     "./auth-policy.js",

@@ -512,7 +512,7 @@ select:focus-visible, input:focus-visible {
     font-size: 11px;
     padding: 3px 10px;
     border: 1px solid var(--border-mid);
-    border-radius: 12px;
+    border-radius: var(--radius);
     background: white;
     color: var(--primary-blue);
     cursor: pointer;
@@ -645,7 +645,7 @@ select:focus-visible, input:focus-visible {
     padding: 10px 12px;
     background: var(--surface);
     border: 1px solid var(--border-light);
-    border-radius: 12px;
+    border-radius: var(--radius);
     margin-bottom: 8px;
 }
 .error-row:last-child { margin-bottom: 0; }
@@ -747,7 +747,7 @@ select:focus-visible, input:focus-visible {
     padding: 12px 10px;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
-    border-radius: 12px;
+    border-radius: var(--radius);
 }
 .usage-stat-num {
     font-size: 28px;
@@ -836,7 +836,7 @@ select:focus-visible, input:focus-visible {
     align-items: center;
     gap: 14px;
     padding: 12px 14px;
-    border-radius: 12px;
+    border-radius: var(--radius);
     border: 1.5px solid var(--border-light);
     margin-bottom: 14px;
 }

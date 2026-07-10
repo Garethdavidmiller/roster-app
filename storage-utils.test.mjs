@@ -7,7 +7,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSafeStorageUrl, isDocxUpload, officeViewerUrl } from './storage-utils.js';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, sixMonthCutoffISO } from './storage-utils.js';
 
 describe('isSafeStorageUrl', () => {
     test('accepts a Firebase download URL under this project bucket', () => {
@@ -82,5 +82,27 @@ describe('officeViewerUrl', () => {
         assert.equal(encoded, encodeURIComponent(SRC));
         assert.equal(decodeURIComponent(encoded), SRC);
         assert.equal(encoded.includes('&'), false);
+    });
+});
+
+describe('sixMonthCutoffISO', () => {
+    test('a mid-month date subtracts exactly six months', () => {
+        assert.equal(sixMonthCutoffISO(new Date(2026, 6, 15)), '2026-01-15'); // 15 Jul → 15 Jan
+    });
+    test('crosses the year boundary when the month underflows', () => {
+        assert.equal(sixMonthCutoffISO(new Date(2026, 2, 10)), '2025-09-10'); // 10 Mar → 10 Sep (prev year)
+    });
+    test('clamps a month-end day the target month does not have (the whole point)', () => {
+        // 31 Aug − 6 months = "31 Feb", which JS would roll forward to 3 Mar and delete docs
+        // ~5 months 29 days old. Clamp to 28 Feb instead.
+        assert.equal(sixMonthCutoffISO(new Date(2026, 7, 31)), '2026-02-28'); // 31 Aug → 28 Feb
+        // 31 Oct − 6 months = "31 Apr" (April has 30 days) → clamp to 30 Apr.
+        assert.equal(sixMonthCutoffISO(new Date(2026, 9, 31)), '2026-04-30'); // 31 Oct → 30 Apr
+    });
+    test('leap-year February clamps to the 29th', () => {
+        assert.equal(sixMonthCutoffISO(new Date(2028, 7, 31)), '2028-02-29'); // 2028 is a leap year
+    });
+    test('zero-pads single-digit month and day', () => {
+        assert.equal(sixMonthCutoffISO(new Date(2026, 8, 5)), '2026-03-05'); // 5 Sep → 05 Mar
     });
 });
