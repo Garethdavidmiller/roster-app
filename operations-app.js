@@ -552,6 +552,8 @@ export function init() {
         } catch (err) {
             content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load email status — check your connection and reload.</p>';
             console.error('[WorkEmailStatus]', err);
+        } finally {
+            content.removeAttribute('aria-busy');   // announce "finished loading" to screen readers
         }
     })();
 
@@ -863,6 +865,8 @@ export function init() {
         } catch (e) {
             content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load error log — check your connection and reload.</p>';
             console.error('[ErrorLog]', e);
+        } finally {
+            content.removeAttribute('aria-busy');
         }
     })();
 
@@ -977,6 +981,8 @@ export function init() {
         } catch (e) {
             content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load usage — check your connection and reload.</p>';
             console.error('[Usage]', e);
+        } finally {
+            content.removeAttribute('aria-busy');
         }
     })();
 
@@ -1177,6 +1183,8 @@ export function init() {
         } catch (e) {
             content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load app speed — check your connection and reload.</p>';
             console.error('[AppSpeed]', e);
+        } finally {
+            content.removeAttribute('aria-busy');
         }
     })();
 
