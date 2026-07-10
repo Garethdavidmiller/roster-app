@@ -11,6 +11,13 @@
     animation-duration: 0.15s;
     animation-timing-function: ease;
 }
+/* The app neutralises motion everywhere else under reduced-motion; the page crossfade
+   was the last escapee. Kill the animation so navigations cut instantly. */
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-old(root),
+    ::view-transition-new(root) { animation: none !important; }
+}
 
 /* ============================================================
    TYPEFACE — Inter (self-hosted, v11.53)
@@ -615,7 +622,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .notice-later {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.45);
+    color: rgba(255, 255, 255, 0.65); /* raised from 0.45 to clear WCAG AA — an interactive dismiss whose only lift was :hover, which touch users never get */
     font-size: var(--type-body);
     line-height: 1;
     cursor: pointer;
@@ -686,7 +693,7 @@ body.lb-open #stickyTotal { display: none !important; }
     gap: 12px;
     padding: 4px 0;
     font-size: 12px;
-    color: rgba(255,255,255,0.55);
+    color: rgba(255,255,255,0.65); /* raised from 0.55 to match .lightbox-tips-title and clear WCAG AA */
 }
 
 /* Keyboard-only tips: visible on pointer devices only */
@@ -747,7 +754,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 .lightbox-print-hint {
     font-size: 11px;
-    color: rgba(255,255,255,0.35);
+    color: rgba(255,255,255,0.65); /* raised from 0.35 to clear WCAG AA */
 }
 
 /* ============================================================

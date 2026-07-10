@@ -402,6 +402,10 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         }
         if (navRow)  /** @type {HTMLElement} */ (navRow).style.display = teamViewMode ? 'none' : '';
         if (legend)  /** @type {HTMLElement} */ (legend).style.display = teamViewMode ? 'none' : '';
+        // The same #calendarDisplay region holds a 7-day team table in team view — keep its
+        // accessible name honest for screen-reader users instead of always saying "calendar".
+        const display = document.getElementById('calendarDisplay');
+        if (display) display.setAttribute('aria-label', teamViewMode ? 'Team week roster' : 'Monthly roster calendar');
         document.body.classList.toggle('team-view-active', teamViewMode);
     }
 

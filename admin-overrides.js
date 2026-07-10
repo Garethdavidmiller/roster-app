@@ -61,6 +61,9 @@ let _allOverrides   = [];
 let _bulkActiveType = '';
 let _currentUser      = '';
 let _currentIsAdmin   = false;
+// Managers have full access too (edit any member on their behalf). Both admin and manager
+// may view the "All staff" override list; a locked self-service user may not.
+let _currentIsManager = false;
 /** @type {(msg: string) => void} */
 let _showSuccess      = () => {};
 /** @type {(msg: string) => void} */
@@ -149,16 +152,18 @@ let _listenersWired = false;
  * @param {object} opts
  * @param {string}   opts.currentUser       Logged-in member name (written to changedBy on saves)
  * @param {boolean}  opts.currentIsAdmin    Whether the user has admin rights
+ * @param {boolean} [opts.currentIsManager] Whether the user has manager rights (full access, like admin)
  * @param {(msg: string) => void} opts.showSuccess  Show a success message in the week editor
  * @param {(msg: string) => void} opts.showError    Show an error message in the week editor
  * @param {() => void} opts.onAfterSave       Called after any write; refreshes AL/sick banners
  * @param {() => void} opts.markChanged       Marks the week grid as having unsaved changes
  * @param {(e: MouseEvent) => void} opts.onEditRow   handleEdit from admin-app.js - jumps to edit an override
  */
-export function initOverrides({ currentUser, currentIsAdmin, showSuccess, showError,
+export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = false, showSuccess, showError,
                                  onAfterSave, markChanged, onEditRow }) {
     _currentUser    = currentUser;
     _currentIsAdmin = currentIsAdmin;
+    _currentIsManager = currentIsManager;
     _showSuccess    = showSuccess;
     _showError      = showError;
     _onAfterSave    = onAfterSave;
@@ -997,7 +1002,10 @@ export function renderTable() {
     // Update "Show all / This member" toggle button
     const showAllBtn = document.getElementById('showAllOverridesBtn');
     if (showAllBtn) {
-        showAllBtn.hidden = !selectedMember;
+        // Only admin/manager may reveal every member's changes — a locked self-service user
+        // always has their own name selected, so gating on selectedMember alone exposed the
+        // "All staff" toggle to them, contradicting the card's "your own changes only" tip.
+        showAllBtn.hidden = !selectedMember || !(_currentIsAdmin || _currentIsManager);
         showAllBtn.textContent = _tableShowAllOverrides ? 'This member only' : 'All staff';
     }
 
@@ -1220,6 +1228,7 @@ function _initOverridesTable() {
     }
 
     document.getElementById('showAllOverridesBtn')?.addEventListener('click', () => {
+        if (!(_currentIsAdmin || _currentIsManager)) return;  // defence-in-depth: self-service can't view all staff
         _tableShowAllOverrides = !_tableShowAllOverrides;
         renderTable();
     });

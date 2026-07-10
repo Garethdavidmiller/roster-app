@@ -652,7 +652,7 @@ try {
             const btnCancel  = document.getElementById('monthJumpCancel');
             if (!overlay) return;
 
-            // Populate year select once (2024–2030)
+            // Populate year select once (CONFIG.MIN_YEAR..MAX_YEAR)
             for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR; y++) {
                 const opt = document.createElement('option');
                 opt.value = String(y); opt.textContent = String(y);

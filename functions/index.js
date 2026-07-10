@@ -419,7 +419,15 @@ exports.onHuddleCreated = onDocumentCreated(
     },
     async event => {
         const date       = event.params.date;
-        const uploadedBy = event.data.data().uploadedBy || '';
+        // event.data is DocumentSnapshot | undefined in Functions v2 (e.g. the doc was
+        // deleted before the trigger read it) — guard so a missing snapshot cleanly no-ops
+        // instead of throwing a TypeError and forcing a retry with no push sent.
+        const snap = event.data;
+        if (!snap) {
+            console.warn(`[onHuddleCreated] No snapshot for ${date} — skipping`);
+            return;
+        }
+        const uploadedBy = snap.data().uploadedBy || '';
 
         // Power Automate uploads are handled directly inside ingestHuddle (before the
         // HTTP response, so the container is guaranteed to be alive). This guard is

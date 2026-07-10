@@ -1617,6 +1617,7 @@ function initAuthorised() {
     initOverrides({
         currentUser,
         currentIsAdmin,
+        currentIsManager,
         showSuccess,
         showError,
         onAfterSave: () => {
