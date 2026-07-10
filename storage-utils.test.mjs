@@ -7,7 +7,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSafeStorageUrl, isDocxUpload } from './storage-utils.js';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl } from './storage-utils.js';
 
 describe('isSafeStorageUrl', () => {
     test('accepts a Firebase download URL under this project bucket', () => {
@@ -65,5 +65,22 @@ describe('isDocxUpload', () => {
     });
     test('false for application/zip (we intentionally do NOT broaden to zip — would accept xlsx/pptx)', () => {
         assert.equal(isDocxUpload({ name: 'sheet', type: 'application/zip' }), false);
+    });
+});
+
+describe('officeViewerUrl', () => {
+    const SRC = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.firebasestorage.app/o/circulars%2F2026-06-25-abc.docx?alt=media&token=xyz';
+    test('wraps the URL in the Office Online full-page viewer (view.aspx)', () => {
+        const out = officeViewerUrl(SRC);
+        assert.equal(out.startsWith('https://view.officeapps.live.com/op/view.aspx?src='), true);
+    });
+    test('percent-encodes the source URL so its query string cannot leak into the viewer query', () => {
+        const out = officeViewerUrl(SRC);
+        // The whole source (incl. its ?alt=media&token=xyz) must be a single encoded src value —
+        // no bare '&' or '?' from the source may appear after the src= parameter.
+        const encoded = out.slice('https://view.officeapps.live.com/op/view.aspx?src='.length);
+        assert.equal(encoded, encodeURIComponent(SRC));
+        assert.equal(decodeURIComponent(encoded), SRC);
+        assert.equal(encoded.includes('&'), false);
     });
 });

@@ -205,7 +205,7 @@ roster-app/
 ├── roster-data.js          ← shared: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only
 ├── firebase-client.js      ← shared: Firebase init, db, all Firestore helpers
-├── storage-utils.js        ← pure Storage helpers extracted from firebase-client (no Firebase import, so unit-testable): isSafeStorageUrl (download-URL allowlist — a security control), isDocxUpload (upload file-type detect). Re-exported by firebase-client.js
+├── storage-utils.js        ← pure Storage helpers extracted from firebase-client (no Firebase import, so unit-testable): isSafeStorageUrl (download-URL allowlist — a security control), isDocxUpload (upload file-type detect), officeViewerUrl (wraps a .docx download URL in Microsoft's Office Online viewer so Word circulars/newsletters open+render instead of downloading). Re-exported by firebase-client.js
 ├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors
 ├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
@@ -236,7 +236,7 @@ roster-app/
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
 ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs / perf-stats.test.mjs
-├── storage-utils.test.mjs ← tests for isSafeStorageUrl (bucket allowlist) + isDocxUpload; part of test:hygiene
+├── storage-utils.test.mjs ← tests for isSafeStorageUrl (bucket allowlist) + isDocxUpload + officeViewerUrl (Office viewer wrap/encoding); part of test:hygiene
 ├── notif.test.mjs         ← tests for notif.js: notifSupported/isIOS, getNotifState VAPID rotation, peekNotifState (no side effects), enable/disableNotifications (--experimental-test-module-mocks)
 ├── surname-parity.test.mjs ← asserts normaliseSurname (firebase-client.js) and nameToPassword (functions/roster-parse-helpers.js) stay in sync (behavioural + source-equivalence); part of test:hygiene
 ├── import-graph.test.mjs   ← detects circular imports across all root ES modules (regex-based, no build step)
@@ -585,13 +585,13 @@ storageUrl   Permanent tokenised download URL
 storagePath  Firebase Storage object path, e.g. "circulars/2026-06-25-lv9kab12.pdf" — added v13.99
              (versioned suffix prevents overwriting the old file before Firestore commits);
              absent on docs uploaded before v13.99 — _pruneOldDocs falls back to "{collection}/{date}.pdf"
-fileType     "pdf" | "docx" (Word uploads allowed since v16.31 — download-only, no inline HTML conversion; rule-constrained to [pdf,docx])
+fileType     "pdf" | "docx" (Word uploads allowed since v16.31; no inline HTML conversion — a PDF opens directly, a Word doc opens via Microsoft's Office Online viewer (`officeViewerUrl`, v16.45) so it renders with images instead of downloading; rule-constrained to [pdf,docx])
 uploadedAt   Firestore server timestamp
 uploadedBy   Member name string
 ```
 Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
 Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
-Read by: `getLatestCircular()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Weekly Retail Circular — opens the PDF **directly** in a new tab, one tap) and from **`calendar-doc-viewer.js`** (the `#circular` in-app viewer used by **notification taps only**, which have no user gesture to open the file directly).
+Read by: `getLatestCircular()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Weekly Retail Circular — opens **directly** in a new tab, one tap: a PDF by its own URL, a Word doc via the Office Online viewer) and from **`calendar-doc-viewer.js`** (the `#circular` in-app viewer used by **notification taps only**, which have no user gesture to open the file directly).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
 
 **newsletters** (v13.59)
@@ -600,13 +600,13 @@ date         "YYYY-MM-DD" — also used as the document ID; re-uploading the sam
 storageUrl   Permanent tokenised download URL
 storagePath  Firebase Storage object path, e.g. "newsletters/2026-06-25-lv9kab12.pdf" — added v13.99;
              absent on docs uploaded before v13.99 — _pruneOldDocs falls back to "{collection}/{date}.pdf"
-fileType     "pdf" | "docx" (Word uploads allowed since v16.31 — download-only, no inline HTML conversion; rule-constrained to [pdf,docx])
+fileType     "pdf" | "docx" (Word uploads allowed since v16.31; no inline HTML conversion — a PDF opens directly, a Word doc opens via Microsoft's Office Online viewer (`officeViewerUrl`, v16.45) so it renders with images instead of downloading; rule-constrained to [pdf,docx])
 uploadedAt   Firestore server timestamp
 uploadedBy   Member name string
 ```
 Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
 Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
-Read by: `getLatestNewsletter()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Marylebone Newsletter — opens the PDF **directly** in a new tab, one tap) and from **`calendar-doc-viewer.js`** (the `#newsletter` in-app viewer used by **notification taps only**).
+Read by: `getLatestNewsletter()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Marylebone Newsletter — opens **directly** in a new tab, one tap: a PDF by its own URL, a Word doc via the Office Online viewer) and from **`calendar-doc-viewer.js`** (the `#newsletter` in-app viewer used by **notification taps only**).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
 
 **linkDesigns** (v12.09)

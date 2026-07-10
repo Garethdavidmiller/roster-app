@@ -87,9 +87,10 @@ export const COLLECTIONS = {
 // unit-tested directly (this module can't be imported in a Node test — it pulls the Firebase SDK
 // from the gstatic CDN). isSafeStorageUrl is re-exported so existing `from './firebase-client.js'`
 // importers (nav-panel, calendar-doc-viewer, the Huddle viewer) are unaffected; isDocxUpload is used
-// internally by the upload paths.
-import { isSafeStorageUrl, isDocxUpload } from './storage-utils.js';
-export { isSafeStorageUrl };
+// internally by the upload paths. officeViewerUrl is re-exported for the DOCX circular/newsletter
+// open path (nav-panel, calendar-doc-viewer).
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl } from './storage-utils.js';
+export { isSafeStorageUrl, officeViewerUrl };
 
 // ---- Firebase Authentication ----
 
