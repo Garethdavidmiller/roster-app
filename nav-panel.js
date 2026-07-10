@@ -318,6 +318,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _openLatestDoc(triggerEl, fetchFn) {
         if (_docFetching) return;
         _docFetching = true;
+        // Visible in-flight state — the fetch races an 8s timeout, and on weak signal the tapped
+        // link otherwise just sat there (a blank tab open in the background) reading as "broken".
+        triggerEl.classList.add('nav-panel-link--loading');
+        triggerEl.setAttribute('aria-busy', 'true');
         const newTab = window.open('', '_blank');
         if (newTab) newTab.opener = null;
         // Race the fetch against a timeout: a wedged Firestore promise that never settles would
@@ -354,7 +358,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             if (newTab) newTab.close();
             _closePanelVisualOnly();
             _openComingSoon(triggerEl, 'Couldn\'t connect — check your signal and try again.');
-        }).finally(() => { _docFetching = false; });
+        }).finally(() => {
+            triggerEl.classList.remove('nav-panel-link--loading');
+            triggerEl.removeAttribute('aria-busy');
+            _docFetching = false;
+        });
     }
 
     // Close panel before navigating so the panel doesn't flash behind the new page.
@@ -376,6 +384,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             _openNotices();
             return;
         }
+        // Guide links open in a NEW TAB (target="_blank"), so THIS page stays put. Close with a real
+        // history.back() to CONSUME the drawer's pushed entry — closePanelForNavigation() only clears
+        // the flag (no back()), leaving a dead same-URL entry that swallows the next Android Back press
+        // (the same leak the doc-in-new-tab and brand→About paths fix). The anchor's default action
+        // still opens the new tab. (A6)
+        if (/** @type {Element} */ (e.target).closest('.nav-panel-link--guide')) { closePanel(); return; }
         if (/** @type {Element} */ (e.target).closest('.nav-panel-pill, .nav-panel-link')) { closePanelForNavigation(); return; }
     });
 
@@ -413,6 +427,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // Notification toggle — an in-panel action, so the panel stays open.
     const bell      = /** @type {HTMLButtonElement|null} */ (document.getElementById('navNotifBell'));
     const bellIcon  = document.getElementById('navNotifIcon');
+    const bellState = document.getElementById('navNotifState');
     let _bellBusy   = false;
 
     /** Apply a state string to the toggle glyph and accessible name.
@@ -420,7 +435,15 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _paintBell(state) {
         if (!bell) return;
         const on = state === 'on';
-        if (bellIcon)  bellIcon.textContent  = on ? '🔔' : '🔕';
+        // While the real state is still resolving (up to ~8s for swReady), show a neutral
+        // "working" glyph — never 🔔, which reads as "on" and briefly mislabels an off/blocked
+        // device. 🔔 only ever means genuinely on; 🔕 genuinely off/blocked (A2).
+        if (bellIcon)  bellIcon.textContent  = state === 'loading' ? '🔄' : on ? '🔔' : '🔕';
+        if (bellState) bellState.textContent =
+            on ? 'On'
+          : state === 'denied'  ? 'Blocked'
+          : state === 'loading' ? 'Checking…'
+          : 'Off';
         bell.setAttribute('aria-pressed', on ? 'true' : 'false');
         bell.dataset.notifState = state;
         bell.setAttribute('aria-label',
@@ -736,8 +759,10 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
             : `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)
         .join('');
 
+    // Render the per-group sub-heading only when there is more than one group — with a single
+    // group ("Workplace") it just echoes the "Information" section heading directly above it (A5).
     const infoGroups = NAV_INFORMATION.map(group => `
-        <p class="nav-panel-group-heading">${group.heading}</p>
+        ${NAV_INFORMATION.length > 1 ? `<p class="nav-panel-group-heading">${group.heading}</p>` : ''}
         <ul class="nav-panel-links">
             ${group.links.map(/** @param {any} link */ link => {
                 if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
@@ -748,18 +773,22 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
             }).join('')}
         </ul>`).join('');
 
-    // Guides — expanded by default; the toggle can collapse the list.
+    // Guides — expanded by default; the toggle can collapse the list. Open in a NEW TAB (A6):
+    // a guide's own back arrow always goes to the Calendar, so replacing the current page loses
+    // your place (open the Railcard guide from Admin, tap back → Calendar, not Admin). Opening in
+    // a new tab keeps the page you were on — and matches the guide links in the About panel.
     const guideLinks = NAV_GUIDES
-        .map(g => `<li><a href="${g.url}" class="nav-panel-link">${g.icon} ${g.label}</a></li>`)
+        .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide" target="_blank" rel="noopener">${g.icon} ${g.label}</a></li>`)
         .join('');
 
     // Settings link — always visible except on the settings page itself.
     // Uses the same nav-panel-link / nav-panel-links / nav-panel-group-heading classes
     // as the INFORMATION section so it is visually identical to the info links.
     // Settings has its own login overlay, so unsigned-in users are handled there.
+    // No "Preferences" heading over a single Settings link — a heading-over-one-item reads as
+    // more structure than there is (A5).
     const settingsHtml = (currentPage !== 'settings') ? `
         <div class="nav-panel-settings">
-            <p class="nav-panel-group-heading">Preferences</p>
             <ul class="nav-panel-links">
                 <li><a href="./settings.html" class="nav-panel-link">⚙ Settings</a></li>
             </ul>
@@ -772,24 +801,38 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // the unsupported case for users who need it.
     // A labelled full-width row (not a bare glyph) so the app's core feature —
     // push alerts — is discoverable, and separated from the destructive Sign out.
-    const bellHtml = notifSupported() ? `
-                <button class="nav-panel-bell" id="navNotifBell" type="button"
+    // Show the bell when it can actually WORK: signed in (a named session exists on every page), or
+    // on the calendar when not signed in (it holds an anonymous Firebase session, so savePushSubscription
+    // succeeds). The other pages have no session until sign-in, so a not-signed-in bell there would be
+    // present-but-dead — enableNotifications would silently fail. Scope it out. (A7 follow-up)
+    const _bellCanWork = onSignOut || currentPage === 'calendar';
+    const bellHtml = (notifSupported() && _bellCanWork) ? `
+                <button class="nav-panel-notif" id="navNotifBell" type="button"
                         aria-pressed="false" aria-label="Checking notification status…"
                         data-notif-state="loading">
-                    <span id="navNotifIcon" aria-hidden="true">🔔</span>
+                    <span id="navNotifIcon" class="nav-panel-notif-icon" aria-hidden="true">🔄</span>
+                    <span class="nav-panel-notif-label">Notifications</span>
+                    <span id="navNotifState" class="nav-panel-notif-state" aria-hidden="true">Checking…</span>
                 </button>` : '';
-    const footerHtml = onSignOut ? `
-        <div class="nav-panel-footer">
+    // The member + Sign out row only makes sense signed in (onSignOut supplied).
+    const memberRowHtml = onSignOut ? `
             <div class="nav-panel-footer-row">
                 <div class="nav-panel-member-wrap">
                     <span class="nav-panel-avatar" id="navPanelAvatar" aria-hidden="true"></span>
                     <span class="nav-panel-member" id="navPanelMember"></span>
                 </div>
                 <div class="nav-panel-footer-actions">
-                    ${bellHtml}
                     <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
                 </div>
-            </div>
+            </div>` : '';
+    // Render the footer whenever there is EITHER a bell OR a member row. Most staff just view the
+    // calendar without signing in, so gating the bell on onSignOut hid the notifications toggle from
+    // almost everyone — and a dismissed one-time prompt then left no way to turn alerts on (A7). Push
+    // works on the calendar's anonymous session, so the bell is functional even when not signed in.
+    const footerHtml = (bellHtml || memberRowHtml) ? `
+        <div class="nav-panel-footer">
+            ${bellHtml}
+            ${memberRowHtml}
         </div>` : '';
 
     const html = `

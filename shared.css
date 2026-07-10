@@ -1308,6 +1308,10 @@ body.lb-open #stickyTotal { display: none !important; }
     transition: background 0.1s;
 }
 .nav-panel-link:active { background: var(--nav-raised-strong); }
+/* In-flight state for the Circular/Newsletter links (a Firestore fetch, up to 8s) — appends a
+   quiet "Opening…" so the tap has visible feedback instead of a silent wait. */
+.nav-panel-link--loading { opacity: 0.75; }
+.nav-panel-link--loading::after { content: ' · Opening…'; color: var(--nav-text-muted); }
 @media (hover: hover) and (pointer: fine) {
     .nav-panel-link:hover { background: var(--nav-raised); }
 }
@@ -1469,28 +1473,35 @@ button.nav-panel-link--notices {
     flex-shrink: 0;
 }
 
-/* Notification bell toggle — discrete icon button, 44px tap target */
-.nav-panel-bell {
+/* Notifications toggle — a LABELLED full-width row (not a bare glyph) so the app's core
+   feature is discoverable; sits above the member/sign-out row in the drawer footer. */
+.nav-panel-notif {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px;
+    margin-bottom: 6px;
     background: none;
     border: none;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    min-width: 44px;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    touch-action: manipulation;
     font-family: inherit;
+    color: var(--nav-text);
+    font-size: 14px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
-.nav-panel-bell[data-notif-state="loading"] { opacity: 0.4; }
-.nav-panel-bell:disabled { cursor: default; }
+.nav-panel-notif-icon  { font-size: 18px; line-height: 1; flex-shrink: 0; }
+.nav-panel-notif-label { flex: 1; text-align: left; }
+.nav-panel-notif-state { color: var(--nav-text-muted); font-size: 13px; flex-shrink: 0; }
+.nav-panel-notif[data-notif-state="loading"] { opacity: 0.6; }
+.nav-panel-notif:disabled { cursor: default; }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-bell:hover { opacity: 0.7; }
+    .nav-panel-notif:hover { background: var(--nav-raised); }
 }
-.nav-panel-bell:active { opacity: 0.5; }
+.nav-panel-notif:active { opacity: 0.6; }
 
 /* Name + nationality flags grouped on the left; name truncates, flags stay */
 .nav-panel-member-wrap {
@@ -1564,7 +1575,7 @@ button.nav-panel-link--notices {
 .nav-panel-link:focus-visible,
 .nav-panel-brand:focus-visible,
 .nav-panel-close:focus-visible,
-.nav-panel-bell:focus-visible,
+.nav-panel-notif:focus-visible,
 .nav-panel-signout:focus-visible,
 .nav-panel-guides-toggle:focus-visible {
     outline: 2px solid var(--accent-gold);
@@ -1639,6 +1650,28 @@ button.nav-panel-link--notices {
     margin-top: 5px;
     line-height: 1.35;
 }
+/* Password field + inline Show/Hide reveal toggle (A1). The reveal is safe — the initial
+   password is the (non-secret) surname convention shown in .login-hint — and stops the blind-typing
+   mistypes that trip the 30s lockout. The wrap positions the toggle inside the field's right edge;
+   the input reserves room for it so masked dots never run under the button. */
+.login-pw-wrap { position: relative; }
+/* Reserve room for the toggle. Needs the extra `.login-field` qualifier to outrank the later
+   `.login-field input { padding: … }` shorthand — same specificity + later source would otherwise
+   reset padding-right to 10px and the text would run under the Show/Hide button. */
+.login-field .login-pw-wrap input { padding-right: 62px; }
+.login-pw-toggle {
+    position: absolute;
+    top: 0; right: 0;
+    height: 100%;
+    padding: 0 12px;
+    display: flex; align-items: center;
+    background: none; border: none;
+    font-family: inherit; font-size: var(--type-small); font-weight: 700;
+    color: var(--text-mid);
+    cursor: pointer; touch-action: manipulation;
+    border-radius: 8px;
+}
+@media (hover: hover) and (pointer: fine) { .login-pw-toggle:hover { color: var(--primary-blue); } }
 /* Login overlay form fields — styled HERE in shared.css so every page's login renders them
    identically. Previously only pages with a generic `select, input {}` rule (admin/operations)
    styled these; settings fell back to raw browser controls — the "settings login looks weird on
@@ -1733,6 +1766,14 @@ button.nav-panel-link--notices {
     line-height: 1.35;
 }
 .login-status.visible { display: block; }
+/* Persistent "can't get in?" signpost so a forgotten-surname / not-in-list / rate-limited user
+   is never a dead-end — account matters route to "the admin" per the wording conventions. */
+.login-help {
+    font-size: var(--type-small);
+    color: var(--text-light);
+    margin-top: 16px;
+    line-height: 1.35;
+}
 
 
 /* ══════════════════════════════════════════════════════════════════

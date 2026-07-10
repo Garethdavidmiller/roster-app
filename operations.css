@@ -136,6 +136,23 @@ body.auth-ready .container { display: grid; }
 .huddle-feedback { margin-top: 10px; font-size: 13px; }
 .huddle-feedback--ok  { color: var(--success-green); }
 .huddle-feedback--err { color: var(--error-red); }
+/* Working spinner beside the roster-parse status text (B1) — a 15–90s parse with only static
+   text reads as "stuck". Reduced-motion shows a static ring (no spin): a marker without movement. */
+.huddle-feedback--working::after {
+    content: '';
+    display: inline-block;
+    width: 0.85em; height: 0.85em;
+    margin-left: 8px;
+    vertical-align: -0.12em;
+    border: 2px solid var(--border-mid);
+    border-top-color: var(--primary-blue);
+    border-radius: 50%;
+    animation: hf-spin 0.7s linear infinite;
+}
+@keyframes hf-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .huddle-feedback--working::after { animation: none; }
+}
 
 /* ---- Roster upload card ---- */
 .roster-type-select {
@@ -704,6 +721,10 @@ select:focus-visible, input:focus-visible {
 .error-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .error-copy-btn,
 .error-resolve-btn { font-size: 12px; padding: 4px 10px; }
+/* Resolve-all toolbar above the error list (B3) — one action to clear a post-release spike. */
+.error-log-toolbar { margin: 2px 0 12px; }
+/* Per-card "Try again" button (B2) — retries just this monitoring card, not a whole-page reload. */
+.card-retry-btn { margin-top: 10px; }
 
 @media print {
     /* Operations is an interactive-only page (Huddle upload, Roster upload,

@@ -1973,6 +1973,27 @@
         @media (hover: hover) and (pointer: fine) {
             #dayDetailClose:hover { color: white; }
         }
+        /* "View pay estimate" — green to match the app's Pay identity (the nav Pay pill),
+           standing out on the navy day-detail lightbox. Shown only on payday/cut-off days. */
+        .day-detail-pay-btn {
+            margin-top: 14px;
+            width: 100%;
+            padding: 11px;
+            background: var(--green);
+            color: white;
+            border: none;
+            border-radius: var(--radius-button);
+            font-size: var(--type-button);
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            touch-action: manipulation;
+            transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+        }
+        .day-detail-pay-btn:active { transform: scale(var(--press-scale)); background: var(--green-hover); }
+        @media (hover: hover) and (pointer: fine) {
+            .day-detail-pay-btn:hover { background: var(--green-hover); }
+        }
 
         /* ---- Annual Leave lightbox ---- */
         /* #alLightbox uses .lb-overlay — no unique properties */

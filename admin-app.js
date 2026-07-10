@@ -228,8 +228,8 @@ let openAboutLightbox = null;
                     { icon: '📅', html: 'Use the <strong>month filter</strong> to narrow down to a specific month — defaults to the current month' },
                 ]},
                 { heading: 'Editing and deleting', items: [
-                    { icon: '✏️', html: 'Tap any row to open it for editing — change the shift type or time, then tap <strong>Save changes</strong>' },
-                    { icon: '🗑️', html: 'To remove a change, open it and tap <strong>Delete</strong> — the day goes back to the original scheduled shift' },
+                    { icon: '✏️', html: 'Tap <strong>Edit</strong> on any change to adjust the shift type or time, then tap <strong>Save changes</strong>' },
+                    { icon: '🗑️', html: 'Tap <strong>Delete</strong> on any change to remove it — the day goes back to the original scheduled shift' },
                 ]},
                 { heading: 'Sources', adminOnly: true, items: [
                     { icon: '📋', html: '<strong>Roster upload</strong> entries came from a PDF upload — a new upload will replace them automatically without a warning' },

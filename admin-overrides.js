@@ -1015,7 +1015,11 @@ export function renderTable() {
         const isFirstRender = !overridesMonthFilter.dataset.initialized;
         const today         = new Date();
         const currentMonth  = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-        const prevValue     = isFirstRender ? currentMonth : overridesMonthFilter.value;
+        // Self-service staff mostly check FUTURE-dated leave, so default them to "All months" — a
+        // current-month default hid a booking made for a later month behind the filter, reading as
+        // "nothing saved". Admin/manager browse heavily, so keep their current-month default.
+        const defaultMonth  = (_currentIsAdmin || _currentIsManager) ? currentMonth : '';
+        const prevValue     = isFirstRender ? defaultMonth : overridesMonthFilter.value;
         overridesMonthFilter.dataset.initialized = '1';
         overridesMonthFilter.innerHTML = '<option value="">All months</option>';
         months.forEach(ym => {
@@ -1041,7 +1045,12 @@ export function renderTable() {
 
     if (!rows.length) {
         const who = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';
-        if (tableBody) tableBody.innerHTML = `<div class="override-state">No recorded changes yet${who}. Any shifts you record will appear here.</div>`;
+        // Month-aware: never claim "nothing saved" when a month filter is just narrowing the view
+        // (a booking for another month is still there) — point the user at "All months".
+        const msg = monthFilter
+            ? `No changes in the selected month${who}. Choose “All months” above to see other dates.`
+            : `No recorded changes yet${who}. Any shifts you record will appear here.`;
+        if (tableBody) tableBody.innerHTML = `<div class="override-state">${msg}</div>`;
         return;
     }
 

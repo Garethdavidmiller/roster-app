@@ -155,6 +155,30 @@ export function init() {
     }
 
 
+    /**
+     * Render a monitoring-card load failure with a "Try again" button that re-runs JUST this card
+     * (B2). Previously each card's catch told the admin to "reload" — a full page reload that re-runs
+     * every other card too, for a blip on one. The button clears the card and re-invokes its own init
+     * function, so a transient failure costs one tap, not a whole-page refresh.
+     * @param {HTMLElement} content   the card's content container
+     * @param {string} message        the failure message (no "reload" wording — the button IS the retry)
+     * @param {() => void} retryFn     the card's own init function
+     */
+    function _cardLoadError(content, message, retryFn) {
+        content.innerHTML = '';
+        const p = document.createElement('p');
+        p.className = 'auth-desc';
+        p.style.color = 'var(--error-red)';
+        p.textContent = message;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-action btn-secondary card-retry-btn';
+        btn.textContent = '↻ Try again';
+        btn.addEventListener('click', () => { btn.disabled = true; content.setAttribute('aria-busy', 'true'); retryFn(); });
+        content.appendChild(p);
+        content.appendChild(btn);
+    }
+
     // ============================================
     // PAGE INIT
     // ============================================
@@ -204,7 +228,7 @@ export function init() {
     // ============================================
     // WORK EMAIL PROGRESS
     // ============================================
-    (async function initWorkEmailStatus() {
+    async function initWorkEmailStatus() {
         // All active accounts — excludes leavers (hidden:true without managerOnly).
         // Management accounts (hidden:true + managerOnly:true) are included: the admin
         // sets their emails here since they have no Settings page of their own.
@@ -564,12 +588,13 @@ export function init() {
             filterSelect.addEventListener('change', () => renderForGrade(filterSelect.value));
 
         } catch (err) {
-            content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load email status — check your connection and reload.</p>';
             console.error('[WorkEmailStatus]', err);
+            _cardLoadError(content, 'Couldn\'t load email status — check your connection.', initWorkEmailStatus);
         } finally {
             content.removeAttribute('aria-busy');   // announce "finished loading" to screen readers
         }
-    })();
+    }
+    initWorkEmailStatus();
 
     // Show a banner if Firebase Auth couldn't establish a real admin session.
     // Anonymous fallback still resolves the Promise so the page renders, but
@@ -764,7 +789,7 @@ export function init() {
     // ============================================
     // ERROR LOG CARD
     // ============================================
-    (async function initErrorLog() {
+    async function initErrorLog() {
         const content = document.getElementById('errorLogContent');
         if (!content) return;
 
@@ -788,8 +813,42 @@ export function init() {
             if (truncated) {
                 const note = document.createElement('p');
                 note.className = 'error-truncation-note';
-                note.textContent = '⚠ More than 100 unresolved errors — showing the first 100. Resolve some and reload to see the rest.';
+                note.textContent = '⚠ More than 100 unresolved errors — showing the first 100. Resolve these to load the rest.';
                 content.appendChild(note);
+            }
+
+            // Resolve-all toolbar — after a bad release spikes many similar errors, clearing them one
+            // tap per row (with no refresh) is a grind. This resolves every unresolved error currently
+            // shown, then refreshes the card in place to pull the next batch (B3).
+            let unresolvedShown = errors.filter(e => !e.resolved);
+            if (unresolvedShown.length > 0) {
+                const bar = document.createElement('div');
+                bar.className = 'error-log-toolbar';
+                const allBtn = document.createElement('button');
+                allBtn.type = 'button';
+                allBtn.className = 'btn-action btn-secondary error-resolve-all-btn';
+                allBtn.textContent = `✓ Resolve all shown (${unresolvedShown.length})`;
+                allBtn.addEventListener('click', async () => {
+                    allBtn.disabled = true;
+                    allBtn.textContent = 'Resolving…';
+                    const results = await Promise.allSettled(unresolvedShown.map(e => resolveClientError(e.id)));
+                    const failedItems = unresolvedShown.filter((_, i) => results[i].status === 'rejected');
+                    if (failedItems.length) {
+                        // Retry only the ones that FAILED — re-resolving the already-succeeded rows would
+                        // reset their 90-day retention clock and inflate the count.
+                        const succeeded = unresolvedShown.length - failedItems.length;
+                        unresolvedShown = failedItems;
+                        allBtn.disabled = false;
+                        allBtn.textContent = `✗ ${failedItems.length} didn't resolve — tap to retry`;
+                        errStatus.textContent = `${succeeded} resolved, ${failedItems.length} failed`;
+                        return;   // leave the list as-is so the admin can retry just the failures
+                    }
+                    errStatus.textContent = `${unresolvedShown.length} errors resolved`;
+                    content.setAttribute('aria-busy', 'true');
+                    initErrorLog();   // in-place refresh — pulls the next batch, no page reload
+                });
+                bar.appendChild(allBtn);
+                content.appendChild(bar);
             }
 
             if (errors.length === 0) {
@@ -877,17 +936,18 @@ export function init() {
             });
 
         } catch (e) {
-            content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load error log — check your connection and reload.</p>';
             console.error('[ErrorLog]', e);
+            _cardLoadError(content, 'Couldn\'t load error log — check your connection.', initErrorLog);
         } finally {
             content.removeAttribute('aria-busy');
         }
-    })();
+    }
+    initErrorLog();
 
     // ============================================
     // USAGE CARD
     // ============================================
-    (async function initUsageCard() {
+    async function initUsageCard() {
         const content = document.getElementById('usageContent');
         if (!content) return;
 
@@ -984,15 +1044,16 @@ export function init() {
             content.appendChild(note);
 
         } catch (e) {
-            content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load usage — check your connection and reload.</p>';
             console.error('[Usage]', e);
+            _cardLoadError(content, 'Couldn\'t load usage — check your connection.', initUsageCard);
         } finally {
             content.removeAttribute('aria-busy');
         }
-    })();
+    }
+    initUsageCard();
 
     // ── App speed card (Project 0 latency, surfaced in plain language) ──────────────
-    (async function initPageSpeedCard() {
+    async function initPageSpeedCard() {
         const content = document.getElementById('pageSpeedContent');
         if (!content) return;
 
@@ -1177,12 +1238,13 @@ export function init() {
             render();
 
         } catch (e) {
-            content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load app speed — check your connection and reload.</p>';
             console.error('[AppSpeed]', e);
+            _cardLoadError(content, 'Couldn\'t load app speed — check your connection.', initPageSpeedCard);
         } finally {
             content.removeAttribute('aria-busy');
         }
-    })();
+    }
+    initPageSpeedCard();
 
     /** "2026-06" → "June 2026" for the Usage card heading. */
     function _usageMonthLabel(/** @type {string} */ ym) {

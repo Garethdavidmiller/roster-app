@@ -117,13 +117,17 @@ function overlayHtml(/** @type {string} */ pageLabel) {
         </div>
         <div class="login-field">
             <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="loginPwHint">
+            <div class="login-pw-wrap">
+                <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="loginPwHint">
+                <button type="button" id="loginPwToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
+            </div>
             <div id="loginPwHint" class="login-hint">Initial password: your surname in lowercase, no spaces.</div>
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button type="button" id="loginSubmit">Sign in →</button>
         <div id="loginStatus" class="login-status" aria-live="polite"></div>
         <a href="./" class="login-back">← Back to roster</a>
+        <p class="login-help">Trouble signing in? Ask the admin.</p>
     </div>`;
 }
 
@@ -151,10 +155,24 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     const gradeSelect   = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginGrade'));
     const nameSelect    = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginName'));
     const passwordInput = /** @type {HTMLInputElement} */ (overlay.querySelector('#loginPassword'));
+    const pwToggle      = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginPwToggle'));
     const submitBtn     = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginSubmit'));
     const errorEl       = /** @type {HTMLElement} */ (overlay.querySelector('#loginError'));
     const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
     const backLink      = /** @type {HTMLAnchorElement} */ (overlay.querySelector('.login-back'));
+
+    // Show/hide the password. It isn't a secret (the hint literally states the convention), and
+    // typing it blind on a phone is the main cause of the 3-strikes 30s lockout — so a reveal
+    // toggle removes lock-outs with no security cost. Starts masked, so the field still reads as a
+    // normal password field.
+    pwToggle?.addEventListener('click', () => {
+        const revealing = passwordInput.type === 'password';
+        passwordInput.type = revealing ? 'text' : 'password';
+        pwToggle.textContent = revealing ? 'Hide' : 'Show';
+        pwToggle.setAttribute('aria-pressed', revealing ? 'true' : 'false');
+        pwToggle.setAttribute('aria-label', revealing ? 'Hide password' : 'Show password');
+        passwordInput.focus();
+    });
 
     overlay.classList.add('visible');
     lockBodyScroll();

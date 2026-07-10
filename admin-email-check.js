@@ -65,6 +65,7 @@ async function _runEmailCheck(member) {
     const yesBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('emailCheckYesBtn'));
     const changeBtn   = /** @type {HTMLElement} */ (document.getElementById('emailCheckChangeBtn'));
     const backBtn     = /** @type {HTMLElement} */ (document.getElementById('emailCheckBackBtn'));
+    const laterBtn    = /** @type {HTMLElement} */ (document.getElementById('emailCheckLaterBtn'));
     const input       = /** @type {HTMLInputElement} */ (document.getElementById('emailCheckInput'));
     const errorEl     = /** @type {HTMLElement} */ (document.getElementById('emailCheckError'));
     const saveBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('emailCheckSaveBtn'));
@@ -90,12 +91,16 @@ async function _runEmailCheck(member) {
             confirmView.hidden = true;
             if (prefill !== undefined) input.value = prefill;
             backBtn.hidden = !showBack;
+            // "I'll add this later" shows ONLY on the pure-add screen (no email stored yet, so no Back
+            // exists) — a new starter who doesn't know their work email must not be locked out of the
+            // app behind a mandatory field. The confirm-existing and edit-from-confirm screens stay
+            // mandatory (they already have an email and can Back out). (D2)
+            laterBtn.hidden = showBack;
             overlay.setAttribute('aria-label', showBack ? 'Edit work email' : 'Add work email');
         }
 
-        function _dismiss() {
-            // Stamp the confirmation time so the check is not due again for ~3 months (v14.77).
-            lsSet(`myb_email_check_done_${member}`, String(Date.now()));
+        /** Close the overlay (animation + unlock + resolve). Does NOT stamp the done time. */
+        function _close() {
             loginOverlay?.removeAttribute('aria-hidden');
             overlay.classList.remove('open');
             const content = /** @type {HTMLElement} */ (document.getElementById('emailCheckContent'));
@@ -112,6 +117,20 @@ async function _runEmailCheck(member) {
             };
             content.addEventListener('transitionend', onEnd, { once: true });
             setTimeout(onEnd, 500);
+        }
+
+        function _dismiss() {
+            // Stamp the confirmation time so the check is not due again for ~3 months (v14.77).
+            lsSet(`myb_email_check_done_${member}`, String(Date.now()));
+            _close();
+        }
+
+        function _addLater() {
+            // Deliberately do NOT stamp the done time: the member still has no email, so the check
+            // stays DUE and prompts again on the NEXT fresh login (the one-shot pending marker was
+            // already consumed, so it won't re-show this session). A gentle re-nudge, not a 3-month
+            // skip — and never a lock-out. (D2)
+            _close();
         }
 
         if (existing?.workEmail) {
@@ -148,6 +167,8 @@ async function _runEmailCheck(member) {
             _showConfirm();
             yesBtn.focus();
         });
+
+        laterBtn.addEventListener('click', _addLater, { once: true });
 
         input.addEventListener('blur', () => {
             const v = input.value.trim();

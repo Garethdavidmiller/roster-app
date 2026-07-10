@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v16.50 · Updated every 0.10 version*
+*Last updated: July 2026 — v16.60 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -73,7 +73,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Shared guide chrome — header, back/PDF buttons, print banner (all 4 guides) | `guide-shell.css` |
 | Page-specific styles for guide.html | `guide.css` |
 | Page-specific styles for paycalc-guide.html | `paycalc-guide.css` |
-| Page-specific styles for fip.html | `fip.css` |
+| FIP travel guide — country reference; jump links open the target section | `fip.html` + `fip.js` + `fip.css` |
 | HTML sanitisation for Huddle viewer (self-hosted) | `purify.es.mjs` |
 
 ---
@@ -623,6 +623,11 @@ Interactive behaviours for `railcard-guide.html` (extracted v10.84 — CSP compl
 - Print / Save as PDF button (`#savePdfBtn`)
 - Chip-bar click navigation (smooth scroll to target section)
 - Offset calculation runs after `document.fonts.ready` (v12.58; falls back to `requestAnimationFrame`) so the sticky `.page-header` height is measured with Inter applied — sets `.chip-bar` `top` to match it, then `scrollMarginTop` on every `.rc` and `.section` so sticky bars don't overlap anchored content
+
+### `fip.js`
+Interactive behaviour for `fip.html` (v16.59 — CSP compliance; plain `defer` script, no modules).
+- Opens the target country `<details>` when navigated to, so a jump link / deep link lands on an **open** section instead of a collapsed one (C1). Native `<details>` with the `id` on the element itself don't auto-expand on anchor-scroll.
+- `openHashTarget()` on first load (deep link) and on every `hashchange`; a `.country-jump` click handler also covers re-tapping the already-current country (which fires no `hashchange`). All idempotent.
 
 ### `guide-print.js`
 Shared print button handler for `guide.html` and `paycalc-guide.html` (extracted v10.84 — CSP compliance).
