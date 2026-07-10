@@ -292,9 +292,10 @@ exports.ingestHuddle = onRequest(
         // commits. Versioned paths mean each upload writes a NEW object — without this
         // the prior file is left behind in Storage on every re-upload for a date.
         let prevStoragePath = null;
+        let hadPreviousHuddle = false;   // gates the push below: a re-send for an existing date does NOT re-notify
         try {
             const prevSnap = await admin.firestore().collection('huddles').doc(date).get();
-            if (prevSnap.exists) prevStoragePath = (prevSnap.data() || {}).storagePath || null;
+            if (prevSnap.exists) { prevStoragePath = (prevSnap.data() || {}).storagePath || null; hadPreviousHuddle = true; }
         } catch (readErr) {
             console.warn('[ingestHuddle] Could not read previous huddle metadata (non-fatal):', readErr.message);
         }
@@ -375,10 +376,21 @@ exports.ingestHuddle = onRequest(
             // The onHuddleCreated Firestore trigger handles manual admin uploads separately;
             // it skips Power Automate uploads (uploadedBy === 'power-automate') to avoid
             // double-notifying. This direct call is the authoritative path for PA uploads.
-            try {
-                await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
-            } catch (pushErr) {
-                console.warn('[ingestHuddle] Push notifications failed (non-fatal):', pushErr.message);
+            //
+            // Notify only on a genuine CREATE for this date. onHuddleCreated is create-only, so a
+            // MANUAL re-upload never re-notifies; without this guard a Power Automate RE-SEND for a
+            // date that already had a huddle (e.g. the flow runs twice, or a same-day correction)
+            // still fanned out a second push to everyone. Matching the manual path's convention
+            // means an accidental duplicate can't spam staff; a genuine correction still updates the
+            // huddle silently (the in-app viewer has a live subscription and refreshes on its own).
+            if (!hadPreviousHuddle) {
+                try {
+                    await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
+                } catch (pushErr) {
+                    console.warn('[ingestHuddle] Push notifications failed (non-fatal):', pushErr.message);
+                }
+            } else {
+                console.log(`[ingestHuddle] Re-send for existing date ${date} — not re-notifying (matches the manual re-upload path)`);
             }
 
             // Bound the collection: huddles are daily and would otherwise grow without limit.
