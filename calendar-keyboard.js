@@ -55,6 +55,24 @@ export function initCalendarTooltip() {
 }
 
 /**
+ * After a PageUp/PageDown month change re-renders the grid (synchronously, inside the
+ * nav button's click handler), the previously-focused cell is detached and focus falls
+ * to <body> — which makes calendar-app.js's document keydown handler treat subsequent
+ * arrows as MONTH jumps instead of day steps (a confusing discontinuity for keyboard
+ * users). Move focus to the new grid's roving anchor (today, or the first in-month cell)
+ * so day-stepping continues seamlessly — mirroring how the month-jump picker refocuses.
+ * A no-op month click (year boundary, first-run, swipe cooldown) leaves the old cell
+ * connected and focused, so guard on that to avoid stealing focus in those cases.
+ * @param {HTMLElement} prevFocused - the cell that was focused before the month click
+ */
+function focusRovingAnchorAfterMonthChange(prevFocused) {
+  if (prevFocused.isConnected) return;   // click was a no-op — nothing re-rendered
+  const anchor = /** @type {HTMLElement|null} */ (
+    document.querySelector('.calendar-day:not(.other-month)[tabindex="0"]'));
+  anchor?.focus();
+}
+
+/**
  * Initialise keyboard navigation for calendar day cells (roving tabindex).
  * Arrow keys move focus between cells; PageUp/Down change months; Enter/Space activate.
  *
@@ -78,10 +96,12 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
       case 'PageDown':
         e.preventDefault();
         document.getElementById('nextMonth')?.click();
+        focusRovingAnchorAfterMonthChange(focused);
         return;
       case 'PageUp':
         e.preventDefault();
         document.getElementById('prevMonth')?.click();
+        focusRovingAnchorAfterMonthChange(focused);
         return;
       case 'Enter':
       case ' ':

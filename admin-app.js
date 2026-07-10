@@ -1607,10 +1607,15 @@ function initAuthorised() {
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');
     applyPermissions();
-    // Render bulk-bar type pills from PILL_TYPES (single source of truth with per-row pills)
+    // Render bulk-bar type pills from PILL_TYPES (single source of truth with per-row pills).
+    // 'other' is excluded here — the deliberate one exception: an "Other" day needs a per-row
+    // flavour (Training/Induction/Assessment/Team Day/Spare) that the bulk bar can't supply, so
+    // bulk-applying it staged rows that ALWAYS failed at save with "choose the type of Other day".
+    // Other is still applied per-row in the week grid. (If bulk training-weeks ever need first-class
+    // support, add a bulk flavour sub-selector rather than re-adding the bare pill.)
     const _bulkPillsContainer = document.getElementById('bulkTypePills');
     if (_bulkPillsContainer) {
-        _bulkPillsContainer.innerHTML = PILL_TYPES.map(t =>
+        _bulkPillsContainer.innerHTML = PILL_TYPES.filter(t => t !== 'other').map(t =>
             `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`
         ).join('');
     }
