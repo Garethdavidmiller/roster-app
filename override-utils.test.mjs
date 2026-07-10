@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay,
-         isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift } from './override-utils.js';
+         isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord } from './override-utils.js';
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 
@@ -443,5 +443,23 @@ describe('resolveEffectiveShift — the shared display ladder (single source for
     it('Other with an UNparseable value falls through to its raw value (no rdwTime)', () => {
         assert.deepEqual(resolveEffectiveShift({ type: 'other', value: 'GIBBERISH' }, 'RD', false),
             { shift: 'GIBBERISH', rdwTime: '', derivedRdw: false, note: '' });
+    });
+});
+
+describe('toOverrideRecord — the shared cache-record shape (2 writers must not drift)', () => {
+    it('copies value and defaults note/type to "" and source/createdAt to null', () => {
+        assert.deepEqual(toOverrideRecord({ memberName: 'X', date: '2026-05-01', value: 'AL' }),
+            { value: 'AL', note: '', type: '', source: null, createdAt: null });
+    });
+    it('preserves provided fields (does not clobber real note/type/source/createdAt)', () => {
+        const ts = { seconds: 1 };
+        assert.deepEqual(
+            toOverrideRecord({ value: '09:00-17:00', note: 'ot', type: 'rdw', source: 'manual', createdAt: ts }),
+            { value: '09:00-17:00', note: 'ot', type: 'rdw', source: 'manual', createdAt: ts });
+    });
+    it('does NOT carry memberName/date through (only the display-relevant fields)', () => {
+        const rec = toOverrideRecord({ memberName: 'X', date: '2026-05-01', value: 'SICK' });
+        assert.equal('memberName' in rec, false);
+        assert.equal('date' in rec, false);
     });
 });

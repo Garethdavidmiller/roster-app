@@ -110,6 +110,25 @@ export function isBeforeMemberStart(member, date) {
 }
 
 /**
+ * Normalise a raw Firestore override document into the cache record shape that the display
+ * layer + `shouldReplaceOverride` consume: the value plus note/type/source/createdAt with the
+ * exact same defaults. Single source so the two writers into `rosterOverridesCache`
+ * (calendar-overrides.js and calendar-team-view.js) can't drift on a default — a divergence
+ * there would produce subtle precedence bugs, since shouldReplaceOverride keys off source/createdAt.
+ * @param {any} data - a Firestore override doc's `.data()`
+ * @returns {{ value: any, note: string, type: string, source: any, createdAt: any }}
+ */
+export function toOverrideRecord(data) {
+    return {
+        value:     data.value,
+        note:      data.note      || '',
+        type:      data.type      || '',
+        source:    data.source    || null,
+        createdAt: data.createdAt || null,
+    };
+}
+
+/**
  * Returns true if `incoming` should replace `existing` in the override cache.
  *
  * Priority rules (highest first):

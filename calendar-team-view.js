@@ -14,7 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, shouldReplaceOverride, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { isBeforeMemberStart, shouldReplaceOverride, toOverrideRecord, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -338,13 +338,7 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
                 const d          = doc.data();
                 const cacheKey   = `${d.memberName}|${d.date}`;
                 const existing   = rosterOverridesCache.get(cacheKey);
-                const incoming   = {
-                    value:     d.value,
-                    note:      d.note      || '',
-                    type:      d.type      || '',
-                    source:    d.source    || null,
-                    createdAt: d.createdAt || null,
-                };
+                const incoming   = toOverrideRecord(d);
                 if (shouldReplaceOverride(existing, incoming)) {
                     // Skip re-render if the display-relevant fields haven't changed
                     // (common when IndexedDB and Firestore return identical data on repeat visits)

@@ -43,11 +43,27 @@ export function setDisplayYear(y)  { _year  = y; }
  * @param {number} delta
  */
 export function changeDisplay(delta) {
-    _month += delta;
-    if (_month > 11) { _month = 0; _year++; }
-    if (_month < 0)  { _month = 11; _year--; }
-    if (_year > CONFIG.MAX_YEAR) { _year = CONFIG.MAX_YEAR; _month = 11; }
-    if (_year < CONFIG.MIN_YEAR) { _year = CONFIG.MIN_YEAR; _month = 0;  }
+    ({ month: _month, year: _year } = addMonths(_month, _year, delta));
+}
+
+/**
+ * Add `delta` months to a (month, year) position, rolling the year over and clamping to
+ * CONFIG.MIN_YEAR..MAX_YEAR. Pure — the single source for the month-rollover + boundary-clamp
+ * arithmetic shared by changeDisplay (state mutation) and calendar-swipe's buildAdjacentPanel
+ * (local vars); keeping one copy stops the clamp rules diverging on a future MIN/MAX_YEAR change.
+ * @param {number} month 0-indexed
+ * @param {number} year
+ * @param {number} delta months to add (callers use ±1; larger deltas roll correctly too)
+ * @returns {{ month: number, year: number }}
+ */
+export function addMonths(month, year, delta) {
+    let m = month + delta;
+    let y = year;
+    while (m > 11) { m -= 12; y++; }
+    while (m < 0)  { m += 12; y--; }
+    if (y > CONFIG.MAX_YEAR) { y = CONFIG.MAX_YEAR; m = 11; }
+    if (y < CONFIG.MIN_YEAR) { y = CONFIG.MIN_YEAR; m = 0;  }
+    return { month: m, year: y };
 }
 
 /** Persist current display position to localStorage after each navigation. */

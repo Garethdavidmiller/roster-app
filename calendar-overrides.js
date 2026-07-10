@@ -12,7 +12,7 @@
 
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
-import { shouldReplaceOverride, isBeforeMemberStart, isOtherValue, resolveEffectiveShift } from './override-utils.js';
+import { shouldReplaceOverride, toOverrideRecord, isBeforeMemberStart, isOtherValue, resolveEffectiveShift } from './override-utils.js';
 
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();
@@ -80,13 +80,7 @@ export async function fetchOverridesForRange(startStr, endStr) {
             return;
         }
         const key      = `${data.memberName}|${data.date}`;
-        const incoming = {
-            value:     data.value,
-            note:      data.note   || '',
-            type:      data.type   || '',
-            source:    data.source || null,
-            createdAt: data.createdAt || null,
-        };
+        const incoming = toOverrideRecord(data);
         const existing = rosterOverridesCache.get(key);
         if (existing) {
             console.warn('[Firestore] Duplicate override for', key,
