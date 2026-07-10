@@ -1650,6 +1650,25 @@ button.nav-panel-link--notices {
     margin-top: 5px;
     line-height: 1.35;
 }
+/* Password field + inline Show/Hide reveal toggle (A1). The reveal is safe — the initial
+   password is the (non-secret) surname convention shown in .login-hint — and stops the blind-typing
+   mistypes that trip the 30s lockout. The wrap positions the toggle inside the field's right edge;
+   the input reserves room for it so masked dots never run under the button. */
+.login-pw-wrap { position: relative; }
+.login-pw-wrap input { padding-right: 62px; }
+.login-pw-toggle {
+    position: absolute;
+    top: 0; right: 0;
+    height: 100%;
+    padding: 0 12px;
+    display: flex; align-items: center;
+    background: none; border: none;
+    font-family: inherit; font-size: var(--type-small); font-weight: 700;
+    color: var(--text-mid);
+    cursor: pointer; touch-action: manipulation;
+    border-radius: 8px;
+}
+@media (hover: hover) and (pointer: fine) { .login-pw-toggle:hover { color: var(--primary-blue); } }
 /* Login overlay form fields — styled HERE in shared.css so every page's login renders them
    identically. Previously only pages with a generic `select, input {}` rule (admin/operations)
    styled these; settings fell back to raw browser controls — the "settings login looks weird on

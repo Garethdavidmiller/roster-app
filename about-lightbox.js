@@ -52,7 +52,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
         statusEl.className = 'lightbox-status';
         (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
             .then(reg => {
-                statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
+                statusEl.textContent = reg?.waiting ? '↻ Update ready — fully close the app and reopen it to update' : '✓ Up to date';
                 statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
             })
             .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
