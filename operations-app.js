@@ -32,6 +32,20 @@ import { registerServiceWorker } from './sw-register.js';
 
 
 /**
+ * Emoji + label for each page id — shared by the Usage and App Speed cards (was defined
+ * identically inside both). One source so a label change (or a new page) is edited once.
+ * @type {Record<string, { emoji: string, label: string }>}
+ */
+const PAGE_META = {
+    calendar:   { emoji: '📅', label: 'Calendar' },
+    admin:      { emoji: '📝', label: 'Admin' },
+    paycalc:    { emoji: '💷', label: 'Pay calculator' },
+    operations: { emoji: '🔧', label: 'Operations' },
+    settings:   { emoji: '⚙️', label: 'Settings' },
+    links:      { emoji: '🔗', label: 'Links' },
+};
+
+/**
  * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
  * called by operations-boot.js (a 2-line bootstrap — CSP `script-src 'self'`
  * blocks inline module scripts). This replaces the former top-level `throw`s
@@ -880,15 +894,6 @@ export function init() {
         // Page id → emoji + label, matching the app's nav vocabulary (📅 Calendar,
         // 📝 Admin, 💷 Pay, 🔧 Ops, ⚙ Settings, 🔗 Links).
         /** @type {Record<string, {emoji: string, label: string}>} */
-        const PAGE_META = {
-            calendar:   { emoji: '📅', label: 'Calendar' },
-            admin:      { emoji: '📝', label: 'Admin' },
-            paycalc:    { emoji: '💷', label: 'Pay calculator' },
-            operations: { emoji: '🔧', label: 'Operations' },
-            settings:   { emoji: '⚙️', label: 'Settings' },
-            links:      { emoji: '🔗', label: 'Links' },
-        };
-
         try {
             await sessionReady;
             const stats = await adminReadWithRetry(getUsageStats);
@@ -991,15 +996,6 @@ export function init() {
         const content = document.getElementById('pageSpeedContent');
         if (!content) return;
 
-        /** @type {Record<string, {emoji: string, label: string}>} */
-        const PAGE_META = {
-            calendar:   { emoji: '📅', label: 'Calendar' },
-            admin:      { emoji: '📝', label: 'Admin' },
-            paycalc:    { emoji: '💷', label: 'Pay calculator' },
-            operations: { emoji: '🔧', label: 'Operations' },
-            settings:   { emoji: '⚙️', label: 'Settings' },
-            links:      { emoji: '🔗', label: 'Links' },
-        };
         const TONE_CLASS = { good: 'good', ok: 'ok', bad: 'bad', none: 'none' };
         /** width:% segments (good/ok/slow) from a {quick,ok,slow,total} band row.
          *  @param {{quick:number, ok:number, slow:number, total:number}} b */
