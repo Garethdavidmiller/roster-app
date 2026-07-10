@@ -420,24 +420,24 @@ test('settings (signed in): card "?" button opens the Tips lightbox, not the car
 
     // Proof that initApp() → initContactCard() → initCardCollapse() ran: the
     // collapse helper sets aria-expanded on the Work Email header synchronously
-    // (to "false" since the card starts collapsed). The static HTML has no
-    // aria-expanded attribute, so its presence proves the signed-in init wired
-    // the header — meaning the "?" handler is in place and the click below
-    // cannot race the wiring. (The earlier "none" faith-radio anchor was removed
-    // when the cultural calendar card was retired at v13.23.)
-    await expect(page.locator('#contactToggleHeader')).toHaveAttribute('aria-expanded', 'false');
+    // (to "true" since the card now DEFAULTS OPEN on this 2-card page, v16.57 UX).
+    // The static HTML has no aria-expanded attribute, so its presence proves the
+    // signed-in init wired the header — meaning the "?" handler is in place and
+    // the click below cannot race the wiring.
+    await expect(page.locator('#contactToggleHeader')).toHaveAttribute('aria-expanded', 'true');
 
-    // The Work Email card starts collapsed and the tips overlay starts hidden.
+    // The Work Email card starts OPEN and the tips overlay starts hidden.
     await expect(page.locator('#tipsLightbox')).toBeHidden();
-    await expect(page.locator('#contactBody')).not.toHaveClass(/\bopen\b/);
+    await expect(page.locator('#contactBody')).toHaveClass(/\bopen\b/);
 
     await page.locator('.btn-card-tips[data-card="work-email"]').click();
 
     // The Tips lightbox must open with the right content …
     await expect(page.locator('#tipsLightbox')).toBeVisible();
     await expect(page.locator('#tipsLbTitle')).toHaveText('Work Email');
-    // … and the card MUST NOT have toggled open (the reported bug symptom).
-    await expect(page.locator('#contactBody')).not.toHaveClass(/\bopen\b/);
+    // … and the "?" click MUST NOT have toggled the card (the reported bug symptom:
+    // clicking "?" fell through to the header and collapsed the card). It stays open.
+    await expect(page.locator('#contactBody')).toHaveClass(/\bopen\b/);
 
     expect(errors, 'Uncaught JS exceptions on signed-in settings.html').toHaveLength(0);
 });
@@ -835,8 +835,9 @@ test('in-place sign-in: settings initialises (work-email card + nav identity) wi
     await signInThroughOverlay(page, 'G. Miller');
 
     await expect(page.locator('#loginOverlay')).toHaveCount(0);
-    // initApp() → initContactCard() → initCardCollapse sets aria-expanded on the Work Email header.
-    await expect(page.locator('#contactToggleHeader')).toHaveAttribute('aria-expanded', 'false');
+    // initApp() → initContactCard() → initCardCollapse sets aria-expanded on the Work Email header
+    // ("true" — the card defaults open on this 2-card page since v16.57).
+    await expect(page.locator('#contactToggleHeader')).toHaveAttribute('aria-expanded', 'true');
     await page.locator('#navMenuBtn').click();
     await expect(page.locator('#navPanelAvatar')).toBeVisible();        // nav wired with identity
     await expect(page).toHaveURL(/settings\.html$/);

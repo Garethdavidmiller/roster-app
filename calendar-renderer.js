@@ -135,16 +135,18 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // Exclude the greyed adjacent-month filler cells (v16.23): they carry no data-detail-*
         // attributes (and are aria-hidden), so a touch tap opened a BLANK day-detail lightbox.
         if (!cell || cell.classList.contains('other-month')) return;
-        const paydayIso = cell.dataset.paydayIso;
-        if (paydayIso) { navigateToPaycalc?.(paydayIso); return; }
-        const cutoffIso = cell.dataset.cutoffIso;
-        if (cutoffIso) {
-            const payday = paydayForCutoff(cutoffIso);
-            if (payday) navigateToPaycalc?.(payday);
-            return;
+        // Desktop: a click on a pay-marked cell jumps straight to the calculator (the hover tooltip
+        // already showed it's a payday/cut-off). Touch has no hover, so a bare tap there used to
+        // teleport to paycalc with no warning — instead open the day-detail lightbox, which offers an
+        // explicit "View pay estimate" button for pay-marked days (v16.57).
+        if (!window.matchMedia('(pointer: coarse)').matches) {
+            const paydayIso = cell.dataset.paydayIso;
+            if (paydayIso) { navigateToPaycalc?.(paydayIso); return; }
+            const cutoffIso = cell.dataset.cutoffIso;
+            if (cutoffIso) { const payday = paydayForCutoff(cutoffIso); if (payday) navigateToPaycalc?.(payday); }
+            return;   // desktop non-pay cell: nothing (the hover tooltip covers the detail)
         }
-        // Any other in-month cell: on touch devices open the day-detail lightbox.
-        if (window.matchMedia('(pointer: coarse)').matches) onDayDetail?.(cell);
+        onDayDetail?.(cell);
     });
 
     DAY_NAMES.forEach(day => {

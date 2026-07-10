@@ -59,7 +59,7 @@ let openAboutLightbox = null;
 // surface the same shift label / extras / override note that desktop users get
 // from the hover tooltip, and lets renderCalendar() close the AL lightbox on
 // member change (stale data). Both handles are ready before the swipe init.
-const { openDayDetail, closeALLightbox } = initCalendarLightboxes();
+const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc });
 
 // (Calendar display state lives in calendar-state.js; swipe cooldown in calendar-swipe.js)
 

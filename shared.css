@@ -1308,6 +1308,10 @@ body.lb-open #stickyTotal { display: none !important; }
     transition: background 0.1s;
 }
 .nav-panel-link:active { background: var(--nav-raised-strong); }
+/* In-flight state for the Circular/Newsletter links (a Firestore fetch, up to 8s) — appends a
+   quiet "Opening…" so the tap has visible feedback instead of a silent wait. */
+.nav-panel-link--loading { opacity: 0.75; }
+.nav-panel-link--loading::after { content: ' · Opening…'; color: var(--nav-text-muted); }
 @media (hover: hover) and (pointer: fine) {
     .nav-panel-link:hover { background: var(--nav-raised); }
 }

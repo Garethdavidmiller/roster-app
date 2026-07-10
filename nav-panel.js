@@ -318,6 +318,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _openLatestDoc(triggerEl, fetchFn) {
         if (_docFetching) return;
         _docFetching = true;
+        // Visible in-flight state — the fetch races an 8s timeout, and on weak signal the tapped
+        // link otherwise just sat there (a blank tab open in the background) reading as "broken".
+        triggerEl.classList.add('nav-panel-link--loading');
+        triggerEl.setAttribute('aria-busy', 'true');
         const newTab = window.open('', '_blank');
         if (newTab) newTab.opener = null;
         // Race the fetch against a timeout: a wedged Firestore promise that never settles would
@@ -354,7 +358,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             if (newTab) newTab.close();
             _closePanelVisualOnly();
             _openComingSoon(triggerEl, 'Couldn\'t connect — check your signal and try again.');
-        }).finally(() => { _docFetching = false; });
+        }).finally(() => {
+            triggerEl.classList.remove('nav-panel-link--loading');
+            triggerEl.removeAttribute('aria-busy');
+            _docFetching = false;
+        });
     }
 
     // Close panel before navigating so the panel doesn't flash behind the new page.

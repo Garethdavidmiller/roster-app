@@ -12,7 +12,7 @@ import { createLightbox } from './overlay.js';
 import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
-import { getALEntitlement, isSunday, formatISO } from './roster-data.js';
+import { getALEntitlement, isSunday, formatISO, paydayForCutoff } from './roster-data.js';
 import { shouldReplaceOverride } from './override-utils.js';
 
 /**
@@ -21,7 +21,11 @@ import { shouldReplaceOverride } from './override-utils.js';
  *
  * @returns {{ openDayDetail: (cell: HTMLElement) => void, closeALLightbox: () => void }}
  */
-export function initCalendarLightboxes() {
+/**
+ * @param {{ navigateToPaycalc?: (paydayIso: string) => void }} [deps]
+ *   navigateToPaycalc — wired to the day-detail "View pay estimate" button on pay-marked days.
+ */
+export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   // ── ANNUAL LEAVE LIGHTBOX ───────────────────────────────────────────────────
   const lb          = document.getElementById('alLightbox');
   const takenEl     = /** @type {HTMLElement} */ (document.getElementById('alLbTaken'));
@@ -140,6 +144,7 @@ export function initCalendarLightboxes() {
   const shiftEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShift'));
   const extrasEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailExtras'));
   const noteEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailNote'));
+  const payBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('dayDetailPayBtn'));
 
   const detailLb = dayLb ? createLightbox({
     overlay:  /** @type {any} */ (dayLb),
@@ -157,6 +162,19 @@ export function initCalendarLightboxes() {
     else                  extrasEl.hidden = true;
     if (d.detailNote)   { noteEl.textContent = `"${d.detailNote}"`; noteEl.hidden = false; }
     else                  noteEl.hidden = true;
+    // Pay-marked day (payday or cut-off): offer an explicit route to the calculator. Touch has no
+    // hover, so tapping such a day used to teleport to paycalc unexpectedly — now the jump is a
+    // deliberate button inside the detail. A cut-off day resolves to its own payday.
+    const payTarget = d.paydayIso || (d.cutoffIso ? paydayForCutoff(d.cutoffIso) : null);
+    if (payBtn) {
+      if (payTarget && navigateToPaycalc) {
+        payBtn.hidden = false;
+        payBtn.onclick = () => { detailLb.close(); navigateToPaycalc(payTarget); };
+      } else {
+        payBtn.hidden = true;
+        payBtn.onclick = null;
+      }
+    }
     detailLb.open();
   }
 
