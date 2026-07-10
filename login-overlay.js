@@ -244,7 +244,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
         _attempting = true;
         try {
             const name = nameSelect.value;
-            // Strip non-alpha and lowercase to match normaliseSurname() in firebase-client.js.
+            // Strip non-alpha and lowercase to match normaliseSurname() in auth-identity.js.
             const pw   = passwordInput.value.toLowerCase().replace(/[^a-z]/g, '');
             errorEl.classList.remove('visible');
 
