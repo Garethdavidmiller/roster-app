@@ -18,6 +18,21 @@ import { escapeHtml } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { pcPrefix } from './paycalc-migrations.js';
 
+// The seven special-rate categories and their hour/minute field ids — the ONE source for the
+// pairing that was hand-duplicated across _restoreRosterSuggested / _applyRosterSuggestion /
+// fillCategoryFromRoster here and the two field lists in paycalc-app.js. A suggestion/snapshot
+// object stores each value under its H/M field id, so the value is `source[hId]` / `source[mId]`.
+// (hId is `cat + 'H'`, mId is `cat + 'M'`; kept explicit for grep-ability.)
+export const HM_PAIRS = [
+  { cat: 'sat',  hId: 'satH',  mId: 'satM'  },
+  { cat: 'sun',  hId: 'sunH',  mId: 'sunM'  },
+  { cat: 'bh',   hId: 'bhH',   mId: 'bhM'   },
+  { cat: 'bhOt', hId: 'bhOtH', mId: 'bhOtM' },
+  { cat: 'ot',   hId: 'otH',   mId: 'otM'   },
+  { cat: 'rdw',  hId: 'rdwH',  mId: 'rdwM'  },
+  { cat: 'box',  hId: 'boxH',  mId: 'boxM'  },
+];
+
 // ── RENDER CACHE ──────────────────────────────────────────────────────────────
 // Avoids the parse+layout cost of innerHTML when the rendered string is identical
 // (e.g. period change → multiple upstream calls with no change in field values).
@@ -144,16 +159,8 @@ export function _restoreRosterSuggested(pNum) {
   let snap;
   try { const raw = lsGet(snapKey(pNum)); if (raw) snap = JSON.parse(raw); } catch {}
   if (!snap) return;
-  const pairs = [
-    ['satH',  'satM',  snap.satH,  snap.satM ],
-    ['sunH',  'sunM',  snap.sunH,  snap.sunM ],
-    ['bhH',   'bhM',   snap.bhH,   snap.bhM  ],
-    ['bhOtH', 'bhOtM', snap.bhOtH, snap.bhOtM],
-    ['otH',   'otM',   snap.otH,   snap.otM  ],
-    ['rdwH',  'rdwM',  snap.rdwH,  snap.rdwM ],
-    ['boxH',  'boxM',  snap.boxH,  snap.boxM ],
-  ];
-  for (const [hId, mId, hVal, mVal] of pairs) {
+  for (const { hId, mId } of HM_PAIRS) {
+    const hVal = snap[hId], mVal = snap[mId];
     const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
     const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
     if (!elH || !elM) continue;
@@ -322,16 +329,8 @@ export function clearRosterSuggestedAll() {
  * @param {boolean} [force]
  */
 export function _applyRosterSuggestion(s, force = false) {
-  const pairs = [
-    ['satH',  'satM',  s.satH,  s.satM ],
-    ['sunH',  'sunM',  s.sunH,  s.sunM ],
-    ['bhH',   'bhM',   s.bhH,   s.bhM  ],
-    ['bhOtH', 'bhOtM', s.bhOtH, s.bhOtM],
-    ['otH',   'otM',   s.otH,   s.otM  ],
-    ['rdwH',  'rdwM',  s.rdwH,  s.rdwM ],
-    ['boxH',  'boxM',  s.boxH,  s.boxM ],
-  ];
-  for (const [hId, mId, hVal, mVal] of pairs) {
+  for (const { hId, mId } of HM_PAIRS) {
+    const hVal = s[hId], mVal = s[mId];
     if (force) {
       const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
       const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
@@ -361,18 +360,10 @@ export function fillCategoryFromRoster(cat, autosave) {
   if (!p) return;
   const s = /** @type {any} */ (getRosterSuggestion(p, getLoggedMember()));
   if (!s) return;
-  const map = /** @type {Record<string, any>} */ ({
-    sat:  ['satH',  'satM',  s.satH,  s.satM ],
-    sun:  ['sunH',  'sunM',  s.sunH,  s.sunM ],
-    bh:   ['bhH',   'bhM',   s.bhH,   s.bhM  ],
-    bhOt: ['bhOtH', 'bhOtM', s.bhOtH, s.bhOtM],
-    ot:   ['otH',   'otM',   s.otH,   s.otM  ],
-    rdw:  ['rdwH',  'rdwM',  s.rdwH,  s.rdwM ],
-    box:  ['boxH',  'boxM',  s.boxH,  s.boxM ],
-  });
-  const args = map[cat];
-  if (!args) return;
-  const [hId, mId, hVal, mVal] = args;
+  const pair = HM_PAIRS.find(p => p.cat === cat);
+  if (!pair) return;
+  const { hId, mId } = pair;
+  const hVal = s[hId], mVal = s[mId];
   const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
   const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
   if (elH && elM && hVal != null) {

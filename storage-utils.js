@@ -74,3 +74,20 @@ export function isDocxUpload(file) {
 export function officeViewerUrl(storageUrl) {
     return OFFICE_VIEWER_BASE + encodeURIComponent(storageUrl);
 }
+
+/**
+ * The "YYYY-MM-DD" retention cutoff six months before `now` — documents dated strictly before
+ * it are pruned (circulars/newsletters keep 6 months). Extracted from `_pruneOldDocs` so the
+ * fiddly month-underflow clamp is unit-testable: `setMonth()`/a bare `getMonth()-6` overflows on
+ * a month-end date that doesn't exist 6 months prior (e.g. 31 Aug → "31 Feb" → 3 Mar), which
+ * would prematurely delete docs only ~5 months and 29+ days old. Clamping the day to the target
+ * month's last valid day prevents that. Pure — pass `new Date()` at the call site.
+ * @param {Date} now
+ * @returns {string} cutoff date as "YYYY-MM-DD"
+ */
+export function sixMonthCutoffISO(now) {
+    const tm = now.getMonth() - 6;
+    const daysInTargetMonth = new Date(now.getFullYear(), tm + 1, 0).getDate();
+    const cutoff = new Date(now.getFullYear(), tm, Math.min(now.getDate(), daysInTargetMonth));
+    return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+}

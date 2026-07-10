@@ -40,7 +40,7 @@ import {
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
   fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
-  clearRosterSuggestedAll, _restoreRosterSuggested, snapKey,
+  clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS,
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, updatePriorHpp } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent } from './paycalc-backpay.js';
@@ -143,6 +143,18 @@ export function init() {
         // iOS keyboards can insert smart hyphens/minus and curly quotes; parseSmartFloat
         // strips them so parseFloat doesn't silently return NaN on otherwise-valid input.
         return parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '');
+    }
+    /**
+     * numVal, but floors an unparseable (NaN) result to `fallback`. The signed fields
+     * (pension, Year-to-Date pay/tax) read numVal RAW after only a non-empty guard, so a
+     * stray/pasted character (parseSmartFloat → NaN) would cascade £NaN through the whole
+     * result card. Hours self-floor via intVal's `|| 0`; these need an explicit floor.
+     * @param {string} id @param {number|null} fallback
+     * @returns {number|null}
+     */
+    function numValOr(id, fallback) {
+        const v = numVal(id);
+        return Number.isFinite(v) ? v : fallback;
     }
     /** @param {string} id */
     // Math.max(0, …) floors at zero: hours/minutes can never be negative, and on desktop the
@@ -750,7 +762,7 @@ export function init() {
       // take-home momentarily inflated by the whole pension amount. A typed "0" still means opted-out.
       const _pField    = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
       const pension    = (_pField && _pField.value.trim() !== '')
-          ? numVal('pensionAmt')
+          ? /** @type {number} */ (numValOr('pensionAmt', 0))
           : (_curP ? parseFloat((getPensionDefault(_curP) * getProRateFactor(_curP)).toFixed(2)) : getPensionDefault());
       const pensionWarn = document.getElementById('pensionWarn');
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
@@ -760,10 +772,12 @@ export function init() {
       // Pass null (not 0) when the field is empty so computeTax distinguishes "not provided" from "£0 entered"
       const ytdPayEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdPay'));
       const ytdTaxEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdTax'));
-      const ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numVal('ytdPay') : null;
+      // Garbage (NaN) falls back to null too — a stray character means "not usable", not "£0 YTD",
+      // so tax quietly stays non-cumulative rather than asserting a £0 year-to-date figure.
+      const ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numValOr('ytdPay', null) : null;
       // Mirror the ytdPay guard — pass null (not 0) when blank so computeTax treats
       // "ytdPay filled, ytdTax left blank" as incomplete rather than "£0 tax collected".
-      const ytdT = (ytdTaxEl?.value ?? '').trim() !== '' ? numVal('ytdTax') : null;
+      const ytdT = (ytdTaxEl?.value ?? '').trim() !== '' ? numValOr('ytdTax', null) : null;
       const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
       const { tax, usingCumulative } = computeTax(
         sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
@@ -1211,7 +1225,7 @@ export function init() {
     // Decimal auto-correction — if someone types "7.5" into an hours field, split it
     // into 7h 30m on blur instead of silently truncating to 7. A live "= 7h 30m"
     // preview shows while typing so the on-blur split is never a silent surprise.
-    [['satH','satM'],['bhH','bhM'],['bhOtH','bhOtM'],['otH','otM'],['rdwH','rdwM'],['sunH','sunM'],['boxH','boxM']].forEach(([h,m]) => {
+    HM_PAIRS.forEach(({ hId: h, mId: m }) => {
       /** @type {HTMLElement} */ (document.getElementById(h)).addEventListener('input', () => decPreview(h));
       /** @type {HTMLElement} */ (document.getElementById(h)).addEventListener('blur', () => autoDecimalHours(h, m));
     });
@@ -1361,7 +1375,7 @@ export function init() {
     });
 
     // Remove roster-suggested highlight and refresh comparison state as user edits hours
-    document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#sunM,#rdwH,#rdwM,#boxH,#boxM').forEach(el => {
+    document.querySelectorAll(HM_PAIRS.flatMap(p => ['#' + p.hId, '#' + p.mId]).join(',')).forEach(el => {
       el.addEventListener('input', () => {
         el.classList.remove('roster-suggested');
         updateRosterHint();

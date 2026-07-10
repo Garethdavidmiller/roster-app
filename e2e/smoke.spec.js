@@ -858,12 +858,18 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
 
-    // The bulk path that reproduced the blowout: tick Mon–Fri, choose Other (a pill
-    // with hours — reveals the bulk time inputs), apply (reveals per-row time inputs
-    // and the Other sub-controls on five rows).
+    // The bulk path that reproduced the blowout: tick Mon–Fri, choose a bulk pill WITH
+    // hours (reveals the nowrap bulk time inputs — the element that historically clipped),
+    // apply (reveals per-row time inputs on five rows). 'Shift' rather than 'Other' since
+    // v16.47 — Other is applied per-row, not in bulk (it needs a per-row flavour), so it is
+    // no longer a bulk pill; any hours pill reproduces the same bulk-time-group layout.
     await page.locator('#bulkSelMonFri').click();
-    await page.locator('#bulkTypePills .pill-other').click();
+    await page.locator('#bulkTypePills .pill-shift').click();
     await page.locator('#bulkApplyBtn').click();
+    // Also reveal the per-row "Other" sub-controls (flavour chips + optional times) on a
+    // weekday row — the most width-hungry revealed control set, now reached only per-row.
+    const otherPill = page.locator('.day-row .pill-other:not([disabled])').first();
+    if (await otherPill.count()) await otherPill.click();
     await page.waitForTimeout(200);
 
     const m = await page.evaluate(() => {

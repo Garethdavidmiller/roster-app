@@ -475,7 +475,7 @@
         .pill-annual_leave { color: oklch(43.0% 0.1010 182.5deg);  } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
         .pill-sick         { color: var(--absence-text);            } .pill-sick.active         { background: var(--absence);  border-color: var(--absence);  }
         .pill-correction   { color: oklch(44.0% 0.1741 64.1deg);   } .pill-correction.active   { background: var(--orange);   border-color: var(--orange);   }
-        .pill-other     { color: var(--other);                      } .pill-other.active     { background: var(--other);      border-color: var(--other);      }
+        .pill-other     { color: var(--other-text);                 } .pill-other.active     { background: var(--other);      border-color: var(--other);      }
 
         .bulk-time-group {
             display: flex;
@@ -594,7 +594,7 @@
             padding: 10px 12px;
             background: var(--surface);
             border: 1px solid var(--border-light);
-            border-radius: 12px;
+            border-radius: var(--radius);
             transition: background var(--dur-fast) var(--ease-standard),
                         border-color var(--dur-fast) var(--ease-standard);
         }
@@ -998,7 +998,7 @@
             padding: 10px 12px;
             background: var(--surface);
             border: 1px solid var(--border-light);
-            border-radius: 12px;
+            border-radius: var(--radius);
         }
         .override-card .row-select { flex-shrink: 0; width: 18px; height: 18px; margin: 0; }
         .oc-body { flex: 1; min-width: 0; }
@@ -1017,7 +1017,7 @@
             font-size: 10px;
             font-weight: 700;
             padding: 3px 8px;
-            border-radius: 12px;
+            border-radius: var(--radius);
             text-transform: uppercase;
             letter-spacing: 0.3px;
             white-space: nowrap;
@@ -1346,7 +1346,7 @@
             gap: 5px;
             background: var(--surface);
             border: 1px solid var(--border-light);
-            border-radius: 12px;
+            border-radius: var(--radius);
             margin-bottom: 6px;
         }
         .al-period-month > .al-period-row:last-child { margin-bottom: 0; }

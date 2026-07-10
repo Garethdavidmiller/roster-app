@@ -16,7 +16,7 @@
  */
 
 import { CONFIG, MONTH_NAMES, SWIPE_THRESHOLD } from './roster-data.js';
-import { getDisplayMonth, getDisplayYear, persistViewedMonth } from './calendar-state.js';
+import { getDisplayMonth, getDisplayYear, persistViewedMonth, addMonths } from './calendar-state.js';
 import { buildCalendarContainer, getSwipeDirection } from './calendar-renderer.js';
 import { ensureOverridesCached } from './calendar-overrides.js';
 import { getSelectedMemberIndex } from './calendar-member.js';
@@ -87,12 +87,8 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
     // Build a panel for an adjacent month using explicit month/year params —
     // no global state mutation, no risk of corruption if an exception is thrown.
     function buildAdjacentPanel(/** @type {number} */ monthDelta) {
-        let m = getDisplayMonth() + monthDelta;
-        let y = getDisplayYear();
-        if (m > 11) { m = 0;  y++; }
-        if (m < 0)  { m = 11; y--; }
-        if (y > CONFIG.MAX_YEAR) { y = CONFIG.MAX_YEAR; m = 11; }
-        if (y < CONFIG.MIN_YEAR) { y = CONFIG.MIN_YEAR; m = 0;  }
+        // Shared rollover + boundary clamp (calendar-state.js) — same arithmetic as changeDisplay.
+        const { month: m, year: y } = addMonths(getDisplayMonth(), getDisplayYear(), monthDelta);
         return buildCalendarContainer(m, y, {
             navigateToPaycalc,
             onDayDetail: openDayDetail ?? undefined,

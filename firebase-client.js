@@ -89,7 +89,7 @@ export const COLLECTIONS = {
 // importers (nav-panel, calendar-doc-viewer, the Huddle viewer) are unaffected; isDocxUpload is used
 // internally by the upload paths. officeViewerUrl is re-exported for the DOCX circular/newsletter
 // open path (nav-panel, calendar-doc-viewer).
-import { isSafeStorageUrl, isDocxUpload, officeViewerUrl } from './storage-utils.js';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, sixMonthCutoffISO } from './storage-utils.js';
 export { isSafeStorageUrl, officeViewerUrl };
 
 // ---- Firebase Authentication ----
@@ -152,47 +152,13 @@ export async function writeWithClaimRetry(writeFn) {
     }
 }
 
-/**
- * Normalise a full display name down to a surname fragment: everything after
- * the first word, lowercased, letters only.
- *   "G. Miller"            → "miller"
- *   "C. Francisco-Charles" → "franciscocharles"
- *
- * Exported so session.js getSurname can reuse it — prevents the two
- * implementations drifting apart independently.
- * NOTE: functions/roster-parse-helpers.js contains a deliberate copy of this
- * logic (nameToPassword) because Firebase Functions cannot import browser ES
- * modules. Do not attempt to unify them — the Functions build will break.
- *
- * @param {string} fullName
- * @returns {string}
- */
-export function normaliseSurname(fullName) {
-    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
-}
-
-/**
- * Derive a stable Firebase Auth email from a teamMembers display name.
- *
- * Convention: initial.surname@myb-roster.local
- *   "G. Miller"            → "g.miller@myb-roster.local"
- *   "C. Francisco-Charles" → "c.franciscocharles@myb-roster.local"
- *   "L. Atrakimaviciene"   → "l.atrakimaviciene@myb-roster.local"
- *
- * The @myb-roster.local domain is synthetic — these accounts are never used for
- * email delivery. Note: Firebase Auth's distinct error codes for
- * auth/user-not-found vs auth/invalid-credential can reveal whether an account
- * exists for a given email; documented in KNOWN_LIMITATIONS.md.
- *
- * @param {string} fullName - Display name exactly as stored in teamMembers
- * @returns {string} Firebase Auth email address
- */
-export function nameToEmail(fullName) {
-    const parts   = fullName.split(' ');
-    const initial = parts[0].replace(/[^a-zA-Z]/g, '').toLowerCase();
-    const surname = normaliseSurname(fullName);
-    return `${initial}.${surname}@myb-roster.local`;
-}
+// normaliseSurname + nameToEmail (the account-identity derivations) live in the pure, import-free
+// auth-identity.js so they can be unit-tested directly (this module can't load in a Node test — it
+// pulls the Firebase SDK from the gstatic CDN). Re-exported so existing importers (session.js) are
+// unaffected. The deliberate functions/roster-parse-helpers.js duplicate + surname-parity.test.mjs
+// source-equivalence check now read auth-identity.js.
+import { normaliseSurname, nameToEmail } from './auth-identity.js';
+export { normaliseSurname, nameToEmail };
 
 // ---- Firebase Storage ----
 // Storage SDK is loaded lazily on first call to uploadHuddle().
@@ -388,14 +354,8 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
  * @returns {Promise<void>}
  */
 async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject) {
-    const now = new Date();
-    const tm = now.getMonth() - 6;
-    // Clamp day to last valid day of the target month. setMonth() overflows on month-end
-    // dates that don't exist 6 months prior (e.g. Aug 31 → Feb 31 → March 3); clamping
-    // prevents premature deletion of documents that are only ~5 months and 29+ days old.
-    const daysInTargetMonth = new Date(now.getFullYear(), tm + 1, 0).getDate();
-    const cutoff = new Date(now.getFullYear(), tm, Math.min(now.getDate(), daysInTargetMonth));
-    const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+    // The month-underflow-safe 6-month cutoff lives in storage-utils.js so it can be unit-tested.
+    const cutoffStr = sixMonthCutoffISO(new Date());
     const q = query(collection(db, collectionName), where('date', '<', cutoffStr));
     const snap = await getDocs(q);
     await Promise.all(snap.docs

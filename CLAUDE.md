@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v16.40 · Updated every 0.10 version*
+*Last updated: July 2026 — v16.50 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `16.40` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `16.50` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -174,7 +174,7 @@ roster-app/
 ├── perf-reporter.js        ← shared anonymous latency recorder (Project 0): recordPageLatency buckets Navigation + Paint Timing (ttfb/domReady/fcp) → analytics/perf_<YYYY-MM>; no identity, no raw ms; skips admin (developer) loads (still consumes the one-shot login marker). Full detail: AI_MAP.
 ├── perf-stats.js           ← pure latency maths: PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey
 ├── calendar-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle
-├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift
+├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, resolveEffectiveShift (shared override→display ladder for renderer/team-view/legend)
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring
 ├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup/ErrorLog. Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw
 ├── operations-boot.js      ← 2-line bootstrap for operations.html: imports `init` from operations-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
@@ -205,7 +205,8 @@ roster-app/
 ├── roster-data.js          ← shared: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only
 ├── firebase-client.js      ← shared: Firebase init, db, all Firestore helpers
-├── storage-utils.js        ← pure Storage helpers extracted from firebase-client (no Firebase import, so unit-testable): isSafeStorageUrl (download-URL allowlist — a security control), isDocxUpload (upload file-type detect), officeViewerUrl (wraps a .docx download URL in Microsoft's Office Online viewer so Word circulars/newsletters open+render instead of downloading). Re-exported by firebase-client.js
+├── auth-identity.js        ← pure account-identity helpers extracted from firebase-client (no Firebase import, so unit-testable): normaliseSurname (surname derivation for Firebase Auth) + nameToEmail (initial.surname@myb-roster.local account email). Re-exported by firebase-client.js; the surname-parity source-equivalence check + the functions/roster-parse-helpers.js duplicate track THIS file
+├── storage-utils.js        ← pure Storage helpers extracted from firebase-client (no Firebase import, so unit-testable): isSafeStorageUrl (download-URL allowlist — a security control), isDocxUpload (upload file-type detect), officeViewerUrl (wraps a .docx download URL in Microsoft's Office Online viewer so Word circulars/newsletters open+render instead of downloading), sixMonthCutoffISO (month-underflow-safe 6-month retention cutoff for _pruneOldDocs). Re-exported by firebase-client.js
 ├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors
 ├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
@@ -236,9 +237,10 @@ roster-app/
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
 ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs / perf-stats.test.mjs
-├── storage-utils.test.mjs ← tests for isSafeStorageUrl (bucket allowlist) + isDocxUpload + officeViewerUrl (Office viewer wrap/encoding); part of test:hygiene
+├── storage-utils.test.mjs ← tests for isSafeStorageUrl (bucket allowlist) + isDocxUpload + officeViewerUrl (Office viewer wrap/encoding) + sixMonthCutoffISO (month-underflow clamp); part of test:hygiene
+├── auth-identity.test.mjs ← tests for normaliseSurname + nameToEmail (identity-critical account email derivation); part of test:hygiene
 ├── notif.test.mjs         ← tests for notif.js: notifSupported/isIOS, getNotifState VAPID rotation, peekNotifState (no side effects), enable/disableNotifications (--experimental-test-module-mocks)
-├── surname-parity.test.mjs ← asserts normaliseSurname (firebase-client.js) and nameToPassword (functions/roster-parse-helpers.js) stay in sync (behavioural + source-equivalence); part of test:hygiene
+├── surname-parity.test.mjs ← asserts normaliseSurname (auth-identity.js) and nameToPassword (functions/roster-parse-helpers.js) stay in sync (behavioural + source-equivalence); part of test:hygiene
 ├── import-graph.test.mjs   ← detects circular imports across all root ES modules (regex-based, no build step)
 ├── admin-overrides.test.mjs ← tests for getEffectiveShift, validateShiftRules, buildMemberDateMap (--experimental-test-module-mocks)
 ├── admin-roster-upload.test.mjs ← tests for shiftValueToOverrideType (parsed value → override type, incl. training + Sunday block) + _saveOverrideBatches stale-claim retry parity (permission-denied → token refresh → fresh batch → retry once) (--experimental-test-module-mocks)
@@ -364,7 +366,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | Team Week View | Available to all logged-in staff. Grade state (`currentTeamGrade`) persists across re-renders. Fetch token = week-start timestamp — stale Firestore results are discarded. Week navigation clamped to `CONFIG.MIN_YEAR`/`MAX_YEAR`. **No override-load status indicator** — deliberately not added (minimal-noise app). |
 | `persistentLocalCache()` in `firebase-client.js` | Firestore stores queries in IndexedDB. Do not revert to `getFirestore()` — Huddle viewer and override cache depend on instant load. |
 | `subscribeToLatestHuddle` in `firebase-client.js` | Persistent `onSnapshot` — Huddle viewer updates automatically when a new Huddle arrives. Do not replace with one-time fetch. |
-| `normaliseSurname()` in `firebase-client.js` (v12.04) | Shared surname derivation for Firebase Auth: lowercases and strips non-alpha (the ≥6-char padding for the Firebase *password* is applied separately by the password builders in `session.js` / `functions`, **not** inside `normaliseSurname`). Exported from `firebase-client.js`; `getSurname()` in `session.js` delegates to it. A deliberate duplicate also exists in `functions/roster-parse-helpers.js` — Cloud Functions are CommonJS and cannot import browser ES modules, so unification requires a build step. If the rule ever changes, update both locations. |
+| `normaliseSurname()` in `auth-identity.js` (v12.04; moved out of `firebase-client.js` v16.50) | Shared surname derivation for Firebase Auth: lowercases and strips non-alpha (the ≥6-char padding for the Firebase *password* is applied separately by the password builders in `session.js` / `functions`, **not** inside `normaliseSurname`). Lives in the pure `auth-identity.js` (so it's unit-testable) and is **re-exported by `firebase-client.js`**; `getSurname()` in `session.js` delegates to it. A deliberate duplicate also exists in `functions/roster-parse-helpers.js` — Cloud Functions are CommonJS and cannot import browser ES modules, so unification requires a build step. If the rule ever changes, update both locations (surname-parity.test.mjs enforces it). |
 | `cors: ADMIN_FUNCTION_ORIGINS` on `parseRosterPDF` and `setupRosterAuth` | Both functions restrict CORS to an explicit origin allowlist (`ADMIN_FUNCTION_ORIGINS` in `functions/index.js`: `garethdavidmiller.github.io`, `myb-roster.web.app`, `myb-roster.firebaseapp.com`) — defence-in-depth on top of the real control, which is Firebase ID token + admin claim. Add any new hosting domain to that array. `ingestHuddle` keeps `cors: false` (server-to-server). |
 | Android Back button overlay pattern | Overlays push `history.pushState({ mybOverlay: true })` when opening, close on `popstate`. `_pushOverlayState(handler)` / `_clearOverlayHistory()` helpers in all six app pages. |
 | Canonical lightbox lifecycle (standardised v11.50, factored into `createLightbox` v12.50) | Every `.lb-overlay` lightbox (About, AL, Team info, Month jump, per-card Tips, paycalc Help/Welcome, links Beta) is built with **`createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` in `overlay.js`** — do NOT hand-write the lifecycle in a page module. It implements focus save/restore, `.visible`→`.open`, `lockBodyScroll`, Android Back (`_pushOverlayState`), Escape, the `trapFocus` Tab trap, and backdrop/closeBtn close — including a **mandatory 500ms `transitionend` fallback** (iOS suppresses `transitionend` on a backgrounded tab; reduced-motion finishes synchronously). Close controls are `<button class="lb-close">` (never `<span>` — not keyboard-focusable). The shared About/Tips panels are `about-lightbox.js` / `tips-lightbox.js`. **Exceptions:** the coming-soon lightbox is owned **only** by `nav-panel.js` (shares the drawer's history entry — never re-wire `#navComingSoonLightbox` or migrate it to `createLightbox`); the huddle viewer (`#huddleViewer`) is a full-bleed panel, so it has no overlay-click-to-close (intentional). Full lifecycle detail: AI_MAP → `overlay.js`. |

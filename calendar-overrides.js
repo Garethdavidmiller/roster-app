@@ -12,7 +12,7 @@
 
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
-import { shouldReplaceOverride, isBeforeMemberStart, isOtherValue, isOverrideDisplaySuppressed } from './override-utils.js';
+import { shouldReplaceOverride, toOverrideRecord, isBeforeMemberStart, isOtherValue, resolveEffectiveShift } from './override-utils.js';
 
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();
@@ -80,13 +80,7 @@ export async function fetchOverridesForRange(startStr, endStr) {
             return;
         }
         const key      = `${data.memberName}|${data.date}`;
-        const incoming = {
-            value:     data.value,
-            note:      data.note   || '',
-            type:      data.type   || '',
-            source:    data.source || null,
-            createdAt: data.createdAt || null,
-        };
+        const incoming = toOverrideRecord(data);
         const existing = rosterOverridesCache.get(key);
         if (existing) {
             console.warn('[Firestore] Duplicate override for', key,
@@ -143,16 +137,14 @@ export function getShiftTypesInMonth(member, year, month) {
     const days  = new Date(year, month + 1, 0).getDate();
 
     for (let day = 1; day <= days; day++) {
-        const date    = new Date(year, month, day);
-        let shift = getBaseShift(member, date);
-        const dateStr = formatISO(date);
+        const date      = new Date(year, month, day);
+        const baseShift = getBaseShift(member, date);
+        const dateStr   = formatISO(date);
         const ov = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
-        if (ov && !isOverrideDisplaySuppressed(ov, shift, isSunday(dateStr))) {
-            // Suppression (sick on rest/Sunday, AL/Other on Sunday) uses the shared single source so
-            // the month legend can't light 'AL' from a legacy Sunday AL override, and can never drift
-            // from the calendar renderer / Team view. Sundays are non-contracted (CLAUDE.md layer 5).
-            shift = ov.type === 'rdw' ? 'RDW' : ov.value;
-        }
+        // Same shared override→effective-shift ladder as the calendar renderer + Team view (v16.48)
+        // so the month legend can never drift from them — e.g. it can't light 'AL' from a legacy
+        // Sunday AL override (suppressed), since Sundays are non-contracted (CLAUDE.md layer 5).
+        const { shift } = resolveEffectiveShift(ov, baseShift, isSunday(dateStr));
         if (shift === 'SPARE') types.add('SPARE');
         else if (shift === 'RDW')  types.add('RDW');
         else if (shift === 'AL')   types.add('AL');

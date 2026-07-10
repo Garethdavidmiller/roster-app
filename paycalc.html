@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v16.45 -->
+<!-- MYB Roster — Pay Calculator v16.55 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -42,6 +42,7 @@
   <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js" crossorigin>
   <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js" crossorigin>
   <link rel="modulepreload" href="./about-lightbox.js">
+  <link rel="modulepreload" href="./auth-identity.js">
   <link rel="modulepreload" href="./auth-policy.js">
   <link rel="modulepreload" href="./auth-state-core.js">
   <link rel="modulepreload" href="./auth-state.js">
@@ -209,7 +210,7 @@
   <div class="result-card">
     <div class="result-net">
       <div class="net-label" id="netLabel">💷 Estimated Take-Home Pay</div>
-      <div class="net-amount" id="netDisplay" aria-live="polite" aria-atomic="true">£–</div>
+      <div class="net-amount" id="netDisplay" aria-live="polite">£–</div>
       <div class="net-period" id="netPeriod">Select a pay period above</div>
       <div class="net-hint" id="netHint">Enter your hours below — the estimate updates as you type</div>
     </div>
@@ -691,7 +692,7 @@
 
 </div>
 
-<!-- Sticky take-home bar — mobile only, shown when result card scrolls off-screen -->
+<!-- Sticky take-home bar — all widths (v16.12), shown when the result card scrolls off-screen -->
 <div id="stickyTotal" role="button" tabindex="0" aria-label="Jump to estimated take-home pay">
   <div class="sticky-label" id="stickyLabel">💷 Estimated take-home</div>
   <div class="sticky-amount" id="stickyAmount">£–</div>

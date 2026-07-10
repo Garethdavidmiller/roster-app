@@ -928,7 +928,7 @@
       #helpLightbox, #helpLightboxContent,
       .bd-body, .bd-arrow, .boxing-banner, .collapsible-body,
       .show-more-arrow, .hpp-toggle-arrow, .card-toggle-arrow,
-      .save-status, .stepper button {
+      .save-status, .stepper button, .pbb-seg {
         transition: none !important;
         animation: none !important;
       }
@@ -1031,7 +1031,7 @@
     .result-peek-btn:hover { text-decoration: underline; }
   }
 
-  /* ── STICKY TAKE-HOME BAR (mobile only) ── */
+  /* ── STICKY TAKE-HOME BAR (all widths since v16.12; desktop capped + centred below) ── */
   #stickyTotal {
     display: none;
     position: fixed; bottom: 0; left: 0; right: 0;

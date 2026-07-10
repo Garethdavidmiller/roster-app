@@ -1240,6 +1240,7 @@
             font-style: italic;
         }
         .grade-tab {
+            position: relative;
             padding: 5px 14px;
             border: 2px solid var(--border-light);
             border-radius: 20px;
@@ -1251,6 +1252,14 @@
             font-family: inherit;
             touch-action: manipulation;
             transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        /* Invisible VERTICAL hit-area expander: the pill is ~28px tall but a primary
+           touch control needs a 44px tap target. Expand only top/bottom (inset: -8px 0)
+           so adjacent tabs (only 6px apart) never get overlapping, ambiguous hit regions. */
+        .grade-tab::before {
+            content: '';
+            position: absolute;
+            inset: -8px 0;
         }
         .grade-tab.active {
             background: var(--primary-blue);
@@ -1465,7 +1474,7 @@
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.6px;
-            color: rgba(255, 255, 255, 0.35);
+            color: rgba(255, 255, 255, 0.65); /* raised from 0.35 to clear WCAG AA */
             padding-top: 12px;
             margin-top: 14px;
             border-top: 1px solid rgba(255, 255, 255, 0.12);
@@ -1502,7 +1511,7 @@
         .tv-key-dot--rest   { background: var(--rest-day-bg);   border-color: var(--border-mid); }
         .team-info-note {
             font-size: 11px;
-            color: rgba(255, 255, 255, 0.35);
+            color: rgba(255, 255, 255, 0.65); /* raised from 0.35 to clear WCAG AA */
             margin-top: 12px;
             padding-top: 12px;
             border-top: 1px solid rgba(255, 255, 255, 0.12);

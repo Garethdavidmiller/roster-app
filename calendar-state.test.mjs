@@ -30,7 +30,7 @@ store.set('myb_roster_year',  '2025');
 const {
     getDisplayMonth, getDisplayYear,
     setDisplayMonth, setDisplayYear,
-    changeDisplay, persistViewedMonth,
+    changeDisplay, persistViewedMonth, addMonths,
 } = await import('./calendar-state.js');
 
 // Capture state IMMEDIATELY after import, before any beforeEach runs.
@@ -122,4 +122,24 @@ describe('changeDisplay', () => {
         assert.equal(getDisplayMonth(), 0);
     });
 
+});
+
+// ── addMonths (the pure shared rollover, also used by calendar-swipe) ──────────
+describe('addMonths', () => {
+    test('adds within the same year', () => {
+        assert.deepEqual(addMonths(4, 2026, 1), { month: 5, year: 2026 });
+        assert.deepEqual(addMonths(4, 2026, -1), { month: 3, year: 2026 });
+    });
+    test('rolls the year forward/back across the December↔January boundary', () => {
+        assert.deepEqual(addMonths(11, 2026, 1), { month: 0, year: 2027 });
+        assert.deepEqual(addMonths(0, 2026, -1), { month: 11, year: 2025 });
+    });
+    test('clamps at MAX_YEAR December and MIN_YEAR January', () => {
+        assert.deepEqual(addMonths(11, 2030, 1), { month: 11, year: 2030 });
+        assert.deepEqual(addMonths(0, 2024, -1), { month: 0, year: 2024 });
+    });
+    test('rolls correctly for a delta larger than one (robustness beyond ±1)', () => {
+        assert.deepEqual(addMonths(10, 2026, 3), { month: 1, year: 2027 });  // Nov + 3 → Feb next year
+        assert.deepEqual(addMonths(1, 2026, -3), { month: 10, year: 2025 }); // Feb − 3 → Nov prev year
+    });
 });

@@ -266,8 +266,21 @@ function renderCalendar() {
             navigateToPaycalc,
             onDayDetail: /** @param {any} cell */ (cell) => openDayDetail?.(cell),
         });
+        // Preserve keyboard focus across the re-render. Wiping #calendarDisplay drops focus to
+        // <body>, after which calendar-app.js's document keydown handler treats arrows as MONTH
+        // jumps instead of day steps. Capture whether a day cell was focused, then restore the new
+        // roving anchor below. Doing it HERE (the render choke point) covers BOTH the synchronous
+        // PageUp/Down month change AND the async override-fetch re-render that follows when paging
+        // beyond the cached window (v16.55) — the case a keyboard-only fix in calendar-keyboard.js
+        // missed. preventScroll so a background re-render can't yank the viewport.
+        const _hadCellFocus = document.activeElement instanceof HTMLElement
+            && document.activeElement.classList.contains('calendar-day');
         calendarDisplay.innerHTML = '';
         calendarDisplay.appendChild(calendarContainer);
+        if (_hadCellFocus) {
+            /** @type {HTMLElement|null} */
+            (calendarContainer.querySelector('.calendar-day:not(.other-month)[tabindex="0"]'))?.focus({ preventScroll: true });
+        }
 
         updateNavButtonState();
 
@@ -652,7 +665,7 @@ try {
             const btnCancel  = document.getElementById('monthJumpCancel');
             if (!overlay) return;
 
-            // Populate year select once (2024–2030)
+            // Populate year select once (CONFIG.MIN_YEAR..MAX_YEAR)
             for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR; y++) {
                 const opt = document.createElement('option');
                 opt.value = String(y); opt.textContent = String(y);

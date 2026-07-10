@@ -1,7 +1,7 @@
 /**
  * Parity tests for the surname-derivation rule that is DELIBERATELY duplicated
  * across the ESM/CommonJS boundary:
- *   - browser:  normaliseSurname()  in firebase-client.js  (used by session.js getSurname)
+ *   - browser:  normaliseSurname()  in auth-identity.js  (re-exported by firebase-client.js; used by session.js getSurname)
  *   - functions: nameToPassword()   in functions/roster-parse-helpers.js
  *
  * Cloud Functions are CommonJS and cannot import the browser ES module, so the
@@ -72,10 +72,11 @@ describe('surname derivation — browser ↔ functions parity', () => {
     });
 
     test('both source files contain the identical canonical derivation expression', () => {
-        const browserSrc   = readFileSync(new URL('./firebase-client.js', import.meta.url), 'utf8');
+        // The browser copy moved to auth-identity.js (v16.50); firebase-client.js re-exports it.
+        const browserSrc   = readFileSync(new URL('./auth-identity.js', import.meta.url), 'utf8');
         const functionsSrc = readFileSync(new URL('./functions/roster-parse-helpers.js', import.meta.url), 'utf8');
         assert.ok(browserSrc.includes(CANON),
-            'firebase-client.js normaliseSurname no longer matches the canonical derivation');
+            'auth-identity.js normaliseSurname no longer matches the canonical derivation');
         assert.ok(functionsSrc.includes(CANON),
             'functions/roster-parse-helpers.js nameToPassword no longer matches the canonical derivation');
     });

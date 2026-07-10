@@ -14,7 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, shouldReplaceOverride, parseOtherValue, OTHER_FLAVOURS, isRestShift, isOverrideDisplaySuppressed } from './override-utils.js';
+import { isBeforeMemberStart, shouldReplaceOverride, toOverrideRecord, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -79,22 +79,14 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         const dateStr  = formatISO(date);
         const cacheKey = `${member.name}|${dateStr}`;
 
-        let shift = getBaseShift(member, date);
-        const baseShiftTV = shift;   // kept for an Other day's derived-RDW label (base is overwritten below)
-
+        const baseShiftTV = getBaseShift(member, date);
         const override = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(cacheKey) : null;
-        if (override) {
-            // Suppress non-contracted overrides (sick on rest/Sunday, AL/Other on Sunday) via the
-            // shared single source, so the Team view can never disagree with the calendar / legend
-            // (v16.37 — this also fixes the previously-missing Sunday-AL suppression here).
-            if      (isOverrideDisplaySuppressed(override, shift, isSunday(dateStr))) { /* keep base */ }
-            else if (override.type === 'annual_leave') shift = 'AL';
-            else if (override.type === 'sick')         shift = 'SICK';
-            else if (override.type === 'correction')   shift = 'RD';
-            else if (override.type === 'rdw')          shift = 'RDW|' + (override.value || '');
-            else if (override.type === 'spare_shift')  shift = 'SPARE';
-            else if (override.value)                   shift = override.value;
-        }
+        // ONE shared override→effective-shift ladder (calendar renderer + month legend use it too,
+        // v16.48) so the Team view can never disagree with them — including the non-contracted
+        // suppression (sick on rest/Sunday, AL/Other on Sunday; the Sunday-AL case fixed v16.37).
+        // `shift` is the canonical value; an rdw override arrives as 'RDW' with its time in rdwTime,
+        // and an Other day's derived-RDW-ness comes back as derivedRdw.
+        const { shift, rdwTime, derivedRdw } = resolveEffectiveShift(override, baseShiftTV, isSunday(dateStr));
 
         // `label` is the accessible name (used as the cell's aria-label) so meaning
         // never depends on colour alone (the rest cell is just a coloured "–") and
@@ -103,20 +95,22 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         if (shift === 'SPARE')                 return { text: '📋 Spare', cls: 'tv-spare', label: 'Spare' };
         if (shift === 'AL')                    return { text: '🏖️ AL', cls: 'tv-al', label: 'Annual leave' };
         if (shift === 'SICK')                  return { text: '🪑 Absent', cls: 'tv-sick', label: 'Absent' };
-        if (shift === 'RDW')                   return { text: '💼 RDW', cls: 'tv-rdw', label: 'Rest day worked' };
+        if (shift === 'RDW') {
+            // rdw override → shift 'RDW' + its time in rdwTime (a base 'RDW' never exists, so this
+            // one path covers every RDW cell — it absorbs the old separate 'RDW|time' branch).
+            const t = rdwTime || '';
+            return { text: `💼 ${escapeHtml(t) || 'RDW'}`, cls: 'tv-rdw', label: `Rest day worked${t ? ' ' + t : ''}` };
+        }
         const _trg = parseOtherValue(shift);
         if (_trg) {
             // 🏷️ + short flavour word in the tiny cell; FULL word in the accessible label
             // (+ RDW/time detail), mirroring the calendar's tap behaviour.
             const f = OTHER_FLAVOURS[_trg.flavour];
-            // Derived RDW-ness matches the calendar + pay engine: explicit flag OR rest-day base.
-            const label = f.full + ((_trg.rdw || isRestShift(baseShiftTV)) ? ' — Rest Day Worked' : '')
+            // Derived RDW-ness comes from the shared resolver (explicit flag OR rest-day base) so it
+            // matches the calendar + pay engine exactly.
+            const label = f.full + (derivedRdw ? ' — Rest Day Worked' : '')
                 + (_trg.time ? ` ${_trg.time}` : '');
             return { text: `🏷️ ${f.badge}`, cls: 'tv-other', label };
-        }
-        if (shift.startsWith('RDW|')) {
-            const t = shift.slice(4);
-            return { text: `💼 ${escapeHtml(t) || 'RDW'}`, cls: 'tv-rdw', label: `Rest day worked${t ? ' ' + t : ''}` };
         }
         if (SHIFT_TIME_REGEX.test(shift)) {
             const shiftKind = getShiftKind(shift, member);
@@ -344,13 +338,7 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
                 const d          = doc.data();
                 const cacheKey   = `${d.memberName}|${d.date}`;
                 const existing   = rosterOverridesCache.get(cacheKey);
-                const incoming   = {
-                    value:     d.value,
-                    note:      d.note      || '',
-                    type:      d.type      || '',
-                    source:    d.source    || null,
-                    createdAt: d.createdAt || null,
-                };
+                const incoming   = toOverrideRecord(d);
                 if (shouldReplaceOverride(existing, incoming)) {
                     // Skip re-render if the display-relevant fields haven't changed
                     // (common when IndexedDB and Firestore return identical data on repeat visits)
@@ -402,6 +390,10 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         }
         if (navRow)  /** @type {HTMLElement} */ (navRow).style.display = teamViewMode ? 'none' : '';
         if (legend)  /** @type {HTMLElement} */ (legend).style.display = teamViewMode ? 'none' : '';
+        // The same #calendarDisplay region holds a 7-day team table in team view — keep its
+        // accessible name honest for screen-reader users instead of always saying "calendar".
+        const display = document.getElementById('calendarDisplay');
+        if (display) display.setAttribute('aria-label', teamViewMode ? 'Team week roster' : 'Monthly roster calendar');
         document.body.classList.toggle('team-view-active', teamViewMode);
     }
 

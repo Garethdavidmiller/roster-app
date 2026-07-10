@@ -77,6 +77,9 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
       case 'ArrowUp':    next = cells[idx - 7]; break;
       case 'PageDown':
         e.preventDefault();
+        // renderCalendar() (run synchronously by the nav button's click handler) preserves keyboard
+        // focus itself now — it restores the roving anchor whenever a day cell was focused at wipe
+        // time, covering both this sync change AND the async override-fetch re-render on far paging.
         document.getElementById('nextMonth')?.click();
         return;
       case 'PageUp':

@@ -110,6 +110,25 @@ export function isBeforeMemberStart(member, date) {
 }
 
 /**
+ * Normalise a raw Firestore override document into the cache record shape that the display
+ * layer + `shouldReplaceOverride` consume: the value plus note/type/source/createdAt with the
+ * exact same defaults. Single source so the two writers into `rosterOverridesCache`
+ * (calendar-overrides.js and calendar-team-view.js) can't drift on a default — a divergence
+ * there would produce subtle precedence bugs, since shouldReplaceOverride keys off source/createdAt.
+ * @param {any} data - a Firestore override doc's `.data()`
+ * @returns {{ value: any, note: string, type: string, source: any, createdAt: any }}
+ */
+export function toOverrideRecord(data) {
+    return {
+        value:     data.value,
+        note:      data.note      || '',
+        type:      data.type      || '',
+        source:    data.source    || null,
+        createdAt: data.createdAt || null,
+    };
+}
+
+/**
  * Returns true if `incoming` should replace `existing` in the override cache.
  *
  * Priority rules (highest first):
@@ -297,4 +316,52 @@ export function resolveOtherPay(parsed, baseValue) {
     if (rdw) return { mode: 'rdw', mins: parsed.time ? _shiftMins(parsed.time) : OTHER_RDW_DEFAULT_MINS };
     if (parsed.time) return { mode: 'timed', time: parsed.time };
     return { mode: 'as-base' };
+}
+
+/** A worked-shift "HH:MM-HH:MM" range (the DISPLAY form — 1-or-2-digit hours, no anchoring;
+ *  matches the renderer's historical inline regex, deliberately looser than roster-data's TIME_RE). */
+const SHIFT_RANGE_RE = /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/;
+
+/**
+ * Resolve a Firestore override onto a base shift into ONE canonical display descriptor.
+ *
+ * This is the single source for the "apply override onto base shift" ladder that used to be
+ * re-implemented in three places (calendar renderer, Team Week View, month legend). Those
+ * copies drifted once already — the missing Sunday-AL suppression in Team view (fixed v16.37
+ * by extracting `isOverrideDisplaySuppressed`). This extracts the whole ladder (v16.48) so the
+ * three consumers render from one resolution and can never disagree again. Pure — no DOM, no
+ * Firestore, no roster lookup; the caller passes the already-fetched override and base shift
+ * (and must pass `null` for a before-member-start / absent override, exactly as before).
+ *
+ * @param {any}     override  The override for this member+date, or null/undefined.
+ * @param {string}  baseShift The base shift from getBaseShift (Christmas/startDate already applied).
+ * @param {boolean} sunday    isSunday(dateStr) — Sundays are non-contracted (suppression input).
+ * @returns {{ shift: string, rdwTime: string, derivedRdw: boolean, note: string }}
+ *   shift      canonical effective shift: `baseShift` when there is no override or it is
+ *              suppressed; `'RDW'` for an rdw override; the raw Other grammar value for a
+ *              parseable `other`; otherwise `override.value` (AL→'AL', SICK→'SICK',
+ *              correction→'RD', spare_shift→'SPARE', legacy types via their value).
+ *   rdwTime    rdw override → `override.value`; parseable Other → its hours-slot string
+ *              (actual time → 'RDW' → the base shift's own time → ''); '' otherwise.
+ *   derivedRdw parseable Other day only: true when RDW via the explicit flag OR a rest-day base.
+ *   note       `override.note` (or '') when an override applied; '' otherwise.
+ */
+export function resolveEffectiveShift(override, baseShift, sunday) {
+    if (!override || isOverrideDisplaySuppressed(override, baseShift, sunday)) {
+        return { shift: baseShift, rdwTime: '', derivedRdw: false, note: '' };
+    }
+    const note = override.note || '';
+    if (override.type === 'rdw') {
+        return { shift: 'RDW', rdwTime: override.value, derivedRdw: false, note };
+    }
+    const parsedOther = override.type === 'other' ? parseOtherValue(override.value) : null;
+    if (parsedOther) {
+        const derivedRdw = parsedOther.rdw || isRestShift(baseShift);
+        // Hours slot: admin-entered actual times → 'RDW' (a rest-day Other, no times) → the base
+        // shift's own time (a rostered-day Other happens during your shift) → '' (badge only).
+        const rdwTime = parsedOther.time ?? (derivedRdw ? 'RDW'
+            : (SHIFT_RANGE_RE.test(baseShift) ? baseShift : ''));
+        return { shift: override.value, rdwTime, derivedRdw, note };
+    }
+    return { shift: override.value, rdwTime: '', derivedRdw: false, note };
 }
