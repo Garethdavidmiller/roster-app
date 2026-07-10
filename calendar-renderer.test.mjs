@@ -105,6 +105,27 @@ mock.module('./override-utils.js', {
             IND:    { badge: 'Ind',    full: 'Induction'  },
             ASSESS: { badge: 'Assess', full: 'Assessment' },
         },
+        // Faithful copy of the real override→effective-shift resolver (override-utils.js, v16.48)
+        // — the renderer now consumes this instead of re-branching on override.type itself.
+        resolveEffectiveShift: (override, baseShift, sunday) => {
+            const suppressed = override && (
+                override.type === 'sick'         ? (baseShift === 'RD' || baseShift === 'OFF' || sunday)
+              : override.type === 'annual_leave' ? sunday
+              : override.type === 'other'        ? sunday
+              : false);
+            if (!override || suppressed) return { shift: baseShift, rdwTime: '', derivedRdw: false, note: '' };
+            const note = override.note || '';
+            if (override.type === 'rdw') return { shift: 'RDW', rdwTime: override.value, derivedRdw: false, note };
+            const pm = override.type === 'other' && typeof override.value === 'string'
+                ? override.value.match(/^(TRG|IND|ASSESS)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/) : null;
+            if (pm) {
+                const rdw = !!pm[2], time = pm[3] ? pm[3].trim() : null;
+                const derivedRdw = rdw || baseShift === 'RD' || baseShift === 'OFF';
+                const rdwTime = time ?? (derivedRdw ? 'RDW' : (/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(baseShift) ? baseShift : ''));
+                return { shift: override.value, rdwTime, derivedRdw, note };
+            }
+            return { shift: override.value, rdwTime: '', derivedRdw: false, note };
+        },
     },
 });
 

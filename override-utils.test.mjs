@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay,
-         isOverrideDisplaySuppressed, mergeBookedPeriods } from './override-utils.js';
+         isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift } from './override-utils.js';
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 
@@ -388,5 +388,60 @@ describe('resolveOtherPay — the pay mapping (single source)', () => {
 
     it('spare-week training is NOT rdw — SPARE is not a rest day (contracted day, as-base)', () => {
         assert.deepEqual(resolveOtherPay(parse('TRG'), 'SPARE'), { mode: 'as-base' });
+    });
+});
+
+describe('resolveEffectiveShift — the shared display ladder (single source for 3 consumers)', () => {
+    it('no override → keeps the base shift, no rdwTime/derivedRdw/note', () => {
+        assert.deepEqual(resolveEffectiveShift(null, '06:00-14:00', false),
+            { shift: '06:00-14:00', rdwTime: '', derivedRdw: false, note: '' });
+    });
+
+    it('suppressed overrides keep the base (sick on rest/Sunday, AL/Other on Sunday)', () => {
+        assert.equal(resolveEffectiveShift({ type: 'sick', value: 'SICK' }, 'RD', false).shift, 'RD');
+        assert.equal(resolveEffectiveShift({ type: 'sick', value: 'SICK' }, '06:00-14:00', true).shift, '06:00-14:00');
+        assert.equal(resolveEffectiveShift({ type: 'annual_leave', value: 'AL' }, '06:00-14:00', true).shift, '06:00-14:00');
+        assert.equal(resolveEffectiveShift({ type: 'other', value: 'TRG' }, '06:00-14:00', true).shift, '06:00-14:00');
+    });
+
+    it('sick on a WORKED weekday is NOT suppressed → resolves to SICK', () => {
+        assert.equal(resolveEffectiveShift({ type: 'sick', value: 'SICK' }, '06:00-14:00', false).shift, 'SICK');
+    });
+
+    it('rdw → shift "RDW" with the time carried in rdwTime (not the pipe form)', () => {
+        assert.deepEqual(resolveEffectiveShift({ type: 'rdw', value: '09:00-17:00', note: 'ot' }, 'RD', false),
+            { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: false, note: 'ot' });
+    });
+
+    it('annual_leave / correction / spare_shift resolve via their value', () => {
+        assert.equal(resolveEffectiveShift({ type: 'annual_leave', value: 'AL' }, '06:00-14:00', false).shift, 'AL');
+        assert.equal(resolveEffectiveShift({ type: 'correction', value: 'RD' }, '06:00-14:00', false).shift, 'RD');
+        assert.equal(resolveEffectiveShift({ type: 'spare_shift', value: 'SPARE' }, 'RD', false).shift, 'SPARE');
+    });
+
+    it('Other on a rostered day, no times → derived-RDW false, hours slot shows the base shift time', () => {
+        const r = resolveEffectiveShift({ type: 'other', value: 'TRG' }, '06:00-14:00', false);
+        assert.equal(r.shift, 'TRG');
+        assert.equal(r.derivedRdw, false);
+        assert.equal(r.rdwTime, '06:00-14:00');
+    });
+
+    it('Other on a REST-day base (no flag) → derived-RDW true, hours slot "RDW"', () => {
+        const r = resolveEffectiveShift({ type: 'other', value: 'TRG' }, 'RD', false);
+        assert.equal(r.derivedRdw, true);
+        assert.equal(r.rdwTime, 'RDW');
+    });
+
+    it('Other with the explicit RDW flag → derived-RDW true even on a worked base', () => {
+        assert.equal(resolveEffectiveShift({ type: 'other', value: 'TRG RDW' }, '06:00-14:00', false).derivedRdw, true);
+    });
+
+    it('Other with actual times → hours slot shows the actual times (highest priority)', () => {
+        assert.equal(resolveEffectiveShift({ type: 'other', value: 'TRG 08:00-18:00' }, '06:00-14:00', false).rdwTime, '08:00-18:00');
+    });
+
+    it('Other with an UNparseable value falls through to its raw value (no rdwTime)', () => {
+        assert.deepEqual(resolveEffectiveShift({ type: 'other', value: 'GIBBERISH' }, 'RD', false),
+            { shift: 'GIBBERISH', rdwTime: '', derivedRdw: false, note: '' });
     });
 });

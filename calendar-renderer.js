@@ -16,7 +16,7 @@ import {
     getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, paydayForCutoff, escapeHtml,
 } from './roster-data.js';
-import { isBeforeMemberStart, isRestShift, isOtherValue, parseOtherValue, OTHER_FLAVOURS, isOverrideDisplaySuppressed } from './override-utils.js';
+import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 import { getCurrentMember } from './calendar-member.js';
 import { rosterOverridesCache } from './calendar-overrides.js';
 
@@ -173,40 +173,15 @@ export function buildCalendarContainer(month, year, opts = {}) {
         let shift = getBaseShift(member, currentDate);
 
         // Firestore override — applied after the Christmas check so the base rule holds
-        // for Dec 25, while Dec 26 (Boxing Day) can still become RDW for overtime.
-        let overrideNote = '';
-        let rdwTime = '';
-        let otherDerivedRdw = false;   // an Other day on a rest-day base — RDW even without the flag
+        // for Dec 25, while Dec 26 (Boxing Day) can still become RDW for overtime. Resolved
+        // via the ONE shared ladder (shared with Team view + the month legend, v16.48) so the
+        // three consumers can never disagree. An Other day keeps its raw grammar value in
+        // `shift` (the badge + label parse it); rdwTime/otherDerivedRdw drive the hours slot.
         const dateStr = formatISO(currentDate);
-        {
-            const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
-            if (override) {
-                if (isOverrideDisplaySuppressed(override, shift, isSunday(dateStr))) {
-                    // Suppressed (Sundays + rest days are non-contracted — CLAUDE.md layer 5):
-                    // a sick day on a rest-day/Sunday base, or a legacy AL/Other on a Sunday.
-                    // Keep the base shift. Single source: isOverrideDisplaySuppressed (v16.37).
-                } else if (override.type === 'rdw') {
-                    rdwTime = override.value;
-                    shift   = 'RDW';
-                    overrideNote = override.note;
-                } else if (override.type === 'other' && parseOtherValue(override.value)) {
-                    // An Other-family day (Training / Induction / Assessment / Team Day): shift
-                    // becomes the Other-family value (drives the other-day class + 🏷️ badge); the
-                    // hours slot shows, in priority order, the ACTUAL times (admin-entered) →
-                    // 'RDW' (Other rest-day, no times) → the BASE shift time (a rostered-day Other
-                    // day happens during your shift) → blank (e.g. spare-week Other day: badge only).
-                    const _t = /** @type {any} */ (parseOtherValue(override.value));
-                    otherDerivedRdw = _t.rdw || isRestShift(shift);
-                    rdwTime = _t.time ?? (otherDerivedRdw ? 'RDW'
-                        : (/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(shift) ? shift : ''));
-                    shift = override.value;
-                    overrideNote = override.note;
-                } else {
-                    shift = override.value;
-                    overrideNote = override.note;
-                }
-            }
-        }
+        const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
+        const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw, note: overrideNote } =
+            resolveEffectiveShift(override, shift, isSunday(dateStr));
+        shift = _effShift;
 
         const isWorkedDay = shift !== 'RD' && shift !== 'SPARE' && shift !== 'OFF' && shift !== 'AL' && shift !== 'SICK';
         const shiftClass = shift === 'RDW' || isOtherValue(shift)          ? getShiftClass(shift)
