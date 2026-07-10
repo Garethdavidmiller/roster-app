@@ -7,6 +7,12 @@
 // This opens the target <details> automatically: on first load (a deep link) and on every in-page
 // jump. CSP blocks inline scripts, so it lives in its own file (like railcard-guide.js), `defer`-loaded.
 
+/** decodeURIComponent that never throws — a malformed hash (e.g. a lone "%") would otherwise raise an
+ *  uncaught URIError on load / hashchange. Falls back to the raw string (which matches no id → no-op). */
+function safeDecode(/** @type {string} */ s) {
+    try { return decodeURIComponent(s); } catch { return s; }
+}
+
 /** Open the <details> with the given id, if it is a collapsed <details>. @param {string} id */
 function openDetails(id) {
     if (!id) return;
@@ -18,7 +24,7 @@ function openDetails(id) {
 
 /** Open whatever the current URL hash points at (deep links + back/forward navigation). */
 function openHashTarget() {
-    openDetails(decodeURIComponent(location.hash.slice(1)));
+    openDetails(safeDecode(location.hash.slice(1)));
 }
 
 window.addEventListener('hashchange', openHashTarget);
@@ -28,7 +34,7 @@ window.addEventListener('hashchange', openHashTarget);
 document.querySelector('.country-jump')?.addEventListener('click', function (e) {
     var a = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target).closest('a[href^="#"]'));
     if (!a) return;
-    openDetails(decodeURIComponent((a.getAttribute('href') || '').slice(1)));
+    openDetails(safeDecode((a.getAttribute('href') || '').slice(1)));
 });
 
 openHashTarget();   // first load: honour a deep link (defer → the DOM is already parsed)

@@ -1655,7 +1655,10 @@ button.nav-panel-link--notices {
    mistypes that trip the 30s lockout. The wrap positions the toggle inside the field's right edge;
    the input reserves room for it so masked dots never run under the button. */
 .login-pw-wrap { position: relative; }
-.login-pw-wrap input { padding-right: 62px; }
+/* Reserve room for the toggle. Needs the extra `.login-field` qualifier to outrank the later
+   `.login-field input { padding: … }` shorthand — same specificity + later source would otherwise
+   reset padding-right to 10px and the text would run under the Show/Hide button. */
+.login-field .login-pw-wrap input { padding-right: 62px; }
 .login-pw-toggle {
     position: absolute;
     top: 0; right: 0;

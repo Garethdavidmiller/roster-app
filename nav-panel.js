@@ -801,7 +801,12 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // the unsupported case for users who need it.
     // A labelled full-width row (not a bare glyph) so the app's core feature —
     // push alerts — is discoverable, and separated from the destructive Sign out.
-    const bellHtml = notifSupported() ? `
+    // Show the bell when it can actually WORK: signed in (a named session exists on every page), or
+    // on the calendar when not signed in (it holds an anonymous Firebase session, so savePushSubscription
+    // succeeds). The other pages have no session until sign-in, so a not-signed-in bell there would be
+    // present-but-dead — enableNotifications would silently fail. Scope it out. (A7 follow-up)
+    const _bellCanWork = onSignOut || currentPage === 'calendar';
+    const bellHtml = (notifSupported() && _bellCanWork) ? `
                 <button class="nav-panel-notif" id="navNotifBell" type="button"
                         aria-pressed="false" aria-label="Checking notification status…"
                         data-notif-state="loading">

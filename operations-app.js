@@ -174,7 +174,7 @@ export function init() {
         btn.type = 'button';
         btn.className = 'btn-action btn-secondary card-retry-btn';
         btn.textContent = '↻ Try again';
-        btn.addEventListener('click', () => { content.setAttribute('aria-busy', 'true'); retryFn(); });
+        btn.addEventListener('click', () => { btn.disabled = true; content.setAttribute('aria-busy', 'true'); retryFn(); });
         content.appendChild(p);
         content.appendChild(btn);
     }
@@ -820,7 +820,7 @@ export function init() {
             // Resolve-all toolbar — after a bad release spikes many similar errors, clearing them one
             // tap per row (with no refresh) is a grind. This resolves every unresolved error currently
             // shown, then refreshes the card in place to pull the next batch (B3).
-            const unresolvedShown = errors.filter(e => !e.resolved);
+            let unresolvedShown = errors.filter(e => !e.resolved);
             if (unresolvedShown.length > 0) {
                 const bar = document.createElement('div');
                 bar.className = 'error-log-toolbar';
@@ -832,12 +832,16 @@ export function init() {
                     allBtn.disabled = true;
                     allBtn.textContent = 'Resolving…';
                     const results = await Promise.allSettled(unresolvedShown.map(e => resolveClientError(e.id)));
-                    const failed  = results.filter(r => r.status === 'rejected').length;
-                    if (failed) {
+                    const failedItems = unresolvedShown.filter((_, i) => results[i].status === 'rejected');
+                    if (failedItems.length) {
+                        // Retry only the ones that FAILED — re-resolving the already-succeeded rows would
+                        // reset their 90-day retention clock and inflate the count.
+                        const succeeded = unresolvedShown.length - failedItems.length;
+                        unresolvedShown = failedItems;
                         allBtn.disabled = false;
-                        allBtn.textContent = `✗ ${failed} didn't resolve — tap to retry`;
-                        errStatus.textContent = `${unresolvedShown.length - failed} resolved, ${failed} failed`;
-                        return;   // leave the list as-is so the admin can retry the failures
+                        allBtn.textContent = `✗ ${failedItems.length} didn't resolve — tap to retry`;
+                        errStatus.textContent = `${succeeded} resolved, ${failedItems.length} failed`;
+                        return;   // leave the list as-is so the admin can retry just the failures
                     }
                     errStatus.textContent = `${unresolvedShown.length} errors resolved`;
                     content.setAttribute('aria-busy', 'true');
