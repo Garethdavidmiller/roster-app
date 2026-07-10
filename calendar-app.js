@@ -356,7 +356,7 @@ _teamMemberSelect.addEventListener('change', () => {
 });
 
 
-(/** @type {HTMLElement} */ (document.getElementById('prevMonth'))).addEventListener('click', (e) => {
+document.getElementById('prevMonth')?.addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
     // During first run renderCalendar() early-returns to keep the "choose your name" prompt up, so
     // changeMonth() would silently drift the hidden month/year and the calendar later renders on the
@@ -400,7 +400,7 @@ function announceMonthChange() {
 }
 
 
-(/** @type {HTMLElement} */ (document.getElementById('todayBtn'))).addEventListener('click', () => {
+document.getElementById('todayBtn')?.addEventListener('click', () => {
     if (isSwipeCooldown()) return;
     if (isFirstRun()) return;   // prompt is up — don't pulse/announce a month the user can't see (v16.23)
     if (teamView.isTeamViewMode()) {
@@ -415,7 +415,7 @@ function announceMonthChange() {
     }
 });
 
-(/** @type {HTMLElement} */ (document.getElementById('nextMonth'))).addEventListener('click', (e) => {
+document.getElementById('nextMonth')?.addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
     if (isFirstRun()) return;   // don't drift the hidden month behind the first-run prompt (v16.21)
     if (/** @type {Element} */ (e.currentTarget).getAttribute('aria-disabled') === 'true') return;
@@ -426,7 +426,7 @@ function announceMonthChange() {
 
 // Pay button — navigates to paycalc.html for any signed-in staff member.
 // If no session exists, sends the user to admin.html to sign in, then redirects back.
-(/** @type {HTMLElement} */ (document.getElementById('payBtn'))).addEventListener('click', () => {
+document.getElementById('payBtn')?.addEventListener('click', () => {
     // paycalc shows its own in-place login for unsigned users — navigate there directly.
     const m = String(getDisplayMonth() + 1).padStart(2, '0');
     window.location.href = `./paycalc.html?month=${getDisplayYear()}-${m}`;
@@ -472,7 +472,7 @@ function announceMonthChange() {
     strip.style.display = '';
 })();
 
-(/** @type {HTMLElement} */ (document.getElementById('adminBtn'))).addEventListener('click', () => {
+document.getElementById('adminBtn')?.addEventListener('click', () => {
     const today = new Date();
     const isCurrentMonth = getDisplayMonth() === today.getMonth() && getDisplayYear() === today.getFullYear();
     const targetDate = isCurrentMonth ? today : new Date(getDisplayYear(), getDisplayMonth(), 1);
@@ -482,7 +482,7 @@ function announceMonthChange() {
     location.href = `admin.html?date=${yyyy}-${mm}-${dd}`;
 });
 
-(/** @type {HTMLElement} */ (document.getElementById('teamViewBtn'))).addEventListener('click', teamView.toggleTeamView);
+document.getElementById('teamViewBtn')?.addEventListener('click', teamView.toggleTeamView);
 
 (function initTeamLightboxes() {
     const lb = document.getElementById('teamInfoLightbox');
