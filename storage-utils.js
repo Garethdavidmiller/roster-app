@@ -7,12 +7,22 @@
  * so anything that lives there is only testable behind a mock. These functions have NO imports
  * (no Firebase, no DOM state) — import them here and re-export from firebase-client.js.
  *
- * Owns: `isSafeStorageUrl` (the download-URL allowlist — a security control) and `isDocxUpload`
- * (upload file-type detection). Does NOT own the actual upload/download (firebase-client.js).
+ * Owns: `isSafeStorageUrl` (the download-URL allowlist — a security control), `isDocxUpload`
+ * (upload file-type detection), and `officeViewerUrl` (the Word-open wrapper). Does NOT own the
+ * actual upload/download (firebase-client.js).
  */
 
 /** This project's Storage buckets. A download URL must live under one of these. */
 const STORAGE_BUCKETS = ['myb-roster.appspot.com', 'myb-roster.firebasestorage.app'];
+
+/**
+ * Microsoft's Office Online viewer, full-page variant. A browser has no native renderer for a
+ * .docx, so opening a raw .docx download URL just downloads the file to the device; handing the
+ * URL to this viewer instead renders the document (with its images) in the browser. Full-page
+ * `view.aspx` — NOT the iframe-only `embed.aspx` — because we open it as a top-level tab / in-app
+ * Custom Tab (the same way PDFs already open), which keeps CSP untouched (no framed third party).
+ */
+const OFFICE_VIEWER_BASE = 'https://view.officeapps.live.com/op/view.aspx?src=';
 
 /**
  * True only for HTTPS URLs on a Firebase Storage hostname this app uses, under one of THIS
@@ -51,4 +61,16 @@ export function isSafeStorageUrl(url) {
 export function isDocxUpload(file) {
     return file.name.toLowerCase().endsWith('.docx')
         || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+}
+
+/**
+ * Wrap a document download URL in Microsoft's Office Online viewer so a Word (.docx) circular /
+ * newsletter OPENS and renders in the browser (with images) instead of downloading. PDFs never
+ * need this — they render inline — so only call it for a `fileType === 'docx'` document. The URL
+ * should already have passed `isSafeStorageUrl` (the viewer fetches whatever `src` you give it).
+ * @param {string} storageUrl - a Firebase Storage download URL
+ * @returns {string} an Office Online viewer URL that renders the document
+ */
+export function officeViewerUrl(storageUrl) {
+    return OFFICE_VIEWER_BASE + encodeURIComponent(storageUrl);
 }

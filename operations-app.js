@@ -672,8 +672,8 @@ export function init() {
             'staff-login': {
                 title: 'Staff Login Accounts',
                 sections: [{ items: [
-                    { icon: '🔐', html: 'Creates a secure login for every active staff member so the app knows who is saving changes' },
-                    { icon: '✅', html: 'Safe to run any time — people who already have an account are skipped, so it won\'t break anything' },
+                    { icon: '🔐', html: 'Creates an app login for every active staff member so the app knows who is saving changes' },
+                    { icon: '✅', html: 'Safe to run any time — existing accounts are kept as they are, and only new joiners get an account added' },
                     { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
                     { icon: '🚪', html: 'Tick <strong>"Disable accounts for leavers"</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
                 ]}],

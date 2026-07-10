@@ -232,7 +232,7 @@ let openAboutLightbox = null;
                     { icon: '🗑️', html: 'To remove a change, open it and tap <strong>Delete</strong> — the day goes back to the original scheduled shift' },
                 ]},
                 { heading: 'Sources', adminOnly: true, items: [
-                    { icon: '📋', html: '<strong>Roster import</strong> entries came from a PDF upload — a new upload will replace them automatically without a warning' },
+                    { icon: '📋', html: '<strong>Roster upload</strong> entries came from a PDF upload — a new upload will replace them automatically without a warning' },
                     { icon: '✍️', html: 'All other entries were added manually — a new PDF upload will flag them if it disagrees, so you can choose which to keep' },
                 ]},
             ],

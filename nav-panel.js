@@ -17,7 +17,7 @@
  */
 
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
-import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl } from './firebase-client.js';
+import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, officeViewerUrl } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
@@ -302,7 +302,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     let _docFetching = false;
 
     /**
-     * Opens the latest Circular or Newsletter PDF in a new tab — DIRECTLY, in one tap.
+     * Opens the latest Circular or Newsletter in a new tab — DIRECTLY, in one tap.
+     * A PDF opens by its own URL (browsers render it inline); a Word (.docx) document
+     * would DOWNLOAD if opened directly, so it is routed through Microsoft's Office
+     * Online viewer (officeViewerUrl) which renders it — with images — in the same tab.
      * The nav link is a real user gesture, so window.open is allowed (unlike a
      * notification tap, which has no activation and must route through the in-app
      * #circular/#newsletter viewer's Open button — calendar-doc-viewer.js).
@@ -326,17 +329,20 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {
+                // A .docx would download if opened directly — render it via the Office Online
+                // viewer instead. PDFs open by their own URL (browsers show them inline).
+                const openUrl = data.fileType === 'docx' ? officeViewerUrl(safeUrl) : safeUrl;
                 if (newTab) {
                     // Doc opened in a SEPARATE tab — this page STAYS put, so close with a real
                     // history.back() to CONSUME the drawer's pushed entry. closePanelForNavigation()
                     // only clears the flag (no back()), leaving a dead same-URL entry that swallows
                     // the next Android Back press — the exact leak the brand→About handler fixed (v16.21).
-                    newTab.location.href = safeUrl;
+                    newTab.location.href = openUrl;
                     closePanel();
                 } else {
                     // Popup was blocked — THIS tab navigates away, so the pushed entry goes with it;
                     // closePanelForNavigation() (no back()) is correct here.
-                    location.href = safeUrl;
+                    location.href = openUrl;
                     closePanelForNavigation();
                 }
             } else {

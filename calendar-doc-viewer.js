@@ -10,15 +10,16 @@
  *   own full-bleed panel and DOCX inline-render path), uploads (operations-app.js),
  *   or the nav-drawer links (nav-panel.js still opens these in a new tab).
  *
- * Both documents are always PDFs, so — exactly like the Huddle's PDF path — the
- * viewer shows an explicit "Open" button rather than trying to render inline or
+ * The viewer shows an explicit "Open" button rather than rendering inline or
  * calling window.open() at open time: a notification tap carries no user
  * activation, so opening the file directly would be pop-up-blocked / would knock
  * the PWA out of standalone. Tapping the button IS a real gesture, so it opens the
- * file as a Custom Tab over the intact app.
+ * file as a Custom Tab over the intact app. A PDF opens by its own URL; a Word
+ * (.docx) document would download if opened directly, so it is routed through
+ * Microsoft's Office Online viewer (officeViewerUrl) which renders it with images.
  */
 import { createLightbox } from './overlay.js';
-import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl } from './firebase-client.js';
+import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, officeViewerUrl } from './firebase-client.js';
 
 /**
  * Per-document config. The emoji matches each feature's in-app icon (nav drawer /
@@ -69,8 +70,11 @@ export function initDocViewer() {
                 btn.type = 'button';
                 btn.className = 'doc-open-btn';
                 btn.textContent = `📄 Open ${d.label}`;
+                // A .docx would download if opened directly — render it via the Office Online
+                // viewer instead. PDFs open by their own URL (browsers show them inline).
+                const openUrl = doc.fileType === 'docx' ? officeViewerUrl(doc.storageUrl) : doc.storageUrl;
                 // Real user gesture → window.open opens a Custom Tab over the standalone app.
-                btn.addEventListener('click', () => window.open(doc.storageUrl, '_blank', 'noopener'));
+                btn.addEventListener('click', () => window.open(openUrl, '_blank', 'noopener'));
                 bodyEl.appendChild(btn);
                 btn.focus();
             } else {
