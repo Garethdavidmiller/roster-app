@@ -476,7 +476,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
             // Call the Cloud Function
             parseFeedback.textContent = 'Reading the PDF — this takes about 15 seconds…';
-            parseFeedback.className   = 'huddle-feedback';
+            // A moving indicator alongside the (changing) status text — a 15–90s wait with only
+            // static text reads as "stuck", and reloading throws away the whole parse. Removed in
+            // the finally so it never lingers; CSS drops the motion under reduced-motion (B1).
+            parseFeedback.className   = 'huddle-feedback huddle-feedback--working';
 
             const idToken = await getIdToken();
             // iOS Safari aborts uncontrolled fetches at around 60s — explicit
@@ -541,6 +544,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             }
         } finally {
+            // Always stop the working indicator — success clears the text, the error paths swap in
+            // the --err class, but the spinner must never outlive the attempt on any path (B1).
+            parseFeedback.classList.remove('huddle-feedback--working');
             parseBtn.disabled     = false;
             parseBtn.textContent  = 'Read roster';
             rosterTypeEl.disabled = false;

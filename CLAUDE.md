@@ -224,6 +224,7 @@ roster-app/
 ├── manifest.json           ← PWA manifest for all pages
 ├── guide.html / paycalc-guide.html / railcard-guide.html / fip.html ← printable guides (via nav panel)
 ├── railcard-guide.js       ← JS for railcard-guide.html: print, chip-bar navigation
+├── fip.js                  ← JS for fip.html: opens the target country <details> when a jump link or deep link navigates to it (native <details> otherwise land collapsed)
 ├── guide-print.js          ← shared print button for guide.html and paycalc-guide.html
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512 · icon-badge.png (monochrome notification badge, 96px)
 ├── fonts/
