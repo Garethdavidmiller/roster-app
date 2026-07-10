@@ -1921,6 +1921,16 @@
     transition: color 0.12s;
 }
 @media (hover: hover) and (pointer: fine) { .email-check-back:hover { color: var(--text-dark); } }
+/* Soft "I'll add this later" escape — pure-add screen only, so a new starter isn't locked out (D2).
+   Styled as a quiet full-width text button below Save, distinct from the primary action. */
+.email-check-later {
+    display: block; width: 100%; margin-top: 10px; padding: 8px;
+    font-size: 13px; color: var(--text-mid);
+    background: none; border: none; text-decoration: underline;
+    cursor: pointer; touch-action: manipulation; font-family: inherit;
+    transition: color 0.12s;
+}
+@media (hover: hover) and (pointer: fine) { .email-check-later:hover { color: var(--text-dark); } }
 
 /* ── Training sub-controls (OTHER_PLAN.md) — flavour + RDW tick, shown while the
    Training pill is active. Composed into FLAVOUR[" RDW"][" HH:MM-HH:MM"] on save. ── */
