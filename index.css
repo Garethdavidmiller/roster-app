@@ -1240,6 +1240,7 @@
             font-style: italic;
         }
         .grade-tab {
+            position: relative;
             padding: 5px 14px;
             border: 2px solid var(--border-light);
             border-radius: 20px;
@@ -1251,6 +1252,14 @@
             font-family: inherit;
             touch-action: manipulation;
             transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        /* Invisible VERTICAL hit-area expander: the pill is ~28px tall but a primary
+           touch control needs a 44px tap target. Expand only top/bottom (inset: -8px 0)
+           so adjacent tabs (only 6px apart) never get overlapping, ambiguous hit regions. */
+        .grade-tab::before {
+            content: '';
+            position: absolute;
+            inset: -8px 0;
         }
         .grade-tab.active {
             background: var(--primary-blue);

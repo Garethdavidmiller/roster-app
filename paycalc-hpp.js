@@ -17,7 +17,7 @@ import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } fr
 import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { periodKey, hppEstKey, hppActualKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
-import { formatISO, parseSmartFloat } from './roster-data.js';
+import { formatISO } from './roster-data.js';
 import { fmt } from './paycalc-format.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
@@ -104,10 +104,12 @@ export function calcHPP(bpVarAmount, bpPNum) {
   const pNum    = currentPeriodNum();
   const curP    = allPeriods.find(/** @param {any} x */ x => x.num === pNum);
   const ty      = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-  // Rate: the live field when filled, else THIS tax year's stored rate (which itself falls back to
-  // the grade default) — not the bare grade default, which ignored a saved custom/protected rate
-  // and mispriced the persisted HPP estimate whenever the field was empty/unparsable.
-  const rate    = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value) || getStoredRateForYear(ty);
+  // Rate: THIS tax year's stored settled rate — deliberately NOT the live #hourlyRate field.
+  // The field shows the PRE-AWARD rate whenever a pre-award period is selected (updateRateForPeriod),
+  // so reading it made the whole-year HPP estimate SHIFT depending on which period you were viewing
+  // (same year → two different premiums, purely from clicking Prev/Next). The stored year rate is
+  // stable across navigation and mirrors updatePriorHpp's prior-year path, which already does this.
+  const rate    = getStoredRateForYear(ty);
   const periods = allPeriods.filter(/** @param {any} p */ p => {
     const o = p.num - 48;
     return o >= ty.first && o <= ty.last;
