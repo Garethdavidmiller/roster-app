@@ -6,7 +6,7 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
 // functions via initALSection(deps) to avoid circular imports.
 
-import { getALEntitlement, getBaseShift, isSunday, escapeHtml } from './roster-data.js';
+import { getALEntitlement, getBaseShift, isSunday, escapeHtml, projectAnnualLeaveOverage } from './roster-data.js';
 import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 
@@ -73,24 +73,18 @@ export function initALSection({
         const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
         for (const yearStr of years) {
             const entitlement = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
-            // Collect existing AL dates as a Set to subtract overlap from the new booking
-            // (re-booking dates already marked AL must not double-count toward the cap).
+            // All existing AL for the year (non-Sunday); a re-booked day already in this set is not
+            // double-counted toward the cap (the shared helper excludes overlap from the new dates).
             const existingALDates = new Set(
                 getAllOverrides()
                     .filter(o => o.memberName === member && o.type === 'annual_leave' &&
                                  o.date?.startsWith(yearStr) && !isSunday(o.date))
                     .map(o => o.date)
             );
-            const existingAL     = existingALDates.size;
-            const newALInYear    = workingDates.filter(d => d.startsWith(yearStr) && !existingALDates.has(d)).length;
-            const projectedTotal = existingAL + newALInYear;
-            if (projectedTotal > entitlement) {
-                const over = projectedTotal - entitlement;
-                showALConfirm(
-                    `${member} will be ${over} day${over !== 1 ? 's' : ''} over their ${yearStr} AL entitlement`,
-                    `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
-                    null // null = AL booking path (not week editor)
-                );
+            const newALDates = workingDates.filter(d => d.startsWith(yearStr));   // isWorkingDate already excluded Sundays
+            const overage = projectAnnualLeaveOverage({ name: member, year: yearStr, existingALDates, newALDates, entitlement });
+            if (overage) {
+                showALConfirm(overage.headline, overage.detail, null); // null = AL booking path (not week editor)
                 return true;
             }
         }

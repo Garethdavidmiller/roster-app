@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v16.30 · Updated every 0.10 version*
+*Last updated: July 2026 — v16.40 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `16.30` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `16.40` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -182,6 +182,7 @@ roster-app/
 ├── huddle.js               ← initHuddleUpload (→ operations) + initHuddleNotifications (→ settings)
 ├── doc-upload.js           ← shared Operations upload-card skeleton (Circular/Newsletter/Huddle): file-pick → validate (type + 20 MB) → optional transform (Huddle DOCX→HTML) → upload → feedback. initDocUploadCard(cfg)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card: initAuthSetup()
+├── admin-email-check.js    ← one-time work-email confirmation overlay (extracted from admin-app.js v16.41): initEmailCheck(member). Self-contained (imports ls/firebase-client/roster-data/overlay/session + DOM only) — shown once per fresh login, ~3-monthly, mandatory once shown; never blocks the app. The login `myb_email_check_pending_<member>` marker is still SET by admin-app.js's login onSuccess and CONSUMED here.
 ├── admin-al.js             ← Annual Leave Booking: initALSection(deps), triggerConfirmedALSave() — thin config wrapper over admin-range-booking.js (60-day cap, 🏖️ preview + spare warning, over-entitlement confirm bar)
 ├── admin-sick.js           ← Sick Days Recording: initSickSection(deps) — thin config wrapper over admin-range-booking.js (1-year cap, 🪑 preview; no entitlement cap)
 ├── admin-range-booking.js  ← shared skeleton for the two date-range booking sections: createRangeBookingSection(cfg) — dropdown + range picker → live preview → recordRangeOverrides save flow. Per-section differences (range rule, preview copy, AL pre-save entitlement check, refresh hooks) injected via config

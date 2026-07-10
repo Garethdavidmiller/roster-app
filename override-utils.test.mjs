@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay,
-         isOverrideDisplaySuppressed } from './override-utils.js';
+         isOverrideDisplaySuppressed, mergeBookedPeriods } from './override-utils.js';
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 
@@ -181,6 +181,49 @@ describe('isOverrideDisplaySuppressed', () => {
             assert.equal(isOverrideDisplaySuppressed({ type }, 'RD', true), false);
         });
     }
+});
+
+// ── mergeBookedPeriods ────────────────────────────────────────────────────────
+
+describe('mergeBookedPeriods', () => {
+    // Local-component +1 day (midday anchor → TZ-safe), matching admin-app's _addDays/formatISO.
+    const addDay = (/** @type {string} */ d) => {
+        const dt = new Date(d + 'T12:00:00'); dt.setDate(dt.getDate() + 1);
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    };
+    const noGaps = () => false;
+
+    it('empty list → []', () => {
+        assert.deepEqual(mergeBookedPeriods([], noGaps, addDay), []);
+    });
+
+    it('single date → one period, count 1', () => {
+        assert.deepEqual(mergeBookedPeriods(['2026-06-15'], noGaps, addDay),
+            [{ start: '2026-06-15', end: '2026-06-15', count: 1 }]);
+    });
+
+    it('consecutive days merge into one period', () => {
+        assert.deepEqual(mergeBookedPeriods(['2026-06-15', '2026-06-16', '2026-06-17'], noGaps, addDay),
+            [{ start: '2026-06-15', end: '2026-06-17', count: 3 }]);
+    });
+
+    it('a rest-gap between two dates merges them (Fri + Mon across a weekend)', () => {
+        const rest = new Set(['2026-06-20', '2026-06-21']);   // Sat + Sun
+        assert.deepEqual(mergeBookedPeriods(['2026-06-19', '2026-06-22'], d => rest.has(d), addDay),
+            [{ start: '2026-06-19', end: '2026-06-22', count: 2 }]);
+    });
+
+    it('a NON-rest (worked) day in the gap splits into two periods', () => {
+        assert.deepEqual(mergeBookedPeriods(['2026-06-15', '2026-06-17'], noGaps, addDay),
+            [{ start: '2026-06-15', end: '2026-06-15', count: 1 },
+             { start: '2026-06-17', end: '2026-06-17', count: 1 }]);
+    });
+
+    it('mixed: a merged pair then a split single', () => {
+        assert.deepEqual(mergeBookedPeriods(['2026-06-15', '2026-06-16', '2026-06-18'], noGaps, addDay),
+            [{ start: '2026-06-15', end: '2026-06-16', count: 2 },
+             { start: '2026-06-18', end: '2026-06-18', count: 1 }]);
+    });
 });
 
 // ── computePeriodDeleteIds ────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.39
+// MYB Roster — Service Worker v16.43
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.39';
+const APP_VERSION = '16.43';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -84,7 +84,7 @@ const NETWORK_FIRST_FILES = [
     'calendar-team-view.js', 'override-utils.js', 'calendar-huddle-viewer.js', 'calendar-doc-viewer.js',
     'admin-app.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
-    'admin-al.js', 'admin-sick.js', 'admin-range-booking.js',
+    'admin-al.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-email-check.js',
     'operations-app.js', 'operations-boot.js', 'settings-app.js', 'links-app.js', 'links-boot.js', 'links-design.js',
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
@@ -136,6 +136,7 @@ const CORE_ASSETS = [
     "./calendar-huddle-viewer.js",
     "./calendar-doc-viewer.js",
     "./admin-app.js",
+    "./admin-email-check.js",
     "./huddle.js",
     "./admin-auth.js",
     "./admin-roster-upload.js",
