@@ -40,7 +40,7 @@ import {
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
   fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
-  clearRosterSuggestedAll, _restoreRosterSuggested, snapKey,
+  clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS,
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, updatePriorHpp } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent } from './paycalc-backpay.js';
@@ -1225,7 +1225,7 @@ export function init() {
     // Decimal auto-correction — if someone types "7.5" into an hours field, split it
     // into 7h 30m on blur instead of silently truncating to 7. A live "= 7h 30m"
     // preview shows while typing so the on-blur split is never a silent surprise.
-    [['satH','satM'],['bhH','bhM'],['bhOtH','bhOtM'],['otH','otM'],['rdwH','rdwM'],['sunH','sunM'],['boxH','boxM']].forEach(([h,m]) => {
+    HM_PAIRS.forEach(({ hId: h, mId: m }) => {
       /** @type {HTMLElement} */ (document.getElementById(h)).addEventListener('input', () => decPreview(h));
       /** @type {HTMLElement} */ (document.getElementById(h)).addEventListener('blur', () => autoDecimalHours(h, m));
     });
@@ -1375,7 +1375,7 @@ export function init() {
     });
 
     // Remove roster-suggested highlight and refresh comparison state as user edits hours
-    document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#sunM,#rdwH,#rdwM,#boxH,#boxM').forEach(el => {
+    document.querySelectorAll(HM_PAIRS.flatMap(p => ['#' + p.hId, '#' + p.mId]).join(',')).forEach(el => {
       el.addEventListener('input', () => {
         el.classList.remove('roster-suggested');
         updateRosterHint();
