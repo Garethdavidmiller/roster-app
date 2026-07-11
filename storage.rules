@@ -21,7 +21,7 @@ service firebase.storage {
       allow read:           if request.auth != null;
       allow create, update: if request.auth != null
           && request.auth.token.admin == true
-          && request.resource.size < 20 * 1024 * 1024
+          && request.resource.size <= 20 * 1024 * 1024
           && request.resource.contentType in [
               'application/pdf',
               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -39,7 +39,7 @@ service firebase.storage {
       allow read:           if request.auth != null;
       allow create, update: if request.auth != null
           && request.auth.token.admin == true
-          && request.resource.size < 20 * 1024 * 1024
+          && request.resource.size <= 20 * 1024 * 1024
           && request.resource.contentType in [
               'application/pdf',
               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -52,7 +52,7 @@ service firebase.storage {
       allow read:           if request.auth != null;
       allow create, update: if request.auth != null
           && request.auth.token.admin == true
-          && request.resource.size < 20 * 1024 * 1024
+          && request.resource.size <= 20 * 1024 * 1024
           && request.resource.contentType in [
               'application/pdf',
               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'

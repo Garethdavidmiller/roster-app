@@ -340,11 +340,18 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
                 const existing   = rosterOverridesCache.get(cacheKey);
                 const incoming   = toOverrideRecord(d);
                 if (shouldReplaceOverride(existing, incoming)) {
-                    // Skip re-render if the display-relevant fields haven't changed
-                    // (common when IndexedDB and Firestore return identical data on repeat visits)
-                    if (existing && existing.type === incoming.type && existing.value === incoming.value) return;
+                    // ALWAYS store the winner so its metadata (source/createdAt) is cached — not only
+                    // when the visible shift changes. A same-value manual that out-ranks an import must
+                    // still replace the cached record; otherwise the import's metadata lingers and a
+                    // LATER import for that date can wrongly out-rank the manual on the next comparison.
+                    // Only the RE-RENDER is gated on a visible change (avoids a needless repaint when
+                    // IndexedDB and Firestore return identical display data on repeat visits).
+                    const displayChanged = !existing
+                        || existing.type  !== incoming.type
+                        || existing.value !== incoming.value
+                        || existing.note  !== incoming.note;
                     rosterOverridesCache.set(cacheKey, incoming);
-                    updated = true;
+                    if (displayChanged) updated = true;
                 }
             });
             // This wrote straight into rosterOverridesCache (not via fetchOverridesForRange), so

@@ -118,6 +118,7 @@ export function calcHPP(bpVarAmount, bpPNum) {
   let totalVar    = 0;
   let pCount      = 0;
   let usingActuals = false;
+  const _skipped  = /** @type {number[]} */ ([]);   // periods whose saved data couldn't be read — surfaced, never dropped silently
   // Device-local payslip actuals (G. Miller only; imported once per device, never served).
   // When a period has real figures, its actual varPay is used instead of the entered-hours
   // estimate — read once here, not per period.
@@ -144,7 +145,12 @@ export function calcHPP(bpVarAmount, bpPNum) {
       if (isDataEmpty(d)) return;
       pCount++;
       totalVar += _varPayForPeriod(p, d, rate);
-    } catch {}
+    } catch (e) {
+      // A corrupt saved period must not abort the whole estimate, but dropping it silently would
+      // under-state the premium — record it (surfaced below) and trace it.
+      _skipped.push(p.num);
+      console.warn('[PayCalc] HPP skipped period', p.num, e);
+    }
   });
 
   const hpp      = totalVar * HPP_FRACTION;
@@ -177,6 +183,11 @@ export function calcHPP(bpVarAmount, bpPNum) {
           ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
           : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
       }
+    }
+    // A corrupt saved period was excluded, so this premium may be too low — surface it rather than
+    // quietly under-stating money (no-silent-caps). Rare: only malformed localStorage trips it.
+    if (_skipped.length && basisEl) {
+      basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved period${_skipped.length > 1 ? 's' : ''}, so this may be too low — re-save ${_skipped.length > 1 ? 'them' : 'it'} on the calculator.</span>`;
     }
   }
 
@@ -241,7 +252,11 @@ export function updatePriorHpp(ty) {
           const d = JSON.parse(raw);
           if (isDataEmpty(d)) return;
           _priorVar += _varPayForPeriod(p, d, rate);
-        } catch {}
+        } catch (e) {
+          // Prior-year estimate is a background persist with no live card surface here — trace it so
+          // a corrupt period is at least not fully silent (parity with the current-year path above).
+          console.warn('[PayCalc] HPP prior-year skipped period', p.num, e);
+        }
       });
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     }

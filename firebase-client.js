@@ -661,7 +661,10 @@ export async function getClientErrors() {
  * @param {string} id - Firestore document ID
  */
 export async function resolveClientError(id) {
-    await setDoc(doc(db, COLLECTIONS.clientErrors, id), { resolved: true, resolvedAt: serverTimestamp() }, { merge: true });
+    // clientErrors is admin-only. Wrap in writeWithClaimRetry so a just-re-provisioned admin whose
+    // ID token hasn't refreshed self-heals (force-refresh + retry once) instead of a dead Resolve
+    // button — parity with every other admin write path.
+    await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.clientErrors, id), { resolved: true, resolvedAt: serverTimestamp() }, { merge: true }));
 }
 
 // ── Anonymous usage analytics ──────────────────────────────────────────────────

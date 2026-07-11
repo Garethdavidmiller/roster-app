@@ -1638,9 +1638,15 @@ function initAuthorised() {
     // purgeSundayAL scans the in-memory cache, so it must run after loadOverrides completes
     if (currentIsAdmin) _loadPromise.then(() => purgeSundayAL());
 
-    // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card
+    // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card.
+    // Look the target up by ID, never `querySelector(location.hash)` — a malformed hash (#[, #%, #..)
+    // makes querySelector throw a SyntaxError, which on the in-place-login path is caught into a
+    // reload; the bad hash then survives the reload and loops. getElementById can't throw; a bad
+    // decode is swallowed and treated as "no target".
     if (location.hash) {
-        const target = document.querySelector(location.hash);
+        let target = null;
+        try { const id = decodeURIComponent(location.hash.slice(1)); target = id ? document.getElementById(id) : null; }
+        catch { target = null; }
         if (target) {
             // Open the collapsible body inside the target card if present
             const body    = target.querySelector('.card-collapsible-body');

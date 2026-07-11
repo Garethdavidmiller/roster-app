@@ -431,6 +431,9 @@
       margin-top: 3px; display: none;
     }
     .val-warn.show { display: block; }
+    /* Corrupt-saved-period warning appended to the back-pay notice / HPP basis line — the estimate
+       excluded a period it couldn't read, so it may be too low (no-silent-caps). */
+    .pay-skip-warn { display: block; margin-top: 6px; font-size: var(--type-small); color: var(--error-red); font-weight: 600; }
 
     /* Stepper */
     .stepper {

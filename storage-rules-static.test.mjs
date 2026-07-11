@@ -18,8 +18,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rules = readFileSync(join(__dirname, 'storage.rules'), 'utf8');
 
 test('every upload block enforces the 20 MB size cap', () => {
-    // huddles, circulars, newsletters — one cap each.
-    const caps = rules.match(/request\.resource\.size\s*<\s*20\s*\*\s*1024\s*\*\s*1024/g) || [];
+    // huddles, circulars, newsletters — one cap each. Inclusive (<=): exactly 20 MiB is allowed,
+    // matching the client (`> MAX` reject) and Function (`> MAX_FILE_BYTES` reject) which both accept
+    // exactly 20 MiB — so all three layers agree on "maximum 20 MB, inclusive".
+    const caps = rules.match(/request\.resource\.size\s*<=\s*20\s*\*\s*1024\s*\*\s*1024/g) || [];
     assert.equal(caps.length, 3,
         `expected the 20 MB size cap in all 3 upload blocks (huddles, circulars, newsletters), found ${caps.length}`);
 });
