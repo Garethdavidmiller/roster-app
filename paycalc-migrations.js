@@ -89,6 +89,28 @@ export function setPaycalcNamespace(/** @type {string=} */ memberName) {
 
 /** @param {number} pNum @returns {string} */
 export function periodKey(pNum)   { return `${pcPrefix()}p${pNum}`; }
+
+/**
+ * Parse a raw saved-period JSON string into `{ data, error }`. PURE (no storage) so the corrupt-data
+ * path is unit-testable and the back-pay / HPP loops share one decoder instead of each doing an ad-hoc
+ * `lsGet` + `JSON.parse` (which they handled inconsistently — reset / skip / warn / silent). Contract:
+ *   • null/empty raw → `{ data: null, error: false }` (a period that was never saved — not an error)
+ *   • valid JSON     → `{ data, error: false }`
+ *   • malformed JSON → `{ data: null, error: true }` — the caller SURFACES it, so a corrupt period is
+ *     never dropped silently from a pay estimate (the no-silent-caps principle).
+ * @param {string|null|undefined} raw
+ * @returns {{ data: any, error: boolean }}
+ */
+export function parseSavedPeriod(raw) {
+    if (!raw) return { data: null, error: false };
+    try { return { data: JSON.parse(raw), error: false }; }
+    catch { return { data: null, error: true }; }
+}
+
+/** Read + decode a saved period by number (composes lsGet + parseSavedPeriod). @param {number} pNum @returns {{ data:any, error:boolean }} */
+export function readSavedPeriod(pNum) {
+    return parseSavedPeriod(lsGet(periodKey(pNum)));
+}
 /** @param {{ label:string }} ty @returns {string} */
 export function hppEstKey(ty)     { return `${pcPrefix()}hpp_est_${ty.label.replace('/', '_')}`; }
 /** @param {{ label:string }} ty @returns {string} */

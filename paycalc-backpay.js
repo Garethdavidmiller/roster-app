@@ -20,7 +20,7 @@ import {
 import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect } from './paycalc-periods.js';
 import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { SK, periodKey, bpKey } from './paycalc-migrations.js';
+import { SK, bpKey, readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours } from './paycalc-hpp.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
 
@@ -392,7 +392,7 @@ export function calcBackPay() {
       // Skip periods already paid at the new rate (a settled award's mid-year application date) — they
       // owe no arrears. Without this the accrual would double-count a historic award viewed at a late period.
       if (_awardFrom && p.payday >= _awardFrom) return;
-      const raw = lsGet(periodKey(p.num));
+      const parsed = readSavedPeriod(p.num);
       // Include EVERY period in the award window — even one never opened in the app. A normal
       // contracted week is owed the rise whether worked or paid at contracted rate on leave/sick
       // (confirmed by Gareth), so an unvisited period defaults to empty data → contracted-only
@@ -400,8 +400,9 @@ export function calcBackPay() {
       // contracted component + London diff. GUARDED by fromPNum: with no "backdated from" period
       // selected there is no award window, so an unvisited period has nothing to accrue and is
       // skipped — otherwise contracted arrears would be summed across unbounded history.
-      if (!raw && !fromPNum) return;
-      const d = raw ? JSON.parse(raw) : {};
+      if (parsed.error) { _skipped.push(`P${payslipPeriodNum(p)}`); console.warn('[PayCalc] Back-pay corrupt period', p.num); return; }
+      if (!parsed.data && !fromPNum) return;
+      const d = parsed.data || {};
       // All the money arithmetic lives in the PURE _accrueBackPayPeriod (unit-tested) — this loop
       // only maps storage/settings to numbers. Pro-rating uses the exact factor (not the
       // integer-rounded effContr divided back) to avoid rounding error; hour caps mirror calculate().

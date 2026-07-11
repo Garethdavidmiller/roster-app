@@ -182,7 +182,7 @@ roster-app/
 ├── huddle.js               ← initHuddleUpload (→ operations) + initHuddleNotifications (→ settings)
 ├── doc-upload.js           ← shared Operations upload-card skeleton (Circular/Newsletter/Huddle): file-pick → validate (type + 20 MB) → optional transform (Huddle DOCX→HTML) → upload → feedback. initDocUploadCard(cfg)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card: initAuthSetup()
-├── admin-email-check.js    ← one-time work-email confirmation overlay (extracted from admin-app.js v16.41): initEmailCheck(member). Self-contained (imports ls/firebase-client/roster-data/overlay/session + DOM only) — shown once per fresh login, ~3-monthly, mandatory once shown; never blocks the app. The login `myb_email_check_pending_<member>` marker is still SET by admin-app.js's login onSuccess and CONSUMED here.
+├── admin-email-check.js    ← one-time work-email confirmation overlay (extracted from admin-app.js v16.41): initEmailCheck(member) + the pure isEmailCheckDue/EMAIL_CHECK_INTERVAL_MS cadence helper (tested). Self-contained (imports ls/firebase-client/roster-data/overlay/session + DOM only) — shown once per fresh login, ~3-monthly, mandatory once shown; never blocks the app. The login `myb_email_check_pending_<member>` marker is still SET by admin-app.js's login onSuccess and CONSUMED here.
 ├── admin-al.js             ← Annual Leave Booking: initALSection(deps), triggerConfirmedALSave() — thin config wrapper over admin-range-booking.js (60-day cap, 🏖️ preview + spare warning, over-entitlement confirm bar)
 ├── admin-sick.js           ← Sick Days Recording: initSickSection(deps) — thin config wrapper over admin-range-booking.js (1-year cap, 🪑 preview; no entitlement cap)
 ├── admin-range-booking.js  ← shared skeleton for the two date-range booking sections: createRangeBookingSection(cfg) — dropdown + range picker → live preview → recordRangeOverrides save flow. Per-section differences (range rule, preview copy, AL pre-save entitlement check, refresh hooks) injected via config
@@ -200,7 +200,7 @@ roster-app/
 ├── paycalc-format.js       ← shared date/currency formatters (pure, no DOM): fd, fdShort, fmt. Imported by paycalc-app.js and paycalc-backpay.js.
 ├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
 ├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
-├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.) and runMigrations()
+├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.), runMigrations(), and the shared saved-period decoder parseSavedPeriod/readSavedPeriod (returns {data,error}; back-pay + HPP surface a corrupt period instead of silently dropping it)
 ├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion, fetchOverridesForPeriod
 ├── roster-data.js          ← shared: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only
@@ -250,6 +250,7 @@ roster-app/
 ├── sw-register.test.mjs    ← tests for registerServiceWorker: first-install claim must not reload, update reloads once, beforeReload gets every controllerchange, SKIP_WAITING gating (no mocks; part of test:hygiene)
 ├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname, refreshClaimsIfStale (--experimental-test-module-mocks)
 ├── login-overlay.test.mjs  ← tests for runNamedSignIn: the sign-in core commits the local session ONLY after auth resolves (timeout/throw/enforce-fail → no save), enforce on/off, transient-vs-persistent messages (--experimental-test-module-mocks)
+├── admin-email-check.test.mjs ← tests for isEmailCheckDue: never/legacy-'1'/junk → due, the 3-month interval boundary, custom interval (--experimental-test-module-mocks; firebase-client + session mocked)
 ├── auth-state-core.test.mjs ← tests for reduceAuthState (pure identity state machine; no mocks; part of test:hygiene)
 ├── auth-state.test.mjs     ← tests for the auth store: getAuthSnapshot/subscribeAuth/dispatchAuth, no-op/listener isolation (no mocks; part of test:hygiene). The session.js→store bridge is tested in session.test.mjs.
 ├── auth-policy.test.mjs    ← tests for requirePageAuth/requirePage/rolesFor: the page×status×role decision matrix + invariants (degraded never allows, soft never blocks, public always allows, fail-closed on unknown page). No mocks; part of test:hygiene.

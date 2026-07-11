@@ -16,7 +16,7 @@ import {
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { periodKey, hppEstKey, hppActualKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
+import { readSavedPeriod, hppEstKey, hppActualKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO } from './roster-data.js';
 import { fmt } from './paycalc-format.js';
 
@@ -139,9 +139,10 @@ export function calcHPP(bpVarAmount, bpPNum) {
         return;
       }
 
-      const raw = lsGet(periodKey(p.num));
-      if (!raw) return;
-      const d = JSON.parse(raw);
+      const parsed = readSavedPeriod(p.num);
+      if (parsed.error) { _skipped.push(p.num); console.warn('[PayCalc] HPP corrupt period', p.num); return; }
+      if (!parsed.data) return;
+      const d = parsed.data;
       if (isDataEmpty(d)) return;
       pCount++;
       totalVar += _varPayForPeriod(p, d, rate);
@@ -247,9 +248,10 @@ export function updatePriorHpp(ty) {
       let _priorVar = 0;
       _priorPeriods.forEach(/** @param {any} p */ p => {
         try {
-          const raw = lsGet(periodKey(p.num));
-          if (!raw) return;
-          const d = JSON.parse(raw);
+          const parsed = readSavedPeriod(p.num);
+          if (parsed.error) { console.warn('[PayCalc] HPP prior-year corrupt period', p.num); return; }
+          if (!parsed.data) return;
+          const d = parsed.data;
           if (isDataEmpty(d)) return;
           _priorVar += _varPayForPeriod(p, d, rate);
         } catch (e) {

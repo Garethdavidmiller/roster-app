@@ -346,7 +346,8 @@ Shared Operations upload-card skeleton (v16.07). `initDocUploadCard(cfg)` owns f
 ### `admin-email-check.js`
 The one-time work-email confirmation overlay, extracted from admin-app.js (v16.41) as a self-contained feature module. Imports only `ls.js`, `firebase-client.js` (getStaffContact/saveStaffContact), `roster-data.js` (CONFIG/isValidEmail/isChilternWorkEmail), `overlay.js` (lock/unlockBodyScroll), `session.js` (sessionReady), plus the `#emailCheckOverlay` DOM — no admin-app coupling.
 - `initEmailCheck(member)` — awaits `sessionReady`, then runs the check. Called fire-and-forget on every authenticated admin page load.
-- `_runEmailCheck` — the promise-based overlay engine: prompts ONLY when a fresh-login `myb_email_check_pending_<member>` marker is present (set by admin-app.js's login onSuccess) AND the member is DUE (`_emailCheckDue`: ≥ 3 months since `myb_email_check_done_<member>`, or never/legacy). 4s-timeboxed `getStaffContact`; confirm vs add/edit views; focus-trap; mandatory (no close); stamps `myb_email_check_done` on dismiss.
+- `_runEmailCheck` — the promise-based overlay engine: prompts ONLY when a fresh-login `myb_email_check_pending_<member>` marker is present (set by admin-app.js's login onSuccess) AND the member is DUE (`_emailCheckDue`: ≥ 3 months since `myb_email_check_done_<member>`, or never/legacy). 4s-timeboxed `getStaffContact`; confirm vs add/edit views; focus-trap; mandatory (no close); stamps `myb_email_check_done` on dismiss. The pure-add screen also offers a soft "I'll add this later" (D2) that closes WITHOUT stamping, so it re-prompts next fresh login.
+- `isEmailCheckDue(rawStamp, now, intervalMs?)` + `EMAIL_CHECK_INTERVAL_MS` (v16.66) — PURE cadence decision extracted from `_emailCheckDue` (which now delegates to it): due when never confirmed, a legacy/junk stamp (pre-v14.77 `'1'` or any sub-`1e12`-ms value), or `now − last ≥ intervalMs`. Storage/DOM-free so the legacy heuristic is unit-tested by `admin-email-check.test.mjs`.
 
 ### `admin-auth.js`
 Staff Firebase Auth account setup (admin only).
@@ -477,6 +478,7 @@ localStorage key constants and data migration logic for the pay calculator (v11.
 - `pcPrefix()` — the active per-member key prefix (`myb_pc_` or `myb_pc_<slug>_`); every key builder and `SK` derives from it (v14.11)
 - `setPaycalcNamespace(memberName)` — activate the per-member namespace (called from `runMigrations`); falsy name → unnamespaced legacy keys (v14.11)
 - `periodKey(pNum)` — key builder for period data (takes period number)
+- `parseSavedPeriod(raw)` (v16.66) — PURE saved-period JSON decoder → `{ data, error }`: null/empty → `{null,false}`, valid → `{obj,false}`, malformed → `{null,true}`. `readSavedPeriod(pNum)` composes `lsGet(periodKey(pNum))` + `parseSavedPeriod`. Single decoder shared by `paycalc-backpay.js` and `paycalc-hpp.js` so a corrupt saved period is SURFACED (a visible "couldn't read N periods — may be too low" note), never dropped silently (no-silent-caps). Tested by `paycalc-migrations.test.mjs`.
 - `hppEstKey(ty)`, `hppActualKey(ty)`, `ytdPayKey(ty)`, `ytdTaxKey(ty)` — key builders that take a tax-year object `ty` (with `.label` property, e.g. `'2025/26'`)
 - `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations, then migrates this member's shared data into their namespace and activates it; receives deps as params to avoid circular imports with `paycalc-app.js`
 - `_migrateCeaKeys` — internal migration (old CEA keys → grade-neutral format)
