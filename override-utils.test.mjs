@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
+import { tsToMillis, shouldReplaceOverride, foldOverrideIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord } from './override-utils.js';
 
@@ -105,6 +105,45 @@ describe('shouldReplaceOverride', () => {
         const existing = { source: '', createdAt: { toMillis: () => 5000 } };
         const incoming = { source: '', createdAt: { toMillis: () => 6000 } };
         assert.equal(shouldReplaceOverride(existing, incoming), true);
+    });
+});
+
+// ── foldOverrideIntoCache (Team View merge) ───────────────────────────────────
+
+describe('foldOverrideIntoCache', () => {
+    it('stores when there is no existing record; display counts as changed', () => {
+        const r = foldOverrideIntoCache(undefined, { type: 'shift', value: '06:00-14:00' });
+        assert.deepEqual(r, { store: true, displayChanged: true });
+    });
+
+    it('does not store when the incoming record cannot out-rank the cached one', () => {
+        const manual = { type: 'shift', value: '06:00-14:00', source: '', createdAt: { seconds: 100 } };
+        const importB = { type: 'shift', value: '06:00-14:00', source: 'roster_import', createdAt: { seconds: 999 } };
+        // import can never beat a manual — even a newer one.
+        assert.deepEqual(foldOverrideIntoCache(manual, importB), { store: false, displayChanged: false });
+    });
+
+    it('stores a same-VALUE higher-priority winner but reports no display change', () => {
+        const importA = { type: 'shift', value: '06:00-14:00', source: 'roster_import', createdAt: { seconds: 100 } };
+        const manualA = { type: 'shift', value: '06:00-14:00', source: '', createdAt: { seconds: 50 } };
+        // manual out-ranks import, but the visible shift is identical → store (metadata) but don't repaint.
+        assert.deepEqual(foldOverrideIntoCache(importA, manualA), { store: true, displayChanged: false });
+    });
+
+    it('regression: import A → same-value manual A → newer import B keeps the MANUAL as the winner', () => {
+        // Reproduces the v16.63 fix: the merge must cache the winner's metadata even when the display
+        // is unchanged, otherwise import B (newer) would wrongly out-rank the manual on the last pass.
+        const key = 'G. Miller|2026-08-21';
+        const cache = new Map();
+        const importA = { type: 'shift', value: '06:00-14:00', source: 'roster_import', createdAt: { seconds: 100 } };
+        const manualA = { type: 'shift', value: '06:00-14:00', source: '',             createdAt: { seconds: 50 } };
+        const importB = { type: 'shift', value: '06:00-14:00', source: 'roster_import', createdAt: { seconds: 200 } };
+        for (const rec of [importA, manualA, importB]) {
+            const { store } = foldOverrideIntoCache(cache.get(key), rec);
+            if (store) cache.set(key, rec);
+        }
+        assert.equal(cache.get(key).source, '', 'the manual override must survive both imports');
+        assert.equal(cache.get(key), manualA);
     });
 });
 

@@ -174,7 +174,7 @@ roster-app/
 ├── perf-reporter.js        ← shared anonymous latency recorder (Project 0): recordPageLatency buckets Navigation + Paint Timing (ttfb/domReady/fcp) → analytics/perf_<YYYY-MM>; no identity, no raw ms; skips admin (developer) loads (still consumes the one-shot login marker). Full detail: AI_MAP.
 ├── perf-stats.js           ← pure latency maths: PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey
 ├── calendar-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle
-├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, resolveEffectiveShift (shared override→display ladder for renderer/team-view/legend)
+├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, foldOverrideIntoCache (Team-View merge decision — store winner + gate re-render), isBeforeMemberStart, isRestShift, resolveEffectiveShift (shared override→display ladder for renderer/team-view/legend)
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring
 ├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup/ErrorLog. Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw
 ├── operations-boot.js      ← 2-line bootstrap for operations.html: imports `init` from operations-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)

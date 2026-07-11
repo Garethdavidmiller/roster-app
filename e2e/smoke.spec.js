@@ -884,3 +884,25 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
     expect(m.max, `widest element ${m.worst} at ${m.max}px vs viewport ${m.innerW}px`)
         .toBeLessThanOrEqual(m.innerW + 2);
 });
+
+// ── FIP GUIDE (fip.html) — jump-to-open + malformed-hash safety ──────────────
+
+test('fip: a country jump-link opens that country section (C1)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/fip.html#country-fr');   // deep-link straight to France
+    // fip.js opens the target <details> on load; without it the row stays collapsed.
+    await expect(page.locator('#country-fr')).toHaveAttribute('open', '');
+    // And an in-page jump (hashchange) opens another one.
+    await page.locator('.country-jump a[href="#country-be"]').click();
+    await expect(page.locator('#country-be')).toHaveAttribute('open', '');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // A lone "%" is an invalid percent-escape — decodeURIComponent would throw uncaught without the guard.
+    await page.goto('/fip.html#%');
+    // Page still renders (the jump bar exists) and nothing crashed.
+    await expect(page.locator('.country-jump')).toBeVisible();
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});

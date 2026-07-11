@@ -14,7 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, shouldReplaceOverride, toOverrideRecord, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { isBeforeMemberStart, foldOverrideIntoCache, toOverrideRecord, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -339,17 +339,11 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
                 const cacheKey   = `${d.memberName}|${d.date}`;
                 const existing   = rosterOverridesCache.get(cacheKey);
                 const incoming   = toOverrideRecord(d);
-                if (shouldReplaceOverride(existing, incoming)) {
-                    // ALWAYS store the winner so its metadata (source/createdAt) is cached — not only
-                    // when the visible shift changes. A same-value manual that out-ranks an import must
-                    // still replace the cached record; otherwise the import's metadata lingers and a
-                    // LATER import for that date can wrongly out-rank the manual on the next comparison.
-                    // Only the RE-RENDER is gated on a visible change (avoids a needless repaint when
-                    // IndexedDB and Firestore return identical display data on repeat visits).
-                    const displayChanged = !existing
-                        || existing.type  !== incoming.type
-                        || existing.value !== incoming.value
-                        || existing.note  !== incoming.note;
+                // foldOverrideIntoCache (override-utils.js) decides both: store the winner (always,
+                // so its metadata is cached — see the v16.63 fix) and whether the DISPLAY changed
+                // (gates the re-render). Pure + unit-tested in override-utils.test.mjs.
+                const { store, displayChanged } = foldOverrideIntoCache(existing, incoming);
+                if (store) {
                     rosterOverridesCache.set(cacheKey, incoming);
                     if (displayChanged) updated = true;
                 }
