@@ -91,6 +91,18 @@ const MAX_RAW_BODY_BYTES   = 28 * 1024 * 1024; // base64 request-body cap (bypas
 const MAX_FILE_BYTES       = 20 * 1024 * 1024; // decoded file cap — MUST match storage.rules request.resource.size
 const MAX_HUDDLE_HTML_CHARS = 200_000;         // converted-DOCX htmlContent cap
 
+// Firestore write errors that can be raised AFTER the server actually committed (a timeout/transport
+// blip on an otherwise-successful write) — i.e. COMMIT-AMBIGUOUS. On these the Function must not
+// delete the just-uploaded Storage object (that would orphan a committed doc pointing at nothing);
+// the date-keyed set is idempotent, so a retry is safe. Admin SDK raises numeric gRPC codes; string
+// forms are included for safety. Mirrors the browser _transactionalUpload hardening.
+const _RETRIABLE_FIRESTORE_CODES = new Set([
+    4, 10, 13, 14, 'deadline-exceeded', 'aborted', 'internal', 'unavailable',
+    'DEADLINE_EXCEEDED', 'ABORTED', 'INTERNAL', 'UNAVAILABLE',
+]);
+/** @param {any} err */
+const _isRetriableFirestoreError = (err) => _RETRIABLE_FIRESTORE_CODES.has(err && err.code);
+
 /**
  * Read the raw base64 plain-text request body (bypasses the JSON body-size limit), size-capped at
  * MAX_RAW_BODY_BYTES so an oversized upload is rejected DURING streaming rather than after buffering
@@ -292,12 +304,18 @@ exports.ingestHuddle = onRequest(
         // commits. Versioned paths mean each upload writes a NEW object — without this
         // the prior file is left behind in Storage on every re-upload for a date.
         let prevStoragePath = null;
-        let hadPreviousHuddle = false;   // gates the push below: a re-send for an existing date does NOT re-notify
+        // Three-state so a FAILED read isn't mistaken for "no previous huddle". 'absent' → genuine
+        // first upload (notify); 'exists' → re-send (don't re-notify); 'unknown' → the read failed, so
+        // create-vs-update can't be established — suppress the push to avoid a duplicate on a same-day
+        // resend during a transient Firestore blip (a missed notification is safer than spamming staff;
+        // the in-app viewer's live subscription still surfaces the huddle either way).
+        let prevStatus = 'absent';   // 'absent' | 'exists' | 'unknown'
         try {
             const prevSnap = await admin.firestore().collection('huddles').doc(date).get();
-            if (prevSnap.exists) { prevStoragePath = (prevSnap.data() || {}).storagePath || null; hadPreviousHuddle = true; }
+            if (prevSnap.exists) { prevStoragePath = (prevSnap.data() || {}).storagePath || null; prevStatus = 'exists'; }
         } catch (readErr) {
-            console.warn('[ingestHuddle] Could not read previous huddle metadata (non-fatal):', readErr.message);
+            prevStatus = 'unknown';
+            console.warn('[ingestHuddle] Could not read previous huddle metadata — create-vs-update UNKNOWN, will suppress push (non-fatal):', readErr.message);
         }
 
         try {
@@ -356,10 +374,26 @@ exports.ingestHuddle = onRequest(
             try {
                 await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
             } catch (metaErr) {
-                // Metadata write failed after the object uploaded — delete the new object
-                // so it isn't orphaned, then rethrow to the outer handler.
-                await bucket.file(storagePath).delete().catch(() => {});
-                throw metaErr;
+                if (_isRetriableFirestoreError(metaErr)) {
+                    // COMMIT-AMBIGUOUS: this error can be raised AFTER the server committed. The
+                    // date-keyed set is idempotent, so re-issue once. If the retry succeeds the doc is
+                    // committed and we fall through to the success path.
+                    console.warn(`[ingestHuddle] metadata set attempt 1 failed (${metaErr.code}) — retrying once`);
+                    try {
+                        await new Promise(r => setTimeout(r, 2000));
+                        await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
+                    } catch (metaErr2) {
+                        // Still failing — genuinely ambiguous. Deleting the object could orphan a
+                        // committed doc pointing at nothing (staff tap a 404), so LEAVE the object
+                        // (at most one orphan, which the next upload's cleanup supersedes) and rethrow.
+                        console.warn(`[ingestHuddle] metadata still failing (${metaErr2.code}) — leaving new object in place (commit-ambiguous), not deleting`);
+                        throw metaErr2;
+                    }
+                } else {
+                    // Definite non-commit — safe to delete the just-uploaded object so it isn't orphaned.
+                    await bucket.file(storagePath).delete().catch(() => {});
+                    throw metaErr;
+                }
             }
 
             // New metadata committed — delete the previous version's object (best-effort;
@@ -383,14 +417,16 @@ exports.ingestHuddle = onRequest(
             // still fanned out a second push to everyone. Matching the manual path's convention
             // means an accidental duplicate can't spam staff; a genuine correction still updates the
             // huddle silently (the in-app viewer has a live subscription and refreshes on its own).
-            if (!hadPreviousHuddle) {
+            if (prevStatus === 'absent') {
                 try {
                     await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
                 } catch (pushErr) {
                     console.warn('[ingestHuddle] Push notifications failed (non-fatal):', pushErr.message);
                 }
-            } else {
+            } else if (prevStatus === 'exists') {
                 console.log(`[ingestHuddle] Re-send for existing date ${date} — not re-notifying (matches the manual re-upload path)`);
+            } else {
+                console.warn(`[ingestHuddle] Previous-doc state UNKNOWN for ${date} — suppressing push to avoid a duplicate on a transient read failure`);
             }
 
             // Bound the collection: huddles are daily and would otherwise grow without limit.
