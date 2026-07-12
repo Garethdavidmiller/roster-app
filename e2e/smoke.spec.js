@@ -281,10 +281,11 @@ test('paycalc (signed in): pay period selector is populated', async ({ page }) =
     expect(errors, 'Uncaught JS exceptions on paycalc.html').toHaveLength(0);
 });
 
-// Desktop WORKSPACE layout (v16.14): Hours card beside a sticky live-estimate rail,
-// with the setup/reference cards in a 2-up grid below. Rendered-viewport assertions —
-// a passing maths/unit suite never catches a broken grid. The two required review
-// viewports (1366×768 laptop, 1440×900) plus the pre-existing 1280 guard.
+// Desktop WORKSPACE layout (v16.67): Hours + Settings span the two wide work columns; a
+// col-3 sidebar (.pc-side) stacks the result card and the four occasional cards, filling the
+// column (the v16.14 lone-sticky-rail left a full-height navy void). Rendered-viewport
+// assertions — a passing maths/unit suite never catches a broken grid. The two required
+// review viewports (1366×768 laptop, 1440×900) plus the pre-existing 1280 guard.
 for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h: 768 }, { w: 1440, h: 900 }]) {
     test(`paycalc desktop workspace @${w}×${h}`, async ({ page }, testInfo) => {
         await page.setViewportSize({ width: w, height: h });
@@ -308,53 +309,46 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
         // The result rail is the primary live output — on-screen at load.
         await expect(page.locator('.result-card')).toBeInViewport();
 
-        // WORKSPACE: Hours + Settings span the two WIDE work columns (col 1–2); the result
-        // RAIL is the separate col 3, to the right of them, sharing the top row with Hours.
+        // WORKSPACE (v16.67): Hours + Settings span the two WIDE work columns (col 1–2); the
+        // col-3 SIDEBAR (.pc-side) holds the result card AND the four occasional cards, stacked
+        // in one column to the right of the work cards. The result is NO LONGER sticky.
         const zone = await page.evaluate(() => {
             const hh = document.getElementById('hoursCard').getBoundingClientRect();
             const ss = document.getElementById('settingsCard').getBoundingClientRect();
             const rr = document.querySelector('.result-card').getBoundingClientRect();
             const pp = document.getElementById('payslipCard').getBoundingClientRect();
+            const bp = document.getElementById('backPayCard').getBoundingClientRect();
             return {
-                railRightOfHours: rr.left > hh.right - 2,
-                railSameTopAsHours: Math.abs(hh.top - rr.top) < 40,
-                // Settings spans the work columns → clearly wider than a single 2-up collapsible.
-                settingsWide: ss.width > pp.width * 1.5,
-                stickyPos: getComputedStyle(document.querySelector('.result-card')).position,
+                sidebarRightOfHours: rr.left > hh.right - 2 && pp.left > hh.right - 2,
+                resultTopWithHours: Math.abs(hh.top - rr.top) < 40,
+                // Settings spans the two work columns → wider than a single col-3 sidebar card.
+                // (~1.45× at the tight 1024 end, more at wider viewports.)
+                settingsWide: ss.width > pp.width * 1.2,
+                // The occasional cards STACK under the result in col 3: same left edge as the
+                // result, and Back-Pay is BELOW Improve-Accuracy (a column, not a 2-up row).
+                stacked: Math.abs(rr.left - pp.left) < 2 && Math.abs(pp.left - bp.left) < 2 && bp.top > pp.top + 10,
+                resultNotSticky: getComputedStyle(document.querySelector('.result-card')).position !== 'sticky',
             };
         });
-        expect(zone.railRightOfHours, 'result rail is its own column right of the work cards').toBe(true);
-        expect(zone.railSameTopAsHours, 'rail shares the top row with Hours').toBe(true);
+        expect(zone.sidebarRightOfHours, 'the col-3 sidebar is right of the work cards').toBe(true);
+        expect(zone.resultTopWithHours, 'result shares the top row with Hours').toBe(true);
         expect(zone.settingsWide, 'Settings spans the wide work columns').toBe(true);
-        expect(zone.stickyPos, 'the result rail is sticky').toBe('sticky');
+        expect(zone.stacked, 'the occasional cards stack under the result in column 3').toBe(true);
+        expect(zone.resultNotSticky, 'result is static in the sidebar (no longer a sticky rail)').toBe(true);
 
-        // REFERENCE 2-up: the four occasional cards pair across the work columns —
-        // Improve-Accuracy (col 1) beside Pay-Rise-Back-Pay (col 2), same row.
-        const refRow = await page.evaluate(() => {
-            const p = document.getElementById('payslipCard').getBoundingClientRect();
-            const b = document.getElementById('backPayCard').getBoundingClientRect();
-            return { payslipLeft: p.left, backpayLeft: b.left, sameRow: Math.abs(p.top - b.top) < 40 };
-        });
-        expect(refRow.backpayLeft, 'Back-Pay is right of Improve-Accuracy (2-up)').toBeGreaterThan(refRow.payslipLeft);
-        expect(refRow.sameRow, 'the two share a reference row').toBe(true);
-
-        // STICKY RAIL SAFETY (the v16.14-probe overlap guard): scroll to the bottom work
-        // card and assert the rail (col 3) does not HORIZONTALLY overlap any work-column
-        // card — its left edge must be at or past every work card's right edge. A rail that
-        // crept back into a shared column (the historical failure) would fail this
-        // regardless of viewport width. Geometric, so it's robust at the tight 1024 end too.
+        // COLUMN SAFETY: the col-3 sidebar must not HORIZONTALLY overlap the two WORK cards
+        // (Hours/Settings) — it is its own column. Scroll to the bottom sidebar card first.
+        // Geometric, so it's robust at the tight 1024 end too.
         await page.getByText('Decimal Hours Converter').scrollIntoViewIfNeeded();
         await page.waitForTimeout(200);
         const overlapPx = await page.evaluate(() => {
-            const rail = document.querySelector('.result-card').getBoundingClientRect();
-            const worst = ['hoursCard', 'settingsCard', 'payslipCard', 'backPayCard', 'hppCard', 'decimalConverterCard']
-                .map(id => {
-                    const c = document.getElementById(id).getBoundingClientRect();
-                    return c.right - rail.left;   // >0 means the card extends past the rail's left edge = overlap
-                });
-            return Math.max(...worst);
+            const side = document.querySelector('.pc-side').getBoundingClientRect();
+            return Math.max(...['hoursCard', 'settingsCard'].map(id => {
+                const c = document.getElementById(id).getBoundingClientRect();
+                return c.right - side.left;   // >0 means a work card extends past the sidebar's left edge = overlap
+            }));
         });
-        expect(overlapPx, 'rail must not horizontally overlap any work card').toBeLessThanOrEqual(1);
+        expect(overlapPx, 'the sidebar must not horizontally overlap the work columns').toBeLessThanOrEqual(1);
 
         await page.screenshot({ path: testInfo.outputPath(`paycalc-${w}x${h}.png`), fullPage: true });
     });
@@ -883,4 +877,26 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
     });
     expect(m.max, `widest element ${m.worst} at ${m.max}px vs viewport ${m.innerW}px`)
         .toBeLessThanOrEqual(m.innerW + 2);
+});
+
+// ── FIP GUIDE (fip.html) — jump-to-open + malformed-hash safety ──────────────
+
+test('fip: a country jump-link opens that country section (C1)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/fip.html#country-fr');   // deep-link straight to France
+    // fip.js opens the target <details> on load; without it the row stays collapsed.
+    await expect(page.locator('#country-fr')).toHaveAttribute('open', '');
+    // And an in-page jump (hashchange) opens another one.
+    await page.locator('.country-jump a[href="#country-be"]').click();
+    await expect(page.locator('#country-be')).toHaveAttribute('open', '');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // A lone "%" is an invalid percent-escape — decodeURIComponent would throw uncaught without the guard.
+    await page.goto('/fip.html#%');
+    // Page still renders (the jump bar exists) and nothing crashed.
+    await expect(page.locator('.country-jump')).toBeVisible();
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });

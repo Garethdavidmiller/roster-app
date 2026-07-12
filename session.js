@@ -399,11 +399,22 @@ export async function refreshClaimsIfStale(epoch) {
  * firebaseSignOut here it would race that check and could leave the page with
  * no Firebase identity, so its best-effort writes (push-subscription renewal,
  * usage, error reporter) get rejected by the `request.auth != null` rule — the
- * exact "bell stuck off-lapsed" bug calendarAuthReady prevents. A lingering
- * identity is harmless: the rules already accept any authenticated session
- * (anonymous included), so leaving it grants no extra access. Firebase is signed
+ * exact "bell stuck off-lapsed" bug calendarAuthReady prevents. Firebase is signed
  * out only on an EXPLICIT clearSession() (user-initiated logout), and
  * ensureFirebaseSession() replaces a mismatched identity on the next login.
+ *
+ * ⚠️ SECURITY DEBT (post-B3/H2/B4): the lingering Firebase identity is NOT harmless
+ * anymore. Before the strict rules it was — every authenticated session had the same
+ * (anonymous-equivalent) access. Now a lingering named/admin/manager/designer identity
+ * retains real extra access at the FIREBASE layer (read all staff emails, on-behalf
+ * override writes, admin uploads, Links writes) even after the local app session has
+ * expired. The normal UI stays protected (no local session → login required), so an
+ * ordinary colleague can't tap into it; the exposure is a shared device where someone
+ * reaches the persisted credential via devtools / a direct SDK call. The correct fix is
+ * a COORDINATED expired-session transition AFTER authReady (wait for restoration → sign
+ * out the named identity → re-establish anonymous where the calendar needs it → publish
+ * final state) — NOT an async signOut() inside this synchronous getSession(), which would
+ * re-introduce the race described above. Tracked with the password-retirement security work.
  */
 export function getSession() {
     try {

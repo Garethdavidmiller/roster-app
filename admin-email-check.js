@@ -15,18 +15,28 @@ import { CONFIG, isValidEmail, isChilternWorkEmail } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
 import { sessionReady } from './session.js';
 
-const EMAIL_CHECK_INTERVAL_MS = 90 * 24 * 60 * 60 * 1000;
+export const EMAIL_CHECK_INTERVAL_MS = 90 * 24 * 60 * 60 * 1000;
 
-/** True if the member is DUE a work-email confirmation: never confirmed, a legacy/non-timestamp
- *  flag, or last confirmed ≥ 3 months ago. `myb_email_check_done_<member>` stores the last-confirmed
- *  time in ms. The pre-v14.77 flag was the literal '1' (done-forever) — that and any junk parse
- *  small (< a real ms timestamp), so they read as due and the new cadence starts cleanly.
+/**
+ * PURE cadence decision (extracted + unit-tested v16.66): is a work-email confirmation DUE?
+ * `rawStamp` is the stored `myb_email_check_done_<member>` value — the last-confirmed time in ms as a
+ * string, or null. Due when: never confirmed (null), a legacy/junk value (the pre-v14.77 done-forever
+ * `'1'` flag, or any parse that isn't a real ms timestamp — i.e. below `1e12` ms ≈ Sep 2001), or when
+ * `now − last ≥ intervalMs`. Kept DOM/storage-free so the tricky legacy heuristic is testable.
+ * @param {string|null|undefined} rawStamp
+ * @param {number} now  Date.now() at the call site
+ * @param {number} [intervalMs]
+ * @returns {boolean}
  */
-function _emailCheckDue(/** @type {string} */ member) {
-    const raw  = lsGet(`myb_email_check_done_${member}`);
-    const last = raw ? parseInt(raw, 10) : 0;
+export function isEmailCheckDue(rawStamp, now, intervalMs = EMAIL_CHECK_INTERVAL_MS) {
+    const last = rawStamp ? parseInt(rawStamp, 10) : 0;
     if (!Number.isFinite(last) || last < 1e12) return true;   // never / legacy '1' / junk → due
-    return Date.now() - last >= EMAIL_CHECK_INTERVAL_MS;
+    return now - last >= intervalMs;
+}
+
+/** True if the member is DUE a work-email confirmation (reads the stored stamp). @param {string} member */
+function _emailCheckDue(member) {
+    return isEmailCheckDue(lsGet(`myb_email_check_done_${member}`), Date.now());
 }
 
 /**

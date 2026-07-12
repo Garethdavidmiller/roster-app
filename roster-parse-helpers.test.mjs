@@ -19,6 +19,8 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
+    applyColumnScanCrossCheck,
+    normaliseScanValue,
     parseStrictIsoDate,
     isPayCutoffDay,
     nameToEmail,
@@ -817,5 +819,128 @@ describe('computeOrphanLabels', () => {
     test('empty / missing user list → []', () => {
         assert.deepEqual(computeOrphanLabels([], active), []);
         assert.deepEqual(computeOrphanLabels(undefined, active), []);
+    });
+});
+
+// ── normaliseScanValue + applyColumnScanCrossCheck (the general day-shift defence) ──
+
+describe('normaliseScanValue', () => {
+    test('blank tokens normalise to RD', () => {
+        for (const t of ['blank', 'BLANK', '', ' - ', 'N/A', 'na', 'RD', 'OFF', 'empty']) {
+            assert.equal(normaliseScanValue(t), 'RD', `token "${t}"`);
+        }
+    });
+    test('shift values normalise through the same vocabulary as the row read', () => {
+        assert.equal(normaliseScanValue('0530-1130'), '05:30-11:30');
+        assert.equal(normaliseScanValue('RDW 06:00-14:00'), 'RDW|06:00-14:00');
+        assert.equal(normaliseScanValue('SP'), 'SPARE');
+    });
+    test('no-signal inputs return null (missing, non-string, unreadable garble)', () => {
+        assert.equal(normaliseScanValue(undefined), null);
+        assert.equal(normaliseScanValue(null), null);
+        assert.equal(normaliseScanValue({}), null);
+        assert.equal(normaliseScanValue(() => {}), null);   // inherited-property lookup
+        assert.equal(normaliseScanValue('total garble ###'), null);
+    });
+});
+
+describe('applyColumnScanCrossCheck', () => {
+    const DATES = [
+        '2026-03-29', '2026-03-30', '2026-03-31',
+        '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04',
+    ];
+    const HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    /** Build a shifts map from 7 values (Sun→Sat). */
+    const shiftsOf = vals => Object.fromEntries(DATES.map((d, i) => [d, vals[i]]));
+    /** Build a columnScan where this member's column values are the 7 given (raw scan grammar). */
+    const scanOf = vals => Object.fromEntries(HEADERS.map((h, i) => [h, { 'G. Miller': vals[i] }]));
+
+    // The TRUE week used throughout: blank Wednesday mid-week (the cell the row read drops).
+    const TRUE_ROW  = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00', 'RD'];
+    const TRUE_SCAN = ['blank', '06:00-14:00', '07:00-15:00', 'blank', '08:00-16:00', '09:00-17:00', 'blank'];
+
+    test('full agreement → row untouched', () => {
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(TRUE_ROW) }];
+        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW));
+    });
+
+    test('mid-week LEFT drift (blank Wednesday dropped) is repaired to the column scan', () => {
+        // The row read skipped the blank Wed: Thu/Fri values slid one day left, Sat empty.
+        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW),
+            'the right-shift repair must restore the true week');
+    });
+
+    test('RIGHT drift is repaired too (the direction the Sunday pass never caught)', () => {
+        // Row misaligned right: every value one day late; Sunday slot shows RD, Monday shows nothing… build it:
+        const drifted = ['RD', 'RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', '09:00-17:00'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW));
+    });
+
+    test('an isolated single-cell disagreement is flagged UNREADABLE, not repaired or overwritten', () => {
+        const oneOff  = [...TRUE_ROW]; oneOff[4] = '10:00-18:00';   // Thu differs from scan
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(oneOff) }];
+        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        const thu = entries[0].shifts[DATES[4]];
+        assert.ok(thu.startsWith('UNKNOWN|'), `expected UNKNOWN sentinel, got "${thu}"`);
+        assert.ok(thu.includes('10:00-18:00') && thu.includes('08:00-16:00'),
+            'the sentinel must carry BOTH readings for the admin');
+        // Every other day untouched.
+        for (const i of [0, 1, 2, 3, 5, 6]) assert.equal(entries[0].shifts[DATES[i]], TRUE_ROW[i]);
+    });
+
+    test('scattered multi-cell disagreement with NO clean shift → each cell flagged, none overwritten', () => {
+        const messy   = [...TRUE_ROW]; messy[1] = '11:00-19:00'; messy[5] = 'AL';
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(messy) }];
+        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        assert.ok(entries[0].shifts[DATES[1]].startsWith('UNKNOWN|'));
+        assert.ok(entries[0].shifts[DATES[5]].startsWith('UNKNOWN|'));
+        assert.equal(entries[0].shifts[DATES[4]], TRUE_ROW[4], 'agreeing cells stay');
+    });
+
+    test('fail-open: no columnScan / missing member / unreadable scan values → row untouched', () => {
+        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
+        const a = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        applyColumnScanCrossCheck(a, undefined, HEADERS, DATES);
+        assert.deepEqual(a[0].shifts, shiftsOf(drifted));
+
+        const b = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        applyColumnScanCrossCheck(b, Object.fromEntries(HEADERS.map(h => [h, { 'S. Other': 'RD' }])), HEADERS, DATES);
+        assert.deepEqual(b[0].shifts, shiftsOf(drifted));
+
+        const c = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        applyColumnScanCrossCheck(c, scanOf(Array(7).fill('### garble ###')), HEADERS, DATES);
+        assert.deepEqual(c[0].shifts, shiftsOf(drifted));
+    });
+
+    test('too few signalled days (<5) never auto-repairs — flags instead (conservative)', () => {
+        const drifted = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', '09:00-17:00', 'RD', 'RD'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        // Only 3 columns carry a signal for this member.
+        const partial = { 'Wed': { 'G. Miller': 'blank' }, 'Thu': { 'G. Miller': '08:00-16:00' }, 'Fri': { 'G. Miller': '09:00-17:00' } };
+        applyColumnScanCrossCheck(entries, partial, HEADERS, DATES);
+        assert.ok(entries[0].shifts[DATES[3]].startsWith('UNKNOWN|'), 'Wed flagged');
+        assert.equal(entries[0].shifts[DATES[1]], '06:00-14:00', 'unsignalled days untouched');
+    });
+
+    test('cells the row read already flagged UNKNOWN are left alone (no double-flag)', () => {
+        const row = [...TRUE_ROW]; row[2] = 'UNKNOWN|smudge';
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(TRUE_SCAN), HEADERS, DATES);
+        assert.equal(entries[0].shifts[DATES[2]], 'UNKNOWN|smudge');
+    });
+
+    test('agreement in RDW and keyword vocabulary (scan raw forms normalise before comparing)', () => {
+        const row  = ['RD', 'RDW|06:00-14:00', 'SPARE', 'RD', 'AL', 'TRG RDW', 'RD'];
+        const scan = ['blank', 'RDW 06:00-14:00', 'SP', '-', 'A/L', 'TRG RDW', 'blank'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(row), 'vocabulary differences are not disagreements');
     });
 });

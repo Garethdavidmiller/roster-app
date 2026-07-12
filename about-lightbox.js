@@ -55,7 +55,10 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
                 statusEl.textContent = reg?.waiting ? '↻ Update ready — fully close the app and reopen it to update' : '✓ Up to date';
                 statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
             })
-            .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
+            // The CHECK itself failed (registration lookup rejected) — we don't actually know the app
+            // is current, so don't show a green "Up to date" tick. A resolved-but-null registration
+            // (no waiting worker) is the normal "no update" case and is handled in .then above.
+            .catch(() => { statusEl.textContent = 'Couldn\'t check for an update'; statusEl.className = 'lightbox-status'; });
     }
 
     /** Rebuild the bug-report mailto with current user/date/browser details. */

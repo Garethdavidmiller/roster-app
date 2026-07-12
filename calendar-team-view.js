@@ -14,7 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, shouldReplaceOverride, toOverrideRecord, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { isBeforeMemberStart, foldOverrideIntoCache, toOverrideRecord, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -339,12 +339,13 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
                 const cacheKey   = `${d.memberName}|${d.date}`;
                 const existing   = rosterOverridesCache.get(cacheKey);
                 const incoming   = toOverrideRecord(d);
-                if (shouldReplaceOverride(existing, incoming)) {
-                    // Skip re-render if the display-relevant fields haven't changed
-                    // (common when IndexedDB and Firestore return identical data on repeat visits)
-                    if (existing && existing.type === incoming.type && existing.value === incoming.value) return;
+                // foldOverrideIntoCache (override-utils.js) decides both: store the winner (always,
+                // so its metadata is cached — see the v16.63 fix) and whether the DISPLAY changed
+                // (gates the re-render). Pure + unit-tested in override-utils.test.mjs.
+                const { store, displayChanged } = foldOverrideIntoCache(existing, incoming);
+                if (store) {
                     rosterOverridesCache.set(cacheKey, incoming);
-                    updated = true;
+                    if (displayChanged) updated = true;
                 }
             });
             // This wrote straight into rosterOverridesCache (not via fetchOverridesForRange), so

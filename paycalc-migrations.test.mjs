@@ -19,6 +19,7 @@ import {
     pcPrefix, setPaycalcNamespace, SK,
     periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey,
     runMigrations, hasPendingLegacyMigration, resolveLegacyMigration,
+    parseSavedPeriod,
 } from './paycalc-migrations.js';
 import { teamMembers } from './roster-data.js';
 
@@ -237,5 +238,26 @@ describe('hidden (leaver) member data is never treated as claimable legacy', () 
     test('genuinely unnamespaced data still triggers the prompt (contrast)', () => {
         global.localStorage = makeLocalStorage({ 'myb_pc_rate': '20.74' }); // no owner slug
         assert.equal(hasPendingLegacyMigration('G. Miller'), true);
+    });
+});
+
+// ── parseSavedPeriod — the shared saved-period decoder (back-pay + HPP) ────────
+
+describe('parseSavedPeriod', () => {
+    test('treats null / empty raw as "never saved", not an error', () => {
+        assert.deepEqual(parseSavedPeriod(null),      { data: null, error: false });
+        assert.deepEqual(parseSavedPeriod(undefined), { data: null, error: false });
+        assert.deepEqual(parseSavedPeriod(''),        { data: null, error: false });
+    });
+
+    test('parses valid JSON into data with no error', () => {
+        assert.deepEqual(parseSavedPeriod('{"sat":5,"rdw":8}'), { data: { sat: 5, rdw: 8 }, error: false });
+        assert.deepEqual(parseSavedPeriod('{}'),                { data: {}, error: false });
+    });
+
+    test('flags malformed JSON as an error (never throws, never silently drops)', () => {
+        assert.deepEqual(parseSavedPeriod('{bad json'),   { data: null, error: true });
+        assert.deepEqual(parseSavedPeriod('not json'),    { data: null, error: true });
+        assert.deepEqual(parseSavedPeriod('{"a":1,,}'),   { data: null, error: true });
     });
 });

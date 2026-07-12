@@ -152,6 +152,32 @@ export async function writeWithClaimRetry(writeFn) {
     }
 }
 
+/**
+ * Run a Storage `uploadBytes`, self-healing a stale-claim `storage/unauthorized` once — the
+ * Storage-side mirror of {@link writeWithClaimRetry}. Document uploads (huddle/circular/newsletter)
+ * hit Storage BEFORE any Firestore write, so a just-re-provisioned admin whose ID token predates the
+ * `admin` claim would fail the upload before the Firestore-side retry could ever run. Force one token
+ * refresh + one retry so the claim is picked up immediately. Only retries `storage/unauthorized` with
+ * a live user; any other error (offline, a genuinely forbidden account) is re-thrown, at most once, so
+ * a truly unauthorised upload still surfaces to the caller. The versioned storageRef is stable, so the
+ * retry simply re-attempts the same object.
+ * @param {(ref:any, data:any, meta:any)=>Promise<any>} uploadBytes  the lazily-loaded SDK fn
+ * @param {any} storageRef @param {any} file @param {any} metadata
+ */
+async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadata) {
+    try {
+        return await uploadBytes(storageRef, file, metadata);
+    } catch (err) {
+        const user = auth.currentUser;
+        if (/** @type {any} */ (err)?.code === 'storage/unauthorized' && user) {
+            try { await user.getIdToken(true); }
+            catch { throw err; }              // preserve the original storage/unauthorized
+            return await uploadBytes(storageRef, file, metadata);
+        }
+        throw err;
+    }
+}
+
 // normaliseSurname + nameToEmail (the account-identity derivations) live in the pure, import-free
 // auth-identity.js so they can be unit-tested directly (this module can't load in a Node test — it
 // pulls the Firebase SDK from the gstatic CDN). Re-exported so existing importers (session.js) are
@@ -265,7 +291,7 @@ async function _transactionalUpload(collectionName, date, file, uploadedBy, opts
 
     let storageUrl;
     try {
-        await uploadBytes(storageRef, file, { contentType: mimeType });
+        await _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, { contentType: mimeType });
         storageUrl = await getDownloadURL(storageRef);   // permanent tokenised (bearer) URL — never expires
         /** @type {Record<string, any>} */
         const firestoreDoc = {
@@ -661,7 +687,10 @@ export async function getClientErrors() {
  * @param {string} id - Firestore document ID
  */
 export async function resolveClientError(id) {
-    await setDoc(doc(db, COLLECTIONS.clientErrors, id), { resolved: true, resolvedAt: serverTimestamp() }, { merge: true });
+    // clientErrors is admin-only. Wrap in writeWithClaimRetry so a just-re-provisioned admin whose
+    // ID token hasn't refreshed self-heals (force-refresh + retry once) instead of a dead Resolve
+    // button — parity with every other admin write path.
+    await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.clientErrors, id), { resolved: true, resolvedAt: serverTimestamp() }, { merge: true }));
 }
 
 // ── Anonymous usage analytics ──────────────────────────────────────────────────

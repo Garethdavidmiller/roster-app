@@ -68,7 +68,7 @@ mock.module('./firebase-client.js', {
     },
 });
 
-const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates } = await import('./admin-roster-upload.js');
+const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates, detectShiftedRow } = await import('./admin-roster-upload.js');
 const { teamMembers, getBaseShift } = await import('./roster-data.js');
 
 // 2026-06-21 is a Sunday; 2026-06-15 is a Monday.
@@ -308,5 +308,52 @@ describe('computeCellStates — review state machine', () => {
             { parsed: [{ memberName: mname, shifts: { [SUN]: 'AL' } }], dates: [SUN] }, [],
         ).get(`${mname}|${SUN}`);
         assert.equal(c.displayShift, 'RD');   // the invariant: Sunday AL never surfaces/saves as AL
+    });
+});
+
+// ── detectShiftedRow — the base-roster day-drift detector ─────────────────────
+// The independent (non-AI) signal: a parsed week that correlates with the member's
+// own base pattern ONE DAY out is very probably a drifted AI row read.
+
+describe('detectShiftedRow', () => {
+    const MEMBER = teamMembers.find(m => m.name === 'G. Miller');
+    const DATES  = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const base   = (/** @type {string} */ d, off = 0) => {
+        const dt = new Date(d + 'T12:00:00'); dt.setDate(dt.getDate() + off);
+        return getBaseShift(MEMBER, dt);
+    };
+    const rowOf = (/** @type {number} */ off) =>
+        Object.fromEntries(DATES.map(d => [d, base(d, off)]));
+
+    test('an aligned week (matches base) → null', () => {
+        assert.equal(detectShiftedRow(MEMBER, rowOf(0), DATES), null);
+    });
+
+    test('a row whose values belong one day LATER (left drift) → "left"', () => {
+        assert.equal(detectShiftedRow(MEMBER, rowOf(1), DATES), 'left');
+    });
+
+    test('a row whose values belong one day EARLIER (right drift) → "right"', () => {
+        assert.equal(detectShiftedRow(MEMBER, rowOf(-1), DATES), 'right');
+    });
+
+    test('a genuine override-heavy week (sparse changes from base) → null, no false alarm', () => {
+        const row = rowOf(0);
+        row[DATES[1]] = 'AL';
+        row[DATES[4]] = 'RDW|09:00-17:00';
+        assert.equal(detectShiftedRow(MEMBER, row, DATES), null);
+    });
+
+    test('UNKNOWN cells carry no signal but the drift is still detected from the rest', () => {
+        const row = rowOf(1);
+        row[DATES[2]] = 'UNKNOWN|smudge';
+        row[DATES[6]] = 'UNKNOWN|smudge';
+        assert.equal(detectShiftedRow(MEMBER, row, DATES), 'left');
+    });
+
+    test('guards: missing member / short dates / empty shifts → null', () => {
+        assert.equal(detectShiftedRow(null, rowOf(1), DATES), null);
+        assert.equal(detectShiftedRow(MEMBER, rowOf(1), DATES.slice(0, 5)), null);
+        assert.equal(detectShiftedRow(MEMBER, {}, DATES), null);
     });
 });

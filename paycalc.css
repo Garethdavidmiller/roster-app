@@ -156,6 +156,11 @@
     .clear-btn:active       { color: var(--error-red); }
     .clear-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
 
+    /* Desktop column-3 sidebar wrapper. display:contents by DEFAULT so on mobile the wrapper is
+       invisible to layout and its children (result + occasional cards) stack in DOM order exactly as
+       before. Turned into a flex column in col 3 by the ≥1024px block. */
+    .pc-side { display: contents; }
+
     /* ── RESULT CARD ── */
     .result-card {
       background: var(--surface); border-radius: var(--radius-lg);
@@ -431,6 +436,9 @@
       margin-top: 3px; display: none;
     }
     .val-warn.show { display: block; }
+    /* Corrupt-saved-period warning appended to the back-pay notice / HPP basis line — the estimate
+       excluded a period it couldn't read, so it may be too low (no-silent-caps). */
+    .pay-skip-warn { display: block; margin-top: 6px; font-size: var(--type-small); color: var(--error-red); font-weight: 600; }
 
     /* Stepper */
     .stepper {
@@ -734,28 +742,31 @@
          full-bleed band would stretch the dropdown and open a gap between it and the nav pills. */
       .period-controls         { grid-column: 1 / 3; grid-row: 3; }
 
-      /* WORK COLUMNS (cols 1–2). The two tall always-open cards span both (wide → short):
-         Hours first (Fill from calendar at its top = the obvious first action, top-left),
-         then Settings. Below them the four occasional cards pair 2-up — all short when
-         collapsed, so pairing them adds no void. align-self:start so an expanded accordion
-         never stretches its row-neighbour. */
-      #hoursCard            { grid-column: 1 / 3; grid-row: 4; align-self: start; }
-      #settingsCard         { grid-column: 1 / 3; grid-row: 5; align-self: start; }
-      #payslipCard          { grid-column: 1;     grid-row: 6; align-self: start; }
-      #backPayCard          { grid-column: 2;     grid-row: 6; align-self: start; }
-      #hppCard              { grid-column: 1;     grid-row: 7; align-self: start; }
-      #decimalConverterCard { grid-column: 2;     grid-row: 7; align-self: start; }
+      /* WORK COLUMNS (cols 1–2): the two tall always-open cards span both (wide → short) — Hours
+         first (Fill from calendar at its top = the obvious first action, top-left), then Settings.
+         The four occasional cards used to pair 2-up here; they now live in the col-3 sidebar. */
+      #hoursCard    { grid-column: 1 / 3; grid-row: 4; align-self: start; }
+      #settingsCard { grid-column: 1 / 3; grid-row: 5; align-self: start; }
 
-      /* LIVE-ESTIMATE RAIL (col 3): the result card, its grid area spanning every work row
-         (4–7) so it is the full height of the work columns. `position: sticky; top:20` keeps
-         the whole live breakdown pinned in view for the ENTIRE scroll of the work area — no
-         other card is in col 3, so it cannot overlap anything. align-self:start keeps it at
-         its natural height at the top of that tall area. #stickyTotal still carries the figure
-         once you reach the footer/disclaimer rows below the rail. */
-      .result-card          { grid-column: 3; grid-row: 4 / 8; align-self: start; position: sticky; top: 20px; }
+      /* COLUMN-3 SIDEBAR (v16.67): `.pc-side` (result + the four occasional cards) is a flex column
+         spanning the work rows, so column 3 is FILLED and the cards stack tight — no more lone result
+         card leaving a full-height navy void beside a long left column. The result is NO LONGER sticky
+         (that was only needed while it sat alone in col 3); the fixed #stickyTotal bar keeps the
+         take-home figure visible while scrolling. `.pc-side` is display:contents on mobile so the DOM
+         order there is unchanged. align-self:start keeps the stack at the top; any residual gap (the
+         always-open left cards are inherently taller than the collapsed sidebar) falls to the
+         bottom-right — the least-prominent spot — instead of a full-height void. */
+      /* Span ONLY the two rows the left cards occupy (4–5). Spanning further (4/8) made CSS grid
+         distribute the sidebar's height across the empty rows 6–7, opening a phantom full-width gap
+         above the footer. */
+      .pc-side {
+        grid-column: 3; grid-row: 4 / 6; align-self: start;
+        display: flex; flex-direction: column; gap: 16px;
+      }
+      .pc-side > * { margin-bottom: 0; }   /* flex `gap` owns the spacing (the `main > *` reset misses these nested cards) */
 
-      .guide-footer-link    { grid-column: 1 / -1; grid-row: 8; }
-      .disclaimer           { grid-column: 1 / -1; grid-row: 9; }
+      .guide-footer-link    { grid-column: 1 / -1; grid-row: 6; }
+      .disclaimer           { grid-column: 1 / -1; grid-row: 7; }
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }

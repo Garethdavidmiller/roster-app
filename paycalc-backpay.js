@@ -20,7 +20,7 @@ import {
 import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect } from './paycalc-periods.js';
 import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { SK, periodKey, bpKey } from './paycalc-migrations.js';
+import { SK, bpKey, readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours } from './paycalc-hpp.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
 
@@ -381,6 +381,7 @@ export function calcBackPay() {
   // today's period (todaysPeriodNum — NOT the SELECTED period) stops a future paid-in or a future
   // period the user has merely navigated to from adding contracted rate-diff for weeks not yet worked.
   const _capPNum = Math.min(bpPNum ? bpPNum - 1 : Infinity, todaysPeriodNum());
+  const _skipped = /** @type {string[]} */ ([]);   // periods whose saved data couldn't be read — surfaced, never dropped silently
   periods.forEach(/** @param {any} p */ p => {
     try {
       if (fromPNum && p.num < fromPNum) return;
@@ -391,7 +392,7 @@ export function calcBackPay() {
       // Skip periods already paid at the new rate (a settled award's mid-year application date) — they
       // owe no arrears. Without this the accrual would double-count a historic award viewed at a late period.
       if (_awardFrom && p.payday >= _awardFrom) return;
-      const raw = lsGet(periodKey(p.num));
+      const parsed = readSavedPeriod(p.num);
       // Include EVERY period in the award window — even one never opened in the app. A normal
       // contracted week is owed the rise whether worked or paid at contracted rate on leave/sick
       // (confirmed by Gareth), so an unvisited period defaults to empty data → contracted-only
@@ -399,8 +400,9 @@ export function calcBackPay() {
       // contracted component + London diff. GUARDED by fromPNum: with no "backdated from" period
       // selected there is no award window, so an unvisited period has nothing to accrue and is
       // skipped — otherwise contracted arrears would be summed across unbounded history.
-      if (!raw && !fromPNum) return;
-      const d = raw ? JSON.parse(raw) : {};
+      if (parsed.error) { _skipped.push(`P${payslipPeriodNum(p)}`); console.warn('[PayCalc] Back-pay corrupt period', p.num); return; }
+      if (!parsed.data && !fromPNum) return;
+      const d = parsed.data || {};
       // All the money arithmetic lives in the PURE _accrueBackPayPeriod (unit-tested) — this loop
       // only maps storage/settings to numbers. Pro-rating uses the exact factor (not the
       // integer-rounded effContr divided back) to avoid rounding error; hour caps mirror calculate().
@@ -427,7 +429,8 @@ export function calcBackPay() {
       }
     } catch (e) {
       // A corrupted saved period must not abort the whole lump — but dropping its arrears
-      // silently would under-state money, so leave a developer trace (no staff-visible error).
+      // silently would under-state money, so record it (surfaced below) as well as tracing it.
+      _skipped.push(`P${payslipPeriodNum(p)}`);
       console.warn('[PayCalc] Back-pay skipped period', p.num, e);
     }
   });
@@ -498,6 +501,15 @@ export function calcBackPay() {
     noticeEl.textContent   = 'ℹ️ Nothing to backdate yet — there are no paid periods between April and the selected payslip.';
     rowsEl.innerHTML = '';
     _resetBreakdown(rowsEl, breakdownBtn);
+  }
+
+  // A corrupt saved period was excluded, so the lump above may be too low — say so rather than
+  // quietly under-stating money (the app's no-silent-caps principle). Only trips on malformed
+  // localStorage (old migration, manual import, storage damage); noticeEl is already visible in
+  // both branches above, so append to it.
+  if (_skipped.length) {
+    noticeEl.style.display = 'block';
+    noticeEl.innerHTML += `<span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved period${_skipped.length > 1 ? 's' : ''} (${_skipped.join(', ')}), so this total may be too low. Open ${_skipped.length > 1 ? 'those periods' : 'that period'} on the calculator to re-save, then check again.</span>`;
   }
 
   const newBpPNum   = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;

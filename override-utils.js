@@ -152,6 +152,27 @@ export function shouldReplaceOverride(existing, incoming) {
     return tsToMillis(incoming.createdAt) >= tsToMillis(existing.createdAt);
 }
 
+/**
+ * Decide how to fold an incoming override into a cache slot (Team View's Firestore-merge loop).
+ *
+ * ALWAYS store the winner when it out-ranks what's cached — not only when the visible shift changes —
+ * so the winner's metadata (source/createdAt) is what's cached. Otherwise a same-value manual that
+ * out-ranks an import leaves the import's metadata behind, and a LATER import for that date can then
+ * wrongly out-rank the manual on the next comparison (the v16.63 Team-View fix). Only the RE-RENDER
+ * is gated on a visible change, so identical display data from IndexedDB vs Firestore doesn't repaint.
+ * @param {any} existing  the currently-cached record (or undefined/null)
+ * @param {any} incoming  the record just read
+ * @returns {{ store: boolean, displayChanged: boolean }}
+ */
+export function foldOverrideIntoCache(existing, incoming) {
+    if (!shouldReplaceOverride(existing, incoming)) return { store: false, displayChanged: false };
+    const displayChanged = !existing
+        || existing.type  !== incoming.type
+        || existing.value !== incoming.value
+        || existing.note  !== incoming.note;
+    return { store: true, displayChanged };
+}
+
 /** True when a "YYYY-MM-DD" date string falls on a Sunday (UTC-safe, no timezone drift).
  * @param {string} dateStr */
 function _isSundayISO(dateStr) {

@@ -77,7 +77,12 @@ service cloud.firestore {
         request.resource.data.date.size() == 10 &&
         // Bounded YYYY-MM-DD: month 01-12, day 01-31 (matches() is full-string in RE2, so this
         // is anchored). Rejects impossible ISO-shaped dates like 2026-99-99 / 2026-13-01 that the
-        // old unbounded [0-9]{2} pattern accepted. Full leap-year/Feb-30 validation is server-side.
+        // old unbounded [0-9]{2} pattern accepted. NOTE: it does NOT reject a well-formed but
+        // non-existent day (2026-02-31, or 2026-02-29 in a non-leap year). The strict real-calendar
+        // parse (parseStrictIsoDate) only guards the FUNCTION paths (Huddle/roster ingest); ordinary
+        // browser override writes reach Firestore directly, so on THIS path such a day is accepted at
+        // the Rules boundary. Accepted low-risk integrity gap — the app's own date pickers can't emit
+        // one; a leap-year algorithm in Rules (with emulator coverage) isn't worth it for this team.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.memberName is string &&
         request.resource.data.memberName.size() > 0 &&
