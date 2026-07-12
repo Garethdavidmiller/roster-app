@@ -369,6 +369,129 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
     }
 }
 
+// ── Column-scan cross-check (the general day-shift defence) ─────────────────
+
+// Scan tokens that mean "this cell is empty" — mirrors the Case-A blank set above.
+const BLANK_SCAN_TOKENS = new Set(['BLANK', '', 'RD', 'EMPTY', '-', 'N/A', 'NA', 'OFF']);
+
+/**
+ * Normalise a raw columnScan cell value to the same vocabulary as the row read,
+ * so the two are comparable. Returns null when there is NO usable signal
+ * (missing member/day, or the scan value itself is unreadable) — the cross-check
+ * must fail OPEN to today's behaviour on absent signal, never invent one.
+ * @param {any} raw
+ * @returns {string|null}
+ */
+function normaliseScanValue(raw) {
+    if (raw === undefined || raw === null) return null;
+    if (typeof raw !== 'string' && typeof raw !== 'number') return null;   // inherited fn / object → no signal
+    const s = String(raw).trim();
+    if (BLANK_SCAN_TOKENS.has(s.toUpperCase())) return 'RD';
+    const norm = normaliseShift(s);
+    return norm.startsWith('UNKNOWN|') ? null : norm;
+}
+
+/** Human form of a normalised shift for the "read two ways" message ("RDW|t" → "RDW t", capped). */
+function displayableShift(v) {
+    return String(v).replace('RDW|', 'RDW ').slice(0, 20);
+}
+
+/**
+ * Cross-check the row read against the column scan, cell by cell (modifies safeEntries in place).
+ *
+ * WHY: the ONLY way a one-day shift enters the pipeline is the AI's visual ROW read — a blank
+ * cell anywhere in a row can be skipped, sliding every later value one day left (or, rarer,
+ * misaligning right). sundayScan anchors only the Sunday cell, so a drift that starts mid-week,
+ * any right-shift, and Monday-start rosters (no Sunday column) all sailed past it. The columnScan
+ * is a SECOND, column-wise read of the whole table (the same kind of read sundayScan already
+ * proved more reliable per column), giving a per-cell cross-check:
+ *
+ *   • Row and column reads AGREE on a cell → confident, keep it.
+ *   • The whole disagreement realigns EXACTLY under a ±1-day shift of the row (and there are
+ *     ≥ 2 disagreements with ≥ 5 signalled days) → adopt the shifted row: the shifted row and the
+ *     column read then agree everywhere, which is two-source consensus — the same authority
+ *     argument as the validated Sunday Case-A repair, but provable across the whole row.
+ *   • Any OTHER disagreement → the cell becomes `UNKNOWN|…` (the existing skip-only UNREADABLE
+ *     review state): surfaced to the admin with both readings, NEVER silently written.
+ *
+ * Fail-open: no columnScan / missing column / missing member / unreadable scan value → no signal
+ * for that cell → today's behaviour. Runs AFTER applySundayScanCorrections, so a Case-A partial
+ * repair's residual mid-week drift (previously only a Cloud-log warning) is now caught here too.
+ *
+ * @param {object[]} safeEntries   - modified in place ({ memberName, shifts: { date: value } })
+ * @param {object}   columnScan    - { header: { memberName: rawCellValue } } from AI output
+ * @param {string[]} columnHeaders - column headers from AI output
+ * @param {string[]} dates         - 7 ISO dates (Sun → Sat) from buildWeekDates()
+ */
+function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates) {
+    if (!columnScan || typeof columnScan !== 'object') return;
+    if (!Array.isArray(columnHeaders) || dates.length < 7) return;
+
+    for (const entry of safeEntries) {
+        // Build this member's column-read map: date → normalised value (signalled cells only).
+        const colRead = Object.create(null);
+        for (const header of columnHeaders) {
+            const key      = String(header).trim().toLowerCase();
+            const dayIndex = HEADER_TO_INDEX[key] ?? HEADER_TO_INDEX[key.slice(0, 3)];
+            if (dayIndex === undefined) continue;
+            const colObj = columnScan[header];
+            if (!colObj || typeof colObj !== 'object') continue;
+            const v = normaliseScanValue(colObj[entry.memberName]);
+            if (v !== null) colRead[dates[dayIndex]] = v;
+        }
+        const signalDates = Object.keys(colRead);
+        if (signalDates.length === 0) continue;
+
+        const disagree = signalDates.filter(d =>
+            typeof entry.shifts[d] === 'string'
+            && !entry.shifts[d].startsWith('UNKNOWN|')
+            && entry.shifts[d] !== colRead[d]);
+        if (disagree.length === 0) continue;
+
+        // Provable realignment. A dropped blank cell shifts only the SUFFIX of the row after it
+        // (a drop at Sunday = the classic full-row drift; a drop mid-week leaves the head aligned).
+        // Anchor at the FIRST disagreeing day k and try both one-day suffix shifts:
+        //   delta +1 (undo a DROPPED cell): days after k take the row value one slot earlier;
+        //            day k itself takes the column scan's value (the dropped cell's true content).
+        //   delta -1 (undo an INSERTED/ghost cell): days from k take the row value one slot later;
+        //            Saturday takes the column scan's value.
+        // Adopt ONLY if the repaired row then agrees with the column scan on EVERY signalled day —
+        // i.e. two-source consensus on the realigned row (a non-drift disagreement scrambles the
+        // agreeing tail under either shift and fails this verification).
+        let repaired = false;
+        if (disagree.length >= 2 && signalDates.length >= 5) {
+            const k = dates.findIndex(d => disagree.includes(d));
+            for (const delta of [1, -1]) {
+                const shifted = Object.create(null);
+                for (let i = 0; i < 7; i++) shifted[dates[i]] = entry.shifts[dates[i]];
+                if (delta === 1) {
+                    for (let i = 6; i >= k + 1; i--) shifted[dates[i]] = entry.shifts[dates[i - 1]];
+                    shifted[dates[k]] = colRead[dates[k]] ?? 'RD';
+                } else {
+                    for (let i = k; i <= 5; i++) shifted[dates[i]] = entry.shifts[dates[i + 1]];
+                    shifted[dates[6]] = colRead[dates[6]] ?? 'RD';
+                }
+                if (signalDates.every(d => shifted[d] === colRead[d])) {
+                    for (let i = 0; i < 7; i++) entry.shifts[dates[i]] = shifted[dates[i]];
+                    console.warn(`[parseRosterPDF] ${entry.memberName}: row read disagreed with the column scan on ${disagree.length} day(s) and realigns exactly under a one-day suffix ${delta > 0 ? 'RIGHT' : 'LEFT'}-shift from ${dates[k]} — day-drift repaired (repaired row matches the column scan everywhere)`);
+                    repaired = true;
+                    break;
+                }
+            }
+        }
+        if (repaired) continue;
+
+        // No provable realignment — flag each disagreeing cell for the admin (skip-only in review;
+        // never written). A row-vs-column disagreement must never be silently written.
+        for (const d of disagree) {
+            const rowV = displayableShift(entry.shifts[d]);
+            const colV = displayableShift(colRead[d]);
+            console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: row read "${entry.shifts[d]}" ≠ column scan "${colRead[d]}" — flagged for review`);
+            entry.shifts[d] = `UNKNOWN|${rowV} or ${colV}? (PDF unclear)`;
+        }
+    }
+}
+
 // ── Huddle push notification day label ───────────────────────────────────────
 
 
@@ -608,6 +731,8 @@ module.exports = {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
+    applyColumnScanCrossCheck,
+    normaliseScanValue,
     parseStrictIsoDate,
     isPayCutoffDay,
     nameToEmail,

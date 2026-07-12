@@ -35,6 +35,7 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
+    applyColumnScanCrossCheck,
     parseStrictIsoDate,
     isPayCutoffDay,
     nameToEmail,
@@ -988,6 +989,15 @@ Your "Sun" value for each person in "parsed" MUST match their sundayScan entry:
   anything else      → "Sun": that value (normalised per the codes above)
 
 ---
+COLUMN SCAN — REQUIRED, ALWAYS:
+After writing "parsed", read the table a SECOND time — one COLUMN at a time, top to bottom.
+For each day column, write what you see in each staff member's cell for that day.
+Add a "columnScan" object: one key per column header, whose value is an object of
+staff member name → that cell's value (same codes as above; a blank cell → "blank").
+Read the cells fresh from the document — do NOT copy from "parsed". This is a cross-check:
+if a row in "parsed" was misaligned by a day, your column-by-column read will catch it.
+
+---
 WHAT THE CODES MEAN:
 - A time like "05:30-11:30" or "0530-1130" = a worked shift. Always format as HH:MM-HH:MM.
 - RD = Rest day
@@ -1034,13 +1044,23 @@ OUTPUT FORMAT — return exactly this structure:
       "Fri": "RD",
       "Sat": "RD"
     }
-  ]
+  ],
+  "columnScan": {
+    "Sun": { "L. Springer": "blank" },
+    "Mon": { "L. Springer": "05:30-11:30" },
+    "Tue": { "L. Springer": "05:30-11:30" },
+    "Wed": { "L. Springer": "SPARE" },
+    "Thu": { "L. Springer": "05:30-11:30" },
+    "Fri": { "L. Springer": "blank" },
+    "Sat": { "L. Springer": "blank" }
+  }
 }
 
 sundayScan: one key per staff member — what you see in their Sunday cell before reading shifts.
 columnHeaders: the day abbreviations from the column headers, left to right.
 Each member object: "memberName" plus one key per column header, in any order.
-Every column header must appear as a key in every member object.`;
+Every column header must appear as a key in every member object.
+columnScan: one key per column header; every staff member appears in every column's object.`;
 
         // ---- Call Claude AI ----
         // We pass the PDF as a document content block so Claude reads the actual
@@ -1139,6 +1159,14 @@ Every column header must appear as a key in every member object.`;
         // Catches blank-misread-as-Monday (Case A) and RDW-stripped (Case B).
         const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(h.trim().toLowerCase()));
         applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
+
+        // ---- Post-processing: cross-check the row read against the column scan ----
+        // The GENERAL day-shift defence (the Sunday pass above only anchors one cell): every cell
+        // must agree between the row read and the column-by-column re-read. A whole-row ±1-day
+        // realignment is repaired deterministically (two-source consensus); any other disagreement
+        // becomes a skip-only UNREADABLE review cell — a misread can no longer be silently written.
+        // Fails open when the AI omits columnScan.
+        applyColumnScanCrossCheck(safeEntries, parsed.columnScan, parsed.columnHeaders, dates);
 
         // ---- Filter to known staff names only ----
         // The AI could hallucinate a name not in the prompt list — strip any entry

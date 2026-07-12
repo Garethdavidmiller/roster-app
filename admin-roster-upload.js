@@ -56,6 +56,53 @@ function shiftDisplay(shiftStr, date = null) {
 }
 
 /**
+ * Detect a parsed row that looks shifted by ONE DAY against the member's own base roster —
+ * the one signal fully independent of the AI (both the row read AND the column-scan cross-check
+ * come from the same model looking at the same PDF, so they can, rarely, misread identically;
+ * the base rotating pattern cannot).
+ *
+ * Correlates the parsed week against the base roster at offsets −1 / 0 / +1: if a ±1 alignment
+ * matches ≥ 3 MORE days than the correct alignment (and ≥ 5 of 7 overall), the row very probably
+ * drifted a day in the parse. Rotating rosters make adjacent days differ most weeks, so a genuine
+ * override-heavy week (sparse changes) doesn't correlate at ±1 — while a drifted row mismatches
+ * nearly everywhere at offset 0 and snaps into place at ±1. Fixed-pattern members (same time all
+ * week) score similarly at every offset, so the ≥3 improvement bar keeps them silent.
+ *
+ * Pure (no DOM); returns 'left' (values belong one day LATER — row slid left), 'right', or null.
+ *
+ * @param {any} member       teamMembers entry
+ * @param {Record<string,string>} shifts   parsed { date: value }
+ * @param {string[]} dates   the week's 7 ISO dates
+ * @returns {'left'|'right'|null}
+ */
+export function detectShiftedRow(member, shifts, dates) {
+    if (!member || !shifts || !Array.isArray(dates) || dates.length < 7) return null;
+    const normRest = (/** @type {string} */ v) => (v === 'OFF' ? 'RD' : v);
+    const parsedAt = (/** @type {string} */ date) => {
+        const v = shifts[date];
+        if (typeof v !== 'string' || v === '' ) return null;
+        if (isUnknownEncoded(v)) return null;            // already flagged — no signal
+        return normRest(isRdwEncoded(v) ? stripRdw(v) : v);
+    };
+    const baseAt = (/** @type {string} */ date, /** @type {number} */ offset) => {
+        const d = new Date(date + 'T12:00:00');
+        d.setDate(d.getDate() + offset);
+        return normRest(getBaseShift(member, d));
+    };
+    const score = (/** @type {number} */ offset) => dates.reduce((n, date) => {
+        const p = parsedAt(date);
+        return (p !== null && p === baseAt(date, offset)) ? n + 1 : n;
+    }, 0);
+    const s0 = score(0);
+    // Row slid LEFT → each parsed value is really the NEXT day's → matches base at offset +1.
+    const sLeft  = score(1);
+    const sRight = score(-1);
+    if (sLeft  - s0 >= 3 && sLeft  >= 5 && sLeft  >= sRight) return 'left';
+    if (sRight - s0 >= 3 && sRight >= 5) return 'right';
+    return null;
+}
+
+/**
  * Render a stored MANUAL override value for the review table, restoring the 💼 RDW badge when the
  * override's type is 'rdw'. A stored rdw override's value is the bare time ("14:30-22:00") — the
  * RDW-ness lives in `type`, not the value — so shiftDisplay(value) alone showed an ordinary
@@ -751,6 +798,19 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     <span class="roster-change-badge">${changedDates.length}</span>
                     <button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}" aria-pressed="false">Skip all</button>
                 </div>`;
+
+            // Day-drift warning: this row correlates with the member's OWN base pattern one day
+            // out — the independent check on the AI read (see detectShiftedRow). Warn ONLY: the
+            // admin decides against the PDF; nothing is auto-changed at this stage.
+            const memberObj = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
+            const drift = memberObj ? detectShiftedRow(memberObj, entry.shifts, dates) : null;
+            if (drift) {
+                const warn = document.createElement('div');
+                warn.className = 'roster-shift-warning';
+                warn.setAttribute('role', 'alert');
+                warn.innerHTML = `⚠️ <strong>These days may be one day out.</strong> ${esc(entry.memberName)}'s week lines up better with their usual pattern shifted a day ${drift === 'left' ? 'later' : 'earlier'} — check each day against the PDF before saving, or Skip all and re-upload.`;
+                section.appendChild(warn);
+            }
 
             // One row per changed day
             for (const date of changedDates) {

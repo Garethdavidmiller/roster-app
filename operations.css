@@ -226,6 +226,18 @@ body.auth-ready .container { display: grid; }
 @media (hover: hover) and (pointer: fine) {
     .roster-skip-all-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
 }
+/* Day-drift warning banner on a review section whose parsed week correlates with the member's
+   base pattern ONE DAY out (detectShiftedRow) — the independent check on the AI read. */
+.roster-shift-warning {
+    font-size: var(--type-small);
+    color: var(--error-red);
+    background: color-mix(in oklch, var(--error-red) 8%, white);
+    border: 1px solid color-mix(in oklch, var(--error-red) 40%, white);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 6px 0 2px;
+    line-height: 1.4;
+}
 .roster-change-row {
     display: flex; align-items: center; gap: 10px;
     padding: 10px 12px;
