@@ -11,7 +11,7 @@
 
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
-import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
+import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
 import { requirePage } from './auth-policy.js';
@@ -115,6 +115,9 @@ export function init() {
     _linksAuth.then(() => {
         if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'links').decision === 'login') {
             clearSession();
+            // resetNavPanel() before the overlay (v16.69, mirrors settings' v16.25 fix) — the
+            // drawer is wired with the now-cleared member's identity on a shared device.
+            resetNavPanel();
             initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() });
         }
     });
@@ -184,6 +187,11 @@ export function init() {
     _isDirty = () => dirty;   // point the SW beforeReload at THIS pass's flag (v16.23)
     let loadFailed      = false;
     /** @type {any} */ let loadedUpdatedAt = null; // millis — for save concurrency check
+    // True when a post-save updatedAt read-back FAILED: the baseline is unknown, not "no doc".
+    // The overwrite-confirm guard then falls back to comparing updatedBy — without this, one
+    // dropped read-back silently disabled the guard and the next save clobbered a co-designer's
+    // version with no prompt (v16.69 review fix).
+    let baselineUnknown = false;
 
     // Paint-mode brush: string = armed shift, null = no brush
     /** @type {any} */ let brush = null;
@@ -519,7 +527,7 @@ export function init() {
         activeDesignId  = d.id;
         lsSet(ACTIVE_KEY, d.id);
         design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
-        loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null;
+        loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null; baselineUnknown = false;
         dirty           = false;
         // Clear a prior design's "✓ Saved" / "Save failed" status — updateSaveBtn only clears it
         // while dirty, so without this it carried over to the newly selected design, falsely
@@ -1324,8 +1332,8 @@ export function init() {
                 try {
                     const snap = await getDoc(doc(db, COLLECTIONS.linkDesigns, ref.id));
                     savedAt = snap.data()?.updatedAt ?? null;
-                    loadedUpdatedAt = savedAt?.toMillis?.() ?? null;
-                } catch { loadedUpdatedAt = null; }
+                    loadedUpdatedAt = savedAt?.toMillis?.() ?? null; baselineUnknown = false;
+                } catch { loadedUpdatedAt = null; baselineUnknown = true; }
                 const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), updatedAt: savedAt, updatedBy: currentUser };
                 designs.push(newEntry);
                 _sortDesigns();
@@ -1342,7 +1350,10 @@ export function init() {
             try {
                 const fresh   = await getDoc(designRef);
                 const freshTs = fresh.exists() ? (fresh.data().updatedAt?.toMillis?.() ?? null) : null;
-                if (loadedUpdatedAt !== null && freshTs !== null && freshTs !== loadedUpdatedAt) {
+                const _tsMismatch      = loadedUpdatedAt !== null && freshTs !== null && freshTs !== loadedUpdatedAt;
+                const _unknownButOthers = baselineUnknown && freshTs !== null
+                    && fresh.data().updatedBy && fresh.data().updatedBy !== currentUser;
+                if (_tsMismatch || _unknownButOthers) {
                     const by   = fresh.data().updatedBy || 'Someone';
                     const when = fresh.data().updatedAt?.toDate?.()
                         ?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? '';
@@ -1376,7 +1387,7 @@ export function init() {
             if (entry) { entry.patterns = deepCopyPatterns(design.patterns); entry.updatedBy = currentUser; }
             try {
                 const after = await getDoc(designRef);
-                loadedUpdatedAt = after.data()?.updatedAt?.toMillis?.() ?? null;
+                loadedUpdatedAt = after.data()?.updatedAt?.toMillis?.() ?? null; baselineUnknown = false;
                 if (entry) entry.updatedAt = after.data()?.updatedAt;
             } catch { loadedUpdatedAt = null; }
 
@@ -1447,7 +1458,7 @@ export function init() {
                 activeDesignId  = d.id;
                 lsSet(ACTIVE_KEY, d.id);
                 design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
-                loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null;
+                loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null; baselineUnknown = false;
                 updateLastSaved(d.updatedBy, d.updatedAt);
             } else {
                 design = null;

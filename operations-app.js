@@ -20,7 +20,7 @@ import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
-import { initNavPanel } from './nav-panel.js';
+import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError } from './session.js';
 import { requirePage } from './auth-policy.js';
@@ -113,6 +113,10 @@ export function init() {
     _opsAuth.then(() => {
         if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'operations').decision === 'login') {
             clearSession();
+            // resetNavPanel() before the overlay (v16.69, mirrors settings' v16.25 fix): the drawer
+            // was wired with the now-cleared member's identity — a stale name/avatar/admin pill must
+            // not stay reachable behind the login on a shared device.
+            resetNavPanel();
             initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
         }
     });
@@ -821,6 +825,9 @@ export function init() {
             // tap per row (with no refresh) is a grind. This resolves every unresolved error currently
             // shown, then refreshes the card in place to pull the next batch (B3).
             let unresolvedShown = errors.filter(e => !e.resolved);
+            /** Keep the resolve-all button's count in step as individual resolves prune the
+             *  snapshot; disable it when nothing unresolved remains shown. Assigned below. */
+            let _syncResolveAllBtn = () => {};
             if (unresolvedShown.length > 0) {
                 const bar = document.createElement('div');
                 bar.className = 'error-log-toolbar';
@@ -828,24 +835,36 @@ export function init() {
                 allBtn.type = 'button';
                 allBtn.className = 'btn-action btn-secondary error-resolve-all-btn';
                 allBtn.textContent = `✓ Resolve all shown (${unresolvedShown.length})`;
+                _syncResolveAllBtn = () => {
+                    allBtn.textContent = unresolvedShown.length
+                        ? `✓ Resolve all shown (${unresolvedShown.length})`
+                        : '✓ All shown resolved';
+                    allBtn.disabled = unresolvedShown.length === 0;
+                };
                 allBtn.addEventListener('click', async () => {
                     allBtn.disabled = true;
                     allBtn.textContent = 'Resolving…';
+                    const count   = unresolvedShown.length;
                     const results = await Promise.allSettled(unresolvedShown.map(e => resolveClientError(e.id)));
                     const failedItems = unresolvedShown.filter((_, i) => results[i].status === 'rejected');
                     if (failedItems.length) {
                         // Retry only the ones that FAILED — re-resolving the already-succeeded rows would
                         // reset their 90-day retention clock and inflate the count.
-                        const succeeded = unresolvedShown.length - failedItems.length;
+                        const succeeded = count - failedItems.length;
                         unresolvedShown = failedItems;
                         allBtn.disabled = false;
                         allBtn.textContent = `✗ ${failedItems.length} didn't resolve — tap to retry`;
                         errStatus.textContent = `${succeeded} resolved, ${failedItems.length} failed`;
                         return;   // leave the list as-is so the admin can retry just the failures
                     }
-                    errStatus.textContent = `${unresolvedShown.length} errors resolved`;
                     content.setAttribute('aria-busy', 'true');
-                    initErrorLog();   // in-place refresh — pulls the next batch, no page reload
+                    await initErrorLog();   // in-place refresh — pulls the next batch, no page reload
+                    // Announce on the FRESH live region, after aria-busy cleared (the refresh's
+                    // finally removes it): setting it before the refresh put the message inside an
+                    // aria-busy subtree that was then destroyed — screen readers heard nothing
+                    // (v16.69 review fix).
+                    const freshStatus = content.querySelector('[role="status"]');
+                    if (freshStatus) freshStatus.textContent = `${count} error${count !== 1 ? 's' : ''} resolved`;
                 });
                 bar.appendChild(allBtn);
                 content.appendChild(bar);
@@ -921,6 +940,11 @@ export function init() {
                             await resolveClientError(err.id);
                             row.classList.add('error-row--resolved');
                             resolveBtn.remove();
+                            // Prune this doc from the resolve-all snapshot: without this, a later
+                            // "Resolve all shown" re-stamps it (fresh resolvedAt → a NEW 90-day
+                            // retention clock) and overcounts (v16.69 review fix).
+                            unresolvedShown = unresolvedShown.filter(u => u.id !== err.id);
+                            _syncResolveAllBtn();
                             errStatus.textContent = `Error from ${err.memberName ?? 'unknown'} marked resolved`;
                         } catch {
                             resolveBtn.disabled = false;

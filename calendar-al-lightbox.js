@@ -112,7 +112,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       remEl.textContent    = String(remaining);
       remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
       if (breakdownEl) {
-        if (/** @type {any} */ (member).role === 'Dispatcher') {
+        // getALEntitlement returns proRatedAL[year] BEFORE the Dispatcher branch, so a pro-rated
+        // dispatcher's entitlement is NOT 22+lieu — the "22 base + N lieu" split would show a
+        // negative lieu figure (e.g. "22 base + -10 BH lieu"). Hide the breakdown for a pro-rated
+        // joining year; it applies again from their first full year (v16.69 review fix).
+        const _proRated = /** @type {any} */ (member).proRatedAL?.[year] !== undefined;
+        if (/** @type {any} */ (member).role === 'Dispatcher' && !_proRated) {
           const lieu = entitlement - 22;
           breakdownEl.textContent = `22 base + ${lieu} BH lieu`;
           breakdownEl.hidden = false;

@@ -33,7 +33,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
   addFetchedMonths(_initialMonthKeys);
 
   /** @type {HTMLButtonElement|null} */
-  let syncChip = null;
+  /** @type {HTMLButtonElement|null} */ let syncChip = null;
   /** @type {any} */
   let syncStatus = null;
   let syncResolved = false;
@@ -83,9 +83,26 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
     if (calGrid) calGrid.classList.add('calendar-fetching');
   }, 800);
 
+  // Re-attach the chip if a re-render detached it. The chip lives inside .calendar-header,
+  // which renderCalendar()/swipe commits REBUILD — writing an error/retry state onto a detached
+  // node announces "activate to retry" to screen readers while sighted users see nothing and have
+  // nothing to tap (v16.69 review fix; the original-fetch catch always had this re-create logic).
+  /** @returns {HTMLButtonElement|null} the attached chip (existing, re-created, or null when no header) */
+  function ensureChipAttached() {
+    if (syncChip && syncChip.isConnected) return syncChip;
+    const header = document.querySelector('.calendar-header');
+    if (!header) return null;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'sync-chip';
+    header.appendChild(chip);
+    return chip;
+  }
+
   // If Firestore takes more than 10 s, show an error state with a retry link.
   const timeoutTimer = setTimeout(() => {
     if (syncResolved) return;
+    syncChip = ensureChipAttached();
     if (syncChip) {
       syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
       syncChip.className = 'sync-chip sync-chip-error';
@@ -135,6 +152,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       // render/navigation can re-fetch them — otherwise a failed retry re-strands all three
       // for the session (the chip is a recovery path only while the calendar header exists).
       _initialMonthKeys.forEach(clearFetchedMonth);
+      syncChip = ensureChipAttached();
       if (syncChip) {
         syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
         syncChip.className = 'sync-chip sync-chip-error';
@@ -175,18 +193,8 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       // is absent in team-view and first-run, leaving those states with NO recovery path at all.
       _initialMonthKeys.forEach(clearFetchedMonth);
       // A renderCalendar() call between the fetch start and the catch (e.g. from
-      // visibilitychange) rebuilds the calendar header, detaching the chip from the
-      // DOM. Re-create it if the reference is stale (null or disconnected).
-      const _chip = /** @type {Node|null} */ (syncChip);
-      if (!_chip || !_chip.isConnected) {
-        const header = document.querySelector('.calendar-header');
-        if (header) {
-          syncChip = document.createElement('button');
-          syncChip.type = 'button';
-          syncChip.className = 'sync-chip';
-          header.appendChild(syncChip);
-        }
-      }
+      // visibilitychange) rebuilds the calendar header, detaching the chip — re-create it.
+      syncChip = ensureChipAttached();
       if (syncChip) {
         syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
         syncChip.className = 'sync-chip sync-chip-error';

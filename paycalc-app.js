@@ -12,7 +12,7 @@
  * Do not edit here for: pay maths, period date maths, HPP formula, back-pay maths.
  */
 
-import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat } from './roster-data.js';
+import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
@@ -35,7 +35,7 @@ import {
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
   updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
-  saveSettings, confirmSettings, loadSettings,
+  saveSettings, confirmSettings, loadSettings, getStoredRateForYear,
 } from './paycalc-settings.js';
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
@@ -153,8 +153,13 @@ export function init() {
      * @returns {number|null}
      */
     function numValOr(id, fallback) {
-        const v = numVal(id);
-        return Number.isFinite(v) ? v : fallback;
+        // parseSmartFloatOrNull, NOT numVal: parseSmartFloat floors garbage to 0 (its `|| 0`), so
+        // the old Number.isFinite(numVal(id)) check was dead code — an unparseable Year-to-Date
+        // remnant (a lone "." or "-" left mid-edit, then autosaved) became £0, which flipped
+        // computeTax into cumulative mode and collapsed Income Tax to £0.00. A non-parseable OR
+        // empty value now genuinely returns the fallback ("not provided").
+        const v = parseSmartFloatOrNull(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '');
+        return v === null ? fallback : v;
     }
     /** @param {string} id */
     // Math.max(0, …) floors at zero: hours/minutes can never be negative, and on desktop the
@@ -340,7 +345,10 @@ export function init() {
         // Confirmed — hide banner, update card header hint with saved values.
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
         const _hdrGrade = getGrade();
-        const rate = (numVal('hourlyRate') || (GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
+        // The YEAR'S stored settled rate, not the live field: on a pre-award period
+        // updateRateForPeriod has already loaded the PRE-RISE rate (e.g. £20.06) into the field,
+        // and this hint claims to summarise the year's SAVED settings (v16.69 review fix).
+        const rate = (getStoredRateForYear(ty) || numVal('hourlyRate') || (GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
         const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
         /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
       } else {
@@ -604,6 +612,11 @@ export function init() {
       const pNum = currentPeriodNum();
       lsDel(periodKey(pNum));
       lsDel(snapKey(pNum));
+      // Mark the form as user-touched BEFORE blanking it: programmatic .value writes never fire
+      // the delegated 'input' listener, so without this an override fetch already in flight when
+      // the user confirmed the clear would resolve, see the flag unset, and refill + autosave the
+      // just-cleared fields — silently undoing an explicit destructive action (v16.69 review fix).
+      _hoursTouchedSinceFetch = true;
       writeFormData(emptyPeriodData());
       // Apply the period-specific pension default (pro-rated for joining periods, rate-cut-over
       // aware) — writeFormData no longer does this when d.pension is null.
@@ -698,7 +711,9 @@ export function init() {
 
       const _calcGrade = getGrade();
       const _calcDefaultRate = GRADES[_calcGrade]?.rate ?? GRADES.cea.rate;
-      const rate = numVal('hourlyRate') || _calcDefaultRate;
+      // Math.max floor: a negative typed rate would produce a nonsense negative estimate with
+      // neither rateWarn branch firing. Zero/empty still falls back to the grade default via ||.
+      const rate = Math.max(0, numVal('hourlyRate')) || _calcDefaultRate;
       const _rateWarn = document.getElementById('rateWarn');
       if (_rateWarn) {
         if (numVal('hourlyRate') > 100)
@@ -761,8 +776,10 @@ export function init() {
       // readFormData/loadPeriodData), NOT £0 — otherwise clearing the field to retype it would show
       // take-home momentarily inflated by the whole pension amount. A typed "0" still means opted-out.
       const _pField    = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
+      // Math.max(0, …): a typed/pasted negative pension would ADD untaxed headroom to the estimate
+      // (sacGross = gross − pension), silently inflating take-home — floor it like the hour fields.
       const pension    = (_pField && _pField.value.trim() !== '')
-          ? /** @type {number} */ (numValOr('pensionAmt', 0))
+          ? Math.max(0, /** @type {number} */ (numValOr('pensionAmt', 0)))
           : (_curP ? parseFloat((getPensionDefault(_curP) * getProRateFactor(_curP)).toFixed(2)) : getPensionDefault());
       const pensionWarn = document.getElementById('pensionWarn');
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
@@ -882,7 +899,7 @@ export function init() {
         /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
           `Compare with estimate &nbsp;<span class="bd-arrow">▼</span>`;
         const _peekBtn = document.getElementById('resultPeekBtn');
-        if (_peekBtn) _peekBtn.textContent = `↑ Actual take-home: ${fmt(_actual.net)}`;
+        if (_peekBtn) _peekBtn.textContent = `↓ Actual take-home: ${fmt(_actual.net)}`;
         const _stickyAmt = document.getElementById('stickyAmount');
         if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
         // Keep the sticky label honest — this figure is the confirmed actual, not an estimate.
@@ -897,9 +914,11 @@ export function init() {
             ? `💷 Estimated Take-Home Pay (${_suffix})`
             : '💷 Estimated Take-Home Pay';
         const _peekBtn = document.getElementById('resultPeekBtn');
+        // ↓ not ↑: since v16.67 the result card sits BELOW the Hours card on mobile (the peek
+        // button's only surface — it is display:none on desktop).
         if (_peekBtn) _peekBtn.textContent = _suffix
-            ? `↑ Estimated take-home (${_suffix}): ${fmt(net)}`
-            : `↑ Estimated take-home: ${fmt(net)}`;
+            ? `↓ Estimated take-home (${_suffix}): ${fmt(net)}`
+            : `↓ Estimated take-home: ${fmt(net)}`;
         const _stickyAmt = document.getElementById('stickyAmount');
         if (_stickyAmt) _stickyAmt.textContent = fmt(net);
         const _stickyLbl = document.getElementById('stickyLabel');
@@ -1292,15 +1311,19 @@ export function init() {
       if (stickyBar.dataset.obsInit) return;
       stickyBar.dataset.obsInit = '1';
       // Observe the £ amount display specifically, not the whole card.
-      // threshold:0 fires when it fully leaves the viewport; boundingClientRect.top < 0
-      // distinguishes "scrolled off the top" from "below the fold on load" (where top is
-      // positive and we must not show the bar).
+      // threshold:0 fires when it fully leaves the viewport. Show the bar whenever the figure is
+      // OFF-SCREEN IN EITHER DIRECTION (v16.69): the old `top < 0` guard ("scrolled off the top
+      // only") was written for the pre-v16.67 DOM where the result sat ABOVE Hours — after the
+      // v16.67 move (result below Hours on mobile) it suppressed the bar for the entire
+      // hours-entry session, exactly when the live figure is most needed. Below-the-fold on load
+      // now deliberately SHOWS the bar — that is the feature: the take-home stays visible while
+      // entering hours above it.
       const netDisplay = document.getElementById('netDisplay') || resultCard;
       // rAF wrapper prevents class-toggle flicker during iOS momentum scroll, where
       // IntersectionObserver can fire repeatedly within a single frame.
       const obs = new IntersectionObserver(([entry]) => {
         requestAnimationFrame(() => {
-          const show = !entry.isIntersecting && entry.boundingClientRect.top < 0;
+          const show = !entry.isIntersecting;
           stickyBar.classList.toggle('visible', show);
           document.body.classList.toggle('sticky-active', show);
         });

@@ -953,6 +953,13 @@ export async function executeSave(toSave, toDelete = []) {
     }
 }
 
+/** True when the week grid currently holds a STAGED (unsaved) selection — an active per-row
+ *  type pill. Used by loadOverrides to avoid re-rendering over the admin's in-progress edits. */
+function _hasStagedEdits() {
+    const weekGrid = document.getElementById('weekGrid');
+    return !!weekGrid?.querySelector('.day-row .type-pill-btn.active');
+}
+
 // ── OVERRIDES LIST ────────────────────────────────────────────────────────────
 /**
  * Loads all override documents from Firestore into _allOverrides,
@@ -969,7 +976,12 @@ export async function loadOverrides() {
         renderTable();
         const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
         const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
-        if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
+        // Do NOT re-render over staged edits: on a slow first load the admin can already have
+        // rendered the grid (from the empty cache) and selected pills — an unconditional
+        // renderWeekGrid() here rebuilt every row and silently discarded them, while
+        // userMadeChanges stayed true (blocking the week swipe + a phantom beforeunload warning).
+        // The cache is updated either way; edits re-sync on the next save/navigation (v16.69).
+        if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
         _onAfterSave();
     } catch (err) {
         console.error('[Admin] Load failed:', err);

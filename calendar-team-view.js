@@ -334,9 +334,11 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
             // Discard if the user navigated to a different week while this was in flight
             if (!teamViewMode || currentTeamWeekStart.getTime() !== fetchToken) return;
             let updated = false;
+            const seenKeys = new Set();
             snap.forEach(/** @param {any} doc */ doc => {
                 const d          = doc.data();
                 const cacheKey   = `${d.memberName}|${d.date}`;
+                seenKeys.add(cacheKey);
                 const existing   = rosterOverridesCache.get(cacheKey);
                 const incoming   = toOverrideRecord(d);
                 // foldOverrideIntoCache (override-utils.js) decides both: store the winner (always,
@@ -348,10 +350,35 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
                     if (displayChanged) updated = true;
                 }
             });
+            // DELETION propagation (v16.69 review fix): the range query is authoritative for this
+            // week, so a cached entry in-range whose doc no longer exists was DELETED (e.g. a
+            // manager removing a wrongly-recorded absence). Additions/edits already propagated via
+            // the fold above; without this eviction a deleted override showed until a full page
+            // reload — the ONLY change type with no propagation path. The month-cache permanence
+            // (fetchedMonths) is untouched: eviction only covers the exact dates just re-queried.
+            const wsISO = formatISO(weekStart), weISO = formatISO(weekEnd);
+            for (const key of rosterOverridesCache.keys()) {
+                const dateStr = key.slice(key.indexOf('|') + 1);
+                if (dateStr >= wsISO && dateStr <= weISO && !seenKeys.has(key)) {
+                    rosterOverridesCache.delete(key);
+                    updated = true;
+                }
+            }
             // This wrote straight into rosterOverridesCache (not via fetchOverridesForRange), so
             // invalidate the shift-types memo — otherwise the month legend serves a stale type set
             // after returning to calendar view (e.g. an AL cell shows but its legend item stays hidden).
-            if (updated) { clearShiftTypesCache(); renderTeamView(currentTeamGrade, { skipFetch: true }); }
+            if (updated) {
+                clearShiftTypesCache();
+                // Focus preservation (v16.69 review fix — the same class of bug as the v16.55
+                // calendar fix, which missed team view): this async re-render lands ~300ms after a
+                // keyboard week-navigation restored focus, wiping the grid and dropping focus to
+                // <body>. Capture the focused element's id and restore it on the rebuilt DOM.
+                const _display  = document.getElementById('calendarDisplay');
+                const _activeId = document.activeElement instanceof HTMLElement
+                    && _display?.contains(document.activeElement) ? document.activeElement.id : null;
+                renderTeamView(currentTeamGrade, { skipFetch: true });
+                if (_activeId) document.getElementById(_activeId)?.focus({ preventScroll: true });
+            }
         } catch (err) {
             console.warn('[TeamView] Could not fetch week overrides:', err);
         }

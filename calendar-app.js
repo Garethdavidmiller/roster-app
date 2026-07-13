@@ -721,10 +721,15 @@ try {
         document.addEventListener('keydown', (e) => {
             // Don't fire if user is typing in an input
             if (/** @type {Element} */ (e.target).tagName === 'SELECT' || /** @type {Element} */ (e.target).tagName === 'INPUT') return;
-            // Don't fire behind ANY open lightbox — focus sits on a button there,
+            // Don't fire behind ANY open overlay — focus sits on a button there,
             // so the input check above doesn't help: arrows/t would silently
-            // change the month behind the overlay and p would print it.
+            // change the month behind the overlay (and PERSIST the drift via
+            // persistViewedMonth) and p would print it. The huddle viewer and the
+            // nav drawer are NOT .lb-overlay lightboxes, so they need their own
+            // checks (v16.69 review fix — the month drifted behind the Huddle).
             if (document.querySelector('.lb-overlay.visible')) return;
+            if (document.getElementById('huddleViewer')?.classList.contains('visible')) return;
+            if (document.querySelector('.nav-panel.open')) return;
             if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
             if (isFirstRun()) return;      // don't drift the hidden month behind the first-run prompt (v16.21)
             if (teamView.isTeamViewMode()) {

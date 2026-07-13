@@ -140,6 +140,7 @@ function initContactCard() {
     // Listen to both 'input' and 'change' — some browsers (Chrome on Android) fire
     // 'change' but not 'input' when autofilling a field.
     let userHasTyped = false;
+    let userSaved    = false;   // a completed save outranks the slow initial load (v16.69)
     const markUserTyped = () => { userHasTyped = true; };
     emailInput.addEventListener('input',  markUserTyped);
     emailInput.addEventListener('change', markUserTyped);
@@ -162,6 +163,7 @@ function initContactCard() {
     }
 
     function showSavedState(/** @type {any} */ dateStr) {
+        userSaved = true;
         setFeedback(dateStr ? `✓ Saved — last updated ${dateStr}` : '✓ Saved', 'ok');
         if (removeBtn) removeBtn.style.display = '';
     }
@@ -174,6 +176,10 @@ function initContactCard() {
     // Load existing email; show a loading message while waiting.
     setFeedback('Checking for a saved email…', '');
     sessionReady.then(() => getStaffContact(currentUser)).then(data => {
+        // A fast type-and-save can beat this slow initial load: once the user has SAVED, the load's
+        // stale result must not wipe the "✓ Saved" feedback or re-hide the Remove button — bail
+        // entirely (the saved state on screen is newer than this read) (v16.69 review fix).
+        if (userSaved) return;
         if (data?.workEmail && !userHasTyped) {
             emailInput.value = data.workEmail;
             showSavedState(formatDate(data.updatedAt));
