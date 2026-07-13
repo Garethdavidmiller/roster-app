@@ -54,6 +54,14 @@ jobs:
       - name: Run parser helper tests
         run: npm run test:functions
 
+      # The browser (auth-identity.js) and functions (roster-parse-helpers.js) each hold a
+      # deliberate duplicate of the surname/password derivation. surname-parity.test.mjs is the
+      # ONLY guard that they stay in sync — and a functions-only push never triggers the hosting
+      # workflow that runs the full suite, so run it here too or a drifted derivation would ship
+      # green and break every staff login at the next account re-provision.
+      - name: Check browser/functions surname derivation stays in sync
+        run: node --test surname-parity.test.mjs
+
       - name: Check roster-members.json is in sync with roster-data.js
         run: node --test --test-name-pattern "roster-members" sw-asset-check.test.mjs
 

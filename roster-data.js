@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '16.68';
+export const APP_VERSION = '16.69';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -936,15 +936,36 @@ export function escapeHtml(str) {
  */
 export function parseSmartFloat(v) {
     if (!v) return 0;
-    const cleaned = String(v)
+    return parseFloat(_cleanNumericString(v)) || 0;
+}
+
+/** Shared numeric-input cleaning: smart hyphens/minus → '-', curly quotes normalised, thousands
+ *  commas and £ signs stripped (a payslip figure pasted verbatim as "£23,456.78" must parse —
+ *  parseFloat stops at the first comma, silently turning "23,456.78" into 23, badly corrupting
+ *  YTD-based cumulative PAYE). @param {any} v */
+function _cleanNumericString(v) {
+    return String(v)
         .replace(/[‐-―−−]/g, '-')
         .replace(/[‘’]/g, "'")
-        // Strip thousands separators (commas) and any £ sign so a payslip figure pasted verbatim
-        // as "23,456.78" or "£1,234.56" parses correctly — parseFloat stops at the first comma,
-        // silently turning "23,456.78" into 23 (badly corrupting YTD-based cumulative PAYE).
         .replace(/[,£]/g, '')
         .trim();
-    return parseFloat(cleaned) || 0;
+}
+
+/**
+ * parseSmartFloat, but DISTINGUISHES "unusable" from zero: empty/missing input OR a non-empty
+ * value that cannot be parsed returns null instead of 0. parseSmartFloat's `|| 0` floor makes it
+ * impossible for callers to tell floored garbage from a real £0 — which mattered badly for the
+ * Year-to-Date fields: an unparseable remnant (a lone "." or "-" left mid-edit and autosaved)
+ * coerced to £0 Taxable-Pay-to-date, silently flipping computeTax into cumulative mode and
+ * collapsing Income Tax to £0.00 (take-home overstated by hundreds of pounds). Signed money
+ * fields read THIS and treat null as "not provided".
+ * @param {string|null|undefined} v - Raw field value.
+ * @returns {number|null}
+ */
+export function parseSmartFloatOrNull(v) {
+    if (v === null || v === undefined || String(v).trim() === '') return null;
+    const n = parseFloat(_cleanNumericString(v));
+    return Number.isFinite(n) ? n : null;
 }
 
 /**

@@ -379,7 +379,14 @@ let userMadeChanges = false;
 function hasUnsavedChanges() { return userMadeChanges; }
 
 /** Marks the grid as having unsaved changes. Call on any user interaction. */
-function markChanged() { userMadeChanges = true; }
+function markChanged() {
+    userMadeChanges = true;
+    // A new edit invalidates a showing AL over-limit bar: its captured batch predates this edit,
+    // so "Save anyway" would write a stale snapshot and the success path would then deactivate
+    // the rows, silently discarding the newer edit (v16.69 review fix). The admin re-taps Save,
+    // which recollects and re-checks.
+    hideALConfirm();
+}
 
 // Warn browser/OS before closing or navigating away
 window.addEventListener('beforeunload', e => {
@@ -918,6 +925,9 @@ saveBtn.addEventListener('click', async () => {
 document.getElementById('stagedSaveBtn')?.addEventListener('click', () => saveBtn.click());
 document.getElementById('stagedDiscardBtn')?.addEventListener('click', () => {
     userMadeChanges = false;
+    // The bar's captured batch is exactly what was just discarded — "Save anyway" after a discard
+    // must not write it back (v16.69 review fix).
+    hideALConfirm();
     renderWeekGrid();
 });
 
@@ -961,6 +971,10 @@ fieldMember.addEventListener('change', () => {
         updateSickBookedBox();
         _refreshAlPreview?.();   // keep the AL/absence previews pointed at the new member
         _refreshSickPreview?.();
+        // The over-limit bar (either mode) was computed for the PREVIOUS member: the week-editor
+        // batch belongs to them, and the AL-booking confirm must not let "Save anyway" book the
+        // NEW member with the entitlement check silently skipped (v16.69 review fix).
+        hideALConfirm();
         resetTableMemberFilter(); // also calls renderTable internally
         renderWeekGrid();
     };
@@ -1137,6 +1151,10 @@ function hideALConfirm() {
     alConfirmBar.classList.remove('visible');
     _alPendingSave   = null;
     _alPendingDelete = [];
+    // Disarm the button too: the slide-out keeps the bar hit-testable for 0.25s, and with
+    // _alPendingSave just nulled a tap in that window would fall through to the AL-booking
+    // branch (an entitlement-unchecked booking). showALConfirm re-arms it. (v16.69)
+    alConfirmSaveBtn.disabled = true;
 }
 
 alConfirmSaveBtn.addEventListener('click', async () => {

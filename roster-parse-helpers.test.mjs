@@ -958,3 +958,56 @@ describe('applyColumnScanCrossCheck', () => {
         assert.deepEqual(entries[0].shifts, shiftsOf(row), 'vocabulary differences are not disagreements');
     });
 });
+
+// ── v16.69 cross-check hardening: copied-scan safety, OFF equivalence, RDW upgrade ──
+
+describe('applyColumnScanCrossCheck — review-fix hardening', () => {
+    const DATES = [
+        '2026-03-29', '2026-03-30', '2026-03-31',
+        '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04',
+    ];
+    const HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const shiftsOf = vals => Object.fromEntries(DATES.map((d, i) => [d, vals[i]]));
+    const scanOf   = vals => Object.fromEntries(HEADERS.map((h, i) => [h, { 'G. Miller': vals[i] }]));
+
+    test('PIPELINE ORDER: a columnScan lazily COPIED from a drifted row must not reverse the Sunday repair', () => {
+        // True week: blank Sunday, then m t w th f s. Row read is the classic full-row LEFT drift.
+        const drifted  = ['06:00-14:00', '07:00-15:00', '08:00-16:00', 'RD', '09:00-17:00', '10:00-18:00', 'RD'];
+        const trueWeek = ['RD', '06:00-14:00', '07:00-15:00', '08:00-16:00', 'RD', '09:00-17:00', '10:00-18:00'];
+        const entries  = [{ memberName: 'G. Miller', shifts: shiftsOf(drifted) }];
+        // The model copied columnScan from its own (drifted) row read.
+        const copiedScan = scanOf(drifted);
+        // Production order (index.js): cross-check FIRST (copied scan agrees → no-op) …
+        applyColumnScanCrossCheck(entries, copiedScan, HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(drifted), 'copied scan must be a no-op');
+        // … THEN the Sunday corrections (sundayScan says blank, Sat empty → Case-A right-shift).
+        applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(trueWeek),
+            'the Case-A repair must land LAST and stand — reversing it was the v16.68 review finding');
+    });
+
+    test('OFF in the row read is equivalent to RD in the scan — no false UNREADABLE flood on CES rosters', () => {
+        const row  = ['OFF', '06:00-14:00', 'OFF', 'OFF', '07:00-15:00', 'OFF', 'OFF'];
+        const scan = ['blank', '06:00-14:00', 'OFF', 'blank', '07:00-15:00', '-', 'blank'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts, shiftsOf(row), 'OFF days must not be flagged');
+    });
+
+    test('RDW marker dropped by the ROW read is upgraded from the scan (per-cell, no flag)', () => {
+        const row  = ['RD', '06:00-14:00', 'RD', 'RD', '08:00-16:00', 'RD', 'RD'];
+        const scan = ['blank', 'RDW 06:00-14:00', 'blank', 'blank', '08:00-16:00', 'blank', 'blank'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.equal(entries[0].shifts[DATES[1]], 'RDW|06:00-14:00', 'row upgraded to the RDW form');
+        assert.equal(entries[0].shifts[DATES[4]], '08:00-16:00', 'agreeing plain time untouched');
+    });
+
+    test('RDW marker dropped by the SCAN keeps the row value (no downgrade, no flag)', () => {
+        const row  = ['RD', 'RDW|06:00-14:00', 'RD', 'RD', '08:00-16:00', 'RD', 'RD'];
+        const scan = ['blank', '06:00-14:00', 'blank', 'blank', '08:00-16:00', 'blank', 'blank'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.equal(entries[0].shifts[DATES[1]], 'RDW|06:00-14:00', 'row RDW preserved');
+    });
+});

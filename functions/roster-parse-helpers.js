@@ -419,8 +419,17 @@ function displayableShift(v) {
  *     review state): surfaced to the admin with both readings, NEVER silently written.
  *
  * Fail-open: no columnScan / missing column / missing member / unreadable scan value → no signal
- * for that cell → today's behaviour. Runs AFTER applySundayScanCorrections, so a Case-A partial
- * repair's residual mid-week drift (previously only a Cloud-log warning) is now caught here too.
+ * for that cell → today's behaviour.
+ *
+ * ⚠️ ORDER IS LOAD-BEARING: this MUST run BEFORE applySundayScanCorrections. The model may lazily
+ * COPY columnScan from its own row read (the prompt forbids it, nothing enforces it) — a copied
+ * scan mirrors the RAW drifted row. Run first, a copied scan simply agrees with the row (harmless
+ * no-op) and the validated Sunday corrections still land afterwards as the final authority. Run
+ * AFTER them instead, a copied scan "disagrees" with the freshly-repaired row and the suffix-shift
+ * realignment would provably REVERSE a correct Case-A repair back to the drifted week — silently.
+ * (An honest scan is order-insensitive: its repairs leave Sunday agreeing with sundayScan, so the
+ * Sunday pass no-ops.) A Case-A PARTIAL repair (Sat occupied) therefore keeps its residual-drift
+ * limitation server-side — the client's detectShiftedRow banner remains the catch for that case.
  *
  * @param {object[]} safeEntries   - modified in place ({ memberName, shifts: { date: value } })
  * @param {object}   columnScan    - { header: { memberName: rawCellValue } } from AI output
@@ -446,10 +455,32 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         const signalDates = Object.keys(colRead);
         if (signalDates.length === 0) continue;
 
+        // Comparison equality. The row read passes 'OFF' through verbatim (normaliseShift keeps it;
+        // the client treats OFF ≡ RD), but the scan normalises OFF → 'RD' via BLANK_SCAN_TOKENS — so
+        // compare with OFF folded to RD on the row side, or every ordinary CES/bilingual rest day
+        // would false-flag as a disagreement.
+        const rowEq = v => (v === 'OFF' ? 'RD' : v);
+        const cellsAgree = (rowV, colV) => rowEq(rowV) === colV;
+
+        // Per-cell RDW repair BEFORE the disagreement count: RDW-stripping is a known one-sided
+        // failure (the reads agree on the TIME, only the RDW marker differs). Column has RDW, row
+        // lost it → upgrade the row (the scan kept the marker — same authority as Case B). Row has
+        // RDW, scan lost it → keep the row. Neither counts as a disagreement.
+        for (const d of signalDates) {
+            const rowV = entry.shifts[d];
+            if (typeof rowV !== 'string' || rowV.startsWith('UNKNOWN|')) continue;
+            if (colRead[d] === `RDW|${rowV}`) {
+                console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: column scan kept an RDW marker the row read dropped — upgraded to "${colRead[d]}"`);
+                entry.shifts[d] = colRead[d];
+            } else if (rowV === `RDW|${colRead[d]}`) {
+                colRead[d] = rowV;   // row kept the marker the scan dropped — align the comparison
+            }
+        }
+
         const disagree = signalDates.filter(d =>
             typeof entry.shifts[d] === 'string'
             && !entry.shifts[d].startsWith('UNKNOWN|')
-            && entry.shifts[d] !== colRead[d]);
+            && !cellsAgree(entry.shifts[d], colRead[d]));
         if (disagree.length === 0) continue;
 
         // Provable realignment. A dropped blank cell shifts only the SUFFIX of the row after it
@@ -475,7 +506,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
                     for (let i = k; i <= 5; i++) shifted[dates[i]] = entry.shifts[dates[i + 1]];
                     shifted[dates[6]] = colRead[dates[6]] ?? 'RD';
                 }
-                if (signalDates.every(d => shifted[d] === colRead[d])) {
+                if (signalDates.every(d => cellsAgree(shifted[d], colRead[d]))) {
                     for (let i = 0; i < 7; i++) entry.shifts[dates[i]] = shifted[dates[i]];
                     console.warn(`[parseRosterPDF] ${entry.memberName}: row read disagreed with the column scan on ${disagree.length} day(s) and realigns exactly under a one-day suffix ${delta > 0 ? 'RIGHT' : 'LEFT'}-shift from ${dates[k]} — day-drift repaired (repaired row matches the column scan everywhere)`);
                     repaired = true;

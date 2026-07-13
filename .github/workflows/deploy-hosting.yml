@@ -7,6 +7,8 @@ on:
     paths-ignore:
       - 'functions/**'
       - 'firestore.rules'
+      - 'storage.rules'
+      - 'firestore.indexes.json'
       - '**/*.md'
       - '.github/**'
   workflow_dispatch:

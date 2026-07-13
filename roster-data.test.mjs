@@ -43,6 +43,7 @@ import {
     isValidEmail,
     isChilternWorkEmail,
     getMembersForGrade,
+    parseSmartFloatOrNull,
 } from './roster-data.js';
 
 describe('isChilternWorkEmail', () => {
@@ -989,4 +990,30 @@ test('B. Khalil: pre-start RD, then CES rotation from 9 Jun and across 1 Jul', (
     const jul = resolveMemberRoster(m, new Date(2026, 6, 1));                        // across 1 Jul — still CES
     assert.equal(jul.rosterType,  'ces');
     assert.equal(jul.currentWeek, 5);
+});
+
+
+// ── parseSmartFloatOrNull — the null-preserving signed-field parser (v16.69) ──
+
+describe('parseSmartFloatOrNull', () => {
+    test('parses valid values incl. smart-punctuation and pasted payslip formats', () => {
+        assert.equal(parseSmartFloatOrNull('147.36'), 147.36);
+        assert.equal(parseSmartFloatOrNull('£23,456.78'), 23456.78);
+        assert.equal(parseSmartFloatOrNull('−5'), -5);      // U+2212 minus
+        assert.equal(parseSmartFloatOrNull('0'), 0);        // a REAL zero stays zero
+    });
+    test('empty / missing → null (not provided), never 0', () => {
+        assert.equal(parseSmartFloatOrNull(''), null);
+        assert.equal(parseSmartFloatOrNull('   '), null);
+        assert.equal(parseSmartFloatOrNull(null), null);
+        assert.equal(parseSmartFloatOrNull(undefined), null);
+    });
+    test('non-empty garbage → null — the £0-YTD tax-collapse guard (v16.69 review fix)', () => {
+        // parseSmartFloat floors these to 0; for the Year-to-Date fields that asserted "£0 taxable
+        // pay to date" and flipped computeTax into cumulative mode → Income Tax £0.00.
+        assert.equal(parseSmartFloatOrNull('.'), null);
+        assert.equal(parseSmartFloatOrNull('-'), null);
+        assert.equal(parseSmartFloatOrNull('abc'), null);
+        assert.equal(parseSmartFloatOrNull('£'), null);
+    });
 });

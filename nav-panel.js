@@ -302,6 +302,22 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     let _docFetching = false;
 
     /**
+     * Failure/no-doc fallback for _openLatestDoc, GUARDED on the drawer still being the open
+     * surface (v16.69 review fix). The fetch can settle up to 8s later; if the user opened App
+     * Notices or About meanwhile, _closePanelVisualOnly()'s unlockBodyScroll would decrement THAT
+     * lightbox's scroll lock (background scrolls behind the modal) and the coming-soon lightbox
+     * would stack on the same history entry — closing it then eats the entry while the other
+     * lightbox is still open, so the next Android Back leaves the page. If the panel is no longer
+     * open, just drop the fallback: the spinner was already cleared by the .finally.
+     * @param {HTMLElement} triggerEl @param {string} [msg]
+     */
+    function _docFailureFallback(triggerEl, msg) {
+        if (!_panelOpen) return;
+        _closePanelVisualOnly();
+        _openComingSoon(triggerEl, msg);
+    }
+
+    /**
      * Opens the latest Circular or Newsletter in a new tab — DIRECTLY, in one tap.
      * A PDF opens by its own URL (browsers render it inline); a Word (.docx) document
      * would DOWNLOAD if opened directly, so it is routed through Microsoft's Office
@@ -351,13 +367,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 }
             } else {
                 if (newTab) newTab.close();
-                _closePanelVisualOnly();
-                _openComingSoon(triggerEl);
+                _docFailureFallback(triggerEl);
             }
         }).catch(() => {
             if (newTab) newTab.close();
-            _closePanelVisualOnly();
-            _openComingSoon(triggerEl, 'Couldn\'t connect — check your signal and try again.');
+            _docFailureFallback(triggerEl, 'Couldn\'t connect — check your signal and try again.');
         }).finally(() => {
             triggerEl.classList.remove('nav-panel-link--loading');
             triggerEl.removeAttribute('aria-busy');
@@ -473,6 +487,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (state === 'denied' || state === 'loading') return;
         _bellBusy = true;
         bell.dataset.notifState = 'loading';
+        _paintBell('loading');   // repaint NOW — otherwise the old 🔔/"On" glyph shows through a slow toggle (up to 8s)
         bell.disabled = true;
         try {
             _paintBell(state === 'on' ? await disableNotifications() : await enableNotifications());

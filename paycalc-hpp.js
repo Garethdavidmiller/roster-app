@@ -161,9 +161,12 @@ export function calcHPP(bpVarAmount, bpPNum) {
 
   // Persist the running estimate so it survives when the user moves to the next
   // tax year. Delete when the estimate drops to zero to avoid a stale figure
-  // silently being added to the January payslip after entries are cleared.
+  // silently being added to the January payslip after entries are cleared —
+  // but NEVER when periods were skipped as corrupt: a zero produced by failing to
+  // READ the data is not "entries cleared", and wiping the previously-persisted
+  // (correct) estimate would compound the loss.
   if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
-  else         lsDel(hppEstKey(ty));
+  else if (_skipped.length === 0) lsDel(hppEstKey(ty));
 
   // Back pay counts toward this year's variable pay (added to totalVar above) even when the lump-sum
   // period has no hours entered — so it can make hpp > 0 while pCount is still 0. Show the figure in
@@ -174,6 +177,11 @@ export function calcHPP(bpVarAmount, bpPNum) {
   if (pCount === 0 && !bpInThisYear) {
     if (amountEl) amountEl.textContent = '£–';
     if (basisEl)  basisEl.textContent  = 'Enter hours across your periods above to calculate';
+    // EVERY readable period failed to parse — the worst case must not be the silent one (the
+    // partial-corruption warning below only renders on the non-empty branch).
+    if (_skipped.length && basisEl) {
+      basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved period${_skipped.length > 1 ? 's' : ''}, so no premium could be calculated — re-save ${_skipped.length > 1 ? 'them' : 'it'} on the calculator.</span>`;
+    }
   } else {
     if (amountEl) amountEl.textContent = fmt(hpp);
     if (basisEl) {

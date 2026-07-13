@@ -704,8 +704,8 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
 async function sendPayPushNotifications(payday, vapidPrivate) {
     setupWebPush(vapidPrivate);
 
-    // Use toISOString() (UTC) rather than local-time getters — payday is constructed
-    // as midnight UTC so the UTC date is always the correct London date on Cloud Run.
+    // Use toISOString() (UTC) — the caller constructs payday at NOON UTC from London calendar
+    // parts, so the UTC date is the correct London date on any runtime timezone.
     const paydayISO = payday.toISOString().slice(0, 10);
 
     const paydayDay = payday.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/London' });
@@ -752,8 +752,12 @@ exports.sendPayReminderNotification = onSchedule(
                 return;
             }
 
-            const payday = new Date(today);
-            payday.setDate(today.getDate() + 6);
+            // Anchor the payday at NOON UTC built from the London calendar parts — not local
+            // midnight. sendPayPushNotifications derives the ?payday= deep link via toISOString();
+            // a local-midnight Date only yields the right UTC day because Cloud Run pins TZ=UTC,
+            // and this file's convention (isPayCutoffDay, pruneOldHuddles) is TZ-independence.
+            const payday = new Date(Date.UTC(year, month, day, 12));
+            payday.setUTCDate(payday.getUTCDate() + 6);
             console.log(`[payReminder] Cutoff day — sending pay reminder`);
             await sendPayPushNotifications(payday, VAPID_PRIVATE_KEY);
         } catch (err) {
@@ -1155,18 +1159,21 @@ columnScan: one key per column header; every staff member appears in every colum
             return;
         }
 
+        // ---- Post-processing: cross-check the row read against the column scan ----
+        // The GENERAL day-shift defence: every cell must agree between the row read and the
+        // column-by-column re-read. A suffix ±1-day realignment is repaired deterministically
+        // (two-source consensus); any other disagreement becomes a skip-only UNREADABLE review
+        // cell — a misread can no longer be silently written. Fails open when the AI omits
+        // columnScan. ⚠️ MUST run BEFORE the Sunday corrections: a lazily-copied columnScan
+        // mirrors the raw row read, and running after would let it REVERSE a correct Case-A
+        // repair (see the helper's JSDoc). Run first, a copied scan is a harmless no-op and the
+        // validated Sunday pass lands last as the final authority.
+        applyColumnScanCrossCheck(safeEntries, parsed.columnScan, parsed.columnHeaders, dates);
+
         // ---- Post-processing: validate Sunday values using sundayScan ----
         // Catches blank-misread-as-Monday (Case A) and RDW-stripped (Case B).
         const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(h.trim().toLowerCase()));
         applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
-
-        // ---- Post-processing: cross-check the row read against the column scan ----
-        // The GENERAL day-shift defence (the Sunday pass above only anchors one cell): every cell
-        // must agree between the row read and the column-by-column re-read. A whole-row ±1-day
-        // realignment is repaired deterministically (two-source consensus); any other disagreement
-        // becomes a skip-only UNREADABLE review cell — a misread can no longer be silently written.
-        // Fails open when the AI omits columnScan.
-        applyColumnScanCrossCheck(safeEntries, parsed.columnScan, parsed.columnHeaders, dates);
 
         // ---- Filter to known staff names only ----
         // The AI could hallucinate a name not in the prompt list — strip any entry

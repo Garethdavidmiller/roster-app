@@ -802,13 +802,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // Day-drift warning: this row correlates with the member's OWN base pattern one day
             // out — the independent check on the AI read (see detectShiftedRow). Warn ONLY: the
             // admin decides against the PDF; nothing is auto-changed at this stage.
-            const memberObj = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
-            const drift = memberObj ? detectShiftedRow(memberObj, entry.shifts, dates) : null;
+            // Direction wording: 'left' = each parsed value really belongs to the NEXT day
+            // (parsed[d] matches base[d+1]) — i.e. the usual pattern appears a day EARLIER than
+            // it should. (The first wording had this inverted — v16.69 review fix.)
+            const drift = detectShiftedRow(member, entry.shifts, dates);
             if (drift) {
                 const warn = document.createElement('div');
                 warn.className = 'roster-shift-warning';
                 warn.setAttribute('role', 'alert');
-                warn.innerHTML = `⚠️ <strong>These days may be one day out.</strong> ${esc(entry.memberName)}'s week lines up better with their usual pattern shifted a day ${drift === 'left' ? 'later' : 'earlier'} — check each day against the PDF before saving, or Skip all and re-upload.`;
+                warn.innerHTML = `⚠️ <strong>These days may be one day out.</strong> ${esc(entry.memberName)}'s week lines up better with their usual pattern shifted a day ${drift === 'left' ? 'earlier' : 'later'} — check each day against the PDF before saving, or Skip all and re-upload.`;
                 section.appendChild(warn);
             }
 

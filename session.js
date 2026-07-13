@@ -243,7 +243,18 @@ export async function ensureFirebaseSession(name, _gen) {
     // An anonymous fallback session, or a session for a different member (e.g.
     // Person A was active on a shared browser and Person B now selects their name),
     // must not be reused — sign out and re-authenticate under the correct identity.
-    if (existing) await firebaseSignOut(auth);
+    if (existing) {
+        await firebaseSignOut(auth);
+        // Re-check the generation AFTER the sign-out await (v16.69 review fix): an attempt
+        // superseded DURING firebaseSignOut would otherwise resume and run the sign-in calls
+        // below, replacing the WINNING attempt's freshly-established session on the shared
+        // `auth` — the store says 'named' for the winner while auth.currentUser holds someone
+        // else, so every strict-rules write is permission-denied until the next page load
+        // (writeWithClaimRetry cannot heal a wrong-identity token). Mirrors the fresh() check
+        // above; commit() already no-ops for a stale gen, but the auth mutation itself must
+        // not happen either.
+        if (!fresh()) return commit('none', false);
+    }
 
     const pw         = getSurname(name);
     // Firebase Auth requires ≥6 chars — repeat the derived password string to reach the minimum.
