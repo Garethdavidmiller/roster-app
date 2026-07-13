@@ -1928,6 +1928,8 @@
             width: 100px;
             height: 100px;
             border-radius: 22px;
+            /* Gentle entrance so the launch reads as alive, not a static frozen frame. */
+            animation: splashIconIn 0.5s var(--ease-emphasized) both;
         }
 
         #splash-title {
@@ -1935,6 +1937,48 @@
             font-weight: 800;
             color: white;
             letter-spacing: -0.5px;
+            animation: splashTitleIn 0.5s var(--ease-emphasized) 0.08s both;
+        }
+
+        /* Indeterminate progress bar — a gold segment slides across a faint track for as long as
+           the splash is up, so a slow module-graph load looks like progress rather than a hang. */
+        #splash-bar {
+            width: 128px;
+            height: 3px;
+            border-radius: 3px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.14);
+            animation: splashTitleIn 0.5s var(--ease-emphasized) 0.16s both;
+        }
+        #splash-bar > span {
+            display: block;
+            width: 40%;
+            height: 100%;
+            border-radius: 3px;
+            background: var(--accent-gold);
+            animation: splashBar 1.15s var(--ease-standard) infinite;
+        }
+
+        @keyframes splashIconIn {
+            from { opacity: 0; transform: scale(0.86); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes splashTitleIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes splashBar {
+            0%   { transform: translateX(-100%); }
+            100% { transform: translateX(320%); }
+        }
+
+        /* Reduced motion: no entrance, no sliding bar — show a static, half-lit track instead so
+           the splash is still complete and calm without movement. */
+        @media (prefers-reduced-motion: reduce) {
+            #splash-icon, #splash-title, #splash-bar {
+                animation: none; opacity: 1; transform: none;
+            }
+            #splash-bar > span { animation: none; width: 100%; opacity: 0.45; }
         }
 
         /* ---- Day detail lightbox (touch tap on a calendar cell) ---- */
