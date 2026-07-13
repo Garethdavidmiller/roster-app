@@ -1168,7 +1168,7 @@ columnScan: one key per column header; every staff member appears in every colum
         // mirrors the raw row read, and running after would let it REVERSE a correct Case-A
         // repair (see the helper's JSDoc). Run first, a copied scan is a harmless no-op and the
         // validated Sunday pass lands last as the final authority.
-        applyColumnScanCrossCheck(safeEntries, parsed.columnScan, parsed.columnHeaders, dates);
+        const _ccStats = applyColumnScanCrossCheck(safeEntries, parsed.columnScan, parsed.columnHeaders, dates);
 
         // ---- Post-processing: validate Sunday values using sundayScan ----
         // Catches blank-misread-as-Monday (Case A) and RDW-stripped (Case B).
@@ -1195,10 +1195,18 @@ columnScan: one key per column header; every staff member appears in every colum
 
         console.log(`[parseRosterPDF] Returning ${filteredEntries.length} parsed members for week ${weekEnding}`);
 
+        // Cross-check status for the review UI (v16.70): 'complete' — every member was checked
+        // against the column re-read; 'partial' — some were; 'unavailable' — the AI omitted or
+        // garbled columnScan, so the independent check never ran (fail-open must not be invisible).
+        const crossCheck = _ccStats.checked === 0 ? 'unavailable'
+            : _ccStats.checked >= filteredEntries.length ? 'complete' : 'partial';
+        if (crossCheck !== 'complete') console.warn(`[parseRosterPDF] column cross-check ${crossCheck}: ${_ccStats.checked}/${filteredEntries.length} members covered`);
+
         res.status(200).json({
             weekEnding,
             rosterType,
             dates,
+            crossCheck,
             parsed: filteredEntries,
         });
     }

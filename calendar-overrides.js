@@ -73,6 +73,7 @@ export async function fetchOverridesForRange(startStr, endStr) {
     );
     const snapshot = await getDocs(q);
     if (snapshot.size >= 1900) console.warn('[Firestore] Override query returned', snapshot.size, 'docs — approaching practical limit. Consider archiving old overrides.');
+    const seenKeys = new Set();
     snapshot.forEach((/** @type {any} */ doc) => {
         const data = doc.data();
         if (!data.memberName || !data.date || !data.value) {
@@ -80,6 +81,7 @@ export async function fetchOverridesForRange(startStr, endStr) {
             return;
         }
         const key      = `${data.memberName}|${data.date}`;
+        seenKeys.add(key);
         const incoming = toOverrideRecord(data);
         const existing = rosterOverridesCache.get(key);
         if (existing) {
@@ -91,6 +93,19 @@ export async function fetchOverridesForRange(startStr, endStr) {
             rosterOverridesCache.set(key, incoming);
         }
     });
+    // RECONCILE, don't just merge (v16.70): the range query is authoritative for [startStr, endStr],
+    // so a cached entry in-range whose doc no longer exists was DELETED in Firestore (a manager
+    // removing a wrong absence, or a corrected roster upload REMOVE_IMPORTing a stale import).
+    // Without this, a re-query of the range (the initial-fetch RETRY path re-claims and re-fetches
+    // the 3-month window) merged additions/edits but kept deleted records alive until a full page
+    // reload. Dates outside the queried range are untouched; the team-view week fetch applies the
+    // same reconciliation independently (calendar-team-view.js, v16.69).
+    for (const key of [...rosterOverridesCache.keys()]) {
+        const dateStr = key.slice(key.indexOf('|') + 1);
+        if (dateStr >= startStr && dateStr <= endStr && !seenKeys.has(key)) {
+            rosterOverridesCache.delete(key);
+        }
+    }
     // New override data may change which shift types appear in a month.
     shiftTypesMonthCache.clear();
 }

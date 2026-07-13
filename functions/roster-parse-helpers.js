@@ -437,8 +437,12 @@ function displayableShift(v) {
  * @param {string[]} dates         - 7 ISO dates (Sun → Sat) from buildWeekDates()
  */
 function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates) {
-    if (!columnScan || typeof columnScan !== 'object') return;
-    if (!Array.isArray(columnHeaders) || dates.length < 7) return;
+    // Coverage stats so the caller can tell the ADMIN when the fail-open path ran — the check
+    // failing open must not be invisible (v16.70). checked = members with a usable signal on ≥5
+    // days (the same bar the auto-repair uses).
+    const stats = { checked: 0, total: safeEntries.length };
+    if (!columnScan || typeof columnScan !== 'object') return stats;
+    if (!Array.isArray(columnHeaders) || dates.length < 7) return stats;
 
     for (const entry of safeEntries) {
         // Build this member's column-read map: date → normalised value (signalled cells only).
@@ -453,6 +457,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             if (v !== null) colRead[dates[dayIndex]] = v;
         }
         const signalDates = Object.keys(colRead);
+        if (signalDates.length >= 5) stats.checked++;
         if (signalDates.length === 0) continue;
 
         // Comparison equality. The row read passes 'OFF' through verbatim (normaliseShift keeps it;
@@ -525,6 +530,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             entry.shifts[d] = `UNKNOWN|${rowV} or ${colV}? (PDF unclear)`;
         }
     }
+    return stats;
 }
 
 // ── Huddle push notification day label ───────────────────────────────────────

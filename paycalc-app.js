@@ -50,7 +50,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
-import { SK, periodKey, hppEstKey, hppActualKey, runMigrations, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
+import { SK, periodKey, hppEstKey, hppActualKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
 'use strict';
@@ -510,10 +510,13 @@ export function init() {
     function loadPeriodData(pNum) {
       /** @type {any} */
       let d = emptyPeriodData();
-      try {
-        const raw = lsGet(periodKey(pNum));
-        if (raw) d = JSON.parse(raw);
-      } catch { /* use empty */ }
+      // parseSavedPeriod distinguishes CORRUPT from missing: a period whose saved JSON can't be
+      // read must not silently present as an ordinary empty form ("No entries saved") — the user
+      // could unknowingly type over damaged data. The form still loads empty (nothing is deleted;
+      // the stored blob is only replaced if the user actually types), but updateSaveStatus shows
+      // an explicit warning state instead (v16.70 review fix).
+      const _parsed = parseSavedPeriod(lsGet(periodKey(pNum)));
+      if (_parsed.data) d = _parsed.data;
       writeFormData(d);
       _restoreRosterSuggested(pNum);
       // If no pension has been manually saved for this period, apply the period-specific
@@ -548,8 +551,14 @@ export function init() {
       const el  = /** @type {HTMLElement} */ (document.getElementById('saveStatus'));
       const raw = lsGet(periodKey(pNum));
       if (raw) {
-        let d;
-        try { d = JSON.parse(raw); } catch { d = null; }
+        const { data: d, error } = parseSavedPeriod(raw);
+        if (error) {
+          // Saved data exists but can't be read — say so, don't masquerade as "No entries saved"
+          // (the user would type over the damaged blob without knowing it held anything) (v16.70).
+          el.textContent = "⚠ Couldn't read this period's saved entries — anything you type will replace them";
+          el.className   = 'save-status corrupt';
+          return;
+        }
         if (d) {
           const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
           const _defaultPension = _pObj

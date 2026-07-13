@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v16.69 -->
+<!-- MYB Roster — Calendar v16.71 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -102,6 +102,9 @@
     <div id="splash" role="presentation" aria-hidden="true">
         <img id="splash-icon" src="icon-192.png" alt="" loading="eager">
         <div id="splash-title">Marylebone Roster</div>
+        <!-- Indeterminate loading bar: signals "working" vs a genuine hang while the module graph
+             loads. If the app is truly stuck, splash-watchdog.js still shows the recovery panel at 20s. -->
+        <div id="splash-bar" aria-hidden="true"><span></span></div>
     </div>
 
     <!-- Screen reader announcements — visually hidden, updated on month change.

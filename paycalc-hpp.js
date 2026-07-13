@@ -230,6 +230,7 @@ export function updatePriorHpp(ty) {
   const estRaw    = lsGet(hppEstKey(priorTy));
   const actualRaw = lsGet(hppActualKey(priorTy));
   let   est       = estRaw    ? parseFloat(estRaw)    : 0;
+  let _priorSkipped = 0;   // corrupt prior-year periods — surfaced on the card, never console-only (v16.70)
   const actual    = actualRaw ? parseFloat(actualRaw) : 0;
 
   // If no stored estimate yet, compute on the fly so the prior-year HPP section
@@ -257,14 +258,13 @@ export function updatePriorHpp(ty) {
       _priorPeriods.forEach(/** @param {any} p */ p => {
         try {
           const parsed = readSavedPeriod(p.num);
-          if (parsed.error) { console.warn('[PayCalc] HPP prior-year corrupt period', p.num); return; }
+          if (parsed.error) { _priorSkipped++; console.warn('[PayCalc] HPP prior-year corrupt period', p.num); return; }
           if (!parsed.data) return;
           const d = parsed.data;
           if (isDataEmpty(d)) return;
           _priorVar += _varPayForPeriod(p, d, rate);
         } catch (e) {
-          // Prior-year estimate is a background persist with no live card surface here — trace it so
-          // a corrupt period is at least not fully silent (parity with the current-year path above).
+          _priorSkipped++;
           console.warn('[PayCalc] HPP prior-year skipped period', p.num, e);
         }
       });
@@ -305,7 +305,14 @@ export function updatePriorHpp(ty) {
   } else {
     if (amtLabel) amtLabel.textContent = 'Estimated';
     if (amtEl)    amtEl.textContent    = '£–';
-    if (basisEl)  basisEl.textContent  = `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
+    // "No variable pay recorded" would be a LIE when the truth is unreadable saved data (v16.70).
+    if (basisEl)  basisEl.textContent  = _priorSkipped > 0
+      ? `Couldn't read ${_priorSkipped} saved ${priorTy.label} period${_priorSkipped > 1 ? 's' : ''} — re-save ${_priorSkipped > 1 ? 'them' : 'it'} on the calculator, then check your January ${priorTy.hppPaidJan} payslip`
+      : `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
+  }
+  // Corrupt periods behind a PARTIAL estimate: the figure shown may be too low — say so (v16.70).
+  if (_priorSkipped > 0 && actual <= 0 && est > 0 && basisEl) {
+    basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_priorSkipped} saved period${_priorSkipped > 1 ? 's' : ''}, so this may be too low.</span>`;
   }
 
   const input = document.getElementById('priorHppActualInput');

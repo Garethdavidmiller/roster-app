@@ -309,18 +309,23 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
         // The result rail is the primary live output — on-screen at load.
         await expect(page.locator('.result-card')).toBeInViewport();
 
-        // WORKSPACE (v16.67): Hours + Settings span the two WIDE work columns (col 1–2); the
-        // col-3 SIDEBAR (.pc-side) holds the result card AND the four occasional cards, stacked
-        // in one column to the right of the work cards. The result is NO LONGER sticky.
+        // WORKSPACE (v16.67; result raised to the period-band row v16.71): Hours + Settings span
+        // the two WIDE work columns (col 1–2); the col-3 SIDEBAR (.pc-side) holds the result card
+        // AND the four occasional cards, stacked in one column to the right of the work cards. The
+        // sidebar now starts at row 3 (level with the period band) so the take-home result heads
+        // the top-right corner instead of leaving a navy void above it. The result is NOT sticky.
         const zone = await page.evaluate(() => {
             const hh = document.getElementById('hoursCard').getBoundingClientRect();
             const ss = document.getElementById('settingsCard').getBoundingClientRect();
+            const pc = document.querySelector('.period-controls').getBoundingClientRect();
             const rr = document.querySelector('.result-card').getBoundingClientRect();
             const pp = document.getElementById('payslipCard').getBoundingClientRect();
             const bp = document.getElementById('backPayCard').getBoundingClientRect();
             return {
                 sidebarRightOfHours: rr.left > hh.right - 2 && pp.left > hh.right - 2,
-                resultTopWithHours: Math.abs(hh.top - rr.top) < 40,
+                // The result now tops the right column: level with the period band (not the Hours
+                // card below it) and strictly ABOVE the Hours card — no navy void sits above it.
+                resultTopsColumn: Math.abs(pc.top - rr.top) < 40 && rr.top < hh.top - 10,
                 // Settings spans the two work columns → wider than a single col-3 sidebar card.
                 // (~1.45× at the tight 1024 end, more at wider viewports.)
                 settingsWide: ss.width > pp.width * 1.2,
@@ -331,7 +336,7 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
             };
         });
         expect(zone.sidebarRightOfHours, 'the col-3 sidebar is right of the work cards').toBe(true);
-        expect(zone.resultTopWithHours, 'result shares the top row with Hours').toBe(true);
+        expect(zone.resultTopsColumn, 'result tops column 3, level with the period band and above Hours').toBe(true);
         expect(zone.settingsWide, 'Settings spans the wide work columns').toBe(true);
         expect(zone.stacked, 'the occasional cards stack under the result in column 3').toBe(true);
         expect(zone.resultNotSticky, 'result is static in the sidebar (no longer a sticky rail)').toBe(true);

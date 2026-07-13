@@ -147,6 +147,7 @@
     }
     .save-status.saved   { color: var(--success-text); }
     .save-status.unsaved { color: var(--text-faint); }
+    .save-status.corrupt { color: var(--warning-amber); font-weight: 600; }
     .clear-btn {
       font-size: var(--type-micro); font-weight: 600; color: var(--text-light);
       background: none; border: none; cursor: pointer;
@@ -164,9 +165,18 @@
     /* ── RESULT CARD ── */
     .result-card {
       background: var(--surface); border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-1); margin-bottom: 16px; overflow: hidden;
+      box-shadow: var(--shadow-2); margin-bottom: 16px; overflow: hidden;
     }
-    .result-net { background: var(--primary-blue); padding: 18px 16px 16px; text-align: center; }
+    .result-net {
+      background: var(--primary-blue);
+      /* Soft top-lit panel behind the take-home figure (v16.71): the £ number and its label sit on
+         a gently-lit navy surface instead of a flat slab — reads as a considered result panel, and
+         gives the empty "£–" state some life before a period is picked. Token-derived, subtle. */
+      background-image: radial-gradient(95% 130% at 50% 0%,
+          color-mix(in oklch, var(--primary-blue) 84%, white) 0%,
+          var(--primary-blue) 72%);
+      padding: 18px 16px 16px; text-align: center;
+    }
     .net-label {
       font-size: var(--type-micro); font-weight: 700; color: rgba(255,255,255,0.68);
       text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
@@ -287,7 +297,7 @@
     /* ── CONTENT CARDS ── */
     .content-card {
       background: var(--surface); border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-1); margin-bottom: 12px; overflow: hidden;
+      box-shadow: var(--shadow-2); margin-bottom: 12px; overflow: hidden;
     }
     .card-body { padding: 12px 16px; }
 
@@ -694,30 +704,27 @@
       #helpLightboxContent { width: min(520px, 88vw); }
     }
 
-    /* ── Desktop: 1024px — two-column WORKSPACE (v16.14) ──
-       A persistent live-estimate rail beside the primary editing surface, with the
-       setup / reference cards grouped into a compact 2-up grid below. Everything is
-       driven by explicit grid-row placement (the DOM order is fixed so the SAME source
-       gives a good mobile stack), so nothing in this block reaches mobile/tablet. */
+    /* ── Desktop: 1024px — three-column WORKSPACE (v16.67; replaced the v16.14 sticky rail) ──
+       Two wide work columns (Hours + Settings span both) + a col-3 SIDEBAR (.pc-side) stacking
+       the result card and the four occasional cards, so column 3 is filled instead of a lone
+       result over a navy void. Everything is driven by explicit grid-row placement (the DOM
+       order is fixed so the SAME source gives a good mobile stack), so nothing in this block
+       reaches mobile/tablet. Full rationale: .claude/rules/paycalc.md → Desktop workspace. */
     @media (min-width: 1024px) {
-      /* 1100px content band: left col ~636px (form entry), right rail ~440px (the live
-         breakdown needs the width). 1400px was too wide — descriptions ran unreadably long. */
+      /* 1100px content band: two work columns (~636px combined form entry) + a ~400px col-3
+         sidebar. 1400px was too wide — descriptions ran unreadably long. */
       .app { max-width: var(--content-max-width); }
 
       /* Cap the measure on the full-width prose blocks so they don't run to ~150ch on
-         desktop (the rest of the page caps text at the rail column). Left-aligned. */
+         desktop (the rest of the page caps text at the sidebar column). Left-aligned. */
       .disclaimer, .privacy-note-standalone { max-width: 72ch; }
 
-      /* Grid on <main>: TWO wide work columns + a dedicated live-estimate RAIL (col 3). The
-         two big always-open cards (Hours, Settings) SPAN both work columns so they stay wide
-         (~660px → forms wrap far less and run much shorter than the old ~440 right column —
-         the real scroll-reduction lever). The four occasional cards, which are short when
-         collapsed, pair 2-up across the two work columns (similar heights → no navy void).
-         The result rail (col 3) holds ONLY the result card, spanning every work row, so it is
-         `position: sticky` and ALWAYS visible while editing — and because nothing else is ever
-         in col 3, it can never overlap another card. (Both v16.14 probes showed a sticky card
-         that SHARES a column with the cards beneath it slides over them; a rail column with
-         nothing behind removes that failure mode by construction.) */
+      /* Grid on <main>: TWO wide work columns + the col-3 SIDEBAR (v16.67). The two big
+         always-open cards (Hours, Settings) SPAN both work columns so they stay wide (~660px →
+         forms wrap far less — the real scroll-reduction lever). The .pc-side sidebar (col 3)
+         stacks the result card + the four occasional cards as a flex column; the result is NO
+         LONGER position:sticky (the retired v16.14 rail was — a lone sticky result left the rest
+         of col 3 a full-height navy void). #stickyTotal keeps the £ visible while scrolling. */
       main {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(360px, 400px);
@@ -753,14 +760,18 @@
          card leaving a full-height navy void beside a long left column. The result is NO LONGER sticky
          (that was only needed while it sat alone in col 3); the fixed #stickyTotal bar keeps the
          take-home figure visible while scrolling. `.pc-side` is display:contents on mobile so the DOM
-         order there is unchanged. align-self:start keeps the stack at the top; any residual gap (the
-         always-open left cards are inherently taller than the collapsed sidebar) falls to the
-         bottom-right — the least-prominent spot — instead of a full-height void. */
-      /* Span ONLY the two rows the left cards occupy (4–5). Spanning further (4/8) made CSS grid
-         distribute the sidebar's height across the empty rows 6–7, opening a phantom full-width gap
-         above the footer. */
+         order there is unchanged. align-self:start keeps the stack at the top; the sidebar starts at
+         row 3 (level with the period band) so the result heads the top-right corner and no navy void
+         sits above it; any residual gap (the always-open left cards are inherently taller than the
+         collapsed sidebar) falls to the bottom-right — the least-prominent spot. */
+      /* Start at row 3 (level with the period band) so the result card — the take-home £, the
+         single most important thing on the page — sits at the TOP-RIGHT where the eye lands, and
+         fills the col-3 row-3 void that used to sit beside the period selector (v16.71). Span
+         DOWN to row 6 (through Hours row 4, Settings row 5). Do NOT span further (e.g. 3/8): that
+         made CSS grid distribute the sidebar's height across the empty rows 6–7, opening a phantom
+         full-width gap above the footer. align-self:start keeps the stack top-aligned. */
       .pc-side {
-        grid-column: 3; grid-row: 4 / 6; align-self: start;
+        grid-column: 3; grid-row: 3 / 6; align-self: start;
         display: flex; flex-direction: column; gap: 16px;
       }
       .pc-side > * { margin-bottom: 0; }   /* flex `gap` owns the spacing (the `main > *` reset misses these nested cards) */
@@ -777,8 +788,8 @@
          Hours card so mobile is untouched). */
       #hoursCard .fill-roster-btn { padding: 12px 22px; font-size: var(--type-button); }
 
-      /* Peek button is redundant on desktop — the result rail is visible in the work zone
-         and #stickyTotal carries the figure once it scrolls away. */
+      /* Peek button is redundant on desktop — the result card sits at the top of the col-3
+         sidebar in view, and #stickyTotal carries the figure once it scrolls away. */
       .result-peek-btn { display: none; }
 
       /* Lightbox: comfortable reading width */
@@ -1064,10 +1075,10 @@
   }
   /* iOS soft keyboard hides the sticky bar (driven by visualViewport listener in paycalc.js) */
   #stickyTotal.keyboard-up { display: none !important; }
-  /* Desktop (v16.12): the bar runs here too. Since v16.14 the result card is a sticky
-     col-3 RAIL that keeps the live breakdown visible across the work area (rows 4–7); the
-     bar is the backstop for the footer/disclaimer rows below the rail's span. Capped and
-     centred to the content band so it doesn't run the full window width. */
+  /* Desktop (v16.12): the bar runs here too. Since v16.67 the result card is a STATIC card at
+     the top of the col-3 sidebar (.pc-side — the sticky rail was retired); the bar is the
+     backstop once the £ figure scrolls out of view. Capped and centred to the content band so
+     it doesn't run the full window width. */
   @media (min-width: 1024px) {
     #stickyTotal {
       left: 50%; right: auto; transform: translateX(-50%);
@@ -1216,6 +1227,11 @@
   /* Two side-by-side field columns (YTD pair, back-pay rate pair) */
   .field-pair {
     display: flex; gap: 8px; margin-bottom: 6px;
+    /* Bottom-align the two columns: the eyebrow labels differ in length ("TAXABLE PAY — YEAR TO
+       DATE" wraps to two lines, "TAX PAID — YEAR TO DATE" doesn't), and top alignment left the
+       input boxes at different heights. Anchoring to the end keeps the boxes level and lets a
+       wrapping label grow upward instead (v16.70 — the misaligned-boxes screenshot). */
+    align-items: flex-end;
   }
 
   /* Growing column inside a field-pair or pfx-row */
