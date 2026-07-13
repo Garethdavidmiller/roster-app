@@ -109,11 +109,17 @@ data-viz keep the full column width — only prose gets the measure cap. Data-vi
 
 **Accepted constraint — two-column voids.** admin and operations use an explicit-grid
 two-column desktop layout whose row order is fixed so the SAME source order can give a good
-mobile stack. Because column heights differ, the shorter column shows a navy void (admin's
-right AL/Absence stack; operations' left upload stack). This is inherent to preserving the
-mobile source order without a masonry layout (not yet baseline-supported); it is a cosmetic
-gap on a secondary (desktop) surface and is **deliberately left as-is** — do not "fix" it by
-reordering, which would regress the mobile stack. (Reviewed v15.90 desktop UX pass.)
+mobile stack. Because column heights differ, the shorter column shows a navy void
+(operations' left upload stack). This is inherent to preserving the mobile source order
+without a masonry layout (not yet baseline-supported); it is a cosmetic gap on a secondary
+(desktop) surface and is **deliberately left as-is** — do not "fix" it by reordering, which
+would regress the mobile stack. (Reviewed v15.90 desktop UX pass.)
+**Admin mitigated its right-column void** (v16.72): the "Saved Changes" card (`#overridesCard`)
+was moved OUT of the left column (it used to stack under the tall Change-a-Shift card via
+`#overridesCard { grid-column: 1 }`) and INTO the sticky `.col-side` right column, where it
+stacks under Absence and fills the column (it grows with content / when expanded). Mobile
+order is unchanged (col-side contents still stack after col-main). A smaller residual gap
+remains at the bottom-right when the right-column cards are all collapsed — mirroring paycalc.
 **Paycalc resolved its void** (v16.12→v16.14 rail, replaced at **v16.67**): a three-column
 desktop grid where Hours + Settings span the two wide work columns (wide → short) and a col-3
 **sidebar** (`.pc-side`, `display:contents` on mobile / flex column on desktop) stacks the result
@@ -121,5 +127,5 @@ card + the four occasional cards, so column 3 is FILLED. The v16.14 version put 
 (a sticky rail) in col 3, leaving the rest of that column a full-height navy void — the desktop
 "it's a mess" report; owner-approved "fill column 3" fix stacks the occasional cards under the
 (now non-sticky) result, with the `#stickyTotal` bottom bar keeping the £ visible. A modest
-residual gap (left cards inherently taller) sits at the bottom-right. admin/operations have no
-equivalent pairable card group, so their voids stand.
+residual gap (left cards inherently taller) sits at the bottom-right. operations has no
+equivalent card to relocate, so its left-column void stands (admin's was mitigated — above).

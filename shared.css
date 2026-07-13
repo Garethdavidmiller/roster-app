@@ -66,22 +66,25 @@
        Base colour for badges and borders. Light tints are derived
        via color-mix. All base colours meet WCAG AA on white. */
 
-    /* Early shift */
+    /* Early shift.  The `-light` tints below back the calendar's coloured day cells (index.css)
+       and a few idle pills/banners. They were enriched ~+4–6% at v16.72: the old washes
+       (8–14% toward white) were so pale the month read as near-uniform off-white, especially on
+       the dense 390px grid. Hues are unchanged (the legend stays valid) — only saturation. */
     --orange:       oklch(77.0% 0.1741 64.1deg);
-    --orange-light: color-mix(in oklch, var(--orange) 14%, white);
+    --orange-light: color-mix(in oklch, var(--orange) 19%, white);
 
     /* Late shift */
     --blue-sky:   oklch(51.3% 0.1603 255.7deg);
-    --blue-light: color-mix(in oklch, var(--blue-sky) 8%, white);
+    --blue-light: color-mix(in oklch, var(--blue-sky) 14%, white);
 
     /* Night shift */
     --night:             oklch(22.8% 0.0384 282.9deg);
-    --night-cell-bg:     rgba(20, 20, 40, 0.10);
+    --night-cell-bg:     rgba(20, 20, 40, 0.14);
     --night-cell-border: rgba(20, 20, 40, 0.30);
 
     /* Spare / standby */
     --purple:       oklch(45.3% 0.1988 313.0deg);
-    --purple-light: color-mix(in oklch, var(--purple) 11%, white);
+    --purple-light: color-mix(in oklch, var(--purple) 16%, white);
 
     /* Team view toggle */
     --raspberry:       oklch(51.0% 0.2180 357.0deg);
@@ -90,11 +93,11 @@
     /* RDW — rest day worked */
     --rdw:       oklch(53.1% 0.2015 5.6deg);
     --rdw-text:  oklch(41.5% 0.1605 355.7deg);
-    --rdw-light: color-mix(in oklch, var(--rdw) 14%, white);
+    --rdw-light: color-mix(in oklch, var(--rdw) 18%, white);
 
     /* Annual leave */
     --al:       oklch(56.6% 0.1010 182.5deg);
-    --al-light: color-mix(in oklch, var(--al) 11%, white);
+    --al-light: color-mix(in oklch, var(--al) 16%, white);
     --al-hover: color-mix(in oklch, var(--al) 91%, black);
     --al-deep:  color-mix(in oklch, var(--al) 66%, black);
 
@@ -106,12 +109,12 @@
        leaf green keeps a yellow-olive cast under deutan vision while teal stays blue-grey,
        so the two SEPARATE for colour-blind users. White badge text clears WCAG AA. */
     --other:       oklch(46.0% 0.1150 136.0deg);
-    --other-light: color-mix(in oklch, var(--other) 13%, white);
+    --other-light: color-mix(in oklch, var(--other) 18%, white);
     --other-text:  oklch(41.0% 0.1250 136.0deg);   /* darker leaf-green for idle pill text on white — clears WCAG AA 4.5:1 (the --other fill was too light); mirrors --rdw-text/--absence-text */
 
     /* Absence / sick — deliberately neutral; reason for absence is never stored */
     --absence:       oklch(49.3% 0 0);
-    --absence-light: oklch(96.0% 0 0);
+    --absence-light: oklch(93.0% 0 0);
     --absence-text:  oklch(24.8% 0 0);   /* #212121 — 15.8:1 on white */
 
     /* Rest day */
