@@ -171,6 +171,20 @@ describe('normaliseShift', () => {
         assert.equal(normaliseShift('ha'), 'SICK');
         assert.equal(normaliseShift('od'), 'SICK');
     });
+    test('raw sick codes SC/SN and punctuated absence forms → SICK (v16.68 hardening)', () => {
+        // The prompt tells the AI to return SICK for SC/SN, but a raw echo must still map —
+        // otherwise a genuine absence surfaces as an UNREADABLE cell instead of Absent.
+        assert.equal(normaliseShift('SC'), 'SICK');
+        assert.equal(normaliseShift('SN'), 'SICK');
+        assert.equal(normaliseShift('sc'), 'SICK');
+        // Punctuated paper-roster forms.
+        assert.equal(normaliseShift('O.D.'), 'SICK');
+        assert.equal(normaliseShift('O/D'), 'SICK');
+        assert.equal(normaliseShift('H.A'), 'SICK');
+        assert.equal(normaliseShift('S/N'), 'SICK');
+        // Dot-stripping must NOT swallow dotted time forms (existing behaviour preserved).
+        assert.equal(normaliseShift('05.30-11.30'), '05:30-11:30');
+    });
     test('training words → TRG (case-insensitive, all aliases)', () => {
         assert.equal(normaliseShift('TRG'), 'TRG');
         assert.equal(normaliseShift('Training'), 'TRG');

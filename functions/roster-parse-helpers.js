@@ -54,10 +54,14 @@ function normaliseShift(raw) {
     if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(s)) return s;
 
     // Paid-absence roster codes (owner, Jul 2026): HA = Hospital Appointment (a day off on full
-    // pay); OD = paid absence, often used as a blanket Mon–Fri marking for long-term sickness.
-    // Both become the app's Absent day ('SICK' — the reason is never stored). Sunday and
-    // base-rest-day normalisation happen client-side in computeCellStates, same as SICK.
-    if (s === 'HA' || s === 'OD') return 'SICK';
+    // pay); OD = paid absence, often used as a blanket Mon–Fri marking for long-term sickness;
+    // SC/SN = sick (the prompt already tells the AI to return SICK for these, but if it echoes
+    // the RAW code the server must still map it — otherwise a real absence surfaced as an
+    // UNREADABLE cell instead of Absent). All become the app's Absent day ('SICK' — the reason
+    // is never stored). Dots/slashes are stripped first so the punctuated paper-roster forms
+    // ("O.D.", "O/D", "H.A") map too. Sunday and base-rest-day normalisation happen client-side
+    // in computeCellStates, same as SICK.
+    if (['HA', 'OD', 'SC', 'SN'].includes(s.replace(/[./]/g, ''))) return 'SICK';
 
     // Training / Induction / Assessment / Team Day (OTHER_PLAN.md). Roster words collapse
     // to the canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
