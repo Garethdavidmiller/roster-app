@@ -143,9 +143,18 @@ async function _runEmailCheck(member) {
             _close();
         }
 
-        if (existing?.workEmail) {
+        if (existing?.workEmail && isChilternWorkEmail(existing.workEmail)) {
             storedEl.textContent = existing.workEmail;
             _showConfirm();
+        } else if (existing?.workEmail) {
+            // A LEGACY stored email that fails the current Chiltern work-email rules (saved before
+            // the stricter validation) must not be reconfirmable — "Yes, that's correct" would only
+            // stamp the local timestamp and let an invalid address ride for another ~3 months, which
+            // matters now this email underpins password reset. Force the add/edit view, prefilled so
+            // a typo'd domain is easy to fix; the pure-add escape ("I'll add this later") applies,
+            // so nobody is locked out (v16.70 review fix).
+            _showEdit(existing.workEmail, false);
+            errorEl.textContent = 'Your saved email doesn\'t meet the current work-email rules — please enter your Chiltern work email.';
         } else {
             _showEdit('', false);
         }

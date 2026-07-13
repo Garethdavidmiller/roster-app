@@ -773,8 +773,22 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             outcomeEl.innerHTML = `<h4 class="ro-h">When you tap “Save changes”</h4>${lines.join('')}${hint}`;
         }
 
-        // ---- Build per-person sections ----
+        // ---- Cross-check confidence note (v16.70) ----
+        // The server's column cross-check FAILS OPEN when the AI omits columnScan — sensible for
+        // availability, but the reduced confidence must not be invisible to the admin. Only shown
+        // when the (new) field is present and not 'complete', so an older deployed Function stays
+        // silent rather than false-alarming.
         changeList.innerHTML = '';
+        if (parsedResult.crossCheck && parsedResult.crossCheck !== 'complete') {
+            const ccNote = document.createElement('div');
+            ccNote.className = 'roster-crosscheck-note';
+            ccNote.setAttribute('role', 'status');
+            ccNote.textContent = parsedResult.crossCheck === 'unavailable'
+                ? '⚠ The independent column check didn\'t run for this read — review each day carefully against the PDF, or try reading the roster again.'
+                : '⚠ The independent column check only covered some staff on this read — review the days carefully against the PDF.';
+            changeList.appendChild(ccNote);
+        }
+        // ---- Build per-person sections ----
         let sectionsShown = 0;
 
         for (const entry of parsed) {

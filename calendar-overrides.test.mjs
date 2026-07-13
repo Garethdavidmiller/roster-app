@@ -214,3 +214,44 @@ describe('getShiftTypesInMonth', () => {
         assert.equal(types.has('AL'), false);
     });
 });
+
+// ── fetchOverridesForRange — deletion reconciliation (v16.70) ─────────────────
+
+describe('fetchOverridesForRange deletion reconciliation', () => {
+    beforeEach(() => {
+        rosterOverridesCache.clear();
+        _mockDocs = [];
+    });
+
+    test('a cached entry in-range whose doc vanished is EVICTED (deleted elsewhere)', async () => {
+        rosterOverridesCache.set('A. Smith|2026-06-10',
+            { value: 'SICK', type: 'sick', note: '', source: 'manual', createdAt: { seconds: 500 } });
+        _mockDocs = [];   // Firestore now returns nothing for the range — the doc was deleted
+        await fetchOverridesForRange('2026-06-01', '2026-06-30');
+        assert.equal(rosterOverridesCache.has('A. Smith|2026-06-10'), false,
+            'the deleted override must not survive a successful re-query of its range');
+    });
+
+    test('entries OUTSIDE the queried range are untouched; in-range survivors are kept', async () => {
+        rosterOverridesCache.set('A. Smith|2026-05-20',
+            { value: 'AL', type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 500 } });
+        rosterOverridesCache.set('A. Smith|2026-06-10',
+            { value: 'AL', type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 500 } });
+        _mockDocs = [
+            makeDoc('id1', { memberName: 'A. Smith', date: '2026-06-10', value: 'AL', type: 'annual_leave', source: 'manual', note: '', createdAt: { seconds: 500 } }),
+        ];
+        await fetchOverridesForRange('2026-06-01', '2026-06-30');
+        assert.equal(rosterOverridesCache.has('2026-05-20' && 'A. Smith|2026-05-20'), true, 'out-of-range May entry untouched');
+        assert.equal(rosterOverridesCache.get('A. Smith|2026-06-10')?.value, 'AL', 'in-range survivor kept');
+    });
+
+    test('a MALFORMED doc in the snapshot does not protect its cached entry (server copy is broken)', async () => {
+        rosterOverridesCache.set('A. Smith|2026-06-15',
+            { value: '09:00-17:00', type: 'shift', note: '', source: 'manual', createdAt: { seconds: 500 } });
+        _mockDocs = [
+            makeDoc('bad', { memberName: 'A. Smith', date: '2026-06-15' /* value missing → skipped */ }),
+        ];
+        await fetchOverridesForRange('2026-06-01', '2026-06-30');
+        assert.equal(rosterOverridesCache.has('A. Smith|2026-06-15'), false);
+    });
+});

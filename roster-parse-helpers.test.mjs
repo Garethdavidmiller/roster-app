@@ -1011,3 +1011,40 @@ describe('applyColumnScanCrossCheck — review-fix hardening', () => {
         assert.equal(entries[0].shifts[DATES[1]], 'RDW|06:00-14:00', 'row RDW preserved');
     });
 });
+
+// ── applyColumnScanCrossCheck — coverage stats (v16.70) ───────────────────────
+
+describe('applyColumnScanCrossCheck coverage stats', () => {
+    const DATES = [
+        '2026-03-29', '2026-03-30', '2026-03-31',
+        '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04',
+    ];
+    const HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const shiftsOf = vals => Object.fromEntries(DATES.map((d, i) => [d, vals[i]]));
+    const ROW = ['RD', '06:00-14:00', 'RD', 'RD', '07:00-15:00', 'RD', 'RD'];
+
+    test('missing columnScan → { checked: 0 } (the fail-open the review UI must surface)', () => {
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(ROW) }];
+        assert.deepEqual(applyColumnScanCrossCheck(entries, undefined, HEADERS, DATES), { checked: 0, total: 1 });
+    });
+
+    test('full scan coverage → checked === total', () => {
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(ROW) }];
+        const scan = Object.fromEntries(HEADERS.map((h, i) => [h, { 'G. Miller': ROW[i] === 'RD' ? 'blank' : ROW[i] }]));
+        assert.deepEqual(applyColumnScanCrossCheck(entries, scan, HEADERS, DATES), { checked: 1, total: 1 });
+    });
+
+    test('a member with <5 signalled days does not count as checked (partial)', () => {
+        const entries = [
+            { memberName: 'G. Miller',   shifts: shiftsOf(ROW) },
+            { memberName: 'L. Springer', shifts: shiftsOf(ROW) },
+        ];
+        // Full coverage for Miller; only 2 columns carry Springer.
+        const scan = Object.fromEntries(HEADERS.map((h, i) => {
+            const col = { 'G. Miller': ROW[i] === 'RD' ? 'blank' : ROW[i] };
+            if (h === 'Mon' || h === 'Thu') col['L. Springer'] = ROW[i];
+            return [h, col];
+        }));
+        assert.deepEqual(applyColumnScanCrossCheck(entries, scan, HEADERS, DATES), { checked: 1, total: 2 });
+    });
+});

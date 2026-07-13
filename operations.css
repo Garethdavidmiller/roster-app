@@ -226,6 +226,18 @@ body.auth-ready .container { display: grid; }
 @media (hover: hover) and (pointer: fine) {
     .roster-skip-all-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
 }
+/* Cross-check confidence note (v16.70): the server's column cross-check failed open (AI omitted
+   columnScan) or only partially covered the staff — amber caution above the review list. */
+.roster-crosscheck-note {
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--warning-amber);
+    background: color-mix(in oklch, var(--warning-amber) 12%, white);
+    border: 1px solid color-mix(in oklch, var(--warning-amber) 45%, white);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+}
 /* Day-drift warning banner on a review section whose parsed week correlates with the member's
    base pattern ONE DAY out (detectShiftedRow) — the independent check on the AI read. */
 .roster-shift-warning {

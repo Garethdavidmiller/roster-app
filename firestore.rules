@@ -1,5 +1,8 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
+// Last swept v16.70 (Jul 2026): B3 strict override isolation · H2 linksDesigner writes ·
+// staffContact Chiltern work-email validation (v16.34 local-part tightening) · 20 MB
+// inclusive upload cap lives in storage.rules · analytics doc-id pinning.
 //
 // Write policy: PER-MEMBER ISOLATION is now STRICT (B3, see SECURITY_RELEASE_PLAN.md).
 // `overrides` create/update/delete require the member's own `name` claim, OR an `admin`/`manager`
