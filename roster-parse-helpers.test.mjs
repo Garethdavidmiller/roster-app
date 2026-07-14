@@ -28,6 +28,7 @@ const {
     fileSignatureMatches,
     NOTIFICATION_FEATURES,
     buildPushPayload,
+    shouldDeleteSubscription,
     parseSetupActionFlags,
     resolveRosterAuthConfig,
     claimsForTier,
@@ -665,6 +666,21 @@ describe('buildPushPayload', () => {
             assert.ok(title.length <= 40, `${key} title "${title}" exceeds the 40-char budget (${title.length})`);
             assert.ok(typeof f.tag === 'string' && f.tag.length > 0, `${key} must have a stable tag`);
         }
+    });
+});
+
+// ── shouldDeleteSubscription (fan-out dead-subscription decision, v16.15/v16.81) ──────────────
+describe('shouldDeleteSubscription', () => {
+    test('deletes on 410 Gone and 404 Not Found (genuinely dead endpoints)', () => {
+        assert.equal(shouldDeleteSubscription(410), true);
+        assert.equal(shouldDeleteSubscription(404), true);
+    });
+    test('does NOT delete on 401 — a VAPID-auth misconfig would wipe the whole collection', () => {
+        assert.equal(shouldDeleteSubscription(401), false);
+    });
+    test('does NOT delete on transient/server errors (5xx, 429, network) or missing status', () => {
+        for (const code of [500, 502, 503, 429, 400, 403, undefined, null, 0, NaN])
+            assert.equal(shouldDeleteSubscription(code), false, `status ${code} must be kept`);
     });
 });
 

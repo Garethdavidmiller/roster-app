@@ -42,6 +42,7 @@ const {
     nameToPassword,
     fileSignatureMatches,
     buildPushPayload,
+    shouldDeleteSubscription,
     parseSetupActionFlags,
     resolveRosterAuthConfig,
     claimsForTier,
@@ -591,15 +592,10 @@ async function fanOutPush(payload, logTag) {
         try {
             await getWebPush().sendNotification({ endpoint, keys }, payloadStr);
         } catch (err) {
-            // 410 Gone / 404 Not Found = the subscription itself is dead → delete it.
-            // 401 Unauthorized is NOT a dead subscription — it is the push service rejecting
-            // our VAPID auth JWT (e.g. VAPID_PRIVATE_KEY rotated/typo'd against the unchanged
-            // public key). In that misconfig EVERY send 401s; deleting on 401 would wipe the
-            // whole pushSubscriptions collection in one run, and because the client VAPID
-            // fingerprint (derived from the unchanged public key) wouldn't change, no device
-            // would ever re-subscribe → a permanent, silent notification outage. So 401 is
-            // logged, never deleted.
-            if (err.statusCode === 410 || err.statusCode === 404) {
+            // Delete ONLY genuinely-dead subscriptions (410/404). A 401 is a VAPID-auth
+            // misconfig, not a dead endpoint — deleting on it would wipe the whole collection.
+            // Full rationale + tests: shouldDeleteSubscription in roster-parse-helpers.js (v16.15/v16.81).
+            if (shouldDeleteSubscription(err.statusCode)) {
                 await docSnap.ref.delete();
                 console.log(`${logTag} Removed dead subscription ${docSnap.id}`);
             } else {

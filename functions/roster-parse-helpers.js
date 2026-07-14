@@ -761,9 +761,26 @@ function computeOrphanLabels(users, activeEmails) {
     return out;
 }
 
+/**
+ * Decide whether a failed Web Push send means the subscription is DEAD and should be deleted.
+ * Extracted + tested (v16.81) because this encodes the load-bearing v16.15 lesson that previously
+ * survived only as a comment inline in fanOutPush: a 410/404 is a genuinely gone endpoint (delete
+ * it), but a 401 is the push service rejecting our VAPID auth JWT — a server MISCONFIG in which
+ * EVERY send 401s. Deleting on 401 would wipe the whole pushSubscriptions collection in one run,
+ * and since the client VAPID fingerprint (derived from the unchanged public key) wouldn't change,
+ * no device would ever re-subscribe → a permanent, silent notification outage. So ONLY 410/404
+ * delete; everything else (401, 5xx, network) is a transient/keep.
+ * @param {number|undefined|null} statusCode  HTTP status from the push service
+ * @returns {boolean} true → delete the subscription doc; false → keep and log
+ */
+function shouldDeleteSubscription(statusCode) {
+    return statusCode === 410 || statusCode === 404;
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
+    shouldDeleteSubscription,
     normaliseShift,
     fileSignatureMatches,
     buildWeekDates,

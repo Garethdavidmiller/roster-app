@@ -12,6 +12,7 @@
 import { CONFIG, teamMembers } from './roster-data.js';
 import { getSession } from './session.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
+import { SELECTED_MEMBER } from './storage-keys.js';
 
 // Set when getSelectedMemberIndex() finds a saved name that is no longer in the roster.
 // Consumed by renderCalendar() via takeStaleMemberName() to show a one-time banner.
@@ -47,7 +48,7 @@ export function getDefaultMemberIndex() {
 // stale removed-member key). ES modules evaluate once, before the importer's body runs, so this
 // snapshot reliably reflects "did a saved member exist when the page loaded". It is what keeps a
 // cleared-stale fallback DISTINCT from a true first run. (H1)
-const _hadSavedMemberAtStart = !!lsGet('myb_roster_selected_member');
+const _hadSavedMemberAtStart = !!lsGet(SELECTED_MEMBER);
 
 /**
  * True only for a brand-new visitor: NEVER had a saved member (at load) AND none now AND no
@@ -62,18 +63,18 @@ const _hadSavedMemberAtStart = !!lsGet('myb_roster_selected_member');
  */
 export function isFirstRun() {
     return !_hadSavedMemberAtStart && _selectedIndexFallback === null
-        && !lsGet('myb_roster_selected_member') && !getSession()?.name;
+        && !lsGet(SELECTED_MEMBER) && !getSession()?.name;
 }
 
 /** @returns {number} */
 export function getSelectedMemberIndex() {
-    const savedName = lsGet('myb_roster_selected_member');
+    const savedName = lsGet(SELECTED_MEMBER);
     if (savedName) {
         const idx = teamMembers.findIndex(m => m.name === savedName && !m.hidden);
         if (idx !== -1) return idx;
         // savedName stored but not found — stale entry from a removed member
         _staleMemberName = savedName;
-        lsDel('myb_roster_selected_member');
+        lsDel(SELECTED_MEMBER);
         return getDefaultMemberIndex();
     }
     // In-memory backstop for when localStorage writes silently fail (iOS private mode): a name
@@ -105,7 +106,7 @@ export function _resetSelectionFallbackForTests() {
 export function saveSelectedMember(index) {
     if (index >= 0 && index < teamMembers.length) {
         _selectedIndexFallback = index;
-        lsSet('myb_roster_selected_member', teamMembers[index].name);
+        lsSet(SELECTED_MEMBER, teamMembers[index].name);
     }
 }
 

@@ -76,11 +76,11 @@ breakage".
 
 > **⚠️ PRE-COMMIT CHECK — do this before every `git commit`:**
 > Ask: "Did this change touch anything a user can see or experience?" UI text, layout,
-> behaviour, CSS, security rules, SW caching — all require a bump. If yes, update all
-> 9 locations below before committing. Forgetting and fixing in a follow-up commit is
-> worse than bumping unnecessarily, because staff may be served a stale cached asset.
+> behaviour, CSS, security rules, SW caching — all require a bump. If yes, run `npm run bump`
+> before committing. Forgetting and fixing in a follow-up commit is worse than bumping
+> unnecessarily, because staff may be served a stale cached asset.
 
-**9 edit locations (8 files), every commit that touches behaviour:**
+**2 runtime bump locations (v16.81 — was 9; the 7 pure-comment stamps were dropped):**
 
 > **What requires a bump:** any change that alters runtime behaviour — logic, data, UI,
 > CSS layout/appearance, security rules, HTTP headers, manifest, service worker caching.
@@ -91,17 +91,10 @@ breakage".
 
 | File | Location |
 |------|----------|
-| `roster-data.js` | `export const APP_VERSION = '...'` — **primary source** |
-| `service-worker.js` | Line 1 comment |
-| `service-worker.js` | `const APP_VERSION = '...'` |
-| `index.html` | Line 2 HTML comment |
-| `admin.html` | Line 2 HTML comment |
-| `paycalc.html` | Line 2 HTML comment |
-| `operations.html` | Line 2 HTML comment |
-| `settings.html` | Line 2 HTML comment |
-| `links.html` | Line 2 HTML comment |
+| `roster-data.js` | `export const APP_VERSION = '...'` — **primary source** (every runtime read) |
+| `service-worker.js` | `const APP_VERSION = '...'` — names the SW cache (the freshness lever) |
 
-**Shortcut:** `npm run bump <version>` (e.g. `npm run bump 13.48`) updates all 9 locations in one command. Implemented by `scripts/bump-version.mjs`.
+**Always use `npm run bump <version>`** (e.g. `npm run bump 13.48`) — never hand-edit either location. Implemented by `scripts/bump-version.mjs`. The runtime version staff see (About lightbox) reads `APP_VERSION`. The old SW line-1 and six HTML line-2 comment stamps were removed in the v16.81 debt sweep: they carried no runtime effect but made the bump touch 8 files on ~half of all commits and conflicted across parallel `claude/*` branches. `sw-asset-check.test.mjs` now checks only the two runtime locations.
 
 `?v=` cache-busting strings were removed at v9.94 — do not add them back. Cache freshness is handled by `Cache-Control: no-cache` in `firebase.json`.
 
@@ -209,6 +202,7 @@ roster-app/
 ├── storage-utils.js        ← pure Storage helpers extracted from firebase-client (no Firebase import, so unit-testable): isSafeStorageUrl (download-URL allowlist — a security control), isDocxUpload (upload file-type detect), officeViewerUrl (wraps a .docx download URL in Microsoft's Office Online viewer so Word circulars/newsletters open+render instead of downloading), sixMonthCutoffISO (month-underflow-safe 6-month retention cutoff for _pruneOldDocs). Re-exported by firebase-client.js
 ├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors
 ├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel
+├── storage-keys.js         ← single source for the CROSS-FILE localStorage keys (SELECTED_MEMBER + legacy alias, VIEWED_MONTH/YEAR); shared by calendar-member/calendar-state/admin-app so a shared key has ONE spelling (v16.81). Per-module + paycalc-namespaced keys stay local.
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
 ├── links.html              ← link design workspace (28-line rotation designer; visible to CONFIG.LINKS_DESIGNERS only)
 ├── links.css               ← CSS for links.html (grid, paint bar, picker chips, compare, heat map)
@@ -274,7 +268,7 @@ roster-app/
 ├── package.json            ← dev dependencies only
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
 ├── scripts/
-│   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in all 9 locations
+│   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in the 2 runtime locations (roster-data.js + service-worker.js)
 │   ├── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
 │   └── typecheck.mjs             ← `npm run typecheck` — type-checks every root JS module via tsc --noEmit using jsconfig.json
 ├── jsconfig.json               ← TypeScript project config for `// @ts-check` coverage; drives `npm run typecheck`
@@ -291,13 +285,13 @@ roster-app/
 
 **Run all tests:**
 ```
-npm test              # test:hygiene + test:parse + test:unit (~600 unit tests)
+npm test              # test:hygiene + test:parse + test:unit (~980 unit tests)
 npm run check         # lint + typecheck + npm test (full pre-push gate)
 npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, storage-rules-static, storage-utils, auth-state-core, auth-state, auth-policy, sw-register
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions pure-helper tests (roster-parse-helpers.test.mjs) — not part of npm test
@@ -330,7 +324,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 |----------|------|
 | No framework (vanilla JS) | No build step. Do not introduce React, Vue, or any UI framework. A **few** vetted, self-contained libraries are allowed where they earn their place — currently Firebase (auth/Firestore/Storage), Mammoth (DOCX→HTML for the Huddle), and DOMPurify (sanitising that HTML). Adding another runtime library is a discuss-first decision, not a default. |
 | No bundler | External dependencies load without a build step: **vendored** (served from origin) where offline-first or CSP demands it — DOMPurify (`purify.es.mjs`) and the Inter font are vendored — otherwise **from a pinned CDN** with SRI where practical (Firebase from gstatic, Mammoth from jsdelivr). Prefer vendoring for anything the app must work offline without. |
-| **When a build step earns its keep (threshold, not yet crossed)** | The no-build rule is a deliberate trade (zero toolchain, direct debuggability, no build-supply-chain) paid for by hand-maintained work a bundler does for free: the ~35-entry per-page `modulepreload` lists, the ~110-entry SW precache, the 9-location version bump, `generate-*` codegen, the 3 CSP `*-boot.js` shims, the `firebase-client.js`-untestable-in-Node pure-helper splits, and the `normaliseSurname` browser/functions duplication. This cost rises with module count (~70 and growing). **Revisit the trade — do not auto-adopt — when either: (a) you want real TypeScript types** (you already run `tsc --noEmit` over 67 `// @ts-check` files — the checker without the emit), **or (b) a bug is traced to drift in a hand-maintained preload/precache/duplication list.** Until one of those, the trade still favours no build. |
+| **When a build step earns its keep (threshold, not yet crossed)** | The no-build rule is a deliberate trade (zero toolchain, direct debuggability, no build-supply-chain) paid for by hand-maintained work a bundler does for free: the ~35-entry `modulepreload` lists on the **two** heaviest pages only (index.html + paycalc.html — the deepest module graphs; admin/operations/settings/links deliberately have none, their graphs being shallower and their loads less latency-critical, all CI-locked by sw-asset-check.test.mjs), the ~110-entry SW precache, the 2-location version bump, `generate-*` codegen, the 3 CSP `*-boot.js` shims, the `firebase-client.js`-untestable-in-Node pure-helper splits, and the `normaliseSurname` browser/functions duplication. This cost rises with module count (~70 and growing). **Revisit the trade — do not auto-adopt — when either: (a) you want real TypeScript types** (you already run `tsc --noEmit` over 67 `// @ts-check` files — the checker without the emit), **or (b) a bug is traced to drift in a hand-maintained preload/precache/duplication list.** Until one of those, the trade still favours no build. |
 | **Self-hosted Inter typeface (v11.53)** | `fonts/inter-latin.woff2` is served from origin, NOT Google Fonts CDN. CSP is `font-src 'self'` — a CDN would mean loosening it, and self-hosting keeps the app offline-first (SW precaches the file) with no third-party request. One variable woff2 (latin, wght 100–900) covers every weight. `@font-face` lives in `shared.css`; `--font-sans` token in `:root` is the single place the stack is defined; every page's `body` uses `var(--font-sans)`. Do not re-add a Google Fonts `<link>`. **Inter is the app's ONLY typeface** — a Barlow Semi Condensed display face for the hero £/month heading was tried at v16.73 and reverted at v16.74 (owner decision: the gain was modest, and Inter — a neo-grotesque like the real Rail Alphabet — already fits the brand). Don't re-add a display face without a fresh discussion. |
 | Pointer Events API for swipe | Handles touch, mouse, and trackpad in one handler. Do not revert to Touch Events. |
 | `aria-live` for month announcements | Programmatic `.focus()` on the month heading caused mobile layout reflow. Do not switch. |

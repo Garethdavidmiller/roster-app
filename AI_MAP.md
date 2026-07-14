@@ -67,6 +67,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Service worker — caching strategy, version bump | `service-worker.js` |
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers (lsGet, lsSet, lsDel, lsKeys) | `ls.js` |
+| Cross-file localStorage key constants (SELECTED_MEMBER + legacy alias, VIEWED_MONTH/YEAR) | `storage-keys.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` + `railcard-guide.css` |
 | Print button for guide.html and paycalc-guide.html | `guide-print.js` |
@@ -755,4 +756,4 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 
 ## Version bump checklist
 
-See `CLAUDE.md` → "Version bumping (MANDATORY on every change)". 9 edit locations (8 files); authoritative source is `APP_VERSION` in `roster-data.js`.
+See `CLAUDE.md` → "Version bumping (MANDATORY on every change)". 2 runtime locations (roster-data.js APP_VERSION + service-worker.js const; the 7 comment stamps were dropped v16.81); authoritative source is `APP_VERSION` in `roster-data.js`.

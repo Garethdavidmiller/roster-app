@@ -25,6 +25,7 @@ import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
+import { SELECTED_MEMBER, SELECTED_MEMBER_LEGACY, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { initEmailCheck } from './admin-email-check.js';
@@ -337,18 +338,19 @@ function _setSelectValue(sel, val) {
 // hidden would set the <select> to a value with no matching <option> — leaving the STAFF
 // MEMBER dropdown blank. Reject and clear stale names so the field falls back to a real
 // member and the bad value can't recur. (v12.32)
-const _savedMember = lsGet('myb_roster_selected_member') || lsGet('adminLastMember');
+const _savedMember = lsGet(SELECTED_MEMBER) || lsGet(SELECTED_MEMBER_LEGACY);
 const lastMember = (_savedMember && teamMembers.find(m => m.name === _savedMember && !m.hidden))
     ? _savedMember : null;
 if (lastMember) {
     _setSelectValue(fieldMember, lastMember);
-    // Keep both keys in sync so the reverse journey (admin → index) always works
-    lsSet('adminLastMember', lastMember);
-    lsSet('myb_roster_selected_member', lastMember);
+    // Persist the member so the reverse journey (admin → index) restores it (v16.81: the
+    // legacy 'adminLastMember' mirror is no longer written — only read as a one-release fallback).
+    lsSet(SELECTED_MEMBER, lastMember);
 } else if (_savedMember) {
-    // Stale (hidden/left) — drop both keys so the dropdown keeps its valid default
-    lsDel('adminLastMember');
-    lsDel('myb_roster_selected_member');
+    // Stale (hidden/left) — clear it so the dropdown keeps its valid default. Clear the legacy
+    // mirror too, so a stale name can't ride back in via the read fallback above.
+    lsDel(SELECTED_MEMBER);
+    lsDel(SELECTED_MEMBER_LEGACY);
 }
 
 // Default date = today, or the date passed from index.html via ?date=YYYY-MM-DD.
@@ -966,8 +968,7 @@ fieldMember.addEventListener('change', () => {
         // this the field would stay on the old member while the grid switched. (v12.32)
         _setSelectValue(fieldMember, chosen);
         lastFieldMember  = chosen;
-        lsSet('adminLastMember', chosen);
-        lsSet('myb_roster_selected_member', chosen);
+        lsSet(SELECTED_MEMBER, chosen);
         _setSelectValue(alMember, chosen);
         _setSelectValue(sickMember, chosen);
         syncMemberDisplay();
@@ -1041,8 +1042,7 @@ function handleEdit(e) {
         // taken/booked — and the booked boxes kept A's periods with LIVE Delete buttons — while
         // every other control targeted B.
         updateALBanner(); updateALBookedBox(); updateSickBookedBox();
-        lsSet('adminLastMember', memberName);
-        lsSet('myb_roster_selected_member', memberName);
+        lsSet(SELECTED_MEMBER, memberName);
         renderWeekGrid();
         /** @type {HTMLElement} */ (document.querySelector('.card')).scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
@@ -1468,8 +1468,7 @@ function applyPermissions() {
     // whichever calendar the user last viewed), and with the select disabled no change event
     // ever corrects it. The write targeted sickMember.value (self) — display-only, but alarming.
     syncSickMemberDisplay();
-    lsSet('adminLastMember', currentUser);
-    lsSet('myb_roster_selected_member', currentUser);
+    lsSet(SELECTED_MEMBER, currentUser);
 
     // Reword card hints to use first-person language for self-service users
     const alHint   = document.querySelector('#alToggleHeader .hint');
@@ -1532,6 +1531,11 @@ window.addEventListener('beforeprint', stampAdminPrintHeader);
  * These can't be created any more but may exist from before v5.73.
  * Scans the in-memory cache (populated by loadOverrides) — no extra Firestore read.
  * Runs silently on admin page load; skipped after the first clean run.
+ *
+ * SUNSET: this is a pre-v5.73 data cleanup that still runs per-device on every admin load
+ * (guarded by the localStorage `purgeSundayAL_done` flag, so it's a no-op after the first
+ * clean pass on each device). Safe to delete once confident no Sunday-AL docs remain in
+ * Firestore — verify with a one-off admin query, then remove this function + its call site.
  */
 async function purgeSundayAL() {
     if (lsGet('purgeSundayAL_done') === '1') return;
@@ -1723,8 +1727,8 @@ function wireNavPanel() {
         calPill.addEventListener('click', () => {
             if (fieldDate.value) {
                 const d = new Date(fieldDate.value + 'T12:00:00');
-                lsSet('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
-                lsSet('myb_roster_year',  d.getFullYear());
+                lsSet(VIEWED_MONTH, d.getMonth());     // 0-indexed, matches app.js
+                lsSet(VIEWED_YEAR,  d.getFullYear());
             }
             // Let the <a> navigate normally
         });
