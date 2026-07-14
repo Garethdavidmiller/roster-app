@@ -1596,8 +1596,10 @@
             .app-header              { grid-column: 1 / -1; }
             /* Fallback: member bar spans full width if JS hasn't moved it into col-side yet */
             .container > .member-context-bar { grid-column: 1 / -1; }
-            /* Saved Changes sits below Update a Shift in the left column */
-            #overridesCard           { grid-column: 1; }
+            /* Saved Changes now lives inside .col-side (moved there in admin.html v16.72) so it
+               stacks under Absence in the sticky right column and fills the right-column void,
+               rather than stacking under Change a Shift in the left column. No grid placement
+               needed here any more — it's a flex child of col-side. */
 
             /* Explicit column assignment — prevents auto-placement mis-ordering */
             .col-main { grid-column: 1; }
