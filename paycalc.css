@@ -792,10 +792,6 @@
          Hours card so mobile is untouched). */
       #hoursCard .fill-roster-btn { padding: 12px 22px; font-size: var(--type-button); }
 
-      /* Peek button is redundant on desktop — the result card sits at the top of the col-3
-         sidebar in view, and #stickyTotal carries the figure once it scrolls away. */
-      .result-peek-btn { display: none; }
-
       /* Lightbox: comfortable reading width */
       #helpLightboxContent { width: min(620px, 85vw); }
     }
@@ -819,7 +815,7 @@
       #iconLightbox, #helpLightbox, .setup-banner, .period-controls, .save-row,
       .bd-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #backPayCard, #backPayCardToggle, .field-hint,
-      .privacy-note-standalone, .result-peek-btn, .guide-footer-link,
+      .privacy-note-standalone, .guide-footer-link,
       #decimalConverterCard,
       #rosterHintBar, .joiner-notice, #stickyTotal,
       #payBreakBar, #payBreakLegend { display: none !important; }
@@ -1045,17 +1041,8 @@
   .toggle-row.hidden { display: none; }
   .hours-row.hidden { display: none; }
 
-  /* ── RESULT PEEK BUTTON (hours card header) ── */
-  .result-peek-btn {
-    font-size: var(--type-small); color: var(--accent-gold); font-weight: 700;
-    background: none; border: none; padding: 0; margin-top: 3px;
-    cursor: pointer; font-family: inherit; display: block;
-    text-align: left; touch-action: manipulation; line-height: 1.4;
-  }
-  .result-peek-btn:active { opacity: 0.7; }
-  @media (hover: hover) and (pointer: fine) {
-    .result-peek-btn:hover { text-decoration: underline; }
-  }
+  /* (Result peek button removed v16.78 — the take-home figure appeared three times on
+      mobile; the sticky bar below carries the same live figure and tap-to-scroll.) */
 
   /* ── STICKY TAKE-HOME BAR (all widths since v16.12; desktop capped + centred below) ── */
   #stickyTotal {

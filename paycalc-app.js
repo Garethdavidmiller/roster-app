@@ -924,8 +924,6 @@ export function init() {
         `;
         /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
           `Compare with estimate &nbsp;<span class="bd-arrow">▼</span>`;
-        const _peekBtn = document.getElementById('resultPeekBtn');
-        if (_peekBtn) _peekBtn.textContent = `↓ Actual take-home: ${fmt(_actual.net)}`;
         const _stickyAmt = document.getElementById('stickyAmount');
         if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
         // Keep the sticky label honest — this figure is the confirmed actual, not an estimate.
@@ -939,12 +937,6 @@ export function init() {
         if (_netLabel) _netLabel.textContent = _suffix
             ? `💷 Estimated Take-Home Pay (${_suffix})`
             : '💷 Estimated Take-Home Pay';
-        const _peekBtn = document.getElementById('resultPeekBtn');
-        // ↓ not ↑: since v16.67 the result card sits BELOW the Hours card on mobile (the peek
-        // button's only surface — it is display:none on desktop).
-        if (_peekBtn) _peekBtn.textContent = _suffix
-            ? `↓ Estimated take-home (${_suffix}): ${fmt(net)}`
-            : `↓ Estimated take-home: ${fmt(net)}`;
         const _stickyAmt = document.getElementById('stickyAmount');
         if (_stickyAmt) _stickyAmt.textContent = fmt(net);
         const _stickyLbl = document.getElementById('stickyLabel');
@@ -1313,10 +1305,8 @@ export function init() {
     // Hours card — show more toggle
     /** @type {HTMLElement} */ (document.getElementById('hoursShowMore')).addEventListener('click', toggleHoursExtra);
 
-    // Result peek — scrolls result card into view
-    document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
-      /** @type {HTMLElement} */ (document.querySelector('.result-card')).scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    // (The Hours-header "result peek" button was removed at v16.78 — the #stickyTotal bar
+    //  below carries the same live figure and the same tap-to-scroll to the result card.)
 
     // Sticky take-home bar — show when result card is off-screen on mobile
     (function () {
