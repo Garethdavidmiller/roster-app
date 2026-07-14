@@ -162,7 +162,12 @@ async function _runEmailCheck(member) {
         lockBodyScroll();
         overlay.classList.add('visible');
         requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('open')));
-        setTimeout(() => (existing?.workEmail ? yesBtn : input).focus(), 60);
+        // Focus the control in the view that's actually SHOWN — not merely "has a stored email".
+        // The legacy-invalid branch (line 149) shows the EDIT view with a stored email present, so
+        // keying focus off `existing?.workEmail` alone focused the now-hidden yesBtn and dropped
+        // focus to <body>. Mirror the line-146 confirm-view condition instead (v16.76 review fix).
+        const _confirmShown = existing?.workEmail && isChilternWorkEmail(existing.workEmail);
+        setTimeout(() => (_confirmShown ? yesBtn : input).focus(), 60);
 
         overlay.addEventListener('keydown', e => {
             if (e.key !== 'Tab') return;
