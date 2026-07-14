@@ -182,12 +182,7 @@
       text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
     }
     .net-amount {
-      /* Display face (v16.73): the take-home £ is the app's headline number — Barlow
-         Semi Condensed bold gives it a departure-board voice. Sized up vs the old
-         Inter 52px (condensed looks smaller at equal size); tracking near-neutral
-         (the old -2px was tuned for Inter). tnum kept: harmless if the face lacks it. */
-      font-family: var(--font-display);
-      font-size: 58px; font-weight: 700; color: white; letter-spacing: -0.5px; line-height: 1;
+      font-size: 52px; font-weight: 800; color: white; letter-spacing: -2px; line-height: 1;
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum' 1;
     }
@@ -785,7 +780,7 @@
       .disclaimer           { grid-column: 1 / -1; grid-row: 7; }
 
       /* Headline figure benefits from the extra horizontal space */
-      .net-amount { font-size: 66px; }
+      .net-amount { font-size: 60px; }
       .net-period { font-size: 17px; }
 
       /* Fill from calendar — the obvious first action, top-left of the workspace. A little
@@ -1074,9 +1069,7 @@
   #stickyTotal.visible { display: flex; }
   #stickyTotal .sticky-label { font-size: var(--type-small); opacity: 0.75; }
   #stickyTotal .sticky-amount {
-    /* Same display face as .net-amount — the bar is that figure's understudy (v16.73). */
-    font-family: var(--font-display);
-    font-size: 20px; font-weight: 700; letter-spacing: 0;
+    font-size: var(--type-large); font-weight: 700; letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
   }
