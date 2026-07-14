@@ -39,21 +39,6 @@
     src: url('fonts/inter-latin.woff2') format('woff2');
 }
 
-/* Display face for HERO moments only (v16.73): the paycalc take-home £ and the
-   calendar month heading. Barlow Semi Condensed Bold — a grotesque rooted in
-   public-signage lettering, so at display size it carries a rail departure-board
-   flavour that fits Chiltern without a themed gimmick. Self-hosted like Inter
-   (SIL OFL; vendored from @fontsource/barlow-semi-condensed — `npm pack`, extract
-   the latin-700 woff2); ONE static weight (23 KB) — do not add more weights or
-   apply it to body text; restraint is what keeps it a display voice. */
-@font-face {
-    font-family: 'Barlow Semi Condensed';
-    font-style: normal;
-    font-weight: 700;
-    font-display: swap;         /* falls back to bold Inter until loaded — same metrics family */
-    src: url('fonts/barlow-semicondensed-latin-700.woff2') format('woff2');
-}
-
 /* ============================================================
    CSS CUSTOM PROPERTIES
    All CSS variables for the entire app live here — both pages
@@ -68,9 +53,6 @@
        body font-family to var(--font-sans) so the typeface is changed
        in exactly one place. */
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    /* Display face — HERO numbers/headings ONLY (take-home £, month heading).
-       Falls back to the sans stack so a cold load renders bold Inter. */
-    --font-display: 'Barlow Semi Condensed', var(--font-sans);
 
     /* ── Brand identity ─────────────────────────────────────────
        Chiltern Railways navy and gold. Use for structural elements
