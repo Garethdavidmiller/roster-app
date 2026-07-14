@@ -441,7 +441,6 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // Notification toggle — an in-panel action, so the panel stays open.
     const bell      = /** @type {HTMLButtonElement|null} */ (document.getElementById('navNotifBell'));
     const bellIcon  = document.getElementById('navNotifIcon');
-    const bellState = document.getElementById('navNotifState');
     let _bellBusy   = false;
 
     /** Apply a state string to the toggle glyph and accessible name.
@@ -452,12 +451,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // While the real state is still resolving (up to ~8s for swReady), show a neutral
         // "working" glyph — never 🔔, which reads as "on" and briefly mislabels an off/blocked
         // device. 🔔 only ever means genuinely on; 🔕 genuinely off/blocked (A2).
+        // (Compact icon since v16.75 — no visible state word; the aria-label carries it.)
         if (bellIcon)  bellIcon.textContent  = state === 'loading' ? '🔄' : on ? '🔔' : '🔕';
-        if (bellState) bellState.textContent =
-            on ? 'On'
-          : state === 'denied'  ? 'Blocked'
-          : state === 'loading' ? 'Checking…'
-          : 'Off';
         bell.setAttribute('aria-pressed', on ? 'true' : 'false');
         bell.dataset.notifState = state;
         bell.setAttribute('aria-label',
@@ -812,42 +807,33 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // Footer is only rendered when a sign-out callback is supplied.
     // Member name is set via textContent (not innerHTML) after injection to avoid XSS.
     // The bell is only included when the device supports Web Push (notif.js folds
-    // in the iOS-must-be-standalone rule); the admin Notifications card explains
+    // in the iOS-must-be-standalone rule); the settings Notifications card explains
     // the unsupported case for users who need it.
-    // A labelled full-width row (not a bare glyph) so the app's core feature —
-    // push alerts — is discoverable, and separated from the destructive Sign out.
-    // Show the bell when it can actually WORK: signed in (a named session exists on every page), or
-    // on the calendar when not signed in (it holds an anonymous Firebase session, so savePushSubscription
-    // succeeds). The other pages have no session until sign-in, so a not-signed-in bell there would be
-    // present-but-dead — enableNotifications would silently fail. Scope it out. (A7 follow-up)
-    const _bellCanWork = onSignOut || currentPage === 'calendar';
-    const bellHtml = (notifSupported() && _bellCanWork) ? `
-                <button class="nav-panel-notif" id="navNotifBell" type="button"
-                        aria-pressed="false" aria-label="Checking notification status…"
-                        data-notif-state="loading">
-                    <span id="navNotifIcon" class="nav-panel-notif-icon" aria-hidden="true">🔄</span>
-                    <span class="nav-panel-notif-label">Notifications</span>
-                    <span id="navNotifState" class="nav-panel-notif-state" aria-hidden="true">Checking…</span>
-                </button>` : '';
-    // The member + Sign out row only makes sense signed in (onSignOut supplied).
-    const memberRowHtml = onSignOut ? `
+    // A COMPACT icon button next to Sign out (owner decision, v16.75 — reverting the
+    // v16.56 full-width labelled row, the second time a labelled row has been tried
+    // and rolled back, see v13.19): the full Notifications area on settings.html is
+    // the canonical, discoverable surface; the drawer bell is just a quick toggle,
+    // and the labelled row gave it more footer prominence than it earns. Signed-in
+    // only (matches the footer) — unsigned users have the calendar's one-time
+    // #notifPrompt strip and the Settings card after signing in.
+    const bellHtml = notifSupported() ? `
+                    <button class="nav-panel-bell" id="navNotifBell" type="button"
+                            aria-pressed="false" aria-label="Checking notification status…"
+                            data-notif-state="loading">
+                        <span id="navNotifIcon" aria-hidden="true">🔄</span>
+                    </button>` : '';
+    const footerHtml = onSignOut ? `
+        <div class="nav-panel-footer">
             <div class="nav-panel-footer-row">
                 <div class="nav-panel-member-wrap">
                     <span class="nav-panel-avatar" id="navPanelAvatar" aria-hidden="true"></span>
                     <span class="nav-panel-member" id="navPanelMember"></span>
                 </div>
                 <div class="nav-panel-footer-actions">
+                    ${bellHtml}
                     <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
                 </div>
-            </div>` : '';
-    // Render the footer whenever there is EITHER a bell OR a member row. Most staff just view the
-    // calendar without signing in, so gating the bell on onSignOut hid the notifications toggle from
-    // almost everyone — and a dismissed one-time prompt then left no way to turn alerts on (A7). Push
-    // works on the calendar's anonymous session, so the bell is functional even when not signed in.
-    const footerHtml = (bellHtml || memberRowHtml) ? `
-        <div class="nav-panel-footer">
-            ${bellHtml}
-            ${memberRowHtml}
+            </div>
         </div>` : '';
 
     const html = `
