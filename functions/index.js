@@ -1198,9 +1198,13 @@ columnScan: one key per column header; every staff member appears in every colum
         // Cross-check status for the review UI (v16.70): 'complete' — every member was checked
         // against the column re-read; 'partial' — some were; 'unavailable' — the AI omitted or
         // garbled columnScan, so the independent check never ran (fail-open must not be invisible).
+        // `checked` is counted over safeEntries (= _ccStats.total), so the denominator must be
+        // _ccStats.total too — NOT filteredEntries.length (safeEntries minus hallucinated names).
+        // Mixing them let a hallucinated row with strong column signal push the ratio to 'complete'
+        // while a real member went unchecked (v16.76 review fix). Advisory-only, but keep it honest.
         const crossCheck = _ccStats.checked === 0 ? 'unavailable'
-            : _ccStats.checked >= filteredEntries.length ? 'complete' : 'partial';
-        if (crossCheck !== 'complete') console.warn(`[parseRosterPDF] column cross-check ${crossCheck}: ${_ccStats.checked}/${filteredEntries.length} members covered`);
+            : _ccStats.checked >= _ccStats.total ? 'complete' : 'partial';
+        if (crossCheck !== 'complete') console.warn(`[parseRosterPDF] column cross-check ${crossCheck}: ${_ccStats.checked}/${_ccStats.total} members covered`);
 
         res.status(200).json({
             weekEnding,

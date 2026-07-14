@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v16.75 -->
+<!-- MYB Roster — Pay Calculator v16.78 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -212,7 +212,12 @@
       <div>
         <h2><span aria-hidden="true">⏱️</span> Your Hours This Period</h2>
         <span class="hint">Saved automatically as you type · type 7.5 to auto-convert to 7h 30m</span>
-        <button class="result-peek-btn" id="resultPeekBtn" type="button">↓ Estimated take-home: £–</button>
+        <!-- The "↓ Estimated take-home" peek button that lived here was removed at v16.78:
+             the take-home figure appeared THREE times on mobile (this line, the result card
+             directly below, and the #stickyTotal bar). The sticky bar shows the same live
+             figure whenever the result is off-screen AND has the same tap-to-scroll action,
+             so the peek line was pure duplication. -->
+
       </div>
       <button type="button" class="help-btn" data-help="hours" aria-label="Help: Your Hours">?</button>
     </div>

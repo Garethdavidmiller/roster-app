@@ -334,15 +334,11 @@
    No overflow-x on html; each page's body handles scroll containment. */
 html {
     background-color: var(--primary-blue);
-    /* Subtle depth on the canvas (v16.71): a soft top-lit glow fading to the base navy, so large
-       flat expanses (short pages, the desktop column gaps) don't read as a heavy flat wall. The
-       delta is deliberately tiny — ~6% toward white at the very top, gone by 55% down — and it's
-       derived from the brand token via color-mix, never a hardcoded hex. The solid
-       background-color above stays the fallback (and the iOS status-bar / overscroll colour). */
-    background-image: radial-gradient(120% 75% at 50% 0%,
-        color-mix(in oklch, var(--primary-blue) 94%, white) 0%,
-        var(--primary-blue) 55%);
-    background-attachment: fixed; /* the glow stays put while the page scrolls */
+    /* A v16.71 canvas gradient here was reverted at v16.76: every page's <body> paints an OPAQUE
+       var(--primary-blue), which fully occludes an html-level background everywhere except the
+       overscroll gutter — so the gradient never actually rendered in the content area, while its
+       `background-attachment: fixed` still risked a per-scroll-frame repaint on budget Androids.
+       Plain solid navy is what shipped visually anyway; keep it. */
     color-scheme: light; /* prevents dark-mode scrollbars and form controls */
     -webkit-text-size-adjust: 100%; /* prevents auto-scaling on orientation change; 100% (not none) preserves user font-size accessibility settings */
     text-size-adjust: 100%;
