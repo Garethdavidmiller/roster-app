@@ -25,7 +25,7 @@ import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import {
-  CONFIG, getPeriods, currentPeriodNum, payslipPeriodNum,
+  CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum,
   hasBoxingDay, hasBankHoliday,
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
@@ -375,10 +375,17 @@ export function init() {
       // Show/hide bank holiday rows based on whether this period has any
       updateBhRows(p);
 
-      // Show rate-unconfirmed notices when in a period where the pay award isn't finalised.
-      // Two locations: one inside ⚙️ Settings (existing), one on the result card (new in v9.93)
+      // Show rate-unconfirmed notices when the pay award isn't finalised — but ONLY on
+      // TODAY'S pay period (owner request, v16.79): the award affects every period of the
+      // pending tax year, but nagging on all 13 buried the warning in noise. Today's period
+      // is the payslip about to be paid at a possibly-stale rate — the one place the warning
+      // is actionable. Keyed to todaysPeriodNum() (date-based; NOT currentPeriodNum(), which
+      // despite its name returns the SELECTED dropdown period — comparing that to p.num is
+      // always true) so if confirmation slips past a period boundary the notice follows the
+      // live payslip rather than dying on a hardcoded date.
+      // Two locations: one inside ⚙️ Settings (existing), one on the result card (v9.93)
       // so the warning is visible even when the Settings card is collapsed.
-      const _rateUnconfirmed = !!ty.rateUnconfirmed;
+      const _rateUnconfirmed = !!ty.rateUnconfirmed && p.num === todaysPeriodNum();
       const _rateNoticeEl = document.getElementById('rateUnconfirmedNotice');
       if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', !_rateUnconfirmed);
       const _resultRateNotice = document.getElementById('resultRateNotice');
