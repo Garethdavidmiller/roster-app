@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v16.72 -->
+<!-- MYB Roster — Admin v16.73 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -181,7 +181,7 @@
                 <div class="bulk-bar-label">Apply to multiple days at once</div>
                 <!-- Step 1: select days -->
                 <div class="bulk-step">
-                    <span class="bulk-step-label">1. Tick days</span>
+                    <span class="bulk-step-label"><span class="bulk-step-num">1</span>Tick days</span>
                     <div class="bulk-select-group">
                         <button type="button" class="btn-bulk-select" id="bulkSelMonFri">Mon–Fri</button>
                         <button type="button" class="btn-bulk-select" id="bulkSelWorking">Working days</button>
@@ -191,7 +191,7 @@
                 </div>
                 <!-- Step 2: choose override type -->
                 <div class="bulk-step">
-                    <span class="bulk-step-label">2. Choose type</span>
+                    <span class="bulk-step-label"><span class="bulk-step-num">2</span>Choose type</span>
                     <div class="bulk-type-group" id="bulkTypePills">
                         <!-- Populated at runtime from PILL_TYPES in admin-overrides.js -->
                     </div>
@@ -203,7 +203,7 @@
                     </div>
                 </div>
                 <!-- Step 3: apply -->
-                <button type="button" class="btn-bulk-apply" id="bulkApplyBtn">3. Apply to ticked days</button>
+                <button type="button" class="btn-bulk-apply" id="bulkApplyBtn"><span class="bulk-step-num bulk-step-num--on-navy">3</span><span id="bulkApplyLabel">Apply to ticked days</span></button>
             </div>
 
             <!-- 7-day week grid -->
@@ -347,7 +347,10 @@
             <button type="button" id="bulkDeleteBtn" class="btn-bulk-delete" style="display:none" aria-label="Delete selected changes">Delete selected</button>
         </div>
         <div class="override-cards" id="overrideTableBody">
-            <div class="override-state"><span class="spinner"></span>Loading…</div>
+            <div role="status"><span class="visually-hidden">Loading saved changes…</span></div>
+            <div class="skeleton-row" aria-hidden="true"></div>
+            <div class="skeleton-row" aria-hidden="true"></div>
+            <div class="skeleton-row" aria-hidden="true"></div>
         </div>
         <div class="list-feedback" id="listFeedback" role="status" aria-live="polite"></div>
         </div><!-- /.card-collapsible-body -->

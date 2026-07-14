@@ -39,6 +39,21 @@
     src: url('fonts/inter-latin.woff2') format('woff2');
 }
 
+/* Display face for HERO moments only (v16.73): the paycalc take-home £ and the
+   calendar month heading. Barlow Semi Condensed Bold — a grotesque rooted in
+   public-signage lettering, so at display size it carries a rail departure-board
+   flavour that fits Chiltern without a themed gimmick. Self-hosted like Inter
+   (SIL OFL; vendored from @fontsource/barlow-semi-condensed — `npm pack`, extract
+   the latin-700 woff2); ONE static weight (23 KB) — do not add more weights or
+   apply it to body text; restraint is what keeps it a display voice. */
+@font-face {
+    font-family: 'Barlow Semi Condensed';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;         /* falls back to bold Inter until loaded — same metrics family */
+    src: url('fonts/barlow-semicondensed-latin-700.woff2') format('woff2');
+}
+
 /* ============================================================
    CSS CUSTOM PROPERTIES
    All CSS variables for the entire app live here — both pages
@@ -53,6 +68,9 @@
        body font-family to var(--font-sans) so the typeface is changed
        in exactly one place. */
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    /* Display face — HERO numbers/headings ONLY (take-home £, month heading).
+       Falls back to the sans stack so a cold load renders bold Inter. */
+    --font-display: 'Barlow Semi Condensed', var(--font-sans);
 
     /* ── Brand identity ─────────────────────────────────────────
        Chiltern Railways navy and gold. Use for structural elements
@@ -377,6 +395,20 @@ body {
     padding-bottom: max(16px, env(safe-area-inset-bottom));
     padding-left:   max(clamp(16px, 2.5vw, 40px), env(safe-area-inset-left));
     padding-right:  max(clamp(16px, 2.5vw, 40px), env(safe-area-inset-right));
+}
+
+/* Screen-reader-only text — shared utility (v16.73; index.css carries its own copy
+   predating this). Standard clip pattern: rendered for AT, invisible on screen. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* ============================================================
@@ -815,6 +847,9 @@ body.lb-open #stickyTotal { display: none !important; }
     flex-shrink: 0;
     object-fit: cover;
     pointer-events: auto;
+    /* Subtle ring (v16.73): the icon's own dark tile nearly vanished against the navy
+       header — a faint white ring anchors it without competing with the title. */
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.22);
 }
 
 .app-header h1 {
