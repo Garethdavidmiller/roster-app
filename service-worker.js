@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.72
+// MYB Roster — Service Worker v16.73
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.72';
+const APP_VERSION = '16.73';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -219,6 +219,7 @@ const SUPPLEMENTARY_ASSETS = [
 // changes would repopulate the new cache from a year-old HTTP-cache copy.
 const FONT_ASSETS = [
     "./fonts/inter-latin.woff2",
+    "./fonts/barlow-semicondensed-latin-700.woff2",  // display face — hero £ + month heading (v16.73)
 ];
 
 const ICON_ASSETS = [

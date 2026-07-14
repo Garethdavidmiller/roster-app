@@ -706,12 +706,14 @@ export function resetBulkPills() {
     const bulkTimeGroup = document.getElementById('bulkTimeGroup');
     const bulkStart     = /** @type {HTMLInputElement|null} */ (document.getElementById('bulkStart'));
     const bulkEnd       = /** @type {HTMLInputElement|null} */ (document.getElementById('bulkEnd'));
-    const bulkApplyBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkApplyBtn'));
     if (bulkTypePills) bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
     if (bulkTimeGroup) bulkTimeGroup.style.display = 'none';
     if (bulkStart) bulkStart.value = '';
     if (bulkEnd)   bulkEnd.value   = '';
-    if (bulkApplyBtn) bulkApplyBtn.textContent = '3. Apply to ticked days';
+    // Write the LABEL span, not the button's textContent — the button also carries the
+    // step-number circle (.bulk-step-num), which textContent would wipe (v16.73).
+    const bulkApplyLabel = document.getElementById('bulkApplyLabel');
+    if (bulkApplyLabel) bulkApplyLabel.textContent = 'Apply to ticked days';
 }
 
 function _initBulkBar() {
@@ -733,7 +735,8 @@ function _initBulkBar() {
                 pill.classList.add('active');
                 pill.setAttribute('aria-pressed', 'true');
                 _bulkActiveType = type;
-                if (bulkApplyBtn) bulkApplyBtn.textContent = `3. Apply "${TYPES[type]?.label ?? type}" to ticked days`;
+                const bulkApplyLabel = document.getElementById('bulkApplyLabel');
+                if (bulkApplyLabel) bulkApplyLabel.textContent = `Apply "${TYPES[type]?.label ?? type}" to ticked days`;
                 if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';
                 if (bulkStart) bulkStart.value = '';
                 if (bulkEnd)   bulkEnd.value   = '';
@@ -968,7 +971,11 @@ function _hasStagedEdits() {
 export async function loadOverrides() {
     const tableBody = document.getElementById('overrideTableBody');
     const listCount = document.getElementById('listCount');
-    if (tableBody) tableBody.innerHTML = '<div class="override-state"><span class="spinner"></span>Loading…</div>';
+    // Shimmer skeleton (v16.73) — three placeholder rows shaped like the cards being fetched.
+    // role="status" + visually-hidden text keeps it announced for screen readers.
+    if (tableBody) tableBody.innerHTML =
+        '<div role="status"><span class="visually-hidden">Loading saved changes…</span></div>'
+        + '<div class="skeleton-row" aria-hidden="true"></div>'.repeat(3);
     try {
         const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
         _allOverrides = [];

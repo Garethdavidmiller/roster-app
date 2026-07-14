@@ -65,6 +65,21 @@ Genuinely distinct components (nav drawer pills, dense roster-review rows, badge
 
 `@font-face` lives in `shared.css`; `--font-sans` token in `:root` is the single place the stack is defined; every page's `body` uses `var(--font-sans)`. Do not re-add a Google Fonts `<link>`.
 
+## Display face — hero moments only (v16.73)
+
+`fonts/barlow-semicondensed-latin-700.woff2` (Barlow Semi Condensed Bold — SIL OFL, vendored via
+`npm pack @fontsource/barlow-semi-condensed`, one 23 KB static weight) is the app's display voice:
+a signage-rooted grotesque that reads like a rail departure board at display size. Exposed as
+`--font-display` (falls back to `var(--font-sans)`, so a cold load renders bold Inter — the swap
+is near-invisible because both are grotesques). Precached in the SW `FONT_ASSETS` list and
+preloaded on `index.html` + `paycalc.html` (the two pages that use it).
+
+**Used in exactly three places — keep it that way:** paycalc `.net-amount` (58px/66px desktop),
+`#stickyTotal .sticky-amount` (20px), calendar `.month-year` (28px/30px desktop). Condensed faces
+look smaller at equal size, so these are sized UP vs their old Inter sizes, and tracking is
+neutral (the old negative tracking was Inter-tuned). Do not add weights, and do not apply the
+face to body text, buttons, or card headers — restraint is what makes it a display voice.
+
 ## Brand colours
 
 | Variable | Hex | Use |

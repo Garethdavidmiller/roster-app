@@ -91,6 +91,8 @@
             cursor: pointer;
             pointer-events: auto;
             transition: transform var(--dur-fast) var(--ease-standard);
+            /* Subtle ring — matches the sub-page header logos (shared.css .app-icon, v16.73). */
+            box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.22);
         }
 
         @media (hover: hover) and (pointer: fine) {
@@ -401,10 +403,16 @@
         }
 
         .month-year {
-            font-size: 24px;
+            /* Display face (v16.73): the month name is one of the app's two hero moments
+               (with the paycalc £). Semi-condensed bold reads like a departure board.
+               Sized up vs the old Inter 24px — a condensed face at equal size looks
+               smaller — and tracking is neutral (condensed faces don't want the negative
+               tracking Inter needed). */
+            font-family: var(--font-display);
+            font-size: 28px;
             font-weight: 700;
             color: var(--primary-blue);
-            letter-spacing: -0.5px;
+            letter-spacing: 0;
         }
 
         .week-info {
@@ -778,7 +786,7 @@
             }
 
             /* Month label */
-            .month-year { font-size: 26px; }
+            .month-year { font-size: 30px; }
 
             /* Day-of-week headers */
             .day-header {
@@ -1058,7 +1066,7 @@
             .controls button { padding: 7px 10px; font-size: 11px; }
             .controls select { padding: 7px 28px 7px 8px; font-size: 16px; max-width: 180px; } /* 16px preserves iOS auto-zoom protection even in landscape */
             .calendar-container { padding: 8px 10px; margin-bottom: 8px; }
-            .month-year { font-size: 16px; }
+            .month-year { font-size: 18px; }
             .calendar-grid { gap: 4px; }
             .calendar-day { min-height: 55px; padding: 4px; }
             .day-number { font-size: 11px; margin-bottom: 2px; }
