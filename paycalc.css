@@ -231,6 +231,10 @@
     .sum-row.sum-bp .lbl  { color: var(--text-mid); }
     .sum-row.sum-hpp .lbl { color: var(--text-mid); }
     .sum-row.sum-hpp .val { font-weight: 700; color: var(--success-green); }
+    /* Student Loan £0 explainer (v16.77): a plan is set but nothing is deducted this period —
+       muted, not red (it's information, not a deduction), smaller so the WHY fits on a phone. */
+    .sum-row.sum-sl-zero .lbl { color: var(--text-light); font-size: var(--type-small); }
+    .sum-row.sum-sl-zero .val { color: var(--text-light); }
     .sum-est { font-size: 10px; font-weight: 400; color: var(--text-faint); margin-left: 4px; }
     .sum-row.sum-bp .val  { font-weight: 700; color: var(--success-green); }
     .bp-active-banner {

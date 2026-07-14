@@ -820,6 +820,23 @@ export function init() {
 
       const net = sacGross - tax - ni - sl;
 
+      // Student Loan summary line — never silent when a plan is SET (v16.77 clarity fix).
+      // A member with a plan selected and a £0 deduction previously saw NO line at all, which
+      // read as "the calculator forgot my student loan" and generated a real support question.
+      // Three states: a normal deduction row; £0 because the member ticked "not deducted this
+      // period"; or £0 because pay after pension is under the plan's threshold (named, with the
+      // actual per-period figure, so the payslip can be checked against it).
+      const _slPlanLabel = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'))
+        .selectedOptions[0]?.textContent?.trim() ?? plan;
+      const _slThreshold = (/** @type {Record<string, any>} */ (thresholds.sl))[plan]?.t;
+      const slRow = sl > 0
+        ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(sl)}</span></div>`
+        : plan !== 'none' && slSkip
+          ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
+          : plan !== 'none' && _slThreshold != null
+            ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — no deduction: pay after pension is under the ${_slPlanLabel} threshold (${fmt(_slThreshold)} per period)</span><span class="val">£0.00</span></div>`
+            : '';
+
       updateBreakBar(grossWithBp, pension, tax, ni, sl, net);
 
       // UI
@@ -839,7 +856,7 @@ export function init() {
         ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
         <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
         <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
-        ${sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(sl)}</span></div>` : ''}
+        ${slRow}
         <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay & HPP)` : _bpThisPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay)` : _hppForPeriod > 0 ? ' (inc. HPP)' : ''}</span><span class="val">${fmt(net)}</span></div>
       `;
 
