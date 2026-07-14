@@ -413,6 +413,12 @@ let _bannerReturnFocus = null;
         // the saved reference so it can't be restored over the new view.
         _bannerReturnFocus = null;
         userMadeChanges = false;
+        // Disarm any pending AL over-limit confirm bar too (v16.80 review fix): discarding
+        // staged edits mid-flow must not leave "Save anyway" armed with the batch the admin
+        // just threw away — otherwise a later tap writes overrides they explicitly discarded.
+        // The v16.69 disarm sweep covered markChanged / member-change / stagedDiscardBtn but
+        // not this banner path.
+        hideALConfirm();
         if (_pendingNavigate) { const fn = _pendingNavigate; _pendingNavigate = null; fn(); }
     });
     keepBtn.addEventListener('click', () => {

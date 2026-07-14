@@ -340,6 +340,28 @@ describe('overrides — per-member isolation (STRICT, B3)', () => {
         await assertFails(deleteDoc(doc(staffDb(), 'overrides', id)));
     });
 
+    // UPDATE must check the EXISTING doc's owner too, not just the new value (v16.80).
+    // Without it, a member could overwrite another member's override doc by writing their
+    // own name into it — the update twin of the delete-isolation check below.
+    test('named staff CANNOT overwrite another member\'s override (update-path isolation)', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        // S. Boyle tries to seize G. Miller's doc by relabelling it to themselves.
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', id), OWN('S. Boyle')));
+    });
+    test('named staff CAN update their OWN existing override', async () => {
+        const id = uid();
+        await setDoc(doc(namedDb('S. Boyle'), 'overrides', id), OWN('S. Boyle'));
+        await assertSucceeds(setDoc(doc(namedDb('S. Boyle'), 'overrides', id),
+            { ...OWN('S. Boyle'), note: 'edited' }));
+    });
+    test('manager CAN update another member\'s existing override (on-behalf)', async () => {
+        const id = uid();
+        await setDoc(doc(namedDb('G. Miller'), 'overrides', id), OWN('G. Miller'));
+        await assertSucceeds(setDoc(doc(managerDb('S. Stewart'), 'overrides', id),
+            { ...OWN('G. Miller'), note: 'mgr edit' }));
+    });
+
     // deletes mirror the same three-tier check against the EXISTING doc's memberName
     test('named staff CANNOT delete another member\'s override', async () => {
         const id = uid();
