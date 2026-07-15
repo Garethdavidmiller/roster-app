@@ -2,7 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay,
-         isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord } from './override-utils.js';
+         isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
+         buildOverrideWrite, buildOverrideCacheRecord } from './override-utils.js';
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 
@@ -530,5 +531,42 @@ describe('toOverrideRecord — the shared cache-record shape (2 writers must not
         const rec = toOverrideRecord({ memberName: 'X', date: '2026-05-01', value: 'SICK' });
         assert.equal('memberName' in rec, false);
         assert.equal('date' in rec, false);
+    });
+});
+
+// ── buildOverrideWrite / buildOverrideCacheRecord (shared save-doc shape) ──────
+
+describe('buildOverrideWrite', () => {
+    const ts = { __serverTimestamp: true };
+    it('assembles the exact rules-required field set with the injected createdAt', () => {
+        const doc = buildOverrideWrite(
+            { memberName: 'G. Miller', date: '2026-05-01', type: 'rdw', value: '09:00-17:00', note: 'x', source: 'manual', changedBy: 'G. Miller' }, ts);
+        assert.deepEqual(doc, {
+            memberName: 'G. Miller', date: '2026-05-01', type: 'rdw', value: '09:00-17:00',
+            note: 'x', source: 'manual', createdAt: ts, changedBy: 'G. Miller',
+        });
+    });
+    it('defaults a missing note to "" (the rules require the field present)', () => {
+        const doc = buildOverrideWrite({ memberName: 'A', date: '2026-05-01', type: 'shift', value: 'V', source: 'roster_import', changedBy: 'A' }, ts);
+        assert.equal(doc.note, '');
+    });
+    it('drops any extra field on the input (shape is enforced)', () => {
+        const doc = buildOverrideWrite(/** @type {any} */ ({ memberName: 'A', date: '2026-05-01', type: 'shift', value: 'V', source: 'manual', changedBy: 'A', existingId: 'evil', foo: 1 }), ts);
+        assert.equal('existingId' in doc, false);
+        assert.equal('foo' in doc, false);
+        assert.deepEqual(Object.keys(doc).sort(), ['changedBy', 'createdAt', 'date', 'memberName', 'note', 'source', 'type', 'value']);
+    });
+});
+
+describe('buildOverrideCacheRecord', () => {
+    it('mirrors the write MINUS changedBy, PLUS id, with the given Date createdAt', () => {
+        const when = new Date(2026, 4, 1, 12);
+        const rec = buildOverrideCacheRecord('doc123',
+            { memberName: 'G. Miller', date: '2026-05-01', type: 'rdw', value: '09:00-17:00', note: '', source: 'manual', changedBy: 'ignored' }, when);
+        assert.deepEqual(rec, {
+            id: 'doc123', memberName: 'G. Miller', date: '2026-05-01', type: 'rdw', value: '09:00-17:00',
+            note: '', source: 'manual', createdAt: when,
+        });
+        assert.equal('changedBy' in rec, false, 'the optimistic cache record does not carry changedBy');
     });
 });

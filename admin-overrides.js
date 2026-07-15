@@ -13,7 +13,7 @@
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE, parseISODate } from './roster-data.js';
-import { isRestShift, shouldReplaceOverride } from './override-utils.js';
+import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord } from './override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
@@ -993,8 +993,9 @@ export async function executeSave(toSave, toDelete = []) {
                 if (entry.existingId) batch.delete(doc(db, COLLECTIONS.overrides, entry.existingId));
                 const { existingId: _, ...data } = entry;
                 const newRef = doc(collection(db, COLLECTIONS.overrides));
-                batch.set(newRef, { ...data, source: 'manual', createdAt: serverTimestamp(), changedBy: _currentUser });
-                docs.push({ id: newRef.id, ...data, createdAt: new Date() });
+                const fields = { ...data, source: 'manual', changedBy: _currentUser };
+                batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
+                docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
             });
             await batch.commit();
             return docs;
@@ -1648,11 +1649,9 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                     const existing = ovByDate.get(op.date);
                     if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
                     const newRef = doc(collection(db, COLLECTIONS.overrides));
-                    batch.set(newRef, {
-                        memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual',
-                        createdAt: serverTimestamp(), changedBy,
-                    });
-                    docs.push({ id: newRef.id, memberName, date: op.date, type: op.type, value: op.value, source: 'manual', note: '', createdAt: new Date() });
+                    const fields = { memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual', changedBy };
+                    batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
+                    docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
                 });
                 await batch.commit();
                 return { docs, delIds };

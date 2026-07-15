@@ -129,6 +129,54 @@ export function toOverrideRecord(data) {
 }
 
 /**
+ * Assemble an override's Firestore WRITE document — the SINGLE source for the exact field set the
+ * Firestore rules require (`memberName`, `date`, `type`, `value`, `note`, `source`, `createdAt`,
+ * `changedBy`). Three save paths (executeSave + recordRangeOverrides in admin-overrides.js, and the
+ * roster-import _saveOverrideBatches) each hand-built this inline: a new required rules field meant
+ * editing all three, and a miss = a silent `permission-denied` on ONE path only. `createdAt` is
+ * INJECTED (the caller passes `serverTimestamp()`) so this module stays Firebase-free. `note` defaults
+ * to '' (the rules require it present). Extra fields on the input are dropped — the shape is enforced.
+ * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, changedBy:string}} f
+ * @param {*} createdAt  a Firestore serverTimestamp() sentinel for the write
+ * @returns {{memberName:string, date:string, type:string, value:any, note:string, source:string, createdAt:*, changedBy:string}}
+ */
+export function buildOverrideWrite(f, createdAt) {
+    return {
+        memberName: f.memberName,
+        date:       f.date,
+        type:       f.type,
+        value:      f.value,
+        note:       f.note ?? '',
+        source:     f.source,
+        createdAt,
+        changedBy:  f.changedBy,
+    };
+}
+
+/**
+ * Assemble the OPTIMISTIC in-memory cache record for a just-written override (the admin `_allOverrides`
+ * mirror that avoids a Firestore round-trip). Same field set as the write MINUS `changedBy`, PLUS the
+ * new doc `id`, and with a real `Date` for `createdAt` (so `tsToMillis` ranks a just-saved override
+ * correctly — see the v16.23 fix). Single source so the two writers can't drift their mirrors.
+ * @param {string} id  the new Firestore doc id
+ * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string}} f
+ * @param {Date} createdAt  `new Date()` — the optimistic local timestamp
+ * @returns {{id:string, memberName:string, date:string, type:string, value:any, note:string, source:string, createdAt:Date}}
+ */
+export function buildOverrideCacheRecord(id, f, createdAt) {
+    return {
+        id,
+        memberName: f.memberName,
+        date:       f.date,
+        type:       f.type,
+        value:      f.value,
+        note:       f.note ?? '',
+        source:     f.source,
+        createdAt,
+    };
+}
+
+/**
  * Returns true if `incoming` should replace `existing` in the override cache.
  *
  * Priority rules (highest first):
