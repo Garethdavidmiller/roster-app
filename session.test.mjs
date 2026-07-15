@@ -29,9 +29,14 @@ let _onAuthSubs    = 0;      // how many times onAuthStateChanged was subscribed
 let _signInGate    = null;   // if set, email/password sign-in awaits it before resolving (generation-guard test)
 const _authThrow = code => { const e = new Error(code); /** @type {any} */ (e).code = code; throw e; };
 
+// Hoisted so the signOut mock can null currentUser (real Firebase clears it synchronously before
+// signOut() resolves — the behaviour the calendar's anon bootstrap depends on), and so tests can
+// mutate mockAuth.currentUser directly.
+const mockAuth = { currentUser: /** @type {any} */ (null) };
+
 mock.module('./firebase-client.js', {
     namedExports: {
-        auth:                           { currentUser: null },
+        auth:                           mockAuth,
         authReady:                      Promise.resolve(),
         // Invoke the callback asynchronously with the configured existing user, then return
         // the unsubscribe fn (matching the real onAuthStateChanged contract session.js relies on).
@@ -43,7 +48,7 @@ mock.module('./firebase-client.js', {
         signInWithEmailAndPassword:     async () => { const n = ++_signInCalls; if (_signInGate) await _signInGate; const b = typeof _signInBehavior === 'function' ? _signInBehavior(n) : _signInBehavior; if (b !== 'ok') _authThrow(b); },
         createUserWithEmailAndPassword: async () => { _createCalled = true; if (_createBehavior !== 'ok') _authThrow(_createBehavior); },
         signInAnonymously:              async () => { _anonCalled = true; if (_anonBehavior !== 'ok') _authThrow(_anonBehavior); },
-        signOut:                        async () => { _signOutCalled = true; },
+        signOut:                        async () => { _signOutCalled = true; mockAuth.currentUser = null; },
     },
 });
 
@@ -61,6 +66,7 @@ const {
     getSurname, getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
     ensureNamedSession, isTransientAuthError, refreshClaimsIfStale, primeAuth,
+    reconcileExpiredIdentity,
 } = await import('./session.js');
 const { nameToEmail, auth } = await import('./firebase-client.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
@@ -210,6 +216,60 @@ describe('getSession', () => {
     test('a session expiring in 1 ms is valid until it has elapsed', () => {
         writeSession({ expiry: Date.now() + 1 });
         assert.ok(getSession() !== null);
+    });
+});
+
+// ── reconcileExpiredIdentity (Finding #9) ─────────────────────────────────────
+// A lingering NAMED Firebase identity whose local session has expired must be signed out; a valid
+// session, an anonymous identity, and "no user" must all be left alone.
+
+describe('reconcileExpiredIdentity', () => {
+    const validSession = () => JSON.stringify({
+        name: 'G. Miller', ver: SESSION_VER, expiry: Date.now() + SESSION_MS, lastActivity: Date.now(),
+    });
+
+    beforeEach(() => { store.clear(); _signOutCalled = false; });
+    afterEach(() => { auth.currentUser = null; });   // don't leak identity into the ensureFirebaseSession tests
+
+    test('signs out a NAMED identity when there is no valid local session', async () => {
+        auth.currentUser = /** @type {any} */ ({ isAnonymous: false, email: 'g.miller@myb.test' });
+        // store is empty → getSession() null
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, true, 'a lingering named identity with no session must be signed out');
+        // The calendar's next .then checks auth.currentUser to decide on anon sign-in — signOut must
+        // have cleared it so the anon bootstrap runs (no page left without any identity).
+        assert.equal(auth.currentUser, null, 'signOut must clear currentUser so the anon bootstrap runs');
+    });
+
+    test('stands down when a login bumped the generation while awaiting authReady', async () => {
+        // A named identity with NO local session → reconcile WOULD sign out, UNLESS the generation
+        // guard trips because a login started meanwhile. Requesting the SAME identity takes
+        // ensureFirebaseSession's matching-user fast path (no signout of its own), isolating the guard.
+        auth.currentUser = /** @type {any} */ ({ isAnonymous: false, email: nameToEmail('G. Miller') });
+        const p = reconcileExpiredIdentity();          // snapshots _authGen, then awaits authReady
+        const login = ensureNamedSession('G. Miller');  // ++_authGen synchronously → supersedes reconcile
+        await p;
+        await login;
+        assert.equal(_signOutCalled, false, 'reconcile must stand down when a login superseded it');
+    });
+
+    test('keeps a NAMED identity when a valid local session still exists', async () => {
+        auth.currentUser = /** @type {any} */ ({ isAnonymous: false, email: 'g.miller@myb.test' });
+        store.set(AUTH_KEY, validSession());
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, false, 'a still-valid session must not be torn down');
+    });
+
+    test('leaves an ANONYMOUS identity alone (the calendar depends on it)', async () => {
+        auth.currentUser = /** @type {any} */ ({ isAnonymous: true });
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, false, 'anonymous sessions are not a privilege leak');
+    });
+
+    test('no-ops when there is no Firebase user at all', async () => {
+        auth.currentUser = null;
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, false);
     });
 });
 
