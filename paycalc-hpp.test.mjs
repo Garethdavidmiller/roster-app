@@ -186,6 +186,18 @@ describe('_varPayForPeriod', () => {
         assertPounds(_varPayForPeriod(makeP50(), {}, RATE), LONDON, 'zero hours');
     });
 
+    test('prices London at the SETTLED value for a PRE-AWARD period of a split year (v16.90)', () => {
+        // 2025/26 spans offsets [-11, 1] and has a mid-year London step (londonAllowFrom 24 Oct 2025:
+        // 267.08 → 276.16). Period 44 (offset -4) has a pre-award payday (15 May 2025). Before v16.90
+        // _varPayForPeriod priced London period-aware → the OLD 267.08 for this pre-award period, while
+        // pricing the RATE settled-whole-year — a mismatch that under-counted the pre-award London
+        // uplift in the HPP. It now prices London settled-whole-year too: 276.16 regardless of payday.
+        const preAwardP = { start: new Date(2025, 3, 20), cutoff: new Date(2025, 4, 14),
+                            payday: new Date(2025, 4, 15), num: 44 };
+        assertPounds(_varPayForPeriod(preAwardP, {}, 20.06), 276.16,
+            'pre-award split-year London must be the settled 276.16, not the old 267.08');
+    });
+
     test('adds Saturday uplift (premium only, not full 1.25× rate)', () => {
         // satCapped=8, normHrs=132, bhCapped=0
         assertPounds(

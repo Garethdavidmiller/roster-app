@@ -11,7 +11,7 @@
 
 import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, getLondonAllowanceForPeriod, capHours,
+  getTaxYearForOffset, capHours,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
@@ -77,7 +77,13 @@ export function _varPayForPeriod(p, d, rate) {
   const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
   const { satCapped, bhCapped } = capHours({ effContr: getEffectiveContr(p), satHrs, bhHrs });
   const pTy       = getTaxYearForOffset(p.num - 48);
-  const pLondon   = getLondonAllowanceForPeriod(p, pTy) * getProRateFactor(p);
+  // London is priced at the SETTLED (post-award) value for the whole year — `pTy.londonAllow`, NOT
+  // the period-aware getLondonAllowanceForPeriod (which returns the OLD London for a pre-award
+  // period). This mirrors the settled-whole-year RATE the caller passes in: after the mid-year award
+  // (paid via the back-pay lump) a member's London for EVERY period of the year is the new value, so
+  // the HPP base is new-London × periods. Pricing it period-aware under-counted the pre-award London
+  // uplift (~£4/yr for a London member) — the bug the removed back-pay HPP add used to mask (v16.90).
+  const pLondon   = pTy.londonAllow * getProRateFactor(p);
   return satCapped * (rate * (RATE_125 - 1)) +
          bhCapped  * (rate * (RATE_125 - 1)) +
          bhOtHrs   * r125                    +
@@ -95,10 +101,23 @@ export function _varPayForPeriod(p, d, rate) {
 /**
  * Compute and display the HPP estimate for the current tax year.
  * Called by calculate() after every calculation.
- * @param {number} bpVarAmount - Variable portion of back pay (coordinator state).
- * @param {number} bpPNum - Period number the back pay lands in (coordinator state).
+ *
+ * Back pay is deliberately NOT added into the premium here (v16.89 — double-count fix). calcHPP
+ * prices EVERY period of the year at getStoredRateForYear(ty) — the SETTLED (post-award) rate — so a
+ * pre-award period already contributes its variable pay AT THE NEW RATE, which includes the award
+ * uplift. The back-pay lump's "variable portion" is that SAME uplift, so adding it on top counted it
+ * twice. Whether Chiltern pays one combined HPP or a separate HPP on the lump, the TOTAL a member
+ * receives = every period's variable pay at the new rate × 7.69% — exactly what this new-rate pricing
+ * already produces. The paid-in tick still adds the lump to that period's TAKE-HOME (_bpThisPeriod in
+ * the coordinator); only the redundant HPP inflation is removed. Do not re-thread back pay in here
+ * without also switching the whole-year pricing to period-aware rates (which was rejected — it made
+ * the estimate shift with the viewed period; see the rate comment below).
+ *
+ * Both the RATE and (since v16.90) the LONDON allowance are priced settled-whole-year in
+ * _varPayForPeriod, so a pre-award period's variable pay already carries the full award — there is
+ * genuinely nothing left for back pay to add here.
  */
-export function calcHPP(bpVarAmount, bpPNum) {
+export function calcHPP() {
   const allPeriods = getPeriods();
 
   const pNum    = currentPeriodNum();
@@ -126,11 +145,6 @@ export function calcHPP(bpVarAmount, bpPNum) {
 
   periods.forEach(/** @param {any} p */ p => {
     try {
-      // Variable back pay was earned in past periods but received in bpPNum.
-      // Added before the saved-data check so it still counts when the lump-sum
-      // period itself has no hours entered yet.
-      if (bpVarAmount > 0 && p.num === bpPNum) totalVar += bpVarAmount;
-
       const _hppActual = _actuals?.[formatISO(p.payday)];
       if (_hppActual?.varPay != null) {
         totalVar += _hppActual.varPay;
@@ -168,13 +182,8 @@ export function calcHPP(bpVarAmount, bpPNum) {
   if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
   else if (_skipped.length === 0) lsDel(hppEstKey(ty));
 
-  // Back pay counts toward this year's variable pay (added to totalVar above) even when the lump-sum
-  // period has no hours entered — so it can make hpp > 0 while pCount is still 0. Show the figure in
-  // that case too, otherwise the card reads '£–' while the (persisted) estimate is silently added to
-  // the January payslip — an invisible number the user can't see the source of.
-  const bpInThisYear = bpVarAmount > 0 && periods.some(/** @param {any} p */ p => p.num === bpPNum);
   if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
-  if (pCount === 0 && !bpInThisYear) {
+  if (pCount === 0) {
     if (amountEl) amountEl.textContent = '£–';
     if (basisEl)  basisEl.textContent  = 'Enter hours across your periods above to calculate';
     // EVERY readable period failed to parse — the worst case must not be the silent one (the
@@ -185,13 +194,9 @@ export function calcHPP(bpVarAmount, bpPNum) {
   } else {
     if (amountEl) amountEl.textContent = fmt(hpp);
     if (basisEl) {
-      if (pCount === 0 && bpInThisYear) {
-        basisEl.textContent = `Back pay lump sum in ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
-      } else {
-        basisEl.textContent = usingActuals
-          ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
-          : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
-      }
+      basisEl.textContent = usingActuals
+        ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
+        : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
     }
     // A corrupt saved period was excluded, so this premium may be too low — surface it rather than
     // quietly under-stating money (no-silent-caps). Rare: only malformed localStorage trips it.

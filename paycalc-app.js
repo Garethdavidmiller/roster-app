@@ -106,7 +106,6 @@ export function init() {
     // Back pay state — set by _applyBpState() when calcBackPay() runs.
     // Read by calculate() to add the lump sum into that period's gross before tax/NI.
     let _bpAmount     = 0; // gross back pay for the "paid in" period (0 = none)
-    let _bpVarAmount  = 0; // variable (HPP-accruing) portion of the back pay lump sum
     let _bpPNum       = 0; // period number that receives the back pay (0 = none)
     let _bpIsEstimate = false; // lump derives from an unconfirmed award → label it "estimated"
     let _bpIncluded   = false; // the card's opt-in tick — the lump only joins the take-home when true
@@ -1029,7 +1028,11 @@ export function init() {
         }
       }
 
-      calcHPP(_bpIncluded ? _bpVarAmount : 0, _bpPNum);
+      // calcHPP takes no back-pay input: the HPP already prices every period of the year at the
+      // settled (post-award) rate, so the lump's variable portion is already reflected — feeding
+      // _bpVarAmount in as well double-counted it (v16.89). The tick still adds the lump to
+      // _bpThisPeriod's take-home above.
+      calcHPP();
     }
 
     // isDataEmpty, calcHPP, updatePriorHpp imported from paycalc-hpp.js.
@@ -1039,15 +1042,15 @@ export function init() {
     // prefillBackPay, calcBackPay, _bpAwardTaxYear imported from paycalc-backpay.js.
     // calcBackPay() returns { bpAmount, bpVarAmount, bpPNum } — this wrapper
     // compares against coordinator state and calls calculate() if changed.
-    /** @param {{ bpAmount: any, bpVarAmount: any, bpPNum: any, bpIsEstimate?: boolean, bpIncluded?: boolean }} _ */
-    function _applyBpState({ bpAmount, bpVarAmount, bpPNum, bpIsEstimate = false, bpIncluded = false }) {
+    /** @param {{ bpAmount: any, bpPNum: any, bpIsEstimate?: boolean, bpIncluded?: boolean }} _
+     *  (calcBackPay also returns bpVarAmount; it is intentionally not tracked since v16.89 — the HPP
+     *  no longer consumes it, and any change to it moves bpAmount too, so recalc detection is intact.) */
+    function _applyBpState({ bpAmount, bpPNum, bpIsEstimate = false, bpIncluded = false }) {
       if (bpPNum !== _bpPNum ||
           bpIsEstimate !== _bpIsEstimate ||
           bpIncluded   !== _bpIncluded   ||
-          Math.abs(bpAmount    - _bpAmount)    > 0.001 ||
-          Math.abs(bpVarAmount - _bpVarAmount) > 0.001) {
+          Math.abs(bpAmount    - _bpAmount)    > 0.001) {
         _bpAmount     = bpAmount;
-        _bpVarAmount  = bpVarAmount;
         _bpPNum       = bpPNum;
         _bpIsEstimate = bpIsEstimate;
         _bpIncluded   = bpIncluded;
