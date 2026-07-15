@@ -307,10 +307,11 @@ export function init() {
     // ============================================
     // POPULATE MEMBER DROPDOWNS
     // ============================================
-    // Order the optgroups by an explicit grade order (matching login-overlay's GRADE_ORDER) rather than
-    // teamMembers insertion order — otherwise reordering a member row could silently break the documented
-    // CEA·CES·Dispatcher·Management grouping. Any role not listed falls to the end, order preserved. (v16.21)
-    const _GRADE_ORDER = ['CEA', 'CES', 'Dispatcher', 'Management'];
+    // Order the optgroups by the shared CONFIG.GRADE_ORDER (single-sourced with login-overlay's dropdown,
+    // v17.05) rather than teamMembers insertion order — otherwise reordering a member row could silently
+    // break the documented CEA·CES·Dispatcher·Management grouping. Any role not listed falls to the end,
+    // order preserved. (v16.21)
+    const _GRADE_ORDER = CONFIG.GRADE_ORDER;
     const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))]
         .sort((a, b) => {
             const ia = _GRADE_ORDER.indexOf(a), ib = _GRADE_ORDER.indexOf(b);

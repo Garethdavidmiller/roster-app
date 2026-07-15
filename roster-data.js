@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '17.04';
+export const APP_VERSION = '17.05';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -44,6 +44,7 @@ export const CONFIG = {
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
     LINKS_DESIGNERS:                  ['G. Miller', 'S. Silva'],                  // Names with access to the Links design workspace
     MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
+    GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js) AND the admin member-selector optgroups (admin-app.js), so the two can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
     // Security release B1 kill-switch (SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope").
     // ENABLED (true, v14.42). The write pages (admin/operations/settings/links) require the
@@ -229,7 +230,6 @@ export const teamMembers = [
  * @returns {number}  count of bank holidays on which the member worked
  */
 function countDispatcherBankHolidaysWorked(member, year, overrides) {
-    const NON_WORKED = new Set(['RD', 'OFF', 'SPARE', 'AL', 'SICK']);
     const bankHolidays = getBankHolidays(year);
 
     // Build a date → winning-override lookup for this member, applying shouldReplaceOverride
@@ -259,9 +259,22 @@ function countDispatcherBankHolidaysWorked(member, year, overrides) {
             ? overrideMap.get(dateStr).value
             : getBaseShift(member, bh);
 
-        if (!NON_WORKED.has(shift)) lieuDays++;
+        if (isWorkedShift(shift)) lieuDays++;
     }
     return lieuDays;
+}
+
+/**
+ * Single source for the "is this shift a WORKED day?" predicate (CLAUDE.md: "isWorkedDay: false for
+ * RD, OFF, SPARE, AL, SICK"). Returns false for the non-worked set — RD/OFF (rest), SPARE (standby),
+ * AL (annual leave), SICK (absence) — true for everything else (incl. RDW and worked times). Shared
+ * by the dispatcher lieu-day count (above) and the calendar renderer so the two can never drift as
+ * the leave/absence set grows.
+ * @param {string} shift
+ * @returns {boolean}
+ */
+export function isWorkedShift(shift) {
+    return shift !== 'RD' && shift !== 'OFF' && shift !== 'SPARE' && shift !== 'AL' && shift !== 'SICK';
 }
 
 /**
