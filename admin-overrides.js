@@ -961,11 +961,21 @@ export async function executeSave(toSave, toDelete = []) {
     }
 }
 
-/** True when the week grid currently holds a STAGED (unsaved) selection — an active per-row
- *  type pill. Used by loadOverrides to avoid re-rendering over the admin's in-progress edits. */
-function _hasStagedEdits() {
+/** True when the week grid currently holds STAGED (unsaved) work — mirrors updateSaveBtn's
+ *  save/delete counts so it catches BOTH a staged addition/change (a row with a chosen type that
+ *  isn't an unchanged prefill) AND a staged REMOVAL (a prefilled row unticked → existingId, no
+ *  type). Used to avoid re-rendering the week grid over the admin's in-progress edits — by
+ *  loadOverrides AND by the Saved-Changes delete paths (v16.82: deleting an unrelated saved change
+ *  must not silently discard staged pills; the old active-pill-only check also missed staged
+ *  removals). Exported so admin-app's period-delete path can apply the same guard. */
+export function _hasStagedEdits() {
     const weekGrid = document.getElementById('weekGrid');
-    return !!weekGrid?.querySelector('.day-row .type-pill-btn.active');
+    if (!weekGrid) return false;
+    return [...weekGrid.querySelectorAll('.day-row')].some(r => {
+        const el = /** @type {HTMLElement} */ (r);
+        return (el.dataset.type && !el.classList.contains('prefilled-existing')) // staged add/change
+            || (!el.dataset.type && el.dataset.existingId);                       // staged removal
+    });
 }
 
 // ── OVERRIDES LIST ────────────────────────────────────────────────────────────
@@ -1159,7 +1169,10 @@ async function _handleDelete(e) {
         _allOverrides = _allOverrides.filter(o => o.id !== btn.dataset.id);
         renderTable();
         _onAfterSave();
-        if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
+        // Don't rebuild the week grid over unsaved staged edits — deleting a Saved-Changes row is
+        // unrelated to whatever the admin is mid-editing in the grid (v16.82). The delete is already
+        // reflected in the table above; the grid refreshes next time it's rebuilt.
+        if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
         if (deleted && listFeedback) {
             const typeMeta = TYPES[deleted.type];
             listFeedback.textContent = `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})`;
@@ -1236,7 +1249,8 @@ function _initOverridesTable() {
                 _allOverrides = _allOverrides.filter(o => !ids.includes(o.id));
                 renderTable();
                 _onAfterSave();
-                if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
+                // Preserve unsaved staged week-grid edits across a bulk delete (v16.82) — see _handleDelete.
+                if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
                 if (listFeedback) {
                     listFeedback.textContent = `✓ Deleted ${ids.length} saved change${ids.length !== 1 ? 's' : ''}`;
                     listFeedback.className = 'list-feedback success';

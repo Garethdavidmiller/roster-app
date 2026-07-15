@@ -20,7 +20,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
@@ -1268,7 +1268,8 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
         updateALBanner();
         updateALBookedBox();
         updateSickBookedBox();
-        if (fieldMember.value && fieldDate.value) renderWeekGrid();
+        // Preserve unsaved staged week-grid edits across an AL/absence range delete (v16.82).
+        if (fieldMember.value && fieldDate.value && !_hasStagedEdits()) renderWeekGrid();
         if (feedbackEl) {
             const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
             feedbackEl.textContent = `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`;

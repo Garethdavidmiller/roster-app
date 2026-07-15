@@ -124,6 +124,13 @@ export function init() {
     // True once the user types into / clears any hours field after a background override-fetch
     // began, so the late fetch's re-apply doesn't overwrite an in-flight edit (see onPeriodChange).
     let _hoursTouchedSinceFetch = false;
+    // True when the CURRENTLY-loaded period's saved blob was CORRUPT (parseSavedPeriod returned an
+    // error). The v16.70 warning promises "anything you type will replace them" — but the background
+    // override-fetch would auto-apply a roster suggestion and autosave over the corrupt blob with NO
+    // user action, breaking that promise (v16.82 review fix). So the fetch callback skips its
+    // auto-apply+autosave on a corrupt load; only an explicit user action (typing, or "Fill from
+    // calendar") may overwrite. Set in loadPeriodData on every period change.
+    let _periodLoadWasCorrupt = false;
 
     // periodKey (and SK, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey) imported from paycalc-migrations.js
 
@@ -428,6 +435,11 @@ export function init() {
           // a cleared auto-fill would otherwise be silently reinstated. The latest calendar
           // data still shows in the hint bar above, so they can tap "Fill from calendar".
           if (_hoursTouchedSinceFetch) return;
+          // Never auto-apply + autosave over a CORRUPT period's blob (v16.82): that would overwrite
+          // the damaged data with no user action, contradicting the warning's "anything YOU type
+          // will replace them". The hint bar still refreshed above, so the member can choose to
+          // "Fill from calendar" — an explicit action that legitimately replaces it.
+          if (_periodLoadWasCorrupt) return;
           // Silently refresh any gold-highlighted fields filled during 'checking' state.
           const _refreshP = getPeriods().find(/** @param {any} x */ x => x.num === _fetchedPNum);
           if (_refreshP) {
@@ -524,6 +536,7 @@ export function init() {
       // an explicit warning state instead (v16.70 review fix).
       const _parsed = parseSavedPeriod(lsGet(periodKey(pNum)));
       if (_parsed.data) d = _parsed.data;
+      _periodLoadWasCorrupt = !!_parsed.error;   // gate the background fetch's auto-overwrite (v16.82)
       writeFormData(d);
       _restoreRosterSuggested(pNum);
       // If no pension has been manually saved for this period, apply the period-specific
