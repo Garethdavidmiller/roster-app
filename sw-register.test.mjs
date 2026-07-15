@@ -34,7 +34,7 @@ const _realClearInterval = globalThis.clearInterval;
  *   called, so a test can fire controllerchange in the window between getRegistration resolving
  *   and register resolving (the first-install race).
  */
-function makeHarness({ controlled = false, waiting = false, hasRegistration = controlled, deferRegister = false } = {}) {
+function makeHarness({ controlled = false, waiting = false, hasRegistration = controlled, deferRegister = false, failRegister = false } = {}) {
     /** @type {Record<string, Function[]>} */
     const swListeners = {};
     const posted = /** @type {any[]} */ ([]);
@@ -51,7 +51,7 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
         getRegistration: () => Promise.resolve(hasRegistration ? registration : undefined),
         register: () => deferRegister
             ? new Promise(res => { _resolveRegister = () => res(registration); })
-            : Promise.resolve(registration),
+            : (failRegister ? Promise.reject(new Error('register failed')) : Promise.resolve(registration)),
         addEventListener: (/** @type {string} */ type, /** @type {Function} */ fn) => {
             (swListeners[type] = swListeners[type] || []).push(fn);
         },
@@ -196,5 +196,22 @@ test('once-per-page-life: a second call (re-invoked init) does not stack handler
         await h.flush();
         assert.equal((h.swListeners['controllerchange'] || []).length, 1,
             'second registration must be a no-op — one controllerchange handler only');
+    } finally { h.restore(); }
+});
+
+test('register() failure then re-invocation does NOT stack a second controllerchange listener (B3)', async () => {
+    // The controllerchange listener is attached BEFORE register() (v16.88), and the .catch resets
+    // `_registered` so the in-place-login re-invocation can RETRY registration. Without the separate
+    // latch, that retry re-ran the body and attached a SECOND listener — each with its own beforeReload
+    // closure → a DOUBLE "reload?" confirm on the next update.
+    const h = makeHarness({ controlled: true, failRegister: true });
+    try {
+        registerServiceWorker({ beforeReload: () => {} });   // register() rejects → _registered resets
+        await h.flush();
+        assert.equal((h.swListeners['controllerchange'] || []).length, 1, 'listener attached once despite the failure');
+        registerServiceWorker({ beforeReload: () => {} });   // in-place-login retry after the failed register
+        await h.flush();
+        assert.equal((h.swListeners['controllerchange'] || []).length, 1,
+            'the retry must NOT attach a second controllerchange listener (would double-fire beforeReload)');
     } finally { h.restore(); }
 });

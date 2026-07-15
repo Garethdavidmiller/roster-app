@@ -995,11 +995,40 @@ describe('analytics', () => {
     });
 
     test('auth can write an active-accounts doc with only one bucket present', async () => {
+        // Seed a months-only state via admin first (this suite has no clearFirestore, so a prior test
+        // may have left a `daily` bucket — and since B4 the anti-wipe guard blocks a non-admin write
+        // that DROPS `daily`; admin may). The point of this test is the shape (one optional bucket is
+        // valid), so seed clean, then the non-admin months-only write preserves keys → allowed.
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 1 } }));
         await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 1 } }));
     });
 
     test('auth can write a perf-latency doc (Project 0)', async () => {
         await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'perf_2026-06'), VALID_PERF()));
+    });
+
+    // ── B4: anti-wipe guard — a non-admin overwrite may not REMOVE existing keys (destructive wipe),
+    //    but incrementing (adding/preserving keys) stays open, and admin may prune. (unique doc ids
+    //    below because this suite has no clearFirestore between tests.)
+    test('B4: a non-admin increment that preserves keys is allowed (update)', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-01'), { month: '2026-01', counts: { calendar: 1 } }));
+        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-01'), { month: '2026-01', counts: { calendar: 2, admin: 1 } }));
+    });
+    test('B4: a non-admin CANNOT wipe pv counts (removes existing keys)', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-02'), { month: '2026-02', counts: { calendar: 5, admin: 2 } }));
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-02'), { month: '2026-02', counts: {} }));
+    });
+    test('B4: a non-admin CANNOT wipe perf samples (removes existing keys)', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'perf_2026-02'), { month: '2026-02', samples: { 'k1': 1 } }));
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'perf_2026-02'), { month: '2026-02', samples: {} }));
+    });
+    test('B4: a non-admin CANNOT wipe activeAccounts, but admin CAN prune a daily key', async () => {
+        // Seed a known state via admin (admin may set/remove any valid shape).
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-25': 2, '2026-05-01': 1 } }));
+        // A non-admin overwrite dropping keys is a WIPE → blocked.
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'activeAccounts'), { months: {}, daily: {} }));
+        // The admin prune removes the stale daily bucket → allowed.
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-25': 2 } }));
     });
 
     test('auth cannot write a perf doc with an extra field', async () => {

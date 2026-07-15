@@ -375,6 +375,13 @@ service cloud.firestore {
       // sub-map keys — App Check is the eventual integrity control; the data is non-sensitive
       // aggregate counts. No client delete — daily-bucket pruning is a field-level update.
       allow read: if request.auth != null && request.auth.token.admin == true;
+      // Anti-WIPE guard (review B4): the legit writers only INCREMENT (setDoc merge with FieldValue),
+      // never remove keys. A malicious non-merge overwrite with empty maps passed the shape check and
+      // ZEROED existing counters (worse than the "tamper one value" App-Check gap). So on UPDATE a
+      // non-admin write may not remove existing map keys. Admin is excepted because the Operations Usage
+      // card legitimately PRUNES stale activeAccounts.daily buckets (a key removal). Value tampering of a
+      // still-present key remains App-Check territory; this closes the destructive wipe. (`resource` is
+      // null on create — no prior keys to preserve.)
       allow create, update: if
         request.auth != null &&
         (
@@ -390,21 +397,28 @@ service cloud.firestore {
            (!('paycalc'    in request.resource.data.counts) || request.resource.data.counts.paycalc    is int) &&
            (!('operations' in request.resource.data.counts) || request.resource.data.counts.operations is int) &&
            (!('settings'   in request.resource.data.counts) || request.resource.data.counts.settings   is int) &&
-           (!('links'      in request.resource.data.counts) || request.resource.data.counts.links      is int)) ||
+           (!('links'      in request.resource.data.counts) || request.resource.data.counts.links      is int) &&
+           (resource == null || request.auth.token.admin == true ||
+            request.resource.data.counts.keys().hasAll(resource.data.counts.keys()))) ||
           // Active-account counters: analytics/activeAccounts = { months?: {…}, daily?: {…} }
           (docId == 'activeAccounts' &&
            request.resource.data.keys().hasOnly(['months', 'daily']) &&
            (!('months' in request.resource.data) || request.resource.data.months is map) &&
-           (!('daily'  in request.resource.data) || request.resource.data.daily  is map)) ||
+           (!('daily'  in request.resource.data) || request.resource.data.daily  is map) &&
+           (resource == null || request.auth.token.admin == true ||
+            ((!('months' in resource.data) || ('months' in request.resource.data && request.resource.data.months.keys().hasAll(resource.data.months.keys()))) &&
+             (!('daily'  in resource.data) || ('daily'  in request.resource.data && request.resource.data.daily.keys().hasAll(resource.data.daily.keys())))))) ||
           // Page-load latency (Project 0): analytics/perf_YYYY-MM = { month: 'YYYY-MM', samples: {…} }.
           // Anonymous bucketed counters keyed by non-identifying dimensions (perf-stats.perfSampleKey);
-          // like the activeAccounts sub-maps, the dynamic sample keys/values can't be validated here
-          // (App Check is the eventual integrity control — non-sensitive aggregate counts).
+          // the dynamic sample values can't be validated here (App Check is the eventual integrity
+          // control — non-sensitive aggregate counts), but key REMOVAL (a wipe) is blocked below.
           (docId.matches('perf_[0-9]{4}-[0-9]{2}') &&
            request.resource.data.keys().hasOnly(['month', 'samples']) &&
            request.resource.data.month is string &&
            docId == 'perf_' + request.resource.data.month &&
-           request.resource.data.samples is map)
+           request.resource.data.samples is map &&
+           (resource == null || request.auth.token.admin == true ||
+            request.resource.data.samples.keys().hasAll(resource.data.samples.keys())))
         );
       allow delete: if false;
     }

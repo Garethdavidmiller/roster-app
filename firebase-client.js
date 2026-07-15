@@ -544,10 +544,13 @@ export async function savePushSubscription(subscription) {
     const p256dh = subscription.getKey('p256dh');
     const auth   = subscription.getKey('auth');
     if (!p256dh || !auth) {
-        // Partially-initialised subscription — keys absent on some browsers/edge cases.
-        // Silently skip rather than persisting empty keys that the push fan-out can't use.
-        console.warn('[pushSubscriptions] subscription missing p256dh/auth keys — skipping save');
-        return;
+        // Partially-initialised subscription — keys absent on some browsers/edge cases. THROW rather
+        // than silently returning: a silent skip let the caller mark the device "subscribed" (fingerprint
+        // + prompt-dismissed) with NO server record, so the bell showed "on" forever while the device got
+        // no pushes and never self-healed (fanOutPush's 410 cleanup never runs — nothing was written).
+        // The caller (notif.js subscribe) now rolls back the browser subscription on this throw. (review B2)
+        console.warn('[pushSubscriptions] subscription missing p256dh/auth keys — not saved');
+        throw new Error('push/subscription-missing-keys');
     }
     const id = await endpointId(subscription.endpoint);
     await setDoc(doc(db, COLLECTIONS.pushSubscriptions, id), {
