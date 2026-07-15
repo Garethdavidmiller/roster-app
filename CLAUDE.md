@@ -172,7 +172,8 @@ roster-app/
 ├── admin-boot.js           ← 2-line bootstrap for admin.html: imports `init` from admin-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup/ErrorLog. Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw
 ├── operations-boot.js      ← 2-line bootstrap for operations.html: imports `init` from operations-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
-├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email
+├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email. Body is an exported `init()` (Phase 4a.2, v17.09) invoked by settings-boot.js — importable without auto-running, for tests
+├── settings-boot.js        ← 2-line bootstrap for settings.html: imports `init` from settings-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── huddle.js               ← initHuddleUpload (→ operations) + initHuddleNotifications (→ settings)
 ├── doc-upload.js           ← shared Operations upload-card skeleton (Circular/Newsletter/Huddle): file-pick → validate (type + 20 MB) → optional transform (Huddle DOCX→HTML) → upload → feedback. initDocUploadCard(cfg)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card: initAuthSetup()

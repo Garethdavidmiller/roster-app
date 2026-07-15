@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '17.08';
+const APP_VERSION = '17.09';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -124,7 +124,7 @@ const NETWORK_FIRST_FILES = [
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
     'admin-al.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-email-check.js',
-    'operations-app.js', 'operations-boot.js', 'settings-app.js', 'links-app.js', 'links-boot.js', 'links-design.js',
+    'operations-app.js', 'operations-boot.js', 'settings-app.js', 'settings-boot.js', 'links-app.js', 'links-boot.js', 'links-design.js',
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js',
@@ -161,6 +161,7 @@ const CORE_ASSETS = [
     "./links-boot.js",
     "./links-design.js",
     "./settings-app.js",
+    "./settings-boot.js",
     "./calendar-app.js",
     "./calendar-state.js",
     "./calendar-swipe.js",

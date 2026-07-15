@@ -194,6 +194,7 @@ Login, session management, shared DOM handles, and the glue that wires all admin
 
 ### `settings-app.js`
 Coordinator for `settings.html` (all logged-in staff, v11.06).
+- **Exported `init()` wrap (Phase 4a.2, v17.09):** the coordinator body is `export function init()`, invoked by `settings-boot.js` (the page loads the boot file — CSP `script-src 'self'` blocks an inline call). Importing this module no longer auto-runs it, so a test can drive `init()` with mocked deps. The last of the five write coordinators to get the seam.
 - Shared session: uses `AUTH_KEY = 'myb_admin_session'` (same key as `admin-app.js`) — a user signed in on admin.html arrives at settings.html without re-authenticating
 - Session check at module top: if authenticated → `ensureFirebaseSession(name)` in background + `initApp()`; else → `initLoginOverlay()`
 - `initLoginOverlay()` — same grade/name/password flow as admin; on success calls `saveSession()` + `location.reload()`
