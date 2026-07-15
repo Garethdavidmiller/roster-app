@@ -656,20 +656,36 @@ async function pruneOldHuddles(excludeDate) {
 
     await Promise.allSettled(stale.docs.map(async docSnap => {
         if (docSnap.id === excludeDate) return;
+        // Defensive re-validation before a DESTRUCTIVE prefix delete: the sweep below removes Storage
+        // objects by the `huddles/<id>` prefix, so a malformed/truncated id (e.g. "2026-07") would nuke
+        // unrelated objects — a whole month. No current write path can produce one (huddle ids are the
+        // strict YYYY-MM-DD date, doc-id === the `date` field), but a hand-created or corrupted doc must
+        // never let this prefix widen. parseStrictIsoDate enforces the exact format + a real calendar date.
+        if (!parseStrictIsoDate(docSnap.id)) {
+            console.warn(`[pruneOldHuddles] Skipping doc with a non-date id (not swept): ${docSnap.id}`);
+            return;
+        }
+        // Firestore FIRST — a partial failure must leave a harmless orphan, never a doc pointing at a
+        // deleted file. If the doc delete fails, do NOT sweep: the doc still references its object.
         try {
             await docSnap.ref.delete();
-            // Sweep EVERY Storage object for this date, not just the doc's current path. A transient
-            // Firestore read failure during a same-day re-ingest can leave an EARLIER versioned object
-            // orphaned (the overwritten doc no longer points at it, and the ingest-time targeted delete
-            // never captured its path). This date is older than the retention window, so no ingest is
-            // racing it — the sweep is unambiguous. The `huddles/<date>` prefix matches BOTH the
-            // versioned (`<date>-<id>.<ext>`) and legacy pre-v13.99 (`<date>.<ext>`) object names, so it
-            // supersedes the old storagePath-based delete that reclaimed only the current object. (v16.89)
+        } catch (e) {
+            console.error(`[pruneOldHuddles] Firestore delete ${docSnap.id} failed (Storage NOT swept):`, e.message);
+            return;
+        }
+        // Sweep EVERY Storage object for this date, not just the doc's current path. A transient
+        // Firestore read failure during a same-day re-ingest can leave an EARLIER versioned object
+        // orphaned (the overwritten doc no longer points at it, and the ingest-time targeted delete
+        // never captured its path). This date is older than the retention window, so no ingest is
+        // racing it — the sweep is unambiguous. The `huddles/<date>` prefix matches BOTH the
+        // versioned (`<date>-<id>.<ext>`) and legacy pre-v13.99 (`<date>.<ext>`) object names, so it
+        // supersedes the old storagePath-based delete that reclaimed only the current object.
+        try {
             const [files] = await bucket.getFiles({ prefix: `huddles/${docSnap.id}` });
             await Promise.all(files.map(f => f.delete().catch(e =>
                 console.warn(`[pruneOldHuddles] Storage delete ${f.name} failed (orphaned):`, e.message))));
         } catch (e) {
-            console.error(`[pruneOldHuddles] Firestore delete ${docSnap.id} failed:`, e.message);
+            console.warn(`[pruneOldHuddles] Storage sweep for ${docSnap.id} failed (orphaned):`, e.message);
         }
     }));
     console.log(`[pruneOldHuddles] Pruned huddles older than ${cutoffISO}`);
