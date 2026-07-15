@@ -35,7 +35,12 @@ export const TYPES = {
     // `timesOptional` is DESCRIPTIVE metadata — consumers branch on type === 'other'
     // explicitly (collector, validateShiftRules, prefill); keep it for the next such type.
     other:        { label: 'Other',            pill: 'Other',    fixed: false, timesOptional: true },
-    // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
+    // Legacy types — no pill buttons; kept so old Saved Changes records display correctly.
+    // SUNSET: these are display-only (never creatable). Delete this block + the legacyToShift map
+    // (~L327) + the isLegacyType guard (~L1082) + 'allocated'/'overtime'/'swap' from
+    // WORKED_OVERRIDE_TYPES (~L56) once a one-time Firestore migration rewrites any surviving
+    // legacy-typed override docs to their modern equivalents (allocated/overtime→shift, swap→shift).
+    // Until that migration runs, removing these would make old records render as UNKNOWN.
     allocated:    { label: 'Allocated shift',  fixed: false },
     overtime:     { label: 'Overtime',         fixed: false },
     swap:         { label: 'Swap',             fixed: false },
@@ -84,10 +89,52 @@ let _tableShowAllOverrides = false;
 // Android Chrome). Without this guard the handler reformats its own output.
 let _formattingTime = false;
 
+// ── INITIAL-LOAD READINESS ────────────────────────────────────────────────────
+// Resolves once the FIRST loadOverrides() has SETTLED (success OR failure). Consumers await this so
+// they never act on an empty cold cache:
+//   • The two WRITE functions (executeSave, recordRangeOverrides) gate INTERNALLY — a save/booking
+//     fired before the initial read returns would build decisions from an empty `_allOverrides`:
+//     recordRangeOverrides' ovByDate would be {} → the existing roster_import doc for a date isn't
+//     deleted (duplicate overrides) and a not-yet-loaded worked Sunday could be erased by an RD
+//     correction; executeSave's post-write cache mutation could be clobbered by the in-flight initial
+//     snapshot resolving AFTERWARDS (the just-saved change vanishes from the list until reload).
+//     Both disable the Save button synchronously before their first await, so the internal gate can't
+//     open a double-tap window.
+//   • The Change-a-Shift click handler (admin-app.js) gates too, for its PRE-write cache reads —
+//     validateShiftRules (the ±1-day rest-gap check via getEffectiveShift) and the AL
+//     over-entitlement check — which a cold cache would make wrong (a real <12h gap missed, or a valid
+//     save wrongly blocked). It disables Save BEFORE the await (the v16.23 "disable before the first
+//     await" invariant) so no double-tap window opens.
+// The ONE deliberately-ungated read is the AL RANGE-booking over-entitlement WARNING
+// (admin-al.js checkEntitlement, via admin-range-booking's preSave): gating it safely is
+// disproportionately risky (its confirm bar re-triggers the same Save button via
+// triggerConfirmedALSave → click, so disabling it there would break the confirm→save flow), and a
+// cold miss only SKIPS a warning — the write itself is still correct (recordRangeOverrides self-gates)
+// and by the time an admin has built a range booking the cache is long warm.
+// Resolving on FAILURE too is deliberate — if the first read errored Firestore is unreachable and the
+// write will fail its own commit anyway, better than hanging the Save button forever. loadOverrides()
+// is called unconditionally in the AUTHORISED admin-init branch (not the not-signed-in/login branch,
+// where sessionReady also never resolves and the login overlay covers the Save button), so a write
+// path can't pend on this indefinitely. (v16.85)
+/** @type {(v?: any) => void} */
+let _resolveOverridesReady = () => {};
+const _overridesReady = new Promise(res => { _resolveOverridesReady = res; });
+
+/** @returns {Promise<void>} Resolves when the initial override load has settled (success or failure). */
+export function whenOverridesReady() { return _overridesReady; }
+
 // ── PUBLIC STATE ACCESSORS ────────────────────────────────────────────────────
 export function getAllOverrides()    { return _allOverrides; }
 /** @param {any[]} arr */
-export function setAllOverrides(arr) { _allOverrides = arr; }
+export function setAllOverrides(arr) {
+    _allOverrides = arr;
+    // Explicitly setting the cache to a known state is itself a "ready" signal: the caller is
+    // asserting `_allOverrides` is now authoritative. In production this only runs post-load (the
+    // delete-path cache mutations in admin-app), so readiness is already resolved; it also lets the
+    // write-path unit tests, which seed the cache via setAllOverrides() rather than loadOverrides(),
+    // satisfy the whenOverridesReady() gate. (v16.85)
+    _resolveOverridesReady();
+}
 
 /** Clears the "show all staff" toggle and re-renders the table. Call when the selected member changes. */
 export function resetTableMemberFilter() {
@@ -889,6 +936,10 @@ export async function executeSave(toSave, toDelete = []) {
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
 
     await sessionReady;
+    // Don't mutate the cache until the initial load has settled — otherwise the in-flight initial
+    // snapshot can resolve AFTER this write and overwrite `_allOverrides`, silently dropping the
+    // change we just saved from the Saved-changes list (v16.85).
+    await whenOverridesReady();
     if (!auth.currentUser) {
         _showError("You've been signed out — please sign in again.");
         // This early return is before the try/finally — restore the button state it can't.
@@ -956,11 +1007,21 @@ export async function executeSave(toSave, toDelete = []) {
     }
 }
 
-/** True when the week grid currently holds a STAGED (unsaved) selection — an active per-row
- *  type pill. Used by loadOverrides to avoid re-rendering over the admin's in-progress edits. */
-function _hasStagedEdits() {
+/** True when the week grid currently holds STAGED (unsaved) work — mirrors updateSaveBtn's
+ *  save/delete counts so it catches BOTH a staged addition/change (a row with a chosen type that
+ *  isn't an unchanged prefill) AND a staged REMOVAL (a prefilled row unticked → existingId, no
+ *  type). Used to avoid re-rendering the week grid over the admin's in-progress edits — by
+ *  loadOverrides AND by the Saved-Changes delete paths (v16.82: deleting an unrelated saved change
+ *  must not silently discard staged pills; the old active-pill-only check also missed staged
+ *  removals). Exported so admin-app's period-delete path can apply the same guard. */
+export function _hasStagedEdits() {
     const weekGrid = document.getElementById('weekGrid');
-    return !!weekGrid?.querySelector('.day-row .type-pill-btn.active');
+    if (!weekGrid) return false;
+    return [...weekGrid.querySelectorAll('.day-row')].some(r => {
+        const el = /** @type {HTMLElement} */ (r);
+        return (el.dataset.type && !el.classList.contains('prefilled-existing')) // staged add/change
+            || (!el.dataset.type && el.dataset.existingId);                       // staged removal
+    });
 }
 
 // ── OVERRIDES LIST ────────────────────────────────────────────────────────────
@@ -997,6 +1058,10 @@ export async function loadOverrides() {
             document.getElementById('reloadLink')?.addEventListener('click', () => location.reload());
         }
         if (listCount) listCount.textContent = 'Error';
+    } finally {
+        // Signal write paths that the initial cache read has settled (idempotent — later
+        // loadOverrides() calls after saves/resyncs re-resolve the already-resolved promise, a no-op).
+        _resolveOverridesReady();
     }
 }
 
@@ -1154,7 +1219,10 @@ async function _handleDelete(e) {
         _allOverrides = _allOverrides.filter(o => o.id !== btn.dataset.id);
         renderTable();
         _onAfterSave();
-        if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
+        // Don't rebuild the week grid over unsaved staged edits — deleting a Saved-Changes row is
+        // unrelated to whatever the admin is mid-editing in the grid (v16.82). The delete is already
+        // reflected in the table above; the grid refreshes next time it's rebuilt.
+        if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
         if (deleted && listFeedback) {
             const typeMeta = TYPES[deleted.type];
             listFeedback.textContent = `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})`;
@@ -1231,7 +1299,8 @@ function _initOverridesTable() {
                 _allOverrides = _allOverrides.filter(o => !ids.includes(o.id));
                 renderTable();
                 _onAfterSave();
-                if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
+                // Preserve unsaved staged week-grid edits across a bulk delete (v16.82) — see _handleDelete.
+                if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
                 if (listFeedback) {
                     listFeedback.textContent = `✓ Deleted ${ids.length} saved change${ids.length !== 1 ? 's' : ''}`;
                     listFeedback.className = 'list-feedback success';
@@ -1326,13 +1395,16 @@ function _fmtHours(mins) {
  * @param {string} memberName
  * @param {string} dateISO  YYYY-MM-DD
  * @param {any[]}  batch    Pending toSave entries
+ * @param {string[]} [toDelete]  Override doc IDs being deleted in the SAME save — skipped so an
+ *   adjacency check doesn't constrain against a shift this save is removing (v16.83 review fix).
  */
-export function getEffectiveShift(memberName, dateISO, batch) {
+export function getEffectiveShift(memberName, dateISO, batch, toDelete = []) {
     const inBatch = batch.find(e => e.date === dateISO);
     if (inBatch) return inBatch.value;
     let best = null;
     for (const o of _allOverrides) {
         if (o.memberName !== memberName || o.date !== dateISO) continue;
+        if (toDelete.includes(o.id)) continue;   // this save is deleting it → it's not effective
         if (!best || shouldReplaceOverride(best, o)) best = o;
     }
     if (best) return best.value;
@@ -1345,9 +1417,11 @@ export function getEffectiveShift(memberName, dateISO, batch) {
  * Marks failing rows with .row-error in the DOM.
  * @param {any[]}  toSave
  * @param {string} memberName
+ * @param {string[]} [toDelete]  Override doc IDs being deleted in the same save (v16.83) — so an
+ *   adjacency check doesn't constrain against a shift this save is removing.
  * @returns {string[]} Human-readable error strings (empty = valid)
  */
-export function validateShiftRules(toSave, memberName) {
+export function validateShiftRules(toSave, memberName, toDelete = []) {
     const weekGrid   = document.getElementById('weekGrid');
     /** @type {string[]} */
     const ruleErrors = [];
@@ -1386,7 +1460,7 @@ export function validateShiftRules(toSave, memberName) {
             const adjDate = new Date(date + 'T12:00:00');
             adjDate.setDate(adjDate.getDate() + delta);
             const adjISO   = formatISO(adjDate);
-            let adjShift = getEffectiveShift(memberName, adjISO, toSave);
+            let adjShift = getEffectiveShift(memberName, adjISO, toSave, toDelete);
             // Adjacent Other-family values: a TIMED Other day constrains via its actual times; an
             // untimed as-base Other day constrains via its BASE shift (the member attends those
             // hours); only an untimed Other REST-day is exempt (its hours are unknowable here).
@@ -1451,6 +1525,10 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // throws a FALSE 'auth/session-expired' (the v14.83 review's write-race). sessionReady resolves on
     // the same onAuthStateChanged the restore completes on, so the wait is sub-second on a normal load.
     await sessionReady;
+    // Wait for the initial cache load before building ovByDate — on a cold cache buildMemberDateMap
+    // returns an empty map, so an existing roster_import shift wouldn't be deleted (duplicate) and a
+    // not-yet-loaded worked Sunday could be erased by an RD correction (v16.85).
+    await whenOverridesReady();
     if (!auth.currentUser) throw new Error('auth/session-expired');
 
     const memberObj = teamMembers.find(m => m.name === memberName);

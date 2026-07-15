@@ -10,6 +10,7 @@
 
 import { CONFIG } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
+import { VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
 
 /** @type {number} */
 let _month = new Date().getMonth();
@@ -20,8 +21,8 @@ let _year  = new Date().getFullYear();
 // and not a future month — staff should open on today's roster, not a month
 // they previously browsed ahead to).
 (function restoreViewedMonth() {
-    const m = parseInt(lsGet('myb_roster_month') ?? '', 10);
-    const y = parseInt(lsGet('myb_roster_year')  ?? '', 10);
+    const m = parseInt(lsGet(VIEWED_MONTH) ?? '', 10);
+    const y = parseInt(lsGet(VIEWED_YEAR)  ?? '', 10);
     if (!isNaN(m) && !isNaN(y) && y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) {
         const today = new Date();
         const isFuture = y > today.getFullYear() || (y === today.getFullYear() && m > today.getMonth());
@@ -68,6 +69,6 @@ export function addMonths(month, year, delta) {
 
 /** Persist current display position to localStorage after each navigation. */
 export function persistViewedMonth() {
-    lsSet('myb_roster_month', _month);
-    lsSet('myb_roster_year',  _year);
+    lsSet(VIEWED_MONTH, _month);
+    lsSet(VIEWED_YEAR,  _year);
 }

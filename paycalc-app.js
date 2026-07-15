@@ -25,7 +25,7 @@ import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import {
-  CONFIG, getPeriods, currentPeriodNum, payslipPeriodNum,
+  CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum,
   hasBoxingDay, hasBankHoliday,
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
@@ -124,6 +124,13 @@ export function init() {
     // True once the user types into / clears any hours field after a background override-fetch
     // began, so the late fetch's re-apply doesn't overwrite an in-flight edit (see onPeriodChange).
     let _hoursTouchedSinceFetch = false;
+    // True when the CURRENTLY-loaded period's saved blob was CORRUPT (parseSavedPeriod returned an
+    // error). The v16.70 warning promises "anything you type will replace them" — but the background
+    // override-fetch would auto-apply a roster suggestion and autosave over the corrupt blob with NO
+    // user action, breaking that promise (v16.82 review fix). So the fetch callback skips its
+    // auto-apply+autosave on a corrupt load; only an explicit user action (typing, or "Fill from
+    // calendar") may overwrite. Set in loadPeriodData on every period change.
+    let _periodLoadWasCorrupt = false;
 
     // periodKey (and SK, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey) imported from paycalc-migrations.js
 
@@ -270,6 +277,7 @@ export function init() {
     // getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod imported from paycalc-calc.js.
 
     function onPeriodChange() {
+      _resetClearConfirm();   // switching period disarms a pending two-tap Clear (v16.84)
       const pNum    = +/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect')).value;
       const periods = getPeriods();
       const p       = periods.find(/** @param {any} x */ x => x.num === pNum);
@@ -375,10 +383,17 @@ export function init() {
       // Show/hide bank holiday rows based on whether this period has any
       updateBhRows(p);
 
-      // Show rate-unconfirmed notices when in a period where the pay award isn't finalised.
-      // Two locations: one inside ⚙️ Settings (existing), one on the result card (new in v9.93)
+      // Show rate-unconfirmed notices when the pay award isn't finalised — but ONLY on
+      // TODAY'S pay period (owner request, v16.79): the award affects every period of the
+      // pending tax year, but nagging on all 13 buried the warning in noise. Today's period
+      // is the payslip about to be paid at a possibly-stale rate — the one place the warning
+      // is actionable. Keyed to todaysPeriodNum() (date-based; NOT currentPeriodNum(), which
+      // despite its name returns the SELECTED dropdown period — comparing that to p.num is
+      // always true) so if confirmation slips past a period boundary the notice follows the
+      // live payslip rather than dying on a hardcoded date.
+      // Two locations: one inside ⚙️ Settings (existing), one on the result card (v9.93)
       // so the warning is visible even when the Settings card is collapsed.
-      const _rateUnconfirmed = !!ty.rateUnconfirmed;
+      const _rateUnconfirmed = !!ty.rateUnconfirmed && p.num === todaysPeriodNum();
       const _rateNoticeEl = document.getElementById('rateUnconfirmedNotice');
       if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', !_rateUnconfirmed);
       const _resultRateNotice = document.getElementById('resultRateNotice');
@@ -421,6 +436,11 @@ export function init() {
           // a cleared auto-fill would otherwise be silently reinstated. The latest calendar
           // data still shows in the hint bar above, so they can tap "Fill from calendar".
           if (_hoursTouchedSinceFetch) return;
+          // Never auto-apply + autosave over a CORRUPT period's blob (v16.82): that would overwrite
+          // the damaged data with no user action, contradicting the warning's "anything YOU type
+          // will replace them". The hint bar still refreshed above, so the member can choose to
+          // "Fill from calendar" — an explicit action that legitimately replaces it.
+          if (_periodLoadWasCorrupt) return;
           // Silently refresh any gold-highlighted fields filled during 'checking' state.
           const _refreshP = getPeriods().find(/** @param {any} x */ x => x.num === _fetchedPNum);
           if (_refreshP) {
@@ -460,7 +480,11 @@ export function init() {
         // Coercing blank to 0 (the old `|| 0`) permanently stored £0 if autosave fired while the field
         // was transiently empty (e.g. cleared to retype), overstating take-home by ~£147. A typed "0"
         // still stores 0 (a genuine salary-sacrifice opt-out — see writeFormData's `!= null` restore).
-        pension:  (() => { const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt')); return (_el && _el.value.trim() !== '') ? (numVal('pensionAmt') || 0) : null; })(),
+        // parseSmartFloatOrNull, NOT numVal||0 (v16.84): numVal floors garbage to 0, so a stray "."
+        // or "-" left mid-edit (then autosaved) stored a real £0 opt-out and overstated take-home by
+        // ~£147. null (empty OR garbage) means "not provided" → the period default is re-applied on
+        // load; a genuine typed "0" parses to 0 and is preserved (the deliberate opt-out).
+        pension:  (() => { const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt')); return (_el && _el.value.trim() !== '') ? parseSmartFloatOrNull(_el.value) : null; })(),
       };
     }
 
@@ -517,6 +541,7 @@ export function init() {
       // an explicit warning state instead (v16.70 review fix).
       const _parsed = parseSavedPeriod(lsGet(periodKey(pNum)));
       if (_parsed.data) d = _parsed.data;
+      _periodLoadWasCorrupt = !!_parsed.error;   // gate the background fetch's auto-overwrite (v16.82)
       writeFormData(d);
       _restoreRosterSuggested(pNum);
       // If no pension has been manually saved for this period, apply the period-specific
@@ -578,23 +603,22 @@ export function init() {
 
     const _clearState = /** @type {{ pending: boolean, timer: ReturnType<typeof setTimeout> | null, countdownTimer: ReturnType<typeof setInterval> | null }} */ ({ pending: false, timer: null, countdownTimer: null });
 
-    // iOS suspends timers when a tab is backgrounded; on resume the queued setTimeout
-    // fires immediately, which could turn the "Tap again to confirm" prompt into an
-    // accidental wipe. Reset the confirm state whenever the tab becomes hidden.
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden && _clearState.pending) {
-        clearTimeout(_clearState.timer ?? undefined);
-        clearInterval(_clearState.countdownTimer ?? undefined);
-        _clearState.pending = false;
-        _clearState.timer = null;
-        _clearState.countdownTimer = null;
-        const btn = document.getElementById('clearBtn');
-        if (btn) {
-          btn.textContent = 'Clear all entries';
-          btn.classList.remove('confirming');
-        }
-      }
-    });
+    // Disarm the two-tap "tap again to confirm" clear. Called on tab-hide AND on period change
+    // (v16.84): without the period-change reset, arming Clear on period A then switching to B left
+    // the confirm live, so ONE tap of Clear on B wiped B with no confirm.
+    function _resetClearConfirm() {
+      if (!_clearState.pending) return;
+      clearTimeout(_clearState.timer ?? undefined);
+      clearInterval(_clearState.countdownTimer ?? undefined);
+      _clearState.pending = false;
+      _clearState.timer = null;
+      _clearState.countdownTimer = null;
+      const btn = document.getElementById('clearBtn');
+      if (btn) { btn.textContent = 'Clear all entries'; btn.classList.remove('confirming'); }
+    }
+    // iOS suspends timers when a tab is backgrounded; on resume the queued setTimeout fires
+    // immediately, which could turn the "Tap again to confirm" prompt into an accidental wipe.
+    document.addEventListener('visibilitychange', () => { if (document.hidden) _resetClearConfirm(); });
 
     function clearPeriod() {
       const btn = /** @type {HTMLElement | null} */ (document.getElementById('clearBtn'));
@@ -773,7 +797,7 @@ export function init() {
       const _hppTy = _curP ? CONFIG.TAX_YEARS.find(t =>
           _curP.payday.getFullYear() === t.hppPaidJan && _curP.payday.getMonth() === 0
       ) : null;
-      const _hppActualAmt  = _hppTy ? parseFloat(lsGet(hppActualKey(_hppTy)) || '0') : 0;
+      const _hppActualAmt  = _hppTy ? parseSmartFloat(lsGet(hppActualKey(_hppTy)) || '0') : 0;  // smart-parse so a pre-v16.84 raw "1,200" self-heals
       const _hppEstAmt     = _hppTy ? parseFloat(lsGet(hppEstKey(_hppTy))    || '0') : 0;
       const _hppForPeriod  = _hppActualAmt > 0 ? _hppActualAmt : (_hppEstAmt || 0);
       const _hppIsEstimate = _hppTy && _hppForPeriod > 0 && !(_hppActualAmt > 0);
@@ -785,10 +809,14 @@ export function init() {
       // readFormData/loadPeriodData), NOT £0 — otherwise clearing the field to retype it would show
       // take-home momentarily inflated by the whole pension amount. A typed "0" still means opted-out.
       const _pField    = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
-      // Math.max(0, …): a typed/pasted negative pension would ADD untaxed headroom to the estimate
-      // (sacGross = gross − pension), silently inflating take-home — floor it like the hour fields.
-      const pension    = (_pField && _pField.value.trim() !== '')
-          ? Math.max(0, /** @type {number} */ (numValOr('pensionAmt', 0)))
+      // parseSmartFloatOrNull distinguishes GARBAGE (a lone "." / "-" mid-edit → null) from a real
+      // typed "0" (v16.84). Garbage or empty falls back to the period DEFAULT — NOT £0, which would
+      // overstate take-home by the whole pension while the field was transiently unparseable. A typed
+      // "0" is a genuine opt-out and is kept. Math.max(0, …): a pasted negative would add untaxed
+      // headroom (sacGross = gross − pension) and inflate take-home — floor it like the hour fields.
+      const _pRaw      = _pField && _pField.value.trim() !== '' ? parseSmartFloatOrNull(_pField.value) : null;
+      const pension    = _pRaw != null
+          ? Math.max(0, _pRaw)
           : (_curP ? parseFloat((getPensionDefault(_curP) * getProRateFactor(_curP)).toFixed(2)) : getPensionDefault());
       const pensionWarn = document.getElementById('pensionWarn');
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
@@ -834,7 +862,12 @@ export function init() {
         : plan !== 'none' && slSkip
           ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
           : plan !== 'none' && _slThreshold != null
-            ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — no deduction: pay after pension is under the ${_slPlanLabel} threshold (${fmt(_slThreshold)} per period)</span><span class="val">£0.00</span></div>`
+            // Two £0 reasons (v16.84): genuinely under the threshold, OR pay only just exceeds it
+            // so the 9% repayment is under £1 and HMRC rounds it down. Saying "under the threshold"
+            // for the second case would be factually wrong.
+            ? (sacGross > _slThreshold
+                ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — no deduction: your repayment is under £1 this period (pay only just exceeds the ${_slPlanLabel} threshold, ${fmt(_slThreshold)})</span><span class="val">£0.00</span></div>`
+                : `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — no deduction: pay after pension is under the ${_slPlanLabel} threshold (${fmt(_slThreshold)} per period)</span><span class="val">£0.00</span></div>`)
             : '';
 
       updateBreakBar(grossWithBp, pension, tax, ni, sl, net);
@@ -1517,9 +1550,12 @@ export function init() {
       const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === curTy.label);
       if (tyIdx <= 0) return;
       const priorTy = CONFIG.TAX_YEARS[tyIdx - 1];
-      const val = /** @type {HTMLInputElement} */ (document.getElementById('priorHppActualInput')).value;
-      if (val) {
-        lsSet(hppActualKey(priorTy), val);
+      // Store a CLEAN numeric string, not the raw field value (v16.84): a payslip-style
+      // "1,200" or "£350" stored verbatim was later read with parseFloat → 1 / NaN. Smart-parse
+      // (strips commas/£/smart-punctuation) then toFixed, mirroring how hppEst is stored.
+      const _v = parseSmartFloatOrNull(/** @type {HTMLInputElement} */ (document.getElementById('priorHppActualInput')).value);
+      if (_v != null) {
+        lsSet(hppActualKey(priorTy), _v.toFixed(2));
       } else {
         lsDel(hppActualKey(priorTy));
       }

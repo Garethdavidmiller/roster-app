@@ -29,9 +29,12 @@ const _realClearInterval = globalThis.clearInterval;
  * Build a fake service-worker environment and install it on globalThis.
  * `hasRegistration` controls what getRegistration() resolves — defaults to `controlled`
  * (a controlled page always has a registration); pass it explicitly for the hard-reload case.
- * @param {{ controlled?: boolean, waiting?: boolean, hasRegistration?: boolean }} [opts]
+ * @param {{ controlled?: boolean, waiting?: boolean, hasRegistration?: boolean, deferRegister?: boolean }} [opts]
+ *   deferRegister — register() returns a promise that resolves ONLY when resolveRegister() is
+ *   called, so a test can fire controllerchange in the window between getRegistration resolving
+ *   and register resolving (the first-install race).
  */
-function makeHarness({ controlled = false, waiting = false, hasRegistration = controlled } = {}) {
+function makeHarness({ controlled = false, waiting = false, hasRegistration = controlled, deferRegister = false } = {}) {
     /** @type {Record<string, Function[]>} */
     const swListeners = {};
     const posted = /** @type {any[]} */ ([]);
@@ -41,10 +44,14 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
         addEventListener: () => {},
         update: () => Promise.resolve(),
     };
+    /** @type {(() => void)|null} */
+    let _resolveRegister = null;
     const container = {
         controller: controlled ? {} : null,
         getRegistration: () => Promise.resolve(hasRegistration ? registration : undefined),
-        register: () => Promise.resolve(registration),
+        register: () => deferRegister
+            ? new Promise(res => { _resolveRegister = () => res(registration); })
+            : Promise.resolve(registration),
         addEventListener: (/** @type {string} */ type, /** @type {Function} */ fn) => {
             (swListeners[type] = swListeners[type] || []).push(fn);
         },
@@ -73,6 +80,8 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
         container,
         swListeners,
         fireControllerChange() { (swListeners['controllerchange'] || []).forEach(fn => fn()); },
+        /** Resolve a deferred register() (only meaningful with deferRegister: true). */
+        resolveRegister() { _resolveRegister?.(); },
         /** Flush the getRegistration().then(register().then(...)) chain (all microtasks). */
         flush: () => new Promise(r => setTimeout(r, 0)),
         restore() {
@@ -91,6 +100,26 @@ test('first install: the claim controllerchange does NOT reload; the next one do
         assert.equal(h.state.reloads, 0, 'first-install claim must not reload');
         h.fireControllerChange();                       // a real update later in the session
         assert.equal(h.state.reloads, 1, 'a genuine update must reload');
+    } finally { h.restore(); }
+});
+
+test('first-install race: a claim that fires BEFORE register() resolves is still suppressed (listener attached pre-register)', async () => {
+    // The regression guard for v16.88. With the controllerchange listener attached inside
+    // register().then (the old position), a first-install claim firing in the gap before that
+    // .then ran was missed → suppressNextClaim stayed true → the NEXT genuine update was wrongly
+    // suppressed. The listener is now attached BEFORE register(), so the early claim consumes the
+    // flag. Deferring register() reproduces exactly that window.
+    const h = makeHarness({ controlled: false, deferRegister: true });
+    try {
+        registerServiceWorker();
+        await h.flush();                 // getRegistration resolves; listener attached; register() pending
+        h.fireControllerChange();        // first-install claim arrives BEFORE register() resolves
+        assert.equal(h.state.reloads, 0, 'the early first-install claim must not reload');
+        h.resolveRegister();             // register() finally resolves
+        await h.flush();
+        h.fireControllerChange();        // a genuine later update
+        assert.equal(h.state.reloads, 1,
+            'the suppression flag was consumed by the early claim, so the next update MUST reload');
     } finally { h.restore(); }
 });
 

@@ -151,12 +151,15 @@ export function prefillBackPay() {
   // Default the "paid in" period: a SETTLED award defaults to the payslip that actually carried
   // the lump (the award-application date — 2025/26: 24 Oct 2025), so the lump lands where it
   // really landed and that period's estimate matches the real payslip. A pending award defaults
-  // to the NEXT PAYDAY (the current period). Adjustable either way; the paid-in period is itself
-  // excluded from the accrual (see calcBackPay's _capPNum).
+  // to TODAY'S payday — todaysPeriodNum(), NOT pNum: pNum is the SELECTED dropdown period, so if
+  // the member deep-links to a FUTURE payday (?payday=…) the lump would default onto that future
+  // payslip and get persisted there. todaysPeriodNum() is the "next payday" the design intends and
+  // matches calcBackPay's todaysPeriodNum() accrual cap (v16.83 review fix). Adjustable either way;
+  // the paid-in period is itself excluded from the accrual (see calcBackPay's _capPNum).
   if (paidSel && !paidSel.value) {
     const _target = _fromDate
       ? (getPeriods().find(/** @param {any} x */ x => x.payday >= _fromDate)?.num ?? pNum)
-      : pNum;
+      : todaysPeriodNum();
     _setSelectPeriod(paidSel, _target);
   }
   return calcBackPay();

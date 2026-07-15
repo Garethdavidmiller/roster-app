@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v16.78
+// MYB Roster — Service Worker
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
 //               → Stale-while-revalidate: served INSTANTLY from cache, then the
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.78';
+const APP_VERSION = '16.88';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -54,6 +54,45 @@ function unredirect(res) {
 // Managed JS/CSS files already background-revalidated during THIS SW process lifetime
 // (see the stale-while-revalidate branch). Resets whenever the browser restarts the SW.
 const _revalidated = new Set();
+
+// Cross-version fallback selector (v16.86 — mixed-version window mitigation). When an asset
+// misses the CURRENT version's cache and can't be fetched (offline / a mid-deploy hosting
+// hiccup), it's served from a cached copy for availability. `caches.match()` searches every
+// cache in CREATION order — it returns the OLDEST version's copy, maximising the version gap
+// against any modules that DID load fresh from the current cache (a mixed, potentially
+// interface-incompatible page). This picks the NEWEST available OLDER app cache instead, so a
+// page that falls back mid-transition stays as close to single-version as the caches allow, and
+// HTML + JS/CSS fallbacks land on the SAME older version. It REDUCES (does not eliminate) the
+// window — a partially-warmed current cache can still pair a fresh module with an older fallback;
+// fully closing it needs per-file version markers (removed in v16.81) or per-page load
+// coordination, both deliberately out of scope. Fails safe: any error → null, and every caller
+// already degrades a null to Response.error()/a network retry, so this is never worse than the
+// previous caches.match() miss.
+/** Parse 'myb-roster-v16.85' → [16, 85]; newest-first comparator for App caches. */
+function _appCacheVersion(name) {
+    const parts = name.slice('myb-roster-v'.length).split('.');
+    return [parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0];
+}
+function compareAppCacheDesc(a, b) {
+    const [aMajor, aMinor] = _appCacheVersion(a);
+    const [bMajor, bMinor] = _appCacheVersion(b);
+    return (bMajor - aMajor) || (bMinor - aMinor);
+}
+async function matchNewestManagedCache(request, opts) {
+    try {
+        const names = (await caches.keys())
+            // App caches are 'myb-roster-v<ver>'. The SDK cache is 'myb-roster-sdk-v<ver>' — its
+            // 12th char is 's', not 'v', so startsWith('myb-roster-v') already excludes it.
+            .filter(name => name.startsWith('myb-roster-v'))
+            .sort(compareAppCacheDesc);
+        for (const name of names) {
+            const cache = await caches.open(name);
+            const hit = await cache.match(request, opts);
+            if (hit) return hit;
+        }
+    } catch (_e) { /* broken Cache Storage → null; caller degrades to network/Response.error */ }
+    return null;
+}
 
 // Firebase SDK runtime cache (v16.10, owner-approved): the gstatic CDN modules are
 // version-pinned (immutable), but offline launch used to depend on the browser HTTP
@@ -89,7 +128,7 @@ const NETWORK_FIRST_FILES = [
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js',
-    'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'storage-utils.js', 'auth-identity.js', 'client-errors.js',
+    'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'storage-utils.js', 'storage-keys.js', 'auth-identity.js', 'client-errors.js',
     'shared.css',
     'paycalc.html', 'paycalc-app.js', 'paycalc-boot.js', 'paycalc-calc.js',
     'paycalc-help.js', 'paycalc-migrations.js',
@@ -156,6 +195,7 @@ const CORE_ASSETS = [
     "./roster-cycle-data.js",
     "./firebase-client.js",
     "./storage-utils.js",
+    "./storage-keys.js",
     "./client-errors.js",
     "./ls.js",
     "./doc-upload.js",
@@ -512,8 +552,8 @@ self.addEventListener("fetch", event => {
             // offline page exactly when it was designed to appear (the rejection then landed in the
             // untimed outer network backstop). The offline page must always be reachable.
             return openCache().then(c => c.match(event.request, { ignoreSearch: true })).catch(() => null)
-                .then(r => r || caches.match(event.request, { ignoreSearch: true }).catch(() => null))
-                .then(r => r || (fallback ? openCache().then(c => c.match(fallback)).then(fr => fr || caches.match(fallback)).catch(() => null) : null))
+                .then(r => r || matchNewestManagedCache(event.request, { ignoreSearch: true }))
+                .then(r => r || (fallback ? openCache().then(c => c.match(fallback)).then(fr => fr || matchNewestManagedCache(fallback)).catch(() => null) : null))
                 .then(r => r || (isDoc
                     ? new Response(
                         `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Offline — Marylebone Roster</title></head><body><h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">${offlineMsg}</p></body></html>`,
@@ -664,7 +704,10 @@ self.addEventListener("fetch", event => {
             // Returning the bad response to a <script type=module> would break the import and stick
             // the splash — the doc branch already falls back on !response.ok, this mirrors it (v16.19).
             const net = await network;
-            return (net && net.ok ? net : null) || (await caches.match(event.request)) || Response.error();
+            // Prefer a good network response; else the NEWEST older cached copy (not the oldest
+            // caches.match() would pick) so a mid-deploy fallback stays closest to the current
+            // version — see matchNewestManagedCache. Null → Response.error() → clean reload (v16.86).
+            return (net && net.ok ? net : null) || (await matchNewestManagedCache(event.request)) || Response.error();
         })().catch(() => caches.match(event.request).catch(() => null)
             .then(r => r || fetch(event.request).catch(() => Response.error()))));
         // A rejected respondWith for a <script type=module> fails the import and breaks the
@@ -681,7 +724,11 @@ self.addEventListener("fetch", event => {
                 .then(cached => {
                     if (cached) return cached;
                     return fetch(event.request).then(response => {
-                        if (response && response.status === 200) {
+                        // ctSafe (v16.83): match the SWR/SDK/warm-up puts — never cache a text/html
+                        // body under an icon/font/manifest path. A corporate-proxy login interstitial
+                        // returned as 200 for manifest.json or icon-192.png would otherwise poison the
+                        // cache for the life of the version cache (the exact class ctSafe was added for).
+                        if (response && response.status === 200 && ctSafe(url.pathname, response)) {
                             const clone = response.clone();
                             // .catch to match the SWR/SDK puts — an unguarded put rejects (quota /
                             // broken Cache Storage) as an unhandled rejection; respondWith still

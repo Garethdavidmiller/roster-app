@@ -103,6 +103,7 @@ const {
     getAllOverrides,
     recordRangeOverrides,
     executeSave,
+    _hasStagedEdits,
 } = await import('./admin-overrides.js');
 const { teamMembers } = await import('./roster-data.js');
 
@@ -146,6 +147,15 @@ describe('getEffectiveShift', () => {
 
     test('returns RD for a member name not in teamMembers', () => {
         assert.equal(getEffectiveShift('Imaginary Person', '2026-06-15', []), 'RD');
+    });
+
+    test('an override being DELETED in the same save is ignored (v16.83)', () => {
+        // C. Reen Monday base is 12:00-19:00. An override says 20:00-04:00, but this save deletes it.
+        setAllOverrides([{ id: 'del-me', memberName: 'C. Reen', date: '2026-06-15', value: '20:00-04:00' }]);
+        // Without the toDelete skip this returns the override; with it, it falls back to base roster.
+        assert.equal(getEffectiveShift('C. Reen', '2026-06-15', [], ['del-me']), '12:00-19:00');
+        // A delete list that doesn't match still returns the override.
+        assert.equal(getEffectiveShift('C. Reen', '2026-06-15', [], ['other-id']), '20:00-04:00');
     });
 });
 
@@ -552,4 +562,47 @@ describe('isWorkingDate', () => {
     test('a rest override (RD) on a worked base day makes it NOT a working day', () => {
         assert.equal(isWorkingDate(miller, '2026-06-15', new Map([['2026-06-15', { value: 'RD' }]])), false);
     });
+});
+
+// ── _hasStagedEdits (broadened v16.82: also catches staged REMOVALS) ──────────────────────────
+// Guards the week grid from being re-rendered over the admin's unsaved work — by loadOverrides
+// AND by the Saved-Changes delete paths. A fake weekGrid is injected via document.getElementById.
+describe('_hasStagedEdits', () => {
+    /** Build a fake `.day-row` element with the dataset + classes the predicate reads. */
+    const row = (dataset = {}, classes = []) => ({
+        dataset,
+        classList: { contains: (c) => classes.includes(c) },
+    });
+    /** Install a fake #weekGrid whose querySelectorAll('.day-row') returns `rows`. */
+    const withGrid = (rows) => {
+        global.document.getElementById = (id) =>
+            id === 'weekGrid' ? { querySelectorAll: () => rows } : null;
+    };
+    const clearGrid = () => { global.document.getElementById = () => null; };
+
+    test('false when the grid is absent', () => {
+        clearGrid();
+        assert.equal(_hasStagedEdits(), false);
+    });
+    test('false for a clean grid (no rows)', () => {
+        withGrid([]);
+        assert.equal(_hasStagedEdits(), false);
+    });
+    test('false for an unchanged prefilled row (existing override, not edited)', () => {
+        withGrid([row({ type: 'shift', existingId: 'x' }, ['prefilled-existing'])]);
+        assert.equal(_hasStagedEdits(), false);
+    });
+    test('TRUE for a staged addition/change (a chosen type that is not an unchanged prefill)', () => {
+        withGrid([row({ type: 'rdw' }, [])]);
+        assert.equal(_hasStagedEdits(), true);
+    });
+    test('TRUE for a staged REMOVAL (prefilled row unticked → existingId, no type) — the v16.82 case', () => {
+        withGrid([row({ existingId: 'y' }, [])]);
+        assert.equal(_hasStagedEdits(), true);
+    });
+    test('TRUE when any one row is staged among clean rows', () => {
+        withGrid([row({ type: 'shift', existingId: 'a' }, ['prefilled-existing']), row({ type: 'al' }, [])]);
+        assert.equal(_hasStagedEdits(), true);
+    });
+    clearGrid();
 });

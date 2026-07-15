@@ -42,6 +42,7 @@ const {
     nameToPassword,
     fileSignatureMatches,
     buildPushPayload,
+    shouldDeleteSubscription,
     parseSetupActionFlags,
     resolveRosterAuthConfig,
     claimsForTier,
@@ -398,11 +399,18 @@ exports.ingestHuddle = onRequest(
             }
 
             // New metadata committed — delete the previous version's object (best-effort;
-            // a failure just leaves one stale file, which the next upload supersedes).
+            // a failure just leaves one stale file, superseded by the next upload).
             if (prevStoragePath && prevStoragePath !== storagePath) {
                 await bucket.file(prevStoragePath).delete().catch(delErr =>
                     console.warn('[ingestHuddle] Old huddle object cleanup failed (non-fatal):', delErr.message));
             }
+            // When prevStatus === 'unknown' (the pre-upload read failed) prevStoragePath was never
+            // captured, so a prior version for this date is left orphaned. We deliberately do NOT sweep
+            // `huddles/<date>*` HERE to reclaim it: Power Automate can double-run a date (see the notify
+            // guard below), and a sweep could catch a CONCURRENT ingest's just-committed object, leaving
+            // that doc pointing at a deleted file — a staff-visible 404, worse than the invisible orphan.
+            // Instead pruneOldHuddles reclaims it with a date-prefix sweep once the date ages out of the
+            // retention window, where no ingest can be racing it. (v16.89)
 
             console.log(`[ingestHuddle] Uploaded ${fileType} for ${date} (${fileBuffer.length} bytes)`);
 
@@ -591,15 +599,10 @@ async function fanOutPush(payload, logTag) {
         try {
             await getWebPush().sendNotification({ endpoint, keys }, payloadStr);
         } catch (err) {
-            // 410 Gone / 404 Not Found = the subscription itself is dead → delete it.
-            // 401 Unauthorized is NOT a dead subscription — it is the push service rejecting
-            // our VAPID auth JWT (e.g. VAPID_PRIVATE_KEY rotated/typo'd against the unchanged
-            // public key). In that misconfig EVERY send 401s; deleting on 401 would wipe the
-            // whole pushSubscriptions collection in one run, and because the client VAPID
-            // fingerprint (derived from the unchanged public key) wouldn't change, no device
-            // would ever re-subscribe → a permanent, silent notification outage. So 401 is
-            // logged, never deleted.
-            if (err.statusCode === 410 || err.statusCode === 404) {
+            // Delete ONLY genuinely-dead subscriptions (410/404). A 401 is a VAPID-auth
+            // misconfig, not a dead endpoint — deleting on it would wipe the whole collection.
+            // Full rationale + tests: shouldDeleteSubscription in roster-parse-helpers.js (v16.15/v16.81).
+            if (shouldDeleteSubscription(err.statusCode)) {
                 await docSnap.ref.delete();
                 console.log(`${logTag} Removed dead subscription ${docSnap.id}`);
             } else {
@@ -653,13 +656,18 @@ async function pruneOldHuddles(excludeDate) {
 
     await Promise.allSettled(stale.docs.map(async docSnap => {
         if (docSnap.id === excludeDate) return;
-        const data        = docSnap.data();
-        // Pre-v13.99 docs may lack storagePath — fall back to the legacy fixed path.
-        const storagePath = data.storagePath || `huddles/${docSnap.id}.${data.fileType || 'pdf'}`;
         try {
             await docSnap.ref.delete();
-            await bucket.file(storagePath).delete().catch(e =>
-                console.warn(`[pruneOldHuddles] Storage delete ${docSnap.id} failed (orphaned):`, e.message));
+            // Sweep EVERY Storage object for this date, not just the doc's current path. A transient
+            // Firestore read failure during a same-day re-ingest can leave an EARLIER versioned object
+            // orphaned (the overwritten doc no longer points at it, and the ingest-time targeted delete
+            // never captured its path). This date is older than the retention window, so no ingest is
+            // racing it — the sweep is unambiguous. The `huddles/<date>` prefix matches BOTH the
+            // versioned (`<date>-<id>.<ext>`) and legacy pre-v13.99 (`<date>.<ext>`) object names, so it
+            // supersedes the old storagePath-based delete that reclaimed only the current object. (v16.89)
+            const [files] = await bucket.getFiles({ prefix: `huddles/${docSnap.id}` });
+            await Promise.all(files.map(f => f.delete().catch(e =>
+                console.warn(`[pruneOldHuddles] Storage delete ${f.name} failed (orphaned):`, e.message))));
         } catch (e) {
             console.error(`[pruneOldHuddles] Firestore delete ${docSnap.id} failed:`, e.message);
         }

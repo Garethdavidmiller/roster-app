@@ -132,6 +132,18 @@ service cloud.firestore {
         // provisioned (Set up accounts) AND token-refreshed before this rule is relied upon —
         // a stale manager token has name but not manager, so it would be isolated to its own
         // (non-existent) roster. See SECURITY_RELEASE_PLAN.md → B3.
+        // TWO checks, because create AND update share this block. On UPDATE the EXISTING doc's
+        // owner must also authorise (resource.data.memberName), not just the NEW value — otherwise a
+        // member could OVERWRITE another member's override by writing their own name into it,
+        // silently re-labelling and destroying the victim's record (the update twin of the hole the
+        // delete rule below closes). resource == null on create, so the existing-owner clause is a
+        // no-op there. (v16.80 review fix.)
+        (
+          resource == null ||
+          request.auth.token.name == resource.data.memberName ||
+          request.auth.token.admin == true ||
+          request.auth.token.manager == true
+        ) &&
         (
           request.auth.token.name == request.resource.data.memberName ||
           request.auth.token.admin == true ||

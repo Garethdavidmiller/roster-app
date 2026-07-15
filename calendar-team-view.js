@@ -337,6 +337,13 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
             const seenKeys = new Set();
             snap.forEach(/** @param {any} doc */ doc => {
                 const d          = doc.data();
+                // Skip malformed docs — parity with fetchOverridesForRange (calendar-overrides.js),
+                // which this shares rosterOverridesCache with. Without this a doc missing `value`
+                // would cache an undefined-value record that renders as a blank/unknown cell and,
+                // if it out-ranked a good record on the same date, could evict it until reload
+                // (v16.82 hardening — no current write path emits such a doc, but the two fetch
+                // paths must not diverge on validation).
+                if (!d.memberName || !d.date || !d.value) return;
                 const cacheKey   = `${d.memberName}|${d.date}`;
                 seenKeys.add(cacheKey);
                 const existing   = rosterOverridesCache.get(cacheKey);

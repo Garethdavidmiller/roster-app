@@ -30,7 +30,7 @@ function normaliseShift(raw) {
     if (typeof raw !== 'string') return 'RD';
     const s = raw.trim().toUpperCase();
 
-    if (s === 'SP') return 'SPARE';
+    if (s.replace(/[./]/g, '') === 'SP') return 'SPARE';   // "SP" / "S.P." / "S/P"
 
     // Valid 24-hour clock value: hours 00–23, minutes 00–59. The regexes below only
     // constrain digit COUNT, so without this an OCR slip like "29:75-88:90" would
@@ -51,7 +51,11 @@ function normaliseShift(raw) {
         return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
     }
 
-    if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(s)) return s;
+    // Strip dots/slashes so punctuated paper-roster forms ("A/L", "A.L.", "R.D.") map to the
+    // canonical code too — parity with the absence-code strip below (v16.83). By here the time
+    // and RDW regexes have already run, so `s` is a short code; the strip can't corrupt a time.
+    const _code = s.replace(/[./]/g, '');
+    if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(_code)) return _code;
 
     // Paid-absence roster codes (owner, Jul 2026): HA = Hospital Appointment (a day off on full
     // pay); OD = paid absence, often used as a blanket Mon–Fri marking for long-term sickness;
@@ -278,6 +282,19 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         const shifts = {};
         for (const date of dates) shifts[date] = 'RD';
 
+        // Tolerant member-cell lookup (v16.84): the header→date map resolves a header
+        // case/abbrev-insensitively (lowercased first-3 chars), but reading the cell with the RAW
+        // header was stricter — if the AI keyed a member's days as "Sunday" while columnHeaders listed
+        // "Sun" (or any case drift between the two lists it generates), entry[header] read undefined
+        // → filled 'RD', silently dropping a real shift where the base was also RD. Index the entry's
+        // day keys the same tolerant way so the two lookups can't diverge. (Day abbrevs sun/mon/…/sat
+        // don't collide with member metadata keys like name/grade.)
+        const entryByDay = {};
+        for (const k of Object.keys(entry)) {
+            const kk = String(k).trim().toLowerCase().slice(0, 3);
+            if (!(kk in entryByDay)) entryByDay[kk] = entry[k];
+        }
+
         const missingKeys = [];
         for (let i = 0; i < columnHeaders.length; i++) {
             const header   = columnHeaders[i];
@@ -286,7 +303,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             if (dayIndex === undefined) continue;
 
             const date  = dates[dayIndex];
-            const raw   = entry[header];
+            const raw   = entry[header] !== undefined ? entry[header] : entryByDay[key.slice(0, 3)];
             const value = (raw !== undefined && raw !== null && String(raw).trim() !== '')
                 ? String(raw).trim()
                 : 'RD';
@@ -761,9 +778,26 @@ function computeOrphanLabels(users, activeEmails) {
     return out;
 }
 
+/**
+ * Decide whether a failed Web Push send means the subscription is DEAD and should be deleted.
+ * Extracted + tested (v16.81) because this encodes the load-bearing v16.15 lesson that previously
+ * survived only as a comment inline in fanOutPush: a 410/404 is a genuinely gone endpoint (delete
+ * it), but a 401 is the push service rejecting our VAPID auth JWT — a server MISCONFIG in which
+ * EVERY send 401s. Deleting on 401 would wipe the whole pushSubscriptions collection in one run,
+ * and since the client VAPID fingerprint (derived from the unchanged public key) wouldn't change,
+ * no device would ever re-subscribe → a permanent, silent notification outage. So ONLY 410/404
+ * delete; everything else (401, 5xx, network) is a transient/keep.
+ * @param {number|undefined|null} statusCode  HTTP status from the push service
+ * @returns {boolean} true → delete the subscription doc; false → keep and log
+ */
+function shouldDeleteSubscription(statusCode) {
+    return statusCode === 410 || statusCode === 404;
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
+    shouldDeleteSubscription,
     normaliseShift,
     fileSignatureMatches,
     buildWeekDates,

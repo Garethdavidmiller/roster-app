@@ -99,7 +99,16 @@ export async function getNotifState() {
         let sub   = await reg.pushManager.getSubscription();
         if (!sub) return 'off-lapsed';
 
-        if (lsGet(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
+        // Rotate ONLY on a genuine key change: a NON-NULL stored fingerprint that DIFFERS.
+        // A null read (localStorage unavailable/evicted on a budget Android, or never recorded)
+        // must NOT trigger rotation — the old `!== FINGERPRINT` churned unsubscribe→resubscribe on
+        // EVERY load of such a device (the post-subscribe lsSet also couldn't stick), and a failed
+        // resubscribe mid-churn silently lapsed a working device. On null we keep the live
+        // subscription and just (re)record the fingerprint best-effort below. A genuinely-rotated
+        // old-key sub whose fingerprint was ALSO evicted still self-heals via fanOutPush's 410
+        // cleanup → re-subscribe. (v16.84 review fix.)
+        const _storedFp = lsGet(VAPID_VER_KEY);
+        if (_storedFp !== null && _storedFp !== VAPID_FINGERPRINT) {
             // The Push API rejects subscribe() with a NEW applicationServerKey while a
             // subscription for the OLD key still exists (InvalidStateError), so the old
             // subscription must be removed FIRST — accepting a brief no-subscription
@@ -112,6 +121,10 @@ export async function getNotifState() {
             await sub.unsubscribe().catch(e => console.warn('[Notifications] Old sub cleanup failed (non-fatal):', /** @type {any} */ (e).message));
             sub = await subscribe();
         } else {
+            // Current key, or an unreadable/absent fingerprint: (re)record it best-effort (no-op if
+            // localStorage is unavailable) so a device that CAN persist stops re-checking, without
+            // ever churning one that can't.
+            if (_storedFp !== VAPID_FINGERPRINT) lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
             // Re-persist the subscription to self-heal a record fanOutPush deleted on a transient
             // error — but THROTTLE it. getNotifState runs on EVERY calendar load (the most-used,
             // offline-first page), so an unconditional write here was a redundant pushSubscriptions

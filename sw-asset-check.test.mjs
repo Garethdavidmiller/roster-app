@@ -10,7 +10,7 @@
 //     catches the "added a member but forgot to re-run generate-roster-members.mjs" mistake.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -61,34 +61,69 @@ test('every root JS module is in BOTH the SW network-first list and a precache l
     );
 });
 
-test('APP_VERSION matches in all 9 bump locations', () => {
-    // roster-data.js is the authoritative source (per CLAUDE.md).
+test('every SW-listed asset actually exists on disk (no ghost entries)', () => {
+    // The membership check above is one-directional: it proves every module is LISTED, but not
+    // that every LISTED path exists. A file rename that leaves a stale entry makes the warm-up
+    // fetch 404 → allOk stays false → the __precache-complete marker is never written → old-version
+    // caches are NEVER swept and the warm-up retries on every SW wake, silently and forever.
+    // This closes that gap by asserting the reverse direction. (v16.81 debt sweep.)
+    const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+    const arrayOf = (name) => {
+        const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`));
+        return m ? m[1] : '';
+    };
+    const LISTS = ['NETWORK_FIRST_FILES', 'CORE_ASSETS', 'SUPPLEMENTARY_ASSETS', 'FONT_ASSETS', 'ICON_ASSETS'];
+    const ghosts = [];
+    for (const name of LISTS) {
+        const body = arrayOf(name);
+        // Every quoted string literal in the array body.
+        for (const m of body.matchAll(/['"]([^'"]+)['"]/g)) {
+            const raw = m[1];
+            if (raw.startsWith('http')) continue;          // CDN/gstatic URLs — not local files
+            const rel = raw.replace(/^\.\//, '');           // strip leading ./
+            if (!existsSync(join(ROOT, rel))) ghosts.push(`${name}: ${raw}`);
+        }
+    }
+    assert.deepEqual(
+        ghosts, [],
+        `SW asset lists reference files that don't exist on disk (a ghost entry disables cache sweeping):\n  ${ghosts.join('\n  ')}`
+    );
+});
+
+test('APP_VERSION matches in the 2 runtime bump locations', () => {
+    // roster-data.js is the authoritative source (per CLAUDE.md); the SW const names the
+    // cache. The old 7 pure-comment stamps (SW line 1 + six HTML line-2) were dropped in the
+    // v16.81 debt sweep — they had no runtime effect and only added per-commit diff noise.
     const rosterData = readFileSync(join(ROOT, 'roster-data.js'), 'utf8');
     const match = rosterData.match(/export const APP_VERSION = '([\d.]+)'/);
     assert.ok(match, "APP_VERSION declaration not found in roster-data.js");
     const version = match[1];
 
-    // service-worker.js: line 1 comment + APP_VERSION const.
     const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
-    assert.ok(
-        sw.split('\n')[0].includes(`v${version}`),
-        `service-worker.js line 1 comment does not say v${version}`
-    );
     assert.ok(
         sw.includes(`APP_VERSION = '${version}'`),
         `service-worker.js APP_VERSION const is not '${version}'`
     );
+});
 
-    // Each app page: line 2 HTML comment.
-    const pages = ['index.html', 'admin.html', 'paycalc.html',
-                   'operations.html', 'settings.html', 'links.html'];
-    const stale = pages.filter(
-        p => !readFileSync(join(ROOT, p), 'utf8').split('\n')[1].includes(`v${version}`)
-    );
-    assert.deepEqual(
-        stale, [],
-        `Pages whose line-2 version comment is not v${version}:\n  ${stale.join('\n  ')}`
-    );
+// The cross-version cache fallback must prefer the NEWEST older cache, not the arbitrary
+// oldest one caches.match() returns (v16.86 mixed-version mitigation). Guards against an
+// accidental revert of the two hot fallback paths (JS/CSS cold miss + doc serveFallback) back
+// to a bare any-version caches.match(event.request), which would re-widen the version skew.
+test('service-worker.js cross-version fallback uses matchNewestManagedCache, not oldest-first caches.match', () => {
+    const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+    assert.ok(sw.includes('function matchNewestManagedCache'),
+        'matchNewestManagedCache helper is missing');
+    // The two primary fallbacks must route through the newest-older selector.
+    assert.ok(sw.includes('matchNewestManagedCache(event.request)'),
+        'the JS/CSS cold-cache fallback should use matchNewestManagedCache(event.request)');
+    assert.ok(sw.includes('matchNewestManagedCache(event.request, { ignoreSearch: true })'),
+        'the doc serveFallback should use matchNewestManagedCache(event.request, { ignoreSearch: true })');
+    // The oldest-first any-version lookups those replaced must be gone from the primary paths
+    // (the deep broken-storage .catch backstops may still use a plain caches.match — those are
+    // hit only on wedged Cache Storage, so they are intentionally left out of scope).
+    assert.ok(!sw.includes('caches.match(event.request, { ignoreSearch: true })'),
+        'the doc fallback still has a bare oldest-first caches.match(event.request, { ignoreSearch: true })');
 });
 
 // Every .md doc that carries a version stamp must be current to the latest 0.10

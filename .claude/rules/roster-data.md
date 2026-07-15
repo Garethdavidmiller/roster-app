@@ -20,4 +20,4 @@ Always invoke `/new-starter` — it has the full 3-step checklist including:
 
 ## APP_VERSION
 
-`APP_VERSION` here is the **primary source** — `npm run bump <version>` updates all 9 locations from it. Do not edit other locations by hand.
+`APP_VERSION` here is the **primary source** — `npm run bump <version>` updates it and the service-worker.js cache const (the 2 runtime locations; the 7 comment stamps were dropped v16.81). Do not edit either by hand.

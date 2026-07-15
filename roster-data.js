@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '16.78';
+export const APP_VERSION = '16.88';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -673,9 +673,8 @@ export function validateRosterPatterns() {
         }
     }
 
-    if (errors === 0) {
-        console.log('validateRosterPatterns: all patterns valid ✓');
-    }
+    // (v16.80: dropped the "all patterns valid ✓" success console.log — dev-time noise that
+    // shipped to every consumer of this validator; the returned error count carries the signal.)
     return errors;
 }
 

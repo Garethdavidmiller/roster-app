@@ -17,7 +17,7 @@ import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } fr
 import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
-import { formatISO } from './roster-data.js';
+import { formatISO, parseSmartFloat } from './roster-data.js';
 import { fmt } from './paycalc-format.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ export function updatePriorHpp(ty) {
   const actualRaw = lsGet(hppActualKey(priorTy));
   let   est       = estRaw    ? parseFloat(estRaw)    : 0;
   let _priorSkipped = 0;   // corrupt prior-year periods — surfaced on the card, never console-only (v16.70)
-  const actual    = actualRaw ? parseFloat(actualRaw) : 0;
+  const actual    = actualRaw ? parseSmartFloat(actualRaw) : 0;  // smart-parse so a pre-v16.84 raw "1,200" self-heals (v16.84)
 
   // If no stored estimate yet, compute on the fly so the prior-year HPP section
   // is populated on first login even before the user has visited a prior-year period.
