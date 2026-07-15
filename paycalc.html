@@ -139,7 +139,9 @@
         </div>
         <div class="field-hint">Check your latest payslip. The app stores a separate rate per tax year — updating here won't affect other years.</div>
         <div class="val-warn" id="rateWarn" role="alert" aria-live="polite"></div>
-        <div class="joiner-notice hidden" id="rateUnconfirmedNotice">⚠ 2026/27 pay award not yet confirmed — the default rate shown may be out of date. Update it here once your payslip reflects the new rate (awards are often announced mid-year and backdated to April).</div>
+        <!-- "3.6%" / "31 July" reflect the current pay-award status (accepted by the RMT, awaiting
+             payment). Update/generalise once it's confirmed on payslips, or if the payment date slips. -->
+        <div class="joiner-notice hidden" id="rateUnconfirmedNotice">⚠ 2026/27 pay award (3.6%) accepted by the RMT — expected on your 31 July payslip, but not yet confirmed. The rate shown here is still last year's; update it once your payslip reflects the new rate, then tap Save settings.</div>
       </div>
 
       <div class="field">
@@ -475,7 +477,7 @@
       ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not reconcile line-for-line with your payslip.
     </div>
     <div id="resultRateNotice" class="payslip-note" style="display:none">
-      ⚠️ <strong>2026/27 pay rates not yet confirmed by Chiltern.</strong> This estimate uses a placeholder rate — update your hourly rate in ⚙️ Settings once your payslip confirms the new figure.
+      ⚠️ <strong>2026/27 pay award (3.6%) accepted — expected on your 31 July payslip, not yet confirmed.</strong> This estimate still uses last year's rate — update your hourly rate in ⚙️ Settings once your payslip confirms the new figure.
     </div>
     <button type="button" class="bd-btn" id="bdBtn" aria-expanded="false" aria-controls="bdBody">
       Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>
@@ -589,7 +591,7 @@
 
       <div class="field-hint" id="bpAwardScope" style="margin-bottom:12px"></div>
 
-      <div class="backpay-estimate-note" id="bpEstimateNote" style="display:none">ℹ️ This pay award is offered but not yet accepted by the RMT — treat the figures below as an estimate until it's confirmed.</div>
+      <div class="backpay-estimate-note" id="bpEstimateNote" style="display:none">ℹ️ The 2026/27 pay award (3.6%) has been accepted by the RMT and is expected on your 31 July payslip — treat the figures below as an estimate until it's confirmed on your payslip.</div>
 
       <div class="field" id="bpRisePctField">
         <label for="bpRisePct">Pay rise %</label>

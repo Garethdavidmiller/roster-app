@@ -28,41 +28,45 @@ import { fd, fdShort, fmt } from './paycalc-format.js';
  * The currently OFFERED (but not-yet-confirmed) annual pay award, as a percentage. Used to
  * pre-fill the back-pay card's "Pay rise %" so it opens with a live estimate — only while the
  * award year is unconfirmed (`ty.rateUnconfirmed`); once the real rate is entered/confirmed this
- * default no longer applies. UPDATE (or remove) when the award is agreed / a new one is offered.
- * Current: the 3.6% offered Jul 2026, awaiting RMT acceptance.
+ * default no longer applies. UPDATE (or remove) when the award is confirmed on payslips / a new one
+ * is offered. Current: 3.6% — ACCEPTED by the RMT Jul 2026, awaiting payment (expected on the 31 Jul
+ * payslip). Still an estimate here (`rateUnconfirmed` stays true) until a real payslip confirms it.
  */
 const PENDING_AWARD_PCT = 3.6;
 
-// The award tax year the card's rate/London/% boxes were last prefilled for. The card computes the
-// award for whichever tax year is selected in the main calculator, but reuses the same DOM inputs;
-// when the year changes we must clear the stale figures so the next year's real rates prefill in
-// (otherwise a 2026/27 estimate would be shown under a 2025/26 label — see prefillBackPay).
+// The award tax year the card's rate/London/% boxes were last prefilled for. The card always
+// computes the CURRENT award (see prefillBackPay/_backdatedFromPNum), so this only changes across the
+// April rollover — when it does we clear the stale figures so the new year's real rates prefill in
+// (otherwise last year's estimate would show under this year's label).
 /** @type {string|null} */
 let _lastAwardYear = null;
 
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
 
 /**
- * Period number the back-pay award is backdated FROM. Always the April period of the
- * current tax year — Chiltern's pay anniversary is always 1 April, so there is no user
- * choice to make (the old "Pay rise backdated from" selector was removed Jul 2026). The
- * April period is `48 + ty.first` (period offset `num - 48`, `ty.first` = the tax year's
- * first offset). Used as the accrual window's lower bound and to derive the award tax year.
+ * Period number the back-pay award is backdated FROM. Always the April period of the CURRENT
+ * award's tax year — Chiltern's pay anniversary is always 1 April, so there is no user choice
+ * (the old "Pay rise backdated from" selector was removed Jul 2026). Keyed to TODAY's period,
+ * NOT the selected/viewed one (was currentPeriodNum): the back-pay card is only ever about the
+ * current award (owner: "only the current award matters", Jul 2026) — see prefillBackPay. The
+ * April period is `48 + ty.first`. Used as the accrual window's lower bound and to derive the
+ * award tax year.
  * @returns {number}
  */
 export function _backdatedFromPNum() {
-  const awardTy = getTaxYearForOffset(currentPeriodNum() - 48);
+  const awardTy = getTaxYearForOffset(todaysPeriodNum() - 48);
   return 48 + awardTy.first;
 }
 
 /**
- * Tax year the back-pay award belongs to — derived from the "backdated from"
- * period, NOT the period being viewed (which may be a different tax year).
+ * Tax year the back-pay award belongs to — derived from the "backdated from" period.
  * Exported so coordinator's applyNewRate() can call it.
  * @param {number} fromPNum - Period number the award is backdated from.
  */
 export function _bpAwardTaxYear(fromPNum) {
   const p = fromPNum ? getPeriods().find(/** @param {any} x */ x => x.num === fromPNum) : null;
+  // The `fromPNum` falsy fallback is dead in the card flows (callers pass _backdatedFromPNum(), never
+  // 0); kept as currentPeriodNum for the existing contract/test.
   return getTaxYearForOffset((p ? p.num : currentPeriodNum()) - 48);
 }
 
@@ -74,7 +78,14 @@ export function _bpAwardTaxYear(fromPNum) {
  * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number, bpIsEstimate: boolean, bpIncluded: boolean }}
  */
 export function prefillBackPay() {
-  const pNum = currentPeriodNum();
+  // TODAY's award, NOT the SELECTED period's (was currentPeriodNum). The card is only ever about the
+  // CURRENT award (owner: "only the current award matters", Jul 2026): its lump lands on a
+  // current/upcoming payslip, and pinning here — together with _backdatedFromPNum — keeps the card's
+  // rates, award-scope label, paid-in window, persisted state and include-tick fixed on the current
+  // award no matter which period is being VIEWED. A historic view can therefore neither compute a
+  // mismatched lump nor drop the tick. Trade-off: the card no longer re-shows a selected HISTORIC
+  // award (any past lump was already paid, so the current/pending award is the only actionable one).
+  const pNum = todaysPeriodNum();
   const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   const oldRateEl   = /** @type {HTMLInputElement} */ (document.getElementById('oldRate'));
@@ -111,16 +122,16 @@ export function prefillBackPay() {
   const pctField = document.getElementById('bpRisePctField');
   if (pctField) pctField.style.display = ty.rateUnconfirmed ? '' : 'none';
 
-  // The award year is the tax year of the SELECTED period, so the card computes the award for
-  // whichever year you're viewing (historic OR pending). Its OLD rate = the rate paid before that
-  // year's award = the prior year's rate — held per grade/year in AWARD_RATES (payslip-confirmed),
-  // so it never depends on the mutable GRADES default. null = not on record (e.g. CES 2024/25) →
-  // the old-rate box stays blank for manual entry.
+  // The award year is TODAY's award (pinned above), so the card always computes the current award
+  // regardless of the period being viewed. Its OLD rate = the rate paid before that year's award =
+  // the prior year's rate — held per grade/year in AWARD_RATES (payslip-confirmed), so it never
+  // depends on the mutable GRADES default. null = not on record (e.g. CES 2024/25) → the old-rate box
+  // stays blank for manual entry.
   const award = awardRatesFor(getGrade(), ty.label);
   if (!oldRateEl.value && award && award.pre != null) oldRateEl.value = award.pre.toFixed(2);
 
   if (ty.rateUnconfirmed) {
-    // Offered-but-unconfirmed award (e.g. the 2026/27 rise awaiting RMT acceptance): the OLD rate
+    // Accepted-but-unconfirmed award (e.g. the 2026/27 rise accepted by the RMT, awaiting payment): the OLD rate
     // is the prior year's rate (prefilled above from AWARD_RATES, or the stored rate as a fallback
     // for a grade with no recorded pre), and the NEW rate is not yet known — so leave NEW blank for
     // the "Pay rise %" helper (defaulted below) or manual entry.
@@ -150,12 +161,10 @@ export function prefillBackPay() {
   // internally by _backdatedFromPNum(); there is no "backdated from" selector to pre-set.
   // Default the "paid in" period: a SETTLED award defaults to the payslip that actually carried
   // the lump (the award-application date — 2025/26: 24 Oct 2025), so the lump lands where it
-  // really landed and that period's estimate matches the real payslip. A pending award defaults
-  // to TODAY'S payday — todaysPeriodNum(), NOT pNum: pNum is the SELECTED dropdown period, so if
-  // the member deep-links to a FUTURE payday (?payday=…) the lump would default onto that future
-  // payslip and get persisted there. todaysPeriodNum() is the "next payday" the design intends and
-  // matches calcBackPay's todaysPeriodNum() accrual cap (v16.83 review fix). Adjustable either way;
-  // the paid-in period is itself excluded from the accrual (see calcBackPay's _capPNum).
+  // really landed and that period's estimate matches the real payslip. A pending award defaults to
+  // TODAY'S payday (todaysPeriodNum) — the "next payday" the design intends, matching calcBackPay's
+  // todaysPeriodNum() accrual cap (v16.83 review fix). Adjustable either way; the paid-in period is
+  // itself excluded from the accrual (see calcBackPay's _capPNum).
   if (paidSel && !paidSel.value) {
     const _target = _fromDate
       ? (getPeriods().find(/** @param {any} x */ x => x.payday >= _fromDate)?.num ?? pNum)
@@ -174,14 +183,11 @@ export function prefillBackPay() {
 /** Persist the card's raw inputs + the award year they belong to. Called from calcBackPay. */
 function _saveBpState() {
   try {
-    // Persist ONLY the CURRENT (today's) award year's state (v16.23). While viewing a historic
-    // year — the calendar Pay pill / a past payday-cell tap deep-links init onto a past period,
-    // and prev-period browsing with the card open recomputes too — an unconditional save
-    // overwrote the member's current-year blob (include-tick, hand-corrected rates) with a
-    // historic-year one. Trade-off (accepted): hand-entered figures for a HISTORIC award year
-    // don't persist across reloads; they re-prefill from AWARD_RATES.
+    // The card is pinned to the CURRENT award (see _backdatedFromPNum), so `year` is always today's
+    // award and there is no historic-year state that could overwrite the current blob. (The v16.23
+    // guard that skipped the save while a historic year was VIEWED is unnecessary now the card no
+    // longer follows the viewed period. v16.91)
     const year = _bpAwardTaxYear(_backdatedFromPNum()).label;
-    if (year !== _bpAwardTaxYear(todaysPeriodNum()).label) return;
     const v = /** @param {string} id */ (id) => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
     lsSet(bpKey(), JSON.stringify({
       year,
@@ -208,14 +214,15 @@ export function restoreBpState() {
   let s = null;
   try { s = JSON.parse(lsGet(bpKey()) || 'null'); } catch { /* corrupted — treat as absent */ }
   if (!s) return false;
+  // `year` is the CURRENT award (via _backdatedFromPNum, now pinned to today's period), so the saved
+  // current-award blob — include-tick, hand-corrected rates — is restored no matter which period the
+  // app opened on. A historic view (the calendar Pay pill / a past-payday deep-link lands init on one)
+  // no longer fails this match and drops the tick for the session; the lump still can't reach a wrong
+  // payslip (the coordinator adds it only when _bpPNum === _pNum). A blob whose year differs is a
+  // genuinely stale PAST award (after the April rollover) → clean slate. (v16.91)
   const year = _bpAwardTaxYear(_backdatedFromPNum()).label;
   if (s.year !== year) {
-    // Delete ONLY a genuinely stale (past-year) blob — the April-rollover clean slate. When the
-    // member is merely VIEWING a historic period (the calendar Pay pill / a past payday tap
-    // deep-links init onto one), their CURRENT-year blob — include-tick, hand-corrected rates —
-    // must survive; deleting it here silently dropped the lump from the paid-in payslip's
-    // estimate on the next normal load (v16.23).
-    if (s.year !== _bpAwardTaxYear(todaysPeriodNum()).label) lsDel(bpKey());
+    lsDel(bpKey());
     return false;
   }
   const set = /** @param {string} id @param {any} val */ (id, val) => {
@@ -337,8 +344,8 @@ export function calcBackPay() {
   const applyWrap  = document.getElementById('applyRateWrap');
   const applyBtn   = document.getElementById('applyRateBtn');
 
-  // Estimate banner — visible whenever the award's tax-year rates are still unconfirmed
-  // (offered, awaiting acceptance). Set before the early return so it shows the moment the
+  // Estimate banner — visible whenever the award's tax-year rates are still unconfirmed (accepted
+  // by the RMT but not yet confirmed on payslips). Set before the early return so it shows the moment the
   // card opens, even before any figures are entered.
   const estimateNote = document.getElementById('bpEstimateNote');
   if (estimateNote) estimateNote.style.display = awardTy?.rateUnconfirmed ? 'block' : 'none';
@@ -518,7 +525,7 @@ export function calcBackPay() {
   const newBpPNum   = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;
   const newBpAmt    = newBpPNum > 0 ? grandTotal    : 0;
   const newBpVarAmt = newBpPNum > 0 ? grandVarTotal : 0;
-  // bpIsEstimate: the lump derives from an offered-but-unconfirmed award (the 3.6% default) —
+  // bpIsEstimate: the lump derives from an accepted-but-unconfirmed award (the 3.6% default) —
   // the result card must say "estimated" wherever it surfaces this figure.
   return { bpAmount: newBpAmt, bpVarAmount: newBpVarAmt, bpPNum: newBpPNum,
            bpIsEstimate: !!awardTy?.rateUnconfirmed, bpIncluded };

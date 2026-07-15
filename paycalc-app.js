@@ -371,7 +371,7 @@ export function init() {
             const notice = document.getElementById('settingsNewYearNotice');
             if (notice) {
               notice.textContent = ty.rateUnconfirmed
-                ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Update once your payslip reflects the new rate (awards are often backdated to April), then tap Save settings.`
+                ? `New tax year ${ty.label} — the 3.6% pay award has been accepted by the RMT but isn't confirmed on payslips yet. The default rate may still be last year's; update once your payslip reflects the new rate, then tap Save settings.`
                 : `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
               notice.classList.remove('hidden');
             }
@@ -452,9 +452,10 @@ export function init() {
       // Load saved data for this period
       loadPeriodData(p.num);
 
-      // If the back-pay card is open, refresh it — its award year follows the selected period, so
-      // crossing a tax-year boundary must re-prefill the rate boxes (prefillBackPay clears the stale
-      // figures on a year change). Within a year this just recomputes the lump with fresh data.
+      // If the back-pay card is open, refresh it. Since v16.91 the card is pinned to the CURRENT
+      // award (its year no longer follows the selected period), so this just recomputes with fresh
+      // data — still wanted so `_bpPNum === _pNum` re-evaluates when you navigate onto the paid-in
+      // period with the card open (the lump then appears), and so the April-rollover re-prefill fires.
       if (document.getElementById('backPayBody')?.classList.contains('open')) _refreshBackPayCard();
 
       stampPaycalcPrintLine();
