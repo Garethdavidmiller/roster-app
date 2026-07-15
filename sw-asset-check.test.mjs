@@ -106,6 +106,26 @@ test('APP_VERSION matches in the 2 runtime bump locations', () => {
     );
 });
 
+// The cross-version cache fallback must prefer the NEWEST older cache, not the arbitrary
+// oldest one caches.match() returns (v16.86 mixed-version mitigation). Guards against an
+// accidental revert of the two hot fallback paths (JS/CSS cold miss + doc serveFallback) back
+// to a bare any-version caches.match(event.request), which would re-widen the version skew.
+test('service-worker.js cross-version fallback uses matchNewestManagedCache, not oldest-first caches.match', () => {
+    const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+    assert.ok(sw.includes('function matchNewestManagedCache'),
+        'matchNewestManagedCache helper is missing');
+    // The two primary fallbacks must route through the newest-older selector.
+    assert.ok(sw.includes('matchNewestManagedCache(event.request)'),
+        'the JS/CSS cold-cache fallback should use matchNewestManagedCache(event.request)');
+    assert.ok(sw.includes('matchNewestManagedCache(event.request, { ignoreSearch: true })'),
+        'the doc serveFallback should use matchNewestManagedCache(event.request, { ignoreSearch: true })');
+    // The oldest-first any-version lookups those replaced must be gone from the primary paths
+    // (the deep broken-storage .catch backstops may still use a plain caches.match — those are
+    // hit only on wedged Cache Storage, so they are intentionally left out of scope).
+    assert.ok(!sw.includes('caches.match(event.request, { ignoreSearch: true })'),
+        'the doc fallback still has a bare oldest-first caches.match(event.request, { ignoreSearch: true })');
+});
+
 // Every .md doc that carries a version stamp must be current to the latest 0.10
 // milestone. CLAUDE.md uses a "Current app version `X.YZ`" line; the others use a
 // "Last updated: … vX.YZ" header. The policy (CLAUDE.md) is that ALL the docs are
