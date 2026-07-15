@@ -14,7 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, foldOverrideIntoCache, toOverrideRecord, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { isBeforeMemberStart, reconcileRangeIntoCache, toOverrideRecord, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -333,44 +333,23 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
             ));
             // Discard if the user navigated to a different week while this was in flight
             if (!teamViewMode || currentTeamWeekStart.getTime() !== fetchToken) return;
-            let updated = false;
-            const seenKeys = new Set();
+            // Collect the validated snapshot rows, then RECONCILE authoritatively (v16.96) — the same
+            // shared helper the calendar path uses (reconcileRangeIntoCache). The range query is the
+            // single source of truth for this week, so each date's winner is rebuilt from THIS
+            // snapshot alone: additions/edits propagate, an in-range key the snapshot omits is a real
+            // delete, and a deleted higher-priority manual can no longer survive because a stale
+            // lower-priority import couldn't out-rank the cached copy (Finding #1). The malformed-doc
+            // skip keeps parity with the calendar fetch (both share rosterOverridesCache). `updated`
+            // is the returned display-changed flag — it gates the re-render, exactly as before.
+            /** @type {Array<{ memberName: string, date: string, record: any }>} */
+            const records = [];
             snap.forEach(/** @param {any} doc */ doc => {
-                const d          = doc.data();
-                // Skip malformed docs — parity with fetchOverridesForRange (calendar-overrides.js),
-                // which this shares rosterOverridesCache with. Without this a doc missing `value`
-                // would cache an undefined-value record that renders as a blank/unknown cell and,
-                // if it out-ranked a good record on the same date, could evict it until reload
-                // (v16.82 hardening — no current write path emits such a doc, but the two fetch
-                // paths must not diverge on validation).
+                const d = doc.data();
                 if (!d.memberName || !d.date || !d.value) return;
-                const cacheKey   = `${d.memberName}|${d.date}`;
-                seenKeys.add(cacheKey);
-                const existing   = rosterOverridesCache.get(cacheKey);
-                const incoming   = toOverrideRecord(d);
-                // foldOverrideIntoCache (override-utils.js) decides both: store the winner (always,
-                // so its metadata is cached — see the v16.63 fix) and whether the DISPLAY changed
-                // (gates the re-render). Pure + unit-tested in override-utils.test.mjs.
-                const { store, displayChanged } = foldOverrideIntoCache(existing, incoming);
-                if (store) {
-                    rosterOverridesCache.set(cacheKey, incoming);
-                    if (displayChanged) updated = true;
-                }
+                records.push({ memberName: d.memberName, date: d.date, record: toOverrideRecord(d) });
             });
-            // DELETION propagation (v16.69 review fix): the range query is authoritative for this
-            // week, so a cached entry in-range whose doc no longer exists was DELETED (e.g. a
-            // manager removing a wrongly-recorded absence). Additions/edits already propagated via
-            // the fold above; without this eviction a deleted override showed until a full page
-            // reload — the ONLY change type with no propagation path. The month-cache permanence
-            // (fetchedMonths) is untouched: eviction only covers the exact dates just re-queried.
             const wsISO = formatISO(weekStart), weISO = formatISO(weekEnd);
-            for (const key of rosterOverridesCache.keys()) {
-                const dateStr = key.slice(key.indexOf('|') + 1);
-                if (dateStr >= wsISO && dateStr <= weISO && !seenKeys.has(key)) {
-                    rosterOverridesCache.delete(key);
-                    updated = true;
-                }
-            }
+            const updated = reconcileRangeIntoCache(rosterOverridesCache, records, wsISO, weISO);
             // This wrote straight into rosterOverridesCache (not via fetchOverridesForRange), so
             // invalidate the shift-types memo — otherwise the month legend serves a stale type set
             // after returning to calendar view (e.g. an AL cell shows but its legend item stays hidden).
