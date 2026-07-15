@@ -689,7 +689,7 @@ Page-specific CSS for each guide page — extracted from inline `<style>` blocks
 - Linked after `guide-shell.css` in each guide's `<head>`
 
 ### `purify.es.mjs`
-Self-hosted DOMPurify ES module (v3.4.8) — extracted from CDN at v12.04.
+Self-hosted DOMPurify ES module (v3.4.12) — extracted from CDN at v12.04.
 - Imported by `calendar-huddle-viewer.js` for Huddle HTML sanitisation
 - To upgrade: `npm pack dompurify@<ver>`, extract `package/dist/purify.es.mjs`, replace this file, update version comment in `calendar-huddle-viewer.js`
 - Precached by the service worker (stale-while-revalidate, like all app JS)

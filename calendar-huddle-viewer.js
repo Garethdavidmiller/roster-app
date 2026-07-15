@@ -22,12 +22,13 @@
  * Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
  */
 
-// DOMPurify is self-hosted at ./purify.es.mjs (v3.4.8) and loaded LAZILY — it is only
+// DOMPurify is self-hosted at ./purify.es.mjs (v3.4.12) and loaded LAZILY — it is only
 // needed when a DOCX-converted huddle's HTML is rendered, which most calendar opens never
 // do, so a static import would put ~45 KB on every cold calendar load for nothing. The
 // dynamic import below pulls it in on first render and memoises the module. (Still precached
 // by the service worker, so it loads from cache offline.) To upgrade: npm pack dompurify@<new>,
-// extract package/dist/purify.es.mjs, replace the file, update the version comment here.
+// extract package/dist/purify.es.mjs, replace the file, RE-ADD the `// @ts-nocheck` first line (tsc
+// follows this dynamic import despite the jsconfig exclude), and update the version comment here.
 /** @type {Promise<any>|null} */
 let _purifyPromise = null;
 function _loadPurify() {

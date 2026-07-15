@@ -213,7 +213,7 @@ roster-app/
 ├── guide-shell.css         ← shared chrome for all 4 guide pages (header, .btn-back, .btn-pdf, print, palette tokens)
 ├── guide-doc.css           ← shared styles for the two document-style guides (guide.html, paycalc-guide.html): two-column print layout, info boxes, tables, numbered steps, banner. Loaded between guide-shell.css and page CSS. NOT linked by railcard-guide.html or fip.html.
 ├── guide.css / paycalc-guide.css / railcard-guide.css / fip.css ← page-specific guide CSS
-├── purify.es.mjs           ← self-hosted DOMPurify v3.4.8. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
+├── purify.es.mjs           ← self-hosted DOMPurify v3.4.12. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
 ├── service-worker.js       ← single SW for all pages; cache name includes APP_VERSION
 ├── manifest.json           ← PWA manifest for all pages
 ├── guide.html / paycalc-guide.html / railcard-guide.html / fip.html ← printable guides (via nav panel)
