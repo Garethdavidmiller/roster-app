@@ -242,6 +242,7 @@ roster-app/
 ├── admin-roster-upload.test.mjs ← tests for shiftValueToOverrideType (parsed value → override type, incl. training + Sunday block) + _saveOverrideBatches stale-claim retry parity (permission-denied → token refresh → fresh batch → retry once) (--experimental-test-module-mocks)
 ├── nav-panel.test.mjs      ← tests for isNoticeExpired, archiveNotice, initNavPanel DOM guard (--experimental-test-module-mocks)
 ├── sw-register.test.mjs    ← tests for registerServiceWorker: first-install claim must not reload, update reloads once, beforeReload gets every controllerchange, SKIP_WAITING gating (no mocks; part of test:hygiene)
+├── sw-internals.test.mjs   ← unit tests for service-worker.js's PURE helpers (_appCacheVersion, compareAppCacheDesc — the v16.86 cross-version cache sort — ctSafe, unredirect). The SW is a classic worker (can't be imported), so the test reads the SW source and evals each function BY NAME in a sandbox — assertions run against the SW's real code, no duplicate copy, no runtime change. Extraction throws (test fails loudly) if a helper is renamed. No mocks; part of test:hygiene
 ├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname, refreshClaimsIfStale (--experimental-test-module-mocks)
 ├── login-overlay.test.mjs  ← tests for runNamedSignIn: the sign-in core commits the local session ONLY after auth resolves (timeout/throw/enforce-fail → no save), enforce on/off, transient-vs-persistent messages (--experimental-test-module-mocks)
 ├── admin-email-check.test.mjs ← tests for isEmailCheckDue: never/legacy-'1'/junk → due, the 3-month interval boundary, custom interval (--experimental-test-module-mocks; firebase-client + session mocked)
@@ -629,7 +630,7 @@ The login dropdown groups members by grade (CEA · CES · Dispatcher · Manageme
 
 **Password security note:** Passwords are surname-derived and not secrets — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`).
 
-Firebase SDK: currently v12.10.0. Check version before any new Firebase work. **An SDK bump must also update `FIREBASE_SDK_VERSION` in `service-worker.js`** (the SDK offline cache is keyed on it) — `sw-asset-check.test.mjs` fails the build if they diverge.
+Firebase SDK: currently v12.16.0. Check version before any new Firebase work. **An SDK bump must also update `FIREBASE_SDK_VERSION` in `service-worker.js`** (the SDK offline cache is keyed on it) — `sw-asset-check.test.mjs` fails the build if they diverge.
 
 ---
 
