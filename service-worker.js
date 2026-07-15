@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '17.00';
+const APP_VERSION = '17.01';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -325,17 +325,30 @@ async function fetchInBatches(assets, precacheFn) {
     }
 }
 
-/** Content-type sanity check before caching an asset (v16.23). A trusted-cert intermediary
- *  (corporate MITM / managed-device proxy) can return a 200 HTML interstitial for ANY URL;
- *  caching that body under a module path poisons the version cache for its whole life
- *  (SyntaxError → stuck splash; the doc branch got this guard in v16.19, the warm-up and
- *  JS/CSS puts did not). Rule: .html assets accept html-or-missing; everything else rejects
- *  a PRESENT text/html type (real types here are text/javascript, text/css, font/woff2,
- *  image/png, application/manifest+json — none contain "text/html"). */
+/** Content-type sanity check before caching an asset (v16.23; positively validated v17.01). A
+ *  trusted-cert intermediary (corporate MITM / managed-device proxy) can return a 200 body of ANY
+ *  type for ANY URL — an HTML login interstitial, a JSON/XML gateway error; caching that under a
+ *  module path poisons the version cache for its whole life (SyntaxError → stuck splash). The old
+ *  rule rejected only a PRESENT text/html; a wrong-but-not-html body (e.g. `application/json` under
+ *  a `.js` path — Finding #10) slipped through. Now POSITIVELY match the asset's extension to its
+ *  expected content-type family; a MISSING type is still accepted (offline-first tolerance — a
+ *  same-origin 200 with no CT is trusted), and an UNKNOWN extension falls back to the old reject-html
+ *  rule so a new asset kind can never be silently dropped. Rejecting is SAFE: ctSafe only gates
+ *  CACHING (the response is still served to the page), so the worst case is a re-fetch next time —
+ *  never a broken page — while caching a wrong body breaks the app for the version's whole life. */
 function ctSafe(assetPath, res) {
     const ct = (res.headers.get('content-type') || '').toLowerCase();
-    const isHtml = assetPath.endsWith('.html') || assetPath.endsWith('/') || assetPath === './';
-    return isHtml ? (!ct || ct.includes('text/html')) : !ct.includes('text/html');
+    if (!ct) return true;   // missing type — trust a same-origin 200 (offline-first tolerance)
+    const p = assetPath;
+    const ends = (/** @type {string} */ s) => p.endsWith(s);
+    if (ends('.html') || ends('/') || p === './') return ct.includes('text/html');
+    if (ends('.mjs') || ends('.js'))               return ct.includes('javascript');
+    if (ends('.css'))                              return ct.includes('text/css');
+    if (ends('.json'))                             return ct.includes('json');   // application/json | manifest+json
+    if (ends('.woff2'))                            return ct.includes('woff') || ct.includes('font');
+    if (ends('.png'))                              return ct.includes('image/png');
+    if (ends('.svg'))                              return ct.includes('svg') || ct.includes('xml');
+    return !ct.includes('text/html');   // unknown extension — keep the original lenient reject-html rule
 }
 
 /** fetch with a hard timeout (v16.23). The warm-up had NO per-fetch timeout, so one hung
