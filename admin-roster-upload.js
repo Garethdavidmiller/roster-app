@@ -788,6 +788,19 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 : '⚠ The independent column check only covered some staff on this read — review the days carefully against the PDF.';
             changeList.appendChild(ccNote);
         }
+        // ---- Missing-member note (Finding #3) ----
+        // The server flags any roster member of this type it never found a row for. A dropped row is
+        // invisible in the list below (the person just isn't shown), so surface the names explicitly.
+        // Advisory — could be a genuine absence (leaver/starter/other page). Guarded on the (new) field
+        // so an older deployed Function stays silent rather than false-alarming.
+        if (Array.isArray(parsedResult.missingMembers) && parsedResult.missingMembers.length) {
+            const mmNote = document.createElement('div');
+            mmNote.className = 'roster-crosscheck-note';
+            mmNote.setAttribute('role', 'status');
+            const names = parsedResult.missingMembers.map(/** @param {string} n */ n => esc(n)).join(', ');
+            mmNote.innerHTML = `⚠ <strong>Not found in this read:</strong> ${names}. If they should be on this roster, check the PDF — the read may have skipped a row — or read the roster again.`;
+            changeList.appendChild(mmNote);
+        }
         // ---- Build per-person sections ----
         let sectionsShown = 0;
 

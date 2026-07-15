@@ -1219,6 +1219,17 @@ columnScan: one key per column header; every staff member appears in every colum
 
         console.log(`[parseRosterPDF] Returning ${filteredEntries.length} parsed members for week ${weekEnding}`);
 
+        // ---- Detect roster members ENTIRELY ABSENT from the AI output (Finding #3) ----
+        // The hallucinated-name filter above catches the FORWARD error (a returned name we don't know);
+        // this catches the REVERSE — a known member of this roster type the AI never emitted a row for.
+        // A dropped row is invisible in the review table (the member simply isn't listed), so a shift
+        // that should have been imported silently isn't. It can also be a legitimate absence (a leaver,
+        // a new starter not yet on the rota, or someone printed on a different page), so this is
+        // ADVISORY, never a hard failure: surface the names and let the admin judge against the PDF.
+        const returnedNames = new Set(filteredEntries.map(e => e.memberName));
+        const missingMembers = relevantNames.filter(n => !returnedNames.has(n));
+        if (missingMembers.length) console.warn(`[parseRosterPDF] ${missingMembers.length} roster member(s) absent from the AI output: ${missingMembers.join(', ')}`);
+
         // Cross-check status for the review UI (v16.70): 'complete' — every member was checked
         // against the column re-read; 'partial' — some were; 'unavailable' — the AI omitted or
         // garbled columnScan, so the independent check never ran (fail-open must not be invisible).
@@ -1235,6 +1246,7 @@ columnScan: one key per column header; every staff member appears in every colum
             rosterType,
             dates,
             crossCheck,
+            missingMembers,
             parsed: filteredEntries,
         });
     }
