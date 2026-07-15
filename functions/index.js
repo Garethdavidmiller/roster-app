@@ -399,11 +399,18 @@ exports.ingestHuddle = onRequest(
             }
 
             // New metadata committed — delete the previous version's object (best-effort;
-            // a failure just leaves one stale file, which the next upload supersedes).
+            // a failure just leaves one stale file, superseded by the next upload).
             if (prevStoragePath && prevStoragePath !== storagePath) {
                 await bucket.file(prevStoragePath).delete().catch(delErr =>
                     console.warn('[ingestHuddle] Old huddle object cleanup failed (non-fatal):', delErr.message));
             }
+            // When prevStatus === 'unknown' (the pre-upload read failed) prevStoragePath was never
+            // captured, so a prior version for this date is left orphaned. We deliberately do NOT sweep
+            // `huddles/<date>*` HERE to reclaim it: Power Automate can double-run a date (see the notify
+            // guard below), and a sweep could catch a CONCURRENT ingest's just-committed object, leaving
+            // that doc pointing at a deleted file — a staff-visible 404, worse than the invisible orphan.
+            // Instead pruneOldHuddles reclaims it with a date-prefix sweep once the date ages out of the
+            // retention window, where no ingest can be racing it. (v16.89)
 
             console.log(`[ingestHuddle] Uploaded ${fileType} for ${date} (${fileBuffer.length} bytes)`);
 
@@ -649,13 +656,18 @@ async function pruneOldHuddles(excludeDate) {
 
     await Promise.allSettled(stale.docs.map(async docSnap => {
         if (docSnap.id === excludeDate) return;
-        const data        = docSnap.data();
-        // Pre-v13.99 docs may lack storagePath — fall back to the legacy fixed path.
-        const storagePath = data.storagePath || `huddles/${docSnap.id}.${data.fileType || 'pdf'}`;
         try {
             await docSnap.ref.delete();
-            await bucket.file(storagePath).delete().catch(e =>
-                console.warn(`[pruneOldHuddles] Storage delete ${docSnap.id} failed (orphaned):`, e.message));
+            // Sweep EVERY Storage object for this date, not just the doc's current path. A transient
+            // Firestore read failure during a same-day re-ingest can leave an EARLIER versioned object
+            // orphaned (the overwritten doc no longer points at it, and the ingest-time targeted delete
+            // never captured its path). This date is older than the retention window, so no ingest is
+            // racing it — the sweep is unambiguous. The `huddles/<date>` prefix matches BOTH the
+            // versioned (`<date>-<id>.<ext>`) and legacy pre-v13.99 (`<date>.<ext>`) object names, so it
+            // supersedes the old storagePath-based delete that reclaimed only the current object. (v16.89)
+            const [files] = await bucket.getFiles({ prefix: `huddles/${docSnap.id}` });
+            await Promise.all(files.map(f => f.delete().catch(e =>
+                console.warn(`[pruneOldHuddles] Storage delete ${f.name} failed (orphaned):`, e.message))));
         } catch (e) {
             console.error(`[pruneOldHuddles] Firestore delete ${docSnap.id} failed:`, e.message);
         }
