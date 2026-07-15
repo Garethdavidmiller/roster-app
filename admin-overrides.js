@@ -136,6 +136,12 @@ let _cacheLoadedOk = false;
 /** @returns {boolean} True once the override cache has been authoritatively populated at least once. */
 export function isOverrideCacheLoaded() { return _cacheLoadedOk; }
 
+// Saved-Changes list query cap. orderBy('date','desc') + this limit means the NEWEST 5000 overrides
+// load; beyond that the oldest aren't fetched. `_overridesTruncated` records a cap hit so renderTable
+// can tell the admin the list is partial rather than silently showing a subset (Finding #8, v16.99).
+const OVERRIDES_QUERY_CAP = 5000;
+let _overridesTruncated = false;
+
 // ── PUBLIC STATE ACCESSORS ────────────────────────────────────────────────────
 export function getAllOverrides()    { return _allOverrides; }
 /** @param {any[]} arr */
@@ -1061,9 +1067,20 @@ export async function loadOverrides() {
         '<div role="status"><span class="visually-hidden">Loading saved changes…</span></div>'
         + '<div class="skeleton-row" aria-hidden="true"></div>'.repeat(3);
     try {
-        const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
+        // Fetch CAP+1 (orderBy date DESC) so "genuinely more than CAP exist" is distinguishable from
+        // "exactly CAP" — the +1 row only returns in the former case (mirrors getClientErrors' limit+1
+        // truncation probe, so the banner never false-alarms at exactly CAP).
+        const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(OVERRIDES_QUERY_CAP + 1)));
         _allOverrides = [];
         snap.forEach(/** @param {any} s */ s => _allOverrides.push({ id: s.id, ...s.data() }));
+        // More than CAP means the OLDEST overrides beyond it aren't shown — surface that rather than
+        // silently showing a partial list (no-silent-caps). Trim the probe row so the list is exactly the
+        // CAP newest; editing recent dates is unaffected, only very old bookings are omitted. (Finding #8)
+        _overridesTruncated = snap.size > OVERRIDES_QUERY_CAP;
+        if (_overridesTruncated) {
+            _allOverrides.length = OVERRIDES_QUERY_CAP;   // drop the +1 probe row (already date-desc sorted)
+            console.warn(`[Admin] Override query hit the ${OVERRIDES_QUERY_CAP}-doc cap — oldest overrides not loaded. Consider archiving old overrides.`);
+        }
         _cacheLoadedOk = true;   // the cache now holds authoritative data — write paths may proceed (Finding #2)
         renderTable();
         const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
@@ -1148,7 +1165,10 @@ export function renderTable() {
     if (listCount) {
         const label   = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
         const context = _tableShowAllOverrides ? ' (all staff)' : '';
-        listCount.textContent = label + context;
+        // No-silent-caps: when the load hit the query cap, say the list is the most-recent subset so
+        // an admin isn't misled into thinking an unlisted old booking doesn't exist (Finding #8).
+        const capped  = _overridesTruncated ? ` — showing the ${OVERRIDES_QUERY_CAP} most recent; older changes aren't listed` : '';
+        listCount.textContent = label + context + capped;
     }
 
     if (!rows.length) {
