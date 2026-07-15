@@ -452,9 +452,10 @@ export function init() {
       // Load saved data for this period
       loadPeriodData(p.num);
 
-      // If the back-pay card is open, refresh it — its award year follows the selected period, so
-      // crossing a tax-year boundary must re-prefill the rate boxes (prefillBackPay clears the stale
-      // figures on a year change). Within a year this just recomputes the lump with fresh data.
+      // If the back-pay card is open, refresh it. Since v16.91 the card is pinned to the CURRENT
+      // award (its year no longer follows the selected period), so this just recomputes with fresh
+      // data — still wanted so `_bpPNum === _pNum` re-evaluates when you navigate onto the paid-in
+      // period with the card open (the lump then appears), and so the April-rollover re-prefill fires.
       if (document.getElementById('backPayBody')?.classList.contains('open')) _refreshBackPayCard();
 
       stampPaycalcPrintLine();
