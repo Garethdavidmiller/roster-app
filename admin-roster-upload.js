@@ -6,7 +6,7 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { shouldReplaceOverride, isOtherValue, parseOtherValue } from './override-utils.js';
+import { shouldReplaceOverride, isOtherValue, parseOtherValue, buildOverrideWrite } from './override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -161,16 +161,11 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                 // "Use new roster" / a re-import doesn't leave a stale doc beside the new one.
                 if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
                 const ref = doc(collection(db, COLLECTIONS.overrides));
-                batch.set(ref, {
-                    memberName,
-                    date,
-                    type,
-                    value: savedValue,
-                    note:       '',
-                    source:     'roster_import',   // marks this as auto-applied, not hand-entered
-                    createdAt:  serverTimestamp(),
-                    changedBy:  currentUser,
-                });
+                // source: 'roster_import' marks this as auto-applied, not hand-entered. buildOverrideWrite
+                // is the single source for the rules-required field set (shared with the two admin save paths).
+                batch.set(ref, buildOverrideWrite(
+                    { memberName, date, type, value: savedValue, note: '', source: 'roster_import', changedBy: currentUser },
+                    serverTimestamp()));
             }
             await batch.commit();
         });

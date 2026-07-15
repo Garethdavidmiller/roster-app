@@ -1568,55 +1568,6 @@ export function init() {
     stampAdminPrintHeader();
     window.addEventListener('beforeprint', stampAdminPrintHeader);
 
-    /**
-     * One-time cleanup: deletes any annual_leave overrides that fall on a Sunday.
-     * These can't be created any more but may exist from before v5.73.
-     * Scans the in-memory cache (populated by loadOverrides) — no extra Firestore read.
-     * Runs silently on admin page load; skipped after the first clean run.
-     *
-     * SUNSET: this is a pre-v5.73 data cleanup that still runs per-device on every admin load
-     * (guarded by the localStorage `purgeSundayAL_done` flag, so it's a no-op after the first
-     * clean pass on each device). Safe to delete once confident no Sunday-AL docs remain in
-     * Firestore — verify with a one-off admin query, then remove this function + its call site.
-     */
-    async function purgeSundayAL() {
-        if (lsGet('purgeSundayAL_done') === '1') return;
-        try {
-            const allOverrides = getAllOverrides();
-            const toDelete = allOverrides.filter(o => o.type === 'annual_leave' && isSunday(o.date));
-
-            if (!toDelete.length) {
-                // Only mark done when the cache is non-empty: an empty cache on first load
-                // (offline/slow network) doesn't mean there are no Sunday AL overrides to purge.
-                if (allOverrides.length > 0) {
-                    lsSet('purgeSundayAL_done', '1');
-                }
-                return;
-            }
-
-            // Wrap in writeWithClaimRetry for parity with every other override write path — a transient
-            // stale-claim permission-denied then self-heals instead of logging + leaving
-            // purgeSundayAL_done UNSET, which re-ran this cleanup on every admin load until the claim
-            // refreshed. Fresh batch per attempt (a WriteBatch can't be re-committed). (v16.19)
-            await writeWithClaimRetry(async () => {
-                const batch = writeBatch(db);
-                toDelete.forEach(o => batch.delete(doc(db, COLLECTIONS.overrides, o.id)));
-                await batch.commit();
-            });
-            lsSet('purgeSundayAL_done', '1');
-
-            // Update in-memory cache so Saved Changes reflects the cleanup
-            const removedIds = new Set(toDelete.map(o => o.id));
-            setAllOverrides(getAllOverrides().filter(o => !removedIds.has(o.id)));
-            renderTable();
-            updateALBanner();
-            updateALBookedBox();
-
-        } catch (err) {
-            console.error('[purgeSundayAL] Cleanup failed:', err);
-        }
-    }
-
     // ---- One-time work email check (shown once per device after login) ----
 
     /** ~3-monthly work-email re-confirmation cadence (v14.77). */
@@ -1704,9 +1655,7 @@ export function init() {
             markChanged,
             onEditRow: handleEdit,
         });
-        const _loadPromise = loadOverrides(); // internally calls renderWeekGrid() after data loads
-        // purgeSundayAL scans the in-memory cache, so it must run after loadOverrides completes
-        if (currentIsAdmin) _loadPromise.then(() => purgeSundayAL());
+        loadOverrides(); // internally calls renderWeekGrid() after data loads
 
         // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card.
         // Look the target up by ID, never `querySelector(location.hash)` — a malformed hash (#[, #%, #..)

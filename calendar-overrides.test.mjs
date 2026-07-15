@@ -12,6 +12,8 @@ import assert from 'node:assert/strict';
 // Controllable getDocs mock — tests set _mockDocs before each async call.
 let _mockDocs = [];
 let _getBaseShiftFn = () => 'RD';
+// When true, getDocs rejects — lets the failure-path tests simulate a Firestore fetch error.
+let _getDocsThrows = false;
 
 /** Build a fake Firestore document. */
 function makeDoc(id, data) {
@@ -24,10 +26,10 @@ mock.module('./firebase-client.js', {
         collection: () => ({}),
         query:      (...args) => args,
         where:      () => ({}),
-        getDocs:    async () => ({
-            size:    _mockDocs.length,
-            forEach: cb => _mockDocs.forEach(cb),
-        }),
+        getDocs:    async () => {
+            if (_getDocsThrows) throw new Error('simulated Firestore fetch failure');
+            return { size: _mockDocs.length, forEach: cb => _mockDocs.forEach(cb) };
+        },
         COLLECTIONS: { overrides: 'overrides', linkDesigns: 'linkDesigns' },
     },
 });
@@ -253,5 +255,56 @@ describe('fetchOverridesForRange deletion reconciliation', () => {
         ];
         await fetchOverridesForRange('2026-06-01', '2026-06-30');
         assert.equal(rosterOverridesCache.has('A. Smith|2026-06-15'), false);
+    });
+});
+
+// ── ensureOverridesCached — far-month fetch failure is silent, safe, retryable ─
+// Finding #5 (far-month half): a far-month override fetch that fails must degrade
+// silently — no partial paint, no cache poisoning, and it must stay retryable.
+// The app deliberately has NO override-load status indicator (CLAUDE.md, Team Week
+// View), so the guarantee here is clean silent fallback, verified by test.
+
+describe('ensureOverridesCached fetch failure', () => {
+    beforeEach(() => {
+        rosterOverridesCache.clear();
+        _mockDocs = [];
+        _getDocsThrows = false;
+    });
+
+    test('a failed far-month fetch does not call renderFn and leaves the cache untouched', async () => {
+        // A previously-cached override for an already-loaded month must survive: a failed
+        // fetch must never poison or clear existing good data (reconcile runs only on success).
+        rosterOverridesCache.set('A. Smith|2027-01-10',
+            { value: 'AL', type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 500 } });
+        _getDocsThrows = true;
+
+        let rendered = false;
+        await ensureOverridesCached(2099, 2, () => { rendered = true; });   // far month; getDocs rejects
+
+        assert.equal(rendered, false, 'renderFn must not run when the fetch fails (no partial paint)');
+        assert.equal(rosterOverridesCache.get('A. Smith|2027-01-10')?.value, 'AL',
+            'existing cached data must survive a failed fetch (no poisoning)');
+    });
+
+    test('a failed far-month fetch is retryable — the month is not left marked fetched', async () => {
+        _getDocsThrows = true;
+        let rendered = false;
+        await ensureOverridesCached(2099, 3, () => { rendered = true; });   // 2099-04, fails
+        assert.equal(rendered, false);
+
+        // Second attempt with the fetch now succeeding MUST run — proving the month key was
+        // released on failure, so navigating back to that month re-queries it.
+        _getDocsThrows = false;
+        _mockDocs = [
+            makeDoc('id1', { memberName: 'A. Smith', date: '2099-04-05', value: 'AL', type: 'annual_leave', source: 'manual', note: '', createdAt: { seconds: 1000 } }),
+        ];
+        await ensureOverridesCached(2099, 3, () => { rendered = true; });
+        assert.equal(rendered, true, 'retry after a failure must re-fetch (failed month was not left marked fetched)');
+        assert.equal(rosterOverridesCache.get('A. Smith|2099-04-05')?.value, 'AL', 'retry loads the overrides');
+    });
+
+    test('fetchOverridesForRange rejects (does not swallow) so callers control the failure path', async () => {
+        _getDocsThrows = true;
+        await assert.rejects(fetchOverridesForRange('2099-05-01', '2099-05-31'));
     });
 });

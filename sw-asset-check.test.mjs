@@ -61,6 +61,54 @@ test('every root JS module is in BOTH the SW network-first list and a precache l
     );
 });
 
+test('every root .html and .css file is precached (offline availability, non-JS assets)', () => {
+    // The JS test above only covered .js modules — the precache existence check was `.js`-only, so a
+    // new HTML page or stylesheet forgotten from the SW lists would silently lose offline availability
+    // with green CI (cross-file review E1 / fragile-lists A-2). HTML+CSS live in NETWORK_FIRST_FILES +
+    // CORE_ASSETS; the guides live in SUPPLEMENTARY_ASSETS. All root html/css are currently precached.
+    const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+    const arrayOf = (name) => { const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`)); return m ? m[1] : ''; };
+    const precache = arrayOf('NETWORK_FIRST_FILES') + arrayOf('CORE_ASSETS') + arrayOf('SUPPLEMENTARY_ASSETS');
+    const inList = (f) => precache.includes(`'${f}'`) || precache.includes(`"${f}"`) || precache.includes(`'./${f}'`) || precache.includes(`"./${f}"`);
+    const assets  = readdirSync(ROOT).filter(f => (f.endsWith('.html') || f.endsWith('.css')) && !f.includes('.test.'));
+    const missing = assets.filter(f => !inList(f));
+    assert.deepEqual(missing, [], `Root HTML/CSS files not in a SW precache list (would lose offline availability):\n  ${missing.join('\n  ')}`);
+});
+
+test('every NOTIFICATION_FEATURES hashPath page is in the SW SAFE_NOTIFICATION_PAGES allowlist', () => {
+    // Cross-boundary seam (cross-file review E3): buildPushPayload (Cloud Function) sets each
+    // notification's deep-link path from NOTIFICATION_FEATURES.hashPath; the SW re-bases the tap only
+    // onto pages in SAFE_NOTIFICATION_PAGES. They live in different deploy units, so a feature
+    // deep-linking to a NEW page forgotten from the allowlist silently falls back to the app root. This
+    // asserts every hashPath's PAGE component is allowlisted. (The pay feature has no hashPath — its url
+    // is passed at call time — so 'paycalc.html' is asserted explicitly.)
+    const helpers = readFileSync(join(ROOT, 'functions', 'roster-parse-helpers.js'), 'utf8');
+    const sw      = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+    const safe = (sw.match(/const SAFE_NOTIFICATION_PAGES\s*=\s*\[([^\]]*)\]/)?.[1] ?? '')
+        .split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
+    const hashPaths = [...helpers.matchAll(/hashPath:\s*'([^']+)'/g)].map(m => m[1]);
+    const missing = hashPaths
+        .map(hp => ({ hp, page: hp.split('#')[0].replace(/^\.?\//, '') }))   // '/#huddle' → '' ; '/x.html#y' → 'x.html'
+        .filter(({ page }) => !safe.includes(page));
+    assert.deepEqual(missing.map(x => `${x.hp} → page '${x.page}'`), [],
+        'NOTIFICATION_FEATURES hashPaths whose page is not in SW SAFE_NOTIFICATION_PAGES');
+    assert.ok(safe.includes('paycalc.html'), 'the pay reminder deep-links to paycalc.html — must stay in SAFE_NOTIFICATION_PAGES');
+});
+
+test('firestore.rules staffContact work-email domain matches CONFIG.WORK_EMAIL_DOMAIN', () => {
+    // The Chiltern work-email domain is duplicated: CONFIG.WORK_EMAIL_DOMAIN (roster-data.js, the client
+    // isChilternWorkEmail check) AND the firestore.rules staffContact validation. The comment says "keep
+    // in sync" but nothing enforced it (cross-file review E2). Assert the rule references the CONFIG value
+    // (backslashes stripped, since the rule escapes the dots as `\\.`).
+    const rd    = readFileSync(join(ROOT, 'roster-data.js'), 'utf8');
+    const rules = readFileSync(join(ROOT, 'firestore.rules'), 'utf8');
+    const m = rd.match(/WORK_EMAIL_DOMAIN:\s*'([^']+)'/);
+    assert.ok(m, 'CONFIG.WORK_EMAIL_DOMAIN not found in roster-data.js');
+    const domain = m[1];
+    assert.ok(rules.replace(/\\/g, '').includes('@' + domain),
+        `firestore.rules staffContact workEmail validation must match CONFIG.WORK_EMAIL_DOMAIN ('${domain}') — the two drifted.`);
+});
+
 test('every SW-listed asset actually exists on disk (no ghost entries)', () => {
     // The membership check above is one-directional: it proves every module is LISTED, but not
     // that every LISTED path exists. A file rename that leaves a stale entry makes the warm-up

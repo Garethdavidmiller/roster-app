@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter, getUsageStats, getPerfStats } from './firebase-client.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter, getUsageStats, getPerfStats, withClaimRetry } from './firebase-client.js';
 import { SPEED_GROUPS, perfVerdict } from './perf-stats.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
@@ -121,42 +121,12 @@ export function init() {
         }
     });
 
-    /**
-     * Run an admin-only Firestore read, self-healing a stale auth token (Phase 4b,
-     * ARCHITECTURE_PLAN.md). The three Operations read cards (Work Email, Error Log,
-     * Usage) all read admin-gated collections. Immediately after "Set up accounts"
-     * the freshly-minted token does not yet carry the `admin` claim — Firebase only
-     * refreshes ID tokens ~hourly — so the first read fails `permission-denied` even
-     * though the account IS an admin. Rather than make the admin wait (or reload),
-     * we force a token refresh once and retry, picking up the claim immediately.
-     *
-     * Fail-safe: only retries on `permission-denied` with a live user; any other
-     * error (offline, etc.) is re-thrown so the card's existing catch shows its
-     * silent-fallback message. Retries at most once — a genuinely non-admin token
-     * still throws on the second attempt and falls through to the card's catch.
-     * @template T
-     * @param {() => Promise<T>} readFn  The admin-gated read (e.g. getClientErrors).
-     * @returns {Promise<T>}
-     */
-    async function adminReadWithRetry(readFn) {
-        try {
-            return await readFn();
-        } catch (err) {
-            const user = auth.currentUser;
-            if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
-                // If the refresh itself fails (offline/flaky), do NOT let its network error replace the
-                // original permission-denied — mirrors writeWithClaimRetry so the card's catch keys its
-                // silent-fallback message on the genuine error, not a spurious connectivity one.
-                try {
-                    await user.getIdToken(true);   // force refresh → pick up the admin claim
-                } catch {
-                    throw err;                     // preserve the original permission-denied
-                }
-                return await readFn();          // retry once with the fresh token
-            }
-            throw err;
-        }
-    }
+    // The Operations read cards (Work Email, Error Log, Usage, App Speed) read admin-gated collections.
+    // Immediately after "Set up accounts" the freshly-minted token doesn't yet carry the `admin` claim
+    // (Firebase refreshes ID tokens ~hourly), so the first read fails `permission-denied` even though the
+    // account IS an admin. `withClaimRetry` (firebase-client.js) forces one token refresh + one retry to
+    // pick up the claim immediately — read/write-agnostic, so these reads use the same helper as the write
+    // paths instead of a byte-identical local copy (v17.08; was `adminReadWithRetry`).
 
 
     /**
@@ -243,7 +213,7 @@ export function init() {
         try {
             // Wait for the Firebase Auth session so Firestore rules pass.
             await sessionReady;
-            const contacts = await adminReadWithRetry(getAllStaffContacts);
+            const contacts = await withClaimRetry(getAllStaffContacts);
 
             // Mutable maps — updated in-place after an admin saves an email.
             const emailMap   = new Map(contacts.filter(c => c.workEmail).map(c => [c.memberName, c.workEmail]));
@@ -799,7 +769,7 @@ export function init() {
 
         try {
             await sessionReady;
-            const { errors = [], truncated = false } = (await adminReadWithRetry(getClientErrors)) || {};
+            const { errors = [], truncated = false } = (await withClaimRetry(getClientErrors)) || {};
 
             content.innerHTML = '';
 
@@ -980,7 +950,7 @@ export function init() {
         /** @type {Record<string, {emoji: string, label: string}>} */
         try {
             await sessionReady;
-            const stats = await adminReadWithRetry(getUsageStats);
+            const stats = await withClaimRetry(getUsageStats);
             content.innerHTML = '';
 
             // Active-account headline numbers.
@@ -1197,7 +1167,7 @@ export function init() {
 
         try {
             await sessionReady;
-            const stats = await adminReadWithRetry(getPerfStats);   // { thisMonth, lastMonth }
+            const stats = await withClaimRetry(getPerfStats);   // { thisMonth, lastMonth }
             content.innerHTML = '';
 
             // ── Window toggle: This month / Last month (trend across deploys; stable early in a month) ──

@@ -641,6 +641,10 @@ async function pruneOldHuddles(excludeDate) {
     // convention (the pay reminder) already derives London dates this way. nowInLondon returns
     // {year, month, day} parts; rebuild a Date carrying the LONDON calendar date so the
     // month-arithmetic below is TZ-independent.
+    // NOTE: the month-underflow clamp below (daysInTargetMonth + Math.min) is the SAME algorithm as
+    // storage-utils.js `sixMonthCutoffISO` — the browser circular/newsletter 6-month prune. Kept as a
+    // deliberate duplicate because Cloud Functions are CommonJS and can't import the browser ES module
+    // (same boundary as normaliseSurname); if the clamp logic changes, update BOTH. (cross-file review E5)
     const ldn = nowInLondon();
     const now = new Date(ldn.year, ldn.month, ldn.day);
     const tm  = now.getMonth() - HUDDLE_RETENTION_MONTHS;
