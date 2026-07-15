@@ -95,10 +95,27 @@ export function _varPayForPeriod(p, d, rate) {
 /**
  * Compute and display the HPP estimate for the current tax year.
  * Called by calculate() after every calculation.
- * @param {number} bpVarAmount - Variable portion of back pay (coordinator state).
- * @param {number} bpPNum - Period number the back pay lands in (coordinator state).
+ *
+ * Back pay is deliberately NOT added into the premium here (v16.89 — double-count fix). calcHPP
+ * prices EVERY period of the year at getStoredRateForYear(ty) — the SETTLED (post-award) rate — so a
+ * pre-award period already contributes its variable pay AT THE NEW RATE, which includes the award
+ * uplift. The back-pay lump's "variable portion" is that SAME uplift, so adding it on top counted it
+ * twice. Whether Chiltern pays one combined HPP or a separate HPP on the lump, the TOTAL a member
+ * receives = every period's variable pay at the new rate × 7.69% — exactly what this new-rate pricing
+ * already produces. The paid-in tick still adds the lump to that period's TAKE-HOME (_bpThisPeriod in
+ * the coordinator); only the redundant HPP inflation is removed. Do not re-thread back pay in here
+ * without also switching the whole-year pricing to period-aware rates (which was rejected — it made
+ * the estimate shift with the viewed period; see the rate comment below).
+ *
+ * KNOWN RESIDUAL (~£4/yr, London members only): _varPayForPeriod prices the RATE settled-whole-year
+ * but LONDON period-aware (getLondonAllowanceForPeriod → old London for a pre-award period), so the
+ * pre-award London uplift is now slightly under-counted (the removed back-pay add used to mask it).
+ * This is a pre-existing calcHPP inconsistency, not a regression in the direction of the main bug
+ * (large rate over-count → small London under-count = net more accurate). Fully closing it means
+ * pricing London settled-whole-year too (`pTy.londonAllow` in _varPayForPeriod), which also nudges the
+ * prior-year HPP for London members — deferred as its own owner-visible change.
  */
-export function calcHPP(bpVarAmount, bpPNum) {
+export function calcHPP() {
   const allPeriods = getPeriods();
 
   const pNum    = currentPeriodNum();
@@ -126,11 +143,6 @@ export function calcHPP(bpVarAmount, bpPNum) {
 
   periods.forEach(/** @param {any} p */ p => {
     try {
-      // Variable back pay was earned in past periods but received in bpPNum.
-      // Added before the saved-data check so it still counts when the lump-sum
-      // period itself has no hours entered yet.
-      if (bpVarAmount > 0 && p.num === bpPNum) totalVar += bpVarAmount;
-
       const _hppActual = _actuals?.[formatISO(p.payday)];
       if (_hppActual?.varPay != null) {
         totalVar += _hppActual.varPay;
@@ -168,13 +180,8 @@ export function calcHPP(bpVarAmount, bpPNum) {
   if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
   else if (_skipped.length === 0) lsDel(hppEstKey(ty));
 
-  // Back pay counts toward this year's variable pay (added to totalVar above) even when the lump-sum
-  // period has no hours entered — so it can make hpp > 0 while pCount is still 0. Show the figure in
-  // that case too, otherwise the card reads '£–' while the (persisted) estimate is silently added to
-  // the January payslip — an invisible number the user can't see the source of.
-  const bpInThisYear = bpVarAmount > 0 && periods.some(/** @param {any} p */ p => p.num === bpPNum);
   if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
-  if (pCount === 0 && !bpInThisYear) {
+  if (pCount === 0) {
     if (amountEl) amountEl.textContent = '£–';
     if (basisEl)  basisEl.textContent  = 'Enter hours across your periods above to calculate';
     // EVERY readable period failed to parse — the worst case must not be the silent one (the
@@ -185,13 +192,9 @@ export function calcHPP(bpVarAmount, bpPNum) {
   } else {
     if (amountEl) amountEl.textContent = fmt(hpp);
     if (basisEl) {
-      if (pCount === 0 && bpInThisYear) {
-        basisEl.textContent = `Back pay lump sum in ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
-      } else {
-        basisEl.textContent = usingActuals
-          ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
-          : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
-      }
+      basisEl.textContent = usingActuals
+        ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
+        : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
     }
     // A corrupt saved period was excluded, so this premium may be too low — surface it rather than
     // quietly under-stating money (no-silent-caps). Rare: only malformed localStorage trips it.
