@@ -448,5 +448,10 @@ export function computeSL(sacGross, plan, slByYear, skip = false) {
   if (skip || plan === 'none' || !slByYear) return 0;
   const slPlan = (/** @type {Record<string, any>} */ (slByYear))[plan];
   if (!slPlan) return 0;
-  return Math.floor(Math.max(0, (sacGross - slPlan.t) * slPlan.r));
+  // HMRC rounds the earnings ABOVE the threshold DOWN to a whole pound FIRST, then applies the rate
+  // and rounds the repayment down — the same whole-pound-first method computeTax uses (Math.floor of
+  // taxable income before the rates). Flooring only the product (the prior behaviour) overstated the
+  // deduction by up to ~£1/period, understating take-home (review B1).
+  const aboveThreshold = Math.max(0, Math.floor(sacGross - slPlan.t));
+  return Math.floor(aboveThreshold * slPlan.r);
 }
