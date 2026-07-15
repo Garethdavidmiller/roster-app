@@ -20,7 +20,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
@@ -882,6 +882,17 @@ saveBtn.addEventListener('click', async () => {
     if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
     if (!toSave.length && !toDelete.length) return showError('No changes to save.');
 
+    // Both the rest-gap validation below (validateShiftRules → getEffectiveShift reads _allOverrides
+    // for the ±1 adjacent days) and the AL over-entitlement check depend on the loaded cache. Wait for
+    // the initial load so they never run cold (the v16.85 race: an adjacent SAVED shift invisible → a
+    // real <12h rest gap missed and an invalid shift written, or a valid save wrongly BLOCKED against
+    // the base shift). Disable the Save button FIRST so this await can't open a cold-cache double-tap
+    // window (the v16.23 "disable before the first await" invariant); the finally restores the button
+    // on every exit path (executeSave manages it on its own path too — the extra updateSaveBtn is a
+    // harmless recompute). (v16.85)
+    saveBtn.disabled = true;
+    await whenOverridesReady();
+
     // Validate shift duration and rest-gap rules
     const ruleErrors = validateShiftRules(toSave, memberName, toDelete);
     if (ruleErrors.length) return showError(ruleErrors.join(' · '));
@@ -926,6 +937,12 @@ saveBtn.addEventListener('click', async () => {
     } catch (err) {
         console.error('[Admin] Save handler error:', err);
         showError('Unexpected error — please reload and try again.');
+    } finally {
+        // Restore the Save button on every exit path — including the two early returns that don't
+        // reach executeSave (rest-gap error; AL over-entitlement → showALConfirm, whose own bar button
+        // drives executeSave and so doesn't depend on this button). updateSaveBtn recomputes the
+        // enabled/label state from the grid, so it re-arms after the disable above. (v16.85)
+        updateSaveBtn();
     }
 });
 

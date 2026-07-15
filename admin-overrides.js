@@ -89,10 +89,52 @@ let _tableShowAllOverrides = false;
 // Android Chrome). Without this guard the handler reformats its own output.
 let _formattingTime = false;
 
+// ── INITIAL-LOAD READINESS ────────────────────────────────────────────────────
+// Resolves once the FIRST loadOverrides() has SETTLED (success OR failure). Consumers await this so
+// they never act on an empty cold cache:
+//   • The two WRITE functions (executeSave, recordRangeOverrides) gate INTERNALLY — a save/booking
+//     fired before the initial read returns would build decisions from an empty `_allOverrides`:
+//     recordRangeOverrides' ovByDate would be {} → the existing roster_import doc for a date isn't
+//     deleted (duplicate overrides) and a not-yet-loaded worked Sunday could be erased by an RD
+//     correction; executeSave's post-write cache mutation could be clobbered by the in-flight initial
+//     snapshot resolving AFTERWARDS (the just-saved change vanishes from the list until reload).
+//     Both disable the Save button synchronously before their first await, so the internal gate can't
+//     open a double-tap window.
+//   • The Change-a-Shift click handler (admin-app.js) gates too, for its PRE-write cache reads —
+//     validateShiftRules (the ±1-day rest-gap check via getEffectiveShift) and the AL
+//     over-entitlement check — which a cold cache would make wrong (a real <12h gap missed, or a valid
+//     save wrongly blocked). It disables Save BEFORE the await (the v16.23 "disable before the first
+//     await" invariant) so no double-tap window opens.
+// The ONE deliberately-ungated read is the AL RANGE-booking over-entitlement WARNING
+// (admin-al.js checkEntitlement, via admin-range-booking's preSave): gating it safely is
+// disproportionately risky (its confirm bar re-triggers the same Save button via
+// triggerConfirmedALSave → click, so disabling it there would break the confirm→save flow), and a
+// cold miss only SKIPS a warning — the write itself is still correct (recordRangeOverrides self-gates)
+// and by the time an admin has built a range booking the cache is long warm.
+// Resolving on FAILURE too is deliberate — if the first read errored Firestore is unreachable and the
+// write will fail its own commit anyway, better than hanging the Save button forever. loadOverrides()
+// is called unconditionally in the AUTHORISED admin-init branch (not the not-signed-in/login branch,
+// where sessionReady also never resolves and the login overlay covers the Save button), so a write
+// path can't pend on this indefinitely. (v16.85)
+/** @type {(v?: any) => void} */
+let _resolveOverridesReady = () => {};
+const _overridesReady = new Promise(res => { _resolveOverridesReady = res; });
+
+/** @returns {Promise<void>} Resolves when the initial override load has settled (success or failure). */
+export function whenOverridesReady() { return _overridesReady; }
+
 // ── PUBLIC STATE ACCESSORS ────────────────────────────────────────────────────
 export function getAllOverrides()    { return _allOverrides; }
 /** @param {any[]} arr */
-export function setAllOverrides(arr) { _allOverrides = arr; }
+export function setAllOverrides(arr) {
+    _allOverrides = arr;
+    // Explicitly setting the cache to a known state is itself a "ready" signal: the caller is
+    // asserting `_allOverrides` is now authoritative. In production this only runs post-load (the
+    // delete-path cache mutations in admin-app), so readiness is already resolved; it also lets the
+    // write-path unit tests, which seed the cache via setAllOverrides() rather than loadOverrides(),
+    // satisfy the whenOverridesReady() gate. (v16.85)
+    _resolveOverridesReady();
+}
 
 /** Clears the "show all staff" toggle and re-renders the table. Call when the selected member changes. */
 export function resetTableMemberFilter() {
@@ -894,6 +936,10 @@ export async function executeSave(toSave, toDelete = []) {
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
 
     await sessionReady;
+    // Don't mutate the cache until the initial load has settled — otherwise the in-flight initial
+    // snapshot can resolve AFTER this write and overwrite `_allOverrides`, silently dropping the
+    // change we just saved from the Saved-changes list (v16.85).
+    await whenOverridesReady();
     if (!auth.currentUser) {
         _showError("You've been signed out — please sign in again.");
         // This early return is before the try/finally — restore the button state it can't.
@@ -1012,6 +1058,10 @@ export async function loadOverrides() {
             document.getElementById('reloadLink')?.addEventListener('click', () => location.reload());
         }
         if (listCount) listCount.textContent = 'Error';
+    } finally {
+        // Signal write paths that the initial cache read has settled (idempotent — later
+        // loadOverrides() calls after saves/resyncs re-resolve the already-resolved promise, a no-op).
+        _resolveOverridesReady();
     }
 }
 
@@ -1475,6 +1525,10 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // throws a FALSE 'auth/session-expired' (the v14.83 review's write-race). sessionReady resolves on
     // the same onAuthStateChanged the restore completes on, so the wait is sub-second on a normal load.
     await sessionReady;
+    // Wait for the initial cache load before building ovByDate — on a cold cache buildMemberDateMap
+    // returns an empty map, so an existing roster_import shift wouldn't be deleted (duplicate) and a
+    // not-yet-loaded worked Sunday could be erased by an RD correction (v16.85).
+    await whenOverridesReady();
     if (!auth.currentUser) throw new Error('auth/session-expired');
 
     const memberObj = teamMembers.find(m => m.name === memberName);
