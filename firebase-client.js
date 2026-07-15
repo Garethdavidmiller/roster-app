@@ -110,9 +110,11 @@ export const authReady = setPersistence(auth, indexedDBLocalPersistence)
 export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged };
 
 /**
- * Run a Firestore WRITE thunk, self-healing a stale-claim `permission-denied` once — the write-side
- * mirror of operations-app.js `adminReadWithRetry` (SECURITY_RELEASE_PLAN.md → B3 "Optional
- * independent hardening", v15.07 review H3).
+ * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
+ * (SECURITY_RELEASE_PLAN.md → B3 "Optional independent hardening", v15.07 review H3). The operation is
+ * read/write-agnostic — `writeWithClaimRetry` is a back-compat alias for the many write call sites;
+ * operations-app.js reads use `withClaimRetry` directly (it previously duplicated this as the
+ * byte-identical `adminReadWithRetry`, v17.08).
  *
  * Why: a freshly-provisioned or claim-changed MANAGER can appear signed in yet hold a Firebase token
  * minted *before* their `manager` claim existed (Firebase only refreshes ID tokens ~hourly). The
@@ -128,12 +130,13 @@ export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnony
  * genuinely unauthorised token) is re-thrown, and it retries at most once so a truly forbidden write
  * still surfaces to the caller's catch.
  * @template T
- * @param {() => Promise<T>} writeFn  Builds + commits the write; re-runnable (fresh batch each call).
+ * @param {() => Promise<T>} fn  The read/write thunk; re-runnable (a write thunk must build a FRESH
+ *   batch each call — a committed WriteBatch can't be re-committed). Its return value passes through.
  * @returns {Promise<T>}
  */
-export async function writeWithClaimRetry(writeFn) {
+export async function withClaimRetry(fn) {
     try {
-        return await writeFn();
+        return await fn();
     } catch (err) {
         const user = auth.currentUser;
         if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
@@ -146,11 +149,15 @@ export async function writeWithClaimRetry(writeFn) {
             } catch {
                 throw err;                     // preserve the original permission-denied
             }
-            return await writeFn();          // retry once with the fresh token
+            return await fn();               // retry once with the fresh token
         }
         throw err;
     }
 }
+
+/** Back-compat alias for the write call sites (admin-overrides, admin-roster-upload, links-app, …).
+ *  Identical to withClaimRetry — the retry is read/write-agnostic. */
+export const writeWithClaimRetry = withClaimRetry;
 
 /**
  * Run a Storage `uploadBytes`, self-healing a stale-claim `storage/unauthorized` once — the
