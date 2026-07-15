@@ -15,6 +15,23 @@ import {
     runDesignChecks,
     dayClass,
 } from './links-design.js';
+import { CONFIG } from './roster-data.js';
+
+// classifyShift hardcodes the Early/Late/Night start-hour boundaries (4/11/21) because links-design.js
+// is DELIBERATELY standalone (imports nothing from roster-data — see .claude/rules/links-design.md). The
+// same boundaries live in CONFIG (EARLY_START/EARLY_SHIFT/NIGHT_START_THRESHOLD), so if Chiltern ever
+// shifts the Early/Late cutoff, the two could silently diverge. This parity test ties them (cross-file
+// review E6): it asserts classifyShift's boundaries still match CONFIG — without coupling the modules.
+test('classifyShift boundaries stay in sync with CONFIG Early/Late/Night thresholds (E6)', () => {
+    const at = (/** @type {number} */ h) => `${String(h).padStart(2, '0')}:00-${String((h + 2) % 24).padStart(2, '0')}:00`;
+    const E = CONFIG.EARLY_START_THRESHOLD, L = CONFIG.EARLY_SHIFT_THRESHOLD, N = CONFIG.NIGHT_START_THRESHOLD;
+    assert.equal(classifyShift(at(E)),     'early', `hour ${E} (EARLY_START_THRESHOLD) → early`);
+    assert.equal(classifyShift(at(L - 1)), 'early', `hour ${L - 1} → early`);
+    assert.equal(classifyShift(at(L)),     'late',  `hour ${L} (EARLY_SHIFT_THRESHOLD) → late`);
+    assert.equal(classifyShift(at(N - 1)), 'late',  `hour ${N - 1} → late`);
+    assert.equal(classifyShift(at(N)),     'night', `hour ${N} (NIGHT_START_THRESHOLD) → night`);
+    assert.equal(classifyShift(at(E - 1)), 'night', `hour ${E - 1} → night (pre-Early)`);
+});
 
 // ---------- classifyShift ----------
 
