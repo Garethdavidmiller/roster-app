@@ -165,6 +165,16 @@ describe('getNotifState', () => {
         setupEnv({ permission: 'granted', swFails: true });
         assert.equal(await getNotifState(), 'off-lapsed');
     });
+    test('a transient re-save failure keeps a LIVE subscription "on" (not mislabelled off-lapsed)', async () => {
+        // Whole-codebase review, nav/notif finding #1: the throttled best-effort self-heal save must
+        // NOT bubble to the outer catch (which returns 'off-lapsed'). A live subscription whose ~daily
+        // re-save hits an offline blip must stay 'on', and the throttle stamp must be withheld so it retries.
+        setupEnv({ permission: 'granted', hasSub: true });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7'); // current fingerprint → throttled self-heal path
+        _saveThrows = true;                        // the re-save rejects (transient Firestore/offline error)
+        assert.equal(await getNotifState(), 'on', 'a live sub must stay on when only the best-effort re-save failed');
+        assert.equal(_saveCalls, 1, 'the re-save was attempted');
+    });
 });
 
 describe('peekNotifState (no side effects)', () => {

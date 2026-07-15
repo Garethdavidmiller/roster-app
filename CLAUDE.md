@@ -239,6 +239,7 @@ roster-app/
 ├── auth-identity.test.mjs ← tests for normaliseSurname + nameToEmail (identity-critical account email derivation); part of test:hygiene
 ├── notif.test.mjs         ← tests for notif.js: notifSupported/isIOS, getNotifState VAPID rotation, peekNotifState (no side effects), enable/disableNotifications (--experimental-test-module-mocks)
 ├── surname-parity.test.mjs ← asserts normaliseSurname (auth-identity.js) and nameToPassword (functions/roster-parse-helpers.js) stay in sync (behavioural + source-equivalence); part of test:hygiene
+├── payday-cutoff-parity.test.mjs ← asserts isPayCutoffDay (functions/roster-parse-helpers.js) stays in sync with CONFIG.FIRST_PAYDAY/PAYDAY_INTERVAL_DAYS + getPaydaysAndCutoffs (roster-data.js) — source-equivalence on the hardcoded anchor + behavioural on every pure-grid (non-BH-shifted) cutoff; part of test:hygiene
 ├── import-graph.test.mjs   ← detects circular imports across all root ES modules (regex-based, no build step)
 ├── admin-overrides.test.mjs ← tests for getEffectiveShift, validateShiftRules, buildMemberDateMap (--experimental-test-module-mocks)
 ├── admin-roster-upload.test.mjs ← tests for shiftValueToOverrideType (parsed value → override type, incl. training + Sunday block) + _saveOverrideBatches stale-claim retry parity (permission-denied → token refresh → fresh batch → retry once) (--experimental-test-module-mocks)
@@ -295,7 +296,7 @@ npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions pure-helper tests (roster-parse-helpers.test.mjs) — not part of npm test

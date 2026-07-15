@@ -13,7 +13,7 @@ import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, capHours,
 } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
+import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
@@ -232,6 +232,12 @@ export function updatePriorHpp(ty) {
   }
 
   const priorTy   = /** @type {any} */ (CONFIG.TAX_YEARS[tyIdx - 1]);
+  // New-starter visibility clamp (v15.97): a member who only joined THIS tax year was never
+  // employed in the prior year, so they earn no prior-year HPP — hide the section entirely, the
+  // same clamp the period select / tax-year tabs / prev-next already honour. Without this a new
+  // starter saw a misleading "No <prior year> variable pay recorded — check your January payslip"
+  // prompt for a year they never worked (whole-codebase review, paycalc-maths finding #1).
+  if (!isTaxYearVisible(priorTy)) { section.classList.add('hidden'); return; }
   const estRaw    = lsGet(hppEstKey(priorTy));
   const actualRaw = lsGet(hppActualKey(priorTy));
   let   est       = estRaw    ? parseFloat(estRaw)    : 0;
