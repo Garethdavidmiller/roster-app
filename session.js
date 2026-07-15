@@ -363,7 +363,20 @@ export async function ensureNamedSession(name, { retries = 2, delayMs = 300 } = 
         _feedAuth({ type: 'RETRY' });   // store: resolving again
         ok = await ensureFirebaseSession(name, gen);
     }
-    if (gen !== _authGen) return false;   // superseded — drop a stale completion (don't publish its terminal state)
+    if (gen !== _authGen) {
+        // Superseded by a newer attempt — MUST NOT publish terminal state (the newer attempt owns
+        // `_fbIdentity`/the store). But do NOT report a SPURIOUS failure (B5): a direct
+        // `ensureFirebaseSession(name)` overlapping this login bumps `_authGen` at entry, superseding
+        // us even though our own sign-in genuinely succeeded. Report success only if BOTH this attempt
+        // reached a named session (`ok` ⟺ named under enforce) AND the LIVE Firebase user really is
+        // this member — read `auth.currentUser` (ground truth), never the shared `_fbIdentity` a newer
+        // attempt may have moved to a different identity. This publishes nothing, so it cannot clobber
+        // the winner; it only stops the overlay showing "sign-in failed" when we ARE signed in. A
+        // teardown that superseded us (clearSession / timeout → clearSession) also signs Firebase out,
+        // so `auth.currentUser` is null there and this correctly still returns false.
+        const u = auth.currentUser;
+        return ok && !!u && !u.isAnonymous && u.email === nameToEmail(name);
+    }
     _syncAuthTerminal(name);
     const named = firebaseSessionIsNamed();
     if (named) refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // B3 sweep (fire-and-forget; one-shot per device)

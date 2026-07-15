@@ -773,3 +773,81 @@ describe('auth generation guard', () => {
         CONFIG.ENFORCE_NAMED_SESSION = false;
     });
 });
+
+// ── B5: a superseded login must not report a SPURIOUS failure ──────────────────
+// A direct ensureFirebaseSession(name) overlapping an in-flight ensureNamedSession(name) bumps
+// _authGen and supersedes the login. The login's superseded branch must NOT return a blanket false
+// (which the overlay shows as "sign-in failed") when the app genuinely ended up signed in as this
+// member — it must report the identity-honest result (auth.currentUser is ground truth; never the
+// shared _fbIdentity a newer attempt may have moved).
+describe('B5: superseded login is identity-honest, not a spurious failure', () => {
+    beforeEach(() => {
+        store.clear();
+        _existingUser    = null;
+        _signInBehavior  = 'ok';
+        _signInCalls     = 0;
+        _signInGate      = null;
+        auth.currentUser = null;
+        CONFIG.ENFORCE_NAMED_SESSION = true;   // the live B1 path — the only branch with the hard superseded-false
+    });
+    afterEach(() => { _signInGate = null; auth.currentUser = null; CONFIG.ENFORCE_NAMED_SESSION = false; });
+
+    test('superseded by a SAME-member direct call, but genuinely signed in → returns true (no spurious failure)', async () => {
+        // Login (gen G1) reaches sign-in and parks at the gate. A direct ensureFirebaseSession('G. Miller')
+        // (gen G2) then wins off the live session, superseding G1. When G1 resumes and finds itself
+        // superseded, the live user IS the member, so it must return true — not the old blanket false.
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+
+        const login = ensureNamedSession('G. Miller', { delayMs: 0 });   // G1 — parks at the gate
+        for (let i = 0; i < 6; i++) await Promise.resolve();             // let it reach the gate
+        _signInGate = null;                                             // the superseding call won't gate
+
+        // The member's own session is now live (real Firebase populates currentUser on sign-in).
+        auth.currentUser = { isAnonymous: false, email: nameToEmail('G. Miller') };
+        await ensureFirebaseSession('G. Miller');                       // G2 — supersedes via the fast path
+        assert.equal(getFirebaseIdentity(), 'named', 'the direct call won as named');
+
+        releaseGate();
+        const ok = await login;
+        assert.equal(ok, true, 'a superseded login that IS signed in as the member must not report failure');
+        assert.equal(getFirebaseIdentity(), 'named', 'the superseded login published nothing — the winner is intact');
+    });
+
+    test('superseded when the live identity is a DIFFERENT member → still returns false (no false positive)', async () => {
+        // Same race, but the winner established a DIFFERENT member's session. The superseded login for
+        // G. Miller must NOT claim success off someone else's identity — the ground-truth email check rejects it.
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+
+        const login = ensureNamedSession('G. Miller', { delayMs: 0 });   // G1 — parks at the gate
+        for (let i = 0; i < 6; i++) await Promise.resolve();
+        _signInGate = null;
+
+        auth.currentUser = { isAnonymous: false, email: nameToEmail('A. Panchal') };
+        await ensureFirebaseSession('A. Panchal');                       // G2 — wins as a different member
+        assert.equal(getFirebaseIdentity(), 'named');
+
+        releaseGate();
+        const ok = await login;
+        assert.equal(ok, false, 'a superseded login must not report success when the live user is someone else');
+    });
+
+    test('superseded by a teardown (currentUser signed out) → returns false', async () => {
+        // clearSession supersedes AND signs Firebase out, so the live user is null → the superseded login
+        // correctly returns false (the teardown genuinely won; there is no session to claim).
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+
+        const login = ensureNamedSession('G. Miller', { delayMs: 0 });   // G1 — parks at the gate
+        for (let i = 0; i < 6; i++) await Promise.resolve();
+        _signInGate = null;
+
+        clearSession();                 // ++_authGen (supersede) + firebaseSignOut → currentUser cleared
+        assert.equal(auth.currentUser, null);
+
+        releaseGate();
+        const ok = await login;
+        assert.equal(ok, false, 'a login superseded by an explicit logout must not report success');
+    });
+});
