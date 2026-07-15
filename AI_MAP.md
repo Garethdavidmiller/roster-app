@@ -31,7 +31,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
 | Service worker registration + update lifecycle (all six app pages) | `sw-register.js` |
 | Auth/session helpers (AUTH_KEY, getSession, saveSession, clearSession, ensureFirebaseSession) | `session.js` |
-| Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` + `admin.html` |
+| Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` (+ `admin-boot.js`) + `admin.html` |
 | Settings page — Notifications, Work Email | `settings-app.js` + `settings.html` |
 | Nav-panel footer initials badge | `nav-panel.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
