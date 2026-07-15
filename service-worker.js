@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.93';
+const APP_VERSION = '16.94';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -102,7 +102,7 @@ async function matchNewestManagedCache(request, opts) {
 // refetches the SDK — swept only when the pinned SDK version changes. Bumping the SDK
 // in firebase-client.js requires bumping THIS constant too; sw-asset-check.test.mjs
 // enforces the pair stays in sync.
-const FIREBASE_SDK_VERSION = '12.10.0';
+const FIREBASE_SDK_VERSION = '12.16.0';
 const SDK_CACHE_NAME = `myb-roster-sdk-v${FIREBASE_SDK_VERSION}`;
 const SDK_URL_PREFIX = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/`;
 const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-storage.js']

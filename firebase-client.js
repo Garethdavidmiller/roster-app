@@ -13,13 +13,13 @@
  */
 
 // @ts-ignore
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported inside uploadHuddle() — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds } from './client-errors.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys } from './usage-stats.js';
 import { perfSampleKey, summarisePerf } from './perf-stats.js';
@@ -194,7 +194,7 @@ let _storagePromise = null;
 function _getStorageSdk() {
     if (!_storagePromise) {
         // @ts-ignore
-        _storagePromise = import('https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js')
+        _storagePromise = import('https://www.gstatic.com/firebasejs/12.16.0/firebase-storage.js')
             .then(({ getStorage, ref, uploadBytes, getDownloadURL, deleteObject }) =>
                 ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL, deleteObject }))
             // Reset on rejection (v16.23): a rejected promise is truthy, so without this ONE
