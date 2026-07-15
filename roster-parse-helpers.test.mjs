@@ -401,6 +401,17 @@ describe('buildSafeEntries', () => {
         );
         assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30');
     });
+    test('member-cell keys are read tolerantly when they drift from columnHeaders (v16.84)', () => {
+        // Headers are the abbreviated form, but the AI keyed the member's days as full lowercase
+        // names. The old exact-header read missed these → filled RD; the tolerant map recovers them.
+        const entries = buildSafeEntries(
+            [{ memberName: 'G. Miller', sunday: 'AL', monday: '05:30-11:30', tuesday: 'RD',
+               wednesday: 'RD', thursday: 'RD', friday: 'RD', saturday: 'RD' }],
+            HEADERS, DATES,
+        );
+        assert.equal(entries[0].shifts['2026-03-29'], 'AL');            // sunday → Sun
+        assert.equal(entries[0].shifts['2026-03-30'], '05:30-11:30');  // monday → Mon
+    });
     test('missing key defaults to RD', () => {
         const entries = buildSafeEntries(
             [{ memberName: 'N. Tuck', Mon: 'AL' }], // all other days omitted

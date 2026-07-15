@@ -1020,7 +1020,14 @@ function handleEdit(e) {
     const memberName = btn.dataset.member || '';
     const date       = btn.dataset.date || '';
     const go = () => {
-        _setSelectValue(fieldMember, memberName);
+        // A hidden/leaver member is NOT in the STAFF MEMBER dropdown (populateMemberDropdown omits
+        // them), so _setSelectValue can't switch to them — proceeding would silently edit whoever is
+        // currently selected. Abort with a message instead (v16.84 review fix). To touch a leaver's
+        // record, un-hide the member first, or just delete the row from Saved Changes.
+        if (!_setSelectValue(fieldMember, memberName)) {
+            showError(`${memberName} isn't in the staff list (hidden or left) — can't edit their entry here. Delete it from Saved Changes, or un-hide the member first.`);
+            return;
+        }
         fieldDate.value   = date;
         lastFieldMember   = memberName;
         lastFieldDate     = date;

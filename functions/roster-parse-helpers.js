@@ -282,6 +282,19 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         const shifts = {};
         for (const date of dates) shifts[date] = 'RD';
 
+        // Tolerant member-cell lookup (v16.84): the header→date map resolves a header
+        // case/abbrev-insensitively (lowercased first-3 chars), but reading the cell with the RAW
+        // header was stricter — if the AI keyed a member's days as "Sunday" while columnHeaders listed
+        // "Sun" (or any case drift between the two lists it generates), entry[header] read undefined
+        // → filled 'RD', silently dropping a real shift where the base was also RD. Index the entry's
+        // day keys the same tolerant way so the two lookups can't diverge. (Day abbrevs sun/mon/…/sat
+        // don't collide with member metadata keys like name/grade.)
+        const entryByDay = {};
+        for (const k of Object.keys(entry)) {
+            const kk = String(k).trim().toLowerCase().slice(0, 3);
+            if (!(kk in entryByDay)) entryByDay[kk] = entry[k];
+        }
+
         const missingKeys = [];
         for (let i = 0; i < columnHeaders.length; i++) {
             const header   = columnHeaders[i];
@@ -290,7 +303,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
             if (dayIndex === undefined) continue;
 
             const date  = dates[dayIndex];
-            const raw   = entry[header];
+            const raw   = entry[header] !== undefined ? entry[header] : entryByDay[key.slice(0, 3)];
             const value = (raw !== undefined && raw !== null && String(raw).trim() !== '')
                 ? String(raw).trim()
                 : 'RD';
