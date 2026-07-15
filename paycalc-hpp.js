@@ -11,7 +11,7 @@
 
 import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, getLondonAllowanceForPeriod, capHours,
+  getTaxYearForOffset, capHours,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
@@ -77,7 +77,13 @@ export function _varPayForPeriod(p, d, rate) {
   const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
   const { satCapped, bhCapped } = capHours({ effContr: getEffectiveContr(p), satHrs, bhHrs });
   const pTy       = getTaxYearForOffset(p.num - 48);
-  const pLondon   = getLondonAllowanceForPeriod(p, pTy) * getProRateFactor(p);
+  // London is priced at the SETTLED (post-award) value for the whole year — `pTy.londonAllow`, NOT
+  // the period-aware getLondonAllowanceForPeriod (which returns the OLD London for a pre-award
+  // period). This mirrors the settled-whole-year RATE the caller passes in: after the mid-year award
+  // (paid via the back-pay lump) a member's London for EVERY period of the year is the new value, so
+  // the HPP base is new-London × periods. Pricing it period-aware under-counted the pre-award London
+  // uplift (~£4/yr for a London member) — the bug the removed back-pay HPP add used to mask (v16.90).
+  const pLondon   = pTy.londonAllow * getProRateFactor(p);
   return satCapped * (rate * (RATE_125 - 1)) +
          bhCapped  * (rate * (RATE_125 - 1)) +
          bhOtHrs   * r125                    +
@@ -107,13 +113,9 @@ export function _varPayForPeriod(p, d, rate) {
  * without also switching the whole-year pricing to period-aware rates (which was rejected — it made
  * the estimate shift with the viewed period; see the rate comment below).
  *
- * KNOWN RESIDUAL (~£4/yr, London members only): _varPayForPeriod prices the RATE settled-whole-year
- * but LONDON period-aware (getLondonAllowanceForPeriod → old London for a pre-award period), so the
- * pre-award London uplift is now slightly under-counted (the removed back-pay add used to mask it).
- * This is a pre-existing calcHPP inconsistency, not a regression in the direction of the main bug
- * (large rate over-count → small London under-count = net more accurate). Fully closing it means
- * pricing London settled-whole-year too (`pTy.londonAllow` in _varPayForPeriod), which also nudges the
- * prior-year HPP for London members — deferred as its own owner-visible change.
+ * Both the RATE and (since v16.90) the LONDON allowance are priced settled-whole-year in
+ * _varPayForPeriod, so a pre-award period's variable pay already carries the full award — there is
+ * genuinely nothing left for back pay to add here.
  */
 export function calcHPP() {
   const allPeriods = getPeriods();
