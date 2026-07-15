@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { tsToMillis, shouldReplaceOverride, foldOverrideIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
+import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord } from './override-utils.js';
 
@@ -108,42 +108,72 @@ describe('shouldReplaceOverride', () => {
     });
 });
 
-// ── foldOverrideIntoCache (Team View merge) ───────────────────────────────────
+// ── reconcileRangeIntoCache (authoritative range refresh — Finding #1) ─────────
 
-describe('foldOverrideIntoCache', () => {
-    it('stores when there is no existing record; display counts as changed', () => {
-        const r = foldOverrideIntoCache(undefined, { type: 'shift', value: '06:00-14:00' });
-        assert.deepEqual(r, { store: true, displayChanged: true });
+describe('reconcileRangeIntoCache', () => {
+    const rec = (value, source, seconds, extra = {}) =>
+        ({ type: 'shift', value, note: '', source, createdAt: { seconds }, ...extra });
+    const row = (memberName, date, r) => ({ memberName, date, record: r });
+
+    it('a cached MANUAL deleted in Firestore, snapshot has only a lower-priority import → import wins', () => {
+        // The exact Finding #1 bug: the old merge kept the deleted manual (import can't out-rank it),
+        // yet the key was "seen" so the deletion pass skipped it. Reconcile rebuilds from the snapshot.
+        const cache = new Map([['G. Miller|2026-08-10', rec('06:00-14:00', '', 100)]]);
+        const importRec = rec('07:00-15:00', 'roster_import', 200);
+        const changed = reconcileRangeIntoCache(cache, [row('G. Miller', '2026-08-10', importRec)],
+            '2026-08-10', '2026-08-16');
+        assert.equal(cache.get('G. Miller|2026-08-10'), importRec, 'the import is now authoritative');
+        assert.equal(changed, true, 'the visible shift changed');
     });
 
-    it('does not store when the incoming record cannot out-rank the cached one', () => {
-        const manual = { type: 'shift', value: '06:00-14:00', source: '', createdAt: { seconds: 100 } };
-        const importB = { type: 'shift', value: '06:00-14:00', source: 'roster_import', createdAt: { seconds: 999 } };
-        // import can never beat a manual — even a newer one.
-        assert.deepEqual(foldOverrideIntoCache(manual, importB), { store: false, displayChanged: false });
+    it('a cached NEWER import gone, snapshot has only an OLDER import → the older import wins', () => {
+        const cache = new Map([['G. Miller|2026-08-11', rec('07:00-15:00', 'roster_import', 500)]]);
+        const older = rec('08:00-16:00', 'roster_import', 100);
+        reconcileRangeIntoCache(cache, [row('G. Miller', '2026-08-11', older)], '2026-08-10', '2026-08-16');
+        assert.equal(cache.get('G. Miller|2026-08-11'), older, 'the snapshot is authoritative, not the newer cached copy');
     });
 
-    it('stores a same-VALUE higher-priority winner but reports no display change', () => {
-        const importA = { type: 'shift', value: '06:00-14:00', source: 'roster_import', createdAt: { seconds: 100 } };
-        const manualA = { type: 'shift', value: '06:00-14:00', source: '', createdAt: { seconds: 50 } };
-        // manual out-ranks import, but the visible shift is identical → store (metadata) but don't repaint.
-        assert.deepEqual(foldOverrideIntoCache(importA, manualA), { store: true, displayChanged: false });
-    });
-
-    it('regression: import A → same-value manual A → newer import B keeps the MANUAL as the winner', () => {
-        // Reproduces the v16.63 fix: the merge must cache the winner's metadata even when the display
-        // is unchanged, otherwise import B (newer) would wrongly out-rank the manual on the last pass.
-        const key = 'G. Miller|2026-08-21';
-        const cache = new Map();
-        const importA = { type: 'shift', value: '06:00-14:00', source: 'roster_import', createdAt: { seconds: 100 } };
-        const manualA = { type: 'shift', value: '06:00-14:00', source: '',             createdAt: { seconds: 50 } };
-        const importB = { type: 'shift', value: '06:00-14:00', source: 'roster_import', createdAt: { seconds: 200 } };
-        for (const rec of [importA, manualA, importB]) {
-            const { store } = foldOverrideIntoCache(cache.get(key), rec);
-            if (store) cache.set(key, rec);
+    it('a snapshot with manual + import duplicates for one date → manual wins regardless of order', () => {
+        const manual = rec('06:00-14:00', '', 50);
+        const importA = rec('06:00-14:00', 'roster_import', 100);
+        const importB = rec('06:00-14:00', 'roster_import', 200);
+        for (const order of [[importA, manual, importB], [importB, importA, manual], [manual, importA, importB]]) {
+            const cache = new Map();
+            reconcileRangeIntoCache(cache, order.map(r => row('G. Miller', '2026-08-21', r)),
+                '2026-08-20', '2026-08-26');
+            assert.equal(cache.get('G. Miller|2026-08-21'), manual, `manual wins for order ${order.map(r => r.source || 'manual')}`);
         }
-        assert.equal(cache.get(key).source, '', 'the manual override must survive both imports');
-        assert.equal(cache.get(key), manualA);
+    });
+
+    it('entries OUTSIDE the queried range are left untouched', () => {
+        const outside = rec('06:00-14:00', '', 100);
+        const cache = new Map([['G. Miller|2026-07-01', outside]]);
+        reconcileRangeIntoCache(cache, [], '2026-08-10', '2026-08-16');
+        assert.equal(cache.get('G. Miller|2026-07-01'), outside, 'a date before the range survives an empty snapshot');
+    });
+
+    it('an in-range key the snapshot omits entirely is evicted (a genuine delete)', () => {
+        const cache = new Map([['G. Miller|2026-08-12', rec('06:00-14:00', '', 100)]]);
+        const changed = reconcileRangeIntoCache(cache, [], '2026-08-10', '2026-08-16');
+        assert.equal(cache.has('G. Miller|2026-08-12'), false);
+        assert.equal(changed, true);
+    });
+
+    it('a same-VALUE higher-priority winner updates the cache but reports NO display change', () => {
+        const cache = new Map([['G. Miller|2026-08-13', rec('06:00-14:00', 'roster_import', 100)]]);
+        const manual = rec('06:00-14:00', '', 50);
+        const changed = reconcileRangeIntoCache(cache, [row('G. Miller', '2026-08-13', manual)],
+            '2026-08-10', '2026-08-16');
+        assert.equal(cache.get('G. Miller|2026-08-13'), manual, 'winner metadata is stored');
+        assert.equal(changed, false, 'the visible shift is identical → no repaint');
+    });
+
+    it('an unchanged in-range record reports no display change', () => {
+        const same = rec('06:00-14:00', '', 100);
+        const cache = new Map([['G. Miller|2026-08-14', same]]);
+        const changed = reconcileRangeIntoCache(cache, [row('G. Miller', '2026-08-14', rec('06:00-14:00', '', 100))],
+            '2026-08-10', '2026-08-16');
+        assert.equal(changed, false);
     });
 });
 

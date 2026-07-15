@@ -13,7 +13,7 @@ import {
     DAY_NAMES, MONTH_NAMES,
     isSameDay, isBankHoliday, isChristmasDay, isEasterSunday,
     isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge,
-    getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday,
+    getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday, isWorkedShift,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, paydayForCutoff, escapeHtml,
 } from './roster-data.js';
 import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
@@ -185,7 +185,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
             resolveEffectiveShift(override, shift, isSunday(dateStr));
         shift = _effShift;
 
-        const isWorkedDay = shift !== 'RD' && shift !== 'SPARE' && shift !== 'OFF' && shift !== 'AL' && shift !== 'SICK';
+        const isWorkedDay = isWorkedShift(shift);
         const shiftClass = shift === 'RDW' || isOtherValue(shift)          ? getShiftClass(shift)
                          : isWorkedDay && member.permanentShift === 'late'  ? 'late-shift'
                          : isWorkedDay && member.permanentShift === 'early' ? 'early-shift'

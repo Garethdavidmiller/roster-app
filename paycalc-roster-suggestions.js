@@ -11,7 +11,7 @@
  * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc-app.js).
  */
 
-import { getBaseShift, formatISO, getBankHolidays } from './roster-data.js';
+import { getBaseShift, formatISO, getBankHolidays, parseISODate } from './roster-data.js';
 import { parseOtherValue, resolveOtherPay, OTHER_RDW_DEFAULT_MINS } from './override-utils.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 
@@ -31,14 +31,14 @@ export function _addBhDateForTest(/** @type {any} */ year, /** @type {any} */ is
     if (!_bhDateKeyCache.has(year)) {
         _bhDateKeyCache.set(year, new Set(bhsForYear(year).map(/** @param {any} bh */ bh => `${bh.getMonth()}-${bh.getDate()}`)));
     }
-    const d = new Date(iso + 'T12:00:00');
+    const d = parseISODate(iso);
     _bhDateKeyCache.get(year).add(`${d.getMonth()}-${d.getDate()}`);
 }
 
 /** Test-only: remove a previously-injected BH date from the per-year cache. */
 export function _removeBhDateForTest(/** @type {any} */ year, /** @type {any} */ iso) {
     if (_bhDateKeyCache.has(year)) {
-        const d = new Date(iso + 'T12:00:00');
+        const d = parseISODate(iso);
         /** @type {any} */ (_bhDateKeyCache.get(year)).delete(`${d.getMonth()}-${d.getDate()}`);
     }
 }

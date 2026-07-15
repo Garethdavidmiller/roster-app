@@ -13,13 +13,14 @@ import assert from 'node:assert/strict';
 
 // ── firebase-client + ls mocks (spies the tests inspect) ──────────────────────
 let _saveCalls = 0;
+let _saveThrows = false;   // simulate savePushSubscription rejecting (e.g. a keyless subscription — review B2)
 let _deleteCalls = 0;
 let _lastDeletedEndpoint = null;
 const _ls = new Map();
 
 mock.module('./firebase-client.js', {
     namedExports: {
-        savePushSubscription:   async () => { _saveCalls++; },
+        savePushSubscription:   async () => { _saveCalls++; if (_saveThrows) throw new Error('push/subscription-missing-keys'); },
         deletePushSubscription: async (/** @type {string} */ endpoint) => { _deleteCalls++; _lastDeletedEndpoint = endpoint; },
     },
 });
@@ -55,7 +56,7 @@ function setupEnv(cfg = {}) {
     } = cfg;
 
     const sub = { endpoint, unsubscribe: async () => { sub._unsubscribed = true; return true; }, _unsubscribed: false };
-    const newSub = { endpoint: endpoint + '-new', unsubscribe: async () => true, _unsubscribed: false };
+    const newSub = { endpoint: endpoint + '-new', unsubscribe: async () => { newSub._unsubscribed = true; return true; }, _unsubscribed: false };
     const pushManager = {
         getSubscription: async () => (hasSub ? sub : null),
         subscribe: async () => { if (subscribeFails) throw new Error('subscribe failed'); return newSub; },
@@ -94,7 +95,7 @@ function setupEnv(cfg = {}) {
 }
 
 beforeEach(() => {
-    _saveCalls = 0; _deleteCalls = 0; _lastDeletedEndpoint = null; _ls.clear();
+    _saveCalls = 0; _saveThrows = false; _deleteCalls = 0; _lastDeletedEndpoint = null; _ls.clear();
 });
 
 // notifSupported reads `'Notification' in window` / `'serviceWorker' in navigator` / `'PushManager' in window`.
@@ -205,6 +206,13 @@ describe('enableNotifications', () => {
     test('subscribe failure after grant → "off-lapsed" (not a throw)', async () => {
         setupEnv({ permission: 'granted', subscribeFails: true });
         assert.equal(await enableNotifications(), 'off-lapsed');
+    });
+    test('save failure (keyless sub) rolls back the browser subscription → "off-lapsed", not phantom "on" (B2)', async () => {
+        const { newSub } = setupEnv({ permission: 'granted' });
+        _saveThrows = true;   // savePushSubscription rejects (missing p256dh/auth keys)
+        assert.equal(await enableNotifications(), 'off-lapsed');
+        assert.equal(newSub._unsubscribed, true, 'the browser subscription must be rolled back so the bell is not stuck "on"');
+        assert.equal(_ls.has('myb_vapid_ver'), false, 'the VAPID fingerprint must NOT be recorded when the save failed');
     });
     test('unsupported → "unsupported"', async () => {
         setupEnv({ apis: false });

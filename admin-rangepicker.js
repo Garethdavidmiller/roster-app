@@ -7,7 +7,7 @@
  * Does NOT own: AL/sick save logic, week grid, or any other admin section.
  */
 
-import { DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 
 /**
  * Returns an array of ISO date strings from fromVal to toVal inclusive,
@@ -19,8 +19,8 @@ import { DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, SWIPE_THRESHOLD, SWIPE_VE
  */
 export function getDateRange(fromVal, toVal) {
     if (!fromVal || !toVal) return [];
-    const from = new Date(fromVal + 'T12:00:00');
-    const to   = new Date(toVal   + 'T12:00:00');
+    const from = parseISODate(fromVal);
+    const to   = parseISODate(toVal  );
     if (to < from) return null;
     const dates = [];
     for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
@@ -91,7 +91,7 @@ export function buildRangePicker(prefix) {
 
     /** @param {any} iso */
     function fmt(iso) {
-        const d = new Date(iso + 'T12:00:00');
+        const d = parseISODate(iso);
         return `${DAY_NAMES[d.getDay()].slice(0,3)} ${d.getDate()} ${MONTH_ABB[d.getMonth()]}`;
     }
 
@@ -134,7 +134,7 @@ export function buildRangePicker(prefix) {
             // reader no month/weekday/year context.
             const isSel = iso === fromISO || iso === toISO;
             const inRange = !!(fromISO && toISO && iso > fromISO && iso < toISO);
-            const dow = new Date(iso + 'T12:00:00').getDay();
+            const dow = parseISODate(iso).getDay();
             let aria = `${DAY_NAMES[dow]} ${d} ${MONTH_NAMES[mo]} ${yr}`;
             if (iso === fromISO) aria += ', selected start';
             else if (iso === toISO) aria += ', selected end';

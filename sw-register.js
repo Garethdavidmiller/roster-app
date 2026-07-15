@@ -15,9 +15,16 @@
 // sign-in re-entry on operations/links/paycalc) must not stack a second controllerchange handler
 // + a second hourly update interval — each registration call wired its own set.
 let _registered = false;
+// Latches TRUE once the single page-life controllerchange listener is attached, and — unlike
+// `_registered` — is NEVER reset on a register() failure (review B3). `_registered` resets in the
+// .catch so the in-place-login re-invocation can RETRY registration; but the controllerchange listener
+// is attached BEFORE register() (v16.88 first-install race fix), so without this a retry stacked a
+// SECOND listener — each with its own beforeReload closure, firing a DOUBLE "reload?" confirm on the
+// next SW update (links/paycalc). The listener needs attaching exactly once per page life.
+let _controllerListenerAttached = false;
 
-/** TEST-ONLY: reset the once-per-page-life guard between test cases. */
-export function _resetForTest() { _registered = false; }
+/** TEST-ONLY: reset the once-per-page-life guards between test cases. */
+export function _resetForTest() { _registered = false; _controllerListenerAttached = false; }
 
 /**
  * Register the service worker and handle the skip-waiting → reload lifecycle.
@@ -61,13 +68,16 @@ export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
             // for every other path. Not {once:true}: a beforeReload that declines to reload (links'
             // confirm → Cancel) must still receive the NEXT update's controllerchange, or that page
             // silently never updates again. The default path double-fire is guarded by reloadFired.
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (suppressNextClaim) { suppressNextClaim = false; return; }
-                if (beforeReload) { beforeReload(); return; }
-                if (reloadFired) return;
-                reloadFired = true;
-                window.location.reload();
-            });
+            if (!_controllerListenerAttached) {
+                _controllerListenerAttached = true;
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    if (suppressNextClaim) { suppressNextClaim = false; return; }
+                    if (beforeReload) { beforeReload(); return; }
+                    if (reloadFired) return;
+                    reloadFired = true;
+                    window.location.reload();
+                });
+            }
             return navigator.serviceWorker.register('./service-worker.js').then(registration => {
                 /** @param {ServiceWorker} w */
                 function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }

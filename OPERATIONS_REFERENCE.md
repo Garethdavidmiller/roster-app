@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: July 2026 — v16.90 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.00 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -254,6 +254,8 @@ Body:
   "weekEnding": "2026-04-05",
   "rosterType": "cea",
   "dates": ["2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04", "2026-04-05"],
+  "crossCheck": "complete",
+  "missingMembers": [],
   "parsed": [
     {
       "memberName": "G. Miller",
@@ -266,6 +268,9 @@ Body:
   ]
 }
 ```
+
+- **`crossCheck`** (v16.70) — the column-scan cross-check status: `"complete"` (every returned member re-verified against an independent column read), `"partial"` (some), or `"unavailable"` (the AI omitted/garbled `columnScan` so the check never ran). The review UI shows an advisory note when it isn't `"complete"`.
+- **`missingMembers`** (v16.98) — roster members of this `rosterType` the AI returned NO row for (advisory: could be a dropped row OR a genuine absence — leaver/new starter/other page). The review UI lists them so a silently-dropped member is visible.
 
 ### AI prompt key rules (do not weaken without testing)
 

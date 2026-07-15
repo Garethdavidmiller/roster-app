@@ -6,7 +6,7 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
 // functions via initALSection(deps) to avoid circular imports.
 
-import { getALEntitlement, getBaseShift, isSunday, escapeHtml, projectAnnualLeaveOverage } from './roster-data.js';
+import { getALEntitlement, getBaseShift, isSunday, escapeHtml, projectAnnualLeaveOverage, parseISODate } from './roster-data.js';
 import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 
@@ -102,7 +102,7 @@ export function initALSection({
         if (memberObj) {
             dates.forEach(dateStr => {
                 if (isWorkingDate(memberObj, dateStr, /** @type {Map<string, any>} */ (memberOvByDate)) &&
-                    getBaseShift(memberObj, new Date(dateStr + 'T12:00:00')) === 'SPARE') spareCount++;
+                    getBaseShift(memberObj, parseISODate(dateStr)) === 'SPARE') spareCount++;
             });
         }
         const label    = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;

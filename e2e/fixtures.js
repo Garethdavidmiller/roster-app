@@ -48,6 +48,9 @@ export const limit = () => marker('limit');
 export const doc = () => marker('doc');
 export const serverTimestamp = () => marker('ts');
 export const writeBatch = () => ({ set: noop, update: noop, delete: noop, commit: () => Promise.resolve() });
+// runTransaction(db, fn): run the update fn with a stub tx whose get() returns a non-existent doc,
+// so the links-app.js concurrency transaction (Finding #13) links + executes in the hermetic suite.
+export const runTransaction = (_db, fn) => Promise.resolve(fn({ get: () => Promise.resolve({ exists: () => false, data: () => ({}) }), set: noop }));
 export const getDocs = () => Promise.resolve({ empty: true, size: 0, docs: [], forEach: noop });
 export const getDoc = () => Promise.resolve({ exists: () => false, data: () => ({}) });
 export const addDoc = () => Promise.resolve(marker('docRef'));

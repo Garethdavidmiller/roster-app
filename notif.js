@@ -74,7 +74,16 @@ function vapidKey() {
 async function subscribe() {
     const reg  = await swReady();
     const sub  = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() });
-    await savePushSubscription(sub);
+    try {
+        await savePushSubscription(sub);
+    } catch (err) {
+        // Couldn't persist the subscription (a keyless PushSubscription on some Android builds, or a
+        // Firestore rejection). Roll back the BROWSER subscription so the device reads as 'off-lapsed'
+        // and can retry — instead of leaving the bell "on" forever with no server record and no pushes
+        // (review B2). Without the rollback getSubscription() would keep returning a live sub → 'on'.
+        await sub.unsubscribe().catch(() => {});
+        throw err;
+    }
     lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
     lsSet(PROMPT_DISMISSED, '1');
     return sub;

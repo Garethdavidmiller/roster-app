@@ -414,18 +414,15 @@ export async function refreshClaimsIfStale(epoch) {
  * out only on an EXPLICIT clearSession() (user-initiated logout), and
  * ensureFirebaseSession() replaces a mismatched identity on the next login.
  *
- * ⚠️ SECURITY DEBT (post-B3/H2/B4): the lingering Firebase identity is NOT harmless
- * anymore. Before the strict rules it was — every authenticated session had the same
- * (anonymous-equivalent) access. Now a lingering named/admin/manager/designer identity
- * retains real extra access at the FIREBASE layer (read all staff emails, on-behalf
- * override writes, admin uploads, Links writes) even after the local app session has
- * expired. The normal UI stays protected (no local session → login required), so an
- * ordinary colleague can't tap into it; the exposure is a shared device where someone
- * reaches the persisted credential via devtools / a direct SDK call. The correct fix is
- * a COORDINATED expired-session transition AFTER authReady (wait for restoration → sign
- * out the named identity → re-establish anonymous where the calendar needs it → publish
- * final state) — NOT an async signOut() inside this synchronous getSession(), which would
- * re-introduce the race described above. Tracked with the password-retirement security work.
+ * ⚠️ A lingering Firebase identity is NOT harmless post-B3/H2/B4: a named/admin/manager/designer
+ * identity retains real extra access at the FIREBASE layer (read all staff emails, on-behalf override
+ * writes, admin uploads, Links writes) even after the local app session expired. The exposure is a
+ * shared device where someone reaches the persisted credential via devtools / a direct SDK call.
+ * `reconcileExpiredIdentity()` (below) is the COORDINATED teardown — run AFTER authReady, not an async
+ * signOut inside this synchronous getSession() (which would race the calendar's anon bootstrap). The
+ * calendar (the PWA start_url) calls it on virtually every launch, so a lingering expired identity is
+ * dropped then; a protected page reached by a direct deep-link before that still reconciles on the next
+ * login (ensureFirebaseSession replaces the identity) or the next calendar open. (Finding #9)
  */
 export function getSession() {
     try {
@@ -478,4 +475,39 @@ export function clearSession() {
     lsDel(AUTH_KEY);
     firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
     _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut (observing only — Phase 2)
+}
+
+/**
+ * Sign out a Firebase identity that has OUTLIVED its local app session (Finding #9).
+ *
+ * getSession() clears only localStorage on passive expiry — the IndexedDB-persisted Firebase identity
+ * survives, so a NAMED/admin/manager/designer session keeps its real Firestore privileges (read all
+ * staff emails, on-behalf override writes, admin uploads, Links writes) after the app session expired.
+ * This is the COORDINATED teardown the getSession() note prescribes: run it AFTER authReady — never an
+ * async signOut inside the synchronous getSession(), which would race the calendar's anon bootstrap. If
+ * the restored user is NAMED but there is no valid local session, sign it out; the caller re-establishes
+ * an anonymous session where it needs one (the calendar) once this resolves.
+ *
+ * The calendar is the PWA `start_url`, so this runs on virtually every launch — the dominant path by
+ * which an expired session's lingering privileges are dropped. A protected page reached by a direct
+ * deep-link before the calendar reconciles it still tears the identity down on the next login
+ * (ensureFirebaseSession replaces the identity) or the next calendar open.
+ *
+ * Login-safe: snapshots `_authGen` and stands down if a login/logout transition (both bump it) started
+ * meanwhile, and re-checks getSession() so a just-completed login (which writes a fresh session) is
+ * never torn down. Anonymous identities are left alone — the calendar depends on them.
+ * @returns {Promise<void>}
+ */
+export async function reconcileExpiredIdentity() {
+    const gen = _authGen;
+    try { await authReady; } catch { return; }
+    if (gen !== _authGen) return;                    // a login/logout now owns the identity — stand down
+    const u = auth.currentUser;
+    if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
+    try {
+        await firebaseSignOut(auth);
+        console.warn('[Auth] Signed out a Firebase identity whose local session had expired (Finding #9).');
+    } catch (err) {
+        console.warn('[Auth] expired-identity signOut failed:', /** @type {any} */ (err)?.message);
+    }
 }

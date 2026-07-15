@@ -70,6 +70,7 @@ mock.module('./roster-data.js', {
         getBaseShift:         (m, d) => _mockGetBaseShift(m, d),
         formatISO:            d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
         isSunday:             dateStr => _mockIsSunday(dateStr),
+        isWorkedShift:        s => s !== 'RD' && s !== 'OFF' && s !== 'SPARE' && s !== 'AL' && s !== 'SICK',
         paydayForCutoff:      () => null,
         escapeHtml:           s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])),
     },

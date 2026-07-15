@@ -15,7 +15,7 @@
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
 import { auth, authReady, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { getSession, clearSession } from './session.js';
+import { getSession, clearSession, reconcileExpiredIdentity } from './session.js';
 import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
@@ -817,7 +817,13 @@ initDocViewer();
 // an already-installed PWA re-saved its push subscription with no auth user → the write was
 // rejected by the `request.auth != null` rule → the bell stuck "off-lapsed" with no retry.
 // See ROADMAP "Push-subscription writes can race auth".
+// reconcileExpiredIdentity() FIRST (Finding #9): if a NAMED Firebase identity was restored from
+// IndexedDB but the local app session has expired, sign it out here — the coordinated teardown the
+// getSession() note prescribes (the calendar is the PWA start_url, so this runs on nearly every
+// launch). The anon bootstrap then re-establishes an anonymous session in its place, so the calendar's
+// best-effort writes still satisfy `request.auth != null` without carrying stale named privileges.
 const calendarAuthReady = authReady
+    .then(() => reconcileExpiredIdentity())
     .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
     .catch(() => {});
 

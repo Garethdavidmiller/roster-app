@@ -15,7 +15,7 @@
 // @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported inside uploadHuddle() — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
@@ -65,7 +65,7 @@ export {
     // reads
     getDocs, getDoc, onSnapshot,
     // writes
-    addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch,
+    addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction,
 };
 
 /** Firestore collection name constants — single source of truth. Import these
@@ -544,10 +544,13 @@ export async function savePushSubscription(subscription) {
     const p256dh = subscription.getKey('p256dh');
     const auth   = subscription.getKey('auth');
     if (!p256dh || !auth) {
-        // Partially-initialised subscription — keys absent on some browsers/edge cases.
-        // Silently skip rather than persisting empty keys that the push fan-out can't use.
-        console.warn('[pushSubscriptions] subscription missing p256dh/auth keys — skipping save');
-        return;
+        // Partially-initialised subscription — keys absent on some browsers/edge cases. THROW rather
+        // than silently returning: a silent skip let the caller mark the device "subscribed" (fingerprint
+        // + prompt-dismissed) with NO server record, so the bell showed "on" forever while the device got
+        // no pushes and never self-healed (fanOutPush's 410 cleanup never runs — nothing was written).
+        // The caller (notif.js subscribe) now rolls back the browser subscription on this throw. (review B2)
+        console.warn('[pushSubscriptions] subscription missing p256dh/auth keys — not saved');
+        throw new Error('push/subscription-missing-keys');
     }
     const id = await endpointId(subscription.endpoint);
     await setDoc(doc(db, COLLECTIONS.pushSubscriptions, id), {

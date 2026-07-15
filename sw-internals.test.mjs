@@ -119,6 +119,35 @@ describe('ctSafe', () => {
     test('a non-html asset accepts a MISSING content-type', () => {
         assert.equal(ctSafe('icon-192.png', resWithCt(null)), true);
     });
+    // Positive-validation tightening (v17.01, Finding #10): a non-html asset served with a
+    // wrong-but-not-html content-type used to slip through (only text/html was rejected).
+    test('a JS asset REJECTS a wrong non-html content-type (application/json)', () => {
+        assert.equal(ctSafe('calendar-app.js', resWithCt('application/json')), false);
+    });
+    test('an .mjs asset accepts a JS content-type but rejects a JSON one', () => {
+        assert.equal(ctSafe('purify.es.mjs', resWithCt('text/javascript')), true);
+        assert.equal(ctSafe('purify.es.mjs', resWithCt('application/json')), false);
+    });
+    test('a CSS asset accepts text/css and rejects a mismatch', () => {
+        assert.equal(ctSafe('index.css', resWithCt('text/css')), true);
+        assert.equal(ctSafe('index.css', resWithCt('image/png')), false);
+    });
+    test('a PNG accepts image/png and rejects a mismatch', () => {
+        assert.equal(ctSafe('icon-192.png', resWithCt('image/png')), true);
+        assert.equal(ctSafe('icon-192.png', resWithCt('text/plain')), false);
+    });
+    test('a woff2 font accepts font/woff2', () => {
+        assert.equal(ctSafe('fonts/inter-latin.woff2', resWithCt('font/woff2')), true);
+    });
+    test('manifest.json accepts application/manifest+json and application/json', () => {
+        assert.equal(ctSafe('manifest.json', resWithCt('application/manifest+json')), true);
+        assert.equal(ctSafe('manifest.json', resWithCt('application/json')), true);
+    });
+    test('an UNKNOWN extension keeps the lenient reject-only-html rule', () => {
+        // A future asset kind must never be silently dropped: only a text/html body is rejected.
+        assert.equal(ctSafe('data.xml', resWithCt('application/xml')), true);
+        assert.equal(ctSafe('data.xml', resWithCt('text/html')), false);
+    });
 });
 
 describe('unredirect', () => {

@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: July 2026 — v16.90 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.00 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -296,6 +296,30 @@ until the user reinstalls the PWA (removes and re-adds to home screen).
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
 In the rare case this causes a mid-session race, a hard reload resolves it.
+
+### Mixed-version cache window during a deploy — mitigated, not fully closed (accepted)
+During the brief window between a new version deploying and a client fully reloading onto it, a page
+can in principle pair one version's HTML/JS with another version's — an "interface-incompatible" mix
+that can throw. The exposure is **already narrow and mitigated**, not silent:
+
+- **Same-version serving (v16.10):** HTML, JS, and CSS are all served from the one version-pinned
+  cache (`myb-roster-v{APP_VERSION}`), so a normal page open is single-version by construction.
+- **Newest-older fallback (v16.86):** when an asset misses the current cache and can't be fetched
+  (offline / a mid-deploy hosting hiccup), `matchNewestManagedCache` serves the **newest available
+  older** cache — not the oldest one `caches.match()` would pick — and routes the HTML and JS
+  fallbacks to the *same* older version, staying as close to single-version as the caches allow.
+- **Reload lifecycle:** version bump → new SW → new cache → warm-up → `controllerchange` reload
+  (`sw-register.js`) converges every client onto the new version; roster **data** is always live from
+  Firestore regardless of the cached JS version.
+
+**Residual (accepted):** a *partially-warmed* current cache can still pair a fresh module with an
+older fallback for that one window, and a `beforeReload`-deferred reload (e.g. admin mid-edit) runs
+old JS against a claimed new SW until it reloads. **Fully closing this is a deliberate scope
+decision** — it needs either per-file version markers (the cheap HTML-comment marker was removed in
+v16.81 because it made the version bump touch ~8 files on half of all commits) or per-page-load
+version-coordination with a self-heal reload (a reload-loop hazard) — **both live in the
+highest-outage-risk file (the SW)**, so the risk of a rushed change exceeds the (rare, self-resolving)
+bug. Revisit only if a real mixed-version incident is observed in the field. (v16.95 review Finding #11.)
 
 ### Dual hosting: web.app primary, github.io kept for existing installs (v14.29)
 The app is served, identically, from **two** live origins:

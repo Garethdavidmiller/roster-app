@@ -278,7 +278,14 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         }
         seenMembers.add(memberKey);
 
-        // Default all dates to RD — covers any day the AI skips entirely
+        // Default all dates to RD — covers any day the AI skips entirely.
+        // REVIEWED + KEPT (v16.95 review Finding #4, owner decision Jul 2026): a blank roster cell
+        // means REST DAY by definition (CLAUDE.md), and the AI omits rest-day cells routinely — so
+        // promoting every missing key to a review-required UNREADABLE row would flood the review table
+        // with false "couldn't read" rows on essentially every upload. The genuine risk this guards
+        // (a DROPPED or MISALIGNED real shift) is already caught by three independent layers:
+        // applyColumnScanCrossCheck, applySundayScanCorrections, and detectShiftedRow (client). The
+        // per-member missingKeys console.warn below keeps the omission observable in the logs.
         const shifts = {};
         for (const date of dates) shifts[date] = 'RD';
 

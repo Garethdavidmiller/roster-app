@@ -26,7 +26,7 @@ import { markLoginStart, clearLoginStart } from './perf-reporter.js';
 
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
-const GRADE_ORDER = ['CEA', 'CES', 'Dispatcher', 'Management'];
+const GRADE_ORDER = CONFIG.GRADE_ORDER;   // single source (roster-data CONFIG) — shared with admin-app's selector
 const GRADE_KEY   = 'myb_login_grade';
 
 /** Resolve `promise`, or reject after `ms`, so a hung async step can't strand the login overlay.

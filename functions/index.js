@@ -306,18 +306,14 @@ exports.ingestHuddle = onRequest(
         // commits. Versioned paths mean each upload writes a NEW object — without this
         // the prior file is left behind in Storage on every re-upload for a date.
         let prevStoragePath = null;
-        // Three-state so a FAILED read isn't mistaken for "no previous huddle". 'absent' → genuine
-        // first upload (notify); 'exists' → re-send (don't re-notify); 'unknown' → the read failed, so
-        // create-vs-update can't be established — suppress the push to avoid a duplicate on a same-day
-        // resend during a transient Firestore blip (a missed notification is safer than spamming staff;
-        // the in-app viewer's live subscription still surfaces the huddle either way).
-        let prevStatus = 'absent';   // 'absent' | 'exists' | 'unknown'
+        // This read now feeds ONLY the old-file cleanup — the create-vs-notify decision is made
+        // atomically inside the metadata transaction below (Finding #6). Non-fatal: a failed read just
+        // means a prior version's object may be left for pruneOldHuddles to reclaim.
         try {
             const prevSnap = await admin.firestore().collection('huddles').doc(date).get();
-            if (prevSnap.exists) { prevStoragePath = (prevSnap.data() || {}).storagePath || null; prevStatus = 'exists'; }
+            if (prevSnap.exists) prevStoragePath = (prevSnap.data() || {}).storagePath || null;
         } catch (readErr) {
-            prevStatus = 'unknown';
-            console.warn('[ingestHuddle] Could not read previous huddle metadata — create-vs-update UNKNOWN, will suppress push (non-fatal):', readErr.message);
+            console.warn('[ingestHuddle] Could not read previous huddle metadata (non-fatal, cleanup only):', readErr.message);
         }
 
         try {
@@ -373,29 +369,34 @@ exports.ingestHuddle = onRequest(
                 uploadedBy: 'power-automate',
             };
             if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
+            // Write the metadata AND decide create-vs-re-send ATOMICALLY (Finding #6). The old flow read
+            // the doc up front (check) then, separately, notified when that read said 'absent' (act) —
+            // a check-then-act race: two concurrent Power Automate runs for the same date both read
+            // "absent" before either wrote, so BOTH fanned out a push. A transaction serialises them —
+            // whichever commits first sees `!exists` and owns the notify; the other sees the doc and
+            // suppresses. The transaction's own retry replaces the manual commit-ambiguous re-issue (the
+            // set is idempotent, so an internal retry recomputes createdNew against the latest committed
+            // state — if a concurrent run created the doc meanwhile, createdNew flips false and we don't
+            // double-notify, consistent with "a missed notification is safer than spamming staff").
+            let createdNew = false;
+            const huddleRef = admin.firestore().collection('huddles').doc(date);
             try {
-                await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
+                createdNew = await admin.firestore().runTransaction(async tx => {
+                    const snap = await tx.get(huddleRef);
+                    tx.set(huddleRef, firestoreDoc);
+                    return !snap.exists;   // true ⇒ this run created the date's doc → a genuine first upload
+                });
             } catch (metaErr) {
                 if (_isRetriableFirestoreError(metaErr)) {
-                    // COMMIT-AMBIGUOUS: this error can be raised AFTER the server committed. The
-                    // date-keyed set is idempotent, so re-issue once. If the retry succeeds the doc is
-                    // committed and we fall through to the success path.
-                    console.warn(`[ingestHuddle] metadata set attempt 1 failed (${metaErr.code}) — retrying once`);
-                    try {
-                        await new Promise(r => setTimeout(r, 2000));
-                        await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
-                    } catch (metaErr2) {
-                        // Still failing — genuinely ambiguous. Deleting the object could orphan a
-                        // committed doc pointing at nothing (staff tap a 404), so LEAVE the object
-                        // (at most one orphan, which the next upload's cleanup supersedes) and rethrow.
-                        console.warn(`[ingestHuddle] metadata still failing (${metaErr2.code}) — leaving new object in place (commit-ambiguous), not deleting`);
-                        throw metaErr2;
-                    }
-                } else {
-                    // Definite non-commit — safe to delete the just-uploaded object so it isn't orphaned.
-                    await bucket.file(storagePath).delete().catch(() => {});
+                    // Transaction exhausted its retries on a retriable/commit-ambiguous error. Deleting the
+                    // object could orphan a doc that actually committed (staff tap a 404), so LEAVE it (the
+                    // next upload's cleanup or pruneOldHuddles supersedes it) and rethrow.
+                    console.warn(`[ingestHuddle] metadata transaction failed (${metaErr.code}) — leaving new object in place (commit-ambiguous), not deleting`);
                     throw metaErr;
                 }
+                // Definite non-commit — safe to delete the just-uploaded object so it isn't orphaned.
+                await bucket.file(storagePath).delete().catch(() => {});
+                throw metaErr;
             }
 
             // New metadata committed — delete the previous version's object (best-effort;
@@ -404,8 +405,8 @@ exports.ingestHuddle = onRequest(
                 await bucket.file(prevStoragePath).delete().catch(delErr =>
                     console.warn('[ingestHuddle] Old huddle object cleanup failed (non-fatal):', delErr.message));
             }
-            // When prevStatus === 'unknown' (the pre-upload read failed) prevStoragePath was never
-            // captured, so a prior version for this date is left orphaned. We deliberately do NOT sweep
+            // When the pre-upload read failed, prevStoragePath was never captured, so a prior version
+            // for this date is left orphaned. We deliberately do NOT sweep
             // `huddles/<date>*` HERE to reclaim it: Power Automate can double-run a date (see the notify
             // guard below), and a sweep could catch a CONCURRENT ingest's just-committed object, leaving
             // that doc pointing at a deleted file — a staff-visible 404, worse than the invisible orphan.
@@ -420,22 +421,20 @@ exports.ingestHuddle = onRequest(
             // it skips Power Automate uploads (uploadedBy === 'power-automate') to avoid
             // double-notifying. This direct call is the authoritative path for PA uploads.
             //
-            // Notify only on a genuine CREATE for this date. onHuddleCreated is create-only, so a
-            // MANUAL re-upload never re-notifies; without this guard a Power Automate RE-SEND for a
-            // date that already had a huddle (e.g. the flow runs twice, or a same-day correction)
-            // still fanned out a second push to everyone. Matching the manual path's convention
-            // means an accidental duplicate can't spam staff; a genuine correction still updates the
-            // huddle silently (the in-app viewer has a live subscription and refreshes on its own).
-            if (prevStatus === 'absent') {
+            // Notify only on a genuine CREATE for this date (createdNew from the atomic transaction
+            // above). onHuddleCreated is create-only, so a MANUAL re-upload never re-notifies; without
+            // this guard a Power Automate RE-SEND — or a concurrent double-run — for a date that already
+            // had a huddle still fanned out a second push to everyone. Matching the manual path's
+            // convention means an accidental duplicate can't spam staff; a genuine correction still
+            // updates the huddle silently (the in-app viewer has a live subscription and refreshes).
+            if (createdNew) {
                 try {
                     await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
                 } catch (pushErr) {
                     console.warn('[ingestHuddle] Push notifications failed (non-fatal):', pushErr.message);
                 }
-            } else if (prevStatus === 'exists') {
-                console.log(`[ingestHuddle] Re-send for existing date ${date} — not re-notifying (matches the manual re-upload path)`);
             } else {
-                console.warn(`[ingestHuddle] Previous-doc state UNKNOWN for ${date} — suppressing push to avoid a duplicate on a transient read failure`);
+                console.log(`[ingestHuddle] Re-send / concurrent duplicate for existing date ${date} — not re-notifying (matches the manual re-upload path)`);
             }
 
             // Bound the collection: huddles are daily and would otherwise grow without limit.
@@ -1219,6 +1218,17 @@ columnScan: one key per column header; every staff member appears in every colum
 
         console.log(`[parseRosterPDF] Returning ${filteredEntries.length} parsed members for week ${weekEnding}`);
 
+        // ---- Detect roster members ENTIRELY ABSENT from the AI output (Finding #3) ----
+        // The hallucinated-name filter above catches the FORWARD error (a returned name we don't know);
+        // this catches the REVERSE — a known member of this roster type the AI never emitted a row for.
+        // A dropped row is invisible in the review table (the member simply isn't listed), so a shift
+        // that should have been imported silently isn't. It can also be a legitimate absence (a leaver,
+        // a new starter not yet on the rota, or someone printed on a different page), so this is
+        // ADVISORY, never a hard failure: surface the names and let the admin judge against the PDF.
+        const returnedNames = new Set(filteredEntries.map(e => e.memberName));
+        const missingMembers = relevantNames.filter(n => !returnedNames.has(n));
+        if (missingMembers.length) console.warn(`[parseRosterPDF] ${missingMembers.length} roster member(s) absent from the AI output: ${missingMembers.join(', ')}`);
+
         // Cross-check status for the review UI (v16.70): 'complete' — every member was checked
         // against the column re-read; 'partial' — some were; 'unavailable' — the AI omitted or
         // garbled columnScan, so the independent check never ran (fail-open must not be invisible).
@@ -1235,6 +1245,7 @@ columnScan: one key per column header; every staff member appears in every colum
             rosterType,
             dates,
             crossCheck,
+            missingMembers,
             parsed: filteredEntries,
         });
     }

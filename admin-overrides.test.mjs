@@ -26,6 +26,10 @@ const mockAuth = { currentUser: null };
 // object, so a bug that reused a committed WriteBatch on retry would fail this test.
 let _failNextCommits = 0;
 
+// How many of the NEXT getDocs() calls should reject (tests set this to simulate a failed initial
+// Saved-Changes load — Finding #2). Mirrors _failNextCommits.
+let _failNextGetDocs = 0;
+
 // Faithful copy of firebase-client.writeWithClaimRetry so recordRangeOverrides exercises the real
 // retry wiring in tests (the true function can't be imported — firebase-client.js pulls the CDN).
 // Mirrors the real helper's error-preservation: if the token refresh itself fails, the ORIGINAL
@@ -55,7 +59,10 @@ mock.module('./firebase-client.js', {
         query:           () => null,
         orderBy:         () => null,
         limit:           () => null,
-        getDocs:         async () => ({ forEach: () => {} }),
+        getDocs:         async () => {
+            if (_failNextGetDocs > 0) { _failNextGetDocs--; throw new Error('Firestore unreachable'); }
+            return { forEach: () => {} };
+        },
         deleteDoc:       async () => {},
         doc:             (() => { let n = 0; return () => ({ id: 'mock-doc-' + (++n) }); })(),
         serverTimestamp: () => null,
@@ -103,12 +110,38 @@ const {
     getAllOverrides,
     recordRangeOverrides,
     executeSave,
+    loadOverrides,
+    isOverrideCacheLoaded,
     _hasStagedEdits,
 } = await import('./admin-overrides.js');
 const { teamMembers } = await import('./roster-data.js');
 
 // Grab the mocked auth object so we can set currentUser for recordRangeOverrides tests.
 const { auth } = await import('./firebase-client.js');
+
+// ── cache-load-failure guard (Finding #2) ─────────────────────────────────────
+// MUST run before any setAllOverrides()/successful loadOverrides() below — those latch the
+// module-level "cache loaded" flag true for the rest of the file (it only ever transitions to true).
+describe('cache-load-failure guard (Finding #2)', () => {
+    test('a FAILED initial load leaves the cache marked NOT loaded, and range writes refuse', async () => {
+        assert.equal(isOverrideCacheLoaded(), false, 'flag starts false before any load');
+        _failNextGetDocs = 1;
+        await loadOverrides();                        // fails internally; resolves readiness, flag stays false
+        assert.equal(isOverrideCacheLoaded(), false, 'a failed load must NOT mark the cache loaded');
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        await assert.rejects(
+            recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: 'G. Miller', dates: ['2026-06-15'], changedBy: 'G. Miller' }),
+            /cache\/load-failed/,
+            'a range booking must not write against a never-loaded cache',
+        );
+        auth.currentUser = null;
+    });
+
+    test('a SUCCESSFUL load marks the cache loaded (flag latches true)', async () => {
+        await loadOverrides();
+        assert.equal(isOverrideCacheLoaded(), true);
+    });
+});
 
 // ── getEffectiveShift ─────────────────────────────────────────────────────────
 

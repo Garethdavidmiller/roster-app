@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
@@ -1345,39 +1345,75 @@ export function init() {
                 return;
             }
 
-            // Concurrency check: two designers can have this page open simultaneously
+            // Concurrency: two designers can have this page open at once. Prefer an ATOMIC
+            // compare-and-set — read the doc's updatedAt and write in ONE transaction — so a
+            // co-designer's save that lands between our read and our write can no longer be silently
+            // clobbered (the old getDoc-then-setDoc was a check-then-act race; Finding #13). A
+            // transaction needs connectivity, so on offline / any transaction failure we fall back to
+            // the previous getDoc-check + queued setDoc (persistentLocalCache syncs it) — offline-first
+            // preserved, never worse than before.
             const designRef = doc(db, COLLECTIONS.linkDesigns, activeDesignId);
-            try {
-                const fresh   = await getDoc(designRef);
-                const freshTs = fresh.exists() ? (fresh.data().updatedAt?.toMillis?.() ?? null) : null;
-                const _tsMismatch      = loadedUpdatedAt !== null && freshTs !== null && freshTs !== loadedUpdatedAt;
-                const _unknownButOthers = baselineUnknown && freshTs !== null
-                    && fresh.data().updatedBy && fresh.data().updatedBy !== currentUser;
-                if (_tsMismatch || _unknownButOthers) {
-                    const by   = fresh.data().updatedBy || 'Someone';
-                    const when = fresh.data().updatedAt?.toDate?.()
-                        ?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? '';
-                    const overwrite = confirm(
-                        `${by} saved a different version${when ? ` at ${when}` : ''} after you opened this page.\n\n` +
-                        `Save anyway and replace their changes?`);
-                    if (!overwrite) {
-                        if (btn) btn.disabled = false;
-                        if (status) {
-                            status.textContent = 'Not saved — refresh the page to see the latest version.';
-                            status.className   = 'links-save-status err';
-                        }
-                        return;
-                    }
-                }
-            } catch { /* offline — proceed */ }
-
-            const dsn = design; // capture non-null (guarded above) so the retry closure keeps narrowing
-            await writeWithClaimRetry(() => setDoc(designRef, {
+            const dsn = design; // capture non-null (guarded above) so the retry closures keep narrowing
+            const buildDoc = () => ({
                 name:      dsn.name || 'Design 1',
                 patterns:  dsn.patterns,
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
-            }));
+            });
+            // Server doc vs our load baseline → { by, at } on conflict, else null. Single source used by
+            // BOTH the transaction and the offline fallback so they can't drift.
+            const conflictOf = (/** @type {any} */ data, /** @type {boolean} */ exists) => {
+                const freshTs = exists ? (data.updatedAt?.toMillis?.() ?? null) : null;
+                const tsMismatch = loadedUpdatedAt !== null && freshTs !== null && freshTs !== loadedUpdatedAt;
+                const unknownButOthers = baselineUnknown && freshTs !== null
+                    && data.updatedBy && data.updatedBy !== currentUser;
+                return (tsMismatch || unknownButOthers) ? { by: data.updatedBy || 'Someone', at: data.updatedAt || null } : null;
+            };
+            const confirmOverwrite = (/** @type {{by:string, at:any}} */ c) => {
+                const when = c.at?.toDate?.()?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? '';
+                return confirm(
+                    `${c.by} saved a different version${when ? ` at ${when}` : ''} after you opened this page.\n\n` +
+                    `Save anyway and replace their changes?`);
+            };
+            const markNotSaved = () => {
+                if (btn) btn.disabled = false;
+                if (status) {
+                    status.textContent = 'Not saved — refresh the page to see the latest version.';
+                    status.className   = 'links-save-status err';
+                }
+            };
+
+            let committed = false;
+            try {
+                await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                    const snap = await tx.get(designRef);
+                    const c = conflictOf(snap.data() || {}, snap.exists());
+                    if (c) { const e = /** @type {any} */ (new Error('concurrent-edit')); e.conflict = c; throw e; }
+                    tx.set(designRef, buildDoc());
+                }));
+                committed = true;
+            } catch (txErr) {
+                const _e = /** @type {any} */ (txErr);
+                if (_e && _e.message === 'concurrent-edit') {
+                    // The transaction saw a co-editor's newer version. Ask; on overwrite write
+                    // UNCONDITIONALLY (the user accepted the replace) — a plain setDoc, which also
+                    // queues offline. On decline, stop without writing.
+                    if (!confirmOverwrite(_e.conflict)) { markNotSaved(); return; }
+                    await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
+                    committed = true;
+                }
+                // else: offline / transaction unsupported → fall through to the legacy path below.
+            }
+            if (!committed) {
+                // Legacy fallback (offline, or the transaction failed for a non-conflict reason):
+                // getDoc-check then a queued setDoc, exactly as before the transaction was added.
+                try {
+                    const fresh = await getDoc(designRef);
+                    const c = conflictOf(fresh.data() || {}, fresh.exists());
+                    if (c && !confirmOverwrite(c)) { markNotSaved(); return; }
+                } catch { /* offline — no reachable server state to compare; proceed with the queued write */ }
+                await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
+            }
             // Refresh the in-memory cache entry UNCONDITIONALLY after the successful write — the
             // saved patterns are authoritative regardless of whether the updatedAt read-back below
             // succeeds. Previously this lived inside the getDoc try, so a read-back failure left the

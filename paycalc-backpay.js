@@ -41,6 +41,11 @@ const PENDING_AWARD_PCT = 3.6;
 /** @type {string|null} */
 let _lastAwardYear = null;
 
+// Set when restoreBpState found a CORRUPT saved blob (not merely absent). Surfaced ONCE by the next
+// calcBackPay render so the reset isn't silent — the card meanwhile recomputes a correct default
+// estimate (no-silent-caps; Finding #7, v16.99). Cleared when shown.
+let _bpStateWasCorrupt = false;
+
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
 
 /**
@@ -212,7 +217,17 @@ function _saveBpState() {
  */
 export function restoreBpState() {
   let s = null;
-  try { s = JSON.parse(lsGet(bpKey()) || 'null'); } catch { /* corrupted — treat as absent */ }
+  try {
+    s = JSON.parse(lsGet(bpKey()) || 'null');
+  } catch {
+    // Corrupt saved card state (manual import, storage damage). Silently treating it as absent
+    // discarded the member's saved rates + include-tick with no trace. Self-heal the bad key so it
+    // can't recur, and flag it so the next calcBackPay render tells the member their entries were
+    // reset — not an intrusive load-time banner (the card recomputes a correct default meanwhile),
+    // just a note in the card's own notice when they open it (no-silent-caps; Finding #7).
+    _bpStateWasCorrupt = true;
+    lsDel(bpKey());
+  }
   if (!s) return false;
   // `year` is the CURRENT award (via _backdatedFromPNum, now pinned to today's period), so the saved
   // current-award blob — include-tick, hand-corrected rates — is restored no matter which period the
@@ -520,6 +535,15 @@ export function calcBackPay() {
   if (_skipped.length) {
     noticeEl.style.display = 'block';
     noticeEl.innerHTML += `<span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved period${_skipped.length > 1 ? 's' : ''} (${_skipped.join(', ')}), so this total may be too low. Open ${_skipped.length > 1 ? 'those periods' : 'that period'} on the calculator to re-save, then check again.</span>`;
+  }
+
+  // Surface a CORRUPT saved-CARD-state reset once (Finding #7): restoreBpState found a damaged blob
+  // and reset the card to a fresh estimate — tell the member so they re-check rather than trusting a
+  // silently-reset card. noticeEl is visible in both branches above.
+  if (_bpStateWasCorrupt) {
+    _bpStateWasCorrupt = false;
+    noticeEl.style.display = 'block';
+    noticeEl.innerHTML += `<span class="pay-skip-warn">⚠️ Your saved back-pay entries couldn't be read and were reset — re-check the rates and the tick above.</span>`;
   }
 
   const newBpPNum   = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;

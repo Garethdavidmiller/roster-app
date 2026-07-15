@@ -86,8 +86,8 @@ All 28 lines rotate and **every one must carry a real worked pattern** — in th
 
 The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`); the Design checks "Lines not yet designed" row lists them until filled.
 
-### Concurrency & load safety (v12.37)
-`saveChanges()` re-reads the doc and compares `updatedAt` against `loadedUpdatedAt`; on mismatch a `confirm()` names who saved and when before overwriting. A failed read sets `loadFailed` — empty state shows an error.
+### Concurrency & load safety (v12.37; atomic v17.02)
+`saveChanges()` writes via an **atomic Firestore transaction** (`runTransaction`) that reads the doc's `updatedAt` and writes in one step — closing the old getDoc-then-setDoc check-then-act window where a co-designer's save between our read and write was silently clobbered (Finding #13). On a baseline mismatch the transaction throws `concurrent-edit`; a `confirm()` names who saved and when, and on overwrite a plain (unconditional) `setDoc` replaces it. Transactions need connectivity, so **offline / any transaction failure falls back to the previous getDoc-check + queued `setDoc`** (persistentLocalCache syncs it) — offline-first preserved. The mismatch check (`conflictOf`) and the confirm are shared by both paths so they can't drift. A failed load sets `loadFailed` — empty state shows an error.
 
 ### Print (v12.37)
 A4 landscape grid + coverage + checks; generator and brush bar hidden.

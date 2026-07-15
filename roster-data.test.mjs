@@ -38,6 +38,8 @@ import {
     avatarHue,
     getSpecialDayBadges,
     isSunday,
+    parseISODate,
+    formatISO,
     CONFIG,
     fixedRoster,
     isValidEmail,
@@ -192,6 +194,31 @@ test('getALEntitlement: Dispatcher base entitlement is 22 days (no BH worked)', 
     // Dispatchers earn 22 base days + 1 lieu day per bank holiday actually worked.
     // A member with no valid roster (no currentWeek) works no bank holidays, so returns 22.
     assert.equal(getALEntitlement({ role: 'Dispatcher', rosterType: 'dispatcher' }), 22);
+});
+
+// Format a Date to the YYYY-MM-DD override-key string (local time, matching the count's own keying).
+const _bhKey = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+test('getALEntitlement: Dispatcher earns +1 lieu day per bank holiday WORKED', () => {
+    // The incremental branch (countDispatcherBankHolidaysWorked) — previously untested. Override EVERY
+    // 2026 BH to RD (so the base roster can't add lieu days) except one worked RDW → 22 + 1 = 23.
+    const member = { name: 'D. Test', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1 };
+    const bhs = getBankHolidays(2026);
+    const overrides = bhs.map(d => ({ memberName: 'D. Test', date: _bhKey(d), value: 'RD', type: 'correction', source: 'manual' }));
+    overrides[0] = { memberName: 'D. Test', date: _bhKey(bhs[0]), value: '09:00-17:00', type: 'rdw', source: 'manual' };
+    assert.equal(getALEntitlement(member, 2026, overrides), 23);
+});
+
+test('getALEntitlement: Dispatcher lieu count honours override precedence (manual RDW beats a stale import RD on a BH)', () => {
+    // The lieu count uses shouldReplaceOverride, not last-in-array-wins: a stale roster_import RD listed
+    // AFTER the manual RDW must not shadow it (that would miscount the entitlement by Firestore order).
+    const member = { name: 'D. Test', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1 };
+    const bhs = getBankHolidays(2026);
+    // Every OTHER BH → RD; on bhs[0] a manual RDW competes with a stale import RD listed after it.
+    const overrides = bhs.slice(1).map(d => ({ memberName: 'D. Test', date: _bhKey(d), value: 'RD', type: 'correction', source: 'manual' }));
+    overrides.push({ memberName: 'D. Test', date: _bhKey(bhs[0]), value: '09:00-17:00', type: 'rdw',       source: 'manual',        createdAt: { seconds: 50 } });
+    overrides.push({ memberName: 'D. Test', date: _bhKey(bhs[0]), value: 'RD',          type: 'correction', source: 'roster_import', createdAt: { seconds: 100 } });
+    assert.equal(getALEntitlement(member, 2026, overrides), 23, 'manual RDW wins → the BH counts as worked');
 });
 
 test('getALEntitlement: all CEAs incl. fixed-line (C. Reen) get the standard 32 — no fixed premium', () => {
@@ -846,6 +873,23 @@ test('getSpecialDayBadges: returns objects with icon and title fields', () => {
 });
 
 // ---------------------------------------------------------------------------
+// parseISODate
+// ---------------------------------------------------------------------------
+
+test('parseISODate: parses YYYY-MM-DD to the correct local calendar day at noon', () => {
+    const d = parseISODate('2026-03-18');
+    assert.equal(d.getFullYear(), 2026);
+    assert.equal(d.getMonth(), 2);      // March (0-indexed)
+    assert.equal(d.getDate(), 18);
+    assert.equal(d.getHours(), 12);     // noon anchor — the DST/BST off-by-one guard
+});
+
+test('parseISODate: round-trips with formatISO', () => {
+    for (const iso of ['2026-01-01', '2026-03-29', '2026-10-25', '2026-12-31']) {
+        assert.equal(formatISO(parseISODate(iso)), iso, `round-trip failed for ${iso}`);
+    }
+});
+
 // isSunday
 // ---------------------------------------------------------------------------
 

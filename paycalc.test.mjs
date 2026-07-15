@@ -280,6 +280,16 @@ describe('computeSL', () => {
     assert.equal(computeSL(sacGross, 'plan2', sl), expected);
   });
 
+  test('B1: earnings above the threshold are floored to a whole pound BEFORE the rate (payslip method)', () => {
+    // HMRC rounds the excess DOWN to a whole pound first, then applies 9%, then floors the deduction —
+    // the same whole-pound-first method computeTax uses. Construct excess = £1011.20:
+    //   payslip method: floor(floor(1011.20) × 0.09) = floor(1011 × 0.09) = floor(90.99) = £90
+    //   the old floor-the-product method:  floor(1011.20 × 0.09) = floor(91.008) = £91 (overstated)
+    const threshold = sl.plan2.t;
+    const sacGross = threshold + 1011.20;
+    assert.equal(computeSL(sacGross, 'plan2', sl), 90);
+  });
+
   test('plan1: lower threshold than plan2 — deducts more at same income', () => {
     const sacGross = 2500;
     const sl1 = computeSL(sacGross, 'plan1', sl);

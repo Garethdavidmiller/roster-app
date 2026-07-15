@@ -153,24 +153,57 @@ export function shouldReplaceOverride(existing, incoming) {
 }
 
 /**
- * Decide how to fold an incoming override into a cache slot (Team View's Firestore-merge loop).
+ * Reconcile a Firestore date-range snapshot into the shared override cache AUTHORITATIVELY.
  *
- * ALWAYS store the winner when it out-ranks what's cached — not only when the visible shift changes —
- * so the winner's metadata (source/createdAt) is what's cached. Otherwise a same-value manual that
- * out-ranks an import leaves the import's metadata behind, and a LATER import for that date can then
- * wrongly out-rank the manual on the next comparison (the v16.63 Team-View fix). Only the RE-RENDER
- * is gated on a visible change, so identical display data from IndexedDB vs Firestore doesn't repaint.
- * @param {any} existing  the currently-cached record (or undefined/null)
- * @param {any} incoming  the record just read
- * @returns {{ store: boolean, displayChanged: boolean }}
+ * A range query for [startStr, endStr] is the single source of truth for those dates, so the winner
+ * for each in-range key must be rebuilt from the SNAPSHOT RECORDS ALONE (deduped by
+ * `shouldReplaceOverride`), never merged against the possibly-stale existing cache. The old
+ * per-doc merge kept a cached higher-priority record alive when the snapshot no longer contained it:
+ *   • a MANUAL override deleted in Firestore, but a lower-priority IMPORT for the same date still
+ *     exists — the incoming import can't out-rank the cached manual (shouldReplaceOverride → false),
+ *     so the merge kept the deleted manual AND (because the key WAS seen) skipped the deletion pass;
+ *   • a newer import deleted, leaving only an older import — the cached newer one likewise survived.
+ * Rebuilding winners from the snapshot fixes both: whatever the snapshot says for a key wins, and any
+ * in-range key the snapshot omits entirely is a genuine delete.
+ *
+ * The cache is mutated in place. Returns whether any in-range slot's DISPLAY changed (added, removed,
+ * or type/value/note differs) so a caller can gate a re-render; metadata-only differences (a new
+ * winner with the same visible shift) still update the cache but don't force a repaint.
+ *
+ * @param {Map<string, any>} cache     the shared rosterOverridesCache (mutated in place)
+ * @param {Array<{ memberName: string, date: string, record: any }>} records  validated snapshot rows
+ * @param {string} startStr  'YYYY-MM-DD' inclusive range start
+ * @param {string} endStr    'YYYY-MM-DD' inclusive range end
+ * @returns {boolean} true if any in-range cache slot's display changed
  */
-export function foldOverrideIntoCache(existing, incoming) {
-    if (!shouldReplaceOverride(existing, incoming)) return { store: false, displayChanged: false };
-    const displayChanged = !existing
-        || existing.type  !== incoming.type
-        || existing.value !== incoming.value
-        || existing.note  !== incoming.note;
-    return { store: true, displayChanged };
+export function reconcileRangeIntoCache(cache, records, startStr, endStr) {
+    // 1. Fresh authoritative winners for this range, from the snapshot alone.
+    const winners = new Map();
+    for (const { memberName, date, record } of records) {
+        const key = `${memberName}|${date}`;
+        if (shouldReplaceOverride(winners.get(key), record)) winners.set(key, record);
+    }
+    let displayChanged = false;
+    // 2. Evict in-range cache keys the snapshot no longer covers (deleted in Firestore).
+    for (const key of [...cache.keys()]) {
+        const dateStr = key.slice(key.indexOf('|') + 1);
+        if (dateStr >= startStr && dateStr <= endStr && !winners.has(key)) {
+            cache.delete(key);
+            displayChanged = true;
+        }
+    }
+    // 3. Store each fresh winner (always — so its metadata is authoritative), flagging visible changes.
+    for (const [key, record] of winners) {
+        const existing = cache.get(key);
+        if (!existing
+            || existing.type  !== record.type
+            || existing.value !== record.value
+            || existing.note  !== record.note) {
+            displayChanged = true;
+        }
+        cache.set(key, record);
+    }
+    return displayChanged;
 }
 
 /** True when a "YYYY-MM-DD" date string falls on a Sunday (UTC-safe, no timezone drift).

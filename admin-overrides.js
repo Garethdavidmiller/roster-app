@@ -12,7 +12,7 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE } from './roster-data.js';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE, parseISODate } from './roster-data.js';
 import { isRestShift, shouldReplaceOverride } from './override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
@@ -123,6 +123,25 @@ const _overridesReady = new Promise(res => { _resolveOverridesReady = res; });
 /** @returns {Promise<void>} Resolves when the initial override load has settled (success or failure). */
 export function whenOverridesReady() { return _overridesReady; }
 
+// SUCCESS state, separate from the settled promise above (Finding #2, v16.97). `_overridesReady`
+// resolves on FAILURE too (so the Save button never hangs on an unreachable Firestore), but a failed
+// initial read leaves `_allOverrides` EMPTY — and the cache-reading write decisions (recordRangeOverrides'
+// ovByDate, the click handler's validateShiftRules + AL entitlement) would then silently build from
+// nothing: an existing roster_import doc wouldn't be deleted (duplicate overrides), a not-yet-loaded
+// worked Sunday could be erased by an RD correction, a real <12h rest gap missed. So those paths ALSO
+// check this flag and REFUSE to write on a never-successfully-loaded cache (with a clear "reload" message),
+// rather than corrupt data. Set true by a successful loadOverrides OR an explicit setAllOverrides; once
+// true it stays true (a later refresh failure leaves the last-good data intact — safe to keep writing).
+let _cacheLoadedOk = false;
+/** @returns {boolean} True once the override cache has been authoritatively populated at least once. */
+export function isOverrideCacheLoaded() { return _cacheLoadedOk; }
+
+// Saved-Changes list query cap. orderBy('date','desc') + this limit means the NEWEST 5000 overrides
+// load; beyond that the oldest aren't fetched. `_overridesTruncated` records a cap hit so renderTable
+// can tell the admin the list is partial rather than silently showing a subset (Finding #8, v16.99).
+const OVERRIDES_QUERY_CAP = 5000;
+let _overridesTruncated = false;
+
 // ── PUBLIC STATE ACCESSORS ────────────────────────────────────────────────────
 export function getAllOverrides()    { return _allOverrides; }
 /** @param {any[]} arr */
@@ -133,6 +152,7 @@ export function setAllOverrides(arr) {
     // delete-path cache mutations in admin-app), so readiness is already resolved; it also lets the
     // write-path unit tests, which seed the cache via setAllOverrides() rather than loadOverrides(),
     // satisfy the whenOverridesReady() gate. (v16.85)
+    _cacheLoadedOk = true;   // an authoritative set counts as a successful load (Finding #2)
     _resolveOverridesReady();
 }
 
@@ -145,7 +165,7 @@ export function resetTableMemberFilter() {
 /** Returns a new Date set to the Sunday of the week containing dateStr. */
 /** @param {string} dateStr */
 function getSundayOfWeek(dateStr) {
-    const d = new Date(dateStr + 'T12:00:00');
+    const d = parseISODate(dateStr);
     d.setDate(d.getDate() - d.getDay());
     return d;
 }
@@ -186,7 +206,7 @@ export function isWorkingDate(memberObj, dateStr, ovByDate) {
     if (isSunday(dateStr)) return false;
     const ov = ovByDate.get(dateStr);
     if (ov) return !isRestShift(ov.value);
-    return !isRestShift(getBaseShift(memberObj, new Date(dateStr + 'T12:00:00')));
+    return !isRestShift(getBaseShift(memberObj, parseISODate(dateStr)));
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -823,7 +843,7 @@ function _initBulkBar() {
         let stagedChanged = false;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
-            const dayIdx   = new Date((row.dataset.date ?? '') + 'T12:00:00').getDay();
+            const dayIdx   = parseISODate((row.dataset.date ?? '')).getDay();
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
             if (dayIdx >= 1 && dayIdx <= 5) {
@@ -848,7 +868,7 @@ function _initBulkBar() {
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const dateISO  = row.dataset.date ?? '';
-            const date     = new Date(dateISO + 'T12:00:00');
+            const date     = parseISODate(dateISO);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
             const base = member ? getBaseShift(member, date) : 'RD';
@@ -940,6 +960,15 @@ export async function executeSave(toSave, toDelete = []) {
     // snapshot can resolve AFTER this write and overwrite `_allOverrides`, silently dropping the
     // change we just saved from the Saved-changes list (v16.85).
     await whenOverridesReady();
+    // A failed initial load leaves the cache empty; the just-computed toSave/toDelete would still write
+    // correctly to Firestore, but the admin is operating blind (their Saved-Changes view never loaded).
+    // Refuse uniformly with the other write paths and prompt a reload (Finding #2, v16.97).
+    if (!_cacheLoadedOk) {
+        _showError("Couldn't load your saved changes — reload the page before making changes.");
+        if (saveBtn) { saveBtn.textContent = 'Save changes'; }
+        updateSaveBtn();
+        return;
+    }
     if (!auth.currentUser) {
         _showError("You've been signed out — please sign in again.");
         // This early return is before the try/finally — restore the button state it can't.
@@ -1038,9 +1067,21 @@ export async function loadOverrides() {
         '<div role="status"><span class="visually-hidden">Loading saved changes…</span></div>'
         + '<div class="skeleton-row" aria-hidden="true"></div>'.repeat(3);
     try {
-        const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
+        // Fetch CAP+1 (orderBy date DESC) so "genuinely more than CAP exist" is distinguishable from
+        // "exactly CAP" — the +1 row only returns in the former case (mirrors getClientErrors' limit+1
+        // truncation probe, so the banner never false-alarms at exactly CAP).
+        const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(OVERRIDES_QUERY_CAP + 1)));
         _allOverrides = [];
         snap.forEach(/** @param {any} s */ s => _allOverrides.push({ id: s.id, ...s.data() }));
+        // More than CAP means the OLDEST overrides beyond it aren't shown — surface that rather than
+        // silently showing a partial list (no-silent-caps). Trim the probe row so the list is exactly the
+        // CAP newest; editing recent dates is unaffected, only very old bookings are omitted. (Finding #8)
+        _overridesTruncated = snap.size > OVERRIDES_QUERY_CAP;
+        if (_overridesTruncated) {
+            _allOverrides.length = OVERRIDES_QUERY_CAP;   // drop the +1 probe row (already date-desc sorted)
+            console.warn(`[Admin] Override query hit the ${OVERRIDES_QUERY_CAP}-doc cap — oldest overrides not loaded. Consider archiving old overrides.`);
+        }
+        _cacheLoadedOk = true;   // the cache now holds authoritative data — write paths may proceed (Finding #2)
         renderTable();
         const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
         const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
@@ -1124,7 +1165,10 @@ export function renderTable() {
     if (listCount) {
         const label   = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
         const context = _tableShowAllOverrides ? ' (all staff)' : '';
-        listCount.textContent = label + context;
+        // No-silent-caps: when the load hit the query cap, say the list is the most-recent subset so
+        // an admin isn't misled into thinking an unlisted old booking doesn't exist (Finding #8).
+        const capped  = _overridesTruncated ? ` — showing the ${OVERRIDES_QUERY_CAP} most recent; older changes aren't listed` : '';
+        listCount.textContent = label + context + capped;
     }
 
     if (!rows.length) {
@@ -1409,7 +1453,7 @@ export function getEffectiveShift(memberName, dateISO, batch, toDelete = []) {
     }
     if (best) return best.value;
     const member = teamMembers.find(m => m.name === memberName);
-    return member ? getBaseShift(member, new Date(dateISO + 'T12:00:00')) : 'RD';
+    return member ? getBaseShift(member, parseISODate(dateISO)) : 'RD';
 }
 
 /**
@@ -1457,7 +1501,7 @@ export function validateShiftRules(toSave, memberName, toDelete = []) {
 
         // Check rest gap against adjacent days
         [-1, 1].forEach(delta => {
-            const adjDate = new Date(date + 'T12:00:00');
+            const adjDate = parseISODate(date);
             adjDate.setDate(adjDate.getDate() + delta);
             const adjISO   = formatISO(adjDate);
             let adjShift = getEffectiveShift(memberName, adjISO, toSave, toDelete);
@@ -1472,7 +1516,7 @@ export function validateShiftRules(toSave, memberName, toDelete = []) {
                     return;
                 } else {
                     const _adjMember = teamMembers.find(m => m.name === memberName);
-                    adjShift = _adjMember ? getBaseShift(_adjMember, new Date(adjISO + 'T12:00:00')) : '';
+                    adjShift = _adjMember ? getBaseShift(_adjMember, parseISODate(adjISO)) : '';
                     if (parseOtherValue(adjShift) || isRestShift(adjShift)) return;
                 }
             }
@@ -1529,6 +1573,10 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // returns an empty map, so an existing roster_import shift wouldn't be deleted (duplicate) and a
     // not-yet-loaded worked Sunday could be erased by an RD correction (v16.85).
     await whenOverridesReady();
+    // If that initial read FAILED the cache is empty, not merely cold — writing now would build the
+    // exact duplicate/erased-Sunday corruption the wait above guards against. Refuse rather than corrupt;
+    // the caller surfaces a "reload before recording" message (Finding #2, v16.97).
+    if (!_cacheLoadedOk) throw new Error('cache/load-failed');
     if (!auth.currentUser) throw new Error('auth/session-expired');
 
     const memberObj = teamMembers.find(m => m.name === memberName);
@@ -1546,7 +1594,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     const sundayCorrections = memberObj
         ? dates.filter(dateStr => {
             if (!isSunday(dateStr)) return false;
-            const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+            const base = getBaseShift(memberObj, parseISODate(dateStr));
             if (isRestShift(base)) return false;
             // Skip the RD correction when the existing override is already a rest shift (RD/OFF —
             // nothing to correct, avoid churn) OR is a genuinely WORKED override that correction/RD
