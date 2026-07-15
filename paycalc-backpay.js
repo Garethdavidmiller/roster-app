@@ -28,8 +28,9 @@ import { fd, fdShort, fmt } from './paycalc-format.js';
  * The currently OFFERED (but not-yet-confirmed) annual pay award, as a percentage. Used to
  * pre-fill the back-pay card's "Pay rise %" so it opens with a live estimate — only while the
  * award year is unconfirmed (`ty.rateUnconfirmed`); once the real rate is entered/confirmed this
- * default no longer applies. UPDATE (or remove) when the award is agreed / a new one is offered.
- * Current: the 3.6% offered Jul 2026, awaiting RMT acceptance.
+ * default no longer applies. UPDATE (or remove) when the award is confirmed on payslips / a new one
+ * is offered. Current: 3.6% — ACCEPTED by the RMT Jul 2026, awaiting payment (expected on the 31 Jul
+ * payslip). Still an estimate here (`rateUnconfirmed` stays true) until a real payslip confirms it.
  */
 const PENDING_AWARD_PCT = 3.6;
 
@@ -130,7 +131,7 @@ export function prefillBackPay() {
   if (!oldRateEl.value && award && award.pre != null) oldRateEl.value = award.pre.toFixed(2);
 
   if (ty.rateUnconfirmed) {
-    // Offered-but-unconfirmed award (e.g. the 2026/27 rise awaiting RMT acceptance): the OLD rate
+    // Accepted-but-unconfirmed award (e.g. the 2026/27 rise accepted by the RMT, awaiting payment): the OLD rate
     // is the prior year's rate (prefilled above from AWARD_RATES, or the stored rate as a fallback
     // for a grade with no recorded pre), and the NEW rate is not yet known — so leave NEW blank for
     // the "Pay rise %" helper (defaulted below) or manual entry.
@@ -343,8 +344,8 @@ export function calcBackPay() {
   const applyWrap  = document.getElementById('applyRateWrap');
   const applyBtn   = document.getElementById('applyRateBtn');
 
-  // Estimate banner — visible whenever the award's tax-year rates are still unconfirmed
-  // (offered, awaiting acceptance). Set before the early return so it shows the moment the
+  // Estimate banner — visible whenever the award's tax-year rates are still unconfirmed (accepted
+  // by the RMT but not yet confirmed on payslips). Set before the early return so it shows the moment the
   // card opens, even before any figures are entered.
   const estimateNote = document.getElementById('bpEstimateNote');
   if (estimateNote) estimateNote.style.display = awardTy?.rateUnconfirmed ? 'block' : 'none';
@@ -524,7 +525,7 @@ export function calcBackPay() {
   const newBpPNum   = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;
   const newBpAmt    = newBpPNum > 0 ? grandTotal    : 0;
   const newBpVarAmt = newBpPNum > 0 ? grandVarTotal : 0;
-  // bpIsEstimate: the lump derives from an offered-but-unconfirmed award (the 3.6% default) —
+  // bpIsEstimate: the lump derives from an accepted-but-unconfirmed award (the 3.6% default) —
   // the result card must say "estimated" wherever it surfaces this figure.
   return { bpAmount: newBpAmt, bpVarAmount: newBpVarAmt, bpPNum: newBpPNum,
            bpIsEstimate: !!awardTy?.rateUnconfirmed, bpIncluded };

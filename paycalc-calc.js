@@ -111,7 +111,7 @@ export const GRADES = {
 export const AWARD_RATES = {
   cea: {
     '2025/26': { rate: 20.74, pre: 20.06 },
-    '2026/27': { rate: null,  pre: 20.74 }, // pending — 3.6% offered, awaiting RMT
+    '2026/27': { rate: null,  pre: 20.74 }, // 3.6% accepted by RMT (Jul 2026), awaiting payslip confirmation
   },
   ces: {
     '2025/26': { rate: 21.81, pre: null },  // 2024/25 CES rate not on record

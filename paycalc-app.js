@@ -371,7 +371,7 @@ export function init() {
             const notice = document.getElementById('settingsNewYearNotice');
             if (notice) {
               notice.textContent = ty.rateUnconfirmed
-                ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Update once your payslip reflects the new rate (awards are often backdated to April), then tap Save settings.`
+                ? `New tax year ${ty.label} — the 3.6% pay award has been accepted by the RMT but isn't confirmed on payslips yet. The default rate may still be last year's; update once your payslip reflects the new rate, then tap Save settings.`
                 : `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
               notice.classList.remove('hidden');
             }
