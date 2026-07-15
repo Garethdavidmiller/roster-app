@@ -123,6 +123,19 @@ const _overridesReady = new Promise(res => { _resolveOverridesReady = res; });
 /** @returns {Promise<void>} Resolves when the initial override load has settled (success or failure). */
 export function whenOverridesReady() { return _overridesReady; }
 
+// SUCCESS state, separate from the settled promise above (Finding #2, v16.97). `_overridesReady`
+// resolves on FAILURE too (so the Save button never hangs on an unreachable Firestore), but a failed
+// initial read leaves `_allOverrides` EMPTY — and the cache-reading write decisions (recordRangeOverrides'
+// ovByDate, the click handler's validateShiftRules + AL entitlement) would then silently build from
+// nothing: an existing roster_import doc wouldn't be deleted (duplicate overrides), a not-yet-loaded
+// worked Sunday could be erased by an RD correction, a real <12h rest gap missed. So those paths ALSO
+// check this flag and REFUSE to write on a never-successfully-loaded cache (with a clear "reload" message),
+// rather than corrupt data. Set true by a successful loadOverrides OR an explicit setAllOverrides; once
+// true it stays true (a later refresh failure leaves the last-good data intact — safe to keep writing).
+let _cacheLoadedOk = false;
+/** @returns {boolean} True once the override cache has been authoritatively populated at least once. */
+export function isOverrideCacheLoaded() { return _cacheLoadedOk; }
+
 // ── PUBLIC STATE ACCESSORS ────────────────────────────────────────────────────
 export function getAllOverrides()    { return _allOverrides; }
 /** @param {any[]} arr */
@@ -133,6 +146,7 @@ export function setAllOverrides(arr) {
     // delete-path cache mutations in admin-app), so readiness is already resolved; it also lets the
     // write-path unit tests, which seed the cache via setAllOverrides() rather than loadOverrides(),
     // satisfy the whenOverridesReady() gate. (v16.85)
+    _cacheLoadedOk = true;   // an authoritative set counts as a successful load (Finding #2)
     _resolveOverridesReady();
 }
 
@@ -940,6 +954,15 @@ export async function executeSave(toSave, toDelete = []) {
     // snapshot can resolve AFTER this write and overwrite `_allOverrides`, silently dropping the
     // change we just saved from the Saved-changes list (v16.85).
     await whenOverridesReady();
+    // A failed initial load leaves the cache empty; the just-computed toSave/toDelete would still write
+    // correctly to Firestore, but the admin is operating blind (their Saved-Changes view never loaded).
+    // Refuse uniformly with the other write paths and prompt a reload (Finding #2, v16.97).
+    if (!_cacheLoadedOk) {
+        _showError("Couldn't load your saved changes — reload the page before making changes.");
+        if (saveBtn) { saveBtn.textContent = 'Save changes'; }
+        updateSaveBtn();
+        return;
+    }
     if (!auth.currentUser) {
         _showError("You've been signed out — please sign in again.");
         // This early return is before the try/finally — restore the button state it can't.
@@ -1041,6 +1064,7 @@ export async function loadOverrides() {
         const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
         _allOverrides = [];
         snap.forEach(/** @param {any} s */ s => _allOverrides.push({ id: s.id, ...s.data() }));
+        _cacheLoadedOk = true;   // the cache now holds authoritative data — write paths may proceed (Finding #2)
         renderTable();
         const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
         const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
@@ -1529,6 +1553,10 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // returns an empty map, so an existing roster_import shift wouldn't be deleted (duplicate) and a
     // not-yet-loaded worked Sunday could be erased by an RD correction (v16.85).
     await whenOverridesReady();
+    // If that initial read FAILED the cache is empty, not merely cold — writing now would build the
+    // exact duplicate/erased-Sunday corruption the wait above guards against. Refuse rather than corrupt;
+    // the caller surfaces a "reload before recording" message (Finding #2, v16.97).
+    if (!_cacheLoadedOk) throw new Error('cache/load-failed');
     if (!auth.currentUser) throw new Error('auth/session-expired');
 
     const memberObj = teamMembers.find(m => m.name === memberName);

@@ -20,7 +20,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
@@ -903,6 +903,11 @@ export function init() {
         // harmless recompute). (v16.85)
         saveBtn.disabled = true;
         await whenOverridesReady();
+        // A failed initial load leaves the cache empty — validateShiftRules would see no adjacent
+        // shifts (a real <12h rest gap missed) and the AL entitlement check would read zero existing
+        // leave. Refuse to validate/save against it and prompt a reload (Finding #2, v16.97). The
+        // finally restores the button; this returns BEFORE the misleading validation runs.
+        if (!isOverrideCacheLoaded()) return showError("Couldn't load saved changes — reload the page before making changes.");
 
         // Validate shift duration and rest-gap rules
         const ruleErrors = validateShiftRules(toSave, memberName, toDelete);

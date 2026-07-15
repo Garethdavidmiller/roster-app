@@ -177,9 +177,13 @@ export function createRangeBookingSection(cfg) {
                 // has already resynced the Saved-changes list from Firestore, so the admin can see
                 // exactly what did land before retrying (v16.25).
                 ? '⚠ The connection dropped part-way — some days may already be saved. The saved changes list has been refreshed; check it before trying again.'
-                : (/** @type {any} */ (err)).message === 'auth/session-expired'
-                    ? "⚠ You've been signed out — please sign in again."
-                    : "⚠ Couldn't save — check your connection and try again.";
+                : (/** @type {any} */ (err)).message === 'cache/load-failed'
+                    // The initial saved-changes read never succeeded, so recordRangeOverrides refused to
+                    // write against an empty cache (would duplicate overrides / erase a worked Sunday).
+                    ? "⚠ Couldn't load saved changes — reload the page before recording this."
+                    : (/** @type {any} */ (err)).message === 'auth/session-expired'
+                        ? "⚠ You've been signed out — please sign in again."
+                        : "⚠ Couldn't save — check your connection and try again.";
         } finally {
             // Restore the button LABEL only — let updatePreview() govern the disabled state. On the
             // SUCCESS path picker.reset() has already cleared the range and updatePreview() disabled
