@@ -4,7 +4,7 @@
 // conflict detection, and Firestore batch write.
 // Called by operations-app.js via initRosterUpload().
 
-import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js';
+import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { shouldReplaceOverride, isOtherValue, parseOtherValue } from './override-utils.js';
 
@@ -85,7 +85,7 @@ export function detectShiftedRow(member, shifts, dates) {
         return normRest(isRdwEncoded(v) ? stripRdw(v) : v);
     };
     const baseAt = (/** @type {string} */ date, /** @type {number} */ offset) => {
-        const d = new Date(date + 'T12:00:00');
+        const d = parseISODate(date);
         d.setDate(d.getDate() + offset);
         return normRest(getBaseShift(member, d));
     };
@@ -258,7 +258,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // chunk as permission-denied with a misleading "session may have expired" error.
             // Route it to the skip-only UNREADABLE row instead — never written (v16.23).
             if (parsedShift === 'RDW') parsedShift = 'UNKNOWN|RDW (no time on roster)';
-            const baseShift    = getBaseShift(member, new Date(date + 'T12:00:00'));
+            const baseShift    = getBaseShift(member, parseISODate(date));
             const key          = `${entry.memberName}|${date}`;
             const existing     = overrideMap.get(key);
 
@@ -457,7 +457,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     // to the next Saturday automatically.
     weekEndingEl.addEventListener('change', () => {
         if (!weekEndingEl.value) return;
-        const picked = new Date(weekEndingEl.value + 'T12:00:00');
+        const picked = parseISODate(weekEndingEl.value);
         const day    = picked.getDay(); // 0=Sun … 6=Sat
         if (day !== 6) {
             const daysToSaturday = day === 0 ? 6 : 6 - day;
@@ -845,7 +845,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             for (const date of changedDates) {
                 const key = `${entry.memberName}|${date}`;
                 const s   = cellStates.get(key);
-                const dt  = new Date(date + 'T12:00:00');
+                const dt  = parseISODate(date);
                 const dayName = DAY_NAMES[dt.getDay()];
                 const dateStr = `${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
 
@@ -1033,7 +1033,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         refreshOutcome();   // fills the outcome summary + sets the Save button label/disabled state
 
         // ---- Week-ending heading (the counts now live in the outcome summary above the list) ----
-        const weekEndDate = new Date(weekEnding + 'T12:00:00');
+        const weekEndDate = parseISODate(weekEnding);
         const formatted   = weekEndDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
         reviewLabel.textContent = `Week ending ${formatted}`;
 

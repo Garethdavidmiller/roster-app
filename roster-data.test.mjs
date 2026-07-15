@@ -38,6 +38,8 @@ import {
     avatarHue,
     getSpecialDayBadges,
     isSunday,
+    parseISODate,
+    formatISO,
     CONFIG,
     fixedRoster,
     isValidEmail,
@@ -871,6 +873,23 @@ test('getSpecialDayBadges: returns objects with icon and title fields', () => {
 });
 
 // ---------------------------------------------------------------------------
+// parseISODate
+// ---------------------------------------------------------------------------
+
+test('parseISODate: parses YYYY-MM-DD to the correct local calendar day at noon', () => {
+    const d = parseISODate('2026-03-18');
+    assert.equal(d.getFullYear(), 2026);
+    assert.equal(d.getMonth(), 2);      // March (0-indexed)
+    assert.equal(d.getDate(), 18);
+    assert.equal(d.getHours(), 12);     // noon anchor — the DST/BST off-by-one guard
+});
+
+test('parseISODate: round-trips with formatISO', () => {
+    for (const iso of ['2026-01-01', '2026-03-29', '2026-10-25', '2026-12-31']) {
+        assert.equal(formatISO(parseISODate(iso)), iso, `round-trip failed for ${iso}`);
+    }
+});
+
 // isSunday
 // ---------------------------------------------------------------------------
 

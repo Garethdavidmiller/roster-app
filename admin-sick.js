@@ -6,7 +6,7 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
 // functions via initSickSection(deps) to avoid circular imports.
 
-import { escapeHtml } from './roster-data.js';
+import { escapeHtml, parseISODate } from './roster-data.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 
 const esc = escapeHtml;
@@ -43,10 +43,10 @@ export function initSickSection({
         logLabel: 'Sick',
         // Maximum range is 1 year (to allow for maternity / long-term absence).
         validateRange: (dates) => {
-            const from  = new Date(dates[0] + 'T12:00:00');
+            const from  = parseISODate(dates[0]);
             const maxTo = new Date(from);
             maxTo.setFullYear(maxTo.getFullYear() + 1);
-            const to    = new Date(dates[dates.length - 1] + 'T12:00:00');
+            const to    = parseISODate(dates[dates.length - 1]);
             return to > maxTo ? 'Maximum range is 1 year.' : null;
         },
         renderReady: ({ member, rangeStr, workDays, restCount }) => {

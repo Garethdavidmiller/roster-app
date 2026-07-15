@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '17.05';
+export const APP_VERSION = '17.06';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -1058,13 +1058,26 @@ export function formatISO(d) {
 }
 
 /**
+ * Parse a "YYYY-MM-DD" string to a Date at LOCAL NOON — the read-side inverse of formatISO().
+ * The noon anchor (not midnight) avoids the DST/BST off-by-one where `new Date("YYYY-MM-DD")`
+ * (parsed as UTC midnight) becomes the PREVIOUS day in timezones behind UTC. Always use this instead
+ * of inlining `new Date(str + 'T12:00:00')` at a call site, so the noon convention can't be forgotten
+ * (which is exactly how a one-day drift creeps in). Pairs with formatISO() (the write direction).
+ * @param {string} dateStr  "YYYY-MM-DD"
+ * @returns {Date}
+ */
+export function parseISODate(dateStr) {
+    return new Date(dateStr + 'T12:00:00');
+}
+
+/**
  * Returns true if the ISO date string falls on a Sunday.
  * Sundays are uncontracted for all staff — they never count as AL or sick days.
  * @param {string} dateStr  YYYY-MM-DD
  * @returns {boolean}
  */
 export function isSunday(dateStr) {
-    return new Date(dateStr + 'T12:00:00').getDay() === 0;
+    return parseISODate(dateStr).getDay() === 0;
 }
 
 // Run validations immediately at module load.

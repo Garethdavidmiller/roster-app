@@ -12,7 +12,7 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE } from './roster-data.js';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE, parseISODate } from './roster-data.js';
 import { isRestShift, shouldReplaceOverride } from './override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
@@ -165,7 +165,7 @@ export function resetTableMemberFilter() {
 /** Returns a new Date set to the Sunday of the week containing dateStr. */
 /** @param {string} dateStr */
 function getSundayOfWeek(dateStr) {
-    const d = new Date(dateStr + 'T12:00:00');
+    const d = parseISODate(dateStr);
     d.setDate(d.getDate() - d.getDay());
     return d;
 }
@@ -206,7 +206,7 @@ export function isWorkingDate(memberObj, dateStr, ovByDate) {
     if (isSunday(dateStr)) return false;
     const ov = ovByDate.get(dateStr);
     if (ov) return !isRestShift(ov.value);
-    return !isRestShift(getBaseShift(memberObj, new Date(dateStr + 'T12:00:00')));
+    return !isRestShift(getBaseShift(memberObj, parseISODate(dateStr)));
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -843,7 +843,7 @@ function _initBulkBar() {
         let stagedChanged = false;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
-            const dayIdx   = new Date((row.dataset.date ?? '') + 'T12:00:00').getDay();
+            const dayIdx   = parseISODate((row.dataset.date ?? '')).getDay();
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
             if (dayIdx >= 1 && dayIdx <= 5) {
@@ -868,7 +868,7 @@ function _initBulkBar() {
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const dateISO  = row.dataset.date ?? '';
-            const date     = new Date(dateISO + 'T12:00:00');
+            const date     = parseISODate(dateISO);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
             const base = member ? getBaseShift(member, date) : 'RD';
@@ -1453,7 +1453,7 @@ export function getEffectiveShift(memberName, dateISO, batch, toDelete = []) {
     }
     if (best) return best.value;
     const member = teamMembers.find(m => m.name === memberName);
-    return member ? getBaseShift(member, new Date(dateISO + 'T12:00:00')) : 'RD';
+    return member ? getBaseShift(member, parseISODate(dateISO)) : 'RD';
 }
 
 /**
@@ -1501,7 +1501,7 @@ export function validateShiftRules(toSave, memberName, toDelete = []) {
 
         // Check rest gap against adjacent days
         [-1, 1].forEach(delta => {
-            const adjDate = new Date(date + 'T12:00:00');
+            const adjDate = parseISODate(date);
             adjDate.setDate(adjDate.getDate() + delta);
             const adjISO   = formatISO(adjDate);
             let adjShift = getEffectiveShift(memberName, adjISO, toSave, toDelete);
@@ -1516,7 +1516,7 @@ export function validateShiftRules(toSave, memberName, toDelete = []) {
                     return;
                 } else {
                     const _adjMember = teamMembers.find(m => m.name === memberName);
-                    adjShift = _adjMember ? getBaseShift(_adjMember, new Date(adjISO + 'T12:00:00')) : '';
+                    adjShift = _adjMember ? getBaseShift(_adjMember, parseISODate(adjISO)) : '';
                     if (parseOtherValue(adjShift) || isRestShift(adjShift)) return;
                 }
             }
@@ -1594,7 +1594,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     const sundayCorrections = memberObj
         ? dates.filter(dateStr => {
             if (!isSunday(dateStr)) return false;
-            const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+            const base = getBaseShift(memberObj, parseISODate(dateStr));
             if (isRestShift(base)) return false;
             // Skip the RD correction when the existing override is already a rest shift (RD/OFF —
             // nothing to correct, avoid churn) OR is a genuinely WORKED override that correction/RD

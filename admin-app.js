@@ -14,7 +14,7 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -370,7 +370,7 @@ export function init() {
     const _urlDate = new URLSearchParams(location.search).get('date');
     fieldDate.value = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : formatISO(new Date());
     (function updateWeekNavLabelFromDate() {
-        const d    = new Date(fieldDate.value + 'T12:00:00');
+        const d    = parseISODate(fieldDate.value);
         const sun  = new Date(d); sun.setDate(d.getDate() - d.getDay());
         const sat  = new Date(sun); sat.setDate(sun.getDate() + 6);
         const weekNavLabel   = document.getElementById('weekNavLabel');
@@ -476,7 +476,7 @@ export function init() {
      */
     function shiftWeek(delta) {
         const go = () => {
-            const d = new Date(fieldDate.value + 'T12:00:00');
+            const d = parseISODate(fieldDate.value);
             d.setDate(d.getDate() + delta * 7);
             fieldDate.value = formatISO(d);
             lastFieldDate = fieldDate.value;
@@ -526,7 +526,7 @@ export function init() {
         // Build a fully-functional adjacent week panel offset off-screen by delta weeks.
         /** @param {any} delta */
         function buildAdjPanel(delta) {
-            const d = new Date(fieldDate.value + 'T12:00:00');
+            const d = parseISODate(fieldDate.value);
             d.setDate(d.getDate() + delta * 7);
             const panel = document.createElement('div');
             panel.className = 'week-panel week-carousel-panel';
@@ -624,7 +624,7 @@ export function init() {
                 if (!incoming) { snapBack(); return; }
 
                 // Commit: advance date state before animation so label is correct
-                const d = new Date(fieldDate.value + 'T12:00:00');
+                const d = parseISODate(fieldDate.value);
                 d.setDate(d.getDate() + (goLeft ? +7 : -7));
                 fieldDate.value = lastFieldDate = formatISO(d);
                 updateWeekNavLabel(fieldDate.value);
@@ -1340,7 +1340,7 @@ export function init() {
      * @param {number} n
      */
     function _addDays(dateStr, n) {
-        const d = new Date(dateStr + 'T12:00:00');
+        const d = parseISODate(dateStr);
         d.setDate(d.getDate() + n);
         return formatISO(d);
     }
@@ -1352,13 +1352,13 @@ export function init() {
     function _isRestGap(dateStr, memberObj) {
         if (isSunday(dateStr)) return true; // Sunday — uncontracted
         if (!memberObj) return false;
-        const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+        const shift = getBaseShift(memberObj, parseISODate(dateStr));
         return isRestShift(shift);
     }
 
     /** @param {string} d */
     function _fmtPeriodDate(d) {
-        const dt = new Date(d + 'T12:00:00');
+        const dt = parseISODate(d);
         return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
     }
 
@@ -1367,8 +1367,8 @@ export function init() {
      * @param {string} end
      */
     function _fmtPeriodRange(start, end) {
-        const ds = new Date(start + 'T12:00:00');
-        const de = new Date(end   + 'T12:00:00');
+        const ds = parseISODate(start);
+        const de = parseISODate(end  );
         if (ds.getMonth() === de.getMonth()) {
             return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
         }
@@ -1768,7 +1768,7 @@ export function init() {
             calPill.dataset.monthPersistWired = '1';
             calPill.addEventListener('click', () => {
                 if (fieldDate.value) {
-                    const d = new Date(fieldDate.value + 'T12:00:00');
+                    const d = parseISODate(fieldDate.value);
                     lsSet(VIEWED_MONTH, d.getMonth());     // 0-indexed, matches app.js
                     lsSet(VIEWED_YEAR,  d.getFullYear());
                 }
