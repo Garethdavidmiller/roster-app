@@ -262,6 +262,7 @@ roster-app/
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── storage-rules-static.test.mjs ← static (no-emulator) hygiene guard: asserts the 20 MB `request.resource.size` cap is present in all 3 upload blocks (the emulator suite can't practically test the size cap); part of `npm test` (test:hygiene)
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
+├── csp-hygiene.test.mjs    ← static (no-emulator) CSP guard: asserts firebase.json's Content-Security-Policy stays in step with what the app actually loads — every contacted host is permitted AND no stale origin lingers. Part of test:hygiene. (Its REQUIRED host list is itself hand-maintained — add a newly-contacted host there.)
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
 ├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, broken module graph, auth redirects) that pass all unit tests. Does NOT catch CSP header violations — the local http-server doesn't apply Firebase Hosting headers (use the Firebase Hosting emulator for CSP testing). NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
 │   ├── smoke.spec.js       ← page-load tests (calendar, admin/settings login, paycalc/settings signed-in, operations/links auth redirects) + desktop-geometry checks (calendar/team-view/admin/paycalc/operations at 1024–1440px and short heights) + B1 named-session enforcement (flag-ON: admin/settings re-show login, operations/links redirect, paycalc soft). Each run on Desktop Chrome + Pixel 5
@@ -293,7 +294,7 @@ npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions pure-helper tests (roster-parse-helpers.test.mjs) — not part of npm test
@@ -618,7 +619,7 @@ patterns    28-line full-rotation pattern data
 updatedAt   Firestore server timestamp
 updatedBy   Member name string
 ```
-Read: any authenticated session (`request.auth != null`). Write: requires the `linksDesigner` claim OR `admin` (H2, shipped v16.29 — was any-authenticated write until then). `linksDesigner` is set by `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS`; `links-app.js` wraps every write in `writeWithClaimRetry` so a stale token self-heals. Designs are **not** member-owned (no per-member isolation — any designer edits any design).
+Read: any authenticated session (`request.auth != null`). Write: requires the `linksDesigner` claim OR `admin` (H2, shipped v16.29 — was any-authenticated write until then), AND (create/update, v17.02 — Finding #12) is **shape-validated**: `hasOnly(['name','patterns','updatedAt','updatedBy'])`, `name` a 1–100 char string, `patterns` a map, `updatedAt` a timestamp, `updatedBy` a ≤100 char string (delete carries no body). `linksDesigner` is set by `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS`; `links-app.js` wraps every write in `writeWithClaimRetry` so a stale token self-heals, and saves atomically via `runTransaction` (v17.02 — Finding #13). Designs are **not** member-owned (no per-member isolation — any designer edits any design).
 Written/read by: `links-app.js` (the multi-design workspace collection).
 
 Override cache key: `"memberName|YYYY-MM-DD"`

@@ -397,6 +397,20 @@ test('paycalc.html gstatic Firebase preloads match the SDK version in firebase-c
     }
 });
 
+// CLAUDE.md states admin/operations/settings/links "deliberately have none [no modulepreloads],
+// all CI-locked by sw-asset-check.test.mjs". Only index.html + paycalc.html were actually guarded,
+// so that claim was previously unenforced. This makes it true: assert the four shallow-graph pages
+// carry ZERO modulepreload links, so a stray/wrong one added later fails CI (and the doc stays honest).
+test('admin/operations/settings/links.html carry NO modulepreload hints (per CLAUDE.md)', () => {
+    for (const page of ['admin.html', 'operations.html', 'settings.html', 'links.html']) {
+        const html = readFileSync(join(ROOT, page), 'utf8');
+        const count = [...html.matchAll(/<link rel="modulepreload"/g)].length;
+        assert.equal(count, 0,
+            `${page} has ${count} <link rel="modulepreload"> hint(s); CLAUDE.md says these pages deliberately have none. ` +
+            `Either remove them or update CLAUDE.md + add them to a per-page graph check like paycalc's.`);
+    }
+});
+
 test('service-worker.js FIREBASE_SDK_VERSION matches the SDK version firebase-client.js imports', () => {
     // The SW serves the gstatic SDK cache-first from an SDK-versioned cache (v16.10).
     // A firebase-client.js SDK bump without the matching SW constant bump would leave the
