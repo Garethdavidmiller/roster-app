@@ -49,13 +49,32 @@ export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
             // (existing registration, null controller) does NOT suppress: when a new SW claims
             // it, that is a genuine update and must reload.
             let suppressNextClaim = !existing && !navigator.serviceWorker.controller;
+            // Attach the controllerchange listener BEFORE register() (v16.88 — first-install race
+            // fix). Attached inside register().then (as it was), a very fast first-install claim
+            // could fire its controllerchange in the microtask gap AFTER register() resolves but
+            // BEFORE the listener existed — the claim would be MISSED, suppressNextClaim would stay
+            // unconsumed, and the NEXT genuine update's controllerchange would then be wrongly
+            // suppressed (leaving the device on old JS against the new SW's cache for a whole deploy
+            // cycle). Registering it here — before register() is even called — guarantees the FIRST
+            // controllerchange (the first-install claim) is the event that consumes the flag. The
+            // handler needs no `registration` reference, so the earlier attach is behaviour-neutral
+            // for every other path. Not {once:true}: a beforeReload that declines to reload (links'
+            // confirm → Cancel) must still receive the NEXT update's controllerchange, or that page
+            // silently never updates again. The default path double-fire is guarded by reloadFired.
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (suppressNextClaim) { suppressNextClaim = false; return; }
+                if (beforeReload) { beforeReload(); return; }
+                if (reloadFired) return;
+                reloadFired = true;
+                window.location.reload();
+            });
             return navigator.serviceWorker.register('./service-worker.js').then(registration => {
                 /** @param {ServiceWorker} w */
                 function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
                 // Skip the SKIP_WAITING message on first install (waiting but no controller) —
                 // the SW self-activates anyway (skipWaiting on install); messaging it is
                 // redundant there. The first-install RELOAD suppression is the suppressNextClaim
-                // check in the controllerchange handler below — this guard alone never
+                // check in the controllerchange handler above — this guard alone never
                 // prevented it, because the SW's own install-time skipWaiting + claim fire
                 // controllerchange regardless of whether we send the message.
                 if (registration.waiting && navigator.serviceWorker.controller) activate(registration.waiting);
@@ -65,17 +84,6 @@ export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
                     nw.addEventListener('statechange', () => {
                         if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
                     });
-                });
-                navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    if (suppressNextClaim) { suppressNextClaim = false; return; }
-                    // Not {once:true}: a beforeReload that declines to reload (links' confirm →
-                    // Cancel) must still receive the NEXT update's controllerchange, or that
-                    // page silently never updates again. The default path double-fire is
-                    // guarded by reloadFired instead.
-                    if (beforeReload) { beforeReload(); return; }
-                    if (reloadFired) return;
-                    reloadFired = true;
-                    window.location.reload();
                 });
                 let updateInterval = setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000);
                 document.addEventListener('visibilitychange', () => {
