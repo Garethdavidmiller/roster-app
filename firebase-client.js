@@ -15,7 +15,7 @@
 // @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported inside uploadHuddle() — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
@@ -65,7 +65,7 @@ export {
     // reads
     getDocs, getDoc, onSnapshot,
     // writes
-    addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch,
+    addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction,
 };
 
 /** Firestore collection name constants — single source of truth. Import these

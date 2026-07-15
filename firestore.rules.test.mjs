@@ -496,6 +496,41 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
     test('an anonymous session CANNOT WRITE', async () => {
         await assertFails(setDoc(doc(anonDb(), 'linkDesigns', uid()), DESIGN()));
     });
+
+    // Shape validation (v17.02 — Finding #12): create/update are schema-checked.
+    test('a designer CANNOT write an extra field (hasOnly)', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), evil: true }));
+    });
+    test('a designer CANNOT write a missing name', async () => {
+        const { name, ...noName } = DESIGN();
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), noName));
+    });
+    test('a designer CANNOT write a non-string name', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), name: 42 }));
+    });
+    test('a designer CANNOT write an over-long name (>100)', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), name: 'x'.repeat(101) }));
+    });
+    test('a designer CANNOT write a non-map patterns', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), patterns: 'nope' }));
+    });
+    test('a designer CANNOT write a missing updatedAt timestamp', async () => {
+        const { updatedAt, ...noTs } = DESIGN();
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), noTs));
+    });
+    test('a designer CAN still delete (no body to validate)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertSucceeds(deleteDoc(doc(designerDb(), 'linkDesigns', id)));
+    });
+    test('a designer CAN rename via merge:true (merge keeps patterns, so hasOnly still holds)', async () => {
+        // renameDesign writes only {name, updatedAt, updatedBy} with merge:true — request.resource.data
+        // is the full post-merge doc (existing patterns preserved), so the 4-field hasOnly passes.
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { name: 'Renamed', updatedAt: serverTimestamp(), updatedBy: 'S. Silva' }, { merge: true }));
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

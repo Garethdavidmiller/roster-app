@@ -204,8 +204,30 @@ service cloud.firestore {
       // A designer on a pre-cutover token self-heals: links-app.js wraps every linkDesigns
       // write in writeWithClaimRetry (v16.29), so a permission-denied forces a token refresh
       // and one retry — no manual sign-out needed.
-      allow write: if request.auth != null &&
-        (request.auth.token.linksDesigner == true || request.auth.token.admin == true);
+      function isLinksWriter() {
+        return request.auth != null &&
+          (request.auth.token.linksDesigner == true || request.auth.token.admin == true);
+      }
+      // Delete carries no body to validate (v17.02 — Finding #12).
+      allow delete: if isLinksWriter();
+      // Create/update are SHAPE-VALIDATED (v17.02 — Finding #12): linkDesigns was the last
+      // designer-writable collection with no schema check, so a designer/admin (or a bug on
+      // their session) could write an arbitrary/oversized document. hasOnly rejects any field
+      // beyond the known four; the `is` checks reject wrong types AND a missing field (a
+      // missing key reads as null, and `null is string` is false). `patterns` is only
+      // type-checked as a map — its nested {"1".."28":{sun..sat}} shape isn't practical to
+      // validate in rules, and the 1 MB document limit already bounds its size. The rename
+      // path's merge:true write still satisfies hasOnly because request.resource.data reflects
+      // the full post-merge document (existing patterns + the new name/updatedAt/updatedBy).
+      allow create, update: if isLinksWriter() &&
+        request.resource.data.keys().hasOnly(['name', 'patterns', 'updatedAt', 'updatedBy']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 1 &&
+        request.resource.data.name.size() <= 100 &&
+        request.resource.data.patterns is map &&
+        request.resource.data.updatedAt is timestamp &&
+        request.resource.data.updatedBy is string &&
+        request.resource.data.updatedBy.size() <= 100;
     }
 
     match /staffContact/{memberName} {
