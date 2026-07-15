@@ -168,7 +168,8 @@ roster-app/
 ├── perf-stats.js           ← pure latency maths: PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey
 ├── calendar-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle
 ├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, foldOverrideIntoCache (Team-View merge decision — store winner + gate re-render), isBeforeMemberStart, isRestShift, resolveEffectiveShift (shared override→display ladder for renderer/team-view/legend)
-├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring
+├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring. Body is an exported `init()` (Phase 4a.2) invoked by admin-boot.js — importing the module no longer auto-runs it (test seam). The in-place-login re-invocation calls the nested `initAuthorised()`, not `init()`.
+├── admin-boot.js           ← 2-line bootstrap for admin.html: imports `init` from admin-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup/ErrorLog. Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw
 ├── operations-boot.js      ← 2-line bootstrap for operations.html: imports `init` from operations-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email
