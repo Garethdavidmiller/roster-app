@@ -404,7 +404,30 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // (the same leak the doc-in-new-tab and brand→About paths fix). The anchor's default action
         // still opens the new tab. (A6)
         if (/** @type {Element} */ (e.target).closest('.nav-panel-link--guide')) { closePanel(); return; }
-        if (/** @type {Element} */ (e.target).closest('.nav-panel-pill, .nav-panel-link')) { closePanelForNavigation(); return; }
+        // Same-tab page navigation (pills, Settings, real info links). The drawer pushed a history
+        // entry on open whose URL equals THIS page's; a plain <a> nav stacks the destination ON TOP of
+        // it, leaving that entry as a phantom same-URL duplicate that swallows one Android Back press
+        // after you return here (closePanelForNavigation only clears the flag, never pops it). For a
+        // plain left-click on a real cross-page link, REPLACE that throwaway entry with the destination
+        // via location.replace — no race (unlike history.back()+nav, the reason closePanel() isn't used
+        // here) and single-Back behaviour is unchanged: Back still lands on the page you were on before
+        // opening the drawer, just without the dead duplicate. Hash links (#huddle — the Daily Huddle
+        // same-doc nav, whose viewer owns its own history) and modifier / new-tab clicks keep the
+        // default <a> path. (v16.87)
+        const navTarget = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-pill, .nav-panel-link'));
+        if (navTarget) {
+            const anchor  = navTarget.tagName === 'A' ? /** @type {HTMLAnchorElement} */ (navTarget) : null;
+            const rawHref = anchor?.getAttribute('href') || '';
+            const plainClick = e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+            if (anchor && _historyPushed && plainClick && rawHref && !rawHref.includes('#') && anchor.target !== '_blank') {
+                e.preventDefault();
+                closePanelForNavigation();      // clear _historyPushed + visually close (no history.back)
+                location.replace(anchor.href);  // overwrite the drawer's same-URL entry with the destination
+                return;
+            }
+            closePanelForNavigation();
+            return;
+        }
     });
 
     // Sign-out footer button
