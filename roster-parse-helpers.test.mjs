@@ -85,6 +85,13 @@ describe('normaliseShift', () => {
     test('SP normalised to SPARE', () => {
         assert.equal(normaliseShift('SP'), 'SPARE');
     });
+    test('punctuated paper-roster codes strip to canonical (v16.83)', () => {
+        assert.equal(normaliseShift('A/L'),  'AL');
+        assert.equal(normaliseShift('A.L.'), 'AL');
+        assert.equal(normaliseShift('R.D.'), 'RD');
+        assert.equal(normaliseShift('S.P.'), 'SPARE');
+        assert.equal(normaliseShift('S/P'),  'SPARE');
+    });
     test('SICK passes through', () => {
         assert.equal(normaliseShift('SICK'), 'SICK');
     });

@@ -148,6 +148,15 @@ describe('getEffectiveShift', () => {
     test('returns RD for a member name not in teamMembers', () => {
         assert.equal(getEffectiveShift('Imaginary Person', '2026-06-15', []), 'RD');
     });
+
+    test('an override being DELETED in the same save is ignored (v16.83)', () => {
+        // C. Reen Monday base is 12:00-19:00. An override says 20:00-04:00, but this save deletes it.
+        setAllOverrides([{ id: 'del-me', memberName: 'C. Reen', date: '2026-06-15', value: '20:00-04:00' }]);
+        // Without the toDelete skip this returns the override; with it, it falls back to base roster.
+        assert.equal(getEffectiveShift('C. Reen', '2026-06-15', [], ['del-me']), '12:00-19:00');
+        // A delete list that doesn't match still returns the override.
+        assert.equal(getEffectiveShift('C. Reen', '2026-06-15', [], ['other-id']), '20:00-04:00');
+    });
 });
 
 // ── buildMemberDateMap ────────────────────────────────────────────────────────

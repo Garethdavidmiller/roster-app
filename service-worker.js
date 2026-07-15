@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '16.82';
+const APP_VERSION = '16.83';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -682,7 +682,11 @@ self.addEventListener("fetch", event => {
                 .then(cached => {
                     if (cached) return cached;
                     return fetch(event.request).then(response => {
-                        if (response && response.status === 200) {
+                        // ctSafe (v16.83): match the SWR/SDK/warm-up puts — never cache a text/html
+                        // body under an icon/font/manifest path. A corporate-proxy login interstitial
+                        // returned as 200 for manifest.json or icon-192.png would otherwise poison the
+                        // cache for the life of the version cache (the exact class ctSafe was added for).
+                        if (response && response.status === 200 && ctSafe(url.pathname, response)) {
                             const clone = response.clone();
                             // .catch to match the SWR/SDK puts — an unguarded put rejects (quota /
                             // broken Cache Storage) as an unhandled rejection; respondWith still

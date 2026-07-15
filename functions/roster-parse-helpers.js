@@ -30,7 +30,7 @@ function normaliseShift(raw) {
     if (typeof raw !== 'string') return 'RD';
     const s = raw.trim().toUpperCase();
 
-    if (s === 'SP') return 'SPARE';
+    if (s.replace(/[./]/g, '') === 'SP') return 'SPARE';   // "SP" / "S.P." / "S/P"
 
     // Valid 24-hour clock value: hours 00–23, minutes 00–59. The regexes below only
     // constrain digit COUNT, so without this an OCR slip like "29:75-88:90" would
@@ -51,7 +51,11 @@ function normaliseShift(raw) {
         return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
     }
 
-    if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(s)) return s;
+    // Strip dots/slashes so punctuated paper-roster forms ("A/L", "A.L.", "R.D.") map to the
+    // canonical code too — parity with the absence-code strip below (v16.83). By here the time
+    // and RDW regexes have already run, so `s` is a short code; the strip can't corrupt a time.
+    const _code = s.replace(/[./]/g, '');
+    if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(_code)) return _code;
 
     // Paid-absence roster codes (owner, Jul 2026): HA = Hospital Appointment (a day off on full
     // pay); OD = paid absence, often used as a blanket Mon–Fri marking for long-term sickness;

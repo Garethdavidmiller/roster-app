@@ -1345,13 +1345,16 @@ function _fmtHours(mins) {
  * @param {string} memberName
  * @param {string} dateISO  YYYY-MM-DD
  * @param {any[]}  batch    Pending toSave entries
+ * @param {string[]} [toDelete]  Override doc IDs being deleted in the SAME save — skipped so an
+ *   adjacency check doesn't constrain against a shift this save is removing (v16.83 review fix).
  */
-export function getEffectiveShift(memberName, dateISO, batch) {
+export function getEffectiveShift(memberName, dateISO, batch, toDelete = []) {
     const inBatch = batch.find(e => e.date === dateISO);
     if (inBatch) return inBatch.value;
     let best = null;
     for (const o of _allOverrides) {
         if (o.memberName !== memberName || o.date !== dateISO) continue;
+        if (toDelete.includes(o.id)) continue;   // this save is deleting it → it's not effective
         if (!best || shouldReplaceOverride(best, o)) best = o;
     }
     if (best) return best.value;
@@ -1364,9 +1367,11 @@ export function getEffectiveShift(memberName, dateISO, batch) {
  * Marks failing rows with .row-error in the DOM.
  * @param {any[]}  toSave
  * @param {string} memberName
+ * @param {string[]} [toDelete]  Override doc IDs being deleted in the same save (v16.83) — so an
+ *   adjacency check doesn't constrain against a shift this save is removing.
  * @returns {string[]} Human-readable error strings (empty = valid)
  */
-export function validateShiftRules(toSave, memberName) {
+export function validateShiftRules(toSave, memberName, toDelete = []) {
     const weekGrid   = document.getElementById('weekGrid');
     /** @type {string[]} */
     const ruleErrors = [];
@@ -1405,7 +1410,7 @@ export function validateShiftRules(toSave, memberName) {
             const adjDate = new Date(date + 'T12:00:00');
             adjDate.setDate(adjDate.getDate() + delta);
             const adjISO   = formatISO(adjDate);
-            let adjShift = getEffectiveShift(memberName, adjISO, toSave);
+            let adjShift = getEffectiveShift(memberName, adjISO, toSave, toDelete);
             // Adjacent Other-family values: a TIMED Other day constrains via its actual times; an
             // untimed as-base Other day constrains via its BASE shift (the member attends those
             // hours); only an untimed Other REST-day is exempt (its hours are unknowable here).

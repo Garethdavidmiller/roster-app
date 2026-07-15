@@ -883,7 +883,7 @@ saveBtn.addEventListener('click', async () => {
     if (!toSave.length && !toDelete.length) return showError('No changes to save.');
 
     // Validate shift duration and rest-gap rules
-    const ruleErrors = validateShiftRules(toSave, memberName);
+    const ruleErrors = validateShiftRules(toSave, memberName, toDelete);
     if (ruleErrors.length) return showError(ruleErrors.join(' · '));
 
     // Annual leave entitlement warning
