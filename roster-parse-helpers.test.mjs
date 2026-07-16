@@ -1013,6 +1013,50 @@ describe('applyColumnScanCrossCheck', () => {
         applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
         assert.deepEqual(entries[0].shifts, shiftsOf(row), 'vocabulary differences are not disagreements');
     });
+
+    // ── Rest ↔ Absence resolution (OD/HA reliability) ─────────────────────────────
+    test('a Mon–Thu OD block the row read as RD but the column scan read as absence → recorded as Absent', () => {
+        // The exact screenshot scenario: a long-term-sick "OD" block that the parsed row missed
+        // (read blank→RD) but the column scan caught (OD→SICK). Each such cell must record the
+        // absence, not drop it as UNREADABLE.
+        const row  = ['RD', 'RD', 'RD', 'RD', 'RD', '09:00-17:00', 'RD'];
+        const scan = ['blank', 'OD', 'OD', 'OD', 'OD', '09:00-17:00', 'blank'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.deepEqual(entries[0].shifts,
+            shiftsOf(['RD', 'SICK', 'SICK', 'SICK', 'SICK', '09:00-17:00', 'RD']),
+            'the OD block records as Absent (SICK), never dropped to RD or flagged UNREADABLE');
+    });
+
+    test('Rest↔Absent resolves in either read order (SICK row vs RD scan, and vice versa)', () => {
+        const row  = ['RD', 'SICK', 'RD', '08:00-16:00', 'RD', 'RD', 'RD'];   // row saw the absence Mon
+        const scan = ['blank', 'blank', 'HA', '08:00-16:00', 'blank', 'blank', 'blank']; // scan saw it Tue
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.equal(entries[0].shifts[DATES[1]], 'SICK', 'Mon: SICK(row) ↔ RD(scan) → Absent');
+        assert.equal(entries[0].shifts[DATES[2]], 'SICK', 'Tue: RD(row) ↔ HA(scan) → Absent');
+    });
+
+    test('a Sunday Rest↔Absent disagreement is NOT auto-resolved (Sunday is non-contracted)', () => {
+        const row  = ['RD', 'RD', '06:00-14:00', 'RD', '08:00-16:00', 'RD', 'RD'];
+        const scan = ['SICK', 'blank', '06:00-14:00', 'blank', '08:00-16:00', 'blank', 'blank'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.ok(entries[0].shifts[DATES[0]].startsWith('UNKNOWN|'), 'Sunday absence must not be recorded');
+    });
+
+    test('the "couldn\'t read" message uses app language (Absent), never the internal SICK value', () => {
+        // A SICK-vs-AL disagreement is NOT rest↔absence, so it still flags — but the message must
+        // say "Absent", not "SICK" (staff-facing wording rule).
+        const row  = ['RD', 'SICK', 'RD', 'RD', '08:00-16:00', 'RD', 'RD'];
+        const scan = ['blank', 'AL', 'blank', 'blank', '08:00-16:00', 'blank', 'blank'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        const flagged = entries[0].shifts[DATES[1]];
+        assert.ok(flagged.startsWith('UNKNOWN|'), 'still flagged (SICK vs AL is a real ambiguity)');
+        assert.ok(flagged.includes('Absent') && !flagged.includes('SICK'), `message must say Absent, not SICK: "${flagged}"`);
+        assert.ok(flagged.includes('AL'), 'and still names the other reading');
+    });
 });
 
 // ── v16.69 cross-check hardening: copied-scan safety, OFF equivalence, RDW upgrade ──
