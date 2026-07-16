@@ -522,7 +522,7 @@ describe('computeTax', () => {
   });
 
   test('50% cap: an ordinary K code below the cap is unaffected', () => {
-    // K500 on £3000 → taxable ≈ 3384, tax ≈ £502 — under the £1500 cap, so returned unchanged.
+    // K500 on £3000 → taxable ≈ 3384 (into the 40% band at period scale), tax ≈ £774 — under the £1500 cap.
     const { tax } = computeTax(3000, 'K500', T25);
     assert.ok(tax > 0 && tax < 3000 * 0.5, `K500 tax (${tax}) is under the 50% cap`);
   });
