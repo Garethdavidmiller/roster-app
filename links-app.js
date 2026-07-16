@@ -497,6 +497,11 @@ export function init() {
             }
             _sortDesigns();
             renderDesignPicker();
+            // The rename write succeeded — clear any stale "couldn't rename" error a PRIOR failed attempt
+            // left on the shared save-status line (createDesign/duplicate clear it via _activateDesign;
+            // rename doesn't reactivate, so it must clear its own). No positive text — a rename is quiet.
+            const _renameStatus = document.getElementById('linksSaveStatus');
+            if (_renameStatus) { _renameStatus.textContent = ''; _renameStatus.className = 'links-save-status'; }
         } catch (err) {
             console.error('[Links] Rename failed:', err);
             _designActionStatus('Couldn’t rename the design — check your connection and try again.');

@@ -13,14 +13,15 @@ import assert from 'node:assert/strict';
 
 // ── firebase-client + ls mocks (spies the tests inspect) ──────────────────────
 let _saveCalls = 0;
-let _saveThrows = false;   // simulate savePushSubscription rejecting (e.g. a keyless subscription — review B2)
+let _saveThrows = false;   // structural failure — savePushSubscription throws 'push/subscription-missing-keys' (keyless sub — review B2)
+let _saveThrowsTransient = false;   // transient failure — an offline/Firestore blip (a DIFFERENT, non-structural error)
 let _deleteCalls = 0;
 let _lastDeletedEndpoint = null;
 const _ls = new Map();
 
 mock.module('./firebase-client.js', {
     namedExports: {
-        savePushSubscription:   async () => { _saveCalls++; if (_saveThrows) throw new Error('push/subscription-missing-keys'); },
+        savePushSubscription:   async () => { _saveCalls++; if (_saveThrows) throw new Error('push/subscription-missing-keys'); if (_saveThrowsTransient) throw new Error('unavailable'); },
         deletePushSubscription: async (/** @type {string} */ endpoint) => { _deleteCalls++; _lastDeletedEndpoint = endpoint; },
     },
 });
@@ -95,7 +96,7 @@ function setupEnv(cfg = {}) {
 }
 
 beforeEach(() => {
-    _saveCalls = 0; _saveThrows = false; _deleteCalls = 0; _lastDeletedEndpoint = null; _ls.clear();
+    _saveCalls = 0; _saveThrows = false; _saveThrowsTransient = false; _deleteCalls = 0; _lastDeletedEndpoint = null; _ls.clear();
 });
 
 // notifSupported reads `'Notification' in window` / `'serviceWorker' in navigator` / `'PushManager' in window`.
@@ -165,15 +166,25 @@ describe('getNotifState', () => {
         setupEnv({ permission: 'granted', swFails: true });
         assert.equal(await getNotifState(), 'off-lapsed');
     });
-    test('a transient re-save failure keeps a LIVE subscription "on" (not mislabelled off-lapsed)', async () => {
+    test('a TRANSIENT re-save failure keeps a LIVE subscription "on" (not mislabelled off-lapsed)', async () => {
         // Whole-codebase review, nav/notif finding #1: the throttled best-effort self-heal save must
         // NOT bubble to the outer catch (which returns 'off-lapsed'). A live subscription whose ~daily
         // re-save hits an offline blip must stay 'on', and the throttle stamp must be withheld so it retries.
         setupEnv({ permission: 'granted', hasSub: true });
         _ls.set('myb_vapid_ver', 'BDycpNlvciF7'); // current fingerprint → throttled self-heal path
-        _saveThrows = true;                        // the re-save rejects (transient Firestore/offline error)
+        _saveThrowsTransient = true;               // the re-save rejects with a transient Firestore/offline error
         assert.equal(await getNotifState(), 'on', 'a live sub must stay on when only the best-effort re-save failed');
         assert.equal(_saveCalls, 1, 'the re-save was attempted');
+        assert.equal(_ls.has('myb_push_resave_at'), false, 'the throttle stamp is withheld on failure so it retries next load');
+    });
+    test('a STRUCTURAL keyless failure on the self-heal path still reports "off-lapsed" (not masked as on)', async () => {
+        // The self-heal guard (nav/notif finding #1) must swallow ONLY transient errors. A keyless
+        // subscription (savePushSubscription throws push/subscription-missing-keys) genuinely cannot
+        // receive pushes, so it must still surface as off-lapsed — nudging a re-enable — not be hidden as 'on'.
+        setupEnv({ permission: 'granted', hasSub: true });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7'); // current fingerprint → throttled self-heal path
+        _saveThrows = true;                        // structural: 'push/subscription-missing-keys'
+        assert.equal(await getNotifState(), 'off-lapsed', 'a keyless (structural) failure must not be masked as on');
     });
 });
 
