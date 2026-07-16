@@ -151,6 +151,12 @@ export async function getNotifState() {
                     await savePushSubscription(sub);
                     lsSet(SUB_RESAVE_KEY, String(Date.now()));
                 } catch (e) {
+                    // A STRUCTURAL failure — the subscription is missing its p256dh/auth keys, so this
+                    // device genuinely cannot receive pushes — must NOT be masked as 'on'. Let it
+                    // propagate to the outer catch → 'off-lapsed', which nudges the user to re-enable
+                    // and mint a fresh, keyed subscription (the pre-guard behaviour). Only a TRANSIENT
+                    // Firestore/offline error is swallowed here so it can't mislabel a genuinely live sub.
+                    if (/** @type {any} */ (e)?.message === 'push/subscription-missing-keys') throw e;
                     console.warn('[Notifications] Subscription re-save failed (non-fatal, will retry):', /** @type {any} */ (e).message);
                 }
             }

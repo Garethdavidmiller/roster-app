@@ -173,6 +173,7 @@ export function saveSettings() {
   lsSet(SK.rate,      _rateToSave.toFixed(2));
   lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
   lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
+  lsSet(SK.pgLoan,    /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked ? '1' : '');
   // Save grade and invalidate cache before getPensionDefault — it calls getGrade()
   // which reads the cache; if the user changed grade, the cache still holds the old
   // value at this point, so getPensionDefault would return the wrong pension amount.
@@ -249,11 +250,17 @@ export function loadSettings() {
   // Rate is set per-period in updateRateForPeriod() called from onPeriodChange —
   // no need to set it here; the field will update when buildPeriodSelect fires.
   const code    = lsGet(SK.code);
-  const sl      = lsGet(SK.sl);
+  let   sl      = lsGet(SK.sl);
+  let   pgLoan  = lsGet(SK.pgLoan);
   const pension = lsGet(SK.pension);
   const done    = lsGet(SK.setup);
   if (code)    /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value     = code.toUpperCase();
+  // Migration (v17.17): the Student Loan select used to carry 'postgrad' as a plan option; it is now a
+  // plan (None/1/2/4/5) PLUS a separate Postgraduate Loan flag, which can apply ALONGSIDE a plan. A saved
+  // 'postgrad' selection becomes plan 'none' + PGL on, re-persisted ONCE so it never re-migrates.
+  if (sl === 'postgrad') { sl = 'none'; pgLoan = '1'; lsSet(SK.sl, 'none'); lsSet(SK.pgLoan, '1'); }
   if (sl)      /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value = sl;
+  /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked = pgLoan === '1';
   let grade = lsGet(SK.grade);
   if (!grade || !GRADES[grade]) {
     // Auto-detect from the logged-in member's role

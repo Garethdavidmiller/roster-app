@@ -280,14 +280,15 @@ describe('computeSL', () => {
     assert.equal(computeSL(sacGross, 'plan2', sl), expected);
   });
 
-  test('B1: earnings above the threshold are floored to a whole pound BEFORE the rate (payslip method)', () => {
-    // HMRC rounds the excess DOWN to a whole pound first, then applies 9%, then floors the deduction —
-    // the same whole-pound-first method computeTax uses. Construct excess = £1011.20:
-    //   payslip method: floor(floor(1011.20) × 0.09) = floor(1011 × 0.09) = floor(90.99) = £90
-    //   the old floor-the-product method:  floor(1011.20 × 0.09) = floor(91.008) = £91 (overstated)
-    const threshold = sl.plan2.t;
+  test('HMRC method: the excess keeps its pence; ONLY the final deduction is floored to a whole pound', () => {
+    // The recovery rate is applied to the FULL excess (pence included); only the resulting deduction is
+    // rounded down to £. Construct excess = £1011.20:
+    //   correct:  floor(1011.20 × 0.09) = floor(91.008) = £91
+    //   the WITHDRAWN v17.04 "floor the excess to a whole pound first" method gave £90 — proven wrong
+    //   by G. Miller's real P2 payslip (see the MILLER_ACTUALS.sl regression below).
+    const threshold = sl.plan2.t;   // 28470/13 = 2190.00 exactly (penny-floor is a no-op here)
     const sacGross = threshold + 1011.20;
-    assert.equal(computeSL(sacGross, 'plan2', sl), 90);
+    assert.equal(computeSL(sacGross, 'plan2', sl), 91);
   });
 
   test('plan1: lower threshold than plan2 — deducts more at same income', () => {
@@ -305,9 +306,42 @@ describe('computeSL', () => {
 
   test('postgrad plan uses 6% rate', () => {
     const sacGross = 2500;
-    const threshold = 21000 / P_YR;
+    const threshold = Math.floor((21000 / P_YR) * 100) / 100;   // penny-floored, matching computeSL
     const expected = Math.floor((sacGross - threshold) * 0.06);
     assert.equal(computeSL(sacGross, 'postgrad', sl), expected);
+  });
+
+  test('Plan 5 returns 0 in 2025/26 (not repayable until 6 Apr 2026) but deducts in 2026/27', () => {
+    // The 2025/26 map has no plan5 → computeSL returns 0 for a plan5 selection on a 2025/26 period.
+    assert.equal(computeSL(2500, 'plan5', sl), 0, 'Plan 5 must not deduct in 2025/26');
+    const sl26 = getThresholds('2026/27').sl;
+    assert.ok(computeSL(2500, 'plan5', sl26) > 0, 'Plan 5 deducts normally in 2026/27');
+  });
+
+  test('a plan and a Postgraduate Loan deduct independently — the coordinator sums two computeSL calls', () => {
+    // Item 3: one undergraduate plan + a Postgraduate Loan can apply together (HMRC deducts both).
+    // The coordinator computes computeSL(plan) + computeSL('postgrad'); verify each is the independent
+    // HMRC calc and both are non-zero at a normal 4-weekly gross.
+    const sacGross = 3000;
+    const under = computeSL(sacGross, 'plan2', sl);
+    const post  = computeSL(sacGross, 'postgrad', sl);
+    assert.equal(under, Math.floor((sacGross - Math.floor(sl.plan2.t * 100) / 100) * 0.09), 'plan 2 leg');
+    assert.equal(post,  Math.floor((sacGross - Math.floor(sl.postgrad.t * 100) / 100) * 0.06), 'postgrad leg');
+    assert.ok(under > 0 && post > 0 && under !== post, 'both loans deduct, at different rates/thresholds');
+  });
+
+  // ── Real-payslip regression (the source of truth) ─────────────────────────────
+  // G. Miller is on Plan 1. His real SL deductions lock the HMRC rounding method: the excess keeps
+  // its pence, only the final deduction is floored to £. (P2 = £214 is the case the withdrawn v17.04
+  // method got wrong as £213.) Only the whole-pound, non-zero periods are asserted: P4 carries a
+  // £259.12 payslip adjustment (has pence — not a clean period deduction), and from P7 his loan is
+  // settled so the payslip shows £0 while his gross is still above the threshold (a loan-balance fact
+  // the estimator does not model). Threshold: Plan 1 26065/13 = £2005.00 exactly.
+  test('MILLER_ACTUALS.sl: computeSL matches every clean Plan 1 payslip deduction exactly', () => {
+    for (const [date, v] of Object.entries(MILLER_ACTUALS)) {
+      if (!v.sl || !Number.isInteger(v.sl)) continue;   // skip £0 (loan settled) and the pence adjustment
+      assert.equal(computeSL(v.gross, 'plan1', sl), v.sl, `SL ${date} (gross ${v.gross})`);
+    }
   });
 
 });
@@ -397,10 +431,11 @@ describe('computeTax', () => {
   test('0T high earner: basic-rate band is the fixed £37,700 (not 50,270 − 0)', () => {
     // Cumulative to period 13 with cumGross £45,000 and no allowance (0T). The 20% band is the fixed
     // £37,700 of taxable income; the £7,300 above it is 40%. The old (TAX.b − allowance) formula gave
-    // a £50,270 band and taxed the whole £45,000 at 20%.
-    const sacGross = 5000, ytdPay = 40000;
-    const { tax } = computeTax(sacGross, '0T', T25, { ytdPay, ytdTax: 0, periodN: 13 });
-    const expected = 37700 * 0.20 + (45000 - 37700) * 0.40;
+    // a £50,270 band and taxed the whole £45,000 at 20%. A realistic ytdTax keeps the period-13 deduction
+    // small so it isn't clipped by the reg-23 50% cap — the band structure (via cumTaxDue) is what's tested.
+    const sacGross = 5000, ytdPay = 40000, ytdTax = 10000;
+    const { tax } = computeTax(sacGross, '0T', T25, { ytdPay, ytdTax, periodN: 13 });
+    const expected = 37700 * 0.20 + (45000 - 37700) * 0.40 - ytdTax;
     approx(tax, expected, '0T 40% boundary', 1);
   });
 
@@ -458,12 +493,51 @@ describe('computeTax', () => {
     approx(tax, sacGross * T25.scottishTax.bands[3].rate, 'SD1 tax');
   });
 
+  test('SD2 code → Scottish ADVANCED rate (45%) flat on all pay', () => {
+    const sacGross = 2000;
+    const { tax } = computeTax(sacGross, 'SD2', T25);
+    // SD2 = Scottish advanced = bands[4] (0.45). Previously unhandled → fell through to banded + allowance.
+    approx(tax, sacGross * T25.scottishTax.bands[4].rate, 'SD2 tax');
+  });
+
+  test('SD3 code → Scottish TOP rate (48%) flat on all pay', () => {
+    const sacGross = 2000;
+    const { tax } = computeTax(sacGross, 'SD3', T25);
+    // SD3 = Scottish top = bands[5] (0.48). Previously unhandled → fell through to banded + allowance.
+    approx(tax, sacGross * T25.scottishTax.bands[5].rate, 'SD3 tax');
+  });
+
   test('Welsh C-prefix codes tax identically to their rUK equivalents (C stripped)', () => {
     // Welsh rates == English/rUK, so a C-code must match the unprefixed code exactly. Previously
     // CBR/CD0/CD1/CNT fell through to banded tax and C0T wrongly kept the full allowance.
     for (const [welsh, ruk] of [['CBR','BR'], ['CD0','D0'], ['CD1','D1'], ['C0T','0T'], ['C1257L','1257L'], ['CNT','NT']]) {
       approx(computeTax(2000, welsh, T25).tax, computeTax(2000, ruk, T25).tax, `${welsh} == ${ruk}`);
     }
+  });
+
+  // ── 50% overriding limit (HMRC PAYE reg 23) ───────────────────────────────────
+  test('50% cap: an ordinary 1257L code is never capped', () => {
+    const { tax } = computeTax(3000, '1257L', T25);
+    assert.ok(tax < 3000 * 0.5, `1257L tax (${tax}) is well under the 50% cap and unaffected`);
+  });
+
+  test('50% cap: an ordinary K code below the cap is unaffected', () => {
+    // K500 on £3000 → taxable ≈ 3384 (into the 40% band at period scale), tax ≈ £774 — under the £1500 cap.
+    const { tax } = computeTax(3000, 'K500', T25);
+    assert.ok(tax > 0 && tax < 3000 * 0.5, `K500 tax (${tax}) is under the 50% cap`);
+  });
+
+  test('50% cap: an extreme K code is capped at half the period pay (non-cumulative)', () => {
+    // K9999 on £3000: uncapped tax ≈ £3798 (> the whole payment); reg 23 caps it at 50% = £1500.
+    const { tax } = computeTax(3000, 'K9999', T25);
+    assert.equal(tax, 1500, 'tax deducted cannot exceed 50% of the period pay');
+  });
+
+  test('50% cap: applies on the cumulative path too', () => {
+    // Same extreme K code, cumulative (first period, no YTD) — the period deduction is still capped at 50%.
+    const { tax, usingCumulative } = computeTax(3000, 'K9999', T25, { ytdPay: 0, ytdTax: 0, periodN: 1 });
+    assert.equal(usingCumulative, true);
+    assert.equal(tax, 1500, 'the cumulative period deduction is also capped at 50% of period pay');
   });
 
   test('cumulative PAYE: uses ytdPay + sacGross across periodN', () => {

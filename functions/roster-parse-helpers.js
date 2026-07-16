@@ -59,13 +59,13 @@ function normaliseShift(raw) {
 
     // Paid-absence roster codes (owner, Jul 2026): HA = Hospital Appointment (a day off on full
     // pay); OD = paid absence, often used as a blanket Mon–Fri marking for long-term sickness;
-    // SC/SN = sick (the prompt already tells the AI to return SICK for these, but if it echoes
-    // the RAW code the server must still map it — otherwise a real absence surfaced as an
-    // UNREADABLE cell instead of Absent). All become the app's Absent day ('SICK' — the reason
-    // is never stored). Dots/slashes are stripped first so the punctuated paper-roster forms
-    // ("O.D.", "O/D", "H.A") map too. Sunday and base-rest-day normalisation happen client-side
-    // in computeCellStates, same as SICK.
-    if (['HA', 'OD', 'SC', 'SN'].includes(s.replace(/[./]/g, ''))) return 'SICK';
+    // SC/SN = sick; ML = Maternity leave (a long paid-absence block). All become the app's Absent
+    // day ('SICK' — the reason is never stored, GDPR). The prompt already tells the AI to return
+    // SICK for these, but if it echoes the RAW code the server must still map it — otherwise a real
+    // absence surfaced as an UNREADABLE cell instead of Absent. Dots/slashes are stripped first so
+    // the punctuated paper-roster forms ("O.D.", "O/D", "H.A", "M.L") map too. Sunday and
+    // base-rest-day normalisation happen client-side in computeCellStates, same as SICK.
+    if (['HA', 'OD', 'SC', 'SN', 'ML'].includes(s.replace(/[./]/g, ''))) return 'SICK';
 
     // Training / Induction / Assessment / Team Day (OTHER_PLAN.md). Roster words collapse
     // to the canonical flavour sentinels; an RDW marker (either side: "TRG RDW" or "RDW TRG")
@@ -433,8 +433,16 @@ function normaliseScanValue(raw) {
 }
 
 /** Human form of a normalised shift for the "read two ways" message ("RDW|t" → "RDW t", capped). */
-function displayableShift(v) {
-    return String(v).replace('RDW|', 'RDW ').slice(0, 20);
+function reviewLabel(v) {
+    // App-language label for a normalised shift, for the admin-facing "couldn't read" review message.
+    // Uses the app's STAFF-FACING terms — never the internal 'SICK' data value (wording rule: absence
+    // copy says "Absent", never "sick").
+    const s = String(v);
+    if (s === 'SICK')              return 'Absent';
+    if (s === 'RD' || s === 'OFF') return 'Rest day';
+    if (s === 'AL')                return 'AL';
+    if (s === 'SPARE')             return 'Spare';
+    return s.replace('RDW|', 'RDW ').slice(0, 20);
 }
 
 /**
@@ -557,13 +565,28 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         }
         if (repaired) continue;
 
-        // No provable realignment — flag each disagreeing cell for the admin (skip-only in review;
-        // never written). A row-vs-column disagreement must never be silently written.
+        // No provable realignment. Resolve one disagreement kind; flag the rest for review.
         for (const d of disagree) {
-            const rowV = displayableShift(entry.shifts[d]);
-            const colV = displayableShift(colRead[d]);
-            console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: row read "${entry.shifts[d]}" ≠ column scan "${colRead[d]}" — flagged for review`);
-            entry.shifts[d] = `UNKNOWN|${rowV} or ${colV}? (PDF unclear)`;
+            const rowV = entry.shifts[d];
+            const colV = colRead[d];
+            // REST ↔ ABSENCE: exactly one read is 'SICK' (a positive absence code — OD/HA/SC/SN — was
+            // seen on that pass) and the other is a rest day. RECORD THE ABSENCE rather than flag
+            // UNREADABLE: dropping a real absence (writing RD) is the dangerous SILENT failure — the
+            // person then appears to be working — whereas a false absence is visible on the calendar
+            // and easily corrected. An absence code is not something the AI hallucinates on a truly
+            // blank cell, so a SICK from EITHER pass is real signal. Not applied to Sunday (dates[0],
+            // non-contracted — the client's Sunday layer would strip it anyway). This is the ONLY
+            // disagreement auto-resolved; every other kind still flags UNREADABLE. (OD/HA reliability.)
+            const isRest = x => x === 'RD' || x === 'OFF';
+            if (d !== dates[0] && ((rowV === 'SICK' && isRest(colV)) || (isRest(rowV) && colV === 'SICK'))) {
+                console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: row/column read disagreed Rest↔Absent — recorded as Absent (an absence code was read on one pass; never silently drop an absence)`);
+                entry.shifts[d] = 'SICK';
+                continue;
+            }
+            // Otherwise flag for the admin (skip-only in review; never written). The message uses
+            // app-language labels (reviewLabel) — never the internal 'SICK' value.
+            console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: row read "${rowV}" ≠ column scan "${colV}" — flagged for review`);
+            entry.shifts[d] = `UNKNOWN|${reviewLabel(rowV)} or ${reviewLabel(colV)}? (PDF unclear)`;
         }
     }
     return stats;
