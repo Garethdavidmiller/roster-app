@@ -30,6 +30,13 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 
 ## Payroll rules — do not change without confirmation
 
+**Statutory deductions — HMRC methods (v17.16, corrected against real payslips).**
+- **Student/Postgraduate Loan rounding (`computeSL`):** subtract the pay-period threshold (annual ÷ 13, floored to the nearest **penny**) from earnings, apply the recovery rate to the **full excess (pence included)**, then floor the **deduction** to a whole pound — the deduction is the ONLY figure rounded to £. **Do NOT floor the excess to a whole pound before the rate** (the withdrawn v17.04 "B1" method): it produced £213 on G. Miller's real P2 payslip where the correct figure is £214. Locked by the `MILLER_ACTUALS.sl` regression in `paycalc.test.mjs`.
+- **Plan 5** is NOT repayable in 2025/26 (repayments begin 6 Apr 2026) — absent from `SL_BY_YEAR['2025/26']`, present in 2026/27. `computeSL` returns 0 for a plan5 selection on a 2025/26 period; the UI disables it for that year.
+- **One undergraduate plan + a Postgraduate Loan can apply together** — the UI is a plan `<select>` (None/1/2/4/5) plus a separate Postgraduate Loan yes/no; the coordinator sums `computeSL(plan) + computeSL('postgrad')`. HMRC deducts both independently.
+- **Scottish flat-rate codes:** `SD0`→intermediate 21% (`bands[2]`), `SD1`→higher 42% (`bands[3]`), `SD2`→advanced 45% (`bands[4]`), `SD3`→top 48% (`bands[5]`). rUK has no D2/D3.
+- **50% overriding limit (`computeTax`, PAYE reg 23):** the tax deducted in a period can never exceed 50% of the period's taxable pay — applied on both the cumulative and non-cumulative paths. Bites mainly on K codes; inert for ordinary codes.
+
 **Chiltern Saturday payroll:** rostered Saturday → `sat` (1.25×); Saturday-on-RD → `rdw` bucket — staff use the RDW field, not the Saturday field. Confirmed by Gareth May 2026. Tests assert this.
 
 **Chiltern Sunday-on-BH: Sunday wins (1.5×)** — `dow === 0` check is before `isBH` in the suggestion engine. Confirmed by Gareth May 2026.

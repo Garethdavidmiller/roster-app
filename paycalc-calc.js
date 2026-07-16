@@ -48,7 +48,9 @@ export const SL_BY_YEAR = {
     plan1:   { t: 26065/P_YR, r: 0.09 },
     plan2:   { t: 28470/P_YR, r: 0.09 },
     plan4:   { t: 32745/P_YR, r: 0.09 }, // Scotland
-    plan5:   { t: 25000/P_YR, r: 0.09 },
+    // Plan 5 is NOT repayable in 2025/26 — repayments begin 6 Apr 2026 (borrowers who started
+    // courses from Aug 2023). Deliberately absent so computeSL returns 0 for a plan5 selection on a
+    // 2025/26 period; the UI also disables Plan 5 for 2025/26 (see paycalc-app.js).
     postgrad:{ t: 21000/P_YR, r: 0.06 },
   },
   '2026/27': {
@@ -392,6 +394,11 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // (higher/top), over-taxing S-prefixed D0/D1 codes by a full band or two.
     if (baseCode === 'D0' || baseCode === 'SD0') return amount * (isScottish ? SCOT.bands[2].rate : TAX.r40);
     if (baseCode === 'D1' || baseCode === 'SD1') return amount * (isScottish ? SCOT.bands[3].rate : TAX.r45);
+    // SD2 = Scottish ADVANCED rate (bands[4], 45%); SD3 = Scottish TOP rate (bands[5], 48%) — flat-rate
+    // ALL income from this employment, Scottish only (there is no rUK D2/D3). Without these, an SD2/SD3
+    // code fell through to the normal banded Scottish calc WITH an allowance — a large under-taxation.
+    if (baseCode === 'SD2') return amount * SCOT.bands[4].rate;
+    if (baseCode === 'SD3') return amount * SCOT.bands[5].rate;
     const pa = resolvePA();
     const scaledPa = pa * (scale || 1);
     // HMRC floors taxable income to the nearest whole pound before applying rates.
@@ -413,14 +420,22 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
   // Both ytdPay and ytdTax must be non-null — 0 is valid (first period); null means "not provided".
   // Requiring both prevents ytdTax defaulting to 0 when only ytdPay is filled, which would
   // make Math.max(0, cumTaxDue - 0) massively overstate tax for the period.
+  // HMRC "overriding limit" (Income Tax (PAYE) Regs, reg 23): the tax DEDUCTED in a pay period may
+  // never exceed 50% of the taxable payment for that period. It applies to every code but bites mainly
+  // on K codes (which add notional pay), where uncapped tax can exceed — or even swallow — the whole
+  // payment. Any tax the cap defers is collected in later periods (the cumulative recalc picks it up
+  // from the actual YTD tax the user enters next period, so this caps the DISPLAY without corrupting
+  // the cumulative liability). Never binds for ordinary codes (Miller's tax is ~17–22% of gross).
+  const overridingLimit = Math.max(0, sacGross) * 0.5;
+
   if (ytdPay != null && ytdTax != null && !isNonCum && periodN !== null) {
     const N = periodN;
     const cumGross = ytdPay + sacGross;
     const cumTaxDue = taxOnAmount(cumGross, N);
-    return { tax: Math.max(0, cumTaxDue - ytdTax), usingCumulative: true };
+    return { tax: Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit), usingCumulative: true };
   }
 
-  return { tax: taxOnAmount(sacGross, null), usingCumulative: false };
+  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false };
 }
 
 /**
@@ -447,11 +462,16 @@ export function computeNI(sacGross, ni) {
 export function computeSL(sacGross, plan, slByYear, skip = false) {
   if (skip || plan === 'none' || !slByYear) return 0;
   const slPlan = (/** @type {Record<string, any>} */ (slByYear))[plan];
-  if (!slPlan) return 0;
-  // HMRC rounds the earnings ABOVE the threshold DOWN to a whole pound FIRST, then applies the rate
-  // and rounds the repayment down — the same whole-pound-first method computeTax uses (Math.floor of
-  // taxable income before the rates). Flooring only the product (the prior behaviour) overstated the
-  // deduction by up to ~£1/period, understating take-home (review B1).
-  const aboveThreshold = Math.max(0, Math.floor(sacGross - slPlan.t));
-  return Math.floor(aboveThreshold * slPlan.r);
+  if (!slPlan) return 0;   // unknown/withdrawn plan for this year (e.g. Plan 5 in 2025/26) → no deduction
+  // HMRC Student/Postgraduate Loan method: subtract the pay-period threshold (annual ÷ 13, floored to
+  // the nearest PENNY) from earnings, apply the recovery rate to the FULL excess (pence included), then
+  // round the resulting deduction DOWN to a whole pound. The DEDUCTION is the only figure rounded to £.
+  //
+  // ⚠️ Do NOT re-add a whole-pound floor on the excess before the rate (the v17.04 "B1" attempt): it
+  // produced the WRONG figure on real payslips. Verified against G. Miller's actual Plan 1 payslips —
+  // e.g. P2 gross £4382.88, threshold £2005.00, excess £2377.88 → floor(2377.88 × 0.09) = floor(214.009)
+  // = £214 (his real payslip), whereas flooring the excess first gave floor(2377 × 0.09) = £213. Locked
+  // by the MILLER_ACTUALS.sl regression in paycalc.test.mjs.
+  const threshold = Math.floor(slPlan.t * 100) / 100;   // penny-floored periodic threshold
+  return Math.floor(Math.max(0, sacGross - threshold) * slPlan.r);
 }
