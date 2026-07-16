@@ -14,7 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, reconcileRangeIntoCache, toOverrideRecord, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { isBeforeMemberStart, reconcileRangeIntoCache, collectOverrideRecords, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -341,13 +341,9 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
             // lower-priority import couldn't out-rank the cached copy (Finding #1). The malformed-doc
             // skip keeps parity with the calendar fetch (both share rosterOverridesCache). `updated`
             // is the returned display-changed flag — it gates the re-render, exactly as before.
-            /** @type {Array<{ memberName: string, date: string, record: any }>} */
-            const records = [];
-            snap.forEach(/** @param {any} doc */ doc => {
-                const d = doc.data();
-                if (!d.memberName || !d.date || !d.value) return;
-                records.push({ memberName: d.memberName, date: d.date, record: toOverrideRecord(d) });
-            });
+            // Shared collector (override-utils.collectOverrideRecords) — same required-field validation
+            // as the calendar month fetch, so the two feeders of rosterOverridesCache can't drift.
+            const records = collectOverrideRecords(snap);
             const wsISO = formatISO(weekStart), weISO = formatISO(weekEnd);
             const updated = reconcileRangeIntoCache(rosterOverridesCache, records, wsISO, weISO);
             // This wrote straight into rosterOverridesCache (not via fetchOverridesForRange), so

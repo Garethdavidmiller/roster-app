@@ -129,6 +129,31 @@ export function toOverrideRecord(data) {
 }
 
 /**
+ * Collect validated override records from a Firestore range-query snapshot, ready for
+ * `reconcileRangeIntoCache`. The SINGLE source for the required-field validation shared by BOTH
+ * feeders of `rosterOverridesCache` (calendar-overrides.js's month fetch + calendar-team-view.js's
+ * week fetch) — previously each had its own copy of this loop, so a change to the validation had to
+ * be made twice or the two cache feeders would silently diverge. Malformed docs (missing
+ * memberName/date/value) are skipped; only the doc **id** is logged — never the doc body, which can
+ * carry a member name / free-text note (the calendar path used to `console.error` the whole doc).
+ * @param {{ forEach: (cb: (doc: any) => void) => void }} snapshot - a Firestore QuerySnapshot
+ * @returns {Array<{ memberName: string, date: string, record: ReturnType<typeof toOverrideRecord> }>}
+ */
+export function collectOverrideRecords(snapshot) {
+    /** @type {Array<{ memberName: string, date: string, record: any }>} */
+    const records = [];
+    snapshot.forEach((/** @type {any} */ doc) => {
+        const data = doc.data();
+        if (!data.memberName || !data.date || !data.value) {
+            console.error('[Firestore] Skipping malformed override document:', doc.id);
+            return;
+        }
+        records.push({ memberName: data.memberName, date: data.date, record: toOverrideRecord(data) });
+    });
+    return records;
+}
+
+/**
  * Assemble an override's Firestore WRITE document — the SINGLE source for the exact field set the
  * Firestore rules require (`memberName`, `date`, `type`, `value`, `note`, `source`, `createdAt`,
  * `changedBy`). Three save paths (executeSave + recordRangeOverrides in admin-overrides.js, and the
