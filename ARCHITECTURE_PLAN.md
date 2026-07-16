@@ -10,7 +10,7 @@ coordinator now CONSUMES the store + policy — Operations (4a) + self-healing a
 Links (5), Admin (6), Settings + Pay Calculator (7). Phase 4a.2 (v14.65/14.67): the HALT-style
 coordinators (Operations, Links, Paycalc) wrapped in an exported `init()` + `*-boot.js` bootstrap
 (branch-style Admin/Settings intentionally left inline). The whole refactor is behaviour-preserving
-(665 unit + 173 rules + 68 e2e pass unchanged throughout). Companion to `SECURITY_RELEASE_PLAN.md`.
+(the suite — 665 unit + 173 rules + 68 e2e AS OF THE TRACK-1 REFACTOR; now ~1020 unit — passed unchanged throughout). Companion to `SECURITY_RELEASE_PLAN.md`.
 This plan is a **behaviour-preserving structural refactor** of how the app reasons about identity and
 page access. It landed **before B3** (the strict token-refresh sweep) and did NOT change runtime
 auth behaviour itself — B3 then changed behaviour on top of this clean base, shipping v16.29. Not
@@ -362,7 +362,7 @@ another *served* JS file, obscure-filename/URL-obscurity, or leaving it in `rost
    correctness/security benefit. `roster-data.js` is ~1,020 lines but well-organised (CONFIG →
    `teamMembers` → roster-logic) and stable — it isn't causing bugs or merge conflicts. Against that:
    it's imported by ~40 files, sits in the SW precache list AND the modulepreload graphs, and holds
-   `APP_VERSION` (the primary version source the bump script + 9 locations + the SW cache key off) —
+   `APP_VERSION` (the primary version source the bump script keys the 2 runtime locations + the SW cache off) —
    so a split touches all of that. The barrel-shim keeps `roster-data.js` as a re-export, so you end
    up with MORE files, not fewer, unless you also rewrite all 40 imports (the risky step). Step 1 was
    worth it only because of its privacy driver; the rest has none.

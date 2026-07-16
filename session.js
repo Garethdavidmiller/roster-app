@@ -1,7 +1,9 @@
 // @ts-check
 /**
- * session.js — Shared auth/session helpers for admin.html, settings.html,
- * operations.html, and paycalc.html (paycalc uses getSession/clearSession only).
+ * session.js — Shared auth/session helpers for the write pages (admin.html, settings.html,
+ * operations.html, links.html, paycalc.html) and the calendar. Importers vary in what they pull:
+ * paycalc uses getSession/clearSession + ensureNamedSession; links uses ensureNamedSession +
+ * sessionReady/resolveSession; calendar uses reconcileExpiredIdentity (+ get/clearSession).
  *
  * Owns: session constants, localStorage session read/write/clear, Firebase Auth
  *   sign-in lifecycle (ensureFirebaseSession), and password derivation (getSurname).
@@ -92,14 +94,16 @@ export function resolveSession(result) { _sessionResolve(result); }
  * this — `ensureFirebaseSession` is only called by the write pages.
  *
  *   'named'     — signed in as the member's own account (email === nameToEmail(name)).
- *   'anonymous' — degraded fallback. Satisfies `request.auth != null` today, but carries NO
- *                 `name` claim, so per-member write isolation (SECURITY_RELEASE_PLAN.md → B2)
- *                 will reject its writes. B1 will use this signal to prompt a re-login instead
- *                 of letting a claim-less session write silently.
- *   'none'      — no Firebase session could be established at all.
+ *   'anonymous' — degraded fallback. Satisfies `request.auth != null` but carries NO `name` claim,
+ *                 so per-member write isolation (B2/B3, now STRICT) rejects its writes. NOTE: with
+ *                 `ENFORCE_NAMED_SESSION` ON (shipped v14.98), the write pages NO LONGER fall back
+ *                 to anonymous (ensureFirebaseSession returns 'none' instead — see the enforce
+ *                 branch below); the store then prompts a re-login. This value is still produced on
+ *                 the flag-OFF path and by the calendar's own anon bootstrap.
+ *   'none'      — no Firebase session could be established (or, under enforce, a non-named result).
  *
- * B0 (SECURITY_RELEASE_PLAN.md) makes this distinction observable and tested without changing
- * any runtime behaviour — the anonymous fallback still happens, so nothing regresses yet.
+ * B0 (SECURITY_RELEASE_PLAN.md) made this distinction observable + tested; B1/B2/B3 then made it
+ * load-bearing (strict isolation + no-anon-fallback on write pages).
  * @type {'named' | 'anonymous' | 'none'}
  */
 let _fbIdentity = 'none';

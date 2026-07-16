@@ -3,7 +3,7 @@
 The one app surface rendered by the **OS**, not by our CSS — so it can't inherit the
 design system and needs its own explicit rules. Every Web Push notification staff receive
 must adhere to this. Enforced by a single builder (`buildPushPayload`) in
-`functions/index.js`; the service worker renders the result.
+`functions/roster-parse-helpers.js` (imported by `functions/index.js`); the service worker renders the result.
 
 ## The core principle (what ties a notification to the app)
 
@@ -90,8 +90,8 @@ adding the feature. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notifica
 
 ## The builder (single source of truth)
 
-All payloads go through `buildPushPayload({ feature, headline?, body, url? })` in
-`functions/index.js`, backed by the `NOTIFICATION_FEATURES` map (emoji + tag + default
+All payloads go through `buildPushPayload({ feature, body, baseUrl, headline?, url? })` in
+`functions/roster-parse-helpers.js` (imported by `functions/index.js`), backed by the `NOTIFICATION_FEATURES` map (emoji + tag + default
 headline + default path). Hand-writing a `{ title, body, tag, url }` literal is **not
 allowed** — it's how the design drifted (one notification used the app name as its title,
 another a marketing headline). The builder guarantees the leading emoji, the tag, and the
