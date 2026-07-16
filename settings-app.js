@@ -12,7 +12,7 @@ import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebas
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
+import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse } from './overlay.js';
@@ -31,6 +31,11 @@ import { recordPageLatency } from './perf-reporter.js';
  * same order, one indent level in.
  */
 export function init() {
+    // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
+    // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
+    // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
+    reconcileExpiredIdentity().catch(() => {});
+
     // ── Check session ─────────────────────────────────────────────────────────────
     // `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.settings, ARCHITECTURE_PLAN.md Phase 9)
     // these are refreshed inside initAuthorised() from the just-saved session — the module loaded while

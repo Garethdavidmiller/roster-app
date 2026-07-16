@@ -20,7 +20,7 @@ import {
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { getSession, clearSession, ensureNamedSession } from './session.js';
+import { getSession, clearSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -63,7 +63,12 @@ import { fd, fdShort, fmt } from './paycalc-format.js';
  * unchanged otherwise — same statements, same order, one indent level in.
  */
 export function init() {
-
+    // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
+    // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
+    // Runs BEFORE the session-guard early-return below (the expired-session path is exactly where a
+    // stale identity lingers). Fire-and-forget, login-safe: no-op on a valid session, stands down if a
+    // login supersedes it.
+    reconcileExpiredIdentity().catch(() => {});
 
     // ── SESSION GUARD (local-identity precondition) ───────────────────────────────
     // Not signed in → show the shared in-place sign-in (no redirect elsewhere). After sign-in,

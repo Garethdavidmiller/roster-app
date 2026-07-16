@@ -435,11 +435,12 @@ export async function refreshClaimsIfStale(epoch) {
  * identity retains real extra access at the FIREBASE layer (read all staff emails, on-behalf override
  * writes, admin uploads, Links writes) even after the local app session expired. The exposure is a
  * shared device where someone reaches the persisted credential via devtools / a direct SDK call.
- * `reconcileExpiredIdentity()` (below) is the COORDINATED teardown — run AFTER authReady, not an async
- * signOut inside this synchronous getSession() (which would race the calendar's anon bootstrap). The
- * calendar (the PWA start_url) calls it on virtually every launch, so a lingering expired identity is
- * dropped then; a protected page reached by a direct deep-link before that still reconciles on the next
- * login (ensureFirebaseSession replaces the identity) or the next calendar open. (Finding #9)
+ * `reconcileExpiredIdentity()` (below) is the COORDINATED teardown — run AFTER the auth restore, not an
+ * async signOut inside this synchronous getSession() (which would race the calendar's anon bootstrap).
+ * The calendar (the PWA start_url) calls it on virtually every launch, AND every protected coordinator
+ * (admin/settings/operations/links/paycalc) now calls it at init (review item 7), so a lingering expired
+ * identity is dropped even on a direct deep-link to a protected page — no longer only on the next login
+ * or the next calendar open. (Finding #9)
  */
 export function getSession() {
     try {
@@ -506,9 +507,12 @@ export function clearSession() {
  * an anonymous session where it needs one (the calendar) once this resolves.
  *
  * The calendar is the PWA `start_url`, so this runs on virtually every launch — the dominant path by
- * which an expired session's lingering privileges are dropped. A protected page reached by a direct
- * deep-link before the calendar reconciles it still tears the identity down on the next login
- * (ensureFirebaseSession replaces the identity) or the next calendar open.
+ * which an expired session's lingering privileges are dropped. Every protected coordinator (admin,
+ * settings, operations, links, paycalc) ALSO calls it at init (review item 7), so a direct deep-link
+ * to a protected page tears the identity down immediately rather than waiting for the next login or
+ * calendar open. Reading `auth.currentUser` alone would miss a COLD restore (authReady only sets
+ * persistence — the persisted user loads via the first onAuthStateChanged emission), so this resolves
+ * that restore before deciding.
  *
  * Login-safe: snapshots `_authGen` and stands down if a login/logout transition (both bump it) started
  * meanwhile, and re-checks getSession() so a just-completed login (which writes a fresh session) is
@@ -518,8 +522,15 @@ export function clearSession() {
 export async function reconcileExpiredIdentity() {
     const gen = _authGen;
     try { await authReady; } catch { return; }
+    // `authReady` only guarantees persistence is SET — on a COLD restore the IndexedDB-persisted user
+    // has not loaded yet, so reading auth.currentUser right here can be `null` and MISS a lingering
+    // identity entirely (it would then survive that whole page load). Resolve the first restore
+    // emission (or use the already-live user) so a lingering identity is reliably seen — the same
+    // `auth.currentUser || await _restoreFirstAuthUser()` pattern ensureFirebaseSession uses. This is
+    // what lets reconcile run reliably from a protected page opened by a direct deep-link, not just
+    // the calendar (review item 7). Skip the restore wait if a newer login/logout already superseded us.
+    const u = auth.currentUser || (gen === _authGen ? await _restoreFirstAuthUser().catch(() => null) : null);
     if (gen !== _authGen) return;                    // a login/logout now owns the identity — stand down
-    const u = auth.currentUser;
     if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
     try {
         await firebaseSignOut(auth);

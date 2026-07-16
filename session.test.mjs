@@ -228,8 +228,8 @@ describe('reconcileExpiredIdentity', () => {
         name: 'G. Miller', ver: SESSION_VER, expiry: Date.now() + SESSION_MS, lastActivity: Date.now(),
     });
 
-    beforeEach(() => { store.clear(); _signOutCalled = false; });
-    afterEach(() => { auth.currentUser = null; });   // don't leak identity into the ensureFirebaseSession tests
+    beforeEach(() => { store.clear(); _signOutCalled = false; _existingUser = null; });
+    afterEach(() => { auth.currentUser = null; _existingUser = null; });   // don't leak identity into other tests
 
     test('signs out a NAMED identity when there is no valid local session', async () => {
         auth.currentUser = /** @type {any} */ ({ isAnonymous: false, email: 'g.miller@myb.test' });
@@ -239,6 +239,34 @@ describe('reconcileExpiredIdentity', () => {
         // The calendar's next .then checks auth.currentUser to decide on anon sign-in — signOut must
         // have cleared it so the anon bootstrap runs (no page left without any identity).
         assert.equal(auth.currentUser, null, 'signOut must clear currentUser so the anon bootstrap runs');
+    });
+
+    test('COLD restore: signs out a named identity that loads via onAuthStateChanged AFTER authReady (item 7)', async () => {
+        // authReady only means persistence is SET — on a cold restore auth.currentUser is still null at
+        // that moment and the persisted named user arrives via the FIRST onAuthStateChanged emission.
+        // reconcile must wait for that restore and still tear the lingering identity down (otherwise it
+        // survives the whole load — the exact gap that made this calendar-only before item 7).
+        auth.currentUser = null;                                                     // cold: not populated yet
+        _existingUser = { isAnonymous: false, email: nameToEmail('G. Miller') };     // restore emits this
+        // store empty → getSession() null (expired local session)
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, true, 'a named identity restored AFTER authReady must still be signed out');
+    });
+
+    test('COLD restore with a VALID local session → the restored named identity is kept', async () => {
+        // Same cold restore, but the local session is still valid → reconcile must NOT sign out.
+        auth.currentUser = null;
+        _existingUser = { isAnonymous: false, email: nameToEmail('G. Miller') };
+        store.set(AUTH_KEY, validSession());
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, false, 'a cold-restored identity with a valid session must be kept');
+    });
+
+    test('COLD restore that resolves to an ANONYMOUS identity → left alone', async () => {
+        auth.currentUser = null;
+        _existingUser = { isAnonymous: true };
+        await reconcileExpiredIdentity();
+        assert.equal(_signOutCalled, false, 'anonymous cold-restored identities are not a privilege leak');
     });
 
     test('stands down when a login bumped the generation while awaiting authReady', async () => {

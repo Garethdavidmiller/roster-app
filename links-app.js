@@ -13,7 +13,7 @@ import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from '
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
+import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
@@ -63,6 +63,10 @@ export function init() {
             }
         },
     });
+    // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
+    // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
+    // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
+    reconcileExpiredIdentity().catch(() => {});
     // ============================================
     // SESSION — guard access to LINKS_DESIGNERS only
     // ============================================
