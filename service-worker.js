@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '17.10';
+const APP_VERSION = '17.14';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -301,7 +301,7 @@ const PRECACHE_MARKER = './__precache-complete';
 let _warmupInFlight = null;
 
 /** Start (or join) the cache warm-up. Runs DETACHED from the SW lifecycle events (never
- *  inside a waitUntil — install's would delay activation, which was the v15.33 update-lag
+ *  inside a waitUntil — install's would delay activation, which was the v15.41 update-lag
  *  bug; activate's would queue every fetch of the freshly-reloaded page behind ~90 files).
  *  Resilience (v15.46): a completion MARKER is written only when every asset cached, the
  *  top-level startup check re-runs an incomplete warm-up on every SW wake, and the fetch
@@ -820,7 +820,8 @@ self.addEventListener("push", event => {
 });
 
 // When staff tap a notification, bring the correct app page to the front.
-// Huddle → index.html (Huddle button lives in the title bar since v9.05).
+// Huddle → index.html#huddle (the in-app Huddle viewer opens on the hash; the old #huddleBtn
+//   title-bar button was removed at v12.57 — the viewer is reached via the nav link + this tap).
 // Pay reminder → paycalc.html.
 //
 // iOS-safe order: focus the existing window FIRST, then navigate.

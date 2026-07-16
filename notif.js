@@ -141,8 +141,18 @@ export async function getNotifState() {
             // per device keeps the self-heal without the per-open write (v16.19).
             const lastSave = parseInt(lsGet(SUB_RESAVE_KEY) || '0', 10);
             if (!Number.isFinite(lastSave) || Date.now() - lastSave > SUB_RESAVE_MS) {
-                await savePushSubscription(sub);
-                lsSet(SUB_RESAVE_KEY, String(Date.now()));
+                // GUARD the self-heal save (whole-codebase review, nav/notif finding #1): this write
+                // must NOT propagate to the outer catch, which returns 'off-lapsed'. A transient
+                // Firestore failure (offline/blip) on this ~daily best-effort re-save would otherwise
+                // mislabel a genuinely-LIVE subscription as lapsed. Only stamp the throttle timestamp
+                // on success, so a failed save simply retries on the next load instead of churning
+                // the bell state. (The enable + VAPID-rotation saves already guard their own writes.)
+                try {
+                    await savePushSubscription(sub);
+                    lsSet(SUB_RESAVE_KEY, String(Date.now()));
+                } catch (e) {
+                    console.warn('[Notifications] Subscription re-save failed (non-fatal, will retry):', /** @type {any} */ (e).message);
+                }
             }
         }
         return sub ? 'on' : 'off-lapsed';

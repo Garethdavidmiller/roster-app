@@ -254,9 +254,11 @@ is RD/OFF (defensive).
 - `TYPES` add: `training: { label: 'Training', pill: 'Training', fixed: false, timesOptional: true }`
   — a **new semi-fixed pattern**: time inputs shown but optional (`validateShiftRules` skips the
   required-time check for training when blank; validates format when filled).
-- `PILL_TYPES` append `'other'` → **7 pills** (one edit feeds both the per-row pills and the
-  bulk bar). Verify 375px wrap; update CLAUDE.md's pinned pill-order note (AL · Spare · Shift ·
-  RDW · Absent · Rest Day · **Training**).
+- `PILL_TYPES` append `'other'` (one edit feeds both the per-row pills and the bulk bar). Verify
+  375px wrap; update CLAUDE.md's pinned pill-order note. **SHIPPED REALITY (v15.40/v15.57):** this
+  landed as **6 top pills**, not 7 — Spare was demoted OUT of the top row into the Other submenu
+  (v15.57) and "Training" was renamed "Other" (v15.40). Current order: AL · Shift · RDW · Absent ·
+  Rest Day · **Other** (Spare lives under Other).
 - Selecting Training reveals: **flavour choice** (Train / Ind / Assess — segmented, defaults
   Train), **“rest day (RDW)” tick** (pre-ticked when the day's base is RD/OFF), **optional times**.
   Composed into the value grammar on save (`TRG RDW 08:00-16:00` etc.).

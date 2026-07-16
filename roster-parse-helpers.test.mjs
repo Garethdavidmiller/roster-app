@@ -16,6 +16,7 @@ const {
     buildWeekDates,
     extractAIJson,
     HEADER_TO_INDEX,
+    headerToDayIndex,
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
@@ -312,6 +313,27 @@ describe('HEADER_TO_INDEX', () => {
     test('mon → 1', () => assert.equal(HEADER_TO_INDEX['mon'], 1));
     test('saturday → 6', () => assert.equal(HEADER_TO_INDEX['saturday'], 6));
     test('thurs → 4', () => assert.equal(HEADER_TO_INDEX['thurs'], 4));
+});
+
+// ── headerToDayIndex (shared header→index resolver for the 3 parse layers) ──────
+
+describe('headerToDayIndex', () => {
+    test('trims and lowercases before lookup', () => {
+        assert.equal(headerToDayIndex('  Sun '), 0);
+        assert.equal(headerToDayIndex('TUESDAY'), 2);
+    });
+    test('3-char fallback resolves a long form not in the alias map', () => {
+        // "thursd" isn't a key; slice(0,3) = "thu" → 4.
+        assert.equal(headerToDayIndex('Thursd'), 4);
+    });
+    test('exact alias keys resolve directly', () => {
+        assert.equal(headerToDayIndex('weds'), 3);
+        assert.equal(headerToDayIndex('saturday'), 6);
+    });
+    test('unrecognised header → undefined', () => {
+        assert.equal(headerToDayIndex('Payday'), undefined);
+        assert.equal(headerToDayIndex(''), undefined);
+    });
 });
 
 // ── mapColumnHeadersToDates ───────────────────────────────────────────────────

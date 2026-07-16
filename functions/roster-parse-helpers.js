@@ -222,6 +222,20 @@ const HEADER_TO_INDEX = Object.assign(Object.create(null), {
 });
 
 /**
+ * Resolve a raw AI column header (e.g. "Sun", "TUESDAY", " thurs ") to a 0–6 day index (Sun=0),
+ * or undefined if unrecognised. The 3-char fallback tolerates long/rare forms not in the alias map.
+ * SINGLE source for the three parse layers that each resolve a header (mapColumnHeadersToDates,
+ * buildSafeEntries, applyColumnScanCrossCheck) — they used to inline this two-line lookup, so a
+ * change (a new alias, a different fallback) had to be made in all three or they'd drift.
+ * @param {string} header
+ * @returns {number|undefined}
+ */
+function headerToDayIndex(header) {
+    const key = String(header).trim().toLowerCase();
+    return HEADER_TO_INDEX[key] ?? HEADER_TO_INDEX[key.slice(0, 3)];
+}
+
+/**
  * Map AI column headers to ISO date strings for the given week.
  *
  * @param {string[]} columnHeaders - e.g. ['Sun', 'Mon', 'Tue', ...]
@@ -232,8 +246,7 @@ const HEADER_TO_INDEX = Object.assign(Object.create(null), {
 function mapColumnHeadersToDates(columnHeaders, dates) {
     const columnDates = [];
     for (const header of columnHeaders) {
-        const key      = String(header).trim().toLowerCase();
-        const dayIndex = HEADER_TO_INDEX[key] ?? HEADER_TO_INDEX[key.slice(0, 3)];
+        const dayIndex = headerToDayIndex(header);
         if (dayIndex === undefined) {
             return { columnDates: null, error: `The AI returned an unrecognised column header: "${header}". Please try again.` };
         }
@@ -305,8 +318,8 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
         const missingKeys = [];
         for (let i = 0; i < columnHeaders.length; i++) {
             const header   = columnHeaders[i];
-            const key      = String(header).trim().toLowerCase();
-            const dayIndex = HEADER_TO_INDEX[key] ?? HEADER_TO_INDEX[key.slice(0, 3)];
+            const key      = String(header).trim().toLowerCase();  // also used for the tolerant 3-char cell read below
+            const dayIndex = headerToDayIndex(header);
             if (dayIndex === undefined) continue;
 
             const date  = dates[dayIndex];
@@ -472,8 +485,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         // Build this member's column-read map: date → normalised value (signalled cells only).
         const colRead = Object.create(null);
         for (const header of columnHeaders) {
-            const key      = String(header).trim().toLowerCase();
-            const dayIndex = HEADER_TO_INDEX[key] ?? HEADER_TO_INDEX[key.slice(0, 3)];
+            const dayIndex = headerToDayIndex(header);
             if (dayIndex === undefined) continue;
             const colObj = columnScan[header];
             if (!colObj || typeof colObj !== 'object') continue;
@@ -810,6 +822,7 @@ module.exports = {
     buildWeekDates,
     extractAIJson,
     HEADER_TO_INDEX,
+    headerToDayIndex,
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,

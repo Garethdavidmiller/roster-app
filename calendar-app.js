@@ -113,8 +113,8 @@ function dismissSwipeHint() {
 
 
 // Navigate to the pay calculator for a given payday ISO date string.
-// Requires a valid session; otherwise redirects to admin login with a return hint.
-// Always call this helper — never duplicate the navigation logic at a call site.
+// Goes straight to ./paycalc.html — paycalc does its own in-place login when needed (it no longer
+// bounces through admin.html to authenticate). Always call this helper — never duplicate the nav logic.
 /** @param {any} paydayStr */
 function navigateToPaycalc(paydayStr) {
     // paycalc handles its own in-place sign-in for unsigned users (Option B, v14.45+), so go
@@ -147,11 +147,11 @@ function updateNavButtonState() {
 }
 
 // updateLegend — shows/hides conditional legend items:
-//   Spare/RDW/AL — only when that shift type actually appears this month
+//   Spare/RDW/AL/Absent(sick)/Other — only when that shift type actually appears this month
+//     (row 2 as a whole is hidden when none of them do)
 //   Night        — only for Dispatcher roster members
 //   🎄 Christmas — only in December
 //   🐣 Easter    — only in the month Easter Sunday falls in
-//   Faith events — only for opted-in calendar, only the months that event falls in
 // Called inside renderCalendar() on every navigation.
 /** @param {any} id */
 function _legendEl(id) {
@@ -437,8 +437,8 @@ document.getElementById('nextMonth')?.addEventListener('click', (e) => {
     announceMonthChange();
 });
 
-// Pay button — navigates to paycalc.html for any signed-in staff member.
-// If no session exists, sends the user to admin.html to sign in, then redirects back.
+// Pay button — navigates to paycalc.html for any staff member.
+// No session needed here: paycalc runs its own in-place login (via navigateToPaycalc).
 document.getElementById('payBtn')?.addEventListener('click', () => {
     // paycalc shows its own in-place login for unsigned users — navigate there directly.
     const m = String(getDisplayMonth() + 1).padStart(2, '0');

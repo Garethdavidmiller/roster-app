@@ -1,7 +1,9 @@
 // @ts-check
 /**
- * session.js — Shared auth/session helpers for admin.html, settings.html,
- * operations.html, and paycalc.html (paycalc uses getSession/clearSession only).
+ * session.js — Shared auth/session helpers for the write pages (admin.html, settings.html,
+ * operations.html, links.html, paycalc.html) and the calendar. Importers vary in what they pull:
+ * paycalc uses getSession/clearSession + ensureNamedSession; links uses ensureNamedSession +
+ * sessionReady/resolveSession; calendar uses reconcileExpiredIdentity (+ get/clearSession).
  *
  * Owns: session constants, localStorage session read/write/clear, Firebase Auth
  *   sign-in lifecycle (ensureFirebaseSession), and password derivation (getSurname).
@@ -92,14 +94,16 @@ export function resolveSession(result) { _sessionResolve(result); }
  * this — `ensureFirebaseSession` is only called by the write pages.
  *
  *   'named'     — signed in as the member's own account (email === nameToEmail(name)).
- *   'anonymous' — degraded fallback. Satisfies `request.auth != null` today, but carries NO
- *                 `name` claim, so per-member write isolation (SECURITY_RELEASE_PLAN.md → B2)
- *                 will reject its writes. B1 will use this signal to prompt a re-login instead
- *                 of letting a claim-less session write silently.
- *   'none'      — no Firebase session could be established at all.
+ *   'anonymous' — degraded fallback. Satisfies `request.auth != null` but carries NO `name` claim,
+ *                 so per-member write isolation (B2/B3, now STRICT) rejects its writes. NOTE: with
+ *                 `ENFORCE_NAMED_SESSION` ON (shipped v14.98), the write pages NO LONGER fall back
+ *                 to anonymous (ensureFirebaseSession returns 'none' instead — see the enforce
+ *                 branch below); the store then prompts a re-login. This value is still produced on
+ *                 the flag-OFF path and by the calendar's own anon bootstrap.
+ *   'none'      — no Firebase session could be established (or, under enforce, a non-named result).
  *
- * B0 (SECURITY_RELEASE_PLAN.md) makes this distinction observable and tested without changing
- * any runtime behaviour — the anonymous fallback still happens, so nothing regresses yet.
+ * B0 (SECURITY_RELEASE_PLAN.md) made this distinction observable + tested; B1/B2/B3 then made it
+ * load-bearing (strict isolation + no-anon-fallback on write pages).
  * @type {'named' | 'anonymous' | 'none'}
  */
 let _fbIdentity = 'none';
@@ -363,7 +367,20 @@ export async function ensureNamedSession(name, { retries = 2, delayMs = 300 } = 
         _feedAuth({ type: 'RETRY' });   // store: resolving again
         ok = await ensureFirebaseSession(name, gen);
     }
-    if (gen !== _authGen) return false;   // superseded — drop a stale completion (don't publish its terminal state)
+    if (gen !== _authGen) {
+        // Superseded by a newer attempt — MUST NOT publish terminal state (the newer attempt owns
+        // `_fbIdentity`/the store). But do NOT report a SPURIOUS failure (B5): a direct
+        // `ensureFirebaseSession(name)` overlapping this login bumps `_authGen` at entry, superseding
+        // us even though our own sign-in genuinely succeeded. Report success only if BOTH this attempt
+        // reached a named session (`ok` ⟺ named under enforce) AND the LIVE Firebase user really is
+        // this member — read `auth.currentUser` (ground truth), never the shared `_fbIdentity` a newer
+        // attempt may have moved to a different identity. This publishes nothing, so it cannot clobber
+        // the winner; it only stops the overlay showing "sign-in failed" when we ARE signed in. A
+        // teardown that superseded us (clearSession / timeout → clearSession) also signs Firebase out,
+        // so `auth.currentUser` is null there and this correctly still returns false.
+        const u = auth.currentUser;
+        return ok && !!u && !u.isAnonymous && u.email === nameToEmail(name);
+    }
     _syncAuthTerminal(name);
     const named = firebaseSessionIsNamed();
     if (named) refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // B3 sweep (fire-and-forget; one-shot per device)

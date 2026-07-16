@@ -370,10 +370,32 @@ export function init() {
         }
     }
 
+    // The Firestore rule (v17.02) rejects a design `name` longer than 100 chars, and these flows
+    // used prompt() with no cap — an over-long name threw straight into `catch { console.error }`
+    // with NO user feedback, so the create/rename appeared to silently do nothing (whole-codebase
+    // review, links finding #4). Cap client-side, and surface any write failure on the save-status line.
+    const MAX_DESIGN_NAME = 100;
+
+    /** Surface a design create/rename/duplicate outcome (or a client-side validation error) on the
+     *  shared save-status line, so a rules rejection is never silent. @param {string} msg @param {'ok'|'err'} [kind] */
+    function _designActionStatus(msg, kind = 'err') {
+        const status = document.getElementById('linksSaveStatus');
+        if (status) { status.textContent = msg; status.className = 'links-save-status ' + kind; }
+    }
+
+    /** Validate a user-entered design name against the Firestore rule's 1–100 char bound.
+     *  Returns true (and shows an error) when the name is too long. @param {string} name */
+    function _designNameTooLong(name) {
+        if (name.length <= MAX_DESIGN_NAME) return false;
+        _designActionStatus(`That name is too long (max ${MAX_DESIGN_NAME} characters). Please shorten it.`);
+        return true;
+    }
+
     /** Create a new blank design. */
     async function createDesign() {
         const name = prompt('Name for this design (e.g. "Option A"):')?.trim();
         if (!name) return;
+        if (_designNameTooLong(name)) return;
         if (dirty && !confirm('You have unsaved changes in the current design. Create a new one anyway?')) return;
         try {
             const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
@@ -393,6 +415,7 @@ export function init() {
             _activateDesign(d);
         } catch (err) {
             console.error('[Links] Create design failed:', err);
+            _designActionStatus('Couldn’t create the design — check your connection and try again.');
         }
     }
 
@@ -403,6 +426,7 @@ export function init() {
         if (!activeDesignId || !design) return;
         const name = prompt('Name for the duplicate:', `${design.name || 'Design'} copy`)?.trim();
         if (!name) return;
+        if (_designNameTooLong(name)) return;
         const patterns = deepCopyPatterns(design.patterns);
         try {
             const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
@@ -420,6 +444,7 @@ export function init() {
             _activateDesign(d);
         } catch (err) {
             console.error('[Links] Duplicate design failed:', err);
+            _designActionStatus('Couldn’t duplicate the design — check your connection and try again.');
         }
     }
 
@@ -439,6 +464,7 @@ export function init() {
         if (!d) return;
         const name = prompt('New name:', d.name)?.trim();
         if (!name || name === d.name) return;
+        if (_designNameTooLong(name)) return;
         try {
             // Bump updatedAt/updatedBy too (was name-only): otherwise a rename was invisible to the
             // concurrency guard — a co-editor's loadedUpdatedAt stayed unchanged, so their next save
@@ -473,6 +499,7 @@ export function init() {
             renderDesignPicker();
         } catch (err) {
             console.error('[Links] Rename failed:', err);
+            _designActionStatus('Couldn’t rename the design — check your connection and try again.');
         }
     }
 

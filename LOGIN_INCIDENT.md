@@ -53,12 +53,21 @@ user is **signed in but frozen on the login overlay**; when the read returns, th
   + inert (`.login-back--busy`) **only during the Firebase round trip** (not during a 30s password
   lockout, so a locked-out user can still reach the public roster) — closing the same half-signed-in
   escape route Escape already guarded.
-- **Stale-auth generation guard (v14.87, correctness fix v14.91):** `session.js` `_authGen` — a
-  superseded (timed-out, late-resolving) `ensureNamedSession` attempt drops ALL its terminal writes so
-  it can't downgrade the winner's `_fbIdentity` / auth-store identity. **Do NOT un-guard the top
-  `_fbIdentity='none'` reset in `ensureFirebaseSession`** (v14.91 caught exactly that gap: under B1 a
-  superseded retry ran the reset after the winner committed, leaving `_fbIdentity='none'` while the
-  store read `'named'`). This was the reviews' stated prerequisite for re-enabling strict enforcement.
+- **Stale-auth generation guard (v14.87, correctness fix v14.91; B5 spurious-failure fix v17.11):**
+  `session.js` `_authGen` — a superseded (timed-out, late-resolving) `ensureNamedSession` attempt drops
+  ALL its terminal writes so it can't downgrade the winner's `_fbIdentity` / auth-store identity. **Do
+  NOT un-guard the top `_fbIdentity='none'` reset in `ensureFirebaseSession`** (v14.91 caught exactly
+  that gap: under B1 a superseded retry ran the reset after the winner committed, leaving
+  `_fbIdentity='none'` while the store read `'named'`). **B5 (v17.11):** the superseded branch of
+  `ensureNamedSession` no longer returns a blanket `false` — a direct `ensureFirebaseSession(name)`
+  overlapping a login bumps `_authGen` and superseded it even though the login's own sign-in succeeded,
+  so the overlay showed a spurious "sign-in failed". It now returns the **identity-honest** result
+  (`ok && auth.currentUser` is this member's own named account) — reading `auth.currentUser` (ground
+  truth), NEVER the shared `_fbIdentity` a newer attempt may have moved, and publishing **nothing** (no
+  `_syncAuthTerminal`, no `commit`) so it still cannot clobber the winner. A teardown that superseded it
+  (`clearSession`, or timeout→`clearSession`) also signs Firebase out, so `currentUser` is null there and
+  it correctly still returns `false`. Covered by `session.test.mjs` → "B5: superseded login is
+  identity-honest". This was the reviews' stated prerequisite for re-enabling strict enforcement.
 
 ---
 

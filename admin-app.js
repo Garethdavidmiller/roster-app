@@ -168,7 +168,7 @@ export function init() {
                 title: 'Record Absence',
                 sections: [
                     { heading: 'What to use it for', items: [
-                        { icon: '🤧', html: '<strong>Illness or time off</strong> — any number of days' },
+                        { icon: '🗓️', html: '<strong>Any kind of absence</strong> — any number of days' },
                         { icon: '👨‍👩‍👧', html: '<strong>Family or domestic emergency</strong> — e.g. child ill, caring for a relative' },
                         { icon: '🪑', html: 'You don\'t need to say why — only the dates are saved, not the reason' },
                     ]},

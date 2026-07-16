@@ -3,7 +3,42 @@ import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
-         buildOverrideWrite, buildOverrideCacheRecord } from './override-utils.js';
+         buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords } from './override-utils.js';
+
+/** Build a fake Firestore QuerySnapshot from an array of {id, ...data} rows. */
+function fakeSnapshot(rows) {
+    return { forEach: (/** @type {any} */ cb) => rows.forEach(r => cb({ id: r.id, data: () => r.data })) };
+}
+
+// ── collectOverrideRecords (shared cache-feeder collector) ─────────────────────
+
+describe('collectOverrideRecords', () => {
+    it('maps valid docs to {memberName, date, record} with toOverrideRecord defaults', () => {
+        const recs = collectOverrideRecords(fakeSnapshot([
+            { id: 'a', data: { memberName: 'G. Miller', date: '2026-06-01', value: 'AL', type: 'annual_leave', source: 'manual', createdAt: { seconds: 1 } } },
+        ]));
+        assert.equal(recs.length, 1);
+        assert.deepEqual(recs[0], {
+            memberName: 'G. Miller', date: '2026-06-01',
+            record: { value: 'AL', note: '', type: 'annual_leave', source: 'manual', createdAt: { seconds: 1 } },
+        });
+    });
+
+    it('skips docs missing memberName, date, or value', () => {
+        const recs = collectOverrideRecords(fakeSnapshot([
+            { id: 'noMember', data: { date: '2026-06-01', value: 'AL' } },
+            { id: 'noDate',   data: { memberName: 'A', value: 'AL' } },
+            { id: 'noValue',  data: { memberName: 'A', date: '2026-06-01' } },
+            { id: 'ok',       data: { memberName: 'A', date: '2026-06-02', value: 'RD', type: 'correction' } },
+        ]));
+        assert.equal(recs.length, 1);
+        assert.equal(recs[0].date, '2026-06-02');
+    });
+
+    it('returns an empty array for an empty snapshot', () => {
+        assert.deepEqual(collectOverrideRecords(fakeSnapshot([])), []);
+    });
+});
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 
