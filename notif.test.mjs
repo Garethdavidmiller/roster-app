@@ -177,14 +177,16 @@ describe('getNotifState', () => {
         assert.equal(_saveCalls, 1, 'the re-save was attempted');
         assert.equal(_ls.has('myb_push_resave_at'), false, 'the throttle stamp is withheld on failure so it retries next load');
     });
-    test('a STRUCTURAL keyless failure on the self-heal path still reports "off-lapsed" (not masked as on)', async () => {
-        // The self-heal guard (nav/notif finding #1) must swallow ONLY transient errors. A keyless
-        // subscription (savePushSubscription throws push/subscription-missing-keys) genuinely cannot
-        // receive pushes, so it must still surface as off-lapsed — nudging a re-enable — not be hidden as 'on'.
-        setupEnv({ permission: 'granted', hasSub: true });
+    test('a STRUCTURAL keyless failure on the self-heal path rolls the sub back and reports "off-lapsed"', async () => {
+        // The self-heal guard must swallow ONLY transient errors. A keyless subscription
+        // (savePushSubscription throws push/subscription-missing-keys) genuinely cannot receive pushes,
+        // so it must surface as off-lapsed — AND be unsubscribed (v17.21) so it doesn't re-trigger the
+        // save→throw cycle every load / leave the bell showing 'on' via peekNotifState.
+        const { sub } = setupEnv({ permission: 'granted', hasSub: true });
         _ls.set('myb_vapid_ver', 'BDycpNlvciF7'); // current fingerprint → throttled self-heal path
         _saveThrows = true;                        // structural: 'push/subscription-missing-keys'
         assert.equal(await getNotifState(), 'off-lapsed', 'a keyless (structural) failure must not be masked as on');
+        assert.equal(sub._unsubscribed, true, 'the dead keyless subscription must be rolled back');
     });
 });
 

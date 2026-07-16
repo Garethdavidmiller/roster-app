@@ -151,13 +151,22 @@ export async function getNotifState() {
                     await savePushSubscription(sub);
                     lsSet(SUB_RESAVE_KEY, String(Date.now()));
                 } catch (e) {
-                    // A STRUCTURAL failure — the subscription is missing its p256dh/auth keys, so this
-                    // device genuinely cannot receive pushes — must NOT be masked as 'on'. Let it
-                    // propagate to the outer catch → 'off-lapsed', which nudges the user to re-enable
-                    // and mint a fresh, keyed subscription (the pre-guard behaviour). Only a TRANSIENT
-                    // Firestore/offline error is swallowed here so it can't mislabel a genuinely live sub.
-                    if (/** @type {any} */ (e)?.message === 'push/subscription-missing-keys') throw e;
-                    console.warn('[Notifications] Subscription re-save failed (non-fatal, will retry):', /** @type {any} */ (e).message);
+                    if (/** @type {any} */ (e)?.message === 'push/subscription-missing-keys') {
+                        // STRUCTURAL failure: the browser handed back a keyless subscription (some Android
+                        // builds) that can never receive pushes. ROLL IT BACK (unsubscribe) — like the
+                        // enable path does — rather than just reporting 'off-lapsed' while leaving the dead
+                        // sub live: leaving it meant getSubscription() kept returning it, so every calendar
+                        // load re-ran this save→throw cycle (the throttle never stamps), AND the nav bell
+                        // (peekNotifState, no key check) showed 'on' while this said 'off-lapsed'. After the
+                        // unsubscribe, getSubscription() returns null next load → clean 'off-lapsed' on both
+                        // surfaces, and re-enabling mints a fresh, KEYED subscription.
+                        await sub.unsubscribe().catch(() => {});
+                        sub = null;
+                    } else {
+                        // A TRANSIENT Firestore/offline error — swallow so it can't mislabel a genuinely
+                        // live sub; the throttle stamp is withheld above, so it retries next load.
+                        console.warn('[Notifications] Subscription re-save failed (non-fatal, will retry):', /** @type {any} */ (e).message);
+                    }
                 }
             }
         }
