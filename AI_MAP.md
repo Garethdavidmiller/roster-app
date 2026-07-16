@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v17.10 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.20 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -254,7 +254,7 @@ Shared auth/session module — canonical source for session logic (v11.40).
 - `getFirebaseIdentity()` → `'named' | 'anonymous' | 'none'` · `firebaseSessionIsNamed()` → boolean · `getFirebaseAuthError()` → error code. **B0** (SECURITY_RELEASE_PLAN.md): expose whether `ensureFirebaseSession` established the member's own named account or only the anonymous fallback. `firebaseSessionIsNamed()` is the signal per-member write isolation (B2) will depend on — the anonymous fallback satisfies `request.auth != null` today but carries no `name` claim. **Observability only — no behaviour change in B0.** (v14.39)
 - `ensureNamedSession(name, opts?)` → `Promise<boolean>` · `isTransientAuthError(code)` → boolean. **B1.2** (v14.41; now ENABLED, v14.98): the write pages call `ensureNamedSession` instead of `ensureFirebaseSession`. With `CONFIG.ENFORCE_NAMED_SESSION` **on** (the current state), a failed named sign-in is retried a couple of times only for transient (connectivity) errors, then returns whether the member's own named session is active — admin/settings re-show the login overlay, operations/links clear + redirect to admin, paycalc soft-logs (never blocks). Flipping the flag **off** makes it return `ensureFirebaseSession`'s result unchanged (anonymous fallback counts) — identical-to-legacy behaviour, the kill-switch. See SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope".
 - `refreshClaimsIfStale(epoch)` — the B3 CLAIM_EPOCH sweep: force-refreshes the Firebase ID token once per device when `CONFIG.CLAIM_EPOCH` exceeds the device's stored `myb_claim_epoch`, so newly-set custom claims reach every active session. Covered by `session.test.mjs`.
-- `reconcileExpiredIdentity()` → `Promise<void>` (v17.00, Finding #9) — the coordinated post-`authReady` teardown for a Firebase identity that OUTLIVED its local session: `getSession()` clears only localStorage on passive expiry, so a lingering NAMED/admin/manager/designer identity keeps real Firestore write privileges. If the restored user is NAMED but `getSession()` is null, it signs out; anonymous identities and any valid local session are left alone. Login-safe: snapshots `_authGen` and stands down if a login/logout started meanwhile. The calendar (PWA start_url) calls it in `calendarAuthReady` BEFORE the anon bootstrap, so a torn-down identity is replaced by anonymous. Covered by `session.test.mjs`.
+- `reconcileExpiredIdentity()` → `Promise<void>` (v17.00, Finding #9) — the coordinated post-`authReady` teardown for a Firebase identity that OUTLIVED its local session: `getSession()` clears only localStorage on passive expiry, so a lingering NAMED/admin/manager/designer identity keeps real Firestore write privileges. If the restored user is NAMED but `getSession()` is null, it signs out; anonymous identities and any valid local session are left alone. Login-safe: snapshots `_authGen` and stands down if a login/logout started meanwhile. **Resolves the restored user first** (`auth.currentUser || _restoreFirstAuthUser()`, v17.19) — `authReady` only sets persistence, so reading `currentUser` alone would MISS a cold restore. Called by the calendar's `calendarAuthReady` (before the anon bootstrap) AND, as of v17.19 (item 7), by **all five protected coordinators** (admin/settings/operations/links/paycalc) at init — so a direct deep-link to a protected page tears the identity down immediately, not only on the next calendar open/login. Covered by `session.test.mjs` (incl. cold-restoration tests).
 - `sessionReady` — module-level `Promise<boolean>` that resolves once the page coordinator calls `resolveSession()`. Feature modules `await sessionReady` instead of reading `window._mybSession`. (v13.74)
 - `resolveSession(result)` — fulfils `sessionReady`; pass the return value of `ensureFirebaseSession()` (a `Promise<boolean>`) on the auth path, or `false` on the non-auth path. Call exactly once per page-load from the page coordinator. (v13.74)
 - `window._mybAuthError` — set on `ensureFirebaseSession()` failure; surfaced by `admin-auth.js` for diagnostics. Stores the primary Firebase error code, or `"${primaryCode} + anon:${anonCode}"` if the anonymous-sign-in fallback also failed.
@@ -491,7 +491,15 @@ localStorage key constants and data migration logic for the pay calculator (v11.
 
 ### `paycalc-calc.js`
 Pure functions only — no DOM, no Firebase, no localStorage.
-- All pay rate tables (`GRADES`, `TAX_YEARS`)
+- All pay rate + statutory-threshold tables: `GRADES`, `TAX_YEARS`, and the per-tax-year maps `TAX_BY_YEAR`
+  (PA/bands), `NI_BY_YEAR` (PT/UEL, weekly×4), `SL_BY_YEAR` (Student-Loan plan thresholds — **Plan 5 is
+  absent from 2025/26**, not repayable until 6 Apr 2026), and `SCOTTISH_TAX_BY_YEAR` (6 bands).
+- `computeSL(sacGross, plan, slByYear, skip)` — Student/Postgraduate Loan (v17.16 HMRC method: excess keeps
+  its pence, only the FINAL deduction floors to £; penny-floored periodic threshold; verified against
+  `MILLER_ACTUALS.sl`). An undergraduate plan + a Postgraduate Loan repay together — the coordinator sums
+  `computeSL(plan) + computeSL('postgrad')`.
+- `computeTax(...)` handles the Scottish flat-rate codes `SD0`/`SD1`/`SD2`/`SD3` (intermediate/higher/advanced/top,
+  v17.16) and applies the HMRC 50% overriding limit (PAYE reg 23) on both cumulative and non-cumulative paths.
 - `AWARD_RATES` + `awardRatesFor(grade, tyLabel)` — authoritative per-grade, per-tax-year pay-award
   rates (`{ rate, pre, from }`: settled rate + the prior-year "old" rate + the mid-year date the
   award was applied). Payslip-confirmed (CEA 2024/25 = £20.06, applied 24 Oct 2025). Used by

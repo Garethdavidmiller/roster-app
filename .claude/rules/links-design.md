@@ -89,6 +89,8 @@ The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`)
 ### Concurrency & load safety (v12.37; atomic v17.02)
 `saveChanges()` writes via an **atomic Firestore transaction** (`runTransaction`) that reads the doc's `updatedAt` and writes in one step — closing the old getDoc-then-setDoc check-then-act window where a co-designer's save between our read and write was silently clobbered (Finding #13). On a baseline mismatch the transaction throws `concurrent-edit`; a `confirm()` names who saved and when, and on overwrite a plain (unconditional) `setDoc` replaces it. Transactions need connectivity, so **offline / any transaction failure falls back to the previous getDoc-check + queued `setDoc`** (persistentLocalCache syncs it) — offline-first preserved. The mismatch check (`conflictOf`) and the confirm are shared by both paths so they can't drift. A failed load sets `loadFailed` — empty state shows an error.
 
+**Baseline-unknown guard (v17.18):** after a successful save, `saveChanges()` re-reads the doc to re-arm the concurrency baseline (`loadedUpdatedAt`). If that read-back FAILS (brief blip), the catch now sets `baselineUnknown = true` (mirroring the transaction path) — leaving it `false` meant the NEXT save saw neither a known timestamp nor an unknown-baseline flag, so a co-editor's intervening save could be overwritten with no conflict prompt. Residual accepted limit: two devices under the SAME display name (`updatedBy` equal) still won't conflict-prompt — inherent to identifying editors by name.
+
 ### Print (v12.37)
 A4 landscape grid + coverage + checks; generator and brush bar hidden.
 
