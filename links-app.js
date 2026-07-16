@@ -1457,7 +1457,11 @@ export function init() {
                 const after = await getDoc(designRef);
                 loadedUpdatedAt = after.data()?.updatedAt?.toMillis?.() ?? null; baselineUnknown = false;
                 if (entry) entry.updatedAt = after.data()?.updatedAt;
-            } catch { loadedUpdatedAt = null; }
+            } catch { loadedUpdatedAt = null; baselineUnknown = true; }
+            // ^ On a post-save read-back failure the baseline is UNKNOWN, not "no baseline": leaving
+            // baselineUnknown=false here meant the NEXT save saw neither a known timestamp
+            // (loadedUpdatedAt=null) nor an unknown-baseline flag, so a co-editor's intervening save
+            // was overwritten with NO conflict warning. Mirrors the transaction path's catch (v17.18).
 
             dirty = false;
             updateSaveBtn();
