@@ -15,7 +15,7 @@
 import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
+  getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, getPensionForPeriod, awardRatesFor,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
@@ -742,7 +742,7 @@ export function init() {
       const _pNum   = currentPeriodNum();
       const _curP   = getPeriods().find(/** @param {any} x */ x => x.num === _pNum);
       if (!_curP) return;
-      const _ty     = _curP ? getTaxYearForOffset(_curP.num - 48) : CONFIG.TAX_YEARS[0];
+      const _ty     = taxYearForPeriod(_curP);
       const thresholds = getThresholds(_ty.label);
       const _proRateFactor = getProRateFactor(_curP);
       const LONDON = (_curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow) * _proRateFactor;
@@ -1156,7 +1156,7 @@ export function init() {
       // Refresh the rate field for the tax year being viewed (it may be a different
       // year, in which case its rate is correctly left unchanged).
       const curP  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
-      const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+      const curTy = taxYearForPeriod(curP);
       updateRateForPeriod(curTy, curP);
       calculate();
       // Update button state to reflect it's been applied
@@ -1591,7 +1591,7 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('priorHppActualInput')).addEventListener('input', () => {
       const pNum  = currentPeriodNum();
       const curP  = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-      const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+      const curTy = taxYearForPeriod(curP);
       const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === curTy.label);
       if (tyIdx <= 0) return;
       const priorTy = CONFIG.TAX_YEARS[tyIdx - 1];

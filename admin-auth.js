@@ -13,8 +13,8 @@
  */
 
 import { escapeHtml } from './roster-data.js';
-import { auth, onAuthStateChanged } from './firebase-client.js';
-import { sessionReady, getFirebaseAuthError } from './session.js';
+import { auth } from './firebase-client.js';
+import { sessionReady, getFirebaseAuthError, restoreFirstAuthUser } from './session.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 
@@ -52,11 +52,9 @@ export function initAuthSetup({ currentIsAdmin }) {
             await sessionReady;
             // Wait for Firebase Auth to restore its session from IndexedDB before
             // checking currentUser — auth.currentUser is null until the async restore
-            // completes, even when a valid session exists.
-            const currentUser = await new Promise(resolve => {
-                if (auth.currentUser) { resolve(auth.currentUser); return; }
-                const unsub = onAuthStateChanged(auth, /** @param {any} user */ user => { unsub(); resolve(user); });
-            });
+            // completes, even when a valid session exists. Shared helper (session.js)
+            // so this restore stays in lockstep with ensureFirebaseSession's.
+            const currentUser = auth.currentUser || await restoreFirstAuthUser();
             if (!currentUser) {
                 const authErr = getFirebaseAuthError();
                 const code = authErr ? ` (Firebase error: ${authErr})` : '';

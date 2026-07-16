@@ -138,8 +138,15 @@ export function firebaseSessionIsNamed() { return _fbIdentity === 'named'; }
  */
 export function getFirebaseAuthError() { return _fbAuthError; }
 
-/** Resolve the first onAuthStateChanged emission (the IndexedDB session restore) once. */
-function _restoreFirstAuthUser() {
+/**
+ * Resolve the first onAuthStateChanged emission (the IndexedDB session restore) once.
+ * Exported so pages that must read `auth.currentUser` after the async restore (e.g.
+ * admin-auth.js before calling setupRosterAuth) share ONE implementation instead of
+ * hand-rolling their own — a past divergence let a cold-restore fix miss the copy.
+ * Callers wanting the fast path use `auth.currentUser || await restoreFirstAuthUser()`.
+ * @returns {Promise<any>}
+ */
+export function restoreFirstAuthUser() {
     return new Promise(resolve => {
         const unsub = onAuthStateChanged(auth, (/** @type {any} */ user) => { unsub(); resolve(user); });
     });
@@ -176,7 +183,7 @@ export function primeAuth() {
     if (_authPrimed) return;
     _authPrimed = true;
     _primedAuthUser = Promise.resolve(authReady)
-        .then(() => _restoreFirstAuthUser())
+        .then(() => restoreFirstAuthUser())
         .catch(() => null);
 }
 
@@ -233,7 +240,7 @@ export async function ensureFirebaseSession(name, _gen) {
     // mounted), consume the already-in-flight promise so the restore overlapped the user's typing — a
     // pure latency win, no behaviour change. One-shot: a later call does a fresh restore; tests (which
     // never prime, and whose mock currentUser is null) always take the await path.
-    const existing = auth.currentUser || await (_consumePrimedAuthUser() || _restoreFirstAuthUser());
+    const existing = auth.currentUser || await (_consumePrimedAuthUser() || restoreFirstAuthUser());
     // Gen-guard EVERY shared-auth mutation from here down (like commit/recordError/the reset above):
     // a SUPERSEDED attempt resuming after this long await — the sign-out below on the mismatch path,
     // but equally the signInWithEmailAndPassword / signInAnonymously calls further down on the
@@ -526,10 +533,10 @@ export async function reconcileExpiredIdentity() {
     // has not loaded yet, so reading auth.currentUser right here can be `null` and MISS a lingering
     // identity entirely (it would then survive that whole page load). Resolve the first restore
     // emission (or use the already-live user) so a lingering identity is reliably seen — the same
-    // `auth.currentUser || await _restoreFirstAuthUser()` pattern ensureFirebaseSession uses. This is
+    // `auth.currentUser || await restoreFirstAuthUser()` pattern ensureFirebaseSession uses. This is
     // what lets reconcile run reliably from a protected page opened by a direct deep-link, not just
     // the calendar (review item 7). Skip the restore wait if a newer login/logout already superseded us.
-    const u = auth.currentUser || (gen === _authGen ? await _restoreFirstAuthUser().catch(() => null) : null);
+    const u = auth.currentUser || (gen === _authGen ? await restoreFirstAuthUser().catch(() => null) : null);
     if (gen !== _authGen) return;                    // a login/logout now owns the identity — stand down
     if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
     try {

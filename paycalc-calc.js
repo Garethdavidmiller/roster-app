@@ -211,6 +211,18 @@ export function getTaxYearForOffset(offset) {
 }
 
 /**
+ * The TAX_YEARS entry for a period object, or the first entry when the period is null.
+ * Single-sources the `p ? getTaxYearForOffset(p.num - 48) : TAX_YEARS[0]` idiom (the P48
+ * anchor `- 48` and the null fallback) that recurred across the paycalc coordinator, HPP,
+ * back-pay, and settings modules.
+ * @param {{ num: number } | null | undefined} p
+ * @returns {typeof TAX_YEARS[number]}
+ */
+export function taxYearForPeriod(p) {
+  return p ? getTaxYearForOffset(p.num - 48) : TAX_YEARS[0];
+}
+
+/**
  * Return threshold objects for a given tax year label.
  * Falls back to 2025/26 with a warning if year not found.
  * @param {string} yearLabel - e.g. '2025/26'

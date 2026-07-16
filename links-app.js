@@ -1597,6 +1597,19 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
+        // The 🔧 Operations shortcut in the About panel is admin-only: operations.html
+        // redirects a non-admin designer (e.g. S. Silva) straight to admin.html, so
+        // showing them the link is a dead end. Reveal it only for admins, and route it
+        // through the unsaved-changes guard (the capture-phase guard above only covers
+        // nav-drawer links, and mobile browsers suppress the beforeunload dialog).
+        const opsLink = document.getElementById('linksOpsLink');
+        if (opsLink && isAdmin) {
+            opsLink.hidden = false;
+            opsLink.addEventListener('click', e => {
+                if (dirty && !confirm('You have unsaved changes. Leave anyway?')) e.preventDefault();
+            });
+        }
+
         // Header logo is a back-to-calendar button (About moved to the drawer logo).
         const headerIcon = document.getElementById('appIcon');
         if (!headerIcon) return;
