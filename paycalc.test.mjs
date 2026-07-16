@@ -318,6 +318,18 @@ describe('computeSL', () => {
     assert.ok(computeSL(2500, 'plan5', sl26) > 0, 'Plan 5 deducts normally in 2026/27');
   });
 
+  test('a plan and a Postgraduate Loan deduct independently — the coordinator sums two computeSL calls', () => {
+    // Item 3: one undergraduate plan + a Postgraduate Loan can apply together (HMRC deducts both).
+    // The coordinator computes computeSL(plan) + computeSL('postgrad'); verify each is the independent
+    // HMRC calc and both are non-zero at a normal 4-weekly gross.
+    const sacGross = 3000;
+    const under = computeSL(sacGross, 'plan2', sl);
+    const post  = computeSL(sacGross, 'postgrad', sl);
+    assert.equal(under, Math.floor((sacGross - Math.floor(sl.plan2.t * 100) / 100) * 0.09), 'plan 2 leg');
+    assert.equal(post,  Math.floor((sacGross - Math.floor(sl.postgrad.t * 100) / 100) * 0.06), 'postgrad leg');
+    assert.ok(under > 0 && post > 0 && under !== post, 'both loans deduct, at different rates/thresholds');
+  });
+
   // ── Real-payslip regression (the source of truth) ─────────────────────────────
   // G. Miller is on Plan 1. His real SL deductions lock the HMRC rounding method: the excess keeps
   // its pence, only the final deduction is floored to £. (P2 = £214 is the case the withdrawn v17.04

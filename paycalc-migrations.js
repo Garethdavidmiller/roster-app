@@ -60,9 +60,9 @@ export function pcPrefix() { return `myb_pc_${_nsSeg}`; }
 
 /** Per-member storage keys. Rebuilt in place (object mutated, binding kept) whenever
  *  the namespace changes, so every module that imported SK sees the new key names. */
-/** @type {{ rate:string, rates:string, code:string, sl:string, pension:string, setup:string, ytdPay:string, ytdTax:string, grade:string }} */
+/** @type {{ rate:string, rates:string, code:string, sl:string, pgLoan:string, pension:string, setup:string, ytdPay:string, ytdTax:string, grade:string }} */
 export const SK = {
-    rate: '', rates: '', code: '', sl: '', pension: '', setup: '', ytdPay: '', ytdTax: '', grade: '',
+    rate: '', rates: '', code: '', sl: '', pgLoan: '', pension: '', setup: '', ytdPay: '', ytdTax: '', grade: '',
 };
 
 /** Recompute the SK key strings from the active namespace. */
@@ -71,7 +71,8 @@ function _rebuildSK() {
     SK.rate    = `${p}rate`;
     SK.rates   = `${p}rates`;   // JSON object: { '2025/26': 20.74, '2026/27': 21.50 }
     SK.code    = `${p}code`;
-    SK.sl      = `${p}sl`;
+    SK.sl      = `${p}sl`;      // undergraduate plan: 'none'|'plan1'|'plan2'|'plan4'|'plan5'
+    SK.pgLoan  = `${p}pg_loan`; // separate Postgraduate Loan flag ('1' | absent) — repayable ALONGSIDE a plan
     SK.pension = `${p}pension`;
     SK.setup   = `${p}setup`;
     SK.ytdPay  = `${p}ytd_pay`;

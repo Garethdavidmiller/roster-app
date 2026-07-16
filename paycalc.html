@@ -168,9 +168,16 @@
           <option value="plan2">Plan 2</option>
           <option value="plan4">Plan 4 (Scotland)</option>
           <option value="plan5">Plan 5</option>
-          <option value="postgrad">Postgraduate Loan</option>
         </select>
         <div class="field-hint">Only select a plan if student loan deductions appear on your payslip. If you repay by direct debit, leave as None.</div>
+      </div>
+
+      <div class="field">
+        <div class="toggle-row">
+          <input type="checkbox" id="pgLoanCheck">
+          <label for="pgLoanCheck">I also repay a <strong>Postgraduate Loan</strong></label>
+        </div>
+        <div class="field-hint">Tick this only if a separate Postgraduate Loan deduction (6%) also shows on your payslip. It is repaid <em>in addition</em> to any plan above.</div>
       </div>
 
       <button type="button" class="btn-primary" id="saveSettingsBtn">Save settings</button>

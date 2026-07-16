@@ -841,34 +841,62 @@ export function init() {
       // NI and Student Loan (both on sacGross — salary sacrifice reduces all three bases)
       const ni = computeNI(sacGross, thresholds.ni);
 
-      const plan   = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value;
+      // Plan 5 is not repayable before 2026/27 — disable the option on a 2025/26 period so it can't be
+      // newly picked. thresholds.sl has no plan5 key for 2025/26 (paycalc-calc.js), so availability
+      // follows the data. A pre-existing plan5 selection is NOT reset (it stays valid for 2026/27
+      // periods): it computes £0 here and is explained in the row below, not silently reinterpreted.
+      const _slSel    = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'));
+      const _plan5Allowed = !!(/** @type {Record<string, any>} */ (thresholds.sl)).plan5;
+      const _plan5Opt = /** @type {HTMLOptionElement|null} */ (_slSel.querySelector('option[value="plan5"]'));
+      if (_plan5Opt) _plan5Opt.disabled = !_plan5Allowed;
+
+      const plan   = _slSel.value;
+      const pgLoan = /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked;
       const slSkip = /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked;
-      /** @type {HTMLElement} */ (document.getElementById('slSkipRow')).classList.toggle('hidden', plan === 'none');
-      const sl = computeSL(sacGross, plan, thresholds.sl, slSkip);
+      // The "not deducted this period" skip + its row apply to whichever loan(s) are active.
+      /** @type {HTMLElement} */ (document.getElementById('slSkipRow')).classList.toggle('hidden', plan === 'none' && !pgLoan);
+      // One undergraduate plan AND a Postgraduate Loan can be repaid together — HMRC deducts each
+      // independently (9% above the plan threshold; 6% above the £21,000 PGL threshold). The TOTAL feeds
+      // net + the break bar; the summary shows a separate line per active loan.
+      const slUnder = computeSL(sacGross, plan, thresholds.sl, slSkip);
+      const slPost  = pgLoan ? computeSL(sacGross, 'postgrad', thresholds.sl, slSkip) : 0;
+      const sl = slUnder + slPost;
 
       const net = sacGross - tax - ni - sl;
 
       // Student Loan summary line — never silent when a plan is SET (v16.77 clarity fix).
       // A member with a plan selected and a £0 deduction previously saw NO line at all, which
       // read as "the calculator forgot my student loan" and generated a real support question.
-      // Three states: a normal deduction row; £0 because the member ticked "not deducted this
-      // period"; or £0 because pay after pension is under the plan's threshold (named, with the
-      // actual per-period figure, so the payslip can be checked against it).
-      const _slPlanLabel = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan'))
-        .selectedOptions[0]?.textContent?.trim() ?? plan;
+      // States: a normal deduction row; £0 because Plan 5 isn't repayable this year; £0 because the
+      // member ticked "not deducted this period"; or £0 because pay after pension is under the plan's
+      // threshold (named, with the actual per-period figure, so the payslip can be checked against it).
+      const _slPlanLabel = _slSel.selectedOptions[0]?.textContent?.trim() ?? plan;
       const _slThreshold = (/** @type {Record<string, any>} */ (thresholds.sl))[plan]?.t;
-      const slRow = sl > 0
-        ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(sl)}</span></div>`
-        : plan !== 'none' && slSkip
-          ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
-          : plan !== 'none' && _slThreshold != null
-            // Two £0 reasons (v16.84): genuinely under the threshold, OR pay only just exceeds it
-            // so the 9% repayment is under £1 and HMRC rounds it down. Saying "under the threshold"
-            // for the second case would be factually wrong.
-            ? (sacGross > _slThreshold
-                ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — no deduction: your repayment is under £1 this period (pay only just exceeds the ${_slPlanLabel} threshold, ${fmt(_slThreshold)})</span><span class="val">£0.00</span></div>`
-                : `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — no deduction: pay after pension is under the ${_slPlanLabel} threshold (${fmt(_slThreshold)} per period)</span><span class="val">£0.00</span></div>`)
-            : '';
+      const slRow = slUnder > 0
+        ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(slUnder)}</span></div>`
+        : plan === 'plan5' && !_plan5Allowed
+          ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — Plan 5 is not repayable in ${_ty.label} (repayments begin April 2026)</span><span class="val">£0.00</span></div>`
+          : plan !== 'none' && slSkip
+            ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
+            : plan !== 'none' && _slThreshold != null
+              // Two £0 reasons (v16.84): genuinely under the threshold, OR pay only just exceeds it
+              // so the 9% repayment is under £1 and HMRC rounds it down. Saying "under the threshold"
+              // for the second case would be factually wrong.
+              ? (sacGross > _slThreshold
+                  ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — no deduction: your repayment is under £1 this period (pay only just exceeds the ${_slPlanLabel} threshold, ${fmt(_slThreshold)})</span><span class="val">£0.00</span></div>`
+                  : `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — no deduction: pay after pension is under the ${_slPlanLabel} threshold (${fmt(_slThreshold)} per period)</span><span class="val">£0.00</span></div>`)
+              : '';
+      // Parallel Postgraduate Loan row (only when the PGL flag is on), mirroring the states above.
+      const _pgThreshold = (/** @type {Record<string, any>} */ (thresholds.sl)).postgrad?.t;
+      const pgRow = !pgLoan
+        ? ''
+        : slPost > 0
+          ? `<div class="sum-row sum-ded"><span class="lbl">Postgraduate Loan</span><span class="val">−${fmt(slPost)}</span></div>`
+          : slSkip
+            ? `<div class="sum-row sum-sl-zero"><span class="lbl">Postgraduate Loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
+            : _pgThreshold != null
+              ? `<div class="sum-row sum-sl-zero"><span class="lbl">Postgraduate Loan — no deduction: pay after pension is under the £21,000 threshold (${fmt(_pgThreshold)} per period)</span><span class="val">£0.00</span></div>`
+              : '';
 
       updateBreakBar(grossWithBp, pension, tax, ni, sl, net);
 
@@ -889,7 +917,7 @@ export function init() {
         ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
         <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
         <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
-        ${slRow}
+        ${slRow}${pgRow}
         <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay & HPP)` : _bpThisPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay)` : _hppForPeriod > 0 ? ' (inc. HPP)' : ''}</span><span class="val">${fmt(net)}</span></div>
       `;
 
@@ -918,7 +946,7 @@ export function init() {
       bd += `<div class="bd-row"><span class="b-lbl">London Allowance</span><span class="b-val">${fmt(LONDON)}</span></div>`;
       if (otherAdj !== 0)
         bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;
-      if (slSkip && plan !== 'none')
+      if (slSkip && (plan !== 'none' || pgLoan))
         bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student loan not deducted this period</span><span class="b-val"></span></div>`;
       if (usingCumulative)
         bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your last payslip</span><span class="b-val"></span></div>`;
@@ -1489,11 +1517,24 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('hourlyRate')).addEventListener('input',  () => { saveSettings(); calculate(); });
     /** @type {HTMLElement} */ (document.getElementById('taxCode')).addEventListener('input',     () => { saveSettings(); calculate(); });
     /** @type {HTMLElement} */ (document.getElementById('studentLoan')).addEventListener('change', () => {
-      if (/** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value === 'none') {
+      // Clear the "not deducted this period" skip only when NO loan is active (plan none AND no PGL) —
+      // a Postgraduate Loan on its own still uses the skip row.
+      const _pg = /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked;
+      if (/** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value === 'none' && !_pg) {
         /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = false;
       }
       saveSettings();
       autosave(); // persists the cleared slSkip flag; autosave() calls calculate() internally
+    });
+    // Postgraduate Loan flag — a SETTING (like the plan), repayable ALONGSIDE a plan. Reveal the
+    // "not deducted this period" row when either loan is active; the toggle is handled in calculate().
+    /** @type {HTMLElement} */ (document.getElementById('pgLoanCheck')).addEventListener('change', () => {
+      const _slNone = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value === 'none';
+      if (_slNone && !(/** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked)) {
+        /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = false;
+      }
+      saveSettings();
+      autosave();
     });
     // pensionAmt: save global default AND lock pension to current period immediately.
     // autosave() calls calculate() internally, so no separate calculate() call needed.
