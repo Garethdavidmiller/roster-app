@@ -11,10 +11,10 @@
 
 import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, taxYearForPeriod, capHours,
+  taxYearForPeriod, capHours,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
-import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
+import { getLoggedMember, getEffectiveContr, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
@@ -60,14 +60,20 @@ export function _decodeHours(p, d) {
 }
 
 // Compute variable pay for one period from saved data. Used by calcHPP and
-// updatePriorHpp to avoid duplicating the capping and London Allowance logic.
+// updatePriorHpp to avoid duplicating the capping logic.
 // bhCapped mirrors calculate(): when all contracted hours are Saturday, bhCapped = 0
 // and the BH premium must not contribute to HPP (it wasn't in that period's gross).
 /**
- * Compute variable (extra) pay for one period from saved data.
+ * Compute variable (extra) pay for one period from saved data — the pay that ACCRUES HPP.
  * Used by calcHPP, updatePriorHpp, and paycalc-backpay.js.
- * Variable pay includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, London Allowance.
- * Does NOT include: peer training, basic pay, expenses, bonuses.
+ * Includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, bank-holiday premium.
+ * Does NOT include: London Allowance, peer training, basic pay, expenses, bonuses.
+ *
+ * London Allowance is a FIXED allowance paid EVERY period — including the periods you are on
+ * leave — so it needs no holiday premium and does NOT accrue HPP. This is the documented payroll
+ * rule (KNOWN_LIMITATIONS.md #3: "basic pay / London Allowance (no HPP)"), confirmed by the owner;
+ * a real payslip shows the annual HPP lump as its own line, separate from London Allowance. London
+ * was wrongly folded into the HPP base (v16.90, priced settled-whole-year); removed at v17.23.
  * @param {any} p - Period object.
  * @param {any} d - Saved period data.
  * @param {number} rate - Hourly rate.
@@ -76,27 +82,20 @@ export function _varPayForPeriod(p, d, rate) {
   const r125      = rate * RATE_125, r150 = rate * RATE_150, r300 = rate * RATE_300;
   const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
   const { satCapped, bhCapped } = capHours({ effContr: getEffectiveContr(p), satHrs, bhHrs });
-  const pTy       = getTaxYearForOffset(p.num - 48);
-  // London is priced at the SETTLED (post-award) value for the whole year — `pTy.londonAllow`, NOT
-  // the period-aware getLondonAllowanceForPeriod (which returns the OLD London for a pre-award
-  // period). This mirrors the settled-whole-year RATE the caller passes in: after the mid-year award
-  // (paid via the back-pay lump) a member's London for EVERY period of the year is the new value, so
-  // the HPP base is new-London × periods. Pricing it period-aware under-counted the pre-award London
-  // uplift (~£4/yr for a London member) — the bug the removed back-pay HPP add used to mask (v16.90).
-  const pLondon   = pTy.londonAllow * getProRateFactor(p);
   return satCapped * (rate * (RATE_125 - 1)) +
          bhCapped  * (rate * (RATE_125 - 1)) +
          bhOtHrs   * r125                    +
          otHrs     * r125          +
          rdwHrs    * r125          +
          sunHrs    * r150          +
-         boxHrs    * r300          +
-         pLondon;
+         boxHrs    * r300;
 }
 
 // ── HPP ESTIMATOR ─────────────────────────────────────────────────────────────
-// Formula from Chiltern payroll (Marie Firby):
-// (Gross - Basic) × 4/52 = HPP
+// Formula from Chiltern payroll (Marie Firby): (variable pay above basic) × 4/52 = HPP.
+// "Above basic" here means the genuinely VARIABLE premiums (OT/RDW/Sun/Sat/BH/Boxing) only —
+// the fixed London Allowance is paid every period incl. during leave, so it does NOT accrue HPP
+// (see _varPayForPeriod). Confirmed by a real Jan-2026 payslip (HPP and London are separate lines).
 
 /**
  * Compute and display the HPP estimate for the current tax year.
@@ -113,9 +112,9 @@ export function _varPayForPeriod(p, d, rate) {
  * without also switching the whole-year pricing to period-aware rates (which was rejected — it made
  * the estimate shift with the viewed period; see the rate comment below).
  *
- * Both the RATE and (since v16.90) the LONDON allowance are priced settled-whole-year in
- * _varPayForPeriod, so a pre-award period's variable pay already carries the full award — there is
- * genuinely nothing left for back pay to add here.
+ * The RATE is priced settled-whole-year (getStoredRateForYear), so a pre-award period's variable
+ * pay already carries the full award and there is nothing left for back pay to add here. (London
+ * Allowance does NOT enter the HPP base at all — removed v17.23; see _varPayForPeriod.)
  */
 export function calcHPP() {
   const allPeriods = getPeriods();
@@ -207,7 +206,7 @@ export function calcHPP() {
 
   const noteEl = document.getElementById('hppNote');
   if (noteEl) {
-    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> All extra pay above your basic hours (overtime, rest day working, Sundays, and London Allowance) × 7.69%. Basic pay, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>. It's reduced proportionally if you weren't employed for the full year.`;
+    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> Your extra pay above basic hours (Saturday, overtime, rest day working, Sunday, bank-holiday and Boxing Day premiums) × 7.69%. Basic pay, London Allowance, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>. It's reduced proportionally if you weren't employed for the full year.`;
   }
 
   updatePriorHpp(ty);

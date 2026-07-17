@@ -401,7 +401,7 @@ Coordinator for `paycalc.html`. No pure pay maths, no period arithmetic here.
 - `autosave()` — saves hours data per period to localStorage
 - `_suggestIfBlank()` / `_applyRosterSuggestion()` — roster pre-fill helpers
 - HPP card, sticky take-home bar, back-pay card
-- `_bpAmount` / `_bpVarAmount` / `_bpPNum` — back pay state (v10.73): `_bpVarAmount` holds the variable-pay portion (overtime, RDW, Sunday, BH, London Allowance uplifts) so `calcHPP()` can include it in the HPP accumulator for the paid-in period
+- `_bpAmount` / `_bpVarAmount` / `_bpPNum` — back pay state (v10.73): `_bpVarAmount` holds the variable-pay portion of the lump. It is **no longer fed into HPP** (v16.89 double-count fix — `calcHPP()` takes no back-pay arg; the whole-year settled-rate pricing already carries the award uplift), so `calcBackPay` still returns it but the coordinator ignores it
 - Imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `runMigrations` from `paycalc-migrations.js`; lightbox lifecycle delegated to `paycalc-lightboxes.js`. Back-pay maths (`calcBackPay`, `prefillBackPay`) delegated to `paycalc-backpay.js` — see that module's section
 - Period select, prev/next, tax-year tabs: delegated to `paycalc-periods.js`
 - Grade cache, settings save/load, rate/YTD fields: delegated to `paycalc-settings.js`
@@ -471,8 +471,8 @@ Roster-assist hint bar UI, fill logic, and snap persistence for `paycalc.html` (
 Holiday Pay Premium estimator and shared period decode helpers for `paycalc.html` (v13.81).
 - `isDataEmpty(d)` — returns true if all hour fields in a persisted period object are zero/falsy; exported for coordinator's `updateSaveStatus` and for `paycalc-backpay.js`
 - `_decodeHours(p, d)` — decodes raw period data into `{satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs}` floats; exported for `paycalc-backpay.js`
-- `_varPayForPeriod(p, d, rate)` — variable pay for one period (excludes contracted basic and peer pay); used internally by `calcHPP`
-- `calcHPP(bpVarAmount, bpPNum)` — renders the HPP estimate card; receives coordinator's back-pay state as parameters to avoid importing coordinator state
+- `_varPayForPeriod(p, d, rate)` — the HPP-accruing variable pay for one period (OT/RDW/Sun/Sat/BH/Boxing premiums). **Excludes contracted basic, peer pay, AND London Allowance** — London is a fixed allowance that does not accrue HPP (removed v17.23; see KNOWN_LIMITATIONS #3). Used by `calcHPP`, `updatePriorHpp`, and `paycalc-backpay.js`
+- `calcHPP()` — renders the HPP estimate card (takes NO args since v16.89: back pay is deliberately not folded into HPP — the whole-year settled-rate pricing already carries the award uplift)
 - `updatePriorHpp(ty)` — renders the prior-year actual HPP section
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `roster-data.js`, `ls.js`
 

@@ -596,10 +596,10 @@ describe('_accrueBackPayPeriod', () => {
         assert.ok(Math.abs(actual - expected) <= tol, `${msg}: got ${actual}, want ${expected}`);
     const base = { effContr: 140, proRateFactor: 1, rateDiff: RATE_DIFF, londonDiff: LONDON_DIFF };
 
-    test('contracted-only period (no hours entered): contracted diff + London diff', () => {
+    test('contracted-only period (no hours entered): contracted + London in the lump, none accrues HPP', () => {
         const { backPay, varPay } = _accrueBackPayPeriod({ ...base, hours: {} });
         approx(backPay, 140 * RATE_DIFF + LONDON_DIFF, 'backPay'); // £104.28 — matches the rendered rows
-        approx(varPay, LONDON_DIFF, 'varPay excludes contracted basic');
+        approx(varPay, 0, 'varPay excludes contracted basic AND London (London does not accrue HPP, v17.23)');
     });
 
     test('premium buckets scale by their multipliers (RDW 1.25 · Sun 1.5 · Boxing 3.0)', () => {
@@ -608,7 +608,7 @@ describe('_accrueBackPayPeriod', () => {
         });
         const premium = 8 * RATE_DIFF * 1.25 + 8 * RATE_DIFF * 1.5 + 8 * RATE_DIFF * 3;
         approx(backPay, 140 * RATE_DIFF + premium + LONDON_DIFF, 'backPay');
-        approx(varPay, premium + LONDON_DIFF, 'varPay');
+        approx(varPay, premium, 'varPay = premiums only (excludes London — London does not accrue HPP)');
     });
 
     test('Saturday hours cap at contracted; BH caps at the remaining normal hours', () => {
@@ -632,11 +632,11 @@ describe('_accrueBackPayPeriod', () => {
         assert.equal(varPay, 0);
     });
 
-    test('London-only award (no rate change): pro-rated London diff, all of it variable', () => {
+    test('London-only award (no rate change): the lump is pro-rated London arrears, but NONE of it accrues HPP', () => {
         const { backPay, varPay } = _accrueBackPayPeriod({
             effContr: 70, proRateFactor: 0.5, rateDiff: 0, londonDiff: LONDON_DIFF, hours: { rdwHrs: 8 },
         });
-        approx(backPay, LONDON_DIFF * 0.5, 'rateDiff 0 zeroes every hours bucket');
-        approx(varPay, LONDON_DIFF * 0.5, 'varPay = pro-rated London');
+        approx(backPay, LONDON_DIFF * 0.5, 'rateDiff 0 zeroes every hours bucket; only London arrears remain');
+        approx(varPay, 0, 'varPay = 0 — London does not accrue HPP');
     });
 });
