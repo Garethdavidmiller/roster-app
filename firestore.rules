@@ -176,10 +176,6 @@ service cloud.firestore {
         // timestamp so the display order is authoritative.
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy', 'htmlContent']) &&
         request.resource.data.date is string &&
-        // Pin the date field to the doc ID (as analytics/clientErrors pin theirs). pruneOldHuddles
-        // queries by the `date` FIELD but sweeps Storage by the doc-ID prefix — a divergent date
-        // could evade the prune query (unbounded growth) or sweep the wrong Storage object (v17.42).
-        request.resource.data.date == date &&
         // Bound the date to a real YYYY-MM-DD, matching circulars/newsletters. A malformed
         // date would break pruneOldHuddles' string-range (`date < cutoffISO`) prune, leaving
         // that doc + its Storage object un-pruned indefinitely.
@@ -314,9 +310,6 @@ service cloud.firestore {
         request.auth.token.admin == true &&
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
-        // Pin the date field to the doc ID so _pruneOldDocs' by-field query and by-id Storage
-        // sweep can't diverge (matches huddles; v17.42).
-        request.resource.data.date == date &&
         request.resource.data.date.size() == 10 &&
         // Bounded YYYY-MM-DD (month 01-12, day 01-31) — rejects impossible ISO-shaped dates.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
@@ -335,9 +328,6 @@ service cloud.firestore {
         request.auth.token.admin == true &&
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
-        // Pin the date field to the doc ID so _pruneOldDocs' by-field query and by-id Storage
-        // sweep can't diverge (matches huddles; v17.42).
-        request.resource.data.date == date &&
         request.resource.data.date.size() == 10 &&
         // Bounded YYYY-MM-DD (month 01-12, day 01-31) — rejects impossible ISO-shaped dates.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
