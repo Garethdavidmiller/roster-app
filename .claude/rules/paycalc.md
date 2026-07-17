@@ -22,7 +22,7 @@ Primarily **manual-entry**. Staff enter hours; calculator computes tax, NI, pens
 
 2026/27 rates: not yet confirmed — update `GRADES` in `paycalc-calc.js` when announced.
 
-**Members with `startDate`:** for the joining period, `calcProRateFactor` scales contracted hours, London Allowance, and the pension default. All subsequent periods use standard amounts automatically. **HPP is NOT explicitly scaled** (since v17.23 `_varPayForPeriod` has no pro-rate term — London was its only one): a joiner's HPP is lower simply because they have fewer worked periods contributing variable pay. (Open owner question: does Chiltern additionally pro-rate a joiner's lump beyond it accruing on less variable pay? If so the estimate would need an explicit factor.)
+**Members with `startDate`:** for the joining period, `calcProRateFactor` scales contracted hours, London Allowance, and the pension default. All subsequent periods use standard amounts automatically. **HPP is NOT pro-rated by any factor, and must not be** (owner-confirmed Jul 2026): HPP accrues purely on the actual extras you do (overtime / RDW / Saturday / Sunday / BH / Boxing premiums), so a joiner's lump is naturally lower simply because they did fewer extras after joining — there is no separate "reduced-for-part-year" scaling. This is exactly what `_varPayForPeriod` does (no pro-rate term since v17.23 — London, its only one, was removed as it doesn't accrue HPP). Do not re-introduce a joiner pro-rate factor into the HPP base.
 
 `saveSettings` guards the pension default on joining periods — writes `getPensionDefault(curP)` (full rate), not the field value (pro-rated). Without this guard, saving Settings on the joining period corrupts the default for subsequent periods.
 
