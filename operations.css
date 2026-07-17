@@ -429,35 +429,42 @@ select:focus-visible, input:focus-visible {
 .dp-close { color: var(--text-light); }
 @media (hover: hover) and (pointer: fine) { .dp-close:hover { color: var(--text-dark); } }
 .dp-title { font-size: 16px; font-weight: 700; color: var(--primary-blue); text-align: center; margin: 2px 24px 12px; }
-.dp-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+/* Day grid mirrors the admin range picker (.rp-*) so both calendars read as one component:
+   flat borderless cells, a navy CIRCLE for the selected day, today = navy bold + a small gold
+   dot, and borderless navy month-nav glyphs. */
+.dp-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
 .dp-nav-btn {
-    width: 40px; height: 40px; flex: 0 0 auto;
+    width: 44px; height: 44px;
     display: flex; align-items: center; justify-content: center;
-    border: none; border-radius: var(--radius-sm);
-    background: var(--primary-blue); color: white;
-    font-size: 20px; line-height: 1; cursor: pointer;
-    transition: background 0.12s, transform var(--dur-fast) var(--ease-standard);
+    border: none; border-radius: 50%;
+    background: none; color: var(--primary-blue);
+    font-size: 22px; line-height: 1; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) { .dp-nav-btn:hover { background: var(--primary-blue-dark); } }
-.dp-nav-btn:active { transform: scale(var(--press-scale)); }
-.dp-nav-btn:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
-.dp-month { font-size: 15px; font-weight: 700; color: var(--text-dark); }
-.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-.dp-dow { text-align: center; font-size: 11px; font-weight: 700; color: var(--text-light); padding-bottom: 4px; }
-.dp-filler { aspect-ratio: 1; }
+@media (hover: hover) and (pointer: fine) { .dp-nav-btn:hover { background: var(--bg-light); } }
+.dp-nav-btn:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; }
+.dp-month { font-size: 14px; font-weight: 700; color: var(--text-dark); }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 8px; }
+.dp-dow { height: 28px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--text-light); }
+.dp-filler { min-height: 44px; cursor: default; pointer-events: none; }
 .dp-day {
-    aspect-ratio: 1; min-height: 40px;
+    height: 44px; min-height: 44px;
     display: flex; align-items: center; justify-content: center;
-    border: 2px solid transparent; border-radius: var(--radius-sm);
-    background: var(--field-bg); color: var(--text-dark);
-    font-family: inherit; font-size: 15px; cursor: pointer;
-    transition: background 0.12s, border-color 0.12s;
+    border: none; background: none; font-family: inherit; font-size: 13px;
+    color: var(--text-dark); cursor: pointer; position: relative;
+    user-select: none; -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) and (pointer: fine) { .dp-day:not(.dp-off):hover { border-color: var(--primary-blue); background: white; } }
-.dp-day.dp-today { border-color: var(--accent-gold); font-weight: 700; }
-.dp-day.dp-sel { background: var(--primary-blue); color: white; border-color: var(--primary-blue); font-weight: 700; }
-.dp-day.dp-off { color: var(--border-mid); cursor: default; background: transparent; }
-.dp-day:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) {
+    .dp-day:not(.dp-off):not(.dp-sel):hover { background: var(--bg-light); border-radius: 50%; }
+}
+.dp-day:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; border-radius: 50%; }
+.dp-day.dp-today { color: var(--primary-blue); font-weight: 700; }
+.dp-day.dp-today::after {
+    content: ''; position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
+    width: 3px; height: 3px; border-radius: 50%; background: var(--accent-gold);
+}
+.dp-day.dp-sel { background: var(--primary-blue); color: white; font-weight: 700; border-radius: 50%; }
+.dp-day.dp-off { color: var(--border-mid); cursor: default; }
 
 /* ── Tablet: 768px ── */
 @media (min-width: 768px) {
