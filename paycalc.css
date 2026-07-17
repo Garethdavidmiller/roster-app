@@ -245,18 +245,29 @@
       font-size: var(--type-small); color: var(--success-text); line-height: 1.4;
     }
     .hpp-active-banner { margin-top: 8px; }   /* space it from the back-pay banner when both show */
-    /* Inline "view … card" control — a real <button> for keyboard access, styled as a link */
-    .bp-active-banner button, .hpp-active-banner button {
+    .banner-text { display: block; }
+    /* Opt-in row: the checkbox that adds the lump/premium to this payslip's take-home. */
+    .banner-optin {
+      display: flex; align-items: flex-start; gap: 8px; margin-top: 8px;
+      font-weight: 600; cursor: pointer;
+    }
+    .banner-optin input {
+      flex: none; width: 18px; height: 18px; margin: 1px 0 0;
+      accent-color: var(--success-green); cursor: pointer;
+    }
+    /* "view … card" control — a real <button> for keyboard access, styled as a link. */
+    .banner-link {
+      display: inline-block; margin-top: 6px;
       background: none; border: none; padding: 0;
       font-family: inherit; font-size: inherit;
       color: var(--success-text); font-weight: 700;
       text-decoration: underline; text-underline-offset: 2px;
       cursor: pointer; touch-action: manipulation;
     }
-    .bp-active-banner button:focus-visible,
-    .hpp-active-banner button:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
-    /* Second line inside either banner: the accuracy / confirm-your-payslip note */
+    .banner-link:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    /* Accuracy / confirm-your-payslip note line; hidden when its text is empty. */
     .bp-banner-note { margin-top: 4px; font-weight: 400; }
+    .bp-banner-note:empty { display: none; }
 
     /* Payslip gross note */
     .payslip-note {

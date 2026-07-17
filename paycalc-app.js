@@ -1024,101 +1024,44 @@ export function init() {
           `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
       }
 
-      const _bannerEl = document.getElementById('bpActiveBanner');
-      if (_bannerEl) {
-        // Two banner states on the paid-in period: included (ticked) → "✓ Includes …"; computed but
-        // NOT ticked → a quiet pointer that the lump exists and where to add it. Off this period → hidden.
+      // BACK-PAY banner (on the paid-in payslip). Fixed structure in the HTML: text · opt-in tick
+      // (#bpBannerTick, proxies the hidden card tick) · "view back pay card" link · accuracy note.
+      // Two states: opted-in → "✓ Includes …"; available but not → "ℹ️ could land here — not added".
+      const _bpBannerEl = document.getElementById('bpActiveBanner');
+      if (_bpBannerEl) {
         const _bpAvailableHere = _bpPNum > 0 && _bpPNum === _pNum && _bpAmount > 0;
-        const _bannerText = _bpThisPeriod > 0
-          ? `✓ Includes ${_bpIsEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(_bpThisPeriod)} · `
-          : `ℹ️ ${_bpIsEstimate ? 'Estimated' : 'A'} back pay lump sum of ${fmt(_bpAmount)} could land on this payslip — not added to this estimate · `;
         if (_bpAvailableHere) {
-          // Keep banner element stable; only update text node + lazily-created link.
-          // Previous version created a new <a> + listener on every recalc.
-          _bannerEl.firstChild?.nodeType === Node.TEXT_NODE
-            ? (_bannerEl.firstChild.nodeValue = _bannerText)
-            : (_bannerEl.textContent = _bannerText);
-          if (!_bannerEl.querySelector('button')) {
-            // <button>, not href-less <a> — an anchor without href is mouse-only
-            // (no keyboard focus, no Enter activation).
-            const _bpLink = document.createElement('button');
-            _bpLink.type = 'button';
-            _bpLink.textContent = 'view back pay card';
-            _bpLink.addEventListener('click', () => {
-              // OPEN the collapsed card before scrolling — scrolling to a shut card looked like
-              // nothing happened. Clicking the header (not classList) reuses the exact real-tap
-              // path: initCardCollapse's toggle + aria-expanded + the prefill onToggle.
-              if (!document.getElementById('backPayBody')?.classList.contains('open')) {
-                /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle'))?.click();
-              }
-              /** @type {HTMLElement} */ (document.getElementById('backPayCard')).scrollIntoView({ behavior: 'smooth' });
-            });
-            _bannerEl.appendChild(_bpLink);
-          }
-          // Accuracy note (owner request, Jul 2026): the lump is summed from each period's saved
-          // hours — unvisited periods count contracted-only — so completed payslips back to the
-          // award's April make the figure accurate. April year derived from the award tax year
-          // (label "2026/27" → "2026") so the line rolls forward each year untouched.
-          let _bpNoteEl = _bannerEl.querySelector('.bp-banner-note');
-          if (!_bpNoteEl) {
-            _bpNoteEl = document.createElement('div');
-            _bpNoteEl.className = 'bp-banner-note';
-            _bannerEl.appendChild(_bpNoteEl);
-          }
+          /** @type {HTMLElement} */ (document.getElementById('bpBannerText')).textContent = _bpThisPeriod > 0
+            ? `✓ Includes ${_bpIsEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(_bpThisPeriod)}`
+            : `ℹ️ ${_bpIsEstimate ? 'Estimated' : 'A'} back pay lump sum of ${fmt(_bpAmount)} could land on this payslip — not added to this estimate`;
+          /** @type {HTMLInputElement} */ (document.getElementById('bpBannerTick')).checked = _bpIncluded;
           const _bpAprilYr = _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4);
-          _bpNoteEl.textContent = `For the best estimate, make sure each payslip back to 1 April ${_bpAprilYr} is filled in accurately on the calculator.`;
-          _bannerEl.style.display = '';
+          /** @type {HTMLElement} */ (document.getElementById('bpBannerNote')).textContent =
+            `For the best estimate, make sure each payslip back to 1 April ${_bpAprilYr} is filled in accurately on the calculator.`;
+          _bpBannerEl.style.display = '';
         } else {
-          _bannerEl.style.display = 'none';
+          _bpBannerEl.style.display = 'none';
         }
       }
 
-      // HPP green banner — the parallel of the back-pay banner, shown on the JANUARY period where
-      // the premium lands in take-home (`_hppForPeriod > 0` only there). Makes the folded-in lump
-      // visible up-front instead of only as a row in the collapsed breakdown. Unlike back pay, HPP
-      // is never opt-in, so there is only the "✓ Includes …" state.
+      // HPP banner (on the January payslip the premium lands). Same fixed structure + opt-in tick
+      // (#hppBannerTick, toggles the per-year hppIncKey flag directly). Available = a January payslip
+      // with an HPP figure; Included = opted in. Two states mirror back pay.
       const _hppBannerEl = document.getElementById('hppActiveBanner');
       if (_hppBannerEl) {
-        // Available = a January payslip with an HPP figure; Included = the member opted in (tick).
-        // Two states mirror the back-pay banner: included → "✓ Includes …"; available-but-not-opted-in
-        // → a quiet "could land here — not added" pointer to the HPP card.
         const _hppAvailableHere = !!_hppTy && _hppAmount > 0;
         if (_hppAvailableHere) {
-          const _hppText = _hppForPeriod > 0
-            ? `✓ Includes ${_hppIsEstimate ? 'estimated ' : ''}Holiday Pay Premium of ${fmt(_hppAmount)} · `
-            : `ℹ️ ${_hppIsEstimate ? 'Estimated ' : ''}Holiday Pay Premium of ${fmt(_hppAmount)} could land on this payslip — not added to this estimate · `;
-          _hppBannerEl.firstChild?.nodeType === Node.TEXT_NODE
-            ? (_hppBannerEl.firstChild.nodeValue = _hppText)
-            : (_hppBannerEl.textContent = _hppText);
-          if (!_hppBannerEl.querySelector('button')) {
-            const _hppLink = document.createElement('button');
-            _hppLink.type = 'button';
-            _hppLink.textContent = 'view HPP card';
-            _hppLink.addEventListener('click', () => {
-              // Open the collapsed HPP card (real toggle path) before scrolling to it.
-              if (!document.getElementById('hppCardBody')?.classList.contains('open')) {
-                /** @type {HTMLElement} */ (document.getElementById('hppCardToggle'))?.click();
-              }
-              document.getElementById('hppCard')?.scrollIntoView({ behavior: 'smooth' });
-            });
-            _hppBannerEl.appendChild(_hppLink);
-          }
-          // Second line: guide the member. Not opted in → how to add it; opted-in estimate → confirm it.
-          let _hppNoteEl = _hppBannerEl.querySelector('.bp-banner-note');
-          const _hppNoteText = _hppForPeriod > 0
-            ? (_hppIsEstimate ? 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.' : '')
-            : 'Tick “Add this to your January payslip’s take-home” on the HPP card to include it.';
-          if (_hppNoteText) {
-            if (!_hppNoteEl) {
-              _hppNoteEl = document.createElement('div');
-              _hppNoteEl.className = 'bp-banner-note';
-              _hppBannerEl.appendChild(_hppNoteEl);
-            }
-            _hppNoteEl.textContent = _hppNoteText;
-            /** @type {HTMLElement} */ (_hppNoteEl).style.display = '';
-          } else if (_hppNoteEl) {
-            /** @type {HTMLElement} */ (_hppNoteEl).style.display = 'none';
-          }
+          /** @type {HTMLElement} */ (document.getElementById('hppBannerText')).textContent = _hppForPeriod > 0
+            ? `✓ Includes ${_hppIsEstimate ? 'estimated ' : ''}Holiday Pay Premium of ${fmt(_hppAmount)}`
+            : `ℹ️ ${_hppIsEstimate ? 'Estimated' : 'A'} Holiday Pay Premium of ${fmt(_hppAmount)} could land on this payslip — not added to this estimate`;
+          const _hppTick = /** @type {HTMLInputElement} */ (document.getElementById('hppBannerTick'));
+          _hppTick.checked = _hppIncluded;
+          _hppTick.dataset.year = _hppTy.label;   // so the once-wired change listener targets the right year
+          // Second line: only once opted-in AND still an estimate — prompt to confirm from the payslip.
+          /** @type {HTMLElement} */ (document.getElementById('hppBannerNote')).textContent =
+            (_hppForPeriod > 0 && _hppIsEstimate)
+              ? 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.'
+              : '';
           _hppBannerEl.style.display = '';
         } else {
           _hppBannerEl.style.display = 'none';
@@ -1681,20 +1624,34 @@ export function init() {
       updatePriorHpp(curTy);
     });
 
-    // HPP opt-in tick — the per-year "add my HPP to the January take-home" flag (mirrors back pay's
-    // include tick). Persists for the PRIOR year (the one whose HPP lands on the upcoming January
-    // payslip — the year shown in the prior-year section) and recomputes take-home.
-    document.getElementById('hppIncludeTick')?.addEventListener('change', () => {
-      const pNum  = currentPeriodNum();
-      const curP  = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-      const curTy = taxYearForPeriod(curP);
-      const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === curTy.label);
-      if (tyIdx <= 0) return;
-      const priorTy = CONFIG.TAX_YEARS[tyIdx - 1];
-      const checked = /** @type {HTMLInputElement} */ (document.getElementById('hppIncludeTick')).checked;
-      if (checked) lsSet(hppIncKey(priorTy), '1'); else lsDel(hppIncKey(priorTy));
+    // HPP opt-in tick — lives IN the January-payslip banner (#hppBannerTick). The per-year flag it
+    // controls is stamped on the checkbox's data-year during render, so this once-wired listener
+    // always targets the correct tax year (the one whose HPP lands on the viewed payslip).
+    document.getElementById('hppBannerTick')?.addEventListener('change', () => {
+      const tick = /** @type {HTMLInputElement} */ (document.getElementById('hppBannerTick'));
+      const yr = tick.dataset.year;
+      const ty = CONFIG.TAX_YEARS.find(/** @param {any} t */ t => t.label === yr);
+      if (!ty) return;
+      if (tick.checked) lsSet(hppIncKey(ty), '1'); else lsDel(hppIncKey(ty));
       calculate();
     });
+    // Back-pay opt-in tick in its banner — proxies the (hidden) card state-holder #bpIncludeTick,
+    // reusing its full persist/recompute flow. And the two banners' "view … card" links.
+    document.getElementById('bpBannerTick')?.addEventListener('change', () => {
+      const src = /** @type {HTMLInputElement} */ (document.getElementById('bpBannerTick'));
+      const dst = /** @type {HTMLInputElement} */ (document.getElementById('bpIncludeTick'));
+      dst.checked = src.checked;
+      dst.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    /** @param {string} cardId @param {string} bodyId @param {string} toggleId */
+    const _bannerViewCard = (cardId, bodyId, toggleId) => {
+      if (!document.getElementById(bodyId)?.classList.contains('open')) {
+        /** @type {HTMLElement} */ (document.getElementById(toggleId))?.click();
+      }
+      document.getElementById(cardId)?.scrollIntoView({ behavior: 'smooth' });
+    };
+    document.getElementById('bpBannerViewLink')?.addEventListener('click', () => _bannerViewCard('backPayCard', 'backPayBody', 'backPayCardToggle'));
+    document.getElementById('hppBannerViewLink')?.addEventListener('click', () => _bannerViewCard('hppCard', 'hppCardBody', 'hppCardToggle'));
 
     // HPP formula toggle + disclaimer + back-pay cross-link
     /** @type {HTMLElement} */ (document.getElementById('hppToggleBtn')).addEventListener('click', toggleHppNote);

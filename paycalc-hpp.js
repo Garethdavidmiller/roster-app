@@ -16,7 +16,7 @@ import {
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { readSavedPeriod, hppEstKey, hppActualKey, hppIncKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
+import { readSavedPeriod, hppEstKey, hppActualKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
 import { fmt } from './paycalc-format.js';
 
@@ -373,13 +373,6 @@ export function updatePriorHpp(ty) {
     const stored = actualRaw || '';
     if (document.activeElement !== input) /** @type {HTMLInputElement} */ (input).value = stored;
   }
-
-  // Opt-in tick: reflects the per-year "add my HPP to the January take-home" flag. Shown only when
-  // there's a figure to add (estimate or confirmed) — a blank prior year has nothing to opt into.
-  const incRow  = document.getElementById('hppIncludeRow');
-  const incTick = /** @type {HTMLInputElement|null} */ (document.getElementById('hppIncludeTick'));
-  if (incRow)  incRow.style.display = (hasActual || est > 0) ? '' : 'none';
-  if (incTick) incTick.checked = lsGet(hppIncKey(priorTy)) === '1';
 
   section.classList.remove('hidden');
 }
