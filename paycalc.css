@@ -421,7 +421,7 @@
       display: flex; flex-direction: column; align-items: center; gap: 3px;
     }
     .hhmm-field input {
-      width: 54px; padding: 9px 6px;
+      width: 54px; padding: 9px 6px; min-height: 44px;   /* 44px = min touch target (was ~40px) */
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
       font-variant-numeric: tabular-nums;
       font-size: var(--type-medium); font-weight: 600;
@@ -1006,6 +1006,10 @@
     padding-top: 0 !important; padding-bottom: 0 !important;
   }
   .collapsible-body.open {
+    /* 1800px is a finite cap so the open/close can ANIMATE (max-height:none can't tween).
+       The tallest body is #backPayBody — MEASURED at ~1404px with a full 13-period breakdown
+       expanded (chrome ~1028px + 13 rows), comfortably under this cap, so it does not clip at
+       realistic sizes (v17.25 verification pass). Revisit only if a body could exceed ~1800px. */
     max-height: 1800px;
     padding-top: 8px !important; padding-bottom: 16px !important;
   }
