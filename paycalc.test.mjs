@@ -870,11 +870,9 @@ describe('calcProRateFactor', () => {
 // Tax and NI are tested non-cumulatively: actual payroll uses cumulative PAYE,
 // so small per-period differences (up to ~£1 tax, ~20p NI) are expected and
 // acceptable. Any larger gap would indicate a formula regression.
-// Student loan: NOT tested here — the SL plan cannot be determined from the
-// actuals alone (the back-calculated threshold doesn't match any standard plan,
-// and some SL values in the actuals don't reconcile exactly from other fields,
-// suggesting minor transcription imprecision). Verify SL plan from your payslip
-// settings and add a test once the plan is confirmed.
+// Student loan IS tested — G. Miller is on Plan 1 (confirmed); the clean-period SL
+// deductions are locked by the `MILLER_ACTUALS.sl` regression in the computeSL block above.
+// Net take-home is reconciled below (net = gross − tax − NI − SL).
 // NOTE: The HMRC-floor test above asserts P20 NON-CUMULATIVE tax = £809.60, while
 // MILLER_ACTUALS records the actual payslip tax of £809.71 for the same period.
 // These do not conflict: £809.71 is the cumulative payslip figure (the source of
@@ -898,6 +896,20 @@ describe('G. Miller 2025/26 payslip integration (non-cumulative estimates)', () 
     test(`${p.date}: NI within 20p of payslip`, () => {
       const ni = computeNI(p.gross, T25.ni);
       approx(ni, p.ni, `NI ${p.date}`, 0.20);
+    });
+  }
+
+  // Take-home identity: every real payslip's own figures must reconcile as
+  //   net = Taxable Pay − Tax − NI − Student Loan.
+  // This locks the fixture's internal consistency (every per-field assertion above leans on
+  // it) and documents the exact formula the calculator uses for the £ take-home it displays —
+  // the headline figure staff read. Combined with the per-field tax/NI/SL tests, it
+  // transitively confirms the code composes to the real take-home. Tolerance covers minor
+  // payslip rounding (largest observed drift ~28p). (v17.24 — closes the "net never asserted" gap.)
+  const withNet = Object.entries(MILLER_ACTUALS).map(([date, v]) => ({ date, ...v }));
+  for (const p of withNet) {
+    test(`${p.date}: net reconciles as gross − tax − NI − SL`, () => {
+      approx(p.gross - p.tax - p.ni - p.sl, p.net, `net ${p.date}`, 0.50);
     });
   }
 });

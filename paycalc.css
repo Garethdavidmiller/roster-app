@@ -1313,6 +1313,6 @@
   .pfx--adj { width: 90px; }
   #otherAdj { text-align: right; }
   .apply-rate-feedback { margin-top: 6px; color: var(--success-text); }
-  .actuals-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: var(--type-small); box-sizing: border-box; }
+  .actuals-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: var(--type-medium); box-sizing: border-box; }
   .actuals-status { font-size: var(--type-small); min-height: 18px; margin: 6px 0; }
 

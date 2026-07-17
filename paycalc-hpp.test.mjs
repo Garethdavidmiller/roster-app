@@ -22,7 +22,6 @@ import { RATE_125, RATE_150, RATE_300 } from './paycalc-calc.js';
 const _ls = new Map();
 let _hasBankHolidayVal = false;
 let _hasBoxingDayVal   = false;
-let _proRateFactorVal  = 1;
 
 mock.module('./paycalc-periods.js', {
     namedExports: {
@@ -40,7 +39,9 @@ mock.module('./paycalc-settings.js', {
         getGrade:          () => 'cea',
         getLoggedMember:   () => null,
         getEffectiveContr: () => 140,
-        getProRateFactor:  () => _proRateFactorVal,
+        // getProRateFactor kept for module shape only — _varPayForPeriod no longer imports it
+        // (London was the only component it touched; removed with London at v17.23).
+        getProRateFactor:  () => 1,
         getStoredRateForYear: () => 20.74,
     },
 });
@@ -71,7 +72,6 @@ function reset() {
     _ls.clear();
     _hasBankHolidayVal = false;
     _hasBoxingDayVal   = false;
-    _proRateFactorVal  = 1;
 }
 
 /**
