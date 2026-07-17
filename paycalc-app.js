@@ -346,11 +346,13 @@ export function init() {
       updateYtdForTaxYear(ty);
 
       // Year-to-Date "up to" note. The cumulative-PAYE tax method (computeTax) adds the entered YTD
-      // figures to the VIEWED period's gross and applies this period's cumulative allowance — so the
-      // figures are only correct when they are the totals as of the payslip IMMEDIATELY BEFORE the one
-      // on screen. That assumption was previously invisible: a member could keep P4's figures while
-      // browsing to P8 and get a silently-wrong estimate. Naming the exact prior payslip here (and it
-      // re-derives as they navigate) makes clear which payslip to copy from. (v17.33)
+      // figures to the VIEWED period's gross, so they are only correct when they are the totals as of
+      // the payslip IMMEDIATELY BEFORE the one on screen. IMPORTANT: the figures are stored ONCE per
+      // tax year (shared across all 13 periods) — the app does NOT know which payslip they came from.
+      // So the note frames them as a single latest-payslip snapshot and names the ideal source
+      // payslip for the viewed period, rather than implying a per-period accuracy it can't guarantee
+      // (v17.33 note; wording softened v17.41 — the per-year storage means "enter from P44" could
+      // otherwise read as satisfied while the fields still held older figures).
       const _ytdNote = document.getElementById('ytdUptoNote');
       if (_ytdNote) {
         const periodIdx = (p.num - 48) - ty.first + 1; // 1-based HMRC period within the tax year
@@ -361,8 +363,8 @@ export function init() {
         } else {
           const prevP = periods.find(/** @param {any} x */ x => x.num === p.num - 1);
           _ytdNote.innerHTML = prevP
-            ? `For an accurate P${payslipPeriodNum(p)} estimate, enter the Year to Date figures from the payslip before it — <strong>P${payslipPeriodNum(prevP)}, paid ${fdShort(prevP.payday)}</strong>.`
-            : `Enter the Year to Date figures from your most recent payslip (the one before P${payslipPeriodNum(p)}).`;
+            ? `The Year to Date figures are one running total from your <strong>latest payslip</strong>, shared across the year. They sharpen the P${payslipPeriodNum(p)} estimate most when they're the totals from the payslip just before it — <strong>P${payslipPeriodNum(prevP)} (paid ${fdShort(prevP.payday)})</strong>. Update them whenever a newer payslip arrives.`
+            : `The Year to Date figures are one running total from your latest payslip — keep them updated as new payslips arrive.`;
         }
       }
       // Update the "for P__" label next to the pension field so users can see

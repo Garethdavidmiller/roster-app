@@ -66,15 +66,28 @@ export function isFirstRun() {
         && !lsGet(SELECTED_MEMBER) && !getSession()?.name;
 }
 
+/** Index of the signed-in member (present, still in the roster, not hidden), else -1. */
+function _sessionMemberIndex() {
+    const name = getSession()?.name;
+    if (!name) return -1;
+    return teamMembers.findIndex(m => m.name === name && !m.hidden);
+}
+
 /** @returns {number} */
 export function getSelectedMemberIndex() {
     const savedName = lsGet(SELECTED_MEMBER);
     if (savedName) {
         const idx = teamMembers.findIndex(m => m.name === savedName && !m.hidden);
         if (idx !== -1) return idx;
-        // savedName stored but not found — stale entry from a removed member
+        // savedName stored but not found — stale entry from a removed member. Prefer the
+        // signed-in member (their OWN calendar) over the default before falling back — otherwise
+        // this call returns the default (marking the dropdown option) while the next call, now that
+        // SELECTED_MEMBER is deleted, resolves to the session member for the grid + banner: the
+        // dropdown and the rendered calendar then showed two different people. (v17.41 review fix)
         _staleMemberName = savedName;
         lsDel(SELECTED_MEMBER);
+        const staleSessIdx = _sessionMemberIndex();
+        if (staleSessIdx !== -1) { saveSelectedMember(staleSessIdx); return staleSessIdx; }
         return getDefaultMemberIndex();
     }
     // In-memory backstop for when localStorage writes silently fail (iOS private mode): a name
@@ -82,13 +95,10 @@ export function getSelectedMemberIndex() {
     if (_selectedIndexFallback !== null) return _selectedIndexFallback;
     // No saved selection — auto-select from the admin session if present so the
     // logged-in staff member sees their own calendar without triggering a cache clear.
-    const sess = getSession();
-    if (sess?.name) {
-        const idx = teamMembers.findIndex(m => m.name === sess.name && !m.hidden);
-        if (idx !== -1) {
-            saveSelectedMember(idx);
-            return idx;
-        }
+    const sessIdx = _sessionMemberIndex();
+    if (sessIdx !== -1) {
+        saveSelectedMember(sessIdx);
+        return sessIdx;
     }
     return getDefaultMemberIndex();
 }

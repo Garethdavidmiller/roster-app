@@ -219,5 +219,8 @@ export function initDatePickers(inputIds) {
         // Registered AFTER the cards' own listeners (this runs post-init), so it reads the
         // final, snapped value.
         input.addEventListener('change', _sync);
+        // doc-upload.js fires this when it re-defaults an untouched date programmatically (which
+        // emits no 'change') — resync so the trigger label can't go stale (v17.41).
+        input.addEventListener('date-refreshed', _sync);
     }
 }
