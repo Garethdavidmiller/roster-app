@@ -1037,7 +1037,7 @@ export function init() {
           /** @type {HTMLInputElement} */ (document.getElementById('bpBannerTick')).checked = _bpIncluded;
           const _bpAprilYr = _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4);
           /** @type {HTMLElement} */ (document.getElementById('bpBannerNote')).textContent =
-            `For the best estimate, make sure each payslip back to 1 April ${_bpAprilYr} is filled in accurately on the calculator.`;
+            `For the best estimate, fill in your hours on each payslip back to 1 April ${_bpAprilYr}.`;
           _bpBannerEl.style.display = '';
         } else {
           _bpBannerEl.style.display = 'none';

@@ -37,7 +37,7 @@ export const HELP_CONTENT = {
     ],
   },
   accuracy: {
-    title: 'Improve accuracy — why it helps',
+    title: 'Year to Date figures — why they help',
     tips: [
       'By default, the app divides your tax-free allowance equally across all 13 pay periods. This is usually accurate, but can drift if you had an unusually high or low pay period earlier in the year.',
       'Entering <strong>Year to Date figures</strong> gives a more accurate estimate based on everything you\'ve earned so far this tax year — usually much closer to your payslip, especially later in the year.',
