@@ -7,9 +7,10 @@ net (`session.test.mjs`, `firestore.rules.test.mjs` B2, flag-ON e2e) pins curren
 store + `session.js` feed bridge (observing only; `sessionReady` untouched). Phase 3 (v14.60):
 `auth-policy.js` pure page-auth map + `requirePageAuth`. Phases 4–7 (v14.61–v14.66): every write/named
 coordinator now CONSUMES the store + policy — Operations (4a) + self-healing admin reads (4b, v14.62),
-Links (5), Admin (6), Settings + Pay Calculator (7). Phase 4a.2 (v14.65/14.67): the HALT-style
-coordinators (Operations, Links, Paycalc) wrapped in an exported `init()` + `*-boot.js` bootstrap
-(branch-style Admin/Settings intentionally left inline). The whole refactor is behaviour-preserving
+Links (5), Admin (6), Settings + Pay Calculator (7). Phase 4a.2 (v14.65/14.67, completed later for
+the branch-style pair): ALL FIVE coordinators are now wrapped in an exported `init()` + `*-boot.js`
+bootstrap — the HALT-style trio (Operations, Links, Paycalc) first, then Admin (`admin-boot.js`) and
+Settings (`settings-boot.js`, v17.09). The whole refactor is behaviour-preserving
 (the suite — 665 unit + 173 rules + 68 e2e AS OF THE TRACK-1 REFACTOR; now ~1020 unit — passed unchanged throughout). Companion to `SECURITY_RELEASE_PLAN.md`.
 This plan is a **behaviour-preserving structural refactor** of how the app reasons about identity and
 page access. It landed **before B3** (the strict token-refresh sweep) and did NOT change runtime
@@ -387,50 +388,30 @@ another *served* JS file, obscure-filename/URL-obscurity, or leaving it in `rost
 
 ---
 
-## Appendix: Phase 4 detailed scope (Operations first) — scoped v14.61
+## Appendix: Phase 4 detailed scope (Operations first) — scoped v14.61 — ✅ DONE
 
-Phase 4 makes the FIRST coordinator actually CONSUME the store + policy. Two owner decisions are
-settled:
+Phase 4 made the FIRST coordinator (Operations) actually CONSUME the store + policy, shipped as 4a
+(structural consumption, behaviour-preserving — every Operations write handler already awaited
+`sessionReady`, so no write-gating UI change was needed) then 4b (the one beneficial behaviour
+change). Behaviour preservation was proven by the existing e2e passing unchanged; rollback was a
+single-coordinator revert.
 
-1. **Split 4a / 4b.** Ship the structural consumption first (4a), the read-latency improvement
-   second (4b) — so the riskiest change lands with reads behaving exactly as today.
-2. **No write-gating UI change.** Every Operations write handler ALREADY `await sessionReady`
-   before executing (huddle.js, operations-app.js circular/newsletter + roster, admin-auth.js), and
-   the buttons gate on file-selection (which outlasts sign-in). So a premature tap simply waits then
-   writes — the reviewer's M1 is adequately handled, and the server is the boundary regardless.
-   Adding a visible "confirming…" disabled state would be a behaviour change with ~zero benefit.
-   **Therefore 4a is behaviour-PRESERVING**, not behaviour-adjacent.
+### 4a — consume `requirePage` + the store (behaviour-preserving) — BUILT v14.61
+The two top-level access gates (`!currentUser` / `!isAdmin`) became ONE `requirePage(...)` decision
+(`login` → overlay, `forbidden` → redirect to admin, `allow` → continue), with a synthesised
+local-derived snapshot preserving the fast render from localStorage. The B1 enforcement check now
+decides via `requirePage(getAuthSnapshot(), 'operations')`. `sessionReady`, write handlers, and
+read cards unchanged.
 
-### 4a — consume `requirePage` + the store (behaviour-preserving)
-- **Access gate:** replace the two top-level `if (!currentUser)` / `if (!isAdmin)` blocks with ONE
-  `requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations')`
-  decision — `login` → overlay (was Gate A), `forbidden` → redirect to admin (was Gate B), `allow`
-  → continue. The synthesised "local-derived" snapshot preserves today's fast render from
-  localStorage (it treats a present local session as `named`, exactly today's optimism).
-- **B1 enforcement:** the existing `_opsAuth.then(...)` keeps its once-only timing but now decides
-  via `requirePage(getAuthSnapshot(), 'operations') === 'login'` (the store reflects the terminal
-  Firebase identity by then, fed by the Phase-2 bridge). `clearSession()` + overlay unchanged.
-- **Unchanged:** `sessionReady`, every write handler, the read cards, all chrome/card behaviour,
-  the `throw`s (kept — see 4a.2). Small diff at the top of `operations-app.js`; imports
-  `requirePage` + `getAuthSnapshot`.
-
-### 4a.2 — testable `init()` wrap + `throw`→`return` — BUILT (Operations v14.65; Links + Paycalc v14.67)
-The plan's "wrap each coordinator in an exported `init()`, remove the top-level throws" is a real
-goal but is a large re-indent and needs import-mocks (or full dep-injection) to unit-test the wiring
-— so it was deferred from 4a (kept that diff small) and picked up once the consumption pattern was
-proven. Each wrapped coordinator's body is `export function init()`, invoked by a `<page>-boot.js`
-2-line bootstrap (CSP `script-src 'self'` blocks an inline call; the boot file also keeps `init`
-importable without auto-running, for tests). The transform is mechanical and behaviour-preserving
-(`git diff -w` shows only the wrapper + `throw`→`return` + brace); nothing imports these coordinators,
-so function-scoping their module-level symbols breaks no consumer.
-
-**Scope decision — wrap the HALT-style coordinators, not the BRANCH-style ones.** The wrap's
-load-bearing benefit is turning a module-aborting top-level `throw` into a clean early `return`.
-- **Operations, Links, Paycalc** HALT on a failed gate (top-level `throw`) → wrapped. Paycalc's gate
-  was an IIFE-with-throw; it was de-IIFE'd to a plain `if (...) return;` inside `init()`.
-- **Admin, Settings** BRANCH instead (`if (authed) { init } else { showLogin }`) and have **no
-  top-level throw**, so the wrap would be a large re-indent (Admin ~1620 lines) for only *latent*
-  testability — not worth the risk. Left inline by design. (Revisit if/when their wiring is unit-tested.)
+### 4a.2 — testable `init()` wrap + `throw`→`return` — DONE for ALL FIVE coordinators
+Each coordinator's body is `export function init()`, invoked by a `<page>-boot.js` 2-line bootstrap
+(CSP `script-src 'self'` blocks an inline call; the boot file also keeps `init` importable without
+auto-running, for tests). The HALT-style trio shipped first (Operations v14.65; Links + Paycalc
+v14.67) — their load-bearing win was turning a module-aborting top-level `throw` into a clean early
+`return`. The branch-style pair, originally left inline as a scope decision, were wrapped later:
+Admin (`admin-boot.js`) and Settings (`settings-boot.js`, v17.09) — that earlier "Admin/Settings
+intentionally left inline" decision is superseded. Note: the in-place-login re-invocation on
+Admin/Settings calls their nested `initAuthorised()`, not `init()`.
 
 ### 4b — self-healing admin reads (the one beneficial behaviour change) — BUILT v14.62
 The three admin read cards (work-email / error-log / usage) read admin-gated collections. The
@@ -444,198 +425,60 @@ even though the account IS an admin. So 4b is **retry-only**, not optimistic-sta
 claim) and retries once; any other error re-throws to the card's existing silent-fallback catch.
 The optimistic-start idea was dropped as no-benefit. Separate + revertible.
 
-### Tests & safety net
-- **Behaviour preservation is proven by the EXISTING e2e passing UNCHANGED**: admin loads (not
-  redirected), non-admin redirected, not-signed-in shows the overlay, B1 `failSignIn` re-shows
-  login. `requirePage` itself is already unit-tested (auth-policy.test.mjs).
-- **Rollback:** revert the single `operations-app.js` commit — isolated to one coordinator, no
-  shared-module change. **Verify in a private window, never an installed phone.**
-
 ---
 
 ## Appendix: Phase 9 — Remove the post-login reload (in-place sign-in) — scoped v14.80; BUILT v14.81–83 (flag-gated, default OFF)
 
-**Status (v14.83; per-page flag v14.85; ROLLOUT STARTED v15.07): all five coordinators BUILT behind
-the per-page `CONFIG.INPLACE_LOGIN` object (`{ operations, links, paycalc, admin, settings }`).
-**ROLLOUT COMPLETE (v15.17): all five coordinators are ENABLED** — paycalc (v15.07), operations
-(v15.08), links (v15.09), admin (v15.16), settings (v15.17). Login confirmed stable (freeze fixed
-v14.75, B1 re-enabled v14.98). settings was flipped last (it is the one page that inits its nav while
-unsigned). The per-page `CONFIG.INPLACE_LOGIN` kill-switch still stands — set any key back to `false`
-to revert just that page to the reload path. Per-page (not one global switch) so a page can be enabled, watched live,
-and rolled back in isolation — and because it is NOT the B1 risk class (it changes only post-sign-in
-rendering, with a `reload()` fallback, never whether auth succeeds). Operations/Links/Paycalc landed v14.81–82 (re-invoke `init()`); Admin/Settings
-v14.83.** Admin/Settings are branch-style (no `init()` to re-invoke), so their signed-in body was
-extracted into an `initAuthorised()` that (a) refreshes the now-`let` identity vars from the just-saved
-session, (b) `dismissLoginOverlay()`s, (c) runs the body, (d) wires the nav. The nav is **deferred** past
-sign-in on the in-place login path (the full-screen overlay covers the burger meanwhile), so it renders
-once with the signed-in identity — **no `refreshNavIdentity` API was needed**. Admin's AL/Sick sections,
-wired unconditionally at module load, now read the logged-in user via a live `getCurrentUser()` getter
-(not a captured value) so an in-place save still stamps the correct `changedBy`. The work-email pending
-marker is preserved (set on both paths) so the email-check behaviour is identical either way. Every
-in-place `onSuccess` falls back to `reload()` if `init()`/`initAuthorised()` throws. Coverage: 5 e2e
-no-reload tests (one per coordinator) + the whole suite passing with the flag OFF proves equivalence.
-Remaining: with paycalc enabled (v15.07), watch the Operations App-speed "Signing in" data + a
-private-window check, then enable the next page (operations → links → admin → settings), one at a time.
+**Status: ✅ ROLLOUT COMPLETE (v15.17).** All five coordinators sign in IN PLACE — after a confirmed
+sign-in the login overlay is torn down (`overlay.remove()` + `unlockBodyScroll()`) and the page
+initialises without `window.location.reload()`. Built v14.81–83 behind the per-page
+`CONFIG.INPLACE_LOGIN` flag (default OFF); enabled one page at a time — paycalc (v15.07), operations
+(v15.08), links (v15.09), admin (v15.16), settings (v15.17). Login was confirmed stable first
+(freeze fixed v14.75, B1 re-enabled v14.98).
 
+**Honest payoff:** the reload never re-ran the *named sign-in* (the IndexedDB auth-restore is fast)
+— the win is skipping a full HTML reload + ES-module-graph re-evaluation + a service-worker
+navigation cycle + a second auth-restore + the visible white flash. A few hundred ms plus the flash.
 
+**Mechanism (kept for maintenance):** the one-shot `sessionReady` did not need replacing — on the
+login path nothing awaits it. Each coordinator (a) defers `resolveSession` until the real sign-in
+(so `sessionReady` still resolves exactly once per page life), (b) runs its signed-in-only body
+exactly once — at load if already signed in, else from the overlay's `onSuccess` (Admin/Settings via
+their extracted `initAuthorised()`, since their in-place path must not re-run `init()`'s
+unconditional module wiring) — so no listener is ever wired twice, and (c) `saveSession` precedes
+`onSuccess` in `runNamedSignIn`, so identity/namespace are committed before the body runs. The nav
+panel is deferred past sign-in so it renders once with the signed-in identity — no
+`refreshNavIdentity` API was needed.
 
-The login-latency review's **biggest single win**: today every protected page signs in, then
-`window.location.reload()`s, and the reloaded page re-does work it just finished. This phase replaces
-that reload with **initialising the page in place** after a confirmed sign-in.
-
-### Honest payoff (so expectations are calibrated)
-The reload does NOT re-run the *named sign-in* — the reloaded `ensureFirebaseSession` finds the
-session already in IndexedDB (`currentUser` matches) and returns fast. What the reload actually costs,
-and what removing it saves, is: **a full HTML reload + ES-module-graph re-evaluation + a
-service-worker navigation cycle + a second IndexedDB auth-restore + the visible white reload flash.**
-Combined with the v14.80 `primeAuth` pre-warm, the result is "Signed in — opening X…" flowing
-*straight* into the rendered page. Real and worthwhile (a few hundred ms + the flash), but it is
-"stop reloading + stop restoring twice," not "stop authenticating twice."
-
-### The core mechanism (why this is now low-risk)
-The blocker everyone fears is the **one-shot `sessionReady`** (`resolveSession` fulfils it once and
-forever). The key finding from mapping all five coordinators: **on the login path, the feature code
-that `await`s `sessionReady` never runs** — the coordinator shows the overlay and returns/branches
-past all of it. So no-reload does **not** need to replace `sessionReady`. It needs three things:
-
-1. **Defer resolving `sessionReady`.** On the login path, do **not** `resolveSession(false)` — leave it
-   pending (nothing awaits it on the login screen). Resolve it (true/Promise) only when the real
-   sign-in runs the authorised body. `sessionReady` thus still resolves **exactly once** per page life
-   — either immediately (already-signed-in load) or once at in-place sign-in. (Admin already does
-   this — its login branch never calls `resolveSession`. Operations/Links/Settings currently
-   `resolveSession(false)` on the login path and must stop.)
-2. **Extract `initAuthorised(name)`** = the post-gate / signed-in-only body of each coordinator
-   (`ensureNamedSession` + `resolveSession` + nav panel + all feature wiring + Firestore loads). It
-   already exists as a contiguous block on every page. It runs **exactly once** (at load if
-   signed-in, else via `onSuccess`) — so there is **no double-wiring** of listeners, the one real
-   hazard the Links map flagged.
-3. **`onSuccess(name) → initAuthorised(name)` instead of `reload()`**, then **tear down the overlay**.
-
-### Shared change 1 — login-overlay teardown (login-overlay.js)
-After `await onSuccess(name)` succeeds, remove the overlay in place: `overlay.remove()` +
-`unlockBodyScroll()` (import it from overlay.js). The login overlay uses `lockBodyScroll` but does
-**not** push a history entry (`_pushOverlayState` is createLightbox-only), so teardown is just
-element-removal + scroll-unlock; the keydown/trapFocus listener dies with the element. On reload-style
-callers this is harmless (the page was leaving anyway), so the teardown is unconditional. Add a
-`dismissOnSuccess` (default true) only if a caller ever needs to keep the overlay.
-
-### Shared change 2 — nav-panel identity refresh (settings only)
-`initNavPanel` self-guards (`burger.dataset.navPanelInit`) so a second call is a no-op. Four of five
-coordinators init the nav panel **only inside the authorised body** (the overlay covers the page when
-signed out), so they get a correct signed-in nav for free. **Settings is the exception**: it inits the
-nav at module scope **while unsigned** (deliberately — so a logged-out user can navigate to
-Calendar/Admin). After an in-place sign-in the nav must refresh to the signed-in identity (member
-name, Sign-out, notification bell). Options: (a) add a small `refreshNavIdentity({ memberName,
-onSignOut, isAdmin, … })` to nav-panel.js that re-paints the footer without rebuilding; or (b) leave
-**Settings on reload** for now and ship the other four (its nav wrinkle is the only thing that makes it
-harder). **Recommendation: ship the four first; do Settings + the nav-refresh API as a separate
-follow-up.**
-
-### Per-coordinator specifics
-- **Operations** (init-wrapped, cleanest — do FIRST). Body after the `allow` gate (≈ lines 64→end) is
-  already contiguous → wrap as `initAuthorised(currentUser)`. Login branch: drop `resolveSession(false)`,
-  keep `initLoginOverlay({ onSuccess: () => initAuthorised(name) })`, `return`. All read cards already
-  `await sessionReady` + `adminReadWithRetry`, so they simply run after the deferred resolve. Admin-only,
-  lowest user volume → safest first cutover (mirrors "Operations first" from Phase 4).
-- **Links** (init-wrapped). Same extraction. The Links map's "duplicate event listeners on re-run"
-  risk is **moot** because `initAuthorised` runs once (never the wholesale `init()` twice). `loadDesigns()`
-  stays the last line of the authorised body.
-- **Paycalc** (init-wrapped; gate is a HARD local-identity gate, not soft — unsigned shows the overlay
-  and returns). Extract lines after the gate into `initAuthorised(name)`. **Namespace is handled for
-  free**: `runMigrations()` (first line of that body) calls `setPaycalcNamespace(getLoggedMember())`,
-  and `saveSession` has already written the member before `onSuccess`, so the member's namespace
-  activates correctly before `loadSettings()`. The internal `resolveLegacyMigration → reload` (data-
-  ownership prompt) is a **different** flow — out of scope, leave as-is.
-- **Admin** (branch-style, NOT init-wrapped — and that's fine). Keep all the unconditional module-scope
-  wiring (DOM, dropdowns, `initALSection`/`initSickSection`, beforeunload) — it's auth-independent and
-  already runs for everyone. Extract only the signed-in-only block (`auth-ready` class, `applyPermissions`,
-  `initOverrides`, `loadOverrides`, deep-link, email check) into `initAuthorised(name, { justSignedIn })`.
-  `showAdminLogin().onSuccess` → `initAuthorised(name, { justSignedIn: true })` (drop the `reload` AND the
-  `myb_email_check_pending_<member>` marker — see below). The already-signed-in `else` branch →
-  `initAuthorised(name, { justSignedIn: false })`.
-- **Settings** (branch-style). `initApp()` already is the authorised body — call it from
-  `onSuccess` instead of `reload`, and stop `resolveSession(false)` on the login path. **Blocked only by
-  the nav-refresh** (shared change 2). Defer per recommendation above.
-
-### Bonus simplification — admin email check (folds in the v14.77 marker)
-The `myb_email_check_pending_<member>` marker existed **only** to carry "this was a real login" across
-the reload. With no reload, "real login" is literally the `onSuccess` path → call `initEmailCheck(name)`
-directly from `initAuthorised(..., { justSignedIn: true })` and **not** on the already-signed-in path.
-The 3-month cadence (`_emailCheckDue`) and dismiss-stamp stay. Net: the pending-marker dance is
-**deleted**, the behaviour ("show only after a real login, at most every 3 months") is preserved more
-directly, and `admin-app.js` gets simpler. (Update CLAUDE.md's "Work email check" decision + LOGIN_INCIDENT.)
+**Bonus simplification — NOT done:** the scoped idea of deleting the
+`myb_email_check_pending_<member>` login marker (calling `initEmailCheck(name)` directly from the
+just-signed-in path) was never implemented. The marker is **still live** — set by `admin-app.js`'s
+login `onSuccess`, consumed by `admin-email-check.js` — so treat it as current behaviour (see
+CLAUDE.md's "Work email check" decision).
 
 ### What deliberately stays a reload
 - The **B1 re-show path** (`ENFORCE_NAMED_SESSION` on + named session fails after an apparently-valid
   local session → `clearSession()` + overlay). This is session *invalidation*; a reload is acceptable
-  and the path is rare (and B1 is currently OFF). Keeping it reload avoids re-running `initAuthorised`
-  twice on one page life.
+  and the path is rare. (B1 — `ENFORCE_NAMED_SESSION` — has been ON since v14.98.) Keeping it reload
+  avoids re-running `initAuthorised` twice on one page life.
 - Paycalc's **data-ownership** `resolveLegacyMigration → reload` (separate flow).
 
-### Risk + rollback
-- Auth is load-bearing; the freeze history demands caution. **Gate behind a PER-PAGE
-  `CONFIG.INPLACE_LOGIN` object** (`{ operations, links, paycalc, admin, settings }`, all default
-  `false` → today's reload) so each page can be switched on/off in one line and flipped **one at a
-  time, validated in a private window** before the next. Per-page (not one global boolean) keeps the
-  blast radius to a single page — the explicit lesson from the B1 global flip. Each coordinator is an
-  independent, revertible commit (the Phase-4 discipline); the per-page key also lets the owner A/B one
-  page live. NOTE: this is NOT the B1 risk class — INPLACE only changes post-sign-in rendering
-  (render-in-place vs reload), the sign-in/session/identity are unchanged, and every in-place path
-  falls back to `reload()` on a throw, so a bad page self-heals and can never lock anyone out.
-- The new failure mode to watch: a feature listener wired twice, or `initAuthorised` running before
-  `saveSession` committed. Both are prevented by construction (runs once; `saveSession` precedes
-  `onSuccess` in `runNamedSignIn`) — but they are exactly what the e2e below must assert.
-
-### Test plan
-- **Per coordinator, a new e2e**: not-signed-in → fill grade/name/surname → click Sign in (the fixture
-  stub resolves) → assert **no navigation** (set `window.__noReload = 1` before the click; a reload
-  wipes it — assert it survives), `#loginOverlay` removed, body scroll unlocked, and a signed-in
-  element present (Operations `#huddleUploadCard`, Admin `#fieldMember`, Links grid, Paycalc
-  `#periodSelect`). Run on Desktop + Pixel 5, both flag states.
-- **Regression**: the existing seed-session-then-load tests are unaffected (they never click sign-in);
-  the `failSignIn`/`hangSignIn`/Back-link tests are unaffected. With `INPLACE_LOGIN=false` the whole
-  suite must pass unchanged (proves the flag's off-path is today's behaviour).
-- **Manual**: every role in a private window — admin, manager, CEA, CES, dispatcher — sign in and
-  confirm the page renders in place with no flash, nav shows identity, and (admin) the email check
-  appears only when due.
-
-### Sequencing (smallest-blast-radius first)
-1. `CONFIG.INPLACE_LOGIN` flag + login-overlay teardown (no behaviour change while flag off).
-2. **Operations** (admin-only, init-wrapped) → validate live.
-3. **Links**, then **Paycalc** (init-wrapped).
-4. **Admin** (branch-style; folds in the email-check simplification).
-5. **Settings** + the `refreshNavIdentity` nav-panel API (last; the only shared-module addition).
-6. Flip `INPLACE_LOGIN.<page>` on **one page at a time**, each proven live before the next; once all
-   are stable, delete the flag + the dead reload paths. **▶ Live rollout status: paycalc ON (v15.07),
-   operations ON (v15.08), links ON (v15.09) — the init-wrapped trio done; next = admin → settings**
-   (branch-style, all-staff — LAST). NOTE: ops/links are reached already-signed-in, so their in-place
-   path rarely fires — paycalc is the real validation (it works). Before admin/settings: a genuine
-   multi-day watch for "stuck after login" reports (App-speed "Signing in" is too sparse to rely on).
-
-**Dependency note:** independent of B1/B3 (works with `ENFORCE_NAMED_SESSION` either state). Best done
-**after** the owner confirms the v14.79–80 login changes are stable in production, so this builds on a
-known-good baseline rather than stacking onto an unverified one.
+### Kill-switch (live — still stands)
+The per-page `CONFIG.INPLACE_LOGIN` object (`{ operations, links, paycalc, admin, settings }`) —
+set any key back to `false` to revert just that page to the reload path. Per-page (not one global
+boolean) so a page can be rolled back in isolation — the explicit lesson from the B1 global flip.
+This is NOT the B1 risk class: it changes only post-sign-in rendering (render-in-place vs reload),
+never whether auth succeeds, and every in-place `onSuccess` falls back to `reload()` if
+`init()`/`initAuthorised()` throws — a bad page self-heals and can never lock anyone out.
+Coverage: 5 e2e no-reload tests (one per coordinator) + the whole suite passing with the flag OFF.
 
 ---
 
 ## Appendix: Phase 10 — Remove the duplicate post-login `ensureNamedSession` — scoped v14.86 (LOW PRIORITY, likely drop)
 
-After an in-place sign-in the coordinator's authorised body immediately calls `ensureNamedSession`
-again (the overlay just established the session). The idea: have the overlay pass its **confirmed**
-auth result into `onSuccess` and resolve `sessionReady` from that instead of re-confirming.
-
-**Cost/benefit changed after v14.84 — mostly not worth building.** The `auth.currentUser` fast path
-(v14.84) already makes the second `ensureNamedSession` a **synchronous near-noop** on the in-place path
-(`auth.currentUser` matches → returns immediately, no `onAuthStateChanged`, no network). What remains
-to save is microscopic (one store dispatch + a couple of microtasks); the only genuine value is
-contract cleanliness + removing a *theoretical* stale-completion race on `_fbIdentity`/the store.
-
-**If ever built:** scope it to **admin + settings only** (branch-style — a clean `initAuthorised(opts)`
-change where `onSuccess` already calls it directly); do **NOT** touch the init-wrapped trio
-(operations/links/paycalc) — the fast path already covers them and threading the auth result through
-`init()`/`*-boot.js` isn't worth the churn. It is safe **only on the in-place `onSuccess` path**
-(the reload + already-signed-in paths genuinely need `ensureNamedSession` for a cold restore and stay
-untouched). Because it touches the one-shot `sessionReady` (resolve `true` directly) and the B1
-re-check — both load-bearing — it stays behind the per-page `INPLACE_LOGIN` flag and the tests must
-assert no write ever hits a non-live `auth.currentUser`. **Strictly after Phase 9 is live; if the
-in-place experience already feels instant, drop it with no real loss.**
+Idea: pass the overlay's confirmed auth result into `onSuccess` instead of re-running
+`ensureNamedSession` in the authorised body. Not worth building since v14.84 — the `auth.currentUser`
+fast path already makes the second call a synchronous near-noop; only contract cleanliness remains.
+If ever built: admin + settings only, in-place `onSuccess` path only, behind `INPLACE_LOGIN`, with
+tests asserting no write hits a non-live `auth.currentUser`. In-place login already feels instant —
+drop it with no real loss.

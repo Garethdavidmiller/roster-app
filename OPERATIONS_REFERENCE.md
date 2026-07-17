@@ -14,8 +14,9 @@ Files stored at a **versioned** path: `huddles/YYYY-MM-DD-{uploadId}.pdf` (or `.
 `{uploadId}` is a short random suffix. The versioned suffix lets a re-upload for the same date
 write the new object before the old one is deleted, so a re-upload (incl. a PDF↔DOCX swap) never
 orphans the previous file or races the Firestore commit. The exact path is recorded in the
-`storagePath` field. (Docs written before versioned paths have no `storagePath`; the cleanup/prune
-code falls back to the legacy fixed `huddles/{date}.{fileType}`.)
+`storagePath` field. (Docs written before versioned paths have no `storagePath`; the browser
+`uploadHuddle` cleanup falls back to the legacy fixed `huddles/{date}.{fileType}`, and the prune
+sweeps by prefix — see Auto-prune below.)
 
 Storage URL strategy (v15.19+): `ingestHuddle` writes a permanent `firebaseStorageDownloadTokens`
 download URL to `storageUrl`. It does NOT use a signed URL — GCS caps v4 signed-URL expiry at
@@ -29,6 +30,9 @@ https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD-{upl
 
 **Auto-prune (3 months):** at the end of every `ingestHuddle` run, `pruneOldHuddles()` deletes
 huddle Firestore docs *and* their Storage objects older than 3 months (`HUDDLE_RETENTION_MONTHS`).
+Storage deletion sweeps by the `huddles/<date>` **prefix** (Jul 2026, a functions-only change —
+no app-version bump) — covering versioned paths, legacy fixed paths, and orphaned objects alike,
+superseding the old storagePath-based delete.
 It is awaited (so it runs before Cloud Run reclaims the container) but best-effort — failures are
 swallowed and never block the upload response. Circulars/newsletters keep 6 months; huddles are
 higher-volume and rarely referenced after the day, so retention is shorter.
@@ -41,7 +45,7 @@ Document ID = `YYYY-MM-DD` (the London date of the huddle).
 date         string     "YYYY-MM-DD"
 storageUrl   string     Download-token URL (see above)
 storagePath  string     Versioned Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf"
-                        (absent on docs written before versioned paths — prune falls back to "huddles/{date}.{fileType}")
+                        (absent on docs written before versioned paths — the prune's prefix sweep covers those too)
 fileType     string     "pdf" | "docx" (browser writes are rule-constrained to these since v14.29)
 uploadedAt   timestamp  Firestore server timestamp
 uploadedBy   string     "power-automate" (Cloud Function) | member name string (manual admin upload)
@@ -186,12 +190,11 @@ Note: `'GMT Standard Time'` has spaces — `'GMTStandardTime'` is invalid.
 
 ### Firestore Security Rules — `huddles` collection
 
-```
-match /huddles/{docId} {
-  allow read:  if true;                          // calendar-app.js reads without an Auth session
-  allow write: if request.auth.token.admin == true;  // browser writes: admin only (v10.83)
-}
-```
+Access posture: **read open, write admin-only**. (The live rule in `firestore.rules` is the
+authority — since v14.29 it also shape-validates browser writes: `hasOnly` field allowlist,
+bounded `YYYY-MM-DD` date, `fileType in ['pdf','docx']`, typed `uploadedAt`/`uploadedBy`, a
+250,000-char `htmlContent` cap, and a separate admin-only delete rule. Don't quote the rule
+here — it drifts; read the file.)
 
 Read is open because `calendar-app.js` (index.html) has no Firebase Auth session — requiring auth
 broke notification auto-open on fresh first visits (v10.76). Browser writes (the manual admin
@@ -351,7 +354,7 @@ Re-uploading for the same date overwrites the Firestore doc and replaces the Sto
 2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps).
 3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
 4. `getLatestCircular()` / `getLatestNewsletter()` is awaited:
-   - On success with a `storageUrl`: `newTab.location.href = url` opens the file (a PDF previews in the tab; a Word `.docx` opens/downloads in Word — there is no inline conversion for these two, unlike the Huddle); `closePanelForNavigation()` closes the drawer.
+   - On success with a `storageUrl`: `newTab.location.href = url` opens the file (a PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` (v16.45) so it renders with images instead of downloading — still no Mammoth-style inline HTML conversion, unlike the Huddle); `closePanelForNavigation()` closes the drawer.
    - On success with no document (null): `newTab.close()` cancels the blank tab; the coming-soon lightbox is shown.
    - On Firestore error: same as null — cancels the blank tab, shows a retry message in the coming-soon lightbox.
 5. `_docFetching` is reset to `false` in `.finally()`.

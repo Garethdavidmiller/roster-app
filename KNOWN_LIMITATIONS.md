@@ -219,10 +219,12 @@ award is announced. The UI shows a yellow "rate unconfirmed" notice for 2026/27 
 Pay awards at Chiltern are typically not decided until August — do not expect confirmed
 rates before then.
 
-### Back pay lump sum — HPP now included (v10.73)
-Resolved — `calcBackPay()` computes the variable-pay portion (`_bpVarAmount`) and
-`calcHPP()` folds it into the HPP estimate for the paid-in period. See task #3 above for the
-payslip confirmation detail.
+### Back pay lump sum vs HPP (v10.73 — SUPERSEDED at v16.89)
+The v10.73 fix fed `calcBackPay()`'s variable-pay portion (`_bpVarAmount`) into `calcHPP()`.
+That coupling was later found to DOUBLE-COUNT the award uplift (calcHPP already prices the
+whole year at the settled post-award rate) and was deliberately removed at v16.89 — the lump
+no longer feeds HPP. Current rule: `.claude/rules/paycalc.md` → "The lump is deliberately NOT
+added into the HPP estimate (v16.89)". See task #3 above for the original payslip confirmation.
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
@@ -341,7 +343,7 @@ web.app — `STAFF_SITE_URL`'s origin only supplies the path + hash.
 
 **Both origins must stay in the GCP API-key referrer allowlist** (`web.app`,
 `firebaseapp.com`, `garethdavidmiller.github.io`) until github.io is deliberately retired —
-dropping one silently breaks all Firebase Auth on that origin (see security task #1 below).
+dropping one silently breaks all Firebase Auth on that origin (see security task #1 above).
 
 **Retiring github.io later** (optional, no deadline): confirm all staff have reinstalled from
 web.app, remove the github.io entry from the allowlist, and turn off Pages in repo Settings.
@@ -357,19 +359,12 @@ URL stuck on splash, GitHub Pages staff URL returning 404, while every installed
 phone carried on fine).
 
 **Therefore: never treat "my phone works" as evidence the site is up.** Always
-test the **live URLs in a fresh browser / private window** (no SW, no cache):
-- `https://myb-roster.web.app` — must load *past* the splash to the calendar (canonical)
-- `https://garethdavidmiller.github.io/roster-app/` — must load (not `404`); the GitHub Pages
-  mirror. **Note the `/roster-app/` sub-path** — the bare `garethdavidmiller.github.io` origin is
-  a separate empty repo that 404s *by design*, so don't test that.
-- Deep-link a sub-page (`/admin.html`, `/paycalc.html`) — not just the root
-- DevTools → Console on each: no red errors (CSP / failed module / `404` /
-  `api-key-not-valid` / referrer-blocked)
-
-This check is now part of the routine review cadence — see CLAUDE.md →
-"Deployment health check". Re-run it after any change to `firebase.json`
-(CSP/headers), the Firebase SDK version in `firebase-client.js`, the GCP API-key
-referrer allowlist, or the hosting setup.
+test the **live URLs in a fresh browser / private window** (no SW, no cache) —
+the canonical URL checklist and cadence live in **CLAUDE.md → "Deployment health
+check"** (both origins past the splash, a sub-page deep-link, no red console
+errors). Re-run it after any change to `firebase.json` (CSP/headers), the
+Firebase SDK version in `firebase-client.js`, the GCP API-key referrer
+allowlist, or the hosting setup.
 
 **Root cause of the June 2026 splash outage (fixed v12.34):** `firebase.json`'s
 hosting `ignore` list contained `**/*.mjs` — intended to skip the `*.test.mjs`
@@ -478,12 +473,10 @@ for now:
   A field-level merge is not worth the complexity for a 2-person beta tool.
 
 ### Test coverage gaps
-Current test suites cover: override priority logic (`override-utils.test.mjs`), roster data / bank
-holidays / paydays / AL (`roster-data.test.mjs`), pay maths (`paycalc.test.mjs`),
-roster suggestions (`paycalc-roster-suggestions.test.mjs`), Cloud Function parse helpers
-(`roster-parse-helpers.test.mjs`), SW asset completeness (`sw-asset-check.test.mjs`),
-and link-design pure maths including generator, coverage, and design checks
-(`links-design.test.mjs`, added v12.40).
+The suite is now broad (40+ test files, ~1045 unit tests — see CLAUDE.md's file tree for the
+full per-suite listing; nearly every pure module has a companion `.test.mjs`, the exceptions
+being trivial data/formatter modules like `paycalc-format.js`, `paycalc-help.js`, and
+`roster-cycle-data.js`). What matters here is what is **still not** covered:
 
 **Closed v16.32–16.33:** the push-notification state machine + subscribe/unsubscribe flow
 (`notif.test.mjs`, 23 tests — Push APIs stubbed on globalThis), the `setupRosterAuth` (B4) decision

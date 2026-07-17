@@ -1,6 +1,6 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: in progress (created v14.38). **Current state (as of v17.12):***
+*Status: in progress (created v14.38). **Current state (as of v17.22):***
 - *Track A — **A2 Workload Identity Federation ✓ DONE (v14.93)** (keyless OIDC deploys; SA JSON key +
   secret deleted — see Appendix A2); A3 doc-only ✓ DONE (v14.38); **A1 ✓ DONE (v15.32)** — the `uuid`
   advisories were cleared with a scoped `uuid` override on the supported firebase-admin `^13`, NOT the
@@ -17,7 +17,8 @@
   token.admin == true` (reads stay open); `setupRosterAuth` sets `linksDesigner` from
   `CONFIG.LINKS_DESIGNERS`, and every `links-app.js` write is wrapped in `writeWithClaimRetry` so a
   stale designer token self-heals. This SUPERSEDES the earlier "leave `linkDesigns` at
-  `request.auth != null`" owner decision.*
+  `request.auth != null`" owner decision; since v17.02 `linkDesigns` create/update are also
+  shape-validated (`hasOnly(['name','patterns','updatedAt','updatedBy'])` + typed fields).*
 - *B4 (server-owned role lists) ✅ SHIPPED v16.30.*
 - *Remaining security roadmap: surname-derived credential replacement (Track C), App Check enforcement
   (Track D), and the public-read / tokenised-document-URL decisions.*
@@ -162,8 +163,10 @@ surface to debug when something goes silent.
    depends on, and the first substantive phase.
 2. **A2** — Workload Identity Federation. Isolated, removes standing credential risk, doesn't
    touch runtime. Do it while B0 is in review.
-3. **B1 → B2** — named-session separation + per-member isolation rule (B2 also tightens the
-   `pushSubscriptions` delete rule), all branch-safe with emulator tests (no deploy until merge).
+3. **B1 → B2** — named-session separation + per-member isolation rule. (B2 CONSIDERED tightening
+   the `pushSubscriptions` delete rule and kept it as-is — the rule is still `request.auth != null`;
+   tightening remains an OPEN decision, see the owner-decisions table.) All branch-safe with
+   emulator tests (no deploy until merge).
 4. **B3** — claims audit + permissive→strict token-refresh rollout in a low-traffic window.
    **Was the single highest-risk step in the entire plan — ✓ SHIPPED v16.29** (no lockout; the
    `writeWithClaimRetry` self-heal meant no mass sign-out).
@@ -182,25 +185,14 @@ Each phase: **Goal · Who · Risk · Mitigation · Rollback · Go/no-go gate.**
 "Claude" = branch + test work; "Owner" = Firebase/GCP Console or a chosen production window.
 
 ### A1 — clear the transitive `uuid` advisories in `functions/` ✓ DONE (v15.32-era, uuid override)
-- **Goal:** remove the transitive `uuid` advisories in `functions/`.
-- **Resolution (chosen):** a scoped **`overrides: { "uuid": "^11.1.1" }`** in `functions/package.json`,
-  keeping firebase-admin at the supported **`^13.10.0`**. `npm audit --omit=dev` → **0 vulnerabilities**
-  (was 9 moderate). Module-load smoke test passed (uuid, @google-cloud/storage, gaxios, teeny-request,
-  firebase-admin all `require()` cleanly; namespaced `admin.firestore/storage/auth/messaging` intact);
-  `npm run test:functions` 103/103 green.
-- **Why NOT firebase-admin v14 (the original plan):** two blockers made the v14 route both unnecessary
-  and unsafe — (1) `firebase-functions@7.x` peers firebase-admin `^11||^12||^13`, so v14 violates the
-  peer; (2) v14 drops the legacy `admin.firestore` namespace that `index.js` uses throughout
-  (`admin.firestore.FieldValue.serverTimestamp()`, `admin.storage()`, `admin.auth()`), which would
-  break the functions at runtime. Empirically, bumping to v14.1.0 also cleared only 2 of 9 advisories —
-  the `uuid` chain persists under `@google-cloud/storage`, so v14 didn't even meet the goal.
-- **Why the override is safe:** advisory GHSA-w5hq-g745-h8pq (moderate) is a missing buffer bounds
-  check in uuid **v3/v5/v6 when a `buf` arg is provided**; the Google libs call `uuid.v4()` (random, no
-  `buf`), so the flaw was never reachable — the override just removes audit noise. uuid's `v4()` API is
-  unchanged v9→v11, and v11 keeps CJS `require` support (smoke-tested).
-- **Rollback:** remove the `overrides` block; functions redeploy from the prior lockfile (reinstates
-  uuid 9.x and the accepted-but-unreachable advisory).
-- **Follow-up:** drop the override once `@google-cloud/storage` ships `uuid >= 11.1.1` upstream
+- **Outcome:** a scoped **`overrides: { "uuid": "^11.1.1" }`** in `functions/package.json` on the
+  supported firebase-admin **`^13`** — `npm audit --omit=dev` → 0 vulnerabilities (was 9 moderate);
+  module-load smoke test + `npm run test:functions` green. The originally-planned firebase-admin v14
+  bump was neither needed nor safe (breaks the `firebase-functions` peer range and the namespaced
+  `admin.*` API `index.js` uses; empirically cleared only 2 of 9 advisories). The advisory itself
+  (GHSA-w5hq-g745-h8pq) was never reachable — the Google libs call `uuid.v4()` with no `buf` arg.
+- **Rollback:** remove the `overrides` block (prior lockfile reinstates the unreachable advisory).
+  **Follow-up:** drop the override once `@google-cloud/storage` ships `uuid >= 11.1.1` upstream
   (`npm ls uuid` in `functions/` will then show it without "overridden").
 
 ### A2 — Workload Identity Federation ✓ DONE (v14.93)
@@ -250,248 +242,87 @@ in `session.test.mjs`.
 - **Gate:** every active `teamMembers` account verified present server-side; break-glass reset tested.
 
 ### B2 — per-member override write isolation (the headline gap) ✓ BUILT + DEPLOYED permissive (v14.53)
-> **Read "The identity tiers the rules must respect" first.** The original one-line scope here
-> ("`overrides`/`linkDesigns` require `name == memberName` with an admin bypass") was wrong in three
-> ways, each a silent lockout: it ignored the **manager** tier, it assumed `linkDesigns` is
-> member-owned (it is not), and it assumed `pushSubscriptions` carries an owner identity (it does
-> not). The corrected scope below is the result of the v14.51 sweep.
+> **Read "The identity tiers the rules must respect" first.** The original one-line scope here was
+> wrong in three ways, each a silent lockout: it ignored the **manager** tier, it assumed
+> `linkDesigns` is member-owned (it is not), and it assumed `pushSubscriptions` carries an owner
+> identity (it does not). Corrected in the v14.51 sweep.
 
-- **Goal (overrides):** add a **`manager: true`** claim (`setupRosterAuth` sets it for
-  `MANAGER_NAMES`, mirroring how `admin` is set for `ADMIN_NAMES`), then gate `overrides`
-  **create, update, AND delete** on:
-  `request.auth.token.name == memberName || request.auth.token.admin == true || request.auth.token.manager == true`.
-  - The `admin` bypass is **load-bearing** (admin writes for others constantly: AL/sick on behalf,
-    every `source:'roster_import'` row). The `manager` bypass is **equally load-bearing** — the 6
-    managers edit staff AL/absence/shifts on behalf every day; without it B2 silently locks them out.
-  - **Tighten the delete rule too.** Today `overrides` delete is `request.auth != null` (any
-    authenticated user can delete any override). It must get the **same three-tier check** as
-    create/update, or isolation on writes is pointless (anyone could still delete anyone's data).
-- **Goal (`linkDesigns`) — NOT member-isolated.** Link designs are keyed by **design name, not
-  member**, so `token.name == memberName` is meaningless, and the designer **S. Silva is a CEA**
-  (no admin/manager claim). Member-name isolation does not fit this collection. **The original owner
-  decision (Jul 2026) was (a) — leave `linkDesigns` at `request.auth != null`**, treating the client
-  redirect on `CONFIG.LINKS_DESIGNERS` as the real control given a one-tool blast radius. **That
-  decision was SUPERSEDED: H2 ✓ SHIPPED (v16.29)** — option (b) landed. A dedicated
-  **`linksDesigner: true`** claim is now set by `setupRosterAuth` for the `LINKS_DESIGNERS` names, and
-  `linkDesigns` writes are gated on `admin || linksDesigner` (reads stay open). Do **not** fold
-  `linkDesigns` into the override member-name model — its gate is the orthogonal `linksDesigner` claim.
-- **Goal (date validation hardening) — folded in from an external v14.51 review.** The `overrides`
-  date rule validates *shape* only (`matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')`), so an impossible date
-  like `2026-99-99` or `2026-02-31` passes; the `circulars`/`newsletters` date rules are weaker
-  still (`size() == 10`, no regex at all). Tighten all three to bound month `01-12` and day `01-31`
-  via `matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')` — the same bounded-alternation
-  style already proven on the `HH:MM-HH:MM` value check in the same file. (Full leap-year/Feb-30
-  validation belongs server-side; rules can at least reject month/day out of range.) This is pure
-  hardening with no migration risk — the client never generates impossible dates — but it is a
-  `firestore.rules` change with emulator tests, so it rides with B2's rule work rather than shipping
-  as a casual standalone rules deploy. Add emulator cases: `2026-00-10`, `2026-13-01`, `2026-02-31`
-  denied; `2026-02-28` / `2028-02-29` accepted.
-- **Goal (`pushSubscriptions` delete) — framing corrected.** The doc has **no member identity**
-  (keyed by a SHA-256 of the endpoint; fields are only `endpoint`, `keys.p256dh`, `keys.auth`), so
-  an "owner check by name" is **structurally impossible** without first adding a stored owner field.
-  Realistic options: (a) **keep `request.auth != null`** and document that the id already requires
-  knowing the endpoint (mild obscurity, low risk — the current posture); or (b) add an
-  `ownerName`/`uid` field on create and check it on delete (a schema change + a `savePushSubscription`
-  change, not just a rule edit). **Recommended: (a)** — the gain from (b) is small and it widens the
-  change surface. Either way, the prior plan text "add an owner/admin check" is not directly
-  implementable and is corrected here.
-- **Who:** Claude (branch — `setupRosterAuth` `manager` claim + rules + emulator tests). **Branch
-  push does not deploy** (deploy-rules.yml runs on merge to `main`; `setupRosterAuth` deploys via
-  deploy-functions.yml on merge).
-- **Provisioning dependency (new):** the `manager: true` claim only lands when **"Set up accounts"
-  is re-run** after `setupRosterAuth` ships, and only takes effect on each manager's **next token
-  refresh** (custom claims are read at token mint). **Correction to an earlier draft:** because the
-  *permissive* rule already requires the `manager` claim for on-behalf writes (a stale token has
-  `name` but not `manager`, so the `!('name' in token)` escape does NOT cover it), managers must be
-  re-provisioned + refreshed **in the B2 window — not deferred to B3.** See the B2 deploy runbook below.
-- **Risk:** the rule is correct but rollout locks out cached-token sessions — for **managers too**,
-  now (see B3).
-- **Mitigation:** this phase shipped **only** the permissive interim isolation rule + tests; the strict
-  tighten then happened in B3 after the re-auth sweep (✓ SHIPPED v16.29). Mirrors the pattern already
-  live on `staffContact` (which is already three-tier-correct: `name == memberName || admin`).
+- **What shipped (v14.53):** the **`manager: true`** claim in `setupRosterAuth` (for `MANAGER_NAMES`,
+  mirroring `admin`) + the permissive 3-tier `overrides` rule — **create, update, AND delete** gated
+  on `token.name == memberName || token.admin || token.manager` (plus the interim
+  `!('name' in token)` escape, removed at B3/v16.29). Also bounded month/day date validation on
+  `overrides`/`circulars`/`newsletters` (impossible dates like `2026-13-01` denied), folded in from
+  the v14.51 review. Emulator tests covered the full tier matrix (staff own-only; manager/admin
+  on-behalf incl. delete; `roster_import` saves; manager still rejected by master-admin collections;
+  own push-subscription delete). The live `firestore.rules` + `firestore.rules.test.mjs` are the
+  source of truth for the rule text and gate cases.
+- **Why both bypasses are load-bearing:** the `admin` bypass — admin writes for others constantly
+  (on-behalf AL/sick, every `source:'roster_import'` row). The **`manager` bypass is equally
+  load-bearing** — the 6 managers edit staff AL/absence/shifts on behalf every day; without
+  `manager: true` B2 silently locks them out. Master-admin collections
+  (huddles/circulars/newsletters/roster/auth) stay `admin`-only — never grant managers `admin: true`.
+- **`linkDesigns` — NOT member-isolated.** Designs are keyed by **design name, not member**, and
+  designer **S. Silva is a CEA** (no admin/manager claim), so `token.name == memberName` is
+  meaningless here. The original owner decision (leave at `request.auth != null`) was **SUPERSEDED:
+  H2 ✓ SHIPPED (v16.29)** — a dedicated **`linksDesigner: true`** claim is set by `setupRosterAuth`
+  for `LINKS_DESIGNERS`, and writes are gated on `admin || linksDesigner` (reads stay open). Do
+  **not** fold `linkDesigns` into the override member-name model.
+- **`pushSubscriptions` delete — CONSIDERED and kept as-is (rule-tighten remains OPEN).** The doc has
+  **no member identity** (keyed by a SHA-256 of the endpoint; fields are only `endpoint`,
+  `keys.p256dh`, `keys.auth`), so an owner check is **structurally impossible** without first adding
+  a stored owner field. Options: (a) **keep `request.auth != null`** and document that the id already
+  requires knowing the endpoint (mild obscurity, low risk — B2 chose this; it is the current live
+  posture); or (b) add an `ownerName`/`uid` field on create and check it on delete (a schema +
+  `savePushSubscription` change, not just a rule edit). Tightening remains an open owner decision —
+  see the owner-decisions table.
+- **Provisioning invariant (executed in the B2 window, not deferred to B3):** the `manager` claim
+  only lands when "Set up accounts" is re-run after `setupRosterAuth` ships, and takes effect on each
+  manager's next token refresh — the permissive rule already required it for on-behalf writes (a
+  stale token has `name` but not `manager`, so the escape did NOT cover it). Deploy order was:
+  merge → immediately run Set up accounts → token refresh → verify in a private window (never an
+  installed phone); the short residual window was soft/recoverable, with admin break-glass cover.
 - **Rollback:** revert the rule; `request.auth != null` restored. The `manager` claim is additive
   (an extra claim on a token harms nothing if the rule is rolled back).
-- **Gate:** emulator tests prove (a) staff member A cannot write or delete member B's override,
-  (b) **a manager CAN write and delete any member's override**, (c) admin can write/delete anyone's,
-  (d) the `roster_import` path still saves, (e) a **manager is still rejected** by the master-admin
-  collections (huddles/circulars/newsletters/roster/auth) — tier separation holds, (f) `linkDesigns`
-  behaved per the interim decision at B2 time (later tightened to the `linksDesigner`/`admin` gate —
-  H2 ✓ SHIPPED v16.29), (g) a device can still delete its own push subscription,
-  (h) impossible dates (`2026-13-01`, `2026-99-99`) are denied while real dates still save.
-
-#### B2 deploy runbook (the order matters — a stale manager token has `name` but not `manager`)
-The permissive rule already requires the `manager` claim for on-behalf writes, so managers must be
-migrated **in the B2 window** (not deferred to B3). Both `deploy-functions.yml` and `deploy-rules.yml`
-fire on the same merge to `main`, so to avoid a brief manager lockout window do this in order:
-1. **Merge B2.** `setupRosterAuth` (with the `manager` claim) and the new rules both deploy.
-2. **Immediately** run Operations → **Set up accounts** — this sets `{ manager: true, name }` on the
-   6 manager accounts. (Until this runs, managers have only `name`.)
-3. **Refresh manager tokens:** have each manager sign out/in, or just wait — Firebase ID tokens
-   auto-refresh hourly and on next app open, so the window is short and self-healing.
-4. **Verify in a private window** (never an installed phone): a manager saves another member's AL;
-   a non-manager staff member cannot; admin still can; roster upload still saves.
-- **Residual window:** between step 1 and a given manager's token refresh, that manager's on-behalf
-  writes are rejected (a soft, recoverable failure — re-open the app — not data loss). Admin
-  break-glass covers anything urgent. **Zero-window alternative:** merge the `setupRosterAuth` change
-  first, run Set up accounts + manager refresh, *then* merge the rules in a follow-up — ask if you
-  want B2 split into two merges.
 
 ### B3 — claims audit + token-refresh rollout (HIGHEST RISK) — ✅ COMPLETED (v16.29)
 
-> ✅ **COMPLETED (v16.29) — the steps below are what was executed; this is now a historical record.**
-> The `!('name' in token)` legacy escape was removed from the `overrides` create/update AND delete
-> rules; writes now require `token.name == memberName || token.admin || token.manager`. It shipped
-> after re-provision + the `CLAIM_EPOCH == 2` sweep, with `writeWithClaimRetry` self-healing any stale
-> token on first write — no mass sign-out was needed. Rollback (re-add the two escape lines) remains
-> instant. The runbook and diffs below record what was done.
+> ✅ **COMPLETED (v16.29) — this is now a historical record.** The `!('name' in token)` legacy escape
+> was removed from the `overrides` create/update AND delete rules; writes now require
+> `token.name == memberName || token.admin || token.manager`. No lockout, no mass sign-out. The live
+> `firestore.rules` + `firestore.rules.test.mjs` (the strict-isolation matrix, incl. the
+> no-name-token-denied and delete-mirror cases, and the `staffDb()`→`namedDb()` field-test rework)
+> are the source of truth for what shipped — the step-by-step cutover runbook and inline diffs that
+> used to live here were removed once duplicated there (recoverable from git history if ever needed).
 
-- **Goal:** every active session carries a fresh claim **of its correct tier** (`admin`, `manager`,
-  or plain `name`), then tighten the interim rule to strict.
-- **Who:** Owner (Console + chosen window) + Claude (the two rule versions + verification script).
-- **The risk, stated plainly:** a member on a valid 30-day localStorage session holds a Firebase
-  token minted *before* its claim existed. A strict `token.name == memberName` rule rejects a
-  staff member on a pre-`name` token; the strict three-tier rule **also** rejects a **manager on a
-  pre-`manager`-claim token** (their on-behalf write needs `token.manager == true`, which an old
-  token lacks). Doing this as a hard cutover **is** the v10.94 outage — and now with a second class
-  of victim (managers), which is easy to forget because there are only six of them.
-- **Mitigation — permissive→strict migration (all three tiers):**
-  1. Deploy the **permissive** rule: allow the write if `token.name == memberName` **OR**
-     `token.admin == true` **OR** `token.manager == true` **OR** the token has no `name` claim yet
-     (legacy/anonymous). Claim-carrying sessions are isolated; legacy sessions keep working — same
-     posture as today, no lockout.
-  2. **Re-provision first:** run "Set up accounts" so the new `manager` claim is set on all six
-     manager accounts (and every `name`/`admin` claim is reasserted). Then force/await a token
-     refresh for all active sessions so every live token gains its correct-tier claim.
-     **The `getIdToken(true)` sweep mechanism is now BUILT (v14.71):** `CONFIG.CLAIM_EPOCH` in
-     `roster-data.js` + `refreshClaimsIfStale()` in `session.js` (called fire-and-forget from
-     `ensureNamedSession` once a named session resolves). It force-refreshes each device's token
-     ONCE per epoch bump, gated by `localStorage('myb_claim_epoch')` — so to sweep all active
-     sessions you **bump `CLAIM_EPOCH` and deploy**, and every device refreshes on its next app open.
-     Shipped at `CLAIM_EPOCH: 1`, which also accelerates B2 (managers pick up the `manager` claim on
-     next open instead of waiting for the hourly auto-refresh). 6 unit tests in `session.test.mjs`.
-     For the strict cutover this ran as: `CLAIM_EPOCH` → 2 (armed v15.33), deploy, let the sweep window
-     pass, then ship strict (done v16.29).
-  3. After the window, the **strict** rule was deployed (dropped the `|| no-name` branch) — ✓ v16.29.
-  - A low-traffic window was used. **Verified in a fresh private window, never an installed phone.**
-- **Rollback:** redeploy the permissive rule (instant), or revert to `request.auth != null`.
-- **Gate (verified before the strict tighten, ✓ v16.29):** in a private window — a **staff** member
-  writes their own AL/sick AND cannot write/delete another member's; a **manager** writes AND deletes
-  another member's AL/sick (on-behalf works) but is still blocked from
-  huddle/circular/newsletter/roster/auth; **admin** still writes for others; roster upload still saves
-  — the strict rule was then shipped.
-- **Write-side stale-claim retry (v15.07 review H3) — ✓ DONE (v15.18).** This is **only the
-  write-side retry** — one part of the B3 claim-freshness story (re-provision, `CLAIM_EPOCH` sweep,
-  matrix verify, and removing the no-name Rules escape were the rest — all now DONE, strict shipped
-  v16.29; see the checklist below).
-  `writeWithClaimRetry(writeFn)` in `firebase-client.js` (the write-side equivalent of
-  `adminReadWithRetry`) retries **exactly once**, and **only** on `err.code === 'permission-denied'`
-  with a live `auth.currentUser`, after a **forced** token refresh (`getIdToken(true)`); any other
-  error class (unavailable/network, deadline-exceeded, etc.) or a second denial is re-thrown, so a
-  genuine authorisation failure is never masked or looped. Wired into all three `admin-overrides.js`
-  override write paths — `executeSave` (shift changes), `recordRangeOverrides` (AL/absence), and the
-  override-list bulk delete — each passing a re-runnable build-and-commit thunk (a `WriteBatch` can't
-  be re-committed) whose return value is what updates the in-memory cache, so the cache/UI reflects
-  only the **successful** attempt (no ghost row from the failed one) and is never mutated when both
-  attempts fail. 4 retry tests in `admin-overrides.test.mjs` (recordRangeOverrides + executeSave,
-  incl. refresh-called-once and cache-untouched-on-persistent-denial; a single-commit `WriteBatch`
-  mock catches batch reuse). Bulk delete shares the identical wrapped-thunk pattern (verified by
-  inspection — its cache mutation is after the awaited commit, inside the `try`). This is a safety net
-  that is **independent of — and does not replace —** the `CLAIM_EPOCH` sweep
-  (which already ran — armed to `2` at v15.33, so `refreshClaimsIfStale` is now active).
-  See LOGIN_INCIDENT.md.
-
-#### B3 cutover runbook — ✅ COMPLETED (v16.29) — the steps below are what was executed; this is now a historical record
-
-> **Exact, line-verified patch (as applied):** the `firestore.rules` diff and the
-> `firestore.rules.test.mjs` rework that shipped are reproduced inline in Steps 3–5 below; the live
-> rules + tests are the source of truth. (Historically these lived in a standalone
-> `B3_STRICT_CUTOVER.HELD.md` "held patch" file — retired Jul 2026 once B3/H2 shipped and the patch
-> was live; recover the full artifact from git history if ever needed.)
-> **Note the test rework was broader than a naive "create tests" swap:** the whole
-> `describe('overrides')` field-validation block used `staffDb()` (no-name), which strict denies — every
-> one moved to `namedDb('G. Miller')`, and the no-name escape test flipped to `assertFails` (+ a delete
-> mirror).
-
-Everything below **WAS HELD until the v16.29 window**, then applied on a fresh branch, gated by the
-`test:rules` emulator suite, and merged (merging to `main` runs `deploy-rules.yml` and ships the rule
-LIVE). It was executed in this order. (The write-side retry net, v15.18, was already live and meant a
-manager who missed the sweep self-healed on first write — so the cutover was safer than a cold one; the
-sweep was still done.)
-
-**Pre-window checks:** `CLAIM_EPOCH == 2` (sweep already armed v15.33 — see Progress below),
-`ENFORCE_NAMED_SESSION == true`, in-place-login rollout deployed and settled; `CONFIG.MANAGER_NAMES`
-matches current staff.
-
-**Step 1 — Re-provision (owner).** Operations → Set up accounts (sets `admin`/`manager`/`name` on every
-account). Idempotent — re-run in the window even if done earlier as a warm-up, to catch any account
-that changed since.
-
-**Step 2 — Force the token sweep — ✓ ALREADY DONE (v15.33).** `CONFIG.CLAIM_EPOCH` is already `2`
-(higher than any previously-shipped value — 1 shipped in v14.71, hotfixed to 0 in v14.72 — so every
-device force-refreshes once on next open regardless of its stored `myb_claim_epoch`). **Do NOT bump it
-again** unless deliberately forcing a fresh sweep. What remains of this step at window time: confirm
-active devices have re-opened since the v15.33 hosting deploy, and force sign-out any stragglers.
-
-**Step 3 — Strict rule diff (Claude) — ✓ DONE (v16.29).** Removed the no-name escape from the
-`overrides` create/update AND delete blocks in `firestore.rules`:
-
-```diff
-           request.auth.token.name == request.resource.data.memberName ||
-           request.auth.token.admin == true ||
--          request.auth.token.manager == true ||
--          !('name' in request.auth.token)
-+          request.auth.token.manager == true
-         );
-   ...
-       allow delete: if request.auth != null && (
-         request.auth.token.name == resource.data.memberName ||
-         request.auth.token.admin == true ||
--        request.auth.token.manager == true ||
--        !('name' in request.auth.token)
-+        request.auth.token.manager == true
-       );
-```
-
-**Step 4 — Rules-test rework (Claude) — REQUIRED and non-obvious.** In `firestore.rules.test.mjs` the
-existing override **create** tests use `staffDb()` (an authed context with NO `name` claim), which today
-only passes isolation via the permissive escape. Under strict, `staffDb()` create is DENIED, so:
-- Replace `staffDb()` → `namedDb('G. Miller')` in **every override CREATE test** (VALID_OVERRIDE's
-  `memberName` is `'G. Miller'`). Otherwise the `assertSucceeds` field tests break, and the
-  `assertFails` field tests would pass for the WRONG reason (isolation denial, not field validation) —
-  masking a real regression.
-
-**Step 5 — Strict matrix tests to add** (create + a delete mirror):
-
-```js
-describe('overrides — strict isolation (B3)', () => {
-  test('staff writes OWN override',            async () => { await assertSucceeds(setDoc(doc(namedDb('G. Miller'),  'overrides', uid()), VALID_OVERRIDE())); });
-  test('staff CANNOT write another member',    async () => { await assertFails   (setDoc(doc(namedDb('A. Other'),   'overrides', uid()), VALID_OVERRIDE())); }); // memberName = G. Miller
-  test('manager writes another member',        async () => { await assertSucceeds(setDoc(doc(managerDb('S. Stewart'),'overrides', uid()), VALID_OVERRIDE())); });
-  test('admin writes another member',          async () => { await assertSucceeds(setDoc(doc(adminDb(),             'overrides', uid()), VALID_OVERRIDE())); });
-  test('no-name token DENIED (escape gone)',   async () => { await assertFails   (setDoc(doc(staffDb(),             'overrides', uid()), VALID_OVERRIDE())); });
-  test('anonymous DENIED',                     async () => { await assertFails   (setDoc(doc(anonDb(),              'overrides', uid()), VALID_OVERRIDE())); });
-});
-```
-
-**Step 6 — Deploy strict rules (owner) — ✓ DONE (v16.29).** The strict branch was merged →
-`deploy-rules.yml` ran the reworked suite as a gate, then shipped. Done **after** the Step 2 sweep
-window, never before.
-
-**Step 7 — Verify live (owner, private window) — ✓ DONE (v16.29):** staff writes own AL/absence ✓;
-staff cannot edit another's ✗; manager edits another's ✓ and is still blocked from
-huddle/circular/newsletter/roster/auth; admin edits others' ✓; roster upload saves ✓.
-
-**Rollback:** re-add the two escape lines and redeploy the permissive rule (instant), or revert
-`overrides` to `request.auth != null`. No data migration either way.
-
-**Post-deploy production check (v16.29 — folded in from the retired `POST_DEPLOY_V16.29.md` one-time
-checklist).** The deploy ORDER is load-bearing: **function first → re-provision (Set up accounts) →
-then the strict Rule** — because `writeWithClaimRetry` only self-heals a claim that *already exists
-server-side*; it cannot help if `setupRosterAuth` has not yet SET the claim. Getting the repo rules
-right is necessary but not sufficient — the live project (deployed function + provisioned claims +
-refreshed tokens) must also be right. Verified in production at v16.29 across roles: member writes own
-✓ / cannot write another's ✗; manager + admin on-behalf ✓; designer Links write ✓ / non-designer ✗;
-roster upload saves ✓ — all in a private window, never an installed phone.
+- **The risk it managed:** a member on a valid 30-day localStorage session holds a Firebase token
+  minted *before* its claim existed — a strict rule rejects staff on a pre-`name` token AND a
+  manager on a pre-`manager` token. A hard cutover **is** the v10.94 outage; hence the
+  permissive→strict migration across all three tiers.
+- **How it was executed:** permissive rule shipped at B2 (v14.53) → re-provision via Set up accounts →
+  **the `CLAIM_EPOCH` sweep**: `CONFIG.CLAIM_EPOCH` (`roster-data.js`) + `refreshClaimsIfStale()`
+  (`session.js`, built v14.71, 6 tests) force-refresh each device's token ONCE per epoch bump, gated
+  by `localStorage('myb_claim_epoch')`. **Armed to `CLAIM_EPOCH = 2` at v15.33** (higher than any
+  previously-shipped value — 1 shipped v14.71, hotfixed to 0 in v14.72 — so every device swept on
+  next open; do NOT bump again unless deliberately forcing a fresh sweep). After the sweep window:
+  re-ran Set up accounts in-window, applied the strict rule + reworked emulator tests on a fresh
+  branch, verified the private-window role matrix (staff own-only; manager on-behalf ✓ but still
+  blocked from master-admin collections; admin ✓; roster upload saves; designer Links write ✓),
+  then merged → `deploy-rules.yml` gated on the suite and shipped it live.
+- **Live invariant — `writeWithClaimRetry` (built v15.18):** the write-side safety net in
+  `firebase-client.js` retries **exactly once**, **only** on `permission-denied` with a live
+  `auth.currentUser`, after a forced `getIdToken(true)`; any other error class or a second denial is
+  re-thrown. Wired into all three `admin-overrides.js` write paths via re-runnable thunks (a
+  `WriteBatch` can't be re-committed; the cache reflects only the successful attempt). It self-healed
+  any straggler token, which is why no mass sign-out was needed. Independent of — not a replacement
+  for — the `CLAIM_EPOCH` sweep. See LOGIN_INCIDENT.md.
+- **Deploy-order invariant (keep for any future claim-gated rule):** function first → re-provision
+  (Set up accounts) → then the strict rule — `writeWithClaimRetry` can only self-heal a claim that
+  already exists server-side. Repo rules being right is necessary but not sufficient; the live
+  project (deployed function + provisioned claims + refreshed tokens) must be right too. Always
+  verify in a private window, never an installed phone.
+- **Rollback (still instant):** re-add the two `!('name' in request.auth.token)` escape lines to the
+  `overrides` create/update + delete blocks and redeploy the permissive rule, or revert `overrides`
+  to `request.auth != null`. No data migration either way.
 
 ### B4 — server-owned roster/role lists — ✅ SHIPPED (v16.30)
 - **Shipped:** `setupRosterAuth` no longer trusts client-sent member/role lists. All four
@@ -609,9 +440,10 @@ roster upload saves ✓ — all in a private window, never an installed phone.
       6 tests) — the deterministic token-refresh mechanism. **Write-side stale-claim retry net BUILT v15.18**
       (`writeWithClaimRetry`, all three override write paths). **`CLAIM_EPOCH` ARMED → 2 at v15.33** (the
       pre-cutover sweep). **Executed (v16.29):** health-checked the sweep in a private window → let it settle
-      → re-ran Set up accounts in-window → applied the strict rule + reworked tests (patch inline in
-      Steps 3–5 above) on a fresh branch → verified the private-window matrix → deployed the strict
-      rule. `writeWithClaimRetry` self-healed stale tokens, so no mass sign-out was needed.
+      → re-ran Set up accounts in-window → applied the strict rule + reworked tests (live in
+      `firestore.rules` + `firestore.rules.test.mjs`) on a fresh branch → verified the private-window
+      matrix → deployed the strict rule. `writeWithClaimRetry` self-healed stale tokens, so no mass
+      sign-out was needed.
 - [x] H2 — `linkDesigns` write requires the `linksDesigner`/`admin` claim (reads stay open)
       — **✓ SHIPPED v16.29.** `setupRosterAuth` sets `linksDesigner` from `CONFIG.LINKS_DESIGNERS`,
       `admin-auth.js` sends `designerMembers`, and every `links-app.js` write is wrapped in
@@ -715,14 +547,13 @@ is a pure refactor with **no staff-visible behaviour change** — but it is deli
 
 ## Appendix: A2 — Workload Identity Federation ✓ COMPLETE (v14.93)
 
-**What it did:** retired the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON key (previously
-`echo … > /tmp/key.json` in all 3 deploy workflows) for **short-lived GitHub OIDC tokens** — no
-standing full-project deploy credential remains in GitHub. All 3 workflows use
-`google-github-actions/auth` (pinned `v2.1.13`, commit `c200f369`) with the provider + SA written
-directly in each YAML (they aren't secrets) and job `permissions: { contents: read, id-token: write }`.
-The old SA JSON key AND the `FIREBASE_SERVICE_ACCOUNT` secret are both deleted; a deploy from `main`
-was confidence-checked with the key gone. It was de-risked by migrating one workflow (rules) first
-and keeping the secret as a fallback until all three were proven, then deleting the key last.
+**What it did:** retired the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON key for **short-lived GitHub
+OIDC tokens** on all 3 deploy workflows (`google-github-actions/auth`, pinned `v2.1.13`, commit
+`c200f369`; provider + SA written directly in each YAML — they aren't secrets; job
+`permissions: { contents: read, id-token: write }`). No standing full-project deploy credential
+remains in GitHub — the SA JSON key AND the GitHub secret are both deleted, and a deploy from `main`
+was confidence-checked with the key gone. De-risked by migrating one workflow (rules) first, keeping
+the secret as fallback until all three were proven, then deleting the key last.
 
 **As-built config:** pool `github-pool`, provider `github-provider`, project number `532910998075`,
 SA `github-deploy@myb-roster.iam.gserviceaccount.com`.

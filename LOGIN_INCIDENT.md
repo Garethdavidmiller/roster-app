@@ -99,7 +99,9 @@ in-place-login work — do **NOT** hack them in page-by-page. Tracked in ARCHITE
 ## Re-enable checklist (all steps done — B3 strict shipped v16.29)
 
 - [x] **Stale-auth generation guard — DONE (v14.87, fix v14.91).** The prerequisite for strict enforcement.
-- [ ] Owner confirms login is smooth across roles (admin, manager, CEA, CES, dispatcher) in a private window.
+- [x] Owner confirms login is smooth across roles — satisfied in practice: B1 has run enabled since
+      v14.98 and B3 strict since v16.29 with no login complaints (the freeze class this checklist
+      guarded against would have surfaced immediately).
 - [x] **Re-enable B1** (`ENFORCE_NAMED_SESSION = true`) — DONE v14.98; verify live in a private window
       across roles, watch login for a day; one-line revert if needed.
 - [x] ~~Re-enable the B3 sweep~~ **DONE (v15.33): `CLAIM_EPOCH` is `2`** — devices force-refresh once on open.
