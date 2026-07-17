@@ -42,6 +42,7 @@ export const HELP_CONTENT = {
       'By default, the app divides your tax-free allowance equally across all 13 pay periods. This is usually accurate, but can drift if you had an unusually high or low pay period earlier in the year.',
       'Entering <strong>Year to Date figures</strong> gives a more accurate estimate based on everything you\'ve earned so far this tax year — usually much closer to your payslip, especially later in the year.',
       'Find <strong>"Taxable Pay"</strong> and <strong>"Tax Paid"</strong> in the <strong>Year to Date</strong> box on your payslip (usually bottom-right). Update them each time you get a new payslip.',
+      'These figures apply <strong>up to</strong> the payslip you copy them from, so the estimate is sharpest for the <strong>next</strong> period. The note at the top of the card names the exact payslip to use for whichever period you\'re viewing — keep the figures matched to it.',
     ],
   },
   hpp: {
