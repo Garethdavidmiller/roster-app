@@ -85,7 +85,7 @@ export function initDatePickers(inputIds) {
                 <span class="dp-month" id="dpMonth" aria-live="polite"></span>
                 <button class="dp-nav-btn" id="dpNext" type="button" aria-label="Next month">›</button>
             </div>
-            <div class="dp-grid" id="dpGrid" role="grid"></div>
+            <div class="dp-grid" id="dpGrid"></div>
         </div>`;
     document.body.appendChild(overlay);
 
@@ -129,8 +129,10 @@ export function initDatePickers(inputIds) {
             let aria = `${DAY_NAMES[dd.getDay()]} ${day} ${MONTH_NAMES[_mo]} ${_yr}`;
             if (sel)   aria += ', selected';
             if (today) aria += ', today';
+            // Plain accessible buttons (not role=gridcell — an ARIA grid needs row owners we don't
+            // have; the admin range picker likewise uses buttons). Full date in aria-label.
             html += `<button type="button" class="${cls.join(' ')}" data-iso="${iso}"`
-                 + ` role="gridcell" aria-label="${aria}" aria-pressed="${sel}"`
+                 + ` aria-label="${aria}" aria-pressed="${sel}"`
                  + (off ? ' aria-disabled="true"' : '') + `>${day}</button>`;
         }
         gridEl.innerHTML = html;
