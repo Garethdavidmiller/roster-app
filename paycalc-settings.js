@@ -132,7 +132,7 @@ export function updateRateForPeriod(ty, p) {
   if (lbl) lbl.textContent = preAward ? `for ${ty.label} · pre-rise rate` : `for ${ty.label}`;
 }
 
-/** Load the stored Year to Date figures for this tax year into the Improve Accuracy fields.
+/** Load the stored Year to Date figures for this tax year into the Year to Date Figures card.
  *  Called from onPeriodChange() so values reset correctly when switching between tax years. */
 /** @param {any} ty */
 export function updateYtdForTaxYear(ty) {

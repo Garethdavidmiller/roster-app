@@ -209,7 +209,13 @@ export function calcHPP() {
     else lsDel(hppEstKey(ty));
   }
 
-  if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
+  // One heading pattern with the prior section: "Last year (2025/26)" / "This year (2026/27)"
+  // subheads carry the year, so the amount label is just the status word — matching the prior
+  // block's Estimated/✓ Confirmed labels. When the prior section is HIDDEN (first tax year /
+  // new-starter clamp) no subhead shows, so keep the full self-contained label.
+  const _tyIdx    = CONFIG.TAX_YEARS.findIndex(t => t.label === ty.label);
+  const _hasPrior = _tyIdx > 0 && isTaxYearVisible(CONFIG.TAX_YEARS[_tyIdx - 1]);
+  if (labelEl) labelEl.textContent = _hasPrior ? 'Estimated' : `Estimated ${ty.label} Holiday Pay Premium`;
   if (pCount === 0) {
     if (amountEl) amountEl.textContent = '£–';
     if (basisEl)  basisEl.textContent  = 'Enter your hours on each payslip above to calculate';
@@ -232,7 +238,7 @@ export function calcHPP() {
       // Clean partial (no unreadable periods): nudge the member that the estimate isn't the
       // full-year figure yet. (When periods were skipped, the "may be too low" warning below covers it.)
       if (!usingActuals && _skipped.length === 0 && pCount < _total) {
-        basisEl.innerHTML += ` <span class="hpp-partial-hint">Fill in your remaining payslips for the full-year figure.</span>`;
+        basisEl.innerHTML += ` <span class="hpp-partial-hint">For the full-year figure, fill in your hours on each payslip of the year.</span>`;
       }
     }
     // A corrupt saved period was excluded, so this premium may be too low — surface it rather than
@@ -335,7 +341,7 @@ export function updatePriorHpp(ty) {
 
   const priorHppTitleEl    = document.getElementById('priorHppTitle');
   const currentHppTitleEl  = document.getElementById('currentHppTitle');
-  if (priorHppTitleEl)   priorHppTitleEl.textContent   = `${priorTy.label} Holiday Pay Premium`;
+  if (priorHppTitleEl)   priorHppTitleEl.textContent   = `Last year (${priorTy.label})`;
   if (currentHppTitleEl) currentHppTitleEl.textContent = `This year (${ty.label})`;
 
   const dueBadge = document.getElementById('priorHppDueBadge');
@@ -346,7 +352,7 @@ export function updatePriorHpp(ty) {
   const basisEl  = document.getElementById('priorHppBasis');
 
   if (hasActual) {
-    if (amtLabel) amtLabel.innerHTML  = `${priorTy.label} HPP <span class="actual-badge">✓ Confirmed</span>`;
+    if (amtLabel) amtLabel.innerHTML  = `<span class="actual-badge">✓ Confirmed</span>`;
     if (amtEl)    amtEl.textContent   = fmt(actual);
     if (basisEl)  basisEl.textContent = `Confirmed from your January ${priorTy.hppPaidJan} payslip`;
   } else if (est > 0) {
