@@ -3,7 +3,7 @@
    two-column layout, shift-badge chips, palette) live in guide-doc.css,
    linked BEFORE this file. Only guide.html-specific components below. */
 
-/* Two pages. On screen the sticky page-header carries identity + version, so
+/* Two pages. On screen the sticky page-header carries identity, so
    the FIRST in-document banner (staff page) is hidden; the second (admin)
    banner stays as an on-screen divider. Both still print. */
 @media screen { .page:first-of-type .guide-header { display: none; } }

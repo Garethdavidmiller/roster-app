@@ -382,6 +382,23 @@ in `session.test.mjs`.
   It does **not** address the world-readable `overrides` exposure (that is a deliberate design
   trade-off — KNOWN_LIMITATIONS). Per-member write isolation (Track B) is the higher-value work;
   App Check is defence-in-depth, correctly sequenced last.
+- **D-adjacent hardening — analytics doc size (deferred, App Check is the real fix).** The
+  `analytics/activeAccounts` and `analytics/perf_<YYYY-MM>` rules validate that `daily` / `months` /
+  `samples` are *maps* but do **not** bound the map-key **count** (the `pv_` counts are `is int`-checked,
+  but no branch caps key count). So any authenticated session — including the anonymous calendar
+  session every visitor gets — could pad one of those single documents with thousands of junk keys
+  toward Firestore's 1 MB doc limit; once near the cap, every legitimate `increment()` merge to that
+  doc fails ("document too large"), and the anti-wipe guard means only an admin can shrink it back —
+  a self-inflicted **availability** DoS on analytics recording (not a data or money risk; the data is
+  non-sensitive aggregate counts). Same root cause as the documented "values aren't individually
+  validatable → App Check is the eventual integrity control" gap, so it belongs here. **Why deferred:**
+  (a) it needs an authenticated session and only degrades analytics, not the app; (b) a rules-only fix
+  (`request.resource.data.daily.keys().size() < N`) is a security-rules change that must be
+  emulator-verified via `firestore.rules.test.mjs` on the `deploy-rules.yml` gate, so it should ride a
+  rules release, not a one-off; (c) App Check (D2) removes the un-attested-client write path that makes
+  the abuse possible in the first place. **If tightened before App Check:** add a key-count cap to the
+  `activeAccounts` and `perf_` create/update conditions and a matching `assertFails` in
+  `firestore.rules.test.mjs`. (Found in the v17.43 second full-app audit.)
 
 ---
 

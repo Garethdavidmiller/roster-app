@@ -52,7 +52,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
         statusEl.className = 'lightbox-status';
         (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
             .then(reg => {
-                statusEl.textContent = reg?.waiting ? '↻ Update ready — it will apply automatically in a moment (or reopen the app to apply now)' : '✓ Up to date';
+                statusEl.textContent = reg?.waiting ? '↻ Update ready — it will apply next time you reopen the app' : '✓ Up to date';
                 statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
             })
             // The CHECK itself failed (registration lookup rejected) — we don't actually know the app

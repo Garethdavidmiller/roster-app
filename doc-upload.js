@@ -119,10 +119,11 @@ export function initDocUploadCard(cfg) {
     const date = dateInput.value;
     const file = (fileInput.files || [])[0];
     if (!date || !file) return;
-    // The date field's `max` only constrains the picker widget + the :invalid state — it does NOT
-    // block a typed/pasted out-of-range value. Enforce it at submit: a far-future typo would
-    // otherwise upload and, because the latest-document queries order by date desc, SHADOW the real
-    // current document for every staff member until it's deleted (v16.19).
+    // Backstop: the date-picker (date-picker.js) is now the primary guard — it hides the native
+    // input and won't let an out-of-range day be selected. This submit-time check still enforces
+    // `max` in case anything ever sets the value another way: a far-future date would otherwise
+    // upload and, because the latest-document queries order by date desc, SHADOW the real current
+    // document for every staff member until it's deleted (v16.19).
     if (dateInput.max && date > dateInput.max) {
       /** @type {HTMLElement} */ (feedback).textContent = 'That date is in the future — please choose a valid date.';
       /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
