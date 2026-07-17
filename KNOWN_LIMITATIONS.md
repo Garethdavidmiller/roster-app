@@ -219,10 +219,12 @@ award is announced. The UI shows a yellow "rate unconfirmed" notice for 2026/27 
 Pay awards at Chiltern are typically not decided until August — do not expect confirmed
 rates before then.
 
-### Back pay lump sum — HPP now included (v10.73)
-Resolved — `calcBackPay()` computes the variable-pay portion (`_bpVarAmount`) and
-`calcHPP()` folds it into the HPP estimate for the paid-in period. See task #3 above for the
-payslip confirmation detail.
+### Back pay lump sum vs HPP (v10.73 — SUPERSEDED at v16.89)
+The v10.73 fix fed `calcBackPay()`'s variable-pay portion (`_bpVarAmount`) into `calcHPP()`.
+That coupling was later found to DOUBLE-COUNT the award uplift (calcHPP already prices the
+whole year at the settled post-award rate) and was deliberately removed at v16.89 — the lump
+no longer feeds HPP. Current rule: `.claude/rules/paycalc.md` → "The lump is deliberately NOT
+added into the HPP estimate (v16.89)". See task #3 above for the original payslip confirmation.
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).

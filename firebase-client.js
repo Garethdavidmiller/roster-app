@@ -112,7 +112,7 @@ export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnony
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
- * (SECURITY_RELEASE_PLAN.md → B3 "Optional independent hardening", v15.07 review H3). The operation is
+ * (SECURITY_RELEASE_PLAN.md → B3 "Live invariant — writeWithClaimRetry"; v15.07 review H3). The operation is
  * read/write-agnostic — `writeWithClaimRetry` is a back-compat alias for the many write call sites;
  * operations-app.js reads use `withClaimRetry` directly (it previously duplicated this as the
  * byte-identical `adminReadWithRetry`, v17.08).
