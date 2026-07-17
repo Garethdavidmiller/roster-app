@@ -406,7 +406,7 @@
             font-size: 24px;
             font-weight: 700;
             color: var(--primary-blue);
-            letter-spacing: -0.5px;
+            letter-spacing: var(--track-tight);  /* em-based: right at 24/26px AND at the 16px narrow override (was -0.5px, too tight when small) */
         }
 
         .week-info {
