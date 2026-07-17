@@ -20,6 +20,7 @@ import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
+import { initDatePickers } from './date-picker.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
@@ -189,6 +190,10 @@ export function init() {
     });
 
     initAuthSetup({ currentIsAdmin: true });
+
+    // Brand-styled date pickers over the four upload date fields. AFTER the card inits above,
+    // which set each field's default value (today / next Saturday) that the trigger label reads.
+    initDatePickers(['huddleDate', 'circularDate', 'newsletterDate', 'rosterWeekEnding']);
 
     // ============================================
     // COLLAPSIBLE CARD HEADERS

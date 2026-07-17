@@ -567,6 +567,11 @@
     }
     .adj-sign-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
     .field-hint { font-size: var(--type-small); color: var(--text-light); margin-top: 5px; line-height: 1.45; }
+    /* "Up to which payslip" pointer at the top of the Year to Date card — a subtle gold-accented
+       note so it reads as guidance about WHICH payslip to copy from, not just another hint. */
+    .ytd-upto-note { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--accent-gold);
+      background: color-mix(in oklch, var(--accent-gold) 10%, transparent); border-radius: 0 6px 6px 0; }
+    .ytd-upto-note:empty { display: none; }
 
     /* First-run banner */
     .setup-banner {

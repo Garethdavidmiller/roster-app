@@ -357,6 +357,12 @@ Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
 - Imports `DAY_NAMES`, `MONTH_ABB`, `MONTH_NAMES`, `formatISO`, `SWIPE_THRESHOLD`, `SWIPE_VELOCITY` from `roster-data.js`
 - Imported directly by `admin-al.js` and `admin-sick.js` (no longer goes through `admin-app.js`)
 
+### `date-picker.js`
+Brand-styled single-date picker for the four Operations upload date fields (`huddleDate`, `circularDate`, `newsletterDate`, `rosterWeekEnding`) — replaces the un-themable native `<input type="date">` glyph/popup with a modal calendar in the app's own visual language (v17.36).
+- `initDatePickers(inputIds)` — progressive enhancement: each native `<input type="date">` stays in the DOM **hidden** as the value holder (so every consumer — `doc-upload.js` `.value`/`.max`/default-to-today, the roster card's Saturday-snap `change` listener — keeps working unchanged); the picker inserts a `.date-trigger` button and opens ONE shared modal calendar built on `createLightbox`. Selecting a day sets `input.value` + dispatches `input`+`change`, then a per-input `change` listener re-reads the (possibly consumer-normalised, e.g. Saturday-snapped) value into the trigger label. Reads `input.min`/`input.max` to disable out-of-range days.
+- `monthCells(year, month)` — pure: a Monday-first flat month grid (`null` padding + ISO day strings), no DOM. Covered by `date-picker.test.mjs`.
+- Modal (not inline) so it stays one line per card — an always-open calendar × 4 cards would bulk up the Operations stack. Imports `roster-data.js` (DAY_NAMES/MONTH_ABB/MONTH_NAMES/formatISO/parseISODate) + `overlay.js` (createLightbox). Called by `operations-app.js` after the card inits set the field defaults.
+
 ### `huddle.js`
 Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 - `initHuddleUpload(opts)` — called by `operations-app.js`; wires Huddle upload card + Huddle collapse toggle (admin-only)

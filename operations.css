@@ -59,15 +59,12 @@ body.auth-ready .container { display: grid; }
     margin-bottom: 10px;
 }
 .huddle-row input[type="date"] {
+    /* Layout-only: the shared `select, input[type=text], input[type=date]` rule below governs
+       the field surface (--field-bg), border, radius and the focus-brighten-to-white cue — this
+       rule must NOT re-set background/radius or its higher specificity would override the focus
+       rule and leave this the one field that never brightens on focus (three-surface rule). */
     flex: 1;
     min-width: 0;
-    padding: 8px 10px;
-    min-height: 44px;
-    border: 2px solid var(--border-mid);
-    border-radius: var(--radius-sm);
-    font-size: 16px;
-    background-color: var(--bg-light);
-    color: var(--text-dark);
     box-sizing: border-box;
 }
 .huddle-file-label {
@@ -360,7 +357,7 @@ select, input[type="text"], input[type="date"] {
     width: 100%;
     padding: 8px 10px;
     border: 2px solid var(--border-mid);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 16px;
     color: var(--text-dark);
     background-color: var(--field-bg);
@@ -384,6 +381,90 @@ select:focus-visible, input:focus-visible {
     /* Brighten to white when active — the field 'fills in' on focus */
     background-color: white;
 }
+
+/* ── Date picker (date-picker.js) — brand-styled replacement for native date inputs ── */
+/* Trigger: matches the shared field look (border/--field-bg/radius/44px) so it reads as
+   the same control the native input was, but fully themable. */
+.date-trigger {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    min-height: 44px;
+    border: 2px solid var(--border-mid);
+    border-radius: var(--radius-sm);
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    font-family: inherit;
+    font-size: 16px;
+    text-align: left;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: border-color 0.12s, background-color 0.12s;
+}
+.date-trigger::after { content: "📅"; font-size: 15px; line-height: 1; flex: 0 0 auto; }
+.date-trigger--empty { color: var(--text-light); }
+@media (hover: hover) and (pointer: fine) { .date-trigger:hover { border-color: var(--primary-blue); } }
+.date-trigger:focus-visible {
+    border-color: var(--primary-blue);
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--focus-ring-color);
+    background-color: white;   /* 'fills in' on focus, like every other field */
+}
+
+/* Modal calendar — .lb-content is structure-only, so theme the card here (light card on the
+   dark backdrop, matching the app's other content lightboxes). */
+.dp-content {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 20px;
+    width: min(340px, calc(100vw - 40px));
+    max-height: 88vh;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+.dp-close { color: var(--text-light); }
+@media (hover: hover) and (pointer: fine) { .dp-close:hover { color: var(--text-dark); } }
+.dp-title { font-size: 16px; font-weight: 700; color: var(--primary-blue); text-align: center; margin: 2px 24px 12px; }
+/* Day grid mirrors the admin range picker (.rp-*) so both calendars read as one component:
+   flat borderless cells, a navy CIRCLE for the selected day, today = navy bold + a small gold
+   dot, and borderless navy month-nav glyphs. */
+.dp-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.dp-nav-btn {
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 50%;
+    background: none; color: var(--primary-blue);
+    font-size: 22px; line-height: 1; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) { .dp-nav-btn:hover { background: var(--bg-light); } }
+.dp-nav-btn:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; }
+.dp-month { font-size: 14px; font-weight: 700; color: var(--text-dark); }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 8px; }
+.dp-dow { height: 28px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--text-light); }
+.dp-filler { min-height: 44px; cursor: default; pointer-events: none; }
+.dp-day {
+    height: 44px; min-height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; background: none; font-family: inherit; font-size: 13px;
+    color: var(--text-dark); cursor: pointer; position: relative;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+    .dp-day:not(.dp-off):not(.dp-sel):hover { background: var(--bg-light); border-radius: 50%; }
+}
+.dp-day:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; border-radius: 50%; }
+.dp-day.dp-today { color: var(--primary-blue); font-weight: 700; }
+.dp-day.dp-today::after {
+    content: ''; position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
+    width: 3px; height: 3px; border-radius: 50%; background: var(--accent-gold);
+}
+.dp-day.dp-sel { background: var(--primary-blue); color: white; font-weight: 700; border-radius: 50%; }
+.dp-day.dp-off { color: var(--border-mid); cursor: default; }
 
 /* ── Tablet: 768px ── */
 @media (min-width: 768px) {
