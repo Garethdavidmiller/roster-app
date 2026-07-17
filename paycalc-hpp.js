@@ -37,6 +37,28 @@ export function isDataEmpty(/** @type {any} */ d) {
          !d.slSkip && !d.otherAdj;
 }
 
+/**
+ * Resolve which HPP figure applies for a tax year's January payslip: a CONFIRMED actual —
+ * present in storage, EVEN £0 — always wins over the running estimate. A member who enters the
+ * real figure from their payslip (including a genuine £0, e.g. after a year of absence) must
+ * override any earlier estimate; before v17.26 the `actual > 0` test silently ignored a confirmed
+ * £0 and kept adding the stale estimate to the January take-home. Absence of the actual (never
+ * entered / cleared) falls back to the estimate. Negatives clamp to 0 (a payslip HPP can't be
+ * negative). PURE — the single source of the "actual beats estimate" rule, shared by calcHPP's
+ * take-home add (paycalc-app.js) and the prior-year display (updatePriorHpp).
+ * @param {string|null|undefined} actualRaw - raw stored actual ('' / null = not confirmed)
+ * @param {string|null|undefined} estRaw    - raw stored estimate
+ * @returns {{ amount: number, isEstimate: boolean, hasActual: boolean }}
+ */
+export function resolveHppForPeriod(actualRaw, estRaw) {
+  const hasActual = actualRaw != null && String(actualRaw).trim() !== '';
+  if (hasActual) {
+    return { amount: Math.max(0, parseSmartFloat(actualRaw) || 0), isEstimate: false, hasActual: true };
+  }
+  const est = Math.max(0, parseFloat(String(estRaw ?? '')) || 0);
+  return { amount: est, isEstimate: est > 0, hasActual: false };
+}
+
 // Decode raw hours from a saved period data object. Guards BH/Boxing hours against
 // periods that don't contain those days — localStorage can restore saved values into
 // hidden rows, so we sanitise here rather than relying on the DOM row being hidden.
@@ -178,8 +200,14 @@ export function calcHPP() {
   // but NEVER when periods were skipped as corrupt: a zero produced by failing to
   // READ the data is not "entries cleared", and wiping the previously-persisted
   // (correct) estimate would compound the loss.
-  if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
-  else if (_skipped.length === 0) lsDel(hppEstKey(ty));
+  // Only touch the persisted estimate when the computation was CLEAN (no unreadable periods).
+  // When periods were skipped, `hpp` is UNDER-stated (missing them) — so neither overwrite a
+  // previously-complete stored figure (the pre-v17.26 bug: `if (hpp > 0)` wrote regardless) nor
+  // delete it. The card still SHOWS the understated hpp with the "may be too low" warning.
+  if (_skipped.length === 0) {
+    if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
+    else lsDel(hppEstKey(ty));
+  }
 
   if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
   if (pCount === 0) {
@@ -241,11 +269,14 @@ export function updatePriorHpp(ty) {
   const actualRaw = lsGet(hppActualKey(priorTy));
   let   est       = estRaw    ? parseFloat(estRaw)    : 0;
   let _priorSkipped = 0;   // corrupt prior-year periods — surfaced on the card, never console-only (v16.70)
-  const actual    = actualRaw ? parseSmartFloat(actualRaw) : 0;  // smart-parse so a pre-v16.84 raw "1,200" self-heals (v16.84)
+  // A confirmed actual is signalled by KEY PRESENCE, not `> 0` — a member who enters a genuine £0
+  // from their payslip has confirmed it (v17.26). smart-parse so a pre-v16.84 raw "1,200" self-heals.
+  const hasActual = actualRaw != null && actualRaw.trim() !== '';
+  const actual    = hasActual ? Math.max(0, parseSmartFloat(actualRaw) || 0) : 0;
 
   // If no stored estimate yet, compute on the fly so the prior-year HPP section
   // is populated on first login even before the user has visited a prior-year period.
-  if (est === 0 && !actual) {
+  if (est === 0 && !hasActual) {
     const _priorPeriods = getPeriods().filter(/** @param {any} p */ p => {
       const o = p.num - 48;
       return o >= priorTy.first && o <= priorTy.last;
@@ -281,7 +312,9 @@ export function updatePriorHpp(ty) {
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     }
 
-    if (est > 0) lsSet(hppEstKey(priorTy), est.toFixed(2));
+    // Persist only a CLEAN prior-year estimate — a partial (skipped-period) figure is understated
+    // and must not overwrite a good stored value or the January take-home add (mirrors calcHPP).
+    if (est > 0 && _priorSkipped === 0) lsSet(hppEstKey(priorTy), est.toFixed(2));
   }
 
   const pNum = currentPeriodNum();
@@ -296,13 +329,13 @@ export function updatePriorHpp(ty) {
   if (currentHppTitleEl) currentHppTitleEl.textContent = `This year (${ty.label})`;
 
   const dueBadge = document.getElementById('priorHppDueBadge');
-  if (dueBadge) dueBadge.classList.toggle('hidden', !isJanPayday || actual > 0);
+  if (dueBadge) dueBadge.classList.toggle('hidden', !isJanPayday || hasActual);
 
   const amtLabel = document.getElementById('priorHppAmtLabel');
   const amtEl    = document.getElementById('priorHppAmt');
   const basisEl  = document.getElementById('priorHppBasis');
 
-  if (actual > 0) {
+  if (hasActual) {
     if (amtLabel) amtLabel.innerHTML  = `${priorTy.label} HPP <span class="actual-badge">✓ Confirmed</span>`;
     if (amtEl)    amtEl.textContent   = fmt(actual);
     if (basisEl)  basisEl.textContent = `Confirmed from your January ${priorTy.hppPaidJan} payslip`;
@@ -321,7 +354,7 @@ export function updatePriorHpp(ty) {
       : `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
   }
   // Corrupt periods behind a PARTIAL estimate: the figure shown may be too low — say so (v16.70).
-  if (_priorSkipped > 0 && actual <= 0 && est > 0 && basisEl) {
+  if (_priorSkipped > 0 && !hasActual && est > 0 && basisEl) {
     basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_priorSkipped} saved period${_priorSkipped > 1 ? 's' : ''}, so this may be too low.</span>`;
   }
 
