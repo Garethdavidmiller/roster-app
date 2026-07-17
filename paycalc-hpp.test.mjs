@@ -64,7 +64,7 @@ mock.module('./roster-data.js', {
     },
 });
 
-const { isDataEmpty, _decodeHours, _varPayForPeriod } = await import('./paycalc-hpp.js');
+const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod } = await import('./paycalc-hpp.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -88,6 +88,44 @@ function assertPounds(actual, expected, msg) {
     assert.ok(Math.abs(actual - expected) < 0.005,
         `${msg ?? ''}: expected £${expected.toFixed(2)}, got £${actual.toFixed(2)}`);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// resolveHppForPeriod — "confirmed actual beats estimate" (incl. a confirmed £0)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('resolveHppForPeriod', () => {
+    beforeEach(reset);
+
+    test('no actual, no estimate → £0, not an estimate', () => {
+        assert.deepEqual(resolveHppForPeriod(null, null), { amount: 0, isEstimate: false, hasActual: false });
+    });
+
+    test('estimate only → uses the estimate, flagged as estimate', () => {
+        assert.deepEqual(resolveHppForPeriod(null, '1791.72'), { amount: 1791.72, isEstimate: true, hasActual: false });
+    });
+
+    test('empty-string actual is treated as NOT confirmed → falls back to estimate', () => {
+        assert.deepEqual(resolveHppForPeriod('', '1791.72'), { amount: 1791.72, isEstimate: true, hasActual: false });
+    });
+
+    test('a confirmed actual beats the estimate', () => {
+        assert.deepEqual(resolveHppForPeriod('1650.00', '1791.72'), { amount: 1650, isEstimate: false, hasActual: true });
+    });
+
+    test('a confirmed £0 WINS over the estimate (the v17.26 money fix)', () => {
+        // Payslip HPP genuinely £0 (e.g. a year of absence). Before v17.26 the `actual > 0` test
+        // ignored this and kept adding the stale estimate to the January take-home.
+        assert.deepEqual(resolveHppForPeriod('0.00', '1791.72'), { amount: 0, isEstimate: false, hasActual: true });
+    });
+
+    test('a confirmed negative clamps to £0 (a payslip HPP cannot be negative)', () => {
+        assert.deepEqual(resolveHppForPeriod('-50.00', '1791.72'), { amount: 0, isEstimate: false, hasActual: true });
+    });
+
+    test('an estimate of £0 is not treated as a live estimate', () => {
+        assert.deepEqual(resolveHppForPeriod(null, '0.00'), { amount: 0, isEstimate: false, hasActual: false });
+    });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // isDataEmpty

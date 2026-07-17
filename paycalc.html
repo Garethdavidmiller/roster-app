@@ -477,6 +477,7 @@
     <div id="payBreakLegend" aria-hidden="true"></div>
     <div class="summary" id="summary"></div>
     <div class="bp-active-banner" id="bpActiveBanner" style="display:none"></div>
+    <div class="hpp-active-banner" id="hppActiveBanner" style="display:none"></div>
     <div class="payslip-note" id="payslipNote" style="display:none">
       ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so your payslip's gross figure (your pay before tax) will be lower than the total above. This is normal.
     </div>
@@ -545,6 +546,9 @@
     </div>
     <div class="card-body collapsible-body" id="hppCardBody">
 
+      <!-- Explainer leads the card so a member reads WHAT HPP is before meeting last year's figure. -->
+      <p class="card-explainer">When you take annual leave, Chiltern only pay your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered on each payslip above. <button type="button" class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
+
       <!-- Prior year HPP — hidden when viewing the first tax year (no prior year exists) -->
       <div id="priorHppSection" class="hidden">
         <div class="hpp-section-header">
@@ -562,17 +566,16 @@
             <span class="pfx-sym">£</span>
             <input type="text" id="priorHppActualInput" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
-          <div class="field-hint">Enter the HPP lump sum from your January payslip to replace the estimate above.</div>
+          <div class="field-hint">Find the <strong>Holiday Pay Premium</strong> line on your January payslip and enter it here — it replaces the estimate above and updates your January take-home.</div>
         </div>
         <div class="field-divider"></div>
         <div class="section-subhead" id="currentHppTitle">This year (2026/27)</div>
       </div>
 
-      <p class="card-explainer">When you take annual leave, Chiltern only pay your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered above. <button type="button" class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
       <div class="hpp-result">
         <div class="hpp-label" id="hppLabel">Estimated Holiday Pay Premium for this tax year</div>
         <div class="hpp-amount" id="hppAmount">£–</div>
-        <div class="hpp-basis" id="hppBasis">Enter hours across your periods above to calculate</div>
+        <div class="hpp-basis" id="hppBasis">Enter your hours on each payslip above to calculate</div>
       </div>
       <button type="button" class="hpp-toggle-btn" id="hppToggleBtn" aria-expanded="false" aria-controls="hppNoteBody"><span id="hppToggleBtnLabel">How is this calculated? </span><span class="hpp-toggle-arrow">▼</span></button>
       <div class="hpp-note-body" id="hppNoteBody">

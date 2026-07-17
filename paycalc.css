@@ -237,23 +237,26 @@
     .sum-row.sum-sl-zero .val { color: var(--text-light); }
     .sum-est { font-size: 10px; font-weight: 400; color: var(--text-faint); margin-left: 4px; }
     .sum-row.sum-bp .val  { font-weight: 700; color: var(--success-green); }
-    .bp-active-banner {
+    /* Green "included on this payslip" banners — back pay (on its paid-in period) and HPP (on the
+       January period it lands). Shared styling so the two read as one pattern. */
+    .bp-active-banner, .hpp-active-banner {
       margin: 0 16px 0; padding: 8px 12px; border-radius: 6px;
       background: var(--success-green-bg); border: 1px solid var(--success-green);
       font-size: var(--type-small); color: var(--success-text); line-height: 1.4;
     }
-    /* Inline "view back pay card" control — a real <button> for keyboard access,
-       styled as a link to match the banner text */
-    .bp-active-banner button {
+    .hpp-active-banner { margin-top: 8px; }   /* space it from the back-pay banner when both show */
+    /* Inline "view … card" control — a real <button> for keyboard access, styled as a link */
+    .bp-active-banner button, .hpp-active-banner button {
       background: none; border: none; padding: 0;
       font-family: inherit; font-size: inherit;
       color: var(--success-text); font-weight: 700;
       text-decoration: underline; text-underline-offset: 2px;
       cursor: pointer; touch-action: manipulation;
     }
-    .bp-active-banner button:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
-    /* Second line inside the banner: the fill-your-payslips-accurately note */
-    .bp-active-banner .bp-banner-note { margin-top: 4px; font-weight: 400; }
+    .bp-active-banner button:focus-visible,
+    .hpp-active-banner button:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    /* Second line inside either banner: the accuracy / confirm-your-payslip note */
+    .bp-banner-note { margin-top: 4px; font-weight: 400; }
 
     /* Payslip gross note */
     .payslip-note {
@@ -636,6 +639,9 @@
     .hpp-basis {
       font-size: var(--type-small); color: var(--text-light); margin-top: 4px; line-height: 1.4;
     }
+    /* Partial-fill nudge: the member has entered only some payslips, so the estimate isn't the
+       full-year figure yet. Neutral-but-noticed (not an error) — the biggest support-question cue. */
+    .hpp-partial-hint { display: block; margin-top: 6px; font-size: var(--type-small); color: var(--text-mid); font-weight: 600; }
     .card-note {
       font-size: var(--type-small); color: var(--text-light); line-height: 1.55;
       border-top: 1px solid var(--border-light); padding-top: 10px;

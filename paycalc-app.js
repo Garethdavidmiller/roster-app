@@ -42,7 +42,7 @@ import {
   fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS,
 } from './paycalc-roster-hint.js';
-import { isDataEmpty, calcHPP, updatePriorHpp } from './paycalc-hpp.js';
+import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent } from './paycalc-backpay.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
@@ -807,10 +807,15 @@ export function init() {
       const _hppTy = _curP ? CONFIG.TAX_YEARS.find(t =>
           _curP.payday.getFullYear() === t.hppPaidJan && _curP.payday.getMonth() === 0
       ) : null;
-      const _hppActualAmt  = _hppTy ? parseSmartFloat(lsGet(hppActualKey(_hppTy)) || '0') : 0;  // smart-parse so a pre-v16.84 raw "1,200" self-heals
-      const _hppEstAmt     = _hppTy ? parseFloat(lsGet(hppEstKey(_hppTy))    || '0') : 0;
-      const _hppForPeriod  = _hppActualAmt > 0 ? _hppActualAmt : (_hppEstAmt || 0);
-      const _hppIsEstimate = _hppTy && _hppForPeriod > 0 && !(_hppActualAmt > 0);
+      // A CONFIRMED actual (present in storage, even £0) beats the estimate — resolveHppForPeriod
+      // is the single source of that rule (a confirmed £0 correctly adds nothing; the pre-v17.26
+      // `actual > 0` test kept silently adding the stale estimate to take-home). Shared with the
+      // prior-year card display so the two can't diverge.
+      const _hppRes = _hppTy
+          ? resolveHppForPeriod(lsGet(hppActualKey(_hppTy)), lsGet(hppEstKey(_hppTy)))
+          : { amount: 0, isEstimate: false, hasActual: false };
+      const _hppForPeriod  = _hppRes.amount;
+      const _hppIsEstimate = _hppRes.isEstimate;
 
       const grossWithBp = gross + _bpThisPeriod + _hppForPeriod;
 
@@ -923,7 +928,7 @@ export function init() {
         <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
         <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
         ${slLines}
-        <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay & HPP)` : _bpThisPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay)` : _hppForPeriod > 0 ? ' (inc. HPP)' : ''}</span><span class="val">${fmt(net)}</span></div>
+        <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay & HPP)` : _bpThisPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay)` : _hppForPeriod > 0 ? ` (inc. ${_hppIsEstimate ? 'estimated ' : ''}HPP)` : ''}</span><span class="val">${fmt(net)}</span></div>
       `;
 
       const fh = /** @param {number} h */ h => {
@@ -1059,6 +1064,52 @@ export function init() {
           _bannerEl.style.display = '';
         } else {
           _bannerEl.style.display = 'none';
+        }
+      }
+
+      // HPP green banner — the parallel of the back-pay banner, shown on the JANUARY period where
+      // the premium lands in take-home (`_hppForPeriod > 0` only there). Makes the folded-in lump
+      // visible up-front instead of only as a row in the collapsed breakdown. Unlike back pay, HPP
+      // is never opt-in, so there is only the "✓ Includes …" state.
+      const _hppBannerEl = document.getElementById('hppActiveBanner');
+      if (_hppBannerEl) {
+        if (_hppForPeriod > 0) {
+          const _hppText = _hppIsEstimate
+            ? `✓ Includes estimated Holiday Pay Premium of ${fmt(_hppForPeriod)} · `
+            : `✓ Includes Holiday Pay Premium of ${fmt(_hppForPeriod)} · `;
+          _hppBannerEl.firstChild?.nodeType === Node.TEXT_NODE
+            ? (_hppBannerEl.firstChild.nodeValue = _hppText)
+            : (_hppBannerEl.textContent = _hppText);
+          if (!_hppBannerEl.querySelector('button')) {
+            const _hppLink = document.createElement('button');
+            _hppLink.type = 'button';
+            _hppLink.textContent = 'view HPP card';
+            _hppLink.addEventListener('click', () => {
+              // Open the collapsed HPP card (real toggle path) before scrolling to it.
+              if (!document.getElementById('hppCardBody')?.classList.contains('open')) {
+                /** @type {HTMLElement} */ (document.getElementById('hppCardToggle'))?.click();
+              }
+              document.getElementById('hppCard')?.scrollIntoView({ behavior: 'smooth' });
+            });
+            _hppBannerEl.appendChild(_hppLink);
+          }
+          // While it is still an ESTIMATE, prompt the member to confirm the real figure from the
+          // payslip (the tax year is complete by January, so the estimate is essentially final).
+          let _hppNoteEl = _hppBannerEl.querySelector('.bp-banner-note');
+          if (_hppIsEstimate) {
+            if (!_hppNoteEl) {
+              _hppNoteEl = document.createElement('div');
+              _hppNoteEl.className = 'bp-banner-note';
+              _hppBannerEl.appendChild(_hppNoteEl);
+            }
+            _hppNoteEl.textContent = 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.';
+            /** @type {HTMLElement} */ (_hppNoteEl).style.display = '';
+          } else if (_hppNoteEl) {
+            /** @type {HTMLElement} */ (_hppNoteEl).style.display = 'none';
+          }
+          _hppBannerEl.style.display = '';
+        } else {
+          _hppBannerEl.style.display = 'none';
         }
       }
 
@@ -1592,8 +1643,12 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('ytdPay')).addEventListener('input',    () => { saveSettings(); calculate(); });
     /** @type {HTMLElement} */ (document.getElementById('ytdTax')).addEventListener('input',    () => { saveSettings(); calculate(); });
 
-    // Prior year HPP actual — saves to per-year key and refreshes the prior HPP section display
-    /** @type {HTMLElement} */ (document.getElementById('priorHppActualInput')).addEventListener('input', () => {
+    // Prior year HPP actual — saves to per-year key and refreshes the prior HPP section display.
+    // Commit on `change` (fires on blur / keyboard "done"), NOT `input` (v17.26): committing per
+    // keystroke made typing "843" flash "✓ Confirmed £8.00" mid-entry, and a mid-edit select-all
+    // then a stray character (or an abandoned edit) silently DELETED a previously-confirmed figure
+    // — the estimate then resurfaced in the January take-home. On blur the final value commits once.
+    /** @type {HTMLElement} */ (document.getElementById('priorHppActualInput')).addEventListener('change', () => {
       const pNum  = currentPeriodNum();
       const curP  = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
       const curTy = taxYearForPeriod(curP);
@@ -1602,10 +1657,12 @@ export function init() {
       const priorTy = CONFIG.TAX_YEARS[tyIdx - 1];
       // Store a CLEAN numeric string, not the raw field value (v16.84): a payslip-style
       // "1,200" or "£350" stored verbatim was later read with parseFloat → 1 / NaN. Smart-parse
-      // (strips commas/£/smart-punctuation) then toFixed, mirroring how hppEst is stored.
+      // (strips commas/£/smart-punctuation) then toFixed, mirroring how hppEst is stored. A blank
+      // field clears the actual (lsDel); a genuine 0 is a valid confirmed figure. Negatives clamp
+      // to 0 — a payslip HPP can't be negative.
       const _v = parseSmartFloatOrNull(/** @type {HTMLInputElement} */ (document.getElementById('priorHppActualInput')).value);
       if (_v != null) {
-        lsSet(hppActualKey(priorTy), _v.toFixed(2));
+        lsSet(hppActualKey(priorTy), Math.max(0, _v).toFixed(2));
       } else {
         lsDel(hppActualKey(priorTy));
       }
