@@ -560,6 +560,12 @@
           <div class="hpp-amount" id="priorHppAmt">£–</div>
           <div class="hpp-basis" id="priorHppBasis"></div>
         </div>
+        <!-- Opt-in (mirrors back pay): the premium is only ADDED to that January payslip's take-home
+             estimate when ticked — off by default. The card + banner always show the figure itself. -->
+        <div class="toggle-row" id="hppIncludeRow" style="border-top:none">
+          <input type="checkbox" id="hppIncludeTick">
+          <label for="hppIncludeTick">Add this to your January payslip's take-home estimate</label>
+        </div>
         <div class="field" style="margin-bottom:12px">
           <label for="priorHppActualInput">Confirmed amount from your January payslip <span class="note note-block">enter when payslip arrives</span></label>
           <div class="pfx">

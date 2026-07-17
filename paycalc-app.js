@@ -50,7 +50,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
-import { SK, periodKey, hppEstKey, hppActualKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
+import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
 'use strict';
@@ -814,8 +814,14 @@ export function init() {
       const _hppRes = _hppTy
           ? resolveHppForPeriod(lsGet(hppActualKey(_hppTy)), lsGet(hppEstKey(_hppTy)))
           : { amount: 0, isEstimate: false, hasActual: false };
-      const _hppForPeriod  = _hppRes.amount;
+      const _hppAmount     = _hppRes.amount;      // the HPP figure landing on this January payslip
       const _hppIsEstimate = _hppRes.isEstimate;
+      // OPT-IN, mirroring back pay (v17.29): the premium only JOINS the take-home when the member
+      // ticks "Add this to your January payslip's take-home" on the HPP card (off by default, per
+      // tax year). Until then it is shown as an informational "could land here" banner and is NOT
+      // added — so an unconfirmed estimate never silently inflates the January take-home.
+      const _hppIncluded   = !!_hppTy && lsGet(hppIncKey(_hppTy)) === '1';
+      const _hppForPeriod  = _hppIncluded ? _hppAmount : 0;
 
       const grossWithBp = gross + _bpThisPeriod + _hppForPeriod;
 
@@ -1073,10 +1079,14 @@ export function init() {
       // is never opt-in, so there is only the "✓ Includes …" state.
       const _hppBannerEl = document.getElementById('hppActiveBanner');
       if (_hppBannerEl) {
-        if (_hppForPeriod > 0) {
-          const _hppText = _hppIsEstimate
-            ? `✓ Includes estimated Holiday Pay Premium of ${fmt(_hppForPeriod)} · `
-            : `✓ Includes Holiday Pay Premium of ${fmt(_hppForPeriod)} · `;
+        // Available = a January payslip with an HPP figure; Included = the member opted in (tick).
+        // Two states mirror the back-pay banner: included → "✓ Includes …"; available-but-not-opted-in
+        // → a quiet "could land here — not added" pointer to the HPP card.
+        const _hppAvailableHere = !!_hppTy && _hppAmount > 0;
+        if (_hppAvailableHere) {
+          const _hppText = _hppForPeriod > 0
+            ? `✓ Includes ${_hppIsEstimate ? 'estimated ' : ''}Holiday Pay Premium of ${fmt(_hppAmount)} · `
+            : `ℹ️ ${_hppIsEstimate ? 'Estimated ' : ''}Holiday Pay Premium of ${fmt(_hppAmount)} could land on this payslip — not added to this estimate · `;
           _hppBannerEl.firstChild?.nodeType === Node.TEXT_NODE
             ? (_hppBannerEl.firstChild.nodeValue = _hppText)
             : (_hppBannerEl.textContent = _hppText);
@@ -1093,16 +1103,18 @@ export function init() {
             });
             _hppBannerEl.appendChild(_hppLink);
           }
-          // While it is still an ESTIMATE, prompt the member to confirm the real figure from the
-          // payslip (the tax year is complete by January, so the estimate is essentially final).
+          // Second line: guide the member. Not opted in → how to add it; opted-in estimate → confirm it.
           let _hppNoteEl = _hppBannerEl.querySelector('.bp-banner-note');
-          if (_hppIsEstimate) {
+          const _hppNoteText = _hppForPeriod > 0
+            ? (_hppIsEstimate ? 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.' : '')
+            : 'Tick “Add this to your January payslip’s take-home” on the HPP card to include it.';
+          if (_hppNoteText) {
             if (!_hppNoteEl) {
               _hppNoteEl = document.createElement('div');
               _hppNoteEl.className = 'bp-banner-note';
               _hppBannerEl.appendChild(_hppNoteEl);
             }
-            _hppNoteEl.textContent = 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.';
+            _hppNoteEl.textContent = _hppNoteText;
             /** @type {HTMLElement} */ (_hppNoteEl).style.display = '';
           } else if (_hppNoteEl) {
             /** @type {HTMLElement} */ (_hppNoteEl).style.display = 'none';
@@ -1667,6 +1679,21 @@ export function init() {
         lsDel(hppActualKey(priorTy));
       }
       updatePriorHpp(curTy);
+    });
+
+    // HPP opt-in tick — the per-year "add my HPP to the January take-home" flag (mirrors back pay's
+    // include tick). Persists for the PRIOR year (the one whose HPP lands on the upcoming January
+    // payslip — the year shown in the prior-year section) and recomputes take-home.
+    document.getElementById('hppIncludeTick')?.addEventListener('change', () => {
+      const pNum  = currentPeriodNum();
+      const curP  = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+      const curTy = taxYearForPeriod(curP);
+      const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === curTy.label);
+      if (tyIdx <= 0) return;
+      const priorTy = CONFIG.TAX_YEARS[tyIdx - 1];
+      const checked = /** @type {HTMLInputElement} */ (document.getElementById('hppIncludeTick')).checked;
+      if (checked) lsSet(hppIncKey(priorTy), '1'); else lsDel(hppIncKey(priorTy));
+      calculate();
     });
 
     // HPP formula toggle + disclaimer + back-pay cross-link
