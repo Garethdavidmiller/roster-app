@@ -152,6 +152,7 @@ roster-app/
 ├── nav-panel.js            ← shared nav drawer: exports initNavPanel, archiveNotice, isNoticeExpired, resetNavPanel; the NAV_PAGES/INFORMATION/GUIDES arrays are internal data (not exported)
 ├── notif.js                ← shared Web Push: notifSupported, getNotifState, peekNotifState, enable/disableNotifications
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
+├── date-picker.js          ← brand-styled single-date picker for the Operations upload date fields: initDatePickers(ids) + pure monthCells(). Progressive-enhances each native `<input type="date">` (kept hidden as the value holder — consumers unchanged) into a trigger button that opens one shared modal calendar via createLightbox; sets value + dispatches input/change so the roster Saturday-snap and doc-upload defaults still flow through
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
 ├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
 ├── login-overlay.js        ← shared in-place sign-in overlay for all 5 protected pages: initLoginOverlay({ pageLabel, onSuccess }); owns grade/name dropdowns, surname-password check, client rate-limit. The DOM-free sign-in core `runNamedSignIn` time-boxes ensureNamedSession (8s) and commits the local session ONLY after auth resolves — never before (the v14.75 half-signed-in/freeze fix; see LOGIN_INCIDENT.md). `primeAuth()` pre-warm + `_signingIn` back-link guard (v14.79–80). Full detail + exports: AI_MAP.md.
@@ -259,6 +260,7 @@ roster-app/
 ├── auth-state.test.mjs     ← tests for the auth store: getAuthSnapshot/subscribeAuth/dispatchAuth, no-op/listener isolation (no mocks; part of test:hygiene). The session.js→store bridge is tested in session.test.mjs.
 ├── auth-policy.test.mjs    ← tests for requirePageAuth/requirePage/rolesFor: the page×status×role decision matrix + invariants (degraded never allows, soft never blocks, public always allows, fail-closed on unknown page). No mocks; part of test:hygiene.
 ├── overlay.test.mjs        ← tests for lockBodyScroll, unlockBodyScroll, trapFocus, initCardCollapse (no mocks; runs in test:hygiene)
+├── date-picker.test.mjs    ← tests for the pure monthCells() month-grid helper in date-picker.js (no mocks; runs in test:hygiene)
 ├── overlay-history.test.mjs ← tests for the Android-Back history STACK in overlay.js: nested overlays each get their own entry, Back closes only the topmost, a handler's own _clearOverlayHistory doesn't cascade, dedupe on double-open (capturing popstate harness; runs in test:hygiene)
 ├── calendar-state.test.mjs / calendar-member.test.mjs / calendar-overrides.test.mjs ← tests for calendar-state.js, calendar-member.js, calendar-overrides.js (--experimental-test-module-mocks)
 ├── calendar-renderer.test.mjs   ← tests for createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer (fake DOM; --experimental-test-module-mocks)
