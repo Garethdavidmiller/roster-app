@@ -550,8 +550,10 @@ function keyToBase64(buffer) {
  */
 export async function savePushSubscription(subscription) {
     const p256dh = subscription.getKey('p256dh');
-    const auth   = subscription.getKey('auth');
-    if (!p256dh || !auth) {
+    // Named authKey (not `auth`) so it can't shadow the module-level Firebase `auth` instance —
+    // a future claim check added here would otherwise silently read this 16-byte key buffer. (v17.40)
+    const authKey = subscription.getKey('auth');
+    if (!p256dh || !authKey) {
         // Partially-initialised subscription — keys absent on some browsers/edge cases. THROW rather
         // than silently returning: a silent skip let the caller mark the device "subscribed" (fingerprint
         // + prompt-dismissed) with NO server record, so the bell showed "on" forever while the device got
@@ -565,7 +567,7 @@ export async function savePushSubscription(subscription) {
         endpoint:     subscription.endpoint,
         keys: {
             p256dh: keyToBase64(p256dh),
-            auth:   keyToBase64(auth),
+            auth:   keyToBase64(authKey),
         },
         subscribedAt: serverTimestamp(),
     });

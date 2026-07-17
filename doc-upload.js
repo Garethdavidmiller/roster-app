@@ -76,7 +76,17 @@ export function initDocUploadCard(cfg) {
     const _maxDate = new Date();
     _maxDate.setDate(_maxDate.getDate() + (cfg.maxDateOffsetDays || 0));
     dateInput.max = formatISO(_maxDate);
-    if (!_dateTouched) dateInput.value = formatISO(new Date());
+    if (!_dateTouched) {
+      const today = formatISO(new Date());
+      if (dateInput.value !== today) {
+        dateInput.value = today;
+        // Tell a progressive enhancement (date-picker.js) we changed the value programmatically.
+        // A plain 'change' would wrongly flip _dateTouched (this is NOT a user edit), so use a
+        // bespoke event that only refreshes the trigger label — keeps the label from lying when an
+        // untouched Operations tab rolls over midnight and Upload re-defaults the date. (v17.41)
+        dateInput.dispatchEvent(new CustomEvent('date-refreshed'));
+      }
+    }
   }
   _refreshDateBounds();
 

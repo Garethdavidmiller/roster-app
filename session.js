@@ -49,15 +49,10 @@ export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 
 /**
  * Derive the login password from a staff member's display name.
- *
- * Rules (must stay in sync with how passwords were originally set):
- *  - Take everything after the first word (the initial + dot), e.g. "G. Miller" → "Miller"
- *  - Join multi-word surnames without spaces, e.g. "M. De Silva" → "DeSilva"
- *  - Lowercase the result
- *  - Strip ALL non-alpha characters: hyphens, apostrophes, spaces, accents, etc.
- *    e.g. "C. Francisco-Charles" → "franciscocharles"
- *    e.g. "O'Brien" → "obrien"
- *
+ * Delegates to `normaliseSurname` (auth-identity.js) — the SINGLE source for the derivation
+ * rules (surname extraction, multi-word join, lowercase, non-alpha strip). Do not re-document
+ * or re-implement those rules here; a mismatch would lock members out. surname-parity.test.mjs
+ * enforces this stays in sync with the functions-side duplicate.
  * @param {string} fullName - Display name exactly as stored in teamMembers, e.g. "G. Miller"
  * @returns {string} Lowercase password with all non-alpha characters removed
  */

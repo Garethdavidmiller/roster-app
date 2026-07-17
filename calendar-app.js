@@ -247,7 +247,7 @@ function renderCalendar() {
         const stale = takeStaleMemberName();
         if (stale) _showStaleMemberBanner(stale, (/** @type {any} */ (member)).name);
 
-        // Update legend for current member and month (Night, 🎄, 🥚 are conditional)
+        // Update legend for current member and month (Night, 🎄, 🐣 are conditional)
         updateLegend();
 
         // Set team member name on header for printing
@@ -752,9 +752,9 @@ try {
             if (e.key === 'ArrowRight' && !document.activeElement?.classList.contains('calendar-day')
                 && document.getElementById('nextMonth')?.getAttribute('aria-disabled') !== 'true') { changeMonth(1);  renderCalendar(); announceMonthChange(); }
             if (e.key === 't' || e.key === 'T') { const now = new Date(); setDisplayMonth(now.getMonth()); setDisplayYear(now.getFullYear()); renderCalendar(); pulseToday(); announceMonthChange(); }
-            if (e.key === 'p' || e.key === 'P') {
-                if (!document.getElementById('huddleViewer')?.classList.contains('open')) window.print();
-            }
+            // Any open overlay (lightbox / huddle viewer / nav drawer) already returned above, so
+            // print is unguarded here.
+            if (e.key === 'p' || e.key === 'P') window.print();
         });
 
 } catch (error) {

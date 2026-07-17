@@ -91,7 +91,9 @@ const HUDDLE_PUSH_PAUSED = false;
 // Upload size caps — named once (were inline literals in both HTTP handlers).
 const MAX_RAW_BODY_BYTES   = 28 * 1024 * 1024; // base64 request-body cap (bypasses JSON limit)
 const MAX_FILE_BYTES       = 20 * 1024 * 1024; // decoded file cap — MUST match storage.rules request.resource.size
-const MAX_HUDDLE_HTML_CHARS = 200_000;         // converted-DOCX htmlContent cap
+const MAX_HUDDLE_HTML_CHARS = 200_000;         // converted-DOCX htmlContent cap (ingest path — Admin SDK,
+                                               // bypasses rules; intentionally STRICTER than the browser
+                                               // manual-upload cap of 250000 in firestore.rules huddles block)
 
 // Firestore write errors that can be raised AFTER the server actually committed (a timeout/transport
 // blip on an otherwise-successful write) — i.e. COMMIT-AMBIGUOUS. On these the Function must not
@@ -847,7 +849,9 @@ exports.parseRosterPDF = onRequest(
         // ---- Auth: Firebase ID token with admin custom claim ----
         // The browser sends the logged-in user's Firebase ID token.
         // verifyIdToken checks the signature + expiry; the admin claim gates access
-        // so only Gareth's account can call this function.
+        // so only Gareth's account can call this function. checkRevoked=true also rejects a
+        // token whose account has been disabled or had its refresh tokens revoked (leaver / a
+        // compromised admin), rather than trusting the ~1h-valid cached token (v17.42).
         const authHeader = req.headers['authorization'] || '';
         if (!authHeader.startsWith('Bearer ')) {
             res.status(401).json({ error: 'Unauthorised' });
@@ -856,7 +860,7 @@ exports.parseRosterPDF = onRequest(
         const idToken = authHeader.slice('Bearer '.length);
         let decodedToken;
         try {
-            decodedToken = await admin.auth().verifyIdToken(idToken);
+            decodedToken = await admin.auth().verifyIdToken(idToken, true);
         } catch (err) {
             console.warn('[parseRosterPDF] Token verification failed:', err.message);
             res.status(401).json({ error: 'Unauthorised' });
@@ -1303,7 +1307,9 @@ exports.setupRosterAuth = onRequest(
         const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
         let decodedAuth;
         try {
-            decodedAuth = await admin.auth().verifyIdToken(bearer);
+            // checkRevoked=true: this function re-provisions accounts, so a revoked/disabled admin's
+            // still-cached token must be rejected immediately, not honoured for up to ~1h (v17.42).
+            decodedAuth = await admin.auth().verifyIdToken(bearer, true);
         } catch (_) {
             return res.status(401).json({ error: 'Unauthorised' });
         }

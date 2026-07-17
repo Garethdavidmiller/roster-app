@@ -13,7 +13,7 @@ import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getALEntitlement, isSunday, formatISO, paydayForCutoff } from './roster-data.js';
-import { shouldReplaceOverride } from './override-utils.js';
+import { shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 
 /**
  * Initialise the Annual Leave lightbox and the day-detail lightbox.
@@ -99,8 +99,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         if (!ex || shouldReplaceOverride(ex, data)) byDate.set(data.date, data);
       });
       for (const [date, ov] of byDate) {
-        // Rule: see CLAUDE.md — "Sundays are non-contracted" (AL entitlement count)
-        if (ov.type === 'annual_leave' && date && date.startsWith(yearStr) && !isSunday(date)) {
+        // Rule: see CLAUDE.md — "Sundays are non-contracted" (AL entitlement count). Also skip
+        // leave dated before the member's startDate: the calendar + team view suppress those days
+        // from display (isBeforeMemberStart), so counting them here made the balance disagree with
+        // the grid. Local-midnight Date to match the renderer's comparison. (v17.41 review fix)
+        if (ov.type === 'annual_leave' && date && date.startsWith(yearStr) && !isSunday(date)
+            && !isBeforeMemberStart(member, new Date(date + 'T00:00:00'))) {
           if (date <= todayStr) taken++; else booked++;
         }
       }

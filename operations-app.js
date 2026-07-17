@@ -751,7 +751,7 @@ export function init() {
                 title: 'Error Log',
                 sections: [
                     { heading: 'What it captures', items: [
-                        { icon: '🐛', html: 'Errors the app ran into on <strong>any signed-in page</strong> (admin, pay calculator, operations, settings) — across all staff, not just you' },
+                        { icon: '🐛', html: 'Errors the app ran into on <strong>any page across the app</strong> (calendar, pay calculator, admin, operations, settings, links) — across all staff, not just you' },
                         { icon: '⎘', html: 'Tap <strong>⎘ Copy</strong> on any error to copy all details (message, page, app version, browser) formatted for diagnosis' },
                     ]},
                     { heading: 'Resolving errors', items: [
@@ -954,9 +954,6 @@ export function init() {
         const content = document.getElementById('usageContent');
         if (!content) return;
 
-        // Page id → emoji + label, matching the app's nav vocabulary (📅 Calendar,
-        // 📝 Admin, 💷 Pay, 🔧 Ops, ⚙ Settings, 🔗 Links).
-        /** @type {Record<string, {emoji: string, label: string}>} */
         try {
             await sessionReady;
             const stats = await withClaimRetry(getUsageStats);
