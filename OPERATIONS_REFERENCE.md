@@ -30,8 +30,9 @@ https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD-{upl
 
 **Auto-prune (3 months):** at the end of every `ingestHuddle` run, `pruneOldHuddles()` deletes
 huddle Firestore docs *and* their Storage objects older than 3 months (`HUDDLE_RETENTION_MONTHS`).
-Storage deletion sweeps by the `huddles/<date>` **prefix** (v16.89) — covering versioned paths,
-legacy fixed paths, and orphaned objects alike, superseding the old storagePath-based delete.
+Storage deletion sweeps by the `huddles/<date>` **prefix** (Jul 2026, a functions-only change —
+no app-version bump) — covering versioned paths, legacy fixed paths, and orphaned objects alike,
+superseding the old storagePath-based delete.
 It is awaited (so it runs before Cloud Run reclaims the container) but best-effort — failures are
 swallowed and never block the upload response. Circulars/newsletters keep 6 months; huddles are
 higher-volume and rarely referenced after the day, so retention is shorter.
@@ -44,7 +45,7 @@ Document ID = `YYYY-MM-DD` (the London date of the huddle).
 date         string     "YYYY-MM-DD"
 storageUrl   string     Download-token URL (see above)
 storagePath  string     Versioned Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf"
-                        (absent on docs written before versioned paths — prune falls back to "huddles/{date}.{fileType}")
+                        (absent on docs written before versioned paths — the prune's prefix sweep covers those too)
 fileType     string     "pdf" | "docx" (browser writes are rule-constrained to these since v14.29)
 uploadedAt   timestamp  Firestore server timestamp
 uploadedBy   string     "power-automate" (Cloud Function) | member name string (manual admin upload)

@@ -517,7 +517,8 @@ date         "YYYY-MM-DD" — also the document ID
 storageUrl   Permanent tokenised download URL (both manual upload and Cloud Function ingest — the ingest path uses a download token, NOT a signed URL: GCS caps v4 signed-URL expiry at 7 days, too short for the 3-month retention window)
 storagePath  Firebase Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf" — versioned suffix
              prevents overwriting the old file before Firestore commits; absent on docs written before
-             versioned paths — uploadHuddle/pruneOldHuddles fall back to "huddles/{date}.{fileType}"
+             versioned paths — uploadHuddle's cleanup falls back to "huddles/{date}.{fileType}";
+             pruneOldHuddles sweeps by the "huddles/<date>" prefix (covers legacy paths too)
 fileType     "pdf" | "docx" — short form on browser writes (rule-constrained to ['pdf','docx'] since v14.29);
              the Cloud Function ingest path uses the Admin SDK and may store a MIME string
 uploadedAt   Firestore server timestamp

@@ -473,9 +473,10 @@ for now:
   A field-level merge is not worth the complexity for a 2-person beta tool.
 
 ### Test coverage gaps
-The suite is now broad (~35 test files, ~1045 unit tests — see CLAUDE.md's file tree for the
-full per-suite listing; every pure module has a companion `.test.mjs`). What matters here is
-what is **still not** covered:
+The suite is now broad (40+ test files, ~1045 unit tests — see CLAUDE.md's file tree for the
+full per-suite listing; nearly every pure module has a companion `.test.mjs`, the exceptions
+being trivial data/formatter modules like `paycalc-format.js`, `paycalc-help.js`, and
+`roster-cycle-data.js`). What matters here is what is **still not** covered:
 
 **Closed v16.32–16.33:** the push-notification state machine + subscribe/unsubscribe flow
 (`notif.test.mjs`, 23 tests — Push APIs stubbed on globalThis), the `setupRosterAuth` (B4) decision
