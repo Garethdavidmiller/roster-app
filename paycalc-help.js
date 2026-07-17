@@ -42,7 +42,6 @@ export const HELP_CONTENT = {
       'By default, the app divides your tax-free allowance equally across all 13 pay periods. This is usually accurate, but can drift if you had an unusually high or low pay period earlier in the year.',
       'Entering <strong>Year to Date figures</strong> gives a more accurate estimate based on everything you\'ve earned so far this tax year — usually much closer to your payslip, especially later in the year.',
       'Find <strong>"Taxable Pay"</strong> and <strong>"Tax Paid"</strong> in the <strong>Year to Date</strong> box on your payslip (usually bottom-right). Update them each time you get a new payslip.',
-      'Once your January payslip arrives with the confirmed Holiday Pay Premium amount, enter it in the <strong>Holiday Pay Premium</strong> card below to replace the running estimate.',
     ],
   },
   hpp: {
@@ -50,15 +49,17 @@ export const HELP_CONTENT = {
     tips: [
       'When you take annual leave, Chiltern only pay your <strong>basic contracted rate</strong> — you miss out on overtime, rest day pay, and Sunday pay for those days.',
       'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> of your extra pay above basic hours (Saturday, overtime, rest day working, Sunday, bank-holiday and Boxing Day premiums) across the whole tax year. London Allowance is not included — it\'s paid every period anyway, including while you\'re on leave, so it needs no premium.',
-      'This is paid as a <strong>single lump sum in your January payslip</strong> every year — it doesn\'t appear on any other payslip.',
-      'The estimate builds across all periods you\'ve entered in the current tax year. When you move into the next tax year, the prior year\'s estimate carries forward into this card — enter the confirmed January payslip figure there to replace it.',
+      'This is paid as a <strong>single lump sum on a January payslip</strong> every year — it doesn\'t appear on any other payslip. The estimate builds up across all the periods you\'ve entered for the current tax year.',
+      'On that January payslip a <strong>green note</strong> shows the estimated premium. It isn\'t added to your take-home until you tick <strong>"Add this to this payslip\'s take-home estimate"</strong> on the note — so it never changes your figure uninvited.',
+      'When you move into the next tax year, the prior year\'s estimate carries forward into this card. Once your real January figure lands, enter the confirmed <strong>Holiday Pay Premium</strong> amount here to replace the estimate.',
     ],
   },
   backpay: {
     title: 'Pay Rise Back Pay — when to use it',
     tips: [
       'Use this when a pay award is <strong>backdated to 1 April</strong>. Chiltern calculate the rate difference across every period since April, then pay the total on one payslip.',
-      'Enter your <strong>old and new hourly rates</strong> and London Allowance figures. The calculator uses the hours you\'ve already entered for each period.',
+      'The card fills itself in from the current award — your <strong>old rate</strong> and the offered <strong>pay rise %</strong> are already there, and it works out the lump owed across every period back to April. While the award is only offered (not yet confirmed on a payslip) the figure is an <strong>estimate</strong>; adjust any box if you know the confirmed rates.',
+      'The back pay isn\'t added to any payslip until you choose. On the payslip it\'s due to land, a <strong>green note</strong> appears — tick <strong>"Add this lump sum to this payslip\'s take-home estimate"</strong> to include it. Until then the calculator keeps using your current rate.',
       'The lump sum is taxed in the period it lands — if it pushes your income over a higher tax band that month, you may receive less than the gross figure shown.',
       'Tap <strong>"Apply new rate"</strong> to update Settings with the new rate so all future estimates use the correct figure.',
     ],
