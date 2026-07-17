@@ -22,7 +22,7 @@ Primarily **manual-entry**. Staff enter hours; calculator computes tax, NI, pens
 
 2026/27 rates: not yet confirmed — update `GRADES` in `paycalc-calc.js` when announced.
 
-**Members with `startDate`:** for the joining period, `calcProRateFactor` scales contracted hours, London Allowance, pension default, and HPP. All subsequent periods use standard amounts automatically.
+**Members with `startDate`:** for the joining period, `calcProRateFactor` scales contracted hours, London Allowance, and the pension default. All subsequent periods use standard amounts automatically. **HPP is NOT explicitly scaled** (since v17.23 `_varPayForPeriod` has no pro-rate term — London was its only one): a joiner's HPP is lower simply because they have fewer worked periods contributing variable pay. (Open owner question: does Chiltern additionally pro-rate a joiner's lump beyond it accruing on less variable pay? If so the estimate would need an explicit factor.)
 
 `saveSettings` guards the pension default on joining periods — writes `getPensionDefault(curP)` (full rate), not the field value (pro-rated). Without this guard, saving Settings on the joining period corrupts the default for subsequent periods.
 
@@ -107,6 +107,7 @@ exact payslip line name first and quote it.
 | Rest Day Worked | `RDW 1.25` | 1.25× |
 | Rest Day Worked — Sunday | `RDW Sun 1.5` | 1.5× |
 | Boxing Day | `Bank Holiday Overtime 3.0` | 3.0× |
+| Holiday Pay Premium (annual January lump) | `Holiday Pay Premium` | 7.69% (4/52) of variable pay |
 | Peer training | shows as **extra basic pay** (no distinct line) | basic |
 
 **Year to Date:** always spell it out as "Year to Date" (never bare "YTD") and call the two figures

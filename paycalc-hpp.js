@@ -212,29 +212,39 @@ export function calcHPP() {
   if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
   if (pCount === 0) {
     if (amountEl) amountEl.textContent = '£–';
-    if (basisEl)  basisEl.textContent  = 'Enter hours across your periods above to calculate';
+    if (basisEl)  basisEl.textContent  = 'Enter your hours on each payslip above to calculate';
     // EVERY readable period failed to parse — the worst case must not be the silent one (the
     // partial-corruption warning below only renders on the non-empty branch).
     if (_skipped.length && basisEl) {
-      basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved period${_skipped.length > 1 ? 's' : ''}, so no premium could be calculated — re-save ${_skipped.length > 1 ? 'them' : 'it'} on the calculator.</span>`;
+      basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''}, so no premium could be calculated — open ${_skipped.length > 1 ? 'those periods' : 'that period'} above and enter the hours again.</span>`;
     }
   } else {
     if (amountEl) amountEl.textContent = fmt(hpp);
     if (basisEl) {
+      // Show pCount OUT OF the year's total periods so a member with only a few payslips entered
+      // sees WHY the figure is small (the single biggest support-question risk — a partial estimate
+      // looks authoritative). One 4-weekly period = one payslip, so "payslips" reads plainer than
+      // "periods" for staff.
+      const _total = periods.length;
       basisEl.textContent = usingActuals
-        ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
-        : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
+        ? `All ${pCount} payslips of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
+        : `${pCount} of ${_total} payslip${_total !== 1 ? 's' : ''} entered · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
+      // Clean partial (no unreadable periods): nudge the member that the estimate isn't the
+      // full-year figure yet. (When periods were skipped, the "may be too low" warning below covers it.)
+      if (!usingActuals && _skipped.length === 0 && pCount < _total) {
+        basisEl.innerHTML += ` <span class="hpp-partial-hint">Fill in your remaining payslips for the full-year figure.</span>`;
+      }
     }
     // A corrupt saved period was excluded, so this premium may be too low — surface it rather than
     // quietly under-stating money (no-silent-caps). Rare: only malformed localStorage trips it.
     if (_skipped.length && basisEl) {
-      basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved period${_skipped.length > 1 ? 's' : ''}, so this may be too low — re-save ${_skipped.length > 1 ? 'them' : 'it'} on the calculator.</span>`;
+      basisEl.innerHTML += ` <span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''}, so this may be too low — open ${_skipped.length > 1 ? 'those periods' : 'that period'} above and enter the hours again.</span>`;
     }
   }
 
   const noteEl = document.getElementById('hppNote');
   if (noteEl) {
-    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> Your extra pay above basic hours (Saturday, overtime, rest day working, Sunday, bank-holiday and Boxing Day premiums) × 7.69%. Basic pay, London Allowance, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>. It's reduced proportionally if you weren't employed for the full year.`;
+    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> Your extra pay above basic hours (Saturday, overtime, rest day working, Sunday, bank-holiday and Boxing Day premiums) × 7.69% (that's 4 weeks' leave out of 52). Basic pay, London Allowance, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>, and it shows as <strong>Holiday Pay Premium</strong> on that payslip. The more of your payslips you enter above, the closer this gets to the full-year figure.`;
   }
 
   updatePriorHpp(ty);
@@ -350,7 +360,7 @@ export function updatePriorHpp(ty) {
     if (amtEl)    amtEl.textContent    = '£–';
     // "No variable pay recorded" would be a LIE when the truth is unreadable saved data (v16.70).
     if (basisEl)  basisEl.textContent  = _priorSkipped > 0
-      ? `Couldn't read ${_priorSkipped} saved ${priorTy.label} period${_priorSkipped > 1 ? 's' : ''} — re-save ${_priorSkipped > 1 ? 'them' : 'it'} on the calculator, then check your January ${priorTy.hppPaidJan} payslip`
+      ? `Couldn't read ${_priorSkipped} saved ${priorTy.label} payslip${_priorSkipped > 1 ? 's' : ''} — open ${_priorSkipped > 1 ? 'those periods' : 'that period'} and enter the hours again, then check your January ${priorTy.hppPaidJan} payslip`
       : `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
   }
   // Corrupt periods behind a PARTIAL estimate: the figure shown may be too low — say so (v16.70).

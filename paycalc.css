@@ -636,6 +636,9 @@
     .hpp-basis {
       font-size: var(--type-small); color: var(--text-light); margin-top: 4px; line-height: 1.4;
     }
+    /* Partial-fill nudge: the member has entered only some payslips, so the estimate isn't the
+       full-year figure yet. Neutral-but-noticed (not an error) — the biggest support-question cue. */
+    .hpp-partial-hint { display: block; margin-top: 6px; font-size: var(--type-small); color: var(--text-mid); font-weight: 600; }
     .card-note {
       font-size: var(--type-small); color: var(--text-light); line-height: 1.55;
       border-top: 1px solid var(--border-light); padding-top: 10px;
