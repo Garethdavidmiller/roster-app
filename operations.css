@@ -399,7 +399,11 @@ select:focus-visible, input:focus-visible {
     background-color: var(--field-bg);
     color: var(--text-dark);
     font-family: inherit;
-    font-size: 16px;
+    /* 14px matches the sibling "Choose file" label — a button, so the 16px iOS-focus-zoom rule
+       for text inputs doesn't apply. nowrap keeps the date on one line so the box height matches
+       the file button instead of wrapping to two lines (v17.39). */
+    font-size: 14px;
+    white-space: nowrap;
     text-align: left;
     cursor: pointer;
     box-sizing: border-box;
