@@ -116,6 +116,8 @@ export function readSavedPeriod(pNum) {
 export function hppEstKey(ty)     { return `${pcPrefix()}hpp_est_${ty.label.replace('/', '_')}`; }
 /** @param {{ label:string }} ty @returns {string} */
 export function hppActualKey(ty)  { return `${pcPrefix()}hpp_actual_${ty.label.replace('/', '_')}`; }
+/** Per-tax-year opt-in flag ('1' = the member ticked "add my HPP to the January take-home"). @param {{ label:string }} ty @returns {string} */
+export function hppIncKey(ty)     { return `${pcPrefix()}hpp_inc_${ty.label.replace('/', '_')}`; }
 /** Back-pay card state (rates/%/paid-in, one JSON blob) — per-member like all pay data. @returns {string} */
 export function bpKey()           { return `${pcPrefix()}bp_state`; }
 /** @param {{ label:string }} ty @returns {string} */

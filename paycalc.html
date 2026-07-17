@@ -476,8 +476,18 @@
     <div id="payBreakBar" aria-hidden="true"></div>
     <div id="payBreakLegend" aria-hidden="true"></div>
     <div class="summary" id="summary"></div>
-    <div class="bp-active-banner" id="bpActiveBanner" style="display:none"></div>
-    <div class="hpp-active-banner" id="hppActiveBanner" style="display:none"></div>
+    <div class="bp-active-banner" id="bpActiveBanner" style="display:none">
+      <span class="banner-text" id="bpBannerText"></span>
+      <label class="banner-optin"><input type="checkbox" id="bpBannerTick"><span>Add this lump sum to this payslip's take-home estimate</span></label>
+      <button type="button" class="banner-link" id="bpBannerViewLink">view back pay card</button>
+      <div class="bp-banner-note" id="bpBannerNote"></div>
+    </div>
+    <div class="hpp-active-banner" id="hppActiveBanner" style="display:none">
+      <span class="banner-text" id="hppBannerText"></span>
+      <label class="banner-optin"><input type="checkbox" id="hppBannerTick"><span>Add this to this payslip's take-home estimate</span></label>
+      <button type="button" class="banner-link" id="hppBannerViewLink">view HPP card</button>
+      <div class="bp-banner-note" id="hppBannerNote"></div>
+    </div>
     <div class="payslip-note" id="payslipNote" style="display:none">
       ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so your payslip's gross figure (your pay before tax) will be lower than the total above. This is normal.
     </div>
@@ -654,9 +664,10 @@
           <option value="">— select when the lump sum will land —</option>
         </select>
         <div class="field-hint">Which payslip will carry the full lump sum? Select it to see a specific tax warning for that period.</div>
-        <!-- Opt-in: the lump is only ADDED to that payslip's take-home estimate when ticked
-             (off by default — owner decision, Jul 2026). The card always shows the lump itself. -->
-        <div class="toggle-row" id="bpIncludeRow" style="border-top:none;padding-bottom:0">
+        <!-- Opt-in state-holder — the VISIBLE control lives in the paid-in-period banner
+             (#bpBannerTick) which proxies this tick. Kept in the DOM (hidden) so calcBackPay /
+             _saveBpState / restoreBpState keep reading it on every period (v17.30). -->
+        <div class="toggle-row" id="bpIncludeRow" style="display:none">
           <input type="checkbox" id="bpIncludeTick">
           <label for="bpIncludeTick">Add this lump sum to that payslip's take-home estimate</label>
         </div>
