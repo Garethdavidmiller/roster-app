@@ -4,7 +4,7 @@
    linked BEFORE this file. Only paycalc-guide.html-specific rules below. */
 
 /* Single-page guide — hide the in-document banner on screen (the sticky
-   page-header carries identity + version); it still prints. */
+   page-header carries identity); it still prints. */
 @media screen { .guide-header { display: none; } }
 
 /* ── Pay-type reference grid ─────────────────────────── */

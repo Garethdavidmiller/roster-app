@@ -2,7 +2,7 @@
    guide-doc.css — shared styles for the two DOCUMENT-style guides: the
    Staff & Admin Guide (guide.html) and the Pay Calculator Guide
    (paycalc-guide.html). Both share the same two-column print layout, navy
-   in-document banner, version pill, numbered steps, info boxes, tables,
+   in-document banner, numbered steps, info boxes, tables,
    shift-badge chips, and footer.
 
    NOT linked by railcard-guide.html or fip.html — those are single-column
@@ -232,7 +232,7 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 1
     .guide-header h2 { font-size: 15px; }
     .guide-footer { margin-top: 10px; padding-top: 7px; }
     .cols { gap: 18px; }
-    thead th, .guide-header, .steps li::before, .version-pill, .sb {
+    thead th, .guide-header, .steps li::before, .sb {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }

@@ -185,59 +185,9 @@ export function init() {
                     ]},
                 ],
             },
-            'daily-huddle': {
-                title: 'Daily Huddle',
-                sections: [
-                    { items: [
-                        { icon: '📋', html: 'Upload the day\'s Huddle briefing — staff open it via ☰ → <strong>Daily Huddle</strong> on the main app' },
-                        { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — displayed inside the app' },
-                        { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
-                        { icon: '🤖', html: 'The Huddle email uploads automatically each day — use this card if you need to upload it manually' },
-                    ]},
-                ],
-            },
-            'weekly-roster': {
-                title: 'Weekly Roster upload',
-                sections: [
-                    { heading: 'How it works', items: [
-                        { icon: '1️⃣', html: 'Choose the <strong>roster type</strong> (CEA/Bilingual, CES, or Dispatcher) and the <strong>week ending date</strong> (always a Saturday)' },
-                        { icon: '2️⃣', html: 'Choose the PDF roster file and tap <strong>Read roster</strong> — the app reads the shifts (takes ~15 seconds)' },
-                        { icon: '3️⃣', html: 'Review each person\'s changes — <strong>Save</strong> or <strong>Skip</strong> each day individually' },
-                        { icon: '4️⃣', html: 'Tap <strong>Save changes</strong> to write approved shifts to the roster' },
-                    ]},
-                    { heading: 'Conflicts', items: [
-                        { icon: '⚠️', html: 'If a day already has a <strong>recorded change</strong> that differs from the PDF, it shows as a conflict — choose which to keep' },
-                        { icon: '🔄', html: 'Old roster uploads are replaced automatically — only your manual changes show a warning if the new PDF disagrees' },
-                    ]},
-                ],
-            },
-            'staff-login': {
-                title: 'Staff Login Accounts',
-                sections: [
-                    { items: [
-                        { icon: '🔐', html: 'Creates a secure login for every active staff member so the app knows who is saving changes' },
-                        { icon: '✅', html: 'Safe to run any time — people who already have an account are skipped, so it won\'t break anything' },
-                        { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
-                        { icon: '🚪', html: 'Tick <strong>"Disable accounts for leavers"</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
-                    ]},
-                ],
-            },
-            'notifications': {
-                title: 'Notifications',
-                sections: [
-                    { heading: 'What you\'ll get', items: [
-                        { icon: '📋', html: '<strong>Daily Huddle</strong> — an alert when today\'s Huddle briefing has been uploaded, so you don\'t have to keep checking' },
-                        { icon: '💷', html: '<strong>Pay reminder</strong> — an alert on the cutoff Saturday, reminding you that payday is 6 days away' },
-                    ]},
-                    { heading: 'How it works', items: [
-                        { icon: '📲', html: 'Tap <strong>Enable notifications</strong> and allow when your phone asks — that\'s it. You can disable them here at any time' },
-                        { icon: '🔕', html: 'Tap <strong>Disable notifications</strong> to stop them. Your browser settings are not changed — you can re-enable here whenever you like' },
-                    ]},
-                    { heading: 'iPhone users', items: [
-                        { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> (tap Share → Add to Home Screen in Safari) and you open it from there. They do not work in the regular Safari browser tab' },
-                    ]},
-                ],
-            },
+            // NOTE: the daily-huddle / weekly-roster / staff-login / notifications tips live in
+            // operations-app.js's CARD_TIPS (those cards are on Operations, not Admin). They used to
+            // be duplicated here as dead entries — removed v17.44 to kill the drift trap.
             'saved-changes': {
                 title: 'Saved Changes',
                 sections: [
