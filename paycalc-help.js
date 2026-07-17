@@ -49,7 +49,7 @@ export const HELP_CONTENT = {
     title: 'Holiday Pay Premium (HPP)',
     tips: [
       'When you take annual leave, Chiltern only pay your <strong>basic contracted rate</strong> — you miss out on overtime, rest day pay, and Sunday pay for those days.',
-      'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> of your extra pay above basic hours (overtime, rest day working, Sundays, and London Allowance) across the whole tax year.',
+      'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> of your extra pay above basic hours (Saturday, overtime, rest day working, Sunday, bank-holiday and Boxing Day premiums) across the whole tax year. London Allowance is not included — it\'s paid every period anyway, including while you\'re on leave, so it needs no premium.',
       'This is paid as a <strong>single lump sum in your January payslip</strong> every year — it doesn\'t appear on any other payslip.',
       'The estimate builds across all periods you\'ve entered in the current tax year. When you move into the next tax year, the prior year\'s estimate carries forward into this card — enter the confirmed January payslip figure there to replace it.',
     ],

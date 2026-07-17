@@ -574,6 +574,11 @@ export function init() {
       }
       updateSaveStatus(pNum);
       calculate();
+      // Refresh the roster hint bar AFTER the new period's field values are written. onPeriodChange
+      // calls updateRosterHint() BEFORE loadPeriodData, so without this the hint would compare the new
+      // period's calendar suggestion against the PREVIOUS period's entered hours until a fetch resolved
+      // (and stay stale on a base-only member or a cancelled fetch). Display-only; always safe.
+      updateRosterHint();
     }
 
     /** @param {number} pNum */

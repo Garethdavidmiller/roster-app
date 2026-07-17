@@ -299,8 +299,12 @@ export function _accrueBackPayPeriod(i) {
     boxHrs    * i.rateDiff * RATE_300;
   const londonPart = i.londonDiff * i.proRateFactor;
   return {
+    // backPay = the whole lump (basic + premium + peer + London arrears are all owed).
+    // varPay = the HPP-ACCRUING portion only — premiums, NOT London (London doesn't accrue HPP;
+    // see paycalc-hpp.js _varPayForPeriod). Currently unused (v16.89 stopped feeding it into HPP),
+    // but kept correct so a future re-wire can't reintroduce the London-in-HPP bug.
     backPay: i.effContr * i.rateDiff + premium + (i.peer || 0) * 2 * i.rateDiff + londonPart,
-    varPay:  premium + londonPart,
+    varPay:  premium,
   };
 }
 

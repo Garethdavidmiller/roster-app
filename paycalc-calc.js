@@ -53,12 +53,15 @@ export const SL_BY_YEAR = {
     // 2025/26 period; the UI also disables Plan 5 for 2025/26 (see paycalc-app.js).
     postgrad:{ t: 21000/P_YR, r: 0.06 },
   },
+  // ⚠️ PROVISIONAL — student-loan thresholds are uprated ANNUALLY (not frozen). plan1/2/4 below are
+  // early guidance; re-verify against the final HMRC SL3 (2026-27) tables before this tax year goes
+  // live. plan5 (£25,000) and postgrad (£21,000) are frozen and confirmed.
   '2026/27': {
-    plan1:   { t: 26900/P_YR, r: 0.09 }, // HMRC SL guidance Apr 2026
-    plan2:   { t: 29385/P_YR, r: 0.09 }, // HMRC SL guidance Apr 2026
-    plan4:   { t: 33795/P_YR, r: 0.09 }, // HMRC SL guidance Apr 2026 (Scotland)
-    plan5:   { t: 25000/P_YR, r: 0.09 }, // unchanged
-    postgrad:{ t: 21000/P_YR, r: 0.06 }, // unchanged
+    plan1:   { t: 26900/P_YR, r: 0.09 }, // PROVISIONAL — verify vs final SL3 2026-27
+    plan2:   { t: 29385/P_YR, r: 0.09 }, // PROVISIONAL — verify vs final SL3 2026-27
+    plan4:   { t: 33795/P_YR, r: 0.09 }, // PROVISIONAL — verify vs final SL3 2026-27 (Scotland)
+    plan5:   { t: 25000/P_YR, r: 0.09 }, // frozen, confirmed
+    postgrad:{ t: 21000/P_YR, r: 0.06 }, // frozen, confirmed
   },
 };
 
@@ -73,13 +76,17 @@ export const SCOTTISH_TAX_BY_YEAR = {
     { top:112570/P_YR, rate: 0.45 }, // Advanced     45%  £75,000–£125,140
     { top: Infinity,   rate: 0.48 }, // Top          48%  over £125,140
   ]},
+  // ⚠️ PROVISIONAL — Scottish bands are set ANNUALLY by the Scottish Budget (NOT covered by the
+  // Westminster threshold freeze). The starter/basic tops below are uprated guesses; intermediate+
+  // are cloned from 2025/26. Re-verify ALL six bands against the finalised Scottish Budget 2026/27
+  // before this tax year goes live.
   '2026/27': { pa: 12570/P_YR, bands: [
-    { top:  3967/P_YR, rate: 0.19 }, // Starter      19%  £12,571–£16,537
-    { top: 16956/P_YR, rate: 0.20 }, // Basic        20%  £16,537–£29,526
-    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £29,526–£43,662
-    { top: 62430/P_YR, rate: 0.42 }, // Higher       42%  £43,662–£75,000
-    { top:112570/P_YR, rate: 0.45 }, // Advanced     45%  £75,000–£125,140
-    { top: Infinity,   rate: 0.48 }, // Top          48%  over £125,140
+    { top:  3967/P_YR, rate: 0.19 }, // Starter      19%  £12,571–£16,537  (PROVISIONAL)
+    { top: 16956/P_YR, rate: 0.20 }, // Basic        20%  £16,537–£29,526  (PROVISIONAL)
+    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £29,526–£43,662  (PROVISIONAL)
+    { top: 62430/P_YR, rate: 0.42 }, // Higher       42%  £43,662–£75,000  (PROVISIONAL)
+    { top:112570/P_YR, rate: 0.45 }, // Advanced     45%  £75,000–£125,140 (PROVISIONAL)
+    { top: Infinity,   rate: 0.48 }, // Top          48%  over £125,140    (PROVISIONAL)
   ]},
 };
 

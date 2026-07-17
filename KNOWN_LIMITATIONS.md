@@ -149,17 +149,17 @@ for data integrity.
 - Deploy rules and run "Set up accounts" to ensure all tokens carry the claim
 - Test that every staff member can write their own overrides before deploying to prod
 
-**3. Back pay HPP — check variable pay split against a payslip**
-Back pay covers both basic pay/London Allowance (no HPP) and variable components
-(overtime, RDW, Sundays — which do accrue HPP). The calculator adds the full lump sum
-to gross for take-home but does not include any of it in the HPP accumulator, so the
-HPP estimate will be slightly low after a back pay event.
-**✓ DONE (v10.73):** Confirmed from G. Miller's period 32 (Oct 2025) payslip — Chiltern
-itemises each back pay line with an explicit `(Back Pay)` suffix per category (Basic Pay,
-Overtime 1.25, RDW 1.25, RDW Sun 1.5, Bank Holiday Rostered 1.25, etc.). No new UI field
-was needed — `calcBackPay()` already iterates saved period data by category, so
-`_bpVarAmount` is computed automatically. `calcHPP()` now adds `_bpVarAmount` to
-`totalVar` for the paid-in period so the HPP estimate is correct after a back pay event.
+**3. HPP variable-pay split — which pay accrues the Holiday Pay Premium**
+Only genuinely-VARIABLE pay accrues HPP: overtime, RDW, Sunday, Saturday, bank-holiday and
+Boxing Day premiums. **Basic pay and London Allowance do NOT accrue HPP** — London is a fixed
+allowance paid every period (including while on leave), so it needs no holiday premium.
+**✓ Code now matches this rule (v17.23):** London was wrongly folded into the HPP base at
+v16.90 and has been removed from `_varPayForPeriod`; the HPP estimate no longer includes it
+(owner-confirmed; the annual HPP lump appears as its own payslip line, separate from London
+Allowance). The per-category back-pay itemisation was confirmed from G. Miller's period 32
+(Oct 2025) payslip (each line carries a `(Back Pay)` suffix). (History: back pay's variable
+portion was briefly added into HPP at v10.73, then removed at v16.89 as a double-count — see
+"Back pay lump sum vs HPP" below.)
 
 **4. Pay reminder push notification — ✓ DONE (verified live 27 June 2026)**
 `sendPayReminderNotification` did not fire on 30 May 2026 because the Cloud Scheduler job
