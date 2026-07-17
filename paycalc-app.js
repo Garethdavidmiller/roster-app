@@ -344,6 +344,27 @@ export function init() {
       // early-in-the-year period before its mid-year pay-award date shows the pre-rise rate).
       updateRateForPeriod(ty, p);
       updateYtdForTaxYear(ty);
+
+      // Year-to-Date "up to" note. The cumulative-PAYE tax method (computeTax) adds the entered YTD
+      // figures to the VIEWED period's gross and applies this period's cumulative allowance — so the
+      // figures are only correct when they are the totals as of the payslip IMMEDIATELY BEFORE the one
+      // on screen. That assumption was previously invisible: a member could keep P4's figures while
+      // browsing to P8 and get a silently-wrong estimate. Naming the exact prior payslip here (and it
+      // re-derives as they navigate) makes clear which payslip to copy from. (v17.33)
+      const _ytdNote = document.getElementById('ytdUptoNote');
+      if (_ytdNote) {
+        const periodIdx = (p.num - 48) - ty.first + 1; // 1-based HMRC period within the tax year
+        if (periodIdx <= 1) {
+          // First payslip of the tax year — cumulative totals restart from £0 in April, so no prior
+          // payslip exists to copy from.
+          _ytdNote.innerHTML = `P${payslipPeriodNum(p)} is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;
+        } else {
+          const prevP = periods.find(/** @param {any} x */ x => x.num === p.num - 1);
+          _ytdNote.innerHTML = prevP
+            ? `For an accurate P${payslipPeriodNum(p)} estimate, enter the Year to Date figures from the payslip before it — <strong>P${payslipPeriodNum(prevP)}, paid ${fdShort(prevP.payday)}</strong>.`
+            : `Enter the Year to Date figures from your most recent payslip (the one before P${payslipPeriodNum(p)}).`;
+        }
+      }
       // Update the "for P__" label next to the pension field so users can see
       // which period's pension they are viewing or editing.
       const pensionPeriodLbl = document.getElementById('pensionPeriodLabel');
