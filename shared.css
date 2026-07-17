@@ -262,6 +262,17 @@
     --radius-button: 10px;  /* action/save buttons — between sm and md */
     --radius:       12px;   /* the app's common discrete-CARD corner (day-row, override/error/usage rows) — was hardcoded in ~8 places */
 
+    /* ── Spacing scale (v17.45) ───────────────────────────────────
+       Route paddings / gaps through these so the app sits on ONE rhythm
+       instead of scattered px. Values equal the common existing px, so
+       swapping a matching literal for a token is a no-op. The scale grows
+       as literals are adopted (the repo enforces no unused :root tokens,
+       so only adopted steps are defined — full sweep is incremental). */
+    --space-2:  8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+
     /* ── Typography scale ─────────────────────────────────────────
        16px form input size is intentional — iOS zooms inputs < 16px. */
     --type-micro:  10px;
@@ -273,16 +284,23 @@
     --type-large:  18px;
     --type-xl:     24px;
 
-    /* ── Elevation ────────────────────────────────────────────────
-       Shadows are navy-tinted (not neutral black) so cards lift off the
-       navy canvas warmly rather than smudging grey. --shadow-2 is the
-       CARD elevation used app-wide: a layered pair — a tight contact
-       shadow that anchors the edge + a softer ambient that gives depth
-       (v16.71; a single flat blur read as 'pasted on'). --shadow-1 stays
-       a light single blur for small raised chips. */
-    --shadow-1: 0 1px 4px rgba(0,0,0,0.10);
-    --shadow-2: 0 1px 2px rgba(0,22,48,0.14), 0 6px 20px rgba(0,22,48,0.16);
-    --shadow-3: 0 8px 32px rgba(0,0,0,0.18);
+    /* Letter-tracking, em-based so it scales WITH the size — px tracking does
+       not: a -0.5px value that's right at 24px is too tight at the 16px
+       narrow override. Adopt on display headings in place of ad-hoc px (v17.45).
+       The big bespoke £ numerals keep their own hand-tuned px tracking. */
+    --track-tight:  -0.02em;  /* display headings (24px+) */
+
+    /* ── Elevation (unified v17.45) ───────────────────────────────
+       ONE material at three heights: a two-layer, navy-tinted shadow
+       (a tight contact edge + a soft ambient) at EVERY level, so cards,
+       raised bars and floating overlays read as the same physical
+       surface — just higher. Navy-tinted (not neutral black) so they lift
+       off the navy canvas warmly. A single flat blur reads 'pasted on'
+       (v16.71 lesson) — so shadow-1 and shadow-3 are now layered too, not
+       just shadow-2. --shadow-2 (the app-wide CARD elevation) is unchanged. */
+    --shadow-1: 0 1px 2px rgba(0,22,48,0.08), 0 2px 8px rgba(0,22,48,0.10);   /* resting / small chips */
+    --shadow-2: 0 1px 2px rgba(0,22,48,0.14), 0 6px 20px rgba(0,22,48,0.16);  /* cards, sticky bar, today */
+    --shadow-3: 0 2px 6px rgba(0,22,48,0.16), 0 16px 40px rgba(0,22,48,0.22); /* floating: lightboxes, drawer */
     /* Focus ring glow — used in every page's field :focus-visible box-shadow */
     --focus-ring-color: color-mix(in oklch, var(--primary-blue) 18%, transparent);
 
@@ -820,7 +838,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .app-header img, .app-icon {
     width: 36px;
     height: 36px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     flex-shrink: 0;
     object-fit: cover;
@@ -1064,7 +1082,7 @@ body.lb-open #stickyTotal { display: none !important; }
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.22);
+    box-shadow: 4px 0 24px rgba(0, 22, 48, 0.28);  /* navy-tinted to match the elevation material (v17.45); directional — a side drawer casts sideways */
     /* Respect the left safe-area inset on notched phones held in landscape */
     padding-left: env(safe-area-inset-left);
 }
@@ -1109,7 +1127,7 @@ body.lb-open #stickyTotal { display: none !important; }
     text-align: left;
     cursor: pointer;
     touch-action: manipulation;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
 }
 .nav-panel-brand:active { opacity: 0.7; }
 @media (hover: hover) and (pointer: fine) {
@@ -1175,7 +1193,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .nav-panel-body {
     flex: 1;
     overflow-y: auto;
-    padding: 12px 16px 24px;
+    padding: var(--space-3) var(--space-4) var(--space-5);
     display: flex;
     flex-direction: column;
     gap: 22px;
@@ -1185,7 +1203,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .nav-panel-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 /* Base pill — on the navy drawer a plain navy fill would be invisible, so the
@@ -1295,7 +1313,7 @@ body.lb-open #stickyTotal { display: none !important; }
     gap: 6px;
     background: none;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 4px 8px;
     margin: 0;
     font-family: inherit;
@@ -1329,9 +1347,9 @@ body.lb-open #stickyTotal { display: none !important; }
 .nav-panel-link {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     padding: 10px 8px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     text-decoration: none;
     color: var(--nav-text);
     font-size: 14px;
@@ -1438,7 +1456,7 @@ button.nav-panel-link--notices {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--space-2);
     margin-bottom: 2px;
 }
 .notices-item-section {
@@ -1492,7 +1510,7 @@ button.nav-panel-link--notices {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 /* Bell + sign-out grouped on the right; member name takes the left */
@@ -1699,7 +1717,7 @@ button.nav-panel-link--notices {
     font-family: inherit; font-size: var(--type-small); font-weight: 700;
     color: var(--text-mid);
     cursor: pointer; touch-action: manipulation;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
 }
 @media (hover: hover) and (pointer: fine) { .login-pw-toggle:hover { color: var(--primary-blue); } }
 /* Login overlay form fields — styled HERE in shared.css so every page's login renders them
@@ -1712,7 +1730,7 @@ button.nav-panel-link--notices {
     box-sizing: border-box;
     padding: 8px 10px;
     border: 2px solid var(--border-mid);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 16px;               /* 16px stops iOS Safari zooming the page on focus */
     color: var(--text-dark);
     background-color: var(--field-bg);
@@ -1741,7 +1759,7 @@ button.nav-panel-link--notices {
     font-size: 13px;
     color: var(--error-red);
     background: var(--error-bg);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     padding: 8px 12px;
     margin-bottom: 14px;
     display: none;
@@ -1826,7 +1844,7 @@ button.nav-panel-link--notices {
    (page h1 → group h2 → card h3); admin/settings keep h2. Same look either way. */
 .card-header h2, .card-header h3 { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0; }
 .card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
-.card-body { padding: 12px 16px; }
+.card-body { padding: var(--space-3) var(--space-4); }
 
 /* ── Collapsible card ───────────────────────────────────────────── */
 .card-collapsible-header {
@@ -1842,7 +1860,7 @@ button.nav-panel-link--notices {
 .card-collapsible-header h3               { grid-column: 1; grid-row: 1; }
 .card-collapsible-header .hint            { grid-column: 1; grid-row: 2; }
 .card-collapsible-header .collapse-chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; }
-.card-collapsible-body          { display: none; padding: 12px 16px; }
+.card-collapsible-body          { display: none; padding: var(--space-3) var(--space-4); }
 .card-collapsible-body.open     { display: block; }
 .collapse-chevron {
     margin-left: auto;
