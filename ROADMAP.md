@@ -23,7 +23,7 @@ Individual staff log in and enter their own overrides. Admin (G. Miller) has ele
 - Dispatcher and fixed roster types
 - Firestore security rules — server-side validation of all writes
 
-**Auth note:** The original plan specified Firebase Auth (Microsoft SSO or email/password). The implementation uses a simpler surname-based password with localStorage sessions. This was a deliberate divergence — no Chiltern IT dependency, no registration flow, works immediately for all staff. Firebase Auth is now partially wired in (v7.61) for future hardening; see CLAUDE.md — "Firebase Auth (complete — v7.94)".
+**Auth note:** The original plan specified Firebase Auth (Microsoft SSO or email/password). The implementation uses a simpler surname-based password with localStorage sessions. This was a deliberate divergence — no Chiltern IT dependency, no registration flow, works immediately for all staff. Firebase Auth has since been fully wired in (complete v7.94; named-session enforcement on since v14.98) — see CLAUDE.md → "Firebase Auth".
 
 ---
 
@@ -390,7 +390,7 @@ On a phone the calendar itself is the primary information — the strip adds a l
 - All data sources are already imported — no new dependencies needed
 
 ### Full-bleed navy header (calendar page)
-**✓ Shipped at v11.69** — see the "Navy header — unified chrome" bullet under "Cross-page / navy-chrome / typography consistency passes" above. Implemented as transparent/canvas chrome (not negative-margin full-bleed), unified across all 5 pages; the icon-on-navy blocker was resolved by the icon processing in the same session. (No longer a held-back experiment; the earlier full-bleed CSS restore-kit was dropped as dead once this shipped.)
+**✓ Shipped at v11.69** — see the "Navy header — unified chrome" bullet under "Cross-page / navy-chrome / typography consistency passes" above. Implemented as transparent/canvas chrome (not negative-margin full-bleed), unified across all six app pages (links joined at v12.07); the icon-on-navy blocker was resolved by the icon processing in the same session. (No longer a held-back experiment; the earlier full-bleed CSS restore-kit was dropped as dead once this shipped.)
 
 ### Calendar cell type hierarchy
 **Status:** Built at v11.57, reverted — needs more consideration before shipping.
@@ -503,13 +503,12 @@ a placeholder so the idea isn't lost.
 
 ---
 
-### Deferred: student-loan payslip integration tests
+### ✓ DONE (v17.16): student-loan payslip integration tests
 
-**What:** `computeSL` in `paycalc-calc.js` is tested via internal cross-checks but not against real payslip figures. `MILLER_ACTUALS` in `test-fixtures/miller-actuals.js` includes an `sl` field on each record, so the data exists to add per-period assertions like `assert.ok(Math.abs(computeSL(...) - MILLER_ACTUALS[n].sl) < 0.01)`.
-
-**Blocked on:** Confirming which Student Loan plan is active. The payslip Settings page shows the selected plan; once confirmed, add `computeSL(gross, planCode)` assertions against the 13 real `sl` values in `MILLER_ACTUALS` (the 13 four-weekly periods of the 2025/26 tax year — printed P4–P52 on the payslip).
-
-**When to do it:** In the same commit that confirms/changes the SL plan in `GRADES` or `MILLER_ACTUALS`. There is no point adding assertions before the plan code is known — they would either all be zero (no SL) or wrong.
+Shipped as part of the statutory-deductions patch: Plan 1 was confirmed, and `paycalc.test.mjs` now
+asserts `computeSL` against every clean `sl` value in `MILLER_ACTUALS` (the regression that locks
+the HMRC rounding method — the £214-vs-£213 P2 case). See `.claude/rules/paycalc.md` → Statutory
+deductions.
 
 ---
 
@@ -564,12 +563,8 @@ a placeholder so the idea isn't lost.
 **Depends on:** Approval workflows (above). The Cloud Function infrastructure for push is already in place — extending it to cover other event types is a smaller lift now that the foundation exists.
 
 ### Notification badge — monochrome silhouette asset — ✅ DONE
-**What:** A dedicated monochrome badge PNG (`icon-badge.png`, white-on-transparent, 96px) so Android
-doesn't mask the full-colour app icon into a muddy blob in the status bar. **Shipped:** the asset
-exists, is precached by the service worker (`service-worker.js` asset list), and the push handler
-sets `badge: ${self.registration.scope}icon-badge.png` (not `icon-192.png`). CLAUDE.md lists it as an
-asset and `.claude/rules/notifications.md` → "Icon, badge, tag" documents the rule (never use
-`icon-192.png` as the badge). No further work.
+`icon-badge.png` (white-on-transparent, 96px) shipped, SW-precached, used by the push handler.
+Rule ("never use `icon-192.png` as the badge") lives in `.claude/rules/notifications.md`. No further work.
 
 ### Formal AL management
 **What:** Official AL request and approval workflow with entitlement tracking across the year.
@@ -665,10 +660,10 @@ step-by-step upgrade checklist live in **KNOWN_LIMITATIONS.md**.
 
 **Current state:** No bundler or build step. Source files are served directly to the browser — what you write is what loads. GitHub Actions deploys the source tree as-is.
 
-**Why this is a constraint:** `roster-data.js` is a browser ES module; `functions/index.js` is Node.js CommonJS. The two module systems cannot import from each other. This forces duplication of any data needed by both sides — most visibly `teamMembers` / `STAFF_NAMES` (currently duplicated between `roster-data.js` and the Cloud Function). A build step would allow a shared source file to be compiled into both targets.
+**Why this is a constraint:** `roster-data.js` is a browser ES module; `functions/index.js` is Node.js CommonJS. The two module systems cannot import from each other. This forces duplication of any data needed by both sides — most visibly the roster name/role lists, though that specific risk is now MANAGED via codegen: `functions/roster-members.json` is generated from `roster-data.js` by `npm run generate:roster-members` and CI-locked by `sw-asset-check.test.mjs` (a new starter missing the generate step fails the build, not the parse). A build step would remove the codegen step by compiling one shared source into both targets.
 
 **When the threshold is "probably worth it":**
-- A second Cloud Function also needs roster data and the duplication becomes a real bug risk (e.g. a new staff member is added to `roster-data.js` but not the Cloud Function)
+- The codegen/duplication pattern spreads (a second generated file, or a shared-logic duplicate beyond `normaliseSurname`) and drift starts slipping past the CI locks
 - TypeScript adoption is desired (meaningfully improves safety across the larger files)
 - Bundle size starts affecting load time on staff phones
 
@@ -684,13 +679,13 @@ step-by-step upgrade checklist live in **KNOWN_LIMITATIONS.md**.
 
 ## Open decisions
 
-**Auth hardening:** A five-stage plan to replace the surname-based password with a custom password backed by verified work email is documented under "Password security improvements" above (Stage 1 shipped v12.68). The staged approach preserves the name-dropdown login UX while progressively adding security. Key risk during rollout: `ensureFirebaseSession` must be reworked before Stage 3 ships — see that entry. See also KNOWN_LIMITATIONS.md → the four v11 security tasks (task #2, Firestore member write isolation, suspended) for related context.
+**Auth hardening:** A five-stage plan to replace the surname-based password with a custom password backed by verified work email is documented under "Password security improvements" above (Stage 1 shipped v12.68). The staged approach preserves the name-dropdown login UX while progressively adding security. Key risk during rollout: `ensureFirebaseSession` must be reworked before Stage 3 ships — see that entry. See also KNOWN_LIMITATIONS.md → the four v11 security tasks (task #2, Firestore member write isolation, shipped STRICT at v16.29) for related context.
 
 **Multi-admin:** ✓ Resolved — `CONFIG.ADMIN_NAMES` is now an array in `roster-data.js`. Adding another admin is a one-line change (name must match `teamMembers[n].name` exactly).
 
 **Official status:** Is this app sanctioned by Chiltern Railways? The more operationally critical it becomes, the more important this question is.
 
-**Profile photo / avatar:** Non-vital. Keep as-is, simplify (auto centre-crop or slider-only — drops the high-risk interactive editor), or revert entirely. See the "Profile photo / avatar" entry above for the assessment and the exact revert checklist.
+**Profile photo / avatar:** ✓ Decision taken — removed at v12.22 (the nav-panel footer badge now shows initials on a stable per-name colour). See the "Profile photo / avatar" entry above for the restore checklist if it ever comes back.
 
 **GDPR:** Staff shift data is personal data. The `faithCalendar` field (a religious preference stored in the `memberSettings` Firestore collection) was removed at v13.23 along with the Cultural Calendar feature — see the "Cultural calendar overlay" entry above for full details and the revert checklist if it is ever re-introduced. If the app becomes official infrastructure, data controller status and full retention policies will need documenting.
 
@@ -803,35 +798,19 @@ These are interlocking; most remain and should ship together, but the headline g
 Done: the `pushSubscriptions` delete posture (any authenticated identity that knows the doc id) and
 the bearer-URL read distinction (open Firestore metadata read; Storage object reached via a tokenised
 URL that bypasses Storage rules) are now stated accurately in the docs + rule comments. The remaining
-*rule* tightening is folded into SECURITY_RELEASE_PLAN.md B2 — not a doc fix.
+*rule* tightening is **still open** — B2/B3 shipped without it (considered and kept as-is); it stays
+tracked as an open item in SECURITY_RELEASE_PLAN.md.
 
 ---
 
 ## Usage analytics ✓ (v14.14)
 
-Anonymous usage visibility in the Operations page: a **Usage** card (📊) showing how many
-individual accounts have signed in (this calendar month and the rolling last 30 days) and how
-popular each page is. Built first-party in Firestore — **not** Google/Firebase Analytics, which
-would breach the `script-src 'self'` CSP and the no-third-party-CDN rule and ship data to Google.
-
-**Privacy by design — no identity is ever stored server-side.** The server holds only integer
-counters (`analytics/pv_<YYYY-MM>` for page popularity, `analytics/activeAccounts` for unique-
-account counts). Uniqueness is deduped **on the client**: `usage-reporter.js` keeps localStorage
-flags keyed by member name (`myb_usage_m_*` per calendar month, `myb_usage_d30_*` per rolling
-window) that never leave the device, so each account self-suppresses and the server only ever
-receives `increment(1)`. "Last 30 days" = sum of the `daily` buckets over the window (each account
-counted once). This means the bulk of the data is genuinely anonymous aggregate counts — the
-employee-monitoring/GDPR weight of per-person tracking is avoided entirely.
-
-**Shape:**
-- `usage-stats.js` — pure date-bucketing + aggregation (tested by `usage-stats.test.mjs`).
-- `usage-reporter.js` — `recordUsage(page, member?)`, called once per page from each coordinator
-  at the same auth-timing as `initErrorReporter()` (writes need `request.auth != null`). The
-  anonymous calendar records page views only (no member); authenticated pages also count the account.
-- `firebase-client.js` — `recordPageView` / `recordActiveAccount` (increment-only, fire-and-forget)
-  and `getUsageStats` (reads + prunes stale daily buckets).
-- `operations-app.js` / `operations.css` — the admin-only Usage card.
-- `firestore.rules` — `analytics`: admin-only read, authenticated increment write, no client delete.
+Anonymous usage visibility in the Operations page (📊 Usage card): active-account counts + page
+popularity. Built first-party in Firestore — **not** Google/Firebase Analytics, which would breach
+the `script-src 'self'` CSP and the no-third-party-CDN rule and ship data to Google. The full data
+model (client-side dedup, no identity stored server-side, collection shape, module split) is
+documented canonically in **CLAUDE.md → `analytics` collection** — this entry records the decisions,
+not the model.
 
 **Known limits (intentional):** counts are per account-device, so a multi-device user counts more
 than once — it's a usage *trend*, not a precise headcount. Dedup trusts the client (App Check is the
@@ -878,25 +857,20 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
   parse instead of discovering it file-by-file (paycalc has the deepest graph → the worst cold-load
   waterfall). `modulepreload` only fetches/compiles — no behaviour change. This is the one place
   Batch 1's "don't eager-preload the SDK URLs" caveat is reversed **because** it is now safe:
-  `sw-asset-check.test.mjs` guards the list against paycalc's real transitive graph AND against the
-  SDK version pinned in `firebase-client.js`, so it can't silently drift. **paycalc is the only page
-  with the FULL graph + SDK-URL preload** (its graph is the deepest/slowest). The calendar
-  (`index.html`) has a lighter 4-module preload of its top-level entry modules only (`calendar-app`,
-  `nav-panel`, `roster-data`, `firebase-client` — **no** SDK URLs); the four write pages rely on
-  `preconnect` alone. There is **no plan to make the full/SDK preload universal** — each page's SDK
-  preload would need its own drift guard first (the Batch 1 reason). **Let this settle** (watch the
+  `sw-asset-check.test.mjs` guards the list against the page's real transitive graph AND against the
+  SDK version pinned in `firebase-client.js`, so it can't silently drift. **The two heaviest pages —
+  paycalc AND the calendar (`index.html`) — now carry the FULL graph + SDK-URL preload** (~35 local
+  modules + the 3 gstatic URLs each, both CI-locked); the four write pages deliberately have none
+  (shallower graphs, less latency-critical) and rely on `preconnect` alone — `sw-asset-check.test.mjs`
+  locks their zero-preload state too. There is **no plan to extend the preload further** — each
+  page's SDK preload needs its own drift guard (the Batch 1 reason). **Let this settle** (watch the
   Operations App-speed data) before the deferred lazy-Firebase pass below.
 
-- **v16.09–v16.10 — service-worker deep pass (owner-approved architecture changes).** v16.09:
-  Navigation Preload (HTML fetch overlaps SW boot), SWR revalidation throttled to once per SW
-  lifetime (~35 no-op 304s per open removed), warm-up chunked (8-way) + skips already-cached
-  assets, first-install double-load fixed (`sw-register.js` hadController guard), notification
-  taps always navigate, redirect hygiene (`unredirect` + opaqueredirect pass-through + `./` links,
-  manifest start_url). v16.10: **HTML joined JS/CSS as stale-while-revalidate** (instant from
-  cache; the preload response doubles as the background refresh; cache-miss falls back to
-  network-first with the 2s race) and the **gstatic Firebase SDK is cached cache-first** in a
-  dedicated `myb-roster-sdk-v{ver}` cache warmed with the app — offline no longer depends on the
-  browser HTTP cache (`sw-asset-check.test.mjs` pins the SW's SDK version to firebase-client.js).
+- **v16.09–v16.10 — service-worker deep pass (owner-approved architecture changes).** Navigation
+  Preload, SWR-throttling, chunked warm-up, first-install double-load fix, redirect hygiene
+  (v16.09); HTML joined JS/CSS as stale-while-revalidate and the gstatic Firebase SDK moved to a
+  cache-first SDK-versioned cache (v16.10). The full current caching model is documented
+  canonically in **CLAUDE.md → "Service worker caching"** — this entry is the shipped-batch record.
 ### Deferred — lazy-load the Firebase SDK off the calendar's first paint
 
 **What:** `firebase-client.js` statically imports the 3 gstatic Firebase modules (firestore is the
@@ -977,7 +951,7 @@ A phased plan to make the codebase easier to maintain and extend without introdu
 without it. Phase 7 is now done.
 
 This phase is the canonical five-stage plan described in full under **"Password security
-improvements — staged plan"** below — do not re-number the stages here. In brief:
+improvements — staged plan"** above — do not re-number the stages here. In brief:
 
 - Stage 1 ✓ (v12.68): Work-email registration via `staffContact`.
 - Stage 2: Email verification.
@@ -989,7 +963,7 @@ Stages 2–5 are parked pending the owner setting up Power Automate (the email-d
 
 **Note:** per-member Firestore write isolation (`request.auth.token.name == memberName`,
 suspended at v10.94, rebuilt permissive at v14.53, now **strict and LIVE as of v16.29**) is a
-**separate** security project — see "Security project — per-member override write isolation" below
+**separate** security project — see "Security project — per-member override write isolation" above
 and KNOWN_LIMITATIONS.md task #2. It is *not* a stage of the password plan; earlier drafts of this
 section conflated the two.
 
