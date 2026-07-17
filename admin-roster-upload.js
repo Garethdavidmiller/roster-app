@@ -267,7 +267,6 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     parsedShift, baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
-                    editedValue: null,
                     chosen:      null,
                 });
                 continue;
@@ -383,7 +382,6 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // normal shift when resolving a CONFLICT (v16.19).
                 manualType:  existing?.type  ?? null,
                 manualId:    existing?.id    ?? null,
-                editedValue: null,    // set if admin edits a DIFF cell
                 chosen:      (state === 'DIFF' || state === 'REMOVE_IMPORT') ? true : null,
                 // 'chosen' for DIFF / REMOVE_IMPORT = true (approved) or false (skipped)
                 // 'chosen' for CONFLICT = 'manual' (default) or 'pdf'
@@ -621,10 +619,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const [memberName, date] = key.split('|');
 
             if (state.state === 'DIFF' && state.chosen !== false) {
-                // Use the edited value if the admin changed it, otherwise the value the row
-                // DISPLAYED (displayShift — Sunday/rest-day-normalised): what the admin approved
-                // is what gets written. manualId = any existing override doc, to be replaced.
-                toWrite.push({ memberName, date, value: state.editedValue ?? state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
+                // Write the value the row DISPLAYED (displayShift — Sunday/rest-day-normalised):
+                // what the admin approved is what gets written. manualId = any existing override
+                // doc, to be replaced. (There is no per-cell edit UI — the review is approve/skip.)
+                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
             }
             if (state.state === 'REMOVE_IMPORT' && state.chosen !== false) {
                 // A stale previous import whose day now matches base — delete it, write nothing

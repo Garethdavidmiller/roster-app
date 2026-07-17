@@ -91,7 +91,9 @@ const HUDDLE_PUSH_PAUSED = false;
 // Upload size caps — named once (were inline literals in both HTTP handlers).
 const MAX_RAW_BODY_BYTES   = 28 * 1024 * 1024; // base64 request-body cap (bypasses JSON limit)
 const MAX_FILE_BYTES       = 20 * 1024 * 1024; // decoded file cap — MUST match storage.rules request.resource.size
-const MAX_HUDDLE_HTML_CHARS = 200_000;         // converted-DOCX htmlContent cap
+const MAX_HUDDLE_HTML_CHARS = 200_000;         // converted-DOCX htmlContent cap (ingest path — Admin SDK,
+                                               // bypasses rules; intentionally STRICTER than the browser
+                                               // manual-upload cap of 250000 in firestore.rules huddles block)
 
 // Firestore write errors that can be raised AFTER the server actually committed (a timeout/transport
 // blip on an otherwise-successful write) — i.e. COMMIT-AMBIGUOUS. On these the Function must not

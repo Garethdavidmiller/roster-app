@@ -36,6 +36,11 @@
     --sb-al:     #17877e;   /* 🏖️ AL     */
     --sb-absent: #6b6b6b;   /* 🪑 Absent */
     --sb-other:  #3f7d3a;   /* 🏷️ Other  */
+    /* Info / tip callout palette (guide-doc-local; kept as tokens not inline literals) */
+    --info-border:    #d6e2f7;
+    --tip-bg:         #fff8e1;
+    --tip-border:     #f2e2a8;
+    --tip-strong:     #8a6d00;
 }
 
 /* ── Base ──────────────────────────────────────────────
@@ -75,16 +80,6 @@ body {
 .guide-header-icon { width: 42px; height: 42px; border-radius: 11px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
 .guide-header h2 { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; color: white; text-transform: none; border: none; padding: 0; margin: 0; }
 .guide-header .sub { font-size: 11px; color: rgba(255,255,255,0.66); margin-top: 3px; }
-.version-pill {
-    background: var(--gold);
-    color: var(--navy);
-    font-size: 10.5px;
-    font-weight: 800;
-    padding: 4px 10px;
-    border-radius: 20px;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
 
 /* ── Section headings ────────────────────────────────── */
 h2 {
@@ -112,7 +107,7 @@ h2:first-of-type { margin-top: 4px; }
 /* ── Info / tip callout ──────────────────────────────── */
 .info {
     background: var(--info-bg);
-    border: 1px solid #d6e2f7;
+    border: 1px solid var(--info-border);
     border-left: 3px solid var(--navy);
     padding: 9px 12px;
     border-radius: 8px;
@@ -123,8 +118,8 @@ h2:first-of-type { margin-top: 4px; }
 }
 .info strong { color: var(--navy); }
 /* Gold "tip" variant */
-.info.tip { background: #fff8e1; border-color: #f2e2a8; border-left-color: var(--gold); }
-.info.tip strong { color: #8a6d00; }
+.info.tip { background: var(--tip-bg); border-color: var(--tip-border); border-left-color: var(--gold); }
+.info.tip strong { color: var(--tip-strong); }
 
 /* ── Numbered steps ──────────────────────────────────── */
 .steps { list-style: none; counter-reset: s; }

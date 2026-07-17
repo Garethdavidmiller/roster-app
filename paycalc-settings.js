@@ -162,6 +162,13 @@ export function saveSettings() {
   const _savedGrade   = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
   const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
   const _fieldRate    = parseFloat(rateVal) || _gradeDefault;
+  // Save grade and invalidate the cache FIRST — every getGrade()-backed helper below
+  // (getStoredRateForYear on the pre-award branch, getPensionDefault) must read the NEW grade.
+  // If the user just switched grade, the cache still holds the old value until invalidated, so
+  // getStoredRateForYear would fall back to the OLD grade's default rate and persist it as this
+  // year's settled rate (over-stating the whole-year HPP estimate). (v17.40 review fix.)
+  lsSet(SK.grade, _savedGrade);
+  invalidateGrade();
   // Guard the SETTLED rate on a pre-award period: the field shows that period's OLD (pre-rise)
   // rate, so never persist it as the year's settled rate. Store the settled rate instead — mirrors
   // the pension pro-rate guard below. (On a normal/post-award period _fieldRate is the settled rate.)
@@ -174,11 +181,6 @@ export function saveSettings() {
   lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
   lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
   lsSet(SK.pgLoan,    /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked ? '1' : '');
-  // Save grade and invalidate cache before getPensionDefault — it calls getGrade()
-  // which reads the cache; if the user changed grade, the cache still holds the old
-  // value at this point, so getPensionDefault would return the wrong pension amount.
-  lsSet(SK.grade, /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value);
-  invalidateGrade();
   // On a joining period the pension field shows the pro-rated amount.
   // Always write the full-period default to SK.pension so future full periods
   // don't inherit the pro-rated value as their default.

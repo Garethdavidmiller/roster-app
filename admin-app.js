@@ -154,11 +154,10 @@ export function init() {
                         { icon: '3️⃣', html: 'Tap <strong>3. Apply to ticked days</strong>' },
                     ]},
                     { heading: 'Type meanings', items: [
-                        { icon: '📋', html: '<strong>Spare</strong> — on standby; actual shift not yet known' },
                         { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift; use for spare-week confirmations, changed shift times, and swaps with colleagues' },
                         { icon: '💼', html: '<strong>RDW</strong> — rest day worked; use when someone works a full shift on their rest day' },
                         { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day back to a rest day' },
-                        { icon: '🏷️', html: '<strong>Other</strong> — a training, induction or assessment day. Pick the type, tick "Rest day (RDW)" if it\'s on a rest day, and add times if you know them — blank times pay the default (the base shift, or 8 hours RDW)' },
+                        { icon: '🏷️', html: '<strong>Other</strong> — a training, induction, assessment or team day, or <strong>Spare</strong> (on standby, shift not yet known). Open the <strong>Other</strong> pill to choose. Pick the type, tick "Rest day (RDW)" if it\'s on a rest day, and add times if you know them — blank times pay the default (the base shift, or 8 hours RDW)' },
                     ]},
                 ],
             },

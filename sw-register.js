@@ -104,6 +104,9 @@ export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
                     window.addEventListener('pagehide', () => clearInterval(updateInterval));
                     window.addEventListener('pageshow', () => {
                         clearInterval(updateInterval);
+                        // Check immediately on bfcache restore (mirrors the visibilitychange path) —
+                        // otherwise a restored tab waits up to a full hour for the next check.
+                        registration.update().catch(() => {});
                         updateInterval = setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000);
                     });
                 }

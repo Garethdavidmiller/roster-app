@@ -19,7 +19,7 @@ export const HELP_CONTENT = {
       'Training, induction and assessment days pay as the day they replace, so a normal weekday training needs nothing here. A <strong>training rest-day</strong> pre-fills <strong>8 hours</strong> in the RDW box as a default — change it to the hours you actually did. If training ran past your rostered shift, put the extra time in the Overtime box.',
       'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (time-and-a-quarter, 1.25×), overtime (time-and-a-quarter, 1.25×), rest days and unrostered Saturdays (1.25×), Sundays (time-and-a-half, 1.5×), Boxing Day (triple time, 3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a bank holiday; "Bank Holiday Overtime" is for working a rest day that happened to fall on a bank holiday.',
-      'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
+      'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P44), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
       'The <strong>cut-off date</strong> is the last shift date counted in this pay period. Shifts on or after that date go into the next period.',
       'Each entry updates the estimate instantly — no need to tap a calculate button.',
     ],

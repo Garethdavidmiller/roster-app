@@ -75,7 +75,9 @@ export function initDatePickers(inputIds) {
     overlay.id = 'datePickerLightbox';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-label', 'Choose a date');
+    // Labelled by the live #dpTitle (set per-open to the field's own name), so the dialog
+    // announces which date it's for; the static text is the pre-open fallback.
+    overlay.setAttribute('aria-labelledby', 'dpTitle');
     overlay.innerHTML = `
         <div class="lb-content dp-content">
             <button class="lb-close dp-close" type="button" aria-label="Close">✕</button>
@@ -133,7 +135,8 @@ export function initDatePickers(inputIds) {
             // have; the admin range picker likewise uses buttons). Full date in aria-label.
             html += `<button type="button" class="${cls.join(' ')}" data-iso="${iso}"`
                  + ` aria-label="${aria}" aria-pressed="${sel}"`
-                 + (off ? ' aria-disabled="true"' : '') + `>${day}</button>`;
+                 // Out-of-bounds days: not a tab stop (keyboard skips the inert cells) and marked disabled.
+                 + (off ? ' aria-disabled="true" tabindex="-1"' : '') + `>${day}</button>`;
         }
         gridEl.innerHTML = html;
     }

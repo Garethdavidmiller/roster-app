@@ -123,14 +123,16 @@ export function requirePageAuth(snapshot, policy, roles = {}) {
 export function rolesFor(member) {
     const m = member || null;
     return {
-        admin:    !!m && CONFIG.ADMIN_NAMES.includes(m),
+        // All three CONFIG lists defensively defaulted so this fail-closed helper never throws if a
+        // list were ever absent (uniform with MANAGER_NAMES, which was already guarded).
+        admin:    !!m && (CONFIG.ADMIN_NAMES || []).includes(m),
         manager:  !!m && (CONFIG.MANAGER_NAMES || []).includes(m),
         // NOTE: the CLIENT role label is `designer`, but the SERVER custom claim set by
         // setupRosterAuth is `linksDesigner`. They differ ON PURPOSE — this UX layer derives the
         // flag from CONFIG.LINKS_DESIGNERS (not the token), so it stays correct without the claim.
         // Do NOT "fix" this by wiring the check to the `linksDesigner` claim name; server rules are
         // the real boundary, and the names are deliberately decoupled.
-        designer: !!m && CONFIG.LINKS_DESIGNERS.includes(m),
+        designer: !!m && (CONFIG.LINKS_DESIGNERS || []).includes(m),
     };
 }
 
