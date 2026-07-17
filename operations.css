@@ -59,15 +59,12 @@ body.auth-ready .container { display: grid; }
     margin-bottom: 10px;
 }
 .huddle-row input[type="date"] {
+    /* Layout-only: the shared `select, input[type=text], input[type=date]` rule below governs
+       the field surface (--field-bg), border, radius and the focus-brighten-to-white cue — this
+       rule must NOT re-set background/radius or its higher specificity would override the focus
+       rule and leave this the one field that never brightens on focus (three-surface rule). */
     flex: 1;
     min-width: 0;
-    padding: 8px 10px;
-    min-height: 44px;
-    border: 2px solid var(--border-mid);
-    border-radius: var(--radius-sm);
-    font-size: 16px;
-    background-color: var(--bg-light);
-    color: var(--text-dark);
     box-sizing: border-box;
 }
 .huddle-file-label {
@@ -360,7 +357,7 @@ select, input[type="text"], input[type="date"] {
     width: 100%;
     padding: 8px 10px;
     border: 2px solid var(--border-mid);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 16px;
     color: var(--text-dark);
     background-color: var(--field-bg);
