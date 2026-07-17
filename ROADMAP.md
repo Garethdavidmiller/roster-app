@@ -88,14 +88,7 @@ The roster pre-fill bar reads the member's base roster and Firestore overrides, 
 
 ### Team Week View ✓ (v8.22–v8.40)
 
-All logged-in staff can view the whole team's shifts for any week directly from the calendar page. Tap **👥 Team** to switch from the personal monthly calendar to a week grid — one row per person, one column per day (Sun–Sat, following the Chiltern working week convention).
-
-- CEA, CES, and Dispatcher rosters are tab-selectable
-- Firestore overrides are fetched and overlaid on the base roster in real time
-- The day's Huddle is opened via the nav drawer's Daily Huddle link (the header 📋 Huddle button was removed v12.57)
-- Week navigation: Prev / Next buttons; the Today button snaps back to the current week
-- Shift cells are colour-coded identically to the personal calendar (☀️ early / 🌙 late / 🌃 night / 🏠 RD / 🏖️ AL / 💼 RDW etc.)
-- Print-ready — the table prints cleanly on A4 landscape
+All logged-in staff can view the whole team's shifts for any week directly from the calendar page (👥 Team toggle → grade-tabbed Sun–Sat week grid with live overrides, print-ready). Current behaviour rules: CLAUDE.md → "Team Week View"; module map: AI_MAP.md → `calendar-team-view.js`.
 
 **Key design decisions:**
 - Sun–Sat week via `getSunday(date)` (Chiltern convention — not Mon–Sun)
@@ -133,7 +126,7 @@ Progress on the four v11 security tasks. Authoritative current status and the re
 
 - **v10.72 — Firestore member write isolation ⚠️ later suspended (v10.94):** `firestore.rules` was updated so each staff member could only write overrides for themselves (`memberName == request.auth.token.name`), with an admin claim bypass for G. Miller. This was **reverted at v10.94** after it caused a production outage (rules went back to `request.auth != null` with field validation retained). Per-member isolation was later **rebuilt as the three-tier permissive rule (B2, v14.53)** and then **made strict (B3, shipped v16.29)** — overrides create/update/delete now require `token.name == memberName || token.admin || token.manager`, with the legacy no-name escape removed. See KNOWN_LIMITATIONS.md task #2 for the full post-mortem and re-introduction history.
 
-- **v10.73 — Back pay variable pay included in HPP:** G. Miller's period 32 payslip confirmed Chiltern itemises back pay per category with explicit `(Back Pay)` suffix lines. `calcBackPay()` now computes `_bpVarAmount` (overtime, RDW, Sunday, BH, London Allowance uplifts in the rate-difference period). `calcHPP()` adds `_bpVarAmount` to `totalVar` for the paid-in period — HPP estimate is now correct after a back pay event.
+- **v10.73 — Back pay variable pay included in HPP — SUPERSEDED at v16.89:** the original fix fed `_bpVarAmount` into `calcHPP()`. That coupling was later found to DOUBLE-COUNT the award uplift (calcHPP already prices the whole year at the settled rate) and was deliberately removed — the lump no longer feeds HPP. Current rule: `.claude/rules/paycalc.md` → "The lump is deliberately NOT added into the HPP estimate (v16.89)".
 
 - **v10.74 — Code quality fixes:** `.gitignore` added (example payslips, node_modules, .env files). `nav-panel.js` `_closeComingSoon()` given a `transitionend` fallback timer (400 ms) to prevent body scroll staying locked on iOS or under `prefers-reduced-motion`. `paycalc.html` static `rosterHintText` aligned with the JS-set wording. `OPERATIONS_REFERENCE.md` stale `ROSTER_SECRET` reference removed.
 
@@ -156,19 +149,12 @@ exceptions, the July/August minimum-fare waiver list). Card-by-card factual deta
 
 ### Cross-page / navy-chrome / typography consistency passes ✓ (v11.64–v11.88)
 
-A series of completed CSS-only polish passes making the calendar + 4 sub-pages read as one family
-(no behaviour change; the actual token rules live in `.claude/rules/css-tokens.md`):
-- **Comprehensive UI audit (v11.64):** motion tokens + `scale(var(--press-scale))` applied
-  throughout (so the reduced-motion override works); `:focus-visible` gold rings on all inputs;
-  44×44 touch targets on guide buttons; hardcoded hex → design tokens.
-- **Navy header — unified chrome (v11.69):** the white card header (background/shadow/radius)
-  replaced by transparent navy chrome on all pages so the header flows from the OS status bar and
-  matches the navy canvas/drawer; burger + h1 flipped white; admin badge → raised gold chip; print
-  resets force white bg + navy ink (navy would print as solid ink otherwise).
-- **Cross-page consistency (v11.70–v11.88):** optically-centred header title (decoupled from badge
-  width); standardised card padding/gaps; typography settled on the `--type-*` scale (inputs stay
-  ≥16px to block iOS focus-zoom); shared components extracted to `shared.css`; SW offline fallback
-  extended to operations/settings; stale code comments cleaned across 10 files.
+A series of completed CSS-only polish passes making the calendar + sub-pages read as one family (no
+behaviour change): the v11.64 UI audit (motion tokens, focus rings, touch targets, hex → tokens),
+the v11.69 navy-header unification (transparent navy chrome on all pages; print resets force white
+bg + navy ink), and the v11.70–v11.88 consistency sweep (centred titles, `--type-*` scale, shared
+components → `shared.css`). All the resulting token/surface/motion/type rules live canonically in
+`.claude/rules/css-tokens.md` — this entry is the shipped-batch record.
 
 ### Huddle DOCX flow rework ✓ (v11.66)
 
@@ -201,14 +187,11 @@ added to `firebase.json` (HSTS, COOP, expanded Permissions-Policy); `normaliseSu
 
 A 28-line rotating link design tool for Marylebone station. Accessible only to `CONFIG.LINKS_DESIGNERS` (currently G. Miller and S. Silva, added v12.33). Flagged beta — a working sketch for agreeing the pattern before the final link is built.
 
-**What was built (v12.06–v12.47):** initial grid + Firestore load/save and nav integration (v12.06–07);
-beta marker + first-visit notice (v12.33); print layout + sticky headers + concurrency guard (v12.37);
-the v12.39 full redesign (patterns-only "Line 1–28", paint-mode brush bar, Design Checks card,
-`links-design.js` pure-maths module); slot-based generator + hourly coverage heat map (v12.40);
-removal of the vacant-lines (v12.41) and fixed-line (v12.42) models so all 28 lines are normal
-rotating rows; generator-only creation (v12.43); and multi-design + ⇔ compare (v12.46–47, with the
-`<div>`-wrapped picker chips — nested `<button>`s are force-closed by the parser). Full current
-architecture: `.claude/rules/links-design.md`.
+**What was built (v12.06–v12.47):** grid + Firestore load/save (v12.06–07) → beta notice (v12.33) →
+print/sticky-headers/concurrency (v12.37) → the v12.39 patterns-only redesign (paint bar, Design
+Checks, `links-design.js` pure maths) → slot generator + heat map (v12.40) → all-28-rotating model
+(v12.41–43) → multi-design + compare (v12.46–47). Full current architecture (incl. every decision
+below in live form): `.claude/rules/links-design.md`.
 
 **Key design decisions:**
 - **Patterns-only documents** — removing staff names decoupled the pattern-design decision from the assignment decision. Each design document stores `{ name, patterns, updatedAt, updatedBy }` only (multi-design collection since v12.46; the legacy `linkDesigns/combined-28` singleton is auto-migrated on first load and then ignored); legacy `meta` from older saves is silently dropped on next write.
@@ -221,52 +204,18 @@ architecture: `.claude/rules/links-design.md`.
 
 ### E2E smoke tests ✓ (added v12.65 → removed v12.75 → restored v13.95)
 
-**RESTORED v13.95.** The sole blocker — "the Playwright Chromium binary cannot be
-downloaded in the dev environment" — no longer holds: the Claude Code on the web
-environment ships Chromium pre-installed at `/opt/pw-browsers` (revision 1194 =
-141.0.7390.37), matched by pinning `@playwright/test` to `1.56.1`. The suite now runs
-locally before every push (the missing iteration loop), and CI installs its own
-Chromium via `npx playwright install --with-deps chromium`. The restored suite is nine
-page-load tests (the original eight, with the settings tips regression guard split into
-its own signed-in test). It keeps the CDN-stub fixture unchanged; two stale tests were updated (paycalc now has a
-session guard → seed a session; the settings signed-in test's faith-radio anchor was
-removed with the cultural calendar at v13.23 → now anchors on the Work Email card's
-`aria-expanded`). Wired into `e2e.yml` (branches/PRs) and `deploy-hosting.yml` (Firebase Hosting gate).
-(A `deploy-pages.yml` E2E gate also existed v13.96–v14.25 for a cross-repo staff site; that workflow was
-removed as redundant — the staff site is served by the roster-app repo's own native Pages from `main`.) Residual
-caveats: (1) the local browser is environment-specific — iterating on the suite outside the
-web container needs a system Chromium; (2) the local http-server does not apply Firebase
-Hosting's CSP headers, so CSP violations are not caught — use `firebase emulators:start
---only hosting` for that.
+**RESTORED v13.95** once Chromium became available pre-installed in the dev environment (the
+v12.75 removal blocker — the binary couldn't be downloaded — was moot from then on). The suite runs
+locally before every push and gates `deploy-hosting.yml` in CI. Current shape, run commands, and
+caveats (local server applies no CSP headers — use the Hosting emulator for that): CLAUDE.md → `e2e/`
+entry; removed/restored history: KNOWN_LIMITATIONS.md → "E2E smoke tests".
 
-The original history is kept below for context.
-
-**Why they were needed in the first place:** Every app page statically imports
-`./firebase-client.js`, which in turn statically imports the Firebase SDK from
-`https://www.gstatic.com/firebasejs/…`. In ES modules a static import that fails to
-resolve aborts the *entire* module graph — if that CDN is slow, throttled, or blocked on
-a CI runner, none of the app's JavaScript ever runs. The calendar never renders, dropdowns
-stay empty, auth redirects never fire, and every assertion times out. No timeout increase
-or retry count can fix a hard dependency failure — which is why earlier timeout/retry
-tweaks in the CI config never stuck.
-
-The solution was a Playwright fixture (`e2e/fixtures.js`) that intercepted
-`https://www.gstatic.com/firebasejs/**` at the network layer and served tiny local no-op
-stubs for every symbol `firebase-client.js` imports. With the CDN dependency removed,
-the app's JS executed locally and the tests verified our own code rather than Firebase's
-availability. Eight smoke tests verified: calendar renders + member dropdown + nav drawer
-(3 tests), admin login overlay, paycalc period selector, settings login overlay (including
-a regression guard for the `initTipsLightbox` wiring), operations auth redirect, and links
-auth redirect.
-
-(The suite was removed v12.75–v13.94 when the Chromium binary couldn't be downloaded in the dev
-environment — tests could be listed but not run, so fixes were push-and-pray. Now moot: the
-pre-installed browser closed that gap. Full removed/restored history: KNOWN_LIMITATIONS.md →
-"E2E smoke tests".)
-
-**Whatever E2E tool is ever chosen, keep the Firebase CDN-stub approach** (`e2e/fixtures.js`):
-intercepting the CDN at the network layer before any page load is the right way to decouple
-page-load correctness from Firebase availability — any tool with request interception can do it.
+**The one principle to preserve — whatever E2E tool is ever chosen, keep the Firebase CDN-stub
+approach** (`e2e/fixtures.js`): every page's module graph statically imports the gstatic Firebase
+SDK, and in ES modules one failed static import aborts the whole graph — so a slow/blocked CDN on a
+CI runner fails every test in ways no timeout/retry can fix. Intercepting `gstatic.com/firebasejs/**`
+at the network layer and serving local no-op stubs decouples page-load correctness from Firebase
+availability; any tool with request interception can do it.
 
 ---
 
@@ -744,15 +693,10 @@ Firebase out too, pinned roster-transition tests, and the Calendar duplicate-ret
 > any item here.
 
 These are interlocking; most remain and should ship together, but the headline gap is now closed:
-- **Per-member override + Links write isolation — ✓ DONE (v16.29).** This was the headline
-  authorisation gap (any authenticated identity could write/delete any member's overrides and any
-  Links design). Override isolation went **strict (B3, v16.29)** — create/update/delete require
-  `token.name == memberName || token.admin || token.manager`, no-name escape removed — and Links
-  write isolation shipped in the same release (**H2, v16.29**): `linkDesigns` writes require
-  `token.linksDesigner || token.admin` (reads stay open to any auth), with `linksDesigner` set by
-  `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS` and stale tokens self-healing via
-  `writeWithClaimRetry`. Full history is in the "Security project — per-member override write
-  isolation" section above.
+- **Per-member override + Links write isolation — ✓ DONE (v16.29).** The headline authorisation
+  gap, closed: override isolation strict (B3) + Links designer-claim writes (H2) in the same
+  release. Full history: the "Security project — per-member override write isolation" section
+  above; live rule detail: SECURITY_RELEASE_PLAN.md B2/B3.
 - **Separate named sessions from the anonymous public session** — ✓ **effectively SHIPPED via B1**
   (`ENFORCE_NAMED_SESSION = true`, v14.98). Anonymous auth is already confined to the public Calendar
   read bootstrap (`calendarAuthReady`); the four write pages (Admin/Operations/Links/Settings) already
