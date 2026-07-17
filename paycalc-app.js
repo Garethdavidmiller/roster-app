@@ -1067,6 +1067,52 @@ export function init() {
         }
       }
 
+      // HPP green banner — the parallel of the back-pay banner, shown on the JANUARY period where
+      // the premium lands in take-home (`_hppForPeriod > 0` only there). Makes the folded-in lump
+      // visible up-front instead of only as a row in the collapsed breakdown. Unlike back pay, HPP
+      // is never opt-in, so there is only the "✓ Includes …" state.
+      const _hppBannerEl = document.getElementById('hppActiveBanner');
+      if (_hppBannerEl) {
+        if (_hppForPeriod > 0) {
+          const _hppText = _hppIsEstimate
+            ? `✓ Includes estimated Holiday Pay Premium of ${fmt(_hppForPeriod)} · `
+            : `✓ Includes Holiday Pay Premium of ${fmt(_hppForPeriod)} · `;
+          _hppBannerEl.firstChild?.nodeType === Node.TEXT_NODE
+            ? (_hppBannerEl.firstChild.nodeValue = _hppText)
+            : (_hppBannerEl.textContent = _hppText);
+          if (!_hppBannerEl.querySelector('button')) {
+            const _hppLink = document.createElement('button');
+            _hppLink.type = 'button';
+            _hppLink.textContent = 'view HPP card';
+            _hppLink.addEventListener('click', () => {
+              // Open the collapsed HPP card (real toggle path) before scrolling to it.
+              if (!document.getElementById('hppCardBody')?.classList.contains('open')) {
+                /** @type {HTMLElement} */ (document.getElementById('hppCardToggle'))?.click();
+              }
+              document.getElementById('hppCard')?.scrollIntoView({ behavior: 'smooth' });
+            });
+            _hppBannerEl.appendChild(_hppLink);
+          }
+          // While it is still an ESTIMATE, prompt the member to confirm the real figure from the
+          // payslip (the tax year is complete by January, so the estimate is essentially final).
+          let _hppNoteEl = _hppBannerEl.querySelector('.bp-banner-note');
+          if (_hppIsEstimate) {
+            if (!_hppNoteEl) {
+              _hppNoteEl = document.createElement('div');
+              _hppNoteEl.className = 'bp-banner-note';
+              _hppBannerEl.appendChild(_hppNoteEl);
+            }
+            _hppNoteEl.textContent = 'When your payslip arrives, enter the confirmed Holiday Pay Premium on the HPP card to replace this estimate.';
+            /** @type {HTMLElement} */ (_hppNoteEl).style.display = '';
+          } else if (_hppNoteEl) {
+            /** @type {HTMLElement} */ (_hppNoteEl).style.display = 'none';
+          }
+          _hppBannerEl.style.display = '';
+        } else {
+          _hppBannerEl.style.display = 'none';
+        }
+      }
+
       // calcHPP takes no back-pay input: the HPP already prices every period of the year at the
       // settled (post-award) rate, so the lump's variable portion is already reflected — feeding
       // _bpVarAmount in as well double-counted it (v16.89). The tick still adds the lump to
