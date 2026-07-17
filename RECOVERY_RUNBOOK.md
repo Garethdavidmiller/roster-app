@@ -128,7 +128,8 @@ Do these three safe things once so they're not new under pressure:
 
 1. **If you know what it should be — just re-enter it.** This is the normal, fastest fix:
    Admin → **Change a Shift** (or the AL / Absence card) → set the correct value → save.
-   Overrides are single documents keyed `memberName|YYYY-MM-DD`; re-creating one is a
+   Overrides are one document per member+date (Firestore auto-generated IDs — the
+   `memberName|YYYY-MM-DD` string is only the client cache key); re-creating one is a
    normal save, not a "restore".
 2. **If you don't know the old value and PITR is on**, export a snapshot from before the
    change and read it:
@@ -228,10 +229,9 @@ private window** (no cache, no SW): does `https://myb-roster.web.app` load *past
 to the calendar, with no red console errors?
 
 1. **Hosting rollback (fastest):** **Console → Hosting → release history → Rollback** to the
-   previous release, or CLI:
-   ```
-   firebase hosting:rollback --project myb-roster
-   ```
+   previous release. (There is **no `firebase hosting:rollback` CLI command** — the Console
+   button is the rollback path. The nearest CLI equivalent is `firebase hosting:clone` from a
+   known-good preview channel, which only helps if one exists.)
 2. **Or revert the commit** and let `deploy-hosting.yml` redeploy.
 3. After recovery, re-check the deployment health list in `CLAUDE.md` (the live-URL checks),
    especially if the change touched `firebase.json` (CSP/headers) or the Firebase SDK version.

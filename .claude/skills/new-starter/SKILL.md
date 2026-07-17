@@ -9,7 +9,7 @@ Run through every step in order. Do not skip steps.
 
 ## Step 1 — `roster-data.js` (always required)
 
-- [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role`, `flags`
+- [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role` — plus any optional fields that apply (`hidden`, `managerOnly`, `permanentShift`, `noProRate`, `rosterChanges`; see CLAUDE.md → teamMembers fields)
 - [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**
 - [ ] If joining mid-year: add `proRatedAL: { year: N }` — formula: `⌈(daysRemainingInYear / 365) × entitlement⌉`
   - Count from start date inclusive to 31 Dec inclusive

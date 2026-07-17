@@ -90,7 +90,7 @@ The single source of truth for all roster data.
 - `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`, `paydayForCutoff(cutoffIso)` (the ISO payday paired with a cutoff, or null — single source for the calendar's payday-cell navigation)
 - `parseSmartFloat(str)` — number parse that strips iOS smart hyphens/curly quotes first; single source for paycalc `numVal()` and the HPP rate read in `paycalc-hpp.js`
 - `resolveMemberRoster(member, date)` — applies `rosterChanges` (latest `from` ≤ date wins); the basis for `getBaseShift`/`getWeekNumberForDate`. Never special-case rosterType at a call site — go through this.
-- `getWeekNumberForDate(member, date)` · `getALEntitlement(member, year)` · `getMembersForGrade(grade)` · `isSunday(dateStr)`
+- `getWeekNumberForDate(date, member)` · `getALEntitlement(member, year, overrides = [])` (the third param feeds the dispatcher BH-lieu count) · `projectAnnualLeaveOverage({ name, year, existingALDates, newALDates, entitlement })` (over-entitlement headline/detail, or null) · `getMembersForGrade(grade)` · `isSunday(dateStr)`
 - `avatarInitials(name)` / `avatarHue(name)` — initials + stable per-name colour for the nav-panel footer badge (called directly in `nav-panel.js`; no fetch/storage)
 - `escapeHtml(s)` / `formatISO(date)` / `isValidEmail(s)` — shared string/date/validation utilities used app-wide
 - `isChilternWorkEmail(s)` — true only for a valid email on the `CONFIG.WORK_EMAIL_DOMAIN` (`chilternrailways.co.uk`) domain; the client-side mirror of the staffContact firestore.rules domain check (v14.97). Used by settings/operations/admin work-email save paths
@@ -102,9 +102,8 @@ Coordinator for `index.html`. Delegates state, swipe, rendering, override cache,
 - `navigateToPaycalc(paydayStr)` — payday/cutoff cell click helper; checks session then navigates
 - `renderCalendar()` — calls `buildCalendarContainer` + `ensureOverridesCached`; shows stale-member banner via `takeStaleMemberName()`
 - `updateLegend()` — shows/hides Spare/RDW/AL/Sick/Night/Christmas/Easter legend items
-- AL lightbox (loadALStats), day-detail lightbox, month-jump picker, About lightbox wiring
-- Sync chip state machine (hidden → `↻ Updating…` → silent remove on success / `⚠ Couldn't update` on timeout)
-- Initial 3-month Firestore fetch IIFE — calls `setInitialFetchInProgress`, `addFetchedMonths`, `fetchOverridesForRange`
+- AL + day-detail lightboxes DELEGATED to `calendar-al-lightbox.js` (`initCalendarLightboxes()` — `loadALStats` lives there); month-jump picker, About lightbox wiring stay here
+- Sync chip state machine + initial 3-month Firestore fetch DELEGATED to `calendar-initial-fetch.js` (`initInitialFetch({ isTeamViewMode, renderCalendar })`)
 - Team Week View toggle, notification prompt, keyboard shortcuts, SW registration
 - Calls `initSwipeHandler()`, `initHuddleViewer()`
 
@@ -151,7 +150,7 @@ Firestore override cache for `index.html` — extracted from `calendar-app.js` a
 - `clearShiftTypesCache()` — invalidate that memo; callers writing straight into `rosterOverridesCache` (Team Week View's fetch) must call it or the month legend serves a stale type set (v15.22)
 - `monthKey(year, month)` — `"YYYY-MM"` key string for the `fetchedMonths` Set
 - `_initialFetchInProgress` — exported live binding; coordinator reads it to skip competing fetches during the initial 3-month load
-- `setInitialFetchInProgress(v)`, `addFetchedMonths(keys)`, `clearFetchedMonth(key)` — setters called by the coordinator's initial IIFE
+- `setInitialFetchInProgress(v)`, `addFetchedMonths(keys)`, `clearFetchedMonth(key)` — setters called by `calendar-initial-fetch.js` (the initial 3-month fetch module)
 
 ### `calendar-member.js`
 Team member selection for `index.html` — extracted from `calendar-app.js` at v13.82.
@@ -181,6 +180,12 @@ Huddle viewer overlay — extracted from `calendar-app.js` at v11.40. Only expor
 In-app viewer for the Weekly Retail Circular and Marylebone Newsletter, opened from a `#circular`/`#newsletter` notification deep link (the `onCircularCreated`/`onNewsletterCreated` Cloud Function triggers fan out the push). Only export is `initDocViewer()`.
 - The viewer mirrors the Huddle's PDF path: a centred `createLightbox` card showing the feature title + an "Open" button (a real gesture → `window.open`, popup-safe; `isSafeStorageUrl`-guarded). A PDF opens by its own URL; a Word (.docx) document opens via `officeViewerUrl` (Office Online viewer) so it renders with images instead of downloading (v16.45). Empty/error states show a short message.
 - One-shot fetch (`getLatestCircular`/`getLatestNewsletter`) on open — no persistent subscription (unlike the Huddle, which needs live state for its button). Reached **only from a `#circular`/`#newsletter` notification tap** (no in-page user gesture → must route through the in-app Open button, like the Huddle's PDF path). The ☰ nav-drawer links open **directly** in a new tab (one tap, `nav-panel.js`: a PDF by its own URL, a Word doc via the Office Online viewer) — a notification can't, which is the whole reason this viewer exists (v14.57).
+- A `_openSeq` fetch token (v17.21) discards a superseded fetch so two rapid notification taps can't render a doc/title mismatch.
+
+### `calendar-team-view.js`
+Team Week View for `index.html` — the grade-wide week grid toggled from the calendar header.
+- Only export is `initTeamView({...deps})` → the coordinator passes the override cache, member/render callbacks, and DOM hooks; returns `{ toggleTeamView, isTeamViewMode, restoreTeamView, jumpToCurrentWeek }` for `calendar-app.js` to wire up. Everything else (grade state `currentTeamGrade`, week navigation clamped to `CONFIG.MIN_YEAR`/`MAX_YEAR`, `fetchTeamWeekOverrides` with its week-start fetch token, `getTeamCellDisplay` via the shared `resolveEffectiveShift`) is internal.
+- Failure model: a week fetch reconciles only on a successful snapshot (via `reconcileRangeIntoCache`), stale results are discarded by the fetch token, and a failed refresh silently keeps the last-good grid — deliberately NO freshness indicator (CLAUDE.md → Team Week View, "minimal-noise app").
 
 ### `admin-app.js`
 Login, session management, shared DOM handles, and the glue that wires all admin modules together.
@@ -208,7 +213,8 @@ Shared overlay helpers — singleton module, imported by every page that shows a
 - `createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` — returns `{ open, close }`. Implements focus save/restore, `.visible` → rAF `.open` + focus, scroll lock, Android Back, Escape, and the Tab focus trap. Backdrop and closeBtn click-to-close are wired automatically (v12.50).
 - `_pushOverlayState(closeHandler)` / `_clearOverlayHistory()` — Android back-button support, backed by a **LIFO stack** (v15.69): each open pushes its own `{ mybOverlay: true }` entry and stacks `closeHandler`, so NESTED overlays (a lightbox opened over Team Week View) each get an entry and Back closes only the topmost — the lower one keeps its entry and closes on the next Back. Before v15.69 it was a single slot: the second overlay clobbered the first's registration, so after closing the top one the lower overlay was left open with no entry and Back then left the page. `_pushOverlayState` is idempotent per handler (a double-open won't stack a duplicate). Button close pops the top entry via `history.back()`; the echoed `popstate` is absorbed (`_suppressPops`), and a `_clearOverlayHistory()` call from inside a Back-invoked handler (team-view toggle, lightbox dismiss) is a no-op (`_handlingPop`) so it can't cascade-close the lower overlay. Single module-level `popstate` listener. Tested by `overlay-history.test.mjs`.
 - `trapFocus(container, e)` — call from a lightbox keydown handler; traps Tab/Shift+Tab within the container's focusable elements. No-op if key is not Tab. (createLightbox calls this internally.)
-- `dismissOverlay(overlay, { onClose })` — the shared close routine `createLightbox` uses: removes `.open`, restores focus synchronously, then removes `.visible` + `unlockBodyScroll()` on `transitionend` with a mandatory 500ms `setTimeout` fallback (iOS suppresses `transitionend` on a backgrounded tab). Exported for the rare overlay that isn't built via `createLightbox`.
+- `dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler })` — the shared close routine `createLightbox` uses: removes `.open`, restores focus synchronously, then removes `.visible` + `unlockBodyScroll()` on `transitionend` with a mandatory 500ms `setTimeout` fallback (iOS suppresses `transitionend` on a backgrounded tab). Exported for the rare overlay that isn't built via `createLightbox`.
+- `registerPopInterceptor(fn)` / `suppressNextPop()` — popstate plumbing for an overlay with its OWN history handling (currently only `nav-panel.js`, the drawer): an interceptor gets first refusal on a Back pop; `suppressNextPop()` absorbs the echoed popstate from a programmatic `history.back()` so it can't reach the overlay stack.
 - `initCardCollapse(headerId, bodyId, chevronId, onToggle)` — wires a collapsible card header. Safe to call early; no-op if elements not found.
 - Imported by: `calendar-app.js`, `admin-app.js`, `paycalc-app.js`, `operations-app.js`, `settings-app.js`, `links-app.js`, `nav-panel.js`
 
@@ -240,7 +246,7 @@ Shared service worker registration + update lifecycle (v12.28). All six app page
 
 ### `splash-watchdog.js`
 CLASSIC (non-module) launch-recovery script for index.html only (v16.18). Loaded via `<script defer src="./splash-watchdog.js">` — deliberately NOT `type="module"`, so it is independent of the ES-module graph and runs even when that graph fails to load. The launch splash (`#splash`) is otherwise removed ONLY by calendar-app.js (on first render or in its own catch), so a failed module load (broken gstatic SDK import, corrupt/mixed/stale SW cache, any broken module) would leave the splash up forever with no recovery.
-- After `TIMEOUT_MS` (10s) with `#splash` still in the DOM: (1) one **guarded** auto-reload — `sessionStorage['myb_splash_reloaded']` ensures at most one per launch (no loop); skipped if sessionStorage is unavailable; picks up a freshly-deployed SW and re-runs the module load. (2) On the next stuck detection (flag already set): a self-contained recovery panel (inline styles, textContent only) with **Reload** and **Reset the app** (unregister every SW + delete every cache, then reload — fixes a stale/broken cache without the user finding OS storage settings).
+- After `TIMEOUT_MS` (20s) with `#splash` still in the DOM: (1) one **guarded** auto-reload — `sessionStorage['myb_splash_reloaded']` ensures at most one per launch (no loop); skipped if sessionStorage is unavailable; picks up a freshly-deployed SW and re-runs the module load. (2) On the next stuck detection (flag already set): a self-contained recovery panel (inline styles, textContent only) with **Reload** and **Reset the app** (unregister every SW + delete every cache, then reload — fixes a stale/broken cache without the user finding OS storage settings).
 - Runtime-only: the whole IIFE is guarded on `typeof document !== 'undefined'`, so importing it in tests (module-parse) is a no-op and schedules no timer.
 - No imports/exports. Registered in service-worker.js NETWORK_FIRST_FILES + CORE_ASSETS like any app asset.
 
@@ -274,7 +280,7 @@ The auth STORE — `ARCHITECTURE_PLAN.md` Track 1, **Phase 2** (v14.59). Holds t
 
 ### `auth-policy.js`
 The page-AUTHORISATION layer — `ARCHITECTURE_PLAN.md` Track 1, **Phase 3** (v14.60). Authentication ("who are you?") is the store; this answers the separate "is this identity allowed on THIS page?". **CLIENT UX only — Firestore Rules + Functions claim checks are the real boundary** (the role check here, name ∈ CONFIG.ADMIN_NAMES/MANAGER_NAMES/LINKS_DESIGNERS, is an optimisation, never enforcement).
-- `PAGE_POLICIES` — declarative per-page map, grounded in the coordinators' actual gates: operations = admin-only (managers redirected), links = designer-only, admin/settings = any named user (the admin/manager split gates ACTIONS not page access), paycalc = soft (never blocked), calendar = public/anonymous, guides = open.
+- `PAGE_POLICIES` — declarative per-page map, grounded in the coordinators' actual gates: operations = admin-only (managers redirected), links = designer-only, admin/settings = any named user (the admin/manager split gates ACTIONS not page access), paycalc = soft (never blocked), calendar = public/anonymous, guides = open. `DECISIONS` — the frozen list of the five valid decision strings.
 - `requirePageAuth(snapshot, policy, roles)` → `{ decision, reason }` — PURE. Decisions: `allow` / `soft-allow` (paycalc local-first) / `login` (terminal no-named: signedOut/anonymous/error) / `forbidden` (named but wrong role) / `pending` (initialising/resolving/degraded — degraded grants no authority but is retryable, so "pending" not "login"). `rolesFor(member)` derives role flags from CONFIG; `requirePage(snapshot, page)` is the coordinator convenience (fails CLOSED on an unknown page). The read-vs-write distinction is an ACTION-level concern for a later phase (the policy keys can grow `page→page.action` without touching the reducer). NOW CONSUMED by the 5 write coordinators (the `requirePage` access gate, active when `ENFORCE_NAMED_SESSION` is on). 42 tests in `auth-policy.test.mjs`.
 
 ### `operations-app.js`
@@ -292,6 +298,20 @@ Coordinator for `operations.html` (admin-only, v10.99).
 
 ### `links-boot.js`
 2-line bootstrap for `links.html` (Phase 4a.2, v14.67). Imports `init` from `links-app.js` and calls it. Same rationale as `operations-boot.js` (CSP + testability). No logic of its own.
+
+### `links-app.js`
+Coordinator for `links.html` — the 28-line link-design workspace (designer-only; see `.claude/rules/links-design.md` for the full architecture: grid/paint/generator/coverage/checks/concurrency/print).
+- Only export is `init()` (Phase 4a.2) — early-return access gate (designer via `requirePage`, else redirect), no top-level throw.
+- Owns: the multi-design Firestore collection (`linkDesigns`) load/save (atomic `runTransaction` save + offline getDoc fallback, `writeWithClaimRetry`, the v17.18 `baselineUnknown` guard), the design picker (new/duplicate/rename/delete), delegated grid clicks + paint mode, compare mode, the generator UI, the unsaved-changes guards (beforeunload + capture-phase nav-link guard + logo/ops-link confirms), and the beta first-visit notice.
+- All pure design maths is imported from `links-design.js` — never duplicated back here.
+
+### `links-design.js`
+Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).
+- `classifyShift(shift)` / `normaliseCustomShift(raw)` (rejects night starts 21:00–03:59 — CEAs don't work nights) / `startMinutes` / `endMinutes` / `dayClass(d)`
+- `calcCoverage(patterns, totalPos = 28)` / `calcHourlyCoverage(patterns, totalPos = 28)` — per-day and hour-by-hour on-duty counts for the Coverage heat map
+- `generatePatterns({ slots, spare, lines = 28 })` — the slot-based rotating-window generator (the only way to create a new design)
+- `runDesignChecks(patterns, rotatingLines = 28)` — unfilled lines, weekends off, short turnarounds (`MIN_REST_MINUTES` 12h), longest run, early/late balance
+- Constants: `DAYS`, `MIN_REST_MINUTES`
 
 ### `paycalc-boot.js`
 2-line bootstrap for `paycalc.html` (Phase 4a.2, v14.67). Imports `init` from `paycalc-app.js` and calls it. Same rationale as `operations-boot.js` (CSP + testability). No logic of its own.
@@ -325,10 +345,10 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - State accessors: `getAllOverrides()` / `setAllOverrides()` — `getAllOverrides()` used by `admin-al.js` (entitlement check)
 - `recordRangeOverrides({ type, value, memberName, dates, changedBy })` — shared batch-write helper called by `admin-range-booking.js` on behalf of both booking sections; filters out Sundays and RD days, writes Sunday RD corrections alongside AL/sick overrides, updates `_allOverrides` cache, and re-renders the week grid and override list
 - `formatDisplay(str)` — shared date formatter (`YYYY-MM-DD` → `18 Mar 2026`); imported by `admin-range-booking.js` for the AL/absence range labels
-- `getEffectiveShift(member, date, overrides)` / `validateShiftRules(...)` / `buildMemberDateMap(overrides)` — pure shift-resolution + validation helpers, covered by `admin-overrides.test.mjs`
+- `getEffectiveShift(memberName, dateISO, batch, toDelete = [])` / `validateShiftRules(...)` / `buildMemberDateMap(memberName)` (reads the module's `_allOverrides` cache filtered by member) — shift-resolution + validation helpers, covered by `admin-overrides.test.mjs`
 - `isWorkingDate(memberObj, dateStr, ovByDate)` — SINGLE SOURCE for the AL/absence "is this a working day" rule (Sunday→override→base). Used by recordRangeOverrides AND the AL/sick previews; previously reimplemented 4× and the previews had drifted from the save path (v16.06 unified + fixed).
 - `whenOverridesReady()` — resolves once the FIRST `loadOverrides()` has SETTLED (success OR failure); the three write/validate paths await it so they never act on a cold cache (v16.85). `isOverrideCacheLoaded()` (v16.97, Finding #2) is the companion SUCCESS flag: `whenOverridesReady` resolving on failure (so the Save button never hangs) would let a write build from an EMPTY cache — duplicate overrides, an erased worked Sunday, a missed <12h rest gap — so `recordRangeOverrides` (throws `cache/load-failed`), `executeSave`, and the admin-app click handler additionally refuse when this is false. Latches true on a successful load or `setAllOverrides`; a later refresh failure keeps the last-good data. Tested by `admin-overrides.test.mjs`.
-- Also exported (grid/bulk internals reused across the module and by `admin-app.js`): `resetTableMemberFilter()`, `updateWeekNavLabel()`, `buildWeekGridInto(container)`, `resetBulkPills()`
+- Also exported (grid/bulk internals reused across the module and by `admin-app.js`): `resetTableMemberFilter()`, `updateWeekNavLabel()`, `buildWeekGridInto(container)`, `resetBulkPills()`, `_hasStagedEdits()` (true when any week-grid row holds a staged-but-unsaved add/change/removal — the background-refresh paths in both modules skip `renderWeekGrid()` while it's true so a refresh can't clobber staged rows)
 
 ### `admin-rangepicker.js`
 Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
@@ -423,7 +443,7 @@ Grade/contracted-hours helpers and settings persistence for `paycalc.html` (v13.
 - `getLoggedMember()` — returns the logged-in member's `teamMembers` entry or null
 - `getEffectiveContr(p)` / `getProRateFactor(p)` — pro-rated helpers (full period if `noProRate`)
 - `getPensionDefault(pObj)` — period-aware pension default for the current grade
-- `updateRateForPeriod(ty)` / `updateYtdForTaxYear(ty)` — load stored rate and YTD figures into form fields; called from coordinator's `onPeriodChange`
+- `updateRateForPeriod(ty, p)` / `updateYtdForTaxYear(ty)` — load stored rate (period-aware — pre-award periods get the old rate) and YTD figures into form fields; called from coordinator's `onPeriodChange`
 - `getStoredRateForYear(ty)` — pure accessor for a specific tax year's stored hourly rate (falls back to the legacy single-rate key, then grade default); used by `updateRateForPeriod` and the prior-year HPP estimate so a past year isn't computed at the current (post-award) rate (v15.21)
 - `settingsKey(ty)` — per-tax-year localStorage key for the confirmed flag
 - `saveSettings()` — persists all settings fields; does not set confirmed flag
@@ -485,7 +505,9 @@ localStorage key constants and data migration logic for the pay calculator (v11.
 - `setPaycalcNamespace(memberName)` — activate the per-member namespace (called from `runMigrations`); falsy name → unnamespaced legacy keys (v14.11)
 - `periodKey(pNum)` — key builder for period data (takes period number)
 - `parseSavedPeriod(raw)` (v16.66) — PURE saved-period JSON decoder → `{ data, error }`: null/empty → `{null,false}`, valid → `{obj,false}`, malformed → `{null,true}`. `readSavedPeriod(pNum)` composes `lsGet(periodKey(pNum))` + `parseSavedPeriod`. Single decoder shared by `paycalc-backpay.js` and `paycalc-hpp.js` so a corrupt saved period is SURFACED (a visible "couldn't read N periods — may be too low" note), never dropped silently (no-silent-caps). Tested by `paycalc-migrations.test.mjs`.
-- `hppEstKey(ty)`, `hppActualKey(ty)`, `ytdPayKey(ty)`, `ytdTaxKey(ty)` — key builders that take a tax-year object `ty` (with `.label` property, e.g. `'2025/26'`)
+- `hppEstKey(ty)`, `hppActualKey(ty)`, `ytdPayKey(ty)`, `ytdTaxKey(ty)` — key builders that take a tax-year object `ty` (with `.label` property, e.g. `'2025/26'`); `bpKey()` — the back-pay card's autosave blob key
+- `NOTICE_YTD_KEY` — device-level "Year to Date notice shown" flag (deliberately unnamespaced)
+- `isActualsDev(member)` / `readPayslipActuals()` / `writePayslipActuals(map)` / `clearPayslipActuals()` — the developer-only device-local payslip-actuals overlay (gated to `G. Miller`; data imported per-device, never served — see CLAUDE.md → Example payslips)
 - `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations, then migrates this member's shared data into their namespace and activates it; receives deps as params to avoid circular imports with `paycalc-app.js`
 - `_migrateCeaKeys` — internal migration (old CEA keys → grade-neutral format)
 - `hasPendingLegacyMigration(name)` / `resolveLegacyMigration(name, 'mine'|'fresh')` — shared-device ownership prompt (v14.25): `runMigrations` only activates the namespace; legacy/shared `myb_pc_*` data is claimed (`'mine'` moves it into the member segment) or discarded (`'fresh'`) only when the member resolves the `paycalc-lightboxes.js` prompt (✕ = decide later). Device-level keys (migration guards, "seen" flags) stay unnamespaced; the `myb_pc_ns_migrated` guard makes the prompt one-shot. Covered by `paycalc-migrations.test.mjs`
@@ -502,8 +524,9 @@ Pure functions only — no DOM, no Firebase, no localStorage.
 - `computeTax(...)` handles the Scottish flat-rate codes `SD0`/`SD1`/`SD2`/`SD3` (intermediate/higher/advanced/top,
   v17.16) and applies the HMRC 50% overriding limit (PAYE reg 23) on both cumulative and non-cumulative paths.
 - `AWARD_RATES` + `awardRatesFor(grade, tyLabel)` — authoritative per-grade, per-tax-year pay-award
-  rates (`{ rate, pre, from }`: settled rate + the prior-year "old" rate + the mid-year date the
-  award was applied). Payslip-confirmed (CEA 2024/25 = £20.06, applied 24 Oct 2025). Used by
+  rates (`{ rate, pre }`: settled rate + the prior-year "old" rate; the mid-year applied-from date is
+  NOT stored here — it is single-sourced from that year's `londonAllowFrom` via `awardFromForYear`).
+  Payslip-confirmed (CEA 2024/25 = £20.06, applied 24 Oct 2025). Used by
   `paycalc-backpay.js` (any year's old→new award, independent of the mutable `GRADES` default) and by
   `getRateForPeriod()`. Add one entry per grade each April.
 - `getRateForPeriod(p, grade, tyLabel, settledRate)` — the rate for a period, honouring a MID-YEAR
@@ -552,6 +575,9 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `getLatestCircular()` — queries `circulars` collection, returns latest doc's data (with `storageUrl`) or null; called from `nav-panel.js` (☰ direct open) and `calendar-doc-viewer.js` (notification-tap viewer) (v13.58)
 - `uploadNewsletter(date, file, uploadedBy)` — writes the file (PDF or Word .docx) to `newsletters/{date}-{uploadId}.{ext}` in Firebase Storage (versioned path; old file deleted after Firestore commit succeeds) and upserts the `newsletters/{date}` Firestore doc (includes `storagePath` field for cleanup tracking); also fire-and-forget prunes documents older than 6 months via `_pruneOldDocs()` after each upload; called from `operations-app.js` (v13.59, versioned path v13.99)
 - `getLatestNewsletter()` — queries `newsletters` collection, returns latest doc's data (with `storageUrl`) or null; called from `nav-panel.js` (☰ direct open) and `calendar-doc-viewer.js` (notification-tap viewer) (v13.59)
+
+### `error-reporter.js`
+Shared uncaught-error reporter (v13.31). Only export is `initErrorReporter()` — installs `window.onerror` + `unhandledrejection` listeners that write capped, deduped records to the Firestore `clientErrors` collection via `logClientError` (fire-and-forget; never throws, never blocks). **Requires an auth context** — the three canonical call patterns (calendar after `calendarAuthReady`; `sessionReady.then(...)` on the four session pages; paycalc's `afterAuth`) are pinned in CLAUDE.md → `initErrorReporter()` call pattern. Records surface on the Operations → Error Log card.
 
 ### `usage-reporter.js`
 Anonymous usage recorder (v14.14) — the usage analogue of `error-reporter.js`. `recordUsage(page, member?, identity?)`: records an anonymous page-view counter, and (when a signed-in member is passed) counts that account toward the active-account metric, deduped client-side via localStorage flags keyed by member name (`myb_usage_m_*`, `myb_usage_d30_*`) so the server only ever receives `increment(1)` and never learns who was active. **Records nothing when `identity` (defaults to `member`) is in `CONFIG.ADMIN_NAMES`** — the developer's own test loads are excluded so figures reflect real staff (v14.95); the anonymous calendar passes its selected member as `identity` while leaving `member` null. Called once per page from each coordinator at the same point as `initErrorReporter()`. Imports the I/O from `firebase-client.js`, the dedup maths from `usage-stats.js`, `lsGet`/`lsSet` from `ls.js`, and `CONFIG` from `roster-data.js`. Fire-and-forget — never throws.
@@ -616,6 +642,7 @@ Shared slide-out navigation panel — imported by all six app pages.
 ### `notif.js`
 Shared Web Push module — single source of truth for the VAPID key and subscription lifecycle. Imported by `nav-panel.js`.
 - `notifSupported()` — feature detection incl. the iOS "must be a Home Screen PWA" rule
+- `isIOS()` — iOS/iPadOS detection (incl. iPadOS reporting as MacIntel + touch); exported for callers that need the platform signal alone
 - `getNotifState()` — async → `'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'`; **also** does the silent VAPID-rotation re-subscribe + Firestore save (side effects). Called once on app load from `calendar-app.js`.
 - `peekNotifState()` — async, same return values but **read-only** (no Firestore write, no migration). Use for UI that re-reads often — the nav-panel bell uses this so opening the drawer doesn't write to Firestore (v11.49).
 - `enableNotifications()` — async; subscribe + Firestore save → returns `Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>`
@@ -634,6 +661,8 @@ Override priority, member-start, and shift-classification helpers — shared by 
 - `isOverrideDisplaySuppressed(override, baseShift, sunday)` (v16.37) — **SINGLE SOURCE** for the calendar display-suppression rule (CLAUDE.md "Sundays are non-contracted", layer 5): true when an override must NOT replace the base shift (a `sick` on a rest-day/Sunday base; `annual_leave`/`other` on a Sunday). Called by `resolveEffectiveShift` (below); also takes `sunday` as a boolean (callers pass `isSunday(dateStr)`) to avoid a roster-data import cycle. Tested by `override-utils.test.mjs`.
 - `resolveEffectiveShift(override, baseShift, sunday)` (v16.48) — **SINGLE SOURCE** for the whole "apply a Firestore override onto the base shift" display ladder, returning `{ shift, rdwTime, derivedRdw, note }`. Extracted so the THREE consumers that each re-implemented it — `calendar-renderer.js` (month grid), `calendar-team-view.js` (`getTeamCellDisplay`), and `getShiftTypesInMonth` (calendar-overrides.js month legend) — render from one resolution and can never disagree (they drifted once: the Sunday-AL bug fixed v16.37 only extracted the suppression *predicate*, not the ladder). `shift` = base when there's no/suppressed override, `'RDW'` for an rdw override (its time in `rdwTime`, replacing the old team-view `'RDW|time'` string form), the raw Other grammar value for a parseable `other`, else `override.value`. `derivedRdw`/`rdwTime` carry the Other-day hours-slot logic (actual time → 'RDW' → base shift time → ''). Pure (no DOM/Firestore/roster lookup); caller passes the already-fetched override (or `null` before member start). Tested by `override-utils.test.mjs`.
 - `computePeriodDeleteIds(allOverrides, { type, memberName, start, end })` (v14.24) — returns the override doc IDs to delete when re-saving an AL/absence range, including overlapping Sunday `correction/RD` overrides, so a re-save can't leave a stale Sunday correction behind. Pure; used by the admin save paths.
+- `mergeBookedPeriods(dateList, isRestGap, addDay)` — folds a sorted AL/absence date list into contiguous booked periods, bridging rest-day gaps via the injected `isRestGap`; used by `admin-app.js` for the booked-periods display.
+- `buildOverrideWrite(f, createdAt)` / `buildOverrideCacheRecord(id, f, createdAt)` — the paired override write-shape + cache-record builders (one field-shape source for Firestore batch writes and the in-memory cache); used by `admin-overrides.js` and `admin-roster-upload.js` save paths.
 - **"Other" family (v15.34; renamed from training→other v15.40, Team Day added v15.51, OTHER_PLAN.md — flavours Training/Induction/Assessment/Team Day now, Meetings/Union duties later):** `OTHER_FLAVOURS` (TRG/IND/ASSESS/TEAM → badge word `Train`/`Ind`/`Assess`/`Team` + full word `Training`/`Induction`/`Assessment`/`Team Day`; the roster's multi-word "Team Day" label collapses to the `TEAM` sentinel in the parser), `OTHER_RDW_DEFAULT_MINS` (480 — the 8h rest-day default (family-wide)), `isOtherValue(v)` / `parseOtherValue(v)` (the value grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]` — client single source; a deliberate recognition-grammar duplicate lives in `functions/roster-parse-helpers.js`), and `resolveOtherPay(parsed, baseValue)` — THE pay mapping in one place: `{mode:'rdw', mins}` (explicit RDW flag or rest-day base; actual times or the 8h default) | `{mode:'timed', time}` (rostered day with actual times — engine applies the base-cap + excess→OT split) | `{mode:'as-base'}` (pay exactly as the base shift). Display deliberately does NOT resolve — it shows the 🏷️ badge (leaf-green family).
 - Covered by `override-utils.test.mjs`
 
@@ -659,6 +688,12 @@ Safe localStorage wrappers for all app pages (iOS Safari private mode compatibil
 - `lsKeys()` — snapshot of all key names via the `length`/`key(i)` enumeration (safe to delete while iterating); returns `[]` when storage is unavailable (v14.11)
 - On the first failure, emits a single `console.warn` (visible in DevTools) — subsequent failures are silent
 - **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers
+
+### `storage-keys.js`
+Single source for the CROSS-FILE localStorage key names (v16.81) — a shared key must have ONE spelling.
+- `SELECTED_MEMBER` (`myb_roster_selected_member`) + `SELECTED_MEMBER_LEGACY` (`adminLastMember`, the pre-rename alias still read as a fallback) — shared by `calendar-member.js` and `admin-app.js`
+- `VIEWED_MONTH` / `VIEWED_YEAR` — shared by `calendar-state.js` and `admin-app.js` (the "open calendar on the month I was editing" hand-off)
+- Per-module and paycalc-namespaced keys deliberately stay local to their modules — only keys read by MORE THAN ONE file live here.
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.
