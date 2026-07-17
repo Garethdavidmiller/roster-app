@@ -479,7 +479,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         bell.setAttribute('aria-pressed', on ? 'true' : 'false');
         bell.dataset.notifState = state;
         bell.setAttribute('aria-label',
-            on        ? 'Notifications on — tap to turn off'
+            state === 'loading' ? 'Notifications — checking status'
+          : on        ? 'Notifications on — tap to turn off'
           : state === 'denied' ? 'Notifications blocked in browser settings'
           : 'Notifications off — tap to turn on');
     }

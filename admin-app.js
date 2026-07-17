@@ -16,7 +16,7 @@
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
+import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -54,6 +54,14 @@ export function init() {
         clearSession();
         history.replaceState(null, '', location.pathname); // remove ?logout from URL
     }
+
+    // Tear down a lingering privileged Firebase identity whose LOCAL app session has expired (review
+    // item 7 / Finding #9). Previously only the calendar did this, so a protected page reached by a
+    // direct deep-link kept the old named/admin/manager/designer credential live (real Firestore
+    // access on a shared device) until the calendar or a fresh login replaced it. Fire-and-forget and
+    // login-safe: it's a no-op when a valid session exists (getSession) and stands down if a login/
+    // logout supersedes it (the _authGen guard), so it never fights the sign-in below.
+    reconcileExpiredIdentity().catch(() => {});
 
     // ---- Check session immediately ----
     // `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.admin, ARCHITECTURE_PLAN.md Phase 9)

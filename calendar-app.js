@@ -345,7 +345,11 @@ function _applyTeamMemberChange() {
     // Close AL lightbox if open — data would be stale for the new member
     closeALLightbox?.();
 }
-_teamMemberSelect.addEventListener('change', () => {
+// `?.` null-guard (matches the #prevMonth handler below): this is attached at MODULE SCOPE, before
+// the init try/catch, so an uncaught throw here (were #teamMemberSelect ever renamed/absent) would
+// blank-splash the whole app. `_applyTeamMemberChange` only runs from inside this listener, so a null
+// element simply attaches nothing.
+_teamMemberSelect?.addEventListener('change', () => {
     // During the ~400ms swipe cooldown, don't apply immediately (it would fight the swipe
     // animation) — but NEVER silently drop the change: the native <select> value has already
     // moved, so bare-returning left the dropdown showing member B over member A's roster

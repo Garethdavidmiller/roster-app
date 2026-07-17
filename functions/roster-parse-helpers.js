@@ -577,6 +577,12 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             // blank cell, so a SICK from EITHER pass is real signal. Not applied to Sunday (dates[0],
             // non-contracted — the client's Sunday layer would strip it anyway). This is the ONLY
             // disagreement auto-resolved; every other kind still flags UNREADABLE. (OD/HA reliability.)
+            // Positioning note: this resolves the absence at its CURRENT column. applySundayScanCorrections
+            // runs AFTER this (index.js — it is the validated final authority) and may right/left-shift the
+            // whole row on a genuine Sunday-anchored drift; the SICK moves WITH the row, which is correct
+            // (a drifted row's absence was misread one day off and the shift realigns it). On an undetected
+            // drift the absence lands a day off — the same positional risk that applies to EVERY cell on
+            // that row (pre-existing), not new to this resolution, and review-gated (admin sees the DIFF).
             const isRest = x => x === 'RD' || x === 'OFF';
             if (d !== dates[0] && ((rowV === 'SICK' && isRest(colV)) || (isRest(rowV) && colV === 'SICK'))) {
                 console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: row/column read disagreed Rest↔Absent — recorded as Absent (an absence code was read on one pass; never silently drop an absence)`);

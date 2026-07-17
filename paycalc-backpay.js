@@ -15,9 +15,9 @@
 import { parseSmartFloat } from './roster-data.js';
 import {
   RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, awardRatesFor, awardFromForYear, capHours,
+  getTaxYearForOffset, taxYearForPeriod, awardRatesFor, awardFromForYear, capHours,
 } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect } from './paycalc-periods.js';
+import { getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect } from './paycalc-periods.js';
 import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { SK, bpKey, readSavedPeriod } from './paycalc-migrations.js';
@@ -92,7 +92,7 @@ export function prefillBackPay() {
   // award (any past lump was already paid, so the current/pending award is the only actionable one).
   const pNum = todaysPeriodNum();
   const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-  const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const ty   = taxYearForPeriod(curP);
   const oldRateEl   = /** @type {HTMLInputElement} */ (document.getElementById('oldRate'));
   const newRateEl   = /** @type {HTMLInputElement} */ (document.getElementById('newRateInput'));
   const oldLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('oldLondon'));

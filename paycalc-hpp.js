@@ -11,7 +11,7 @@
 
 import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, capHours,
+  getTaxYearForOffset, taxYearForPeriod, capHours,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
@@ -122,7 +122,7 @@ export function calcHPP() {
 
   const pNum    = currentPeriodNum();
   const curP    = allPeriods.find(/** @param {any} x */ x => x.num === pNum);
-  const ty      = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const ty      = taxYearForPeriod(curP);
   // Rate: THIS tax year's stored settled rate — deliberately NOT the live #hourlyRate field.
   // The field shows the PRE-AWARD rate whenever a pre-award period is selected (updateRateForPeriod),
   // so reading it made the whole-year HPP estimate SHIFT depending on which period you were viewing

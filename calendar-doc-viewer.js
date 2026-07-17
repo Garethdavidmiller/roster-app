@@ -55,15 +55,22 @@ export function initDocViewer() {
         bodyEl.appendChild(p);
     }
 
+    // Discards a superseded fetch: two rapid notification taps (#circular then #newsletter) each set
+    // the title synchronously then await their fetch — if the first resolves LAST it would write its
+    // "Open" button under the second's title (persistent doc/title mismatch). Only the latest tap wins.
+    let _openSeq = 0;
+
     /** @param {string} key 'circular' | 'newsletter' */
     async function openDoc(key) {
         const d = DOCS[key];
         if (!d) return;
+        const seq = ++_openSeq;
         titleEl.textContent = `${d.emoji} ${d.label}`;
         showMessage('Loading…', 'doc-viewer-loading');
         lb.open();
         try {
             const doc = await d.fetch();
+            if (seq !== _openSeq) return;   // a newer tap superseded this one — don't clobber its content
             if (doc && isSafeStorageUrl(doc.storageUrl)) {
                 bodyEl.textContent = '';
                 const btn = document.createElement('button');
@@ -81,6 +88,7 @@ export function initDocViewer() {
                 showMessage(d.empty, 'doc-viewer-empty');
             }
         } catch (err) {
+            if (seq !== _openSeq) return;   // superseded — leave the newer tap's content alone
             console.warn(`[DocViewer] ${key} fetch failed:`, err);
             showMessage("Couldn't load this document — please try again.", 'doc-viewer-empty');
         }

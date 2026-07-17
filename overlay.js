@@ -230,7 +230,10 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     }
 
     function close() {
-        onClose?.();
+        // A caller's onClose must NEVER strand the overlay: if it threw, dismissOverlay below would
+        // not run, leaving the overlay .open/.visible, body scroll locked, and the pushed Back-history
+        // entry orphaned (a later Android Back would then pop the wrong overlay). Isolate it.
+        try { onClose?.(); } catch (e) { console.error('[overlay] onClose threw:', e); }
         // Pass `close` as backHandler so a double-tap on the ✕ (or backdrop) during the fade
         // drops only THIS lightbox's entry, never the overlay beneath it.
         dismissOverlay(overlay, { onKey: /** @type {EventListener} */ (onKey), focusReturn: /** @type {HTMLElement|undefined} */ (_focusReturn ?? undefined), backHandler: close });

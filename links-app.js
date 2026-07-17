@@ -13,7 +13,7 @@ import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from '
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
+import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
@@ -63,6 +63,10 @@ export function init() {
             }
         },
     });
+    // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
+    // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
+    // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
+    reconcileExpiredIdentity().catch(() => {});
     // ============================================
     // SESSION — guard access to LINKS_DESIGNERS only
     // ============================================
@@ -1592,6 +1596,19 @@ export function init() {
             getUserName: () => currentUser,
         });
         if (about) openAboutLightbox = about.open;
+
+        // The 🔧 Operations shortcut in the About panel is admin-only: operations.html
+        // redirects a non-admin designer (e.g. S. Silva) straight to admin.html, so
+        // showing them the link is a dead end. Reveal it only for admins, and route it
+        // through the unsaved-changes guard (the capture-phase guard above only covers
+        // nav-drawer links, and mobile browsers suppress the beforeunload dialog).
+        const opsLink = document.getElementById('linksOpsLink');
+        if (opsLink && isAdmin) {
+            opsLink.hidden = false;
+            opsLink.addEventListener('click', e => {
+                if (dirty && !confirm('You have unsaved changes. Leave anyway?')) e.preventDefault();
+            });
+        }
 
         // Header logo is a back-to-calendar button (About moved to the drawer logo).
         const headerIcon = document.getElementById('appIcon');

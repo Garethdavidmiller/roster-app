@@ -22,7 +22,7 @@ import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError } from './session.js';
+import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse } from './overlay.js';
@@ -58,6 +58,10 @@ export function init() {
     // non-admin) visit returns early below and would otherwise never register/update the SW for
     // that page load. Matches settings-app.js (module-scope registration). (v16.21)
     registerServiceWorker();
+    // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
+    // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
+    // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
+    reconcileExpiredIdentity().catch(() => {});
     // ============================================
     // SESSION — read from localStorage (shared with admin-app.js via session.js)
     // ============================================

@@ -11,7 +11,7 @@
  * Do not edit here for: pay maths, period date maths, roster pre-fill.
  */
 
-import { GRADES, getTaxYearForOffset, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod } from './paycalc-calc.js';
+import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
 import { getSession } from './session.js';
@@ -155,7 +155,7 @@ export function saveSettings() {
   const rateVal = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value;
   const pNum    = currentPeriodNum();
   const curP    = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-  const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const curTy   = taxYearForPeriod(curP);
   /** @type {Record<string, any>} */
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
@@ -199,7 +199,7 @@ export function confirmSettings(calculate) {
   saveSettings();
   const pNum  = currentPeriodNum();
   const curP  = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-  const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const curTy = taxYearForPeriod(curP);
   // If this period already has saved hours, patch its pension value in-place.
   const existingRaw = lsGet(periodKey(pNum));
   if (existingRaw) {
