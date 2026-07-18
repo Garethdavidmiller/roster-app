@@ -38,12 +38,16 @@ calendar `#alBtn` / `#payBtn` and other-month day numbers; paycalc badges (`#pay
 `#badge-sat`, `#badge-ot`); guide `.guide-footer`, railcard `.rc-cost` / `.rc-lbl`, shift badges
 (`.sb-early` / `.sb-al`), FIP `.not-fip-name`.
 
-- **Recommendation: TRIAGE then FIX the genuine near-misses.** Measure each flagged element's real
-  ratio; nudge the token darker where it is a true miss (a 4.3:1 grey → darker grey is invisible to
-  most users but clears AA). Some may be intentional low-emphasis decoration on non-essential text —
-  waive those explicitly. **Design-token territory** (`shared.css` / guide CSS, oklch tokens, the
-  "never hardcode hex" rule) — affects the whole app's look, so verify with screenshots and keep the
-  brand palette. Not a blind auto-fix.
+- **Guides — ✅ FIXED (v17.51).** Darkened the muted grey tokens (`--light` #888 → #6b6b6b / #666,
+  guide footer #7c8794 → #5a6472), deepened the guide legend swatches (`--sb-early`/`--sb-al`), and
+  removed the FIP "not-FIP" `opacity: 0.45` wash (opacity dimming can't meet AA — the ✗ NO tag +
+  a muted name colour carry the "not available" signal instead). All 4 guide pages pass axe.
+- **Calendar + paycalc — still open (semantic brand colours).** The remaining misses are white text
+  on the shared shift/pay colours (`--orange`/`--green`/`--al` at oklch lightness that fails white
+  text), plus tinted badges. Fixing means deepening those shared tokens (app-wide visual change) or
+  switching badge text to dark — **design-token territory**, so do it with screenshots and keep the
+  brand hues. The calendar's faint **other-month day numbers** are `aria-hidden` decorative context
+  (darkening them defeats the "not this month" cue) — exclude those from the scan, don't darken.
 
 ## Waived rules
 
