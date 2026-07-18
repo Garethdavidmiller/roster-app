@@ -56,7 +56,7 @@ All four guide pages share one chrome for consistent behaviour on iOS, Android, 
 - Min-fare amounts (£12/£13) and the July/August waiver list (16-25, HM Forces, Veterans waived; 26-30 not waived) — reviewed annually; re-check each spring.
 - Senior Railcard Chiltern note — must say "journeys within the Network area" not "all Marylebone services"; through journeys to Birmingham are different.
 - Family & Friends — morning-peak restriction is on Network-area journeys only, not the whole card.
-- Two Together photocard — wording is deliberately softened ("check names/photos on the card or its photocard") — physical card format not verified from an authoritative source; do not strengthen without confirmation.
+- Two Together photocard — **confirmed** (Jul 2026 research against the official Two Together T&Cs): a physically-printed Two Together Railcard bought at a station is issued with a **separate Two Together Photocard** (carrying both holders' photos) that must be carried and presented alongside the card, and both named holders must travel together. The guide wording was strengthened accordingly (was deliberately softened while unverified). Digital cards have no separate photocard.
 
 **What not to flag as defects:**
 - No JS modules — static page, intentional.
