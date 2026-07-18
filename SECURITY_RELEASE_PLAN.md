@@ -402,6 +402,103 @@ in `session.test.mjs`.
 
 ---
 
+## Track E — full-app authentication (put the calendar behind login) — NOT STARTED (captured Jul 2026)
+
+The idea: today five of six pages sit behind a named login; the **calendar (`index.html`) is
+deliberately public** — it runs an *anonymous* Firebase session and reads `overrides` / `huddles` /
+`circulars` / `newsletters` with open (`allow read;`) rules. "Put the whole app behind login" means
+making the calendar require a session too, so the sensitive data (staff AL / absence / shift changes)
+is no longer readable by anyone with the URL. This is the item that would close the external review's
+**"public absence/AL data"** finding (High).
+
+**The insight that reframes the whole thing — there are TWO different bars, not one, and they cost
+wildly different amounts:**
+
+| | Rule shape | Who it lets in | What it blocks | UX cost |
+|---|-----------|----------------|----------------|---------|
+| **Level 1** — auth-required read | `allow read: if request.auth != null;` | any session **including the calendar's existing anonymous one** | a raw REST/`curl` scrape with **no** Firebase session; search-engine indexing; casual URL sharing | **≈ zero** — the calendar already signs in anonymously (`calendar-app.js` ~L831), so `request.auth != null` is already satisfied. No front-door change at all. |
+| **Level 2** — named-only read | `allow read: if request.auth.token.name != null;` | only a **named** staff session (name + surname) | anonymous sessions too — i.e. anyone not signed in as staff | **Real** — the calendar must now show a login before it can render. This is the true "behind login". |
+
+**Be honest about what each buys.** The project config is in the client JS, so a *determined*
+scraper can replicate the anonymous sign-in — Level 1 raises the bar from "trivially public" to
+"must initiate a Firebase anonymous session against our project", not to "must be staff". Level 2 is
+the real gate. Also note the exposure being closed is **outsider-with-URL**, not colleague-to-colleague:
+the calendar's member selector already lets any staff member view any colleague's roster/AL/absence by
+design — that intra-staff visibility is the operational model and Track E does not change it.
+
+**The two halves must land together (Level 2), but Level 1 is separable and nearly free.** The client
+login is only the *means* to obtain the session; the **rules tightening is the actual control** (server
+rules are the boundary — a client gate over open rules is theatre, bypassable via REST). So:
+
+- **E1 (cheap, do-anytime): tighten reads to Level 1** (`request.auth != null`, anonymous OK) on
+  `overrides` + the three document collections. The anonymous bootstrap already satisfies it, so this
+  is a rules-only change with no front-door impact — **verify** the notification-tap fresh-visit path
+  establishes the anonymous session *before* the first read (else `#huddle` auto-open breaks), then ship.
+  This alone closes the "trivially public via REST" hole. Keep the Anonymous auth provider **enabled**.
+- **E2 (soft): require named on the calendar behind the existing kill-switch.** Flip
+  `PAGE_POLICIES.calendar` from `{ requireNamed: false, anonymousOk: true }` to require named, wire the
+  shared `login-overlay.js` (the same ~30-line pattern the other five pages use), and gate it on
+  `ENFORCE_NAMED_SESSION` (extend the flag the B1/B3 release already owns to the calendar) in a **soft**
+  posture first — measure how many launches hit the wall before hardening.
+- **E3 (hard): tighten reads to Level 2** (`token.name != null`) + make the calendar login mandatory.
+  Only after E2 has soaked. At this point the calendar's `signInAnonymously` is dead and the **Anonymous
+  provider can be disabled project-wide** — which directly interacts with the *"retire the anonymous
+  fallback"* appendix below (they should be decided together: E3 is the event that finally kills the
+  anonymous surface the anti-goal currently protects).
+
+**Why it's not much code but is a big decision.** Mechanically it's a pattern-copy (login infra exists,
+tested on five pages) + a rules change + a policy flag — roughly a day. But the calendar is the app's
+**front door**, and four things hang off its being open, each a real consequence rather than a bug:
+
+1. **Offline lockout (the sharpest one).** The app is offline-first and the calendar is the PWA
+   `start_url`, launched from cache. A staff member whose 30-day session has lapsed **and who is offline**
+   cannot log in (login needs Firebase Auth = network) → they are locked out of their **own cached
+   roster**. Today that never happens — a cached roster always renders. This is a genuine regression to
+   weigh, not a detail.
+2. **Notification deep-links.** A push tap opens `#huddle` on the calendar; on a lapsed session it now
+   lands on a login screen. The deep link (and first-fresh-visit auto-open) must survive the login flow.
+3. **First-run onboarding.** Today a new starter opens the calendar, picks their name, sees the roster —
+   no account interaction. Behind login, first contact becomes "sign in".
+4. **The document viewers** (huddle/circular/newsletter) currently rely on open reads *because* the
+   calendar had no session — E3 moves them to auth-gated, coupling them to the login working on every path.
+
+**Rollout discipline (inherits the plan's core principle).** Migrate, don't cut over: E1 → E2-soft →
+E3-hard, never a single flip (the v10.94 hard-cutover outage precedent). Reuse `ENFORCE_NAMED_SESSION` +
+the staged posture the B-track already proved. Verify only from a **fresh private window**, never an
+installed phone (the installed PWA masks live-site breakage).
+
+**Interaction with existing anti-goals — Track E consciously REVERSES one.** The current anti-goal
+*"Do not remove the calendar's anonymous read/bootstrap … that path is a deliberate public-read surface"*
+is correct **until Track E is chosen**. E3 is exactly the decision to retire that surface — so starting
+Track E means re-stamping that anti-goal, not violating it silently. Do not begin E without recording
+that reversal.
+
+### Questions to ask the owner when the time comes (the crux — answer these BEFORE writing any E code)
+
+1. **What bar are we defending?** Casual (search indexing / shared URL / curious non-staff) → **E1 (Level 1)**
+   is nearly free and may be *enough*. A motivated outsider willing to script an anonymous sign-in → you
+   need **E3 (Level 2 / named)** and must accept the front-door cost. *This single answer decides whether
+   Track E is a one-hour rules tweak or a multi-week front-door change.*
+2. **Is a login wall on the home screen acceptable?** Given sessions last 30 days and refresh the idle
+   clock on every load, most staff would rarely hit it — but the calendar is opened many times a day.
+   Yes/no on "the front door may sometimes show login instead of the roster."
+3. **Is the offline-lockout regression acceptable?** A lapsed-session **offline** user loses access to
+   their own cached roster. If not acceptable: do we build a grace mode (render the cached roster
+   read-only, require login only to *sync fresh* data), and/or lengthen sessions to make lapse rare?
+4. **Member selector vs identity.** Once the calendar knows who you are, should it **default to showing
+   your own roster** (selector still available for colleagues), or stay a free selector with login as a
+   pure gate? (UX change, not security.)
+5. **Analytics identity guarantee.** The calendar stores **no** member identity in analytics today
+   (anonymous). A named calendar could count active-accounts more accurately. Keep the identity-free
+   guarantee, or consciously make the calendar an active-account surface (still client-deduped, no server
+   identity)?
+6. **Anonymous provider fate.** At E3 the calendar's `signInAnonymously` becomes dead code and the
+   Anonymous auth provider could be **disabled project-wide** (a real hardening) — but that also ends the
+   Level-1 fallback and settles the "retire the anonymous fallback" appendix. Retire anonymous entirely,
+   or keep it as a Level-1 read tier?
+
+---
+
 ## Owner decisions needed (collect before starting the dependent phase)
 
 | Decision | Blocks | Notes |
@@ -415,6 +512,8 @@ in `session.test.mjs`.
 | ~~GCP **Workload Identity Pool** setup~~ | ~~A2~~ | **✓ DONE (v14.93)** — pool/provider/binding built with the repo-scoped `assertion.repository` condition (Appendix A2). |
 | reCAPTCHA Enterprise provider | D1/D2 | Required before App Check can attest. |
 | Is the app **official Chiltern infrastructure**? | App Check priority; header-capable hosting | If yes, App Check and Firebase-Hosting-only (drop github.io) rise in priority. |
+| **Full-app auth — which bar?** (casual vs determined outsider) | Track E scope (E1-only vs E1→E3) | The single decision that makes Track E a one-hour rules tweak or a multi-week front-door change. See Track E → Questions Q1. |
+| **Full-app auth — front-door + offline-lockout acceptable?** | Track E (E2/E3) | Login wall on the PWA `start_url`; lapsed-session **offline** user loses their own cached roster. See Track E → Questions Q2–Q3. |
 
 ---
 
@@ -426,7 +525,9 @@ in `session.test.mjs`.
   release — different failure domains. (Both are now done, shipped standalone as intended.)
 - **Do not** retire the surname password (C5) before the ≥90% migration metric.
 - **Do not** remove the calendar's anonymous read/bootstrap when hardening
-  `ensureFirebaseSession` — that path is a deliberate public-read surface.
+  `ensureFirebaseSession` — that path is a deliberate public-read surface. **(Holds until Track E is
+  chosen — Track E E3 is exactly the decision to retire this surface; reverse this anti-goal there, not
+  silently.)**
 - **Do not** drop the `|| token.admin == true` bypass from the isolation rule — admin writes for
   other members are load-bearing (roster import + on-behalf booking).
 - **Do not** drop (or forget to add) the `|| token.manager == true` bypass — the 6 managers write
