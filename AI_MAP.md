@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v17.40 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.50 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -215,7 +215,7 @@ Shared overlay helpers — singleton module, imported by every page that shows a
 - `trapFocus(container, e)` — call from a lightbox keydown handler; traps Tab/Shift+Tab within the container's focusable elements. No-op if key is not Tab. (createLightbox calls this internally.)
 - `dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler })` — the shared close routine `createLightbox` uses: removes `.open`, restores focus synchronously, then removes `.visible` + `unlockBodyScroll()` on `transitionend` with a mandatory 500ms `setTimeout` fallback (iOS suppresses `transitionend` on a backgrounded tab). Exported for the rare overlay that isn't built via `createLightbox`.
 - `registerPopInterceptor(fn)` / `suppressNextPop()` — popstate plumbing for an overlay with its OWN history handling (currently only `nav-panel.js`, the drawer): an interceptor gets first refusal on a Back pop; `suppressNextPop()` absorbs the echoed popstate from a programmatic `history.back()` so it can't reach the overlay stack.
-- `initCardCollapse(headerId, bodyId, chevronId, onToggle)` — wires a collapsible card header. Safe to call early; no-op if elements not found.
+- `initCardCollapse(headerId, bodyId, chevronId, onToggle)` — wires a collapsible card header. Safe to call early; no-op if elements not found. **v17.50:** the focusable toggle is the **chevron/arrow** (`role="button"` + `aria-expanded`/`aria-controls` + an `aria-label` from the heading), NOT the whole header — a header can contain a Tips/Help `<button>`, and making the header the toggle nested one interactive control in another (WCAG `nested-interactive`). The header stays non-interactive with a mouse-only click that ignores nested controls; the no-chevron case falls back to header-as-toggle. Fixed the axe gate's `nested-interactive` findings.
 - Imported by: `calendar-app.js`, `admin-app.js`, `paycalc-app.js`, `operations-app.js`, `settings-app.js`, `links-app.js`, `nav-panel.js`
 
 ### `about-lightbox.js`

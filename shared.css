@@ -1870,6 +1870,14 @@ button.nav-panel-link--notices {
     flex-shrink: 0;
 }
 .collapse-chevron.open { transform: rotate(180deg); }
+/* The chevron is the focusable collapse toggle (v17.50 — the header is no longer role="button",
+   so it can't nest the Tips button). It needs its own pointer + a visible keyboard focus ring. */
+.collapse-chevron { cursor: pointer; }
+.collapse-chevron:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
 
 /* ── Action buttons ─────────────────────────────────────────────── */
 .btn-action {

@@ -40,13 +40,13 @@ test('settings (signed in): card "?" button opens the Tips lightbox, not the car
     await seedSession(page);
     await page.goto('/settings.html');
 
-    // Proof that initApp() → initContactCard() → initCardCollapse() ran: the
-    // collapse helper sets aria-expanded on the Work Email header synchronously
-    // (to "true" since the card now DEFAULTS OPEN on this 2-card page, v16.57 UX).
-    // The static HTML has no aria-expanded attribute, so its presence proves the
-    // signed-in init wired the header — meaning the "?" handler is in place and
-    // the click below cannot race the wiring.
-    await expect(page.locator('#contactToggleHeader')).toHaveAttribute('aria-expanded', 'true');
+    // Proof that initApp() → initContactCard() → initCardCollapse() ran: the collapse helper sets
+    // aria-expanded on the toggle CONTROL — the chevron, not the header (v17.50: the header is no
+    // longer role="button", so it can't nest the Tips "?" button; the chevron is the focusable
+    // toggle). "true" since the card DEFAULTS OPEN on this 2-card page (v16.57 UX). The static HTML
+    // has no aria-expanded, so its presence proves the signed-in init wired the collapse — meaning
+    // the "?" handler is in place and the click below cannot race the wiring.
+    await expect(page.locator('#contactChevron')).toHaveAttribute('aria-expanded', 'true');
 
     // The Work Email card starts OPEN and the tips overlay starts hidden.
     await expect(page.locator('#tipsLightbox')).toBeHidden();

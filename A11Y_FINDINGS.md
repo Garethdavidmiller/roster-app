@@ -10,26 +10,26 @@ ARIA, duplicate ids). It does not replace a manual screen-reader pass.
 ## Current status — NOT yet blocking
 
 The gate is tagged `@a11y` and **excluded from `npm run test:e2e`** (via `--grep-invert`), so it does
-not yet block CI. It currently reports two rule types of **pre-existing** debt (below). Once each is
-fixed or consciously waived, drop the `--grep-invert @a11y` from `test:e2e` so the gate blocks — and
-add a global waiver (with a reason) in `axe.spec.js` for anything deliberately accepted.
+not yet block CI. **`nested-interactive` is now fixed (v17.50)** — operations, settings and links pass
+clean. The remaining failures are all **`color-contrast`** (below). Once that is resolved or
+consciously waived, drop the `--grep-invert @a11y` from `test:e2e` so the gate blocks — and add a
+global waiver (with a reason) in `axe.spec.js` for anything deliberately accepted.
 
 ## Findings (baseline, Jul 2026 — reviewed against the app at v17.49)
 
-### 1. `nested-interactive` (SERIOUS) — every collapsible card, all 5 signed-in pages + paycalc
+### 1. `nested-interactive` (SERIOUS) — ✅ FIXED (v17.50)
 
-`initCardCollapse` (overlay.js) sets `role="button"` + `tabindex="0"` on each
-`.card-collapsible-header`, but the header contains a nested real `<button class="btn-card-tips">?</button>`
-(the Tips button). An interactive element must not wrap another — screen readers and keyboard users
-get an ambiguous focus/activation target.
+`initCardCollapse` (overlay.js) used to set `role="button"` + `tabindex="0"` on the whole
+`.card-collapsible-header`, but a header contains a nested real `<button class="btn-card-tips">?</button>`
+(Tips / paycalc Help) — an interactive control wrapping another (ambiguous focus/activation).
 
-- **Scope:** shared pattern → admin, paycalc, operations, settings, links (every card header with a
-  Tips button).
-- **Recommendation: FIX (shared refactor).** The correct disclosure-widget shape is: the header is a
-  plain container; a dedicated inner `<button>` is the collapse toggle (wrapping the heading text +
-  chevron); the Tips button is a **sibling** of that toggle, not nested inside it. Touches
-  `initCardCollapse` + every card header's markup — real regression surface (collapse behaviour,
-  Tips buttons, keyboard), so do it as its own reviewed change, not a drive-by.
+**Fix (shared, one place):** `initCardCollapse` now makes the **chevron/arrow** the focusable toggle
+(`role="button"` + `aria-expanded`/`aria-controls` + an `aria-label` from the card heading) and leaves
+the header **non-interactive**. The header keeps a mouse-only click convenience that ignores clicks on
+any nested control (so the Tips/Help "?" no longer falls through and toggles the card). The no-chevron
+case falls back to the original header-as-toggle. Chevron/arrow gained `cursor` + a `:focus-visible`
+ring (shared.css / paycalc.css). Verified: axe reports **0** `nested-interactive`; overlay.test.mjs
+green; e2e green. No visual change to the cards.
 
 ### 2. `color-contrast` (SERIOUS) — calendar, paycalc, guides
 
@@ -52,7 +52,7 @@ None yet. When a rule is consciously accepted, add it to `GLOBAL_WAIVERS` (or a 
 
 ## Promotion path
 
-1. Fix `nested-interactive` (shared collapse refactor).
+1. ~~Fix `nested-interactive` (shared collapse refactor).~~ ✅ done (v17.50).
 2. Triage + fix the genuine `color-contrast` misses; waive any intentional low-emphasis text.
 3. Re-run `npm run test:a11y` → green.
 4. Remove `--grep-invert @a11y` from `test:e2e` so the gate blocks; consider adding it to `npm run check`.
