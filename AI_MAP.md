@@ -289,9 +289,17 @@ Coordinator for `operations.html` (admin-only, v10.99).
 - **Page-access via the policy layer (ARCHITECTURE_PLAN.md Phase 4a, v14.61):** the access gate routes through `requirePage({ status: currentUser ? 'named' : 'signedOut', member }, 'operations')` from `auth-policy.js` — `login` → overlay, `forbidden` → redirect to `admin.html`, `allow` → proceed — and the B1 enforcement decides via `requirePage(getAuthSnapshot(), 'operations') === 'login'`. **First coordinator to consume the new store + policy.** Behaviour-preserving (the local-derived snapshot keeps today's optimistic render; the existing e2e passes unchanged). Optimistic admin reads (4b, v14.62) wrap the admin-gated read cards in `withClaimRetry()` (force token refresh + retry once on stale-claim `permission-denied`; the shared firebase-client helper — was the byte-identical local `adminReadWithRetry`, consolidated v17.08).
 - Session guard (legacy description): reads the shared `myb_admin_session` localStorage key via `getSession()` from `session.js`; the redirect/login decision is the `requirePage` outcome above
 - Calls `ensureFirebaseSession(name)` from `session.js` to re-establish Firebase Auth on page load
-- Calls `initHuddleUpload()`, `initRosterUpload()`, `initAuthSetup()`, `initNavPanel({ isAdmin: true })`; runs `initErrorLog()` IIFE (Error Log card, v13.31)
-- Work Email Progress card (v13.30) shows per-grade breakdown (All / CEA / CES / Dispatcher filter) of who has and hasn't added a work email — "Added (N)" green chips + "Still to add (N)" grey chips
+- Calls `initHuddleUpload()`, `initRosterUpload()`, `initAuthSetup()`, `initNavPanel({ isAdmin: true })`, and the three reporting cards `initErrorLog()`/`initUsageCard()`/`initPageSpeedCard()` (imported from `operations-reports.js` since v17.46 — was inline)
+- Work Email Progress card (v13.30) shows per-grade breakdown (All / CEA / CES / Dispatcher filter) of who has and hasn't added a work email — "Added (N)" green chips + "Still to add (N)" grey chips; uses `_cardLoadError` imported back from `operations-reports.js`
 - Owns icon lightbox, tips lightbox, and collapsible card wiring for the operations cards
+
+### `operations-reports.js`
+The three read-only reporting cards on `operations.html` — **Error Log**, **Usage**, **App Speed** — extracted from `operations-app.js` at v17.46 (that coordinator was ~1300 lines; these ~540 lines were a clean, self-contained slice).
+- `initErrorLog()` — clientErrors card: resolve-all toolbar, per-row Resolve + Copy-for-Claude, truncation banner, in-place refresh (all via `getClientErrors`/`resolveClientError` under `withClaimRetry`).
+- `initUsageCard()` — page-popularity + active-account bars (`getUsageStats`, month/rolling window).
+- `initPageSpeedCard()` — Project-0 latency journeys (`getPerfStats`, `SPEED_GROUPS`/`perfVerdict` from `perf-stats.js`).
+- `_cardLoadError(content, message, retryFn)` — the shared "card failed to load + ↻ Try again" renderer; **exported back** to `operations-app.js` (its Work-Email card uses it). One-directional dependency (`operations-app.js` → `operations-reports.js`), no import cycle.
+- Each function awaits `sessionReady`, reads Firestore, and renders into its card by id — **no coordinator state**, so the extraction needed no dependency-threading. Imports only `session.js`, `firebase-client.js`, `perf-stats.js`, `roster-data.js` (escapeHtml).
 
 ### `operations-boot.js`
 2-line bootstrap for `operations.html` (Phase 4a.2, v14.65). Imports `init` from `operations-app.js` and calls it. Exists because CSP `script-src 'self'` blocks an inline `init()` call, and because keeping the call out of the coordinator lets a test `import { init }` without auto-running the page. No logic of its own.
