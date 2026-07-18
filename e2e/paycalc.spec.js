@@ -1,0 +1,133 @@
+import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
+
+
+test('paycalc: shows the in-place login when not signed in (no redirect)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/paycalc.html');
+    // Option B: paycalc no longer redirects to admin to sign in — the shared overlay is in place.
+    await expect(page).toHaveURL(/paycalc\.html/);
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    expect(errors, 'Uncaught JS exceptions on paycalc login').toHaveLength(0);
+});
+
+test('paycalc (signed in): pay period selector is populated', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+
+    // paycalc.html requires a session (per-member pay data); seed one so the page runs its
+    // own init and builds the period <select> instead of showing the in-place login.
+    await seedSession(page);
+    await page.goto('/paycalc.html');
+
+    // Proof we were NOT redirected — the guard let us through.
+    await expect(page).toHaveURL(/paycalc\.html$/);
+
+    // #periodSelect is in the static HTML but its <option>s are added by JS
+    // from getPeriods(). toBeAttached() retries until an <option> is present in
+    // the DOM — option elements have no bounding box so toBeVisible() is
+    // unreliable. Once the first option is attached all options are there
+    // (the function is synchronous).
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
+    const count = await page.locator('#periodSelect option').count();
+    expect(count, '#periodSelect should have pay period options').toBeGreaterThan(10);
+
+    expect(errors, 'Uncaught JS exceptions on paycalc.html').toHaveLength(0);
+});
+
+// Desktop WORKSPACE layout (v16.67): Hours + Settings span the two wide work columns; a
+// col-3 sidebar (.pc-side) stacks the result card and the four occasional cards, filling the
+// column (the v16.14 lone-sticky-rail left a full-height navy void). Rendered-viewport
+// assertions — a passing maths/unit suite never catches a broken grid. The two required
+// review viewports (1366×768 laptop, 1440×900) plus the pre-existing 1280 guard.
+for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h: 768 }, { w: 1440, h: 900 }]) {
+    test(`paycalc desktop workspace @${w}×${h}`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width: w, height: h });
+        await seedSession(page);
+        // Suppress the one-time notices so we measure the underlying layout.
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_pay_welcome_shown', '1');
+            localStorage.setItem('myb_pc_ytd_notice_shown', '1');
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+        });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#settingsCard')).toBeVisible();
+        // The roster-assist hint loads asynchronously and changes the Hours card height;
+        // let the layout settle so the measurement isn't a mid-render frame.
+        await page.waitForTimeout(800);
+
+        const overflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(overflow, 'no horizontal overflow on desktop').toBeLessThanOrEqual(1);
+
+        // The result rail is the primary live output — on-screen at load.
+        await expect(page.locator('.result-card')).toBeInViewport();
+
+        // WORKSPACE (v16.67; result raised to the period-band row v16.71): Hours + Settings span
+        // the two WIDE work columns (col 1–2); the col-3 SIDEBAR (.pc-side) holds the result card
+        // AND the four occasional cards, stacked in one column to the right of the work cards. The
+        // sidebar now starts at row 3 (level with the period band) so the take-home result heads
+        // the top-right corner instead of leaving a navy void above it. The result is NOT sticky.
+        const zone = await page.evaluate(() => {
+            const hh = document.getElementById('hoursCard').getBoundingClientRect();
+            const ss = document.getElementById('settingsCard').getBoundingClientRect();
+            const pc = document.querySelector('.period-controls').getBoundingClientRect();
+            const rr = document.querySelector('.result-card').getBoundingClientRect();
+            const pp = document.getElementById('payslipCard').getBoundingClientRect();
+            const bp = document.getElementById('backPayCard').getBoundingClientRect();
+            return {
+                sidebarRightOfHours: rr.left > hh.right - 2 && pp.left > hh.right - 2,
+                // The result now tops the right column: level with the period band (not the Hours
+                // card below it) and strictly ABOVE the Hours card — no navy void sits above it.
+                resultTopsColumn: Math.abs(pc.top - rr.top) < 40 && rr.top < hh.top - 10,
+                // Settings spans the two work columns → wider than a single col-3 sidebar card.
+                // (~1.45× at the tight 1024 end, more at wider viewports.)
+                settingsWide: ss.width > pp.width * 1.2,
+                // The occasional cards STACK under the result in col 3: same left edge as the
+                // result, and Back-Pay is BELOW Improve-Accuracy (a column, not a 2-up row).
+                stacked: Math.abs(rr.left - pp.left) < 2 && Math.abs(pp.left - bp.left) < 2 && bp.top > pp.top + 10,
+                resultNotSticky: getComputedStyle(document.querySelector('.result-card')).position !== 'sticky',
+            };
+        });
+        expect(zone.sidebarRightOfHours, 'the col-3 sidebar is right of the work cards').toBe(true);
+        expect(zone.resultTopsColumn, 'result tops column 3, level with the period band and above Hours').toBe(true);
+        expect(zone.settingsWide, 'Settings spans the wide work columns').toBe(true);
+        expect(zone.stacked, 'the occasional cards stack under the result in column 3').toBe(true);
+        expect(zone.resultNotSticky, 'result is static in the sidebar (no longer a sticky rail)').toBe(true);
+
+        // COLUMN SAFETY: the col-3 sidebar must not HORIZONTALLY overlap the two WORK cards
+        // (Hours/Settings) — it is its own column. Scroll to the bottom sidebar card first.
+        // Geometric, so it's robust at the tight 1024 end too.
+        await page.getByText('Decimal Hours Converter').scrollIntoViewIfNeeded();
+        await page.waitForTimeout(200);
+        const overlapPx = await page.evaluate(() => {
+            const side = document.querySelector('.pc-side').getBoundingClientRect();
+            return Math.max(...['hoursCard', 'settingsCard'].map(id => {
+                const c = document.getElementById(id).getBoundingClientRect();
+                return c.right - side.left;   // >0 means a work card extends past the sidebar's left edge = overlap
+            }));
+        });
+        expect(overlapPx, 'the sidebar must not horizontally overlap the work columns').toBeLessThanOrEqual(1);
+
+        await page.screenshot({ path: testInfo.outputPath(`paycalc-${w}x${h}.png`), fullPage: true });
+    });
+}
+
+// One-time notices must not stack: with legacy data pending AND the welcome notice
+// unseen, only the data-ownership prompt (highest priority) should open — not both.
+test('paycalc: one-time notices do not stack (data-ownership prompt wins)', async ({ page }) => {
+    await seedSession(page);   // signs in as a real member (G. Miller)
+    await page.addInitScript(() => {
+        // Genuine unnamespaced legacy pay data → migration pending. Welcome unseen →
+        // without the priority guard, both the welcome AND data-ownership lightboxes
+        // would call .open() in the same startup tick.
+        localStorage.setItem('myb_pc_rate', '20.74');
+        localStorage.removeItem('myb_pc_pay_welcome_shown');
+        localStorage.removeItem('myb_pc_ns_migrated');
+    });
+    await page.goto('/paycalc.html');
+
+    await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
+    await expect(page.locator('.lb-overlay.visible'), 'exactly one overlay open').toHaveCount(1);
+    await expect(page.locator('#welcomeLightbox.visible'), 'welcome suppressed').toHaveCount(0);
+});
+

@@ -37,8 +37,10 @@ jobs:
 
   # E2E smoke suite — real headless Chromium, Firebase SDK stubbed at the network
   # layer (e2e/fixtures.js) so the suite never depends on the gstatic CDN. Catches
-  # blank-page failures (SyntaxError, missing import, CSP violation) that every
-  # unit test passes but that would ship a broken page to staff. Separate job so a
+  # blank-page failures (SyntaxError, missing import, broken module graph) that every
+  # unit test passes but that would ship a broken page to staff. (It does NOT run under
+  # firebase.json's CSP — the local server doesn't apply those headers; csp-hygiene.test.mjs
+  # checks the CSP config statically instead.) Separate job so a
   # smoke failure is attributable at a glance and runs in parallel with unit.
   smoke:
     runs-on: ubuntu-latest

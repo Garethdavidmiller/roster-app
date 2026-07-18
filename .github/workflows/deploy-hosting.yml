@@ -38,9 +38,11 @@ jobs:
           npm run check
 
       # Gate the deploy on the E2E smoke suite. The app is offline-first, so a
-      # blank-page break (SyntaxError, missing import, CSP violation) is invisible
+      # blank-page break (SyntaxError, missing import, broken module graph) is invisible
       # to already-installed phones — the only thing that catches it before staff
-      # do is a real-browser page-load test. Do not deploy if smoke fails.
+      # do is a real-browser page-load test. (This does NOT exercise the production CSP —
+      # the local server applies no firebase.json headers; csp-hygiene.test.mjs checks the
+      # CSP config statically.) Do not deploy if smoke fails.
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
