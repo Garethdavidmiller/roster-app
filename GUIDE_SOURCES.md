@@ -73,7 +73,7 @@ belongs.
 | fip-carrier-accept | fip | FIP per-country carrier acceptance (e.g. Eurostar not accepted; OUIGO/Frecciarossa exclusions) — HIGH-CHURN, sampled not certified per-carrier | National | 2026-07 | 2026-10 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
 | fip-contact | fip | Booking-from-UK contacts (Trainseurope 01354 660222; bookmyrst.co.uk) | Contact | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
 | pay-rates | paycalc | CEA/CES hourly rates, contracted hours, pension, London Allowance | Fact | 2026-07 | 2027-04 | code:paycalc-calc.js |
-| pay-tax-thresholds | paycalc | Income tax / NI / student-loan / Scottish-band thresholds for the tax year — 2026/27 values marked PROVISIONAL in code pending final HMRC/Scottish Budget confirmation | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
+| pay-tax-thresholds | paycalc | Income tax / NI / student-loan / Scottish-band thresholds — 2026/27 all confirmed Jul 2026 vs GOV.UK SL3 2026-27 + Scottish Budget 2026/27; rUK income-tax freeze now runs to Apr 2031 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
 
 ## Not certified
 
