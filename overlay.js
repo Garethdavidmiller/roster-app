@@ -262,30 +262,75 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
 export function initCardCollapse(headerId, bodyId, chevronId, onToggle) {
     const header  = document.getElementById(headerId);
     const body    = document.getElementById(bodyId);
-    const chevron = chevronId ? document.getElementById(chevronId) : null;
     if (!header || !body) return;
 
-    // Make non-button/non-anchor headers keyboard-reachable
-    const tag = header.tagName;
-    if (tag !== 'BUTTON' && tag !== 'A') {
-        header.setAttribute('role', 'button');
-        if (!header.hasAttribute('tabindex')) header.setAttribute('tabindex', '0');
+    // The element whose `.open` class drives the chevron/arrow rotation — unchanged: a distinct
+    // chevron span for most cards; the header itself for paycalc's cards (which pass
+    // chevronId === headerId and rotate their arrow off the header's open state).
+    const stateEl = chevronId ? document.getElementById(chevronId) : null;
+
+    // The FOCUSABLE toggle control. A card header often contains a Tips/Help <button>; making the
+    // whole header the toggle (role="button") would nest one interactive control inside another —
+    // the WCAG "nested-interactive" failure. So prefer a dedicated chevron/arrow element as the
+    // control and leave the header non-interactive. Fall back to the header ONLY when there is no
+    // separate affordance at all (preserves the original behaviour for headers with no chevron).
+    let control = (stateEl && stateEl !== header) ? stateEl : null;
+    if (!control && typeof header.querySelector === 'function') {
+        control = /** @type {HTMLElement|null} */ (header.querySelector('.collapse-chevron, .card-toggle-arrow'));
     }
-    // Link header to its controlled body for screen readers
-    if (!header.hasAttribute('aria-controls')) header.setAttribute('aria-controls', bodyId);
+    const headerIsControl = !control;
+    if (headerIsControl) control = header;
+    const ctrl = /** @type {HTMLElement} */ (control);
+
+    // ARIA + keyboard reachability on the CONTROL (never on a header that wraps another control).
+    const ctag = ctrl.tagName;
+    if (ctag !== 'BUTTON' && ctag !== 'A') {
+        ctrl.setAttribute('role', 'button');
+        if (!ctrl.hasAttribute('tabindex')) ctrl.setAttribute('tabindex', '0');
+    }
+    if (!ctrl.hasAttribute('aria-controls')) ctrl.setAttribute('aria-controls', bodyId);
+    // Give a bare chevron/arrow an accessible name from the card title ("Toggle Work Email").
+    // Prefer a heading, but FALL BACK to the header itself — some sub-cards title with a <span>, not
+    // an h* (e.g. admin's "Recorded Annual Leave dates" booked-dates cards), and without this fallback
+    // their chevron's only name would be the "▾" glyph. Clone + strip nested buttons (the Tips/Help
+    // "?"), the chevron/arrow, hints, and decorative aria-hidden nodes so the name is JUST the title.
+    if (!headerIsControl && !ctrl.hasAttribute('aria-label') && typeof header.querySelector === 'function') {
+        const src = header.querySelector('h1, h2, h3, h4') || header;
+        let name = '';
+        if (typeof src.cloneNode === 'function') {
+            const clone = /** @type {HTMLElement} */ (src.cloneNode(true));
+            clone.querySelectorAll('button, a, .collapse-chevron, .card-toggle-arrow, .hint, [aria-hidden="true"]')
+                .forEach(n => n.remove());
+            name = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+        }
+        if (name) ctrl.setAttribute('aria-label', `Toggle ${name}`);
+    }
 
     function toggle() {
         const open = /** @type {HTMLElement} */ (body).classList.toggle('open');
-        if (chevron && chevron !== body) chevron.classList.toggle('open', open);
-        /** @type {HTMLElement} */ (header).setAttribute('aria-expanded', String(open));
+        if (stateEl && stateEl !== body) stateEl.classList.toggle('open', open);
+        ctrl.setAttribute('aria-expanded', String(open));
         onToggle?.(open);
     }
 
     // Initialise aria-expanded from the current DOM state
-    header.setAttribute('aria-expanded', String(body.classList.contains('open')));
+    ctrl.setAttribute('aria-expanded', String(body.classList.contains('open')));
 
-    header.addEventListener('click', toggle);
-    header.addEventListener('keydown', e => {
+    ctrl.addEventListener('click', e => { /** @type {any} */ (e).stopPropagation?.(); toggle(); });
+    ctrl.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
     });
+
+    // Mouse convenience: clicking anywhere on the header toggles too — EXCEPT on a nested
+    // interactive control (the Tips/Help button, or the chevron itself), which handle their own
+    // clicks. Keyboard/screen-reader users operate the chevron/arrow control above. Skipped when the
+    // header IS the control (no separate chevron) — it already has the click handler.
+    if (!headerIsControl) {
+        header.addEventListener('click', e => {
+            const t = /** @type {any} */ (e).target;
+            if (t && typeof t.closest === 'function' &&
+                t.closest('button, a, [role="button"], input, select, textarea')) return;
+            toggle();
+        });
+    }
 }

@@ -18,7 +18,7 @@
     /* --navy / --navy-mid / --gold / --info-bg defined in guide-shell.css */
     --text:    #16202e;
     --mid:     #4a5563;
-    --light:   #7c8794;
+    --light:   #5a6472;
     --border:  #e3e7ee;
     --hair:    #eef1f6;
     --bg:      #f7f9fc;   /* card fill */
@@ -27,13 +27,13 @@
 
     /* App shift-badge colours — kept in sync with shared.css by eye so the guide
        reads as the same product. Solid fill, white text (night is the exception). */
-    --sb-early:  #d9822b;   /* ☀️ Early  */
+    --sb-early:  #b06316;   /* ☀️ Early  */
     --sb-late:   #2f6fb0;   /* 🌙 Late   */
     --sb-night:  #26304a;   /* 🦉 Night  */
     --sb-rest:   #3a3a3a;   /* 🏠 Rest   */
     --sb-spare:  #7a3ca8;   /* 📋 Spare  */
     --sb-rdw:    #c0392b;   /* 💼 RDW    */
-    --sb-al:     #17877e;   /* 🏖️ AL     */
+    --sb-al:     #147a72;   /* 🏖️ AL     */
     --sb-absent: #6b6b6b;   /* 🪑 Absent */
     --sb-other:  #3f7d3a;   /* 🏷️ Other  */
     /* Info / tip callout palette (guide-doc-local; kept as tokens not inline literals) */

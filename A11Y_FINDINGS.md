@@ -7,29 +7,28 @@ accessibility coverage — closing the gap the v17.45 audit flagged. Run it with
 It is a **floor**: axe catches the machine-checkable ~third of real issues (labels, names, contrast,
 ARIA, duplicate ids). It does not replace a manual screen-reader pass.
 
-## Current status — NOT yet blocking
+## Current status — ✅ GREEN + BLOCKING (v17.52)
 
-The gate is tagged `@a11y` and **excluded from `npm run test:e2e`** (via `--grep-invert`), so it does
-not yet block CI. It currently reports two rule types of **pre-existing** debt (below). Once each is
-fixed or consciously waived, drop the `--grep-invert @a11y` from `test:e2e` so the gate blocks — and
-add a global waiver (with a reason) in `axe.spec.js` for anything deliberately accepted.
+All 10 pages pass on both projects (Desktop Chrome + Pixel 5). **Both findings are resolved**
+(`nested-interactive` v17.50, `color-contrast` v17.51–52), so the gate is now part of
+`npm run test:e2e` — a new WCAG A/AA violation fails the suite. `npm run test:a11y` runs it
+standalone (chromium). One documented per-page exclusion remains (calendar `.other-month`; see #2).
 
 ## Findings (baseline, Jul 2026 — reviewed against the app at v17.49)
 
-### 1. `nested-interactive` (SERIOUS) — every collapsible card, all 5 signed-in pages + paycalc
+### 1. `nested-interactive` (SERIOUS) — ✅ FIXED (v17.50)
 
-`initCardCollapse` (overlay.js) sets `role="button"` + `tabindex="0"` on each
-`.card-collapsible-header`, but the header contains a nested real `<button class="btn-card-tips">?</button>`
-(the Tips button). An interactive element must not wrap another — screen readers and keyboard users
-get an ambiguous focus/activation target.
+`initCardCollapse` (overlay.js) used to set `role="button"` + `tabindex="0"` on the whole
+`.card-collapsible-header`, but a header contains a nested real `<button class="btn-card-tips">?</button>`
+(Tips / paycalc Help) — an interactive control wrapping another (ambiguous focus/activation).
 
-- **Scope:** shared pattern → admin, paycalc, operations, settings, links (every card header with a
-  Tips button).
-- **Recommendation: FIX (shared refactor).** The correct disclosure-widget shape is: the header is a
-  plain container; a dedicated inner `<button>` is the collapse toggle (wrapping the heading text +
-  chevron); the Tips button is a **sibling** of that toggle, not nested inside it. Touches
-  `initCardCollapse` + every card header's markup — real regression surface (collapse behaviour,
-  Tips buttons, keyboard), so do it as its own reviewed change, not a drive-by.
+**Fix (shared, one place):** `initCardCollapse` now makes the **chevron/arrow** the focusable toggle
+(`role="button"` + `aria-expanded`/`aria-controls` + an `aria-label` from the card heading) and leaves
+the header **non-interactive**. The header keeps a mouse-only click convenience that ignores clicks on
+any nested control (so the Tips/Help "?" no longer falls through and toggles the card). The no-chevron
+case falls back to the original header-as-toggle. Chevron/arrow gained `cursor` + a `:focus-visible`
+ring (shared.css / paycalc.css). Verified: axe reports **0** `nested-interactive`; overlay.test.mjs
+green; e2e green. No visual change to the cards.
 
 ### 2. `color-contrast` (SERIOUS) — calendar, paycalc, guides
 
@@ -38,21 +37,40 @@ calendar `#alBtn` / `#payBtn` and other-month day numbers; paycalc badges (`#pay
 `#badge-sat`, `#badge-ot`); guide `.guide-footer`, railcard `.rc-cost` / `.rc-lbl`, shift badges
 (`.sb-early` / `.sb-al`), FIP `.not-fip-name`.
 
-- **Recommendation: TRIAGE then FIX the genuine near-misses.** Measure each flagged element's real
-  ratio; nudge the token darker where it is a true miss (a 4.3:1 grey → darker grey is invisible to
-  most users but clears AA). Some may be intentional low-emphasis decoration on non-essential text —
-  waive those explicitly. **Design-token territory** (`shared.css` / guide CSS, oklch tokens, the
-  "never hardcode hex" rule) — affects the whole app's look, so verify with screenshots and keep the
-  brand palette. Not a blind auto-fix.
+### 2. `color-contrast` (SERIOUS) — ✅ FIXED (v17.51–52)
+
+- **Guides (v17.51):** darkened the muted grey tokens (`--light` #888 → #6b6b6b / #666, guide footer
+  #7c8794 → #5a6472), deepened the legend swatches, and removed the FIP "not-FIP" `opacity: 0.45`
+  wash (opacity can't meet AA — the ✗ NO tag + a muted name colour carry "not available" instead).
+- **Calendar + paycalc + admin (v17.52):** deepened the shared shift/pay tokens just enough to clear
+  white-text AA (`--green`, `--al`, `--ot`, `--success-green`) while keeping the hue, and switched
+  the badges that can't (orange `.badge-early`/`.badge-sat`, admin's gold "today" text) to **navy
+  text on the colour tint** — the tint + border keep each badge's identity. Screenshotted: no brand
+  drift. Also fixed the `aria-allowed-attr` regression this surfaced (`setSettingsCardOpen` was
+  setting `aria-expanded` on the now-non-interactive paycalc header — moved it to the arrow control).
+- **Documented exclusion:** the calendar's faint **other-month day numbers** are `aria-hidden`
+  decorative context (darkening them defeats the "not this month" cue for zero SR benefit), so they
+  are `.exclude('.other-month')`d in the calendar scan — a targeted exclusion, not a rule waiver.
+
+## Known pre-existing (not gate-caught, low priority)
+
+- **Stale `aria-expanded` on programmatically-opened cards.** A few coordinators open a collapsible
+  card by adding the `.open` class directly (links-app.js ~774, admin-app.js ~1483 / ~1630) without
+  updating `aria-expanded` — so an auto-opened card reports `aria-expanded="false"` until the first
+  manual toggle self-corrects. This predates the v17.50 collapse change (the attribute was equally
+  un-updated when it lived on the header) — `paycalc-settings.js setSettingsCardOpen` is the one path
+  that does it correctly. The axe gate can't catch it (it scans a settled state). Fix when convenient:
+  route those opens through a shared setter, or set `aria-expanded` on the chevron alongside `.open`.
 
 ## Waived rules
 
-None yet. When a rule is consciously accepted, add it to `GLOBAL_WAIVERS` (or a page-local waiver) in
-`axe.spec.js` **with a one-line reason**, and record it here.
+No blanket rule waivers. One targeted per-page **element exclusion**: calendar `.other-month` (faint,
+`aria-hidden` adjacent-month day numbers — see #2). When accepting anything else, add a `GLOBAL_WAIVERS`
+entry or a page `exclude` in `axe.spec.js` **with a one-line reason**, and record it here.
 
-## Promotion path
+## Promotion path — ✅ COMPLETE
 
-1. Fix `nested-interactive` (shared collapse refactor).
-2. Triage + fix the genuine `color-contrast` misses; waive any intentional low-emphasis text.
-3. Re-run `npm run test:a11y` → green.
-4. Remove `--grep-invert @a11y` from `test:e2e` so the gate blocks; consider adding it to `npm run check`.
+1. ~~Fix `nested-interactive`~~ ✅ v17.50. 2. ~~Fix `color-contrast`~~ ✅ v17.51–52.
+3. ~~Green on both projects~~ ✅. 4. ~~Make it block (`test:e2e` includes `@a11y`)~~ ✅ v17.52.
+Optional next: add `npm run test:e2e` (or a dedicated `test:a11y`) to a CI workflow gate; wire more
+rendered STATES per page (e.g. an open lightbox, an error state) beyond the one snapshot each.

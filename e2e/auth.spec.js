@@ -237,9 +237,10 @@ test('in-place sign-in: settings initialises (work-email card + nav identity) wi
     await signInThroughOverlay(page, 'G. Miller');
 
     await expect(page.locator('#loginOverlay')).toHaveCount(0);
-    // initApp() → initContactCard() → initCardCollapse sets aria-expanded on the Work Email header
-    // ("true" — the card defaults open on this 2-card page since v16.57).
-    await expect(page.locator('#contactToggleHeader')).toHaveAttribute('aria-expanded', 'true');
+    // initApp() → initContactCard() → initCardCollapse sets aria-expanded on the toggle CONTROL —
+    // the chevron, not the header (v17.50: the header is no longer role="button"). "true" — the card
+    // defaults open on this 2-card page since v16.57.
+    await expect(page.locator('#contactChevron')).toHaveAttribute('aria-expanded', 'true');
     await page.locator('#navMenuBtn').click();
     await expect(page.locator('#navPanelAvatar')).toBeVisible();        // nav wired with identity
     await expect(page).toHaveURL(/settings\.html$/);

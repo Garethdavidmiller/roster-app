@@ -96,7 +96,7 @@
     --rdw-light: color-mix(in oklch, var(--rdw) 18%, white);
 
     /* Annual leave */
-    --al:       oklch(56.6% 0.1010 182.5deg);
+    --al:       oklch(52.0% 0.098 182.5deg);
     --al-light: color-mix(in oklch, var(--al) 16%, white);
     --al-hover: color-mix(in oklch, var(--al) 91%, black);
     --al-deep:  color-mix(in oklch, var(--al) 66%, black);
@@ -126,12 +126,12 @@
     --indigo-hover: color-mix(in oklch, var(--indigo) 91%, black);
 
     /* Confirmed shifts (admin) */
-    --green:       oklch(62.9% 0.1543 144.2deg);
+    --green:       oklch(48.5% 0.145 144.2deg);
     --green-hover: color-mix(in oklch, var(--green) 91%, black);
     --green-light: color-mix(in oklch, var(--green) 11%, white);
 
     /* Overtime pill (admin override list) */
-    --ot:       oklch(55.6% 0.1323 273.8deg);
+    --ot:       oklch(51.5% 0.135 273.8deg);
     --ot-light: oklch(93.7% 0.0210 304.0deg); /* hand-picked lavender — hue diverges from --ot */
 
     /* ── State / semantic colours ────────────────────────────────
@@ -162,7 +162,7 @@
     --al-confirm-accent: oklch(79.2% 0.1603 72.4deg);
 
     /* Success (online/ok states) */
-    --success-green:        oklch(52.3% 0.1347 144.2deg);
+    --success-green:        oklch(49.5% 0.132 144.2deg);
     --success-green-bg:     var(--green-light);
     --success-green-border: oklch(82.9% 0.0827 145.8deg);
     --roster-success-bg:    color-mix(in oklch, var(--green) 8%, white);
@@ -974,7 +974,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .badge-rest  { background: var(--charcoal);  color: white; }
-.badge-early { background: var(--orange);    color: white; }
+.badge-early { background: var(--orange);    color: var(--primary-blue); }
 .badge-late  { background: var(--blue-sky);  color: white; }
 .badge-night { background: white; color: var(--night); border: 2px solid var(--night); }
 .badge-spare { background: var(--purple);    color: white; }
@@ -988,7 +988,7 @@ body.lb-open #stickyTotal { display: none !important; }
    black-and-white printers than an all-dark filled badge. */
 @media print {
     .badge-rest  { background: var(--charcoal)  !important; color: white !important; }
-    .badge-early { background: var(--orange)    !important; color: white !important; }
+    .badge-early { background: var(--orange)    !important; color: var(--primary-blue) !important; }
     .badge-late  { background: var(--blue-sky)  !important; color: white !important; }
     .badge-spare { background: var(--purple)    !important; color: white !important; }
     .badge-rdw   { background: var(--rdw)       !important; color: white !important; }
@@ -1870,6 +1870,14 @@ button.nav-panel-link--notices {
     flex-shrink: 0;
 }
 .collapse-chevron.open { transform: rotate(180deg); }
+/* The chevron is the focusable collapse toggle (v17.50 — the header is no longer role="button",
+   so it can't nest the Tips button). It needs its own pointer + a visible keyboard focus ring. */
+.collapse-chevron { cursor: pointer; }
+.collapse-chevron:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
 
 /* ── Action buttons ─────────────────────────────────────────────── */
 .btn-action {

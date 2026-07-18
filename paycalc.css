@@ -421,7 +421,7 @@
       display: inline-flex; align-items: center;
       border: 1.5px solid transparent;
     }
-    .badge-sat  { background: var(--orange-light); color: var(--orange);   border-color: var(--orange);   }
+    .badge-sat  { background: var(--orange-light); color: var(--primary-blue); border-color: var(--orange);   }
     .badge-ot   { background: var(--ot-light);     color: var(--ot);       border-color: var(--ot);       }
     .badge-rdw  { background: var(--rdw-light);    color: var(--rdw-text); border-color: var(--rdw);      }
     .badge-sun  { background: var(--blue-light);   color: var(--blue-sky); border-color: var(--blue-sky); }
@@ -890,7 +890,7 @@
         border-left: 3px solid var(--primary-blue) !important;
       }
       /* Rate badge colours — ensure they print with background */
-      .badge-sat  { background: var(--orange-light)    !important; color: var(--orange)   !important; }
+      .badge-sat  { background: var(--orange-light)    !important; color: var(--primary-blue)   !important; }
       .badge-bh   { background: var(--al-light)        !important; color: var(--al)       !important; }
       .badge-ot   { background: var(--ot-light)        !important; color: var(--ot)       !important; }
       .badge-rdw  { background: var(--rdw-light)       !important; color: var(--rdw-text) !important; }
@@ -1022,6 +1022,9 @@
     padding: 3px 0 0 12px; line-height: 1.5;
   }
   .card-header-toggle.open .card-toggle-arrow { transform: rotate(180deg); }
+  /* The arrow is the focusable collapse toggle (v17.50 — header no longer role="button"). */
+  .card-toggle-arrow { cursor: pointer; }
+  .card-toggle-arrow:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; border-radius: 3px; }
   .collapsible-body {
     max-height: 0; overflow: hidden;
     transition: max-height 0.4s ease, padding-top 0.3s ease, padding-bottom 0.3s ease;

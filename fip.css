@@ -4,7 +4,7 @@
     /* --navy / --navy-dark / --gold defined in guide-shell.css */
     --text:       #1a1a2e;
     --mid:        #555;
-    --light:      #888;
+    --light:      #666666;
     --border:     #dde1e8;
     --bg:         #f4f5f8;
     --white:      #fff;
@@ -259,9 +259,11 @@ details[open] > summary { border-bottom: 1px solid var(--border); }
 hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
 /* ── Utility ─────────────────────────────── */
-.not-fip-card   { opacity: 0.45; }
+/* "Not part of FIP" countries (e.g. Sweden, Finland) are de-emphasised via a muted name colour +
+   the ✗ NO tag — NOT an opacity wash (v17.51). Opacity dimming can't meet WCAG AA contrast, and
+   the ✗ tag already carries the "not available" signal, so the content stays fully readable. */
 .not-fip-header { display: flex; justify-content: space-between; align-items: center; }
-.not-fip-name   { font-size: 15px; font-weight: 600; }
+.not-fip-name   { font-size: 15px; font-weight: 600; color: var(--mid); }
 .not-fip-desc   { font-size: 13px; color: var(--mid); margin-top: 6px; margin-bottom: 0; }
 .section-intro  { font-size: 13px; color: var(--mid); margin-bottom: 12px; }
 .page-intro     { font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
@@ -317,7 +319,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     .country-jump a:hover { background: var(--navy); color: white; border-color: var(--navy); }
 }
 .country-jump a:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
-.country-jump a.not-fip { opacity: 0.45; }
+.country-jump a.not-fip { color: var(--mid); }
 
 /* ── Summary warning badge ───────────────── */
 .summary-warn {
@@ -378,7 +380,6 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 .foot-disclaimer {
     font-size: 11px;
     color: var(--light);
-    opacity: 0.7;
     text-align: center;
     margin-top: 20px;
     line-height: 1.6;

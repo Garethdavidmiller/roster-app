@@ -838,8 +838,8 @@
 
         /* Today's row — gold day-name + a subtle background tint (no left border; the base
            card border is enough to frame it). */
-        .day-row.today .col-day .day-name { color: var(--accent-gold-dark); font-weight: 800; }
-        .day-row.today .col-day .day-date { color: var(--accent-gold-dark); }
+        .day-row.today .col-day .day-name { color: var(--primary-blue); font-weight: 800; }
+        .day-row.today .col-day .day-date { color: var(--primary-blue); }
         .day-row.today:not(.active):not(.has-override):not(.selected) { background: var(--today-print); }
 
         /* Row with a validation error (e.g. time not filled) — highlighted red */
