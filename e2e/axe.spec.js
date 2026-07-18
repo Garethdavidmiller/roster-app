@@ -27,11 +27,12 @@ const GLOBAL_WAIVERS = [];
  * @param {import('@playwright/test').Page} page
  * @param {string[]} [pageWaivers]  extra rule ids to disable for this page only
  */
-async function scan(page, pageWaivers = []) {
-    const results = await new AxeBuilder({ page })
+async function scan(page, { pageWaivers = [], exclude = [] } = {}) {
+    let builder = new AxeBuilder({ page })
         .withTags(WCAG_TAGS)
-        .disableRules([...GLOBAL_WAIVERS, ...pageWaivers])
-        .analyze();
+        .disableRules([...GLOBAL_WAIVERS, ...pageWaivers]);
+    for (const sel of exclude) builder = builder.exclude(sel);
+    const results = await builder.analyze();
     return results.violations;
 }
 
@@ -47,16 +48,18 @@ function report(violations) {
     }).join('\n\n') + '\n';
 }
 
-// Tagged @a11y so it is EXCLUDED from the default `npm run test:e2e` (via --grep-invert) and run
-// only by `npm run test:a11y`. It is not yet a blocking gate: it currently reports two rule types
-// of pre-existing debt (see the header note / A11Y_FINDINGS below) that are being worked through
-// fix-vs-waive. Once those are resolved or consciously waived, drop the grep-invert to make it block.
+// Tagged @a11y. GREEN + BLOCKING since v17.52 — part of `npm run test:e2e` (a new WCAG A/AA
+// violation fails the suite); `npm run test:a11y` runs it standalone on chromium. Baseline + the one
+// documented exclusion (calendar `.other-month`) are in A11Y_FINDINGS.md.
 test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     test('calendar (index.html)', async ({ page }) => {
         await seedMember(page);
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
-        const v = await scan(page);
+        // Exclude the adjacent-month day numbers: they are deliberately very faint (the "not this
+        // month" cue) AND `aria-hidden` (never announced), so darkening them to meet AA would defeat
+        // the design for zero screen-reader benefit. Documented in A11Y_FINDINGS.md.
+        const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
     });
 

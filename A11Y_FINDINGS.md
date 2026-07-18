@@ -7,13 +7,12 @@ accessibility coverage — closing the gap the v17.45 audit flagged. Run it with
 It is a **floor**: axe catches the machine-checkable ~third of real issues (labels, names, contrast,
 ARIA, duplicate ids). It does not replace a manual screen-reader pass.
 
-## Current status — NOT yet blocking
+## Current status — ✅ GREEN + BLOCKING (v17.52)
 
-The gate is tagged `@a11y` and **excluded from `npm run test:e2e`** (via `--grep-invert`), so it does
-not yet block CI. **`nested-interactive` is now fixed (v17.50)** — operations, settings and links pass
-clean. The remaining failures are all **`color-contrast`** (below). Once that is resolved or
-consciously waived, drop the `--grep-invert @a11y` from `test:e2e` so the gate blocks — and add a
-global waiver (with a reason) in `axe.spec.js` for anything deliberately accepted.
+All 10 pages pass on both projects (Desktop Chrome + Pixel 5). **Both findings are resolved**
+(`nested-interactive` v17.50, `color-contrast` v17.51–52), so the gate is now part of
+`npm run test:e2e` — a new WCAG A/AA violation fails the suite. `npm run test:a11y` runs it
+standalone (chromium). One documented per-page exclusion remains (calendar `.other-month`; see #2).
 
 ## Findings (baseline, Jul 2026 — reviewed against the app at v17.49)
 
@@ -38,25 +37,30 @@ calendar `#alBtn` / `#payBtn` and other-month day numbers; paycalc badges (`#pay
 `#badge-sat`, `#badge-ot`); guide `.guide-footer`, railcard `.rc-cost` / `.rc-lbl`, shift badges
 (`.sb-early` / `.sb-al`), FIP `.not-fip-name`.
 
-- **Guides — ✅ FIXED (v17.51).** Darkened the muted grey tokens (`--light` #888 → #6b6b6b / #666,
-  guide footer #7c8794 → #5a6472), deepened the guide legend swatches (`--sb-early`/`--sb-al`), and
-  removed the FIP "not-FIP" `opacity: 0.45` wash (opacity dimming can't meet AA — the ✗ NO tag +
-  a muted name colour carry the "not available" signal instead). All 4 guide pages pass axe.
-- **Calendar + paycalc — still open (semantic brand colours).** The remaining misses are white text
-  on the shared shift/pay colours (`--orange`/`--green`/`--al` at oklch lightness that fails white
-  text), plus tinted badges. Fixing means deepening those shared tokens (app-wide visual change) or
-  switching badge text to dark — **design-token territory**, so do it with screenshots and keep the
-  brand hues. The calendar's faint **other-month day numbers** are `aria-hidden` decorative context
-  (darkening them defeats the "not this month" cue) — exclude those from the scan, don't darken.
+### 2. `color-contrast` (SERIOUS) — ✅ FIXED (v17.51–52)
+
+- **Guides (v17.51):** darkened the muted grey tokens (`--light` #888 → #6b6b6b / #666, guide footer
+  #7c8794 → #5a6472), deepened the legend swatches, and removed the FIP "not-FIP" `opacity: 0.45`
+  wash (opacity can't meet AA — the ✗ NO tag + a muted name colour carry "not available" instead).
+- **Calendar + paycalc + admin (v17.52):** deepened the shared shift/pay tokens just enough to clear
+  white-text AA (`--green`, `--al`, `--ot`, `--success-green`) while keeping the hue, and switched
+  the badges that can't (orange `.badge-early`/`.badge-sat`, admin's gold "today" text) to **navy
+  text on the colour tint** — the tint + border keep each badge's identity. Screenshotted: no brand
+  drift. Also fixed the `aria-allowed-attr` regression this surfaced (`setSettingsCardOpen` was
+  setting `aria-expanded` on the now-non-interactive paycalc header — moved it to the arrow control).
+- **Documented exclusion:** the calendar's faint **other-month day numbers** are `aria-hidden`
+  decorative context (darkening them defeats the "not this month" cue for zero SR benefit), so they
+  are `.exclude('.other-month')`d in the calendar scan — a targeted exclusion, not a rule waiver.
 
 ## Waived rules
 
-None yet. When a rule is consciously accepted, add it to `GLOBAL_WAIVERS` (or a page-local waiver) in
-`axe.spec.js` **with a one-line reason**, and record it here.
+No blanket rule waivers. One targeted per-page **element exclusion**: calendar `.other-month` (faint,
+`aria-hidden` adjacent-month day numbers — see #2). When accepting anything else, add a `GLOBAL_WAIVERS`
+entry or a page `exclude` in `axe.spec.js` **with a one-line reason**, and record it here.
 
-## Promotion path
+## Promotion path — ✅ COMPLETE
 
-1. ~~Fix `nested-interactive` (shared collapse refactor).~~ ✅ done (v17.50).
-2. Triage + fix the genuine `color-contrast` misses; waive any intentional low-emphasis text.
-3. Re-run `npm run test:a11y` → green.
-4. Remove `--grep-invert @a11y` from `test:e2e` so the gate blocks; consider adding it to `npm run check`.
+1. ~~Fix `nested-interactive`~~ ✅ v17.50. 2. ~~Fix `color-contrast`~~ ✅ v17.51–52.
+3. ~~Green on both projects~~ ✅. 4. ~~Make it block (`test:e2e` includes `@a11y`)~~ ✅ v17.52.
+Optional next: add `npm run test:e2e` (or a dedicated `test:a11y`) to a CI workflow gate; wire more
+rendered STATES per page (e.g. an open lightbox, an error state) beyond the one snapshot each.

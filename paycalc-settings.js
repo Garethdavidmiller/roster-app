@@ -244,7 +244,10 @@ export function setSettingsCardOpen(open) {
   const body   = document.getElementById('settingsBody');
   if (toggle) toggle.classList.toggle('open', open);
   if (body)   body.classList.toggle('open', open);
-  if (toggle) toggle.setAttribute('aria-expanded', String(open));
+  // aria-expanded lives on the collapse CONTROL (the arrow), not the header — the header is no
+  // longer role="button" (v17.50), so aria-expanded on it is invalid ARIA. Mirror initCardCollapse.
+  const ctrl = toggle?.querySelector('.card-toggle-arrow') || toggle;
+  if (ctrl) ctrl.setAttribute('aria-expanded', String(open));
 }
 
 /** Load persisted settings into the form fields. */
