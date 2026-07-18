@@ -234,6 +234,7 @@ roster-app/
 ├── RECOVERY_RUNBOOK.md      ← "break glass" backup/rollback/disaster-recovery runbook: preventative setup (Firestore PITR + scheduled backups + GCS exports) and task-led incident playbooks (deleted override, bad roster upload, Functions/Rules/Hosting rollback, GitHub-mirror failover, Firebase outage, restore-from-export). Owner-facing ops doc; not version-stamped; not a runtime asset.
 ├── OTHER_PLAN.md            ← the "Other" day family (Training/Induction/Assessment/Team Day) — shipped v15.34–57; pruned to the design decisions (cited from code as "OTHER_PLAN.md decision N"), the v15.40 Evolution record, and the Phase B checklist (Meetings/Union duties, owner-blocked). Not version-stamped; not a runtime asset.
 ├── GUIDE_SOURCES.md         ← source register for the operational guides (railcard/FIP/pay): every high-risk claim's authoritative source, review dates, and National/Local/Tip/Fact class. Structurally enforced by guide-sources.test.mjs. Closes the v17.45 audit's content-assurance gap. Not version-stamped; not a runtime asset.
+├── A11Y_FINDINGS.md         ← accessibility gate (e2e/axe.spec.js) baseline + fix-vs-waive triage: the current axe-core findings (nested-interactive on collapse headers; some color-contrast), recommendations, and the path to make the gate blocking. Not version-stamped; not a runtime asset.
 ├── test-fixtures/
 │   └── miller-actuals.js   ← MILLER_ACTUALS payslip fixture (13 real 2025/26 payslips) — imported by paycalc.test.mjs; NOT served (excluded from Hosting; privacy — see ARCHITECTURE_PLAN.md)
 ├── githooks/
@@ -283,6 +284,7 @@ roster-app/
 │   ├── paycalc.spec.js     ← paycalc in-place login, signed-in period selector, desktop workspace geometry (1024–1440px + short height), one-time-notice stacking
 │   ├── pages.spec.js       ← settings/operations/links login + signed-in render, operations desktop columns + long-email layout + App-speed card, admin touch-layout blowout guard, FIP jump-link + malformed-hash
 │   ├── responsive.spec.js  ← desktop-geometry checks: calendar/team-view/admin at 1024–1440px + short-height laptop cases (no horizontal overflow)
+│   ├── axe.spec.js         ← accessibility gate (axe-core, WCAG A/AA) — scans one rendered state per page. Tagged `@a11y`, EXCLUDED from `npm run test:e2e`, run via `npm run test:a11y`. Not yet blocking — current baseline + triage in A11Y_FINDINGS.md (nested-interactive on collapse headers + some color-contrast). Imports test/expect from fixtures.js for the hermetic Firebase stub
 │   ├── helpers.js          ← shared spec helpers (collectFatalErrors, seedSession/seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay) — imported by all five specs
 │   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports. `enforceNamedSession(page)` rewrites roster-data.js to flip `ENFORCE_NAMED_SESSION` on, and `window.__E2E.failSignIn` forces sign-in to fail — for the B1 enforcement tests
 ├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own
@@ -322,6 +324,9 @@ npm run test:rules
 
 # E2E smoke tests (real headless Chromium; uses pre-installed browser in the dev env):
 npm run test:e2e
+
+# Accessibility gate (axe-core, WCAG A/AA; one rendered state per page). Opt-in — see A11Y_FINDINGS.md:
+npm run test:a11y
 ```
 
 **Service worker caching:**

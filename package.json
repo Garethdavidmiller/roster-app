@@ -8,7 +8,8 @@
     "test:parse": "node --experimental-vm-modules --test module-parse.test.mjs",
     "test:unit": "node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs admin-roster-upload.test.mjs nav-panel.test.mjs override-utils.test.mjs session.test.mjs calendar-state.test.mjs calendar-member.test.mjs calendar-overrides.test.mjs calendar-renderer.test.mjs calendar-initial-fetch.test.mjs paycalc-periods.test.mjs paycalc-hpp.test.mjs paycalc-migrations.test.mjs login-overlay.test.mjs notif.test.mjs admin-email-check.test.mjs",
     "test:rules": "firebase --project demo-myb-roster emulators:exec --only firestore,storage 'node --test firestore.rules.test.mjs storage.rules.test.mjs'",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --grep-invert @a11y",
+    "test:a11y": "playwright test --grep @a11y --project=chromium",
     "test:functions": "node --test roster-parse-helpers.test.mjs",
     "bump": "node scripts/bump-version.mjs",
     "generate:roster-members": "node scripts/generate-roster-members.mjs",
@@ -17,6 +18,7 @@
     "check": "npm run lint && npm run typecheck && npm test"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "^10.0.1",
     "@firebase/rules-unit-testing": "^5.0.1",
     "@playwright/test": "1.56.1",
