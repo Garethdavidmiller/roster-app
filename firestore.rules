@@ -311,7 +311,8 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
-        // Bounded YYYY-MM-DD (month 01-12, day 01-31) — rejects impossible ISO-shaped dates.
+        // Shape guard only: YYYY-MM-DD, month 01-12, day 01-31 (anchored). Does NOT reject a
+        // well-formed but non-existent day (e.g. 2026-02-31); the client date paths prevent those.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
         request.resource.data.fileType in ['pdf', 'docx'] &&
@@ -329,7 +330,8 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
-        // Bounded YYYY-MM-DD (month 01-12, day 01-31) — rejects impossible ISO-shaped dates.
+        // Shape guard only: YYYY-MM-DD, month 01-12, day 01-31 (anchored). Does NOT reject a
+        // well-formed but non-existent day (e.g. 2026-02-31); the client date paths prevent those.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
         request.resource.data.fileType in ['pdf', 'docx'] &&

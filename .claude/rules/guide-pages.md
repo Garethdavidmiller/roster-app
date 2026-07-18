@@ -37,6 +37,23 @@ All four guide pages share one chrome for consistent behaviour on iOS, Android, 
 - **Safe-area:** side insets `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom `max(40px, env(safe-area-inset-bottom))`.
 - **PDF button markup:** `<button id="savePdfBtn" class="btn-print btn-pdf">⤓ PDF</button>`. Wired by `guide-print.js` (`.btn-print`) on guide/paycalc/fip; `railcard-guide.js` wires `#savePdfBtn` itself because it also owns the chip-bar.
 
+## Source governance — GUIDE_SOURCES.md (v17.50)
+
+High-risk guide claims (anything that could mis-sell/refuse a ticket, invalidate a journey, or
+mis-state pay) are registered in **`GUIDE_SOURCES.md`** with their authoritative source, review
+dates, and a **National / Local / Tip / Fact** classification. `guide-sources.test.mjs` enforces
+that register structurally (part of `npm run test:hygiene`) — every row must keep its source, its
+`Reviewed`/`Next` dates (Next strictly after Reviewed), and a valid class, so the content-assurance
+gap the v17.45 audit flagged can't silently reopen.
+
+- **Before changing a high-risk claim**, update its register row (Source + `Reviewed`), then the guide.
+- The **National vs Local** flag is the anti-drift control: it is what stops a Marylebone shortcut
+  being restated as a universal national rule (the root cause of the v17.45 railcard errors — see the
+  three-layer format below).
+- The test is a **structural** guard, NOT a date tripwire (a today-driven failure would break unrelated
+  commits). Review cadence is manual, driven by the `Next` column — re-check a section when its month
+  arrives; full pass ≥ yearly (railcards each spring; tax before 6 April).
+
 ## Railcard guide
 
 `railcard-guide.html` is an at-work quick reference for staff at the **gateline** and **ticket office**. Not a customer-facing page — judge every decision against "can a staff member glance at this mid-transaction and get the right answer fast?"
@@ -50,13 +67,14 @@ All four guide pages share one chrome for consistent behaviour on iOS, Android, 
 - **Chiltern-specific callouts** (`rc-chiltern`) are amber banners inside the card — keep them.
 - **Photo-check is a table, not prose.** The `.photo-table` inside check step 3 gives colour-coded rows by card type. Distinguish physical vs digital explicitly.
 - **Selling essentials live in gotchas.** Minimum-fare mechanic, First Class eligibility per card, season-ticket exceptions. Do not move these to card rows.
+- **Three-layer breakdown for "varies by route" time rules (v17.48).** Where a card's Mon–Fri cutoff is really a *local shortcut* for a national "morning-peak, off-peak-varies-by-route" rule, the card replaces its `.rc-chiltern` prose note with a `.rc-layers` block of three labelled rows — `.rc-layer-lbl official` (navy: the national rule) / `local` (amber: the Marylebone cutoff staff use) / `check` (red: what the retail system confirms). A single `.time-explainer` box near the top teaches the model once (with `.tl-tag` chips). **Applied ONLY to the genuinely-varies cards — Family & Friends, Senior, GroupSave.** Do NOT blanket every card with it: cards whose time IS fixed (Network 10:00, Gold Card 04:30–09:29) keep the simple note, and adding three layers everywhere would wreck the glanceable one-card scan the guide depends on. This is the durable fix for the root cause the v17.45 audit flagged (a local shortcut masquerading as a universal rule).
 
 **What to care about:**
 - Factual accuracy per card — verify against nationalrail.co.uk before changing any rule.
 - Min-fare amounts (£12/£13) and the July/August waiver list (16-25, HM Forces, Veterans waived; 26-30 not waived) — reviewed annually; re-check each spring.
 - Senior Railcard Chiltern note — must say "journeys within the Network area" not "all Marylebone services"; through journeys to Birmingham are different.
 - Family & Friends — morning-peak restriction is on Network-area journeys only, not the whole card.
-- Two Together photocard — wording is deliberately softened ("check names/photos on the card or its photocard") — physical card format not verified from an authoritative source; do not strengthen without confirmation.
+- Two Together photocard — **confirmed** (Jul 2026 research against the official Two Together T&Cs): a physically-printed Two Together Railcard bought at a station is issued with a **separate Two Together Photocard** (carrying both holders' photos) that must be carried and presented alongside the card, and both named holders must travel together. The guide wording was strengthened accordingly (was deliberately softened while unverified). Digital cards have no separate photocard.
 
 **What not to flag as defects:**
 - No JS modules — static page, intentional.

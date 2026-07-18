@@ -171,7 +171,8 @@ roster-app/
 ├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache (authoritative range-refresh — rebuild winners from the snapshot, evict deletes; shared by both fetch paths), isBeforeMemberStart, isRestShift, resolveEffectiveShift (shared override→display ladder for renderer/team-view/legend)
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring. Body is an exported `init()` (Phase 4a.2) invoked by admin-boot.js — importing the module no longer auto-runs it (test seam). The in-place-login re-invocation calls the nested `initAuthorised()`, not `init()`.
 ├── admin-boot.js           ← 2-line bootstrap for admin.html: imports `init` from admin-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
-├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup/ErrorLog. Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw
+├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup + Work-Email card. Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw. Delegates the three reporting cards to operations-reports.js
+├── operations-reports.js   ← the three read-only reporting cards on operations.html — Error Log, Usage, App Speed (extracted from operations-app.js v17.46): initErrorLog/initUsageCard/initPageSpeedCard, each awaits sessionReady, reads Firestore, renders into its own card by id (no coordinator state). Exports `_cardLoadError` (the shared card-failure+retry helper) back to operations-app.js for its Work-Email card — one-directional, no import cycle
 ├── operations-boot.js      ← 2-line bootstrap for operations.html: imports `init` from operations-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email. Body is an exported `init()` (Phase 4a.2, v17.09) invoked by settings-boot.js — importable without auto-running, for tests
 ├── settings-boot.js        ← 2-line bootstrap for settings.html: imports `init` from settings-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
@@ -232,6 +233,8 @@ roster-app/
 ├── LOGIN_INCIDENT.md        ← incident log for the v14.72–74 login freeze/slowness — RESOLVED (freeze fixed v14.75; B1 re-enabled v14.98). Records the diagnosis, the current auth-flag state (B1 `ENFORCE_NAMED_SESSION=true`; B2/B3 shipped — override write-isolation is now STRICT (v16.29), `CLAIM_EPOCH=2` since v15.33), and the re-enable checklist. READ THIS before touching login/auth. Not version-stamped.
 ├── RECOVERY_RUNBOOK.md      ← "break glass" backup/rollback/disaster-recovery runbook: preventative setup (Firestore PITR + scheduled backups + GCS exports) and task-led incident playbooks (deleted override, bad roster upload, Functions/Rules/Hosting rollback, GitHub-mirror failover, Firebase outage, restore-from-export). Owner-facing ops doc; not version-stamped; not a runtime asset.
 ├── OTHER_PLAN.md            ← the "Other" day family (Training/Induction/Assessment/Team Day) — shipped v15.34–57; pruned to the design decisions (cited from code as "OTHER_PLAN.md decision N"), the v15.40 Evolution record, and the Phase B checklist (Meetings/Union duties, owner-blocked). Not version-stamped; not a runtime asset.
+├── GUIDE_SOURCES.md         ← source register for the operational guides (railcard/FIP/pay): every high-risk claim's authoritative source, review dates, and National/Local/Tip/Fact class. Structurally enforced by guide-sources.test.mjs. Closes the v17.45 audit's content-assurance gap. Not version-stamped; not a runtime asset.
+├── A11Y_FINDINGS.md         ← accessibility gate (e2e/axe.spec.js) baseline + fix-vs-waive triage: the current axe-core findings (nested-interactive on collapse headers; some color-contrast), recommendations, and the path to make the gate blocking. Not version-stamped; not a runtime asset.
 ├── test-fixtures/
 │   └── miller-actuals.js   ← MILLER_ACTUALS payslip fixture (13 real 2025/26 payslips) — imported by paycalc.test.mjs; NOT served (excluded from Hosting; privacy — see ARCHITECTURE_PLAN.md)
 ├── githooks/
@@ -273,9 +276,16 @@ roster-app/
 ├── storage-rules-static.test.mjs ← static (no-emulator) hygiene guard: asserts the 20 MB `request.resource.size` cap is present in all 3 upload blocks (the emulator suite can't practically test the size cap); part of `npm test` (test:hygiene)
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists (incl. non-JS HTML/CSS precache + no ghost entries), APP_VERSION sync, roster-members.json sync, admin/operations/settings/links have zero modulepreloads, NOTIFICATION_FEATURES hashPaths ⊆ SW SAFE_NOTIFICATION_PAGES, firestore.rules work-email domain = CONFIG.WORK_EMAIL_DOMAIN, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── csp-hygiene.test.mjs    ← static (no-emulator) CSP guard: asserts firebase.json's Content-Security-Policy stays in step with what the app actually loads — every contacted host is permitted AND no stale origin lingers. Part of test:hygiene. (Its REQUIRED host list is itself hand-maintained — add a newly-contacted host there.)
+├── guide-sources.test.mjs  ← structural guard for GUIDE_SOURCES.md: parses the source register and fails the build if a high-risk row loses its source, review dates (Next after Reviewed), or National/Local/Tip/Fact class. Structural only, not a date tripwire. Part of test:hygiene
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
 ├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, broken module graph, auth redirects) that pass all unit tests. Does NOT catch CSP header violations — the local http-server doesn't apply Firebase Hosting headers (use the Firebase Hosting emulator for CSP testing). NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
-│   ├── smoke.spec.js       ← page-load tests (calendar, admin/settings login, paycalc/settings signed-in, operations/links auth redirects) + desktop-geometry checks (calendar/team-view/admin/paycalc/operations at 1024–1440px and short heights) + B1 named-session enforcement (flag-ON: admin/settings re-show login, operations/links redirect, paycalc soft). Each run on Desktop Chrome + Pixel 5
+│   ├── calendar.spec.js    ← calendar render, first-run, stale-member, dropdown, nav drawer (was part of smoke.spec.js; split by area v17.46 for parallelism + failure isolation). Each spec runs on Desktop Chrome + Pixel 5
+│   ├── auth.spec.js        ← login-overlay render + in-flight/failed states, B1 named-session enforcement (flag-ON: admin/settings re-show login, operations/links clear+in-place, paycalc soft) + happy path, and in-place sign-in (no reload) on every authenticated page
+│   ├── paycalc.spec.js     ← paycalc in-place login, signed-in period selector, desktop workspace geometry (1024–1440px + short height), one-time-notice stacking
+│   ├── pages.spec.js       ← settings/operations/links login + signed-in render, operations desktop columns + long-email layout + App-speed card, admin touch-layout blowout guard, FIP jump-link + malformed-hash
+│   ├── responsive.spec.js  ← desktop-geometry checks: calendar/team-view/admin at 1024–1440px + short-height laptop cases (no horizontal overflow)
+│   ├── axe.spec.js         ← accessibility gate (axe-core, WCAG A/AA) — scans one rendered state per page. Tagged `@a11y`, EXCLUDED from `npm run test:e2e`, run via `npm run test:a11y`. Not yet blocking — current baseline + triage in A11Y_FINDINGS.md (nested-interactive on collapse headers + some color-contrast). Imports test/expect from fixtures.js for the hermetic Firebase stub
+│   ├── helpers.js          ← shared spec helpers (collectFatalErrors, seedSession/seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay) — imported by all five specs
 │   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports. `enforceNamedSession(page)` rewrites roster-data.js to flip `ENFORCE_NAMED_SESSION` on, and `window.__E2E.failSignIn` forces sign-in to fail — for the B1 enforcement tests
 ├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own
 ├── package.json            ← dev dependencies only
@@ -304,7 +314,7 @@ npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, guide-sources
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions pure-helper tests (roster-parse-helpers.test.mjs) — not part of npm test
@@ -314,6 +324,9 @@ npm run test:rules
 
 # E2E smoke tests (real headless Chromium; uses pre-installed browser in the dev env):
 npm run test:e2e
+
+# Accessibility gate (axe-core, WCAG A/AA; one rendered state per page). Opt-in — see A11Y_FINDINGS.md:
+npm run test:a11y
 ```
 
 **Service worker caching:**

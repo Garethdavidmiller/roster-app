@@ -494,13 +494,17 @@ body.auth-ready .container { display: grid; }
 /* ---- Auto-generator — slot table ---- */
 .generator-form { margin-top: 8px; }
 .gen-slot-table-wrap {
+    /* max-width:100% + no negative margin: the wrapper can never exceed the card, so the
+       380px table scrolls INSIDE it instead of pushing the page sideways (v17.49 — was a
+       full-bleed -16px margin that let the wrapper overflow a ~393px viewport). */
+    max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    margin: 0 -16px 10px;
-    padding: 0 16px;
+    margin: 0 0 10px;
+    padding: 0;
 }
 @media (min-width: 768px) {
-    .gen-slot-table-wrap { margin: 0 0 10px; padding: 0; overflow-x: visible; }
+    .gen-slot-table-wrap { overflow-x: visible; }
 }
 .gen-slot-table {
     border-collapse: collapse;

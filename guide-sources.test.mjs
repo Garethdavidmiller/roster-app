@@ -1,0 +1,111 @@
+// guide-sources.test.mjs — structural guard for the GUIDE_SOURCES.md source register.
+//
+// The app enforces its CODE governance in CI; this test extends the same discipline to the
+// OPERATIONAL-CONTENT register that backs the Railcard and FIP guides (the v17.45 audit's
+// "content assurance" gap). It parses the register table and fails the build if a high-risk
+// row loses its source, its review dates, or its National/Local classification — so the
+// register cannot silently rot back to "Verified <month>" with no per-section provenance.
+//
+// It is a STRUCTURAL guard, deliberately not a date-driven "review overdue" tripwire: a test
+// that fails purely because today's date passed a Next-review month would break unrelated
+// commits (a time bomb). The review cadence is a documented manual process (like the monthly
+// notice cleanup) driven by the Next column — this test only guarantees that column exists and
+// is coherent (Next strictly after Reviewed). Part of `npm run test:hygiene`.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const SRC = readFileSync(new URL('./GUIDE_SOURCES.md', import.meta.url), 'utf8');
+
+const CLASSES = new Set(['National', 'Local', 'Tip', 'Fact', 'Contact']);
+const COLS = ['ID', 'Guide', 'Section', 'Class', 'Reviewed', 'Next', 'Source'];
+
+/**
+ * Parse the register table under the "## Register" heading into row objects.
+ * Only rows with the full 7-column shape are returned; the header and the
+ * `|---|` separator are skipped, as is every other markdown table in the file.
+ * @returns {Array<Record<string,string>>}
+ */
+function parseRegister() {
+    const lines = SRC.split('\n');
+    const start = lines.findIndex(l => l.trim() === '## Register');
+    assert.ok(start !== -1, 'GUIDE_SOURCES.md must contain a "## Register" section');
+    const rows = [];
+    let sawHeader = false;
+    for (let i = start + 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line.startsWith('## ')) break;               // next section ends the register
+        if (!line.startsWith('|')) continue;
+        const cells = line.split('|').slice(1, -1).map(c => c.trim());
+        if (cells[0] === 'ID') { sawHeader = true; continue; }   // header row
+        if (/^-+$/.test(cells[0].replace(/[:\s]/g, '') || '-')) continue; // separator row
+        if (cells.length !== COLS.length) continue;      // not a register data row
+        const row = {};
+        COLS.forEach((c, idx) => { row[c] = cells[idx]; });
+        rows.push(row);
+    }
+    assert.ok(sawHeader, 'the Register table header row was not found');
+    return rows;
+}
+
+const rows = parseRegister();
+
+test('register has a meaningful number of high-risk entries', () => {
+    // Guards against the table being gutted to a stub. The audit named at least: railcards,
+    // GroupSave, FIP allocation, FIP carrier acceptance, contacts, pay/tax.
+    assert.ok(rows.length >= 15, `expected >= 15 register entries, found ${rows.length}`);
+});
+
+test('every row has all seven columns filled', () => {
+    for (const row of rows) {
+        for (const col of COLS) {
+            assert.ok(row[col] && row[col].length > 0, `row ${row.ID || '(no id)'} has an empty "${col}"`);
+        }
+    }
+});
+
+test('IDs are unique and slug-shaped', () => {
+    const seen = new Set();
+    for (const row of rows) {
+        assert.match(row.ID, /^[a-z0-9-]+$/, `ID "${row.ID}" is not a lowercase slug`);
+        assert.ok(!seen.has(row.ID), `duplicate ID "${row.ID}"`);
+        seen.add(row.ID);
+    }
+});
+
+test('every Class is one of the allowed values', () => {
+    for (const row of rows) {
+        assert.ok(CLASSES.has(row.Class), `row ${row.ID}: class "${row.Class}" is not one of ${[...CLASSES].join('/')}`);
+    }
+});
+
+test('Reviewed and Next are YYYY-MM and Next is strictly after Reviewed', () => {
+    for (const row of rows) {
+        assert.match(row.Reviewed, /^\d{4}-\d{2}$/, `row ${row.ID}: Reviewed "${row.Reviewed}" is not YYYY-MM`);
+        assert.match(row.Next, /^\d{4}-\d{2}$/, `row ${row.ID}: Next "${row.Next}" is not YYYY-MM`);
+        const [ry, rm] = row.Reviewed.split('-').map(Number);
+        const [ny, nm] = row.Next.split('-').map(Number);
+        assert.ok(ny * 12 + nm > ry * 12 + rm, `row ${row.ID}: Next (${row.Next}) must be after Reviewed (${row.Reviewed})`);
+        assert.ok(rm >= 1 && rm <= 12 && nm >= 1 && nm <= 12, `row ${row.ID}: month out of range`);
+    }
+});
+
+test('every Source is a URL, a code: ref, or internal', () => {
+    for (const row of rows) {
+        const ok = /^https?:\/\/\S+$/.test(row.Source) || /^code:\S+$/.test(row.Source) || row.Source === 'internal';
+        assert.ok(ok, `row ${row.ID}: Source "${row.Source}" is not an http(s) URL, code: ref, or "internal"`);
+    }
+});
+
+test('the railcard time-rule cards flagged in the audit are present and classified National', () => {
+    // These are the exact rows whose wrong/over-absolute wording drove the v17.45 guide score down;
+    // keep them in the register so a future edit can't drop their provenance.
+    const required = ['rc-forces', 'rc-ff-peak', 'rc-senior-peak', 'rc-groupsave', 'rc-twotogether', 'rc-gold'];
+    const byId = new Map(rows.map(r => [r.ID, r]));
+    for (const id of required) {
+        const row = byId.get(id);
+        assert.ok(row, `required register entry "${id}" is missing`);
+        assert.equal(row.Class, 'National', `entry "${id}" should be classified National`);
+    }
+});
