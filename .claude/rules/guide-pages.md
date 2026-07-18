@@ -37,6 +37,23 @@ All four guide pages share one chrome for consistent behaviour on iOS, Android, 
 - **Safe-area:** side insets `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom `max(40px, env(safe-area-inset-bottom))`.
 - **PDF button markup:** `<button id="savePdfBtn" class="btn-print btn-pdf">⤓ PDF</button>`. Wired by `guide-print.js` (`.btn-print`) on guide/paycalc/fip; `railcard-guide.js` wires `#savePdfBtn` itself because it also owns the chip-bar.
 
+## Source governance — GUIDE_SOURCES.md (v17.50)
+
+High-risk guide claims (anything that could mis-sell/refuse a ticket, invalidate a journey, or
+mis-state pay) are registered in **`GUIDE_SOURCES.md`** with their authoritative source, review
+dates, and a **National / Local / Tip / Fact** classification. `guide-sources.test.mjs` enforces
+that register structurally (part of `npm run test:hygiene`) — every row must keep its source, its
+`Reviewed`/`Next` dates (Next strictly after Reviewed), and a valid class, so the content-assurance
+gap the v17.45 audit flagged can't silently reopen.
+
+- **Before changing a high-risk claim**, update its register row (Source + `Reviewed`), then the guide.
+- The **National vs Local** flag is the anti-drift control: it is what stops a Marylebone shortcut
+  being restated as a universal national rule (the root cause of the v17.45 railcard errors — see the
+  three-layer format below).
+- The test is a **structural** guard, NOT a date tripwire (a today-driven failure would break unrelated
+  commits). Review cadence is manual, driven by the `Next` column — re-check a section when its month
+  arrives; full pass ≥ yearly (railcards each spring; tax before 6 April).
+
 ## Railcard guide
 
 `railcard-guide.html` is an at-work quick reference for staff at the **gateline** and **ticket office**. Not a customer-facing page — judge every decision against "can a staff member glance at this mid-transaction and get the right answer fast?"
