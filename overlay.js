@@ -289,10 +289,20 @@ export function initCardCollapse(headerId, bodyId, chevronId, onToggle) {
         if (!ctrl.hasAttribute('tabindex')) ctrl.setAttribute('tabindex', '0');
     }
     if (!ctrl.hasAttribute('aria-controls')) ctrl.setAttribute('aria-controls', bodyId);
-    // Give a bare chevron/arrow an accessible name from the card's heading ("Toggle Work Email").
+    // Give a bare chevron/arrow an accessible name from the card title ("Toggle Work Email").
+    // Prefer a heading, but FALL BACK to the header itself — some sub-cards title with a <span>, not
+    // an h* (e.g. admin's "Recorded Annual Leave dates" booked-dates cards), and without this fallback
+    // their chevron's only name would be the "▾" glyph. Clone + strip nested buttons (the Tips/Help
+    // "?"), the chevron/arrow, hints, and decorative aria-hidden nodes so the name is JUST the title.
     if (!headerIsControl && !ctrl.hasAttribute('aria-label') && typeof header.querySelector === 'function') {
-        const heading = header.querySelector('h1, h2, h3, h4');
-        const name = (heading?.textContent || '').replace(/\s+/g, ' ').trim();
+        const src = header.querySelector('h1, h2, h3, h4') || header;
+        let name = '';
+        if (typeof src.cloneNode === 'function') {
+            const clone = /** @type {HTMLElement} */ (src.cloneNode(true));
+            clone.querySelectorAll('button, a, .collapse-chevron, .card-toggle-arrow, .hint, [aria-hidden="true"]')
+                .forEach(n => n.remove());
+            name = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+        }
         if (name) ctrl.setAttribute('aria-label', `Toggle ${name}`);
     }
 

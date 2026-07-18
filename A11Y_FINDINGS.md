@@ -52,6 +52,16 @@ calendar `#alBtn` / `#payBtn` and other-month day numbers; paycalc badges (`#pay
   decorative context (darkening them defeats the "not this month" cue for zero SR benefit), so they
   are `.exclude('.other-month')`d in the calendar scan — a targeted exclusion, not a rule waiver.
 
+## Known pre-existing (not gate-caught, low priority)
+
+- **Stale `aria-expanded` on programmatically-opened cards.** A few coordinators open a collapsible
+  card by adding the `.open` class directly (links-app.js ~774, admin-app.js ~1483 / ~1630) without
+  updating `aria-expanded` — so an auto-opened card reports `aria-expanded="false"` until the first
+  manual toggle self-corrects. This predates the v17.50 collapse change (the attribute was equally
+  un-updated when it lived on the header) — `paycalc-settings.js setSettingsCardOpen` is the one path
+  that does it correctly. The axe gate can't catch it (it scans a settled state). Fix when convenient:
+  route those opens through a shared setter, or set `aria-expanded` on the chevron alongside `.open`.
+
 ## Waived rules
 
 No blanket rule waivers. One targeted per-page **element exclusion**: calendar `.other-month` (faint,
