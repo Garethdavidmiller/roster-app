@@ -323,7 +323,10 @@ function renderCalendar() {
 /** @type {ReturnType<typeof setTimeout>|null} */
 let _pendingIdleRender = null;
 function renderCalendarWhenIdle() {
-    if (!isSwipeGestureActive()) { renderCalendar(); return; }
+    // Guard team-view mode on BOTH branches (was only on the deferred retry below) so the direct
+    // path can never paint the personal calendar into #calendarDisplay while team view is active —
+    // self-consistent regardless of whether a future caller pre-checks the mode.
+    if (!isSwipeGestureActive()) { if (!teamView.isTeamViewMode()) renderCalendar(); return; }
     if (_pendingIdleRender) return;
     _pendingIdleRender = setTimeout(function retry() {
         if (isSwipeGestureActive()) { _pendingIdleRender = setTimeout(retry, 120); return; }

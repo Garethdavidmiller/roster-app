@@ -1368,7 +1368,11 @@ export function init() {
                 try {
                     const snap = await getDoc(doc(db, COLLECTIONS.linkDesigns, ref.id));
                     savedAt = snap.data()?.updatedAt ?? null;
-                    loadedUpdatedAt = savedAt?.toMillis?.() ?? null; baselineUnknown = false;
+                    // Mirror the v17.18 saveChanges invariant: a null (unresolved) read-back must
+                    // pair loadedUpdatedAt=null with baselineUnknown=true, else the NEXT save sees
+                    // neither a known timestamp nor the unknown-baseline flag and can clobber a
+                    // co-editor's intervening write with no conflict prompt.
+                    loadedUpdatedAt = savedAt?.toMillis?.() ?? null; baselineUnknown = (loadedUpdatedAt == null);
                 } catch { loadedUpdatedAt = null; baselineUnknown = true; }
                 const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), updatedAt: savedAt, updatedBy: currentUser };
                 designs.push(newEntry);

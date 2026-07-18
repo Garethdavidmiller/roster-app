@@ -599,3 +599,48 @@ Not defects — things that must be done *before* a future date.
   reaches ~5000 documents (query cost + client cache size). A watch item — no action needed yet.
 - **`MAX_YEAR` 2030 → 2032** before the end of 2028 (update the lunar / bank-holiday data first).
 - **2026/27 pay rates** — see "2026/27 pay rates not confirmed" above (update `GRADES` when the award lands).
+
+---
+
+## Whole-app audit — deferred findings (v17.54)
+
+A max-effort adversarial audit (7 parallel subsystem reviews) found **no high/critical bugs** — the
+app is well-hardened. Four low-severity defects were fixed in v17.54 (Cloud Functions header coercion;
+links new-design concurrency-baseline invariant; calendar `renderCalendarWhenIdle` team-view guard;
+`peekNotifState` keyless-subscription check). The findings below were **deliberately not fixed** —
+they are latent, owner-territory, or within a documented tolerance. Each is real; none is urgent.
+
+- **Payday/cutoff crossing a year boundary is filed under the wrong year (LATENT).**
+  `getPaydaysAndCutoffs(year)` files a payday/cutoff under the unshifted payday's year, but a paired
+  cutoff (or a bank-holiday-shifted payday) can fall in the previous December; `isPayday`/`isCutoffDate`
+  then look it up under the date's own year and miss it. **Unreachable under `MAX_YEAR = 2030`** (verified
+  zero misses 2026–2030) — first bites ~2034. **Fix when extending `MAX_YEAR`** (see Time-boxed
+  maintenance above): key each entry under `formatISO(date).slice(0,4)`, or have `_get*Set(year)` also
+  pull `year+1`'s first entry when its cutoff lands in `year`.
+- **Sync-chip retry has no timeout (LOW UX).** `calendar-initial-fetch.js doRetry()` awaits the fetch
+  with no `loadingTimer`/`timeoutTimer`, so on a connection that neither resolves-from-cache nor rejects
+  promptly the chip can strand on "↻ Retrying…" with no re-tap affordance (the initial path always
+  surfaces a tappable error after 10 s). No data impact; the sync-chip state machine is a documented
+  do-not-break invariant, so left as-is.
+- **"Active accounts (30 days)" boundary undercount (LOW, analytics-only).** `usage-stats.js`
+  suppression length (`> 30 days`, strict) equals the window length, so a single account active only at
+  the day-30 boundary can contribute 0 for that span. Never over-counts; matches the documented
+  "usage trend, not exact headcount" tolerance.
+- **A manually-entered Sunday worked shift is stored as `type:'shift'`, not `'rdw'` (LOW, display-only).**
+  The admin week-grid keeps the Shift pill enabled on Sundays; picking it stores `shift` where the
+  roster-import path promotes Sunday times to `rdw`. **Pay is identical** (the suggestion engine buckets
+  any Sunday-worked minutes at 1.5× regardless); only the calendar badge differs (Early/Late vs 💼 RDW).
+  A data-model/display change on a deliberate admin action — owner decision before altering.
+- **Roster-import save path has no equal-start/end guard (VERY LOW).** The two manual authoring paths
+  reject `s === e` (validates 0 h but pays 24 h via overnight-wrap); `_saveOverrideBatches` does not.
+  Implausible from a real roster PDF and visible in the review table before any write.
+- **Applying the *estimated* 2026/27 award rate overstates pre-award (Apr–Jul 2026) periods (LOW,
+  conditional).** The pending 2026/27 award has no `londonAllowFrom`, so there is no mid-year step:
+  clicking "apply estimated rate" prices *all* 2026/27 periods at the estimate, ~£105/period high for
+  the pre-payment months, and the back-pay card also counts those arrears. Behind an opt-in,
+  explicitly-*estimated* action; self-corrects once the confirmed award's payment date is set on the
+  tax year. No clean fix until the award lands.
+- **`nameToEmail` collision surface (LOW, theoretical).** Distinct display-name spellings that differ
+  only in separators/case collapse to one account email (`"A. Mc Donald"` = `"A. McDonald"`). Not
+  exploitable on the current roster; a hygiene hazard for a future compound-surname starter typed two
+  ways. Worth a note in the new-starter flow.
