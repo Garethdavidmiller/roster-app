@@ -402,7 +402,16 @@ in `session.test.mjs`.
 
 ---
 
-## Track E — full-app authentication (put the calendar behind login) — NOT STARTED (captured Jul 2026)
+## Track E — full-app authentication (put the calendar behind login) — IDEA CAPTURED, NOT DECIDED (Jul 2026)
+
+> **Status: undecided — this may or may not ever be built.** Track E is recorded as a *considered
+> option*, not a committed plan. Nothing here is scheduled. The most likely trigger is **external**:
+> if the app becomes (or is being assessed as) official Chiltern infrastructure, **Chiltern IT may
+> eventually require** the sensitive roster data to sit behind authentication rather than a public URL —
+> at which point this becomes a requirement to satisfy, not a choice to weigh. Until such a requirement
+> lands (or the owner independently decides to do it), the deliberate public-calendar design stands and
+> Track E is dormant. See the owner questions at the end — those must be answered before any code, and
+> the "which bar?" answer may itself be dictated by whatever IT asks for.
 
 The idea: today five of six pages sit behind a named login; the **calendar (`index.html`) is
 deliberately public** — it runs an *anonymous* Firebase session and reads `overrides` / `huddles` /
@@ -512,7 +521,7 @@ that reversal.
 | ~~GCP **Workload Identity Pool** setup~~ | ~~A2~~ | **✓ DONE (v14.93)** — pool/provider/binding built with the repo-scoped `assertion.repository` condition (Appendix A2). |
 | reCAPTCHA Enterprise provider | D1/D2 | Required before App Check can attest. |
 | Is the app **official Chiltern infrastructure**? | App Check priority; header-capable hosting | If yes, App Check and Firebase-Hosting-only (drop github.io) rise in priority. |
-| **Full-app auth — which bar?** (casual vs determined outsider) | Track E scope (E1-only vs E1→E3) | The single decision that makes Track E a one-hour rules tweak or a multi-week front-door change. See Track E → Questions Q1. |
+| **Full-app auth — do it at all?** (and if so, which bar?) | Track E (undecided) | Track E is captured but **not decided** — may never be built, or may become a **Chiltern IT requirement** if the app becomes official infrastructure. The "which bar" answer may itself be dictated by IT. See Track E → header + Questions Q1. |
 | **Full-app auth — front-door + offline-lockout acceptable?** | Track E (E2/E3) | Login wall on the PWA `start_url`; lapsed-session **offline** user loses their own cached roster. See Track E → Questions Q2–Q3. |
 
 ---
