@@ -50,6 +50,7 @@ All four guide pages share one chrome for consistent behaviour on iOS, Android, 
 - **Chiltern-specific callouts** (`rc-chiltern`) are amber banners inside the card — keep them.
 - **Photo-check is a table, not prose.** The `.photo-table` inside check step 3 gives colour-coded rows by card type. Distinguish physical vs digital explicitly.
 - **Selling essentials live in gotchas.** Minimum-fare mechanic, First Class eligibility per card, season-ticket exceptions. Do not move these to card rows.
+- **Three-layer breakdown for "varies by route" time rules (v17.48).** Where a card's Mon–Fri cutoff is really a *local shortcut* for a national "morning-peak, off-peak-varies-by-route" rule, the card replaces its `.rc-chiltern` prose note with a `.rc-layers` block of three labelled rows — `.rc-layer-lbl official` (navy: the national rule) / `local` (amber: the Marylebone cutoff staff use) / `check` (red: what the retail system confirms). A single `.time-explainer` box near the top teaches the model once (with `.tl-tag` chips). **Applied ONLY to the genuinely-varies cards — Family & Friends, Senior, GroupSave.** Do NOT blanket every card with it: cards whose time IS fixed (Network 10:00, Gold Card 04:30–09:29) keep the simple note, and adding three layers everywhere would wreck the glanceable one-card scan the guide depends on. This is the durable fix for the root cause the v17.45 audit flagged (a local shortcut masquerading as a universal rule).
 
 **What to care about:**
 - Factual accuracy per card — verify against nationalrail.co.uk before changing any rule.
