@@ -71,6 +71,10 @@
        (8–14% toward white) were so pale the month read as near-uniform off-white, especially on
        the dense 390px grid. Hues are unchanged (the legend stays valid) — only saturation. */
     --orange:       oklch(77.0% 0.1741 64.1deg);
+    /* Deep orange for the ☀️ Early shift BADGE only — same hue as --orange but dark enough to carry
+       WHITE text at AA (the bright --orange can't), keeping Early consistent with every other filled
+       shift badge (white on a deep colour). Calendar cells/pills keep the bright --orange. (v17.55) */
+    --orange-deep:  oklch(54.0% 0.150 64.1deg);
     --orange-light: color-mix(in oklch, var(--orange) 19%, white);
 
     /* Late shift */
@@ -974,7 +978,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .badge-rest  { background: var(--charcoal);  color: white; }
-.badge-early { background: var(--orange);    color: var(--primary-blue); }
+.badge-early { background: var(--orange-deep); color: white; }
 .badge-late  { background: var(--blue-sky);  color: white; }
 .badge-night { background: white; color: var(--night); border: 2px solid var(--night); }
 .badge-spare { background: var(--purple);    color: white; }
@@ -988,7 +992,7 @@ body.lb-open #stickyTotal { display: none !important; }
    black-and-white printers than an all-dark filled badge. */
 @media print {
     .badge-rest  { background: var(--charcoal)  !important; color: white !important; }
-    .badge-early { background: var(--orange)    !important; color: var(--primary-blue) !important; }
+    .badge-early { background: var(--orange-deep) !important; color: white !important; }
     .badge-late  { background: var(--blue-sky)  !important; color: white !important; }
     .badge-spare { background: var(--purple)    !important; color: white !important; }
     .badge-rdw   { background: var(--rdw)       !important; color: white !important; }

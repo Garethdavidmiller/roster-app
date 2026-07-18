@@ -53,10 +53,12 @@ function setupEnv(cfg = {}) {
     const {
         apis = true, ios = false, standalone = true, permission = 'default',
         requestResult = 'granted', hasSub = false, swFails = false, subscribeFails = false,
-        endpoint = 'https://fcm.googleapis.com/push/ABC',
+        endpoint = 'https://fcm.googleapis.com/push/ABC', keyless = false,
     } = cfg;
 
-    const sub = { endpoint, unsubscribe: async () => { sub._unsubscribed = true; return true; }, _unsubscribed: false };
+    // Real PushSubscriptions expose getKey(); a keyless one (some Android builds) returns null.
+    const _getKey = /** @param {string} _n */ (_n) => (keyless ? null : new ArrayBuffer(16));
+    const sub = { endpoint, getKey: _getKey, unsubscribe: async () => { sub._unsubscribed = true; return true; }, _unsubscribed: false };
     const newSub = { endpoint: endpoint + '-new', unsubscribe: async () => { newSub._unsubscribed = true; return true; }, _unsubscribed: false };
     const pushManager = {
         getSubscription: async () => (hasSub ? sub : null),
@@ -205,6 +207,11 @@ describe('peekNotifState (no side effects)', () => {
         assert.equal(await peekNotifState(), 'denied');
         setupEnv({ permission: 'default' });
         assert.equal(await peekNotifState(), 'off-default');
+    });
+    test('granted + KEYLESS subscription → "off-lapsed" (not "on") — matches getNotifState, no side effect', async () => {
+        setupEnv({ permission: 'granted', hasSub: true, keyless: true });
+        assert.equal(await peekNotifState(), 'off-lapsed');
+        assert.equal(_saveCalls, 0, 'peek still never writes');
     });
 });
 

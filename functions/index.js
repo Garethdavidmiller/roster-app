@@ -1204,7 +1204,7 @@ columnScan: one key per column header; every staff member appears in every colum
 
         // ---- Post-processing: validate Sunday values using sundayScan ----
         // Catches blank-misread-as-Monday (Case A) and RDW-stripped (Case B).
-        const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(h.trim().toLowerCase()));
+        const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
         applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
 
         // ---- Filter to known staff names only ----

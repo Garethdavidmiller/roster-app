@@ -197,7 +197,13 @@ export async function peekNotifState() {
         const reg = await swReady();
         /** @type {PushSubscription|null} */
         const sub = await reg.pushManager.getSubscription();
-        return sub ? 'on' : 'off-lapsed';
+        if (!sub) return 'off-lapsed';
+        // A keyless subscription (some Android builds) can never receive a push. Report 'off-lapsed',
+        // not 'on' — matching getNotifState's structural check — so the nav bell / settings card don't
+        // claim notifications are on for a dead sub on non-calendar pages. Peek stays side-effect-free
+        // (no unsubscribe here; getNotifState on the next calendar load does the actual rollback).
+        if (sub.getKey && (!sub.getKey('p256dh') || !sub.getKey('auth'))) return 'off-lapsed';
+        return 'on';
     } catch (err) {
         console.warn('[Notifications] State peek failed:', /** @type {any} */ (err).message);
         return 'off-lapsed';
