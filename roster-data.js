@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '17.48';
+export const APP_VERSION = '17.49';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -516,15 +516,11 @@ function _getBhSet(year) {
 /** @param {any} year */
 function _getEasterSundaySet(year) {
     if (!_easterSundaySetCache.has(year)) {
-        const s = new Set();
-        for (const h of getBankHolidays(year)) {
-            if (h.getDay() === 1 && h.getMonth() >= 2 && h.getMonth() <= 3) {
-                const sun = new Date(h);
-                sun.setDate(h.getDate() - 1);
-                s.add(formatISO(sun));
-            }
-        }
-        _easterSundaySetCache.set(year, s);
+        // Take Easter Sunday straight from computeEaster() — the same Computus source
+        // getBankHolidays() uses. The old approach inferred it by finding a Mon bank
+        // holiday in Mar/Apr and subtracting a day, which would misread a future one-off
+        // Mon bank holiday in that window as Easter Monday and mark a false Easter Sunday.
+        _easterSundaySetCache.set(year, new Set([formatISO(computeEaster(year))]));
     }
     return _easterSundaySetCache.get(year);
 }
