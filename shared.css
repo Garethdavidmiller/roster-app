@@ -514,7 +514,7 @@ body.lb-open #stickyTotal { display: none !important; }
     flex-direction: column;
     gap: 12px;
     background: var(--surface);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);   /* match the modal-picker panel family (date/range picker) */
     box-shadow: var(--shadow-3);
     padding: 22px 22px 18px;
     width: min(380px, 90vw);
@@ -555,31 +555,33 @@ body.lb-open #stickyTotal { display: none !important; }
     gap: 8px;
     margin-top: 2px;
 }
+/* Buttons mirror the app's canonical .btn-primary / .btn-secondary (weight 700, 1.5px border,
+   --radius-button) so the dialog's controls are identical to every other action button. */
 .dialog-btn {
     font-family: inherit;
     font-size: var(--type-button);
-    font-weight: 600;
-    padding: 9px 16px;
+    font-weight: 700;
+    padding: 11px 16px;
     border-radius: var(--radius-button);
-    border: 1px solid transparent;
+    border: 1.5px solid transparent;
     cursor: pointer;
     touch-action: manipulation;
     min-height: 44px;
     transition: transform var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
 }
 .dialog-btn:active { transform: scale(var(--press-scale)); }
-.dialog-btn-cancel {
-    background: transparent;
+.dialog-btn-cancel {           /* = .btn-secondary */
+    background: white;
     border-color: var(--border-mid);
-    color: var(--text-dark);
+    color: var(--primary-blue);
 }
-.dialog-btn-confirm {
+.dialog-btn-confirm {          /* = .btn-primary */
     background: var(--primary-blue);
     color: white;
 }
 .dialog-btn-confirm.danger { background: var(--error-red); }
 @media (hover: hover) and (pointer: fine) {
-    .dialog-btn-cancel:hover  { background: var(--surface-sunken); }
+    .dialog-btn-cancel:hover  { background: var(--bg-light); }
     .dialog-btn-confirm:hover { background: var(--primary-blue-dark); }
     .dialog-btn-confirm.danger:hover { background: var(--error-banner); }
 }
