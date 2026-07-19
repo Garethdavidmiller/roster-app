@@ -324,6 +324,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 @media (hover: hover) and (pointer: fine) { .cf-clear:hover { color: var(--navy); } }
 .cf-clear:focus-visible { outline: 2px solid var(--navy); }
 .cf-count { display: block; font-size: 12px; color: var(--mid); margin-top: 6px; }
+/* An author `display` on these two overrides the UA `[hidden]{display:none}` (cascade origin beats
+   specificity), so the JS `.hidden` toggle would be inert without this — the ✕ would float on an
+   empty field and the count would leave an empty gap. Restore `hidden`'s effect explicitly. */
+.cf-clear[hidden], .cf-count[hidden] { display: none !important; }
 .cf-note  { font-size: 12px; color: var(--light); margin: 8px 0 0; }
 .cf-popular { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 10px; }
 .cf-popular-label {

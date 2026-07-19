@@ -374,12 +374,17 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     await page.goto('/fip.html');
     const search = page.locator('#countrySearch');
     await expect(search).toBeVisible();
+    // On an empty field the clear ✕ and the count are hidden (regression guard: an author `display`
+    // rule can silently override the `hidden` attribute).
+    await expect(page.locator('#countryClear')).toBeHidden();
+    await expect(page.locator('#countryCount')).toBeHidden();
 
-    // Filter to Spain: Spain stays, an unrelated country (Norway) is hidden, count appears.
+    // Filter to Spain: Spain stays, an unrelated country (Norway) is hidden, count + clear appear.
     await search.fill('spain');
     await expect(page.locator('#country-es')).toBeVisible();
     await expect(page.locator('#country-no')).toBeHidden();
     await expect(page.locator('#countryCount')).toContainText('of 25 countries');
+    await expect(page.locator('#countryClear')).toBeVisible();
     // The A–Z chip for a hidden country is hidden too (kept in lockstep with its card).
     await expect(page.locator('.country-jump a[href="#country-no"]')).toBeHidden();
 

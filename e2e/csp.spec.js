@@ -12,7 +12,7 @@
 // to the http-server smoke suite (no headers) and to the static check (config-only).
 //
 // NOTE: this spec is intentionally NOT part of `npm run test:e2e` (playwright.config.mjs excludes it
-// via testMatch); it needs the hosting emulator, which `npm run test:csp` wires up.
+// via `testIgnore`); it needs the hosting emulator, which `npm run test:csp` wires up.
 
 import { test, expect } from '@playwright/test';
 

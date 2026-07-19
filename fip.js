@@ -54,8 +54,11 @@ function applyCountryFilter(/** @type {string} */ raw) {
     });
     if (clearBtn) clearBtn.hidden = !q;
     if (countEl) {
-        countEl.hidden = !q;
-        countEl.textContent = q ? ('Showing ' + shown + ' of ' + countryCards.length + ' countries') : '';
+        // Show the count only while filtering AND something matched — on zero matches the no-match
+        // message is the sole live-region announcement (avoids a double aria-live read).
+        var showCount = !!q && shown > 0;
+        countEl.hidden = !showCount;
+        countEl.textContent = showCount ? ('Showing ' + shown + ' of ' + countryCards.length + ' countries') : '';
     }
     if (noMatchEl) {
         var none = !!q && shown === 0;
