@@ -179,6 +179,30 @@ test('links: shows the in-place login when not signed in', async ({ page }) => {
     expect(errors, 'Uncaught JS exceptions triggering links redirect').toHaveLength(0);
 });
 
+// Regression guard: the auto-generate card holds a wide targets table (one row per shift
+// slot, Mon–Fri / Sat / Sun columns + a spare row). On a narrow phone that table must scroll
+// inside its own card, never stretch the page — a horizontal blowout clips the header and grid.
+test('links: opening the auto-generator causes no horizontal page overflow (narrow phone)', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });   // common Android CSS width
+    await seedSession(page, 'G. Miller');                       // G. Miller is a Links designer
+    await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+
+    // Ensure the generator body is expanded (it auto-opens in the empty state, but make it
+    // deterministic regardless of stubbed-Firebase load order).
+    const opened = await page.evaluate(() => document.getElementById('generatorBody')?.classList.contains('open'));
+    if (!opened) await page.locator('#generatorChevron').click();
+    await expect(page.locator('#generatorBody')).toHaveClass(/open/);
+    await page.waitForTimeout(150);
+
+    const { scrollW, clientW } = await page.evaluate(() => ({
+        scrollW: document.documentElement.scrollWidth,
+        clientW: document.documentElement.clientWidth,
+    }));
+    expect(scrollW, `page scrollWidth ${scrollW}px vs viewport ${clientW}px`).toBeLessThanOrEqual(clientW + 1);
+});
+
 // ── ADMIN TOUCH LAYOUT — no horizontal blowout when a pill with hours is selected ──
 // Regression: on TOUCH devices (pointer: coarse) the bulk-bar time inputs' intrinsic
 // min-width (~180px each, unshrinkable without min-width: 0) stretched the whole page

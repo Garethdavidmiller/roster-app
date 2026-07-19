@@ -773,7 +773,13 @@ export function init() {
                 const genChevron = document.getElementById('generatorChevron');
                 if (genBody && !genBody.classList.contains('open')) {
                     genBody.classList.add('open');
-                    if (genChevron) genChevron.classList.add('open');
+                    if (genChevron) {
+                        genChevron.classList.add('open');
+                        // Keep the collapse control's ARIA state in step with the class-only
+                        // open so a screen reader hears "expanded" (initCardCollapse only
+                        // syncs aria-expanded on click; this programmatic open bypasses it).
+                        genChevron.setAttribute('aria-expanded', 'true');
+                    }
                 }
             }
             renderBrushBar();
