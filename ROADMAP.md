@@ -29,226 +29,30 @@ Individual staff log in and enter their own overrides. Admin (G. Miller) has ele
 
 ## Built since Phase 2
 
-### Daily Huddle viewer ✓ (v5.53–v6.95)
+A changelog of shipped features. The **authoritative** record for each is the code + CLAUDE.md /
+AI_MAP / the `.claude/rules/*` files pointed to below — this section is condensed to the durable
+**design decisions**, the **"considered but NOT shipped"** notes, and the reverts that aren't captured
+elsewhere. **Removed features (✗) keep their full revert/restoration spec below — that is the valuable
+part.**
 
-The daily Huddle PDF arrives by email and opens via the nav drawer's **Daily Huddle** link and notification taps (through the `#huddle` hash). The old `📋 Huddle` header button was removed at v12.57.
+**Shipped ✓ (see the linked authoritative doc for live detail):**
 
-- ✅ Manual upload via admin.html (Phase 1, v5.53)
-- ✅ Automated upload via Power Automate → Cloud Function `ingestHuddle` (Phase 2, v5.66)
-- ✅ Both PDF and DOCX file types supported (v6.95)
-- ✅ Push notifications when a new Huddle arrives (v6.11, v6.61)
-
-**Not needed:** A Huddle history viewer was previously listed here as still to build. The Huddle is a daily operational briefing — its value is knowing your duties on the day in question. Historical browsing is not a real use case for staff.
-
-### Weekly Roster Upload ✓ (v5.77–v5.91)
-
-Admin uploads the weekly PDF roster. Cloud Function `parseRosterPDF` passes the PDF to Claude AI, which reads the table and extracts each person's shifts. The app then shows a per-person review UI and saves only the approved changes.
-
-**Key design decisions:**
-- Direct PDF input to Claude rather than text extraction — pdf-parse destroys the table column structure; Claude reads the visual layout correctly
-- `RDW|HH:MM-HH:MM` internal encoding — preserves the RDW flag through the review pipeline so RDW is identified correctly even on SPARE weeks
-- `source: 'roster_import'` on saved overrides — distinguishes auto-applied from hand-entered; previous imports are always replaced cleanly by a new upload
-
-See CLAUDE.md → "Weekly Roster Upload" for the full API and review pipeline.
-
-### Payday calculator ✓ (v6.50–v7.07)
-
-Staff enter their hours; the calculator computes estimated tax, NI, pension, and take-home pay per pay period. Lives at `paycalc.html` / `paycalc-app.js` (UI coordinator), fully integrated into the main app.
-
-**Key design decisions:**
-- One service worker rather than per-page SWs — two SWs sharing the same scope competed and wiped each other's caches
-- A separate `pay-manifest.json` was used initially so the calculator could install with its own name ("MYB Pay"); since consolidated into the single `manifest.json` (the file no longer exists — PWA long-press shortcuts now cover Calendar/Pay/Admin)
-- Roster-aware fill bar (v7.07) — pre-fills Saturday/Sunday/BH counts from the base roster in one tap; works offline
-
-The calculator is **not** a payslip replacement — estimates only. Actual payslips may differ.
-
-### Huddle push notifications ✓ (v6.11)
-
-Web Push notifications via Firebase Cloud Functions. When a new Huddle arrives, every subscribed device gets a push. Staff subscribe via the toggle in admin.html. VAPID keys live in Firebase Secret Manager.
-
-**iOS note:** Requires Safari and the app installed to the Home Screen. Android Chrome works via the browser.
-
-**iOS notification delivery confirmed (v10.04):** Staff on iOS are receiving Huddle push notifications reliably in real daily use. Native app is not required for this reason.
-
-### Huddle viewer improvements ✓ (v8.97)
-
-Two reliability fixes for the daily Huddle button:
-
-- **Removed Google Docs Viewer iframe** — PDFs now open directly via `window.open(storageUrl)`. Android Chrome's built-in PDF viewer handles it natively, eliminating the 3-round-trip lag that made the old viewer feel slow.
-- **Real-time listener** — replaced the one-time `getDocs` fetch at startup with an `onSnapshot` listener via `subscribeToLatestHuddle()` in `firebase-client.js`. The Huddle button now updates automatically when a new briefing arrives — staff no longer need to refresh the page.
-- **Offline persistence** — `firebase-client.js` now initialises Firestore with `persistentLocalCache()`, which stores query results in IndexedDB. The Huddle button shows the cached briefing instantly on repeat visits before the network confirms.
-
-### Pay calculator — roster pre-fill ✓ (v7.07, improved v8.93–v9.02)
-
-The roster pre-fill bar reads the member's base roster and Firestore overrides, then suggests Saturday/Sunday/bank holiday/RDW/Boxing Day hours in one tap.
-
-- **v8.93–v8.96**: Added per-category row UI (tap a row to fill just that category), confidence badges, day breakdown list.
-- **v8.96**: Desktop layout breakpoint refined; Checking… badge removed (cleaner state display).
-- **v9.02**: Reverted swap/ambig suggestion buckets — rest-day weekday overrides are ignored again (the categorisation was wrong more often than right). Simplified row labels and badge text for plain-English clarity.
-
-### Team Week View ✓ (v8.22–v8.40)
-
-All logged-in staff can view the whole team's shifts for any week directly from the calendar page (👥 Team toggle → grade-tabbed Sun–Sat week grid with live overrides, print-ready). Current behaviour rules: CLAUDE.md → "Team Week View"; module map: AI_MAP.md → `calendar-team-view.js`.
-
-**Key design decisions:**
-- Sun–Sat week via `getSunday(date)` (Chiltern convention — not Mon–Sun)
-- `fetchToken` pattern: rapid week navigation cancels stale Firestore results so the UI never shows data for the wrong week
-- Grade-tabs row uses CSS grid (`1fr auto 1fr`) to keep the tab group centred regardless of how many utility buttons sit on the right
-- Admin-only gate removed at v8.40 — the feature was admin-only (v8.22–v8.39) during development; all staff can now access it
-
-### Navigation overhaul ✓ (v10.57–v10.71)
-
-A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navigation controls —
-started on index/admin/paycalc, extended to operations (v10.99), settings (v11.06), and links
-(v12.07); all six app pages now have it. Key shipped pieces:
-- `NAV_PAGES` page-switcher pills + `NAV_INFORMATION` (Huddle/Circular/Newsletter) + Guides section.
-- Sign-out button and notification 🔔/🔕 bell moved to the drawer footer (`onSignOut` callback per
-  page; push logic stays in `notif.js`).
-- Header back buttons removed from admin/paycalc (duplicate paradigm) → return via the Calendar pill;
-  headers switched to `1fr auto 1fr` grid for true-centred branding.
-- Hardening: double-init guard, Tab focus trap, coming-soon lightbox focus restoration.
-- **Huddle notification-tap PDF fix (v10.71):** a tap carries no user activation, so `window.open`
-  was pop-up-blocked and `location.href` broke standalone mode. `_triggerAutoOpen()` renders an
-  in-overlay "📄 Open Huddle" button; the tap IS a real gesture → opens as a Custom Tab over the
-  intact PWA. (Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".)
-
-(The v10.64–v10.67 nationality-flags feature was **removed at v12.22** — the footer now shows an
-initials avatar; there is no `flags` field on `teamMembers` today. See "Profile photo / avatar".)
-
-**Key design outcome:** the nav panel removed the need for a bottom navigation bar (see "UX
-experiments"). Cross-page navigation is clean without occupying fixed screen space.
-
----
-
-### Security hardening (v10.72–v10.74)
-
-Progress on the four v11 security tasks. Authoritative current status and the re-introduction checklist live in **KNOWN_LIMITATIONS.md → "The four v11 security tasks"**.
-
-- **v10.72 — Firestore member write isolation ⚠️ later suspended (v10.94):** `firestore.rules` was updated so each staff member could only write overrides for themselves (`memberName == request.auth.token.name`), with an admin claim bypass for G. Miller. This was **reverted at v10.94** after it caused a production outage (rules went back to `request.auth != null` with field validation retained). Per-member isolation was later **rebuilt as the three-tier permissive rule (B2, v14.53)** and then **made strict (B3, shipped v16.29)** — overrides create/update/delete now require `token.name == memberName || token.admin || token.manager`, with the legacy no-name escape removed. See KNOWN_LIMITATIONS.md task #2 for the full post-mortem and re-introduction history.
-
-- **v10.73 — Back pay variable pay included in HPP — SUPERSEDED at v16.89:** the original fix fed `_bpVarAmount` into `calcHPP()`. That coupling was later found to DOUBLE-COUNT the award uplift (calcHPP already prices the whole year at the settled rate) and was deliberately removed — the lump no longer feeds HPP. Current rule: `.claude/rules/paycalc.md` → "The lump is deliberately NOT added into the HPP estimate (v16.89)".
-
-- **v10.74 — Code quality fixes:** `.gitignore` added (example payslips, node_modules, .env files). `nav-panel.js` `_closeComingSoon()` given a `transitionend` fallback timer (400 ms) to prevent body scroll staying locked on iOS or under `prefers-reduced-motion`. `paycalc.html` static `rosterHintText` aligned with the JS-set wording. `OPERATIONS_REFERENCE.md` stale `ROSTER_SECRET` reference removed.
-
-- **GCP API key restriction (manual, May 2026):** Firebase web API key restricted to `myb-roster.firebaseapp.com/*` and `myb-roster.web.app/*` HTTP referrers in GCP Console. Verified correct via curl tests.
-
-### Railcard reference guide ✓ (v10.30–v10.48)
-
-`railcard-guide.html` — a standalone at-work reference sheet for staff checking and selling railcard-discounted tickets at the gateline. Linked from the nav panel (Guides section, via `NAV_GUIDES` in `nav-panel.js`) — the old admin.html link was dropped in the v10.57–v10.71 nav overhaul. JS in `railcard-guide.js` (print + chip-bar nav); static page, served by the SW like every other page (SWR since v16.10).
-
-Built over v10.30–v10.48: from an initial guide to a quick-glance at-work sheet (colour-coded
-morning-rule stripe, weekend/BH banner), then a research-backed accuracy overhaul against official
-2026 sources (Network area, Gold Card, Senior/Family & Friends peak rules, GroupSave, season-ticket
-exceptions, the July/August minimum-fare waiver list). Card-by-card factual detail lives in
-`.claude/rules/guide-pages.md`.
-
-**Key design decisions:**
-- Each card is self-contained — its exact time rule lives in its own **When** row so staff never have to cross-reference a key
-- Accuracy verified per card against the relevant official railcard site (nationalrail.co.uk and the individual card sites), re-checked May 2026
-- Static HTML, no module — kept deliberately simple as a low-frequency reference page
-
-### FIP guide information architecture (v1 ✓ v17.64)
-
-`fip.html` is a ~800-line, 25-country reference — the longest guide. **v1 (shipped v17.64):** a
-**country finder** in `fip.js` — a search box that live-filters the country cards AND the A–Z jump
-list by country name OR operator/train text (so "ÖBB"/"Railjet" find their country), with a clear
-button, a live "showing N of 25" count, a no-match message, and a "Popular from Marylebone" shortcut
-row. Progressive enhancement (JS off → every country visible); print unaffected (finder hidden, all
-cards expanded). Tested in `e2e/pages.spec.js` (filter, no-match, clear, popular-clears-filter).
-
-**v2 (v17.66):** the **sticky section chip-bar** shipped — a quick-nav under the header (Overview,
-How it works, Booking, Eurostar, Countries, Ferries, Mistakes, Apply), mirroring the railcard
-chip-bar (click → smooth-scroll + `aria-current`; `fip.js` sits it under the header and sets
-scroll-margin). Tested in `pages.spec.js`.
-
-The other three v2 ideas were **reconsidered and NOT shipped**, on purpose:
-- **Per-card reliability badges (Confirmed / Check-before-travel / High-change):** a "Confirmed" tier
-  would over-promise against `GUIDE_SOURCES.md`, which *explicitly* declines to certify per-country
-  carrier details (the `fip-carrier-accept` row is "sampled, not certified"). A uniform "Check before
-  travel" badge on all 25 cards just duplicates the finder's `cf-note` and the per-card contextual
-  warnings that already exist where volatility is real (Belgium's July-2026 on-board note, Poland's
-  "KMŁ new April 2026" tag). So the honest confidence posture stays in one note + the specific
-  warnings, not 25 badges.
-- **Per-section review dates:** internal governance already tracked per-row in `GUIDE_SOURCES.md`;
-  surfacing a date on every section is clutter on a staff reference. Left in the register.
-- **Collapsible major sections:** invasive (hides read-through prose) and low marginal value now that
-  the finder + chip-bar carry navigation. Held.
-
-**Scrollspy (v17.68):** the chip-bar now marks the current section's chip as you scroll (not only on
-click) — a rAF-throttled scroll tracker with top-of-page / page-bottom edge handling, auto-scrolls the
-active chip into view within the bar, pauses briefly after a click to avoid mid-scroll flicker, and
-honours `prefers-reduced-motion`. Tested in `pages.spec.js`. (This is a fip-only enhancement; the
-railcard chip-bar still marks on click only.)
-
-### Cross-page / navy-chrome / typography consistency passes ✓ (v11.64–v11.88)
-
-A series of completed CSS-only polish passes making the calendar + sub-pages read as one family (no
-behaviour change): the v11.64 UI audit (motion tokens, focus rings, touch targets, hex → tokens),
-the v11.69 navy-header unification (transparent navy chrome on all pages; print resets force white
-bg + navy ink), and the v11.70–v11.88 consistency sweep (centred titles, `--type-*` scale, shared
-components → `shared.css`). All the resulting token/surface/motion/type rules live canonically in
-`.claude/rules/css-tokens.md` — this entry is the shipped-batch record.
-
-### Huddle DOCX flow rework ✓ (v11.66)
-
-Power Automate flow redesigned: old flow used a noon time-of-day condition (before noon = DOCX branch, after noon = PDF branch), meaning afternoon emails always sent PDF even when DOCX was attached. New flow is DOCX-first: filter attachments for DOCX MIME type → if found send DOCX to `ingestHuddle`; else filter for PDF → if found send PDF. No time condition at all.
-
-Viewer code hardened to match: `calendar-huddle-viewer.js` now uses simple `if (htmlContent) render inline; else show "📄 Open Huddle" button` — eliminating a silent DOCX failure in `_triggerAutoOpen` and an incorrect error message in the manual click handler. The auto-open notification path and manual-click path are now logically identical in their branching.
-
----
-
-### Pay reminder infrastructure fix ✓ (v11.65)
-
-`sendPayReminderNotification` (scheduled daily 08:00 London) had never fired — its Cloud Scheduler
-job was never created. Two root causes, both fixed: the deploy service account lacked
-`roles/cloudscheduler.admin` (Firebase silently failed to create the job every deploy); and a stale
-`us-central1` deployment record (from before the region was pinned to `europe-west2`) blocked deploys
-with a 404 on cleanup. Schedule also hardened to Unix cron (`0 8 * * *`). First live test **27 June
-2026** (cutoff for the 3 Jul payday).
-
-### CSS extraction and infrastructure hardening ✓ (v12.01–v12.05)
-
-No end-user-visible behaviour change: all page + guide CSS extracted from inline `<style>` into
-external files; DOMPurify self-hosted (`./purify.es.mjs` v3.4.8, CDN import removed); security headers
-added to `firebase.json` (HSTS, COOP, expanded Permissions-Policy); `normaliseSurname()` shared from
-`firebase-client.js`; ESLint + Firebase-SDK-version checks added to the pre-commit hook.
-- **v12.05 decision:** the v12.04 requirement for anonymous Firebase Auth on calendar `overrides`
-  reads was **reverted** — more complexity than value (anyone can mint an anonymous token as easily
-  as the app). Left open; trade-offs in KNOWN_LIMITATIONS.md + commented in `firestore.rules`.
-
-### Links design workspace ✓ (v12.06–v12.47)
-
-A 28-line rotating link design tool for Marylebone station. Accessible only to `CONFIG.LINKS_DESIGNERS` (currently G. Miller and S. Silva, added v12.33). Flagged beta — a working sketch for agreeing the pattern before the final link is built.
-
-**What was built (v12.06–v12.47):** grid + Firestore load/save (v12.06–07) → beta notice (v12.33) →
-print/sticky-headers/concurrency (v12.37) → the v12.39 patterns-only redesign (paint bar, Design
-Checks, `links-design.js` pure maths) → slot generator + heat map (v12.40) → all-28-rotating model
-(v12.41–43) → multi-design + compare (v12.46–47). Full current architecture (incl. every decision
-below in live form): `.claude/rules/links-design.md`.
-
-**Key design decisions:**
-- **Patterns-only documents** — removing staff names decoupled the pattern-design decision from the assignment decision. Each design document stores `{ name, patterns, updatedAt, updatedBy }` only (multi-design collection since v12.46; the legacy `linkDesigns/combined-28` singleton is auto-migrated on first load and then ignored); legacy `meta` from older saves is silently dropped on next write.
-- **Slot-based generator over early/late binary** — the station is staffed in waves (opens ~06:20, morning build 07:00–08:30, middles 11:00–12:00, afternoons 13:30–14:30, closes 15:00+) with ~25 distinct shift times and genuinely different Saturday and Sunday patterns. A two-bucket binary cannot represent this shape.
-- **Hourly heat map over per-type bar chart** — the bar chart aggregated by shift class and hid whether the waves overlapped or left gaps mid-day. The heat map shows the actual on-duty headcount shape of the day.
-- **Pure-maths module** — all design maths in `links-design.js` (no DOM, no Firebase): `classifyShift`, `normaliseCustomShift`, `calcCoverage`, `calcHourlyCoverage`, `generatePatterns`, `runDesignChecks`, `dayClass`. Tested independently of the app.
-- **Night shifts not applicable (confirmed June 2026)** — CEAs do not work night shifts. `normaliseCustomShift()` rejects starts between 21:00–03:59; the Night option was never exposed.
-
----
-
-### E2E smoke tests ✓ (added v12.65 → removed v12.75 → restored v13.95)
-
-**RESTORED v13.95** once Chromium became available pre-installed in the dev environment (the
-v12.75 removal blocker — the binary couldn't be downloaded — was moot from then on). The suite runs
-locally before every push and gates `deploy-hosting.yml` in CI. Current shape, run commands, and
-caveats (local server applies no CSP headers — use the Hosting emulator for that): CLAUDE.md → `e2e/`
-entry; removed/restored history: KNOWN_LIMITATIONS.md → "E2E smoke tests".
-
-**The one principle to preserve — whatever E2E tool is ever chosen, keep the Firebase CDN-stub
-approach** (`e2e/fixtures.js`): every page's module graph statically imports the gstatic Firebase
-SDK, and in ES modules one failed static import aborts the whole graph — so a slow/blocked CDN on a
-CI runner fails every test in ways no timeout/retry can fix. Intercepting `gstatic.com/firebasejs/**`
-at the network layer and serving local no-op stubs decouples page-load correctness from Firebase
-availability; any tool with request interception can do it.
+- **Daily Huddle viewer** (v5.53–v6.95) — manual + Power-Automate/`ingestHuddle` upload, PDF+DOCX, push notifications. CLAUDE.md → "Huddle ingest". *(A Huddle history viewer was considered and dropped — the Huddle's value is same-day duties, not browsing.)*
+- **Weekly Roster Upload** (v5.77–v5.91) — `parseRosterPDF` → Claude reads the PDF table → per-person review UI. CLAUDE.md → "Weekly Roster Upload". Durable decisions: direct PDF-to-Claude (pdf-parse destroys the table columns; Claude reads the visual layout); the `RDW|HH:MM-HH:MM` internal encoding; `source:'roster_import'` on saved overrides.
+- **Payday calculator** (v6.50–v7.07) — `.claude/rules/paycalc.md`. Durable: **ONE** service worker for all pages (two SWs sharing one scope competed and wiped each other's caches).
+- **Huddle push notifications** (v6.11) — Web Push via Functions; VAPID keys in Secret Manager; iOS needs Safari + installed-to-Home-Screen (confirmed reliable in daily use, v10.04). `.claude/rules/notifications.md`.
+- **Huddle viewer reliability** (v8.97) — direct `window.open(storageUrl)` (dropped the Google Docs iframe + its lag), an `onSnapshot` live listener (`subscribeToLatestHuddle`), and `persistentLocalCache()` for instant cached display.
+- **Pay-calc roster pre-fill** (v7.07; v8.93–v9.02) — per-category fill + confidence badges + day breakdown. **v9.02 reverted the swap/ambiguous suggestion buckets** (rest-day weekday overrides ignored again — the categorisation was wrong more often than right; now permanent — `.claude/rules/paycalc.md` "Conservatism policy").
+- **Team Week View** (v8.22–v8.40) — CLAUDE.md → "Team Week View". Durable: Sun–Sat weeks (`getSunday`, Chiltern convention); the `fetchToken` stale-result discard on rapid week nav; admin-only gate dropped at v8.40 (all staff now).
+- **Navigation overhaul** (v10.57–v10.71) — shared `nav-panel.js` slide-out drawer on all 6 pages; sign-out + 🔔/🔕 bell moved to the footer; header back buttons removed (return via the Calendar pill); headers → `1fr auto 1fr` centred branding. **Notification-tap PDF fix (v10.71):** a tap carries no user activation so `window.open` was pop-up-blocked — `_triggerAutoOpen()` renders an in-overlay "Open Huddle" button (the tap IS a gesture). OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
+- **Security hardening** (v10.72–74) — the v10.72 per-member write isolation was **reverted at v10.94 (production outage)**, later rebuilt as the permissive 3-tier rule (B2, v14.53) then made strict (B3, v16.29) — KNOWN_LIMITATIONS task #2. v10.73 back-pay-in-HPP was **superseded at v16.89** (it double-counted the award uplift — `.claude/rules/paycalc.md`). Plus `.gitignore`, an iOS scroll-lock `transitionend` fallback, and the May-2026 GCP API-key referrer restriction.
+- **Railcard guide** (v10.30–v10.48) + **FIP guide** — `.claude/rules/guide-pages.md`, GUIDE_SOURCES.md. FIP country-finder (v17.64) + sticky section chip-bar (v17.66) + scrollspy (v17.68) shipped. **Three FIP v2 ideas deliberately NOT shipped:** per-card reliability badges (a "Confirmed" tier would over-promise against GUIDE_SOURCES' explicit "sampled, not certified" carrier posture); per-section review dates (already tracked per-row in the register — clutter on a staff reference); collapsible major sections (invasive, low value now the finder + chip-bar carry navigation).
+- **Cross-page / navy-chrome / typography consistency passes** (v11.64–v11.88) — CSS-only, no behaviour change; all resulting token/surface/motion/type rules live in `.claude/rules/css-tokens.md`.
+- **Huddle DOCX flow rework** (v11.66) — Power Automate flow made DOCX-first (the old noon time-of-day condition meant afternoon emails always sent PDF even with a DOCX attached); the viewer's auto-open + manual-click branches unified (`if htmlContent render inline; else "Open Huddle" button`).
+- **Pay reminder infrastructure fix** (v11.65) — the daily 08:00 reminder had **never fired**: the deploy SA lacked `roles/cloudscheduler.admin` (Firebase silently failed to create the Scheduler job every deploy) and a stale `us-central1` record blocked deploys; first live 27 Jun 2026.
+- **CSS extraction + infra hardening** (v12.01–05) — page/guide CSS extracted to external files; DOMPurify self-hosted; security headers (HSTS/COOP/Permissions-Policy); pre-commit ESLint + single-SDK check. **v12.05 reverted** the v12.04 anonymous-auth requirement on calendar `overrides` reads (more complexity than value — anyone can mint an anonymous token as easily as the app; KNOWN_LIMITATIONS → "Override data is publicly readable").
+- **Links design workspace** (v12.06–v12.47) — `.claude/rules/links-design.md`. Durable decisions: patterns-only documents (decouples pattern design from assignment); a slot-based generator over an early/late binary (the station is staffed in **waves**, ~25 distinct start times, distinct Sat/Sun); an hourly heat map over a per-type bar chart (shows the real on-duty shape/gaps); CEAs do not work nights (`normaliseCustomShift` rejects 21:00–03:59).
+- **E2E smoke tests** (v12.65 → removed v12.75 → restored v13.95) — CLAUDE.md → `e2e/`. **The one principle to preserve — whatever E2E tool is ever chosen, keep the Firebase CDN-stub approach** (`e2e/fixtures.js`): every page's module graph statically imports the gstatic Firebase SDK, and in ES modules one failed static import aborts the whole graph — so a slow/blocked CDN on a CI runner fails every test in ways no timeout/retry can fix. Intercept `gstatic.com/firebasejs/**` and serve local no-op stubs; any tool with request interception can do it.
 
 ---
 
