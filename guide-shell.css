@@ -96,16 +96,59 @@
     outline-offset: 2px;
 }
 
+/* ── Section chip-bar (shared v17.72) ────────────────────────────────────────
+   Sticky quick-nav used by railcard-guide.html and fip.html (guide/paycalc have
+   no chip-bar — these rules are simply unused there). Unified here from the two
+   byte-identical per-page copies; the fip variant is the canonical one, so
+   railcard now also gets the `.chip[aria-current]` active-chip highlight it
+   previously lacked. --bg/--border/--white/--navy resolve from each guide page's
+   own :root at the use-site. Border-radius stays a 99px literal — guides don't
+   import the app token system. */
+.chip-bar {
+    position: sticky;
+    top: 54px;   /* refined by the page's JS to the measured header height */
+    z-index: 9;
+    background: var(--bg);
+    padding: 7px max(12px, env(safe-area-inset-left)) 8px;
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    border-bottom: 1px solid var(--border);
+}
+.chip-bar::-webkit-scrollbar { display: none; }
+.chip {
+    flex-shrink: 0;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--navy);
+    padding: 5px 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.chip:active { background: var(--navy); color: white; border-color: var(--navy); }
+.chip:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+/* Active section (set by the page's JS on click) — highlighted so it's clear
+   which section you jumped to. */
+.chip[aria-current] { background: var(--navy); color: white; border-color: var(--navy); }
+
 /* ── Print ──────────────────────────────────────────────────────────────────
    railcard/fip print the sticky header itself as the page's title banner;
    print-color-adjust keeps the navy from rendering white-on-white. guide/
    paycalc mark .page-header .no-print and print their own in-document banner,
-   so these rules are inert there. Hiding the buttons is safe everywhere. */
+   so these rules are inert there. Hiding the buttons + chip-bar is safe everywhere. */
 @media print {
     .page-header {
         position: static;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
-    .btn-back, .btn-pdf { display: none !important; }
+    .btn-back, .btn-pdf, .chip-bar { display: none !important; }
 }

@@ -28,37 +28,7 @@ body {
     background: var(--bg);
 }
 
-/* ── Jump-to chip bar ─────────────────────── */
-.chip-bar {
-    position: sticky;
-    top: 54px; /* refined by JS after header measures */
-    z-index: 9;
-    background: var(--bg);
-    padding: 7px max(12px, env(safe-area-inset-left)) 8px;
-    display: flex;
-    gap: 5px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    border-bottom: 1px solid var(--border);
-}
-.chip-bar::-webkit-scrollbar { display: none; }
-.chip {
-    flex-shrink: 0;
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 99px;
-    font-family: inherit;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--navy);
-    padding: 4px 10px;
-    cursor: pointer;
-    white-space: nowrap;
-    -webkit-tap-highlight-color: transparent;
-}
-.chip:active { background: var(--navy); color: white; border-color: var(--navy); }
-.chip:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+/* Jump-to chip bar (.chip-bar / .chip) is defined in guide-shell.css (shared v17.72). */
 
 /* ── Content wrapper ─────────────────────── */
 .content {
@@ -385,7 +355,7 @@ a { color: var(--navy); text-underline-offset: 2px; }
 @media print {
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { background: white; }
-    .chip-bar { display: none; }
+    /* .chip-bar print-hide is in guide-shell.css (shared) */
     .content { max-width: none; padding: 0 6px; }
     .rc, .gotcha, .check-item, .digital, .weekend-note { break-inside: avoid; }
     .section { break-after: avoid; }

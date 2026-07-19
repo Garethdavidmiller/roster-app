@@ -287,7 +287,7 @@
         }
         .swipe-hint {
             /* On the navy body canvas — on-navy (light) text, not the card greys. */
-            text-align: center; font-size: 11px; color: rgba(255, 255, 255, 0.7);
+            text-align: center; font-size: var(--type-badge); color: rgba(255, 255, 255, 0.7);
             padding: 2px 12px 8px; opacity: 1;
             transition: opacity 0.4s ease;
             pointer-events: none; user-select: none;
@@ -476,7 +476,7 @@
             padding: 6px 10px;
             border-radius: 6px;
             max-width: 210px;
-            z-index: 9999;
+            z-index: var(--z-splash);
             pointer-events: none;
             box-shadow: 0 3px 10px rgba(0,0,0,0.22);
         }
@@ -634,8 +634,8 @@
             justify-content: center;
             gap: 4px;
             padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 11px;
+            border-radius: var(--radius-xl);
+            font-size: var(--type-badge);
             font-weight: 700;
             margin-bottom: 8px;
             text-transform: uppercase;
@@ -787,7 +787,7 @@
             /* Day-of-week headers */
             .day-header {
                 letter-spacing: 1.5px;
-                font-size: 11px;
+                font-size: var(--type-badge);
                 padding: 9px 4px;
             }
 
@@ -827,7 +827,7 @@
             }
 
             .shift-time {
-                font-size: 11px;
+                font-size: var(--type-badge);
                 line-height: 1.4;
             }
 
@@ -913,7 +913,7 @@
             }
 
             .day-header {
-                font-size: 11px;
+                font-size: var(--type-badge);
                 padding: 10px 3px;
             }
 
@@ -926,7 +926,7 @@
             }
 
             .shift-time {
-                font-size: 11px;
+                font-size: var(--type-badge);
             }
 
             .day-number {
@@ -1006,7 +1006,7 @@
             }
 
             .shift-time {
-                font-size: 11px;
+                font-size: var(--type-badge);
             }
 
             .day-number {
@@ -1059,15 +1059,15 @@
                 align-items: center;
             }
             .controls-row { width: auto; }
-            .controls button { padding: 7px 10px; font-size: 11px; }
+            .controls button { padding: 7px 10px; font-size: var(--type-badge); }
             .controls select { padding: 7px 28px 7px 8px; font-size: 16px; max-width: 180px; } /* 16px preserves iOS auto-zoom protection even in landscape */
             .calendar-container { padding: 8px 10px; margin-bottom: 8px; }
             .month-year { font-size: 16px; }
             .calendar-grid { gap: 4px; }
             .calendar-day { min-height: 55px; padding: 4px; }
-            .day-number { font-size: 11px; margin-bottom: 2px; }
+            .day-number { font-size: var(--type-badge); margin-bottom: 2px; }
             .shift-badge { font-size: 7px; padding: 2px 6px; margin-bottom: 2px; }
-            .shift-time { font-size: 11px; }
+            .shift-time { font-size: var(--type-badge); }
             .legend { padding: 6px 12px; margin-bottom: 0; }
             .legend-text { font-size: 10px; }
             .legend-color { width: 12px; height: 12px; }
@@ -1162,7 +1162,7 @@
             background: none;
             border: 1.5px solid var(--border-mid);
             color: var(--text-light);
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             cursor: pointer;
             border-radius: 50%;
@@ -1173,7 +1173,7 @@
             touch-action: manipulation;
             line-height: 1;
             font-family: inherit;
-            transition: color 0.15s, border-color 0.15s;
+            transition: color var(--dur-med), border-color var(--dur-med);
         }
         @media (hover: hover) and (pointer: fine) {
             .team-help-btn:hover { color: var(--primary-blue); border-color: var(--primary-blue); }
@@ -1205,7 +1205,7 @@
             border-right: 2px solid var(--accent-gold);
         }
         .tv-scroll-hint {
-            font-size: 11px;
+            font-size: var(--type-badge);
             color: var(--text-faint);
             text-align: center;
             padding: 3px 0 6px;
@@ -1225,7 +1225,7 @@
             cursor: pointer;
             font-family: inherit;
             touch-action: manipulation;
-            transition: background 0.15s, color 0.15s;
+            transition: background var(--dur-med), color var(--dur-med);
         }
         @media (hover: hover) and (pointer: fine) {
             .tv-today-btn:hover { background: var(--primary-blue); color: white; }
@@ -1247,7 +1247,7 @@
             position: relative;
             padding: 5px 14px;
             border: 2px solid var(--border-light);
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
@@ -1255,7 +1255,7 @@
             color: var(--text-mid);
             font-family: inherit;
             touch-action: manipulation;
-            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            transition: background var(--dur-med), border-color var(--dur-med), color var(--dur-med);
         }
         /* Invisible VERTICAL hit-area expander: the pill is ~28px tall but a primary
            touch control needs a 44px tap target. Expand only top/bottom (inset: -8px 0)
@@ -1356,7 +1356,7 @@
             padding: 7px 5px;
             text-align: center;
             font-weight: 600;
-            font-size: 11px;
+            font-size: var(--type-badge);
             white-space: nowrap;
             position: sticky;
             top: 0;
@@ -1384,7 +1384,7 @@
         .team-table tbody th.tv-name-col {
             background: white;
             font-weight: 600;
-            font-size: 11px;
+            font-size: var(--type-badge);
             color: var(--text-dark);
             border-right: 1px solid var(--border-light);
             padding-right: 6px;
@@ -1405,7 +1405,7 @@
         .tv-cell {
             padding: 5px 4px;
             text-align: center;
-            font-size: 11px;
+            font-size: var(--type-badge);
             white-space: nowrap;
             border-bottom: 1px solid var(--border-light);
             touch-action: manipulation;
@@ -1431,7 +1431,7 @@
         #teamInfoContent {
             background: rgba(255, 255, 255, 0.09);
             border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             padding: 28px 24px 24px;
             width: min(340px, 88vw);
             max-height: 78vh;
@@ -1474,7 +1474,7 @@
         }
         .team-help-list strong { color: rgba(255, 255, 255, 0.92); font-weight: 700; }
         .team-info-section {
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.6px;
@@ -1514,7 +1514,7 @@
         .tv-key-dot--other    { background: var(--other-light); border-color: var(--other); }
         .tv-key-dot--rest   { background: var(--rest-day-bg);   border-color: var(--border-mid); }
         .team-info-note {
-            font-size: 11px;
+            font-size: var(--type-badge);
             color: rgba(255, 255, 255, 0.65); /* raised from 0.35 to clear WCAG AA */
             margin-top: 12px;
             padding-top: 12px;
@@ -1631,7 +1631,7 @@
             .header::after {
                 content: "Team Member: " attr(data-member-name);
                 display: block;
-                font-size: 11px;
+                font-size: var(--type-badge);
                 font-weight: bold;
                 color: var(--primary-blue);
                 margin-top: 4px;
@@ -1792,7 +1792,7 @@
             }
 
             .shift-time {
-                font-size: 11px !important;
+                font-size: var(--type-badge) !important;
                 display: block !important;
                 visibility: visible !important;
                 margin: 0 !important;
@@ -1919,7 +1919,7 @@
             align-items: center;
             justify-content: center;
             gap: 20px;
-            z-index: 9999;
+            z-index: var(--z-splash);
             transition: opacity 0.4s ease;
         }
 
@@ -2118,8 +2118,8 @@
             text-decoration: none;
             padding: 8px 16px;
             border: 1px solid rgba(255,255,255,0.5);
-            border-radius: 20px;
-            transition: color 0.15s, border-color 0.15s, background 0.15s;
+            border-radius: var(--radius-xl);
+            transition: color var(--dur-med), border-color var(--dur-med), background var(--dur-med);
             cursor: pointer;
         }
         @media (hover: hover) and (pointer: fine) {
@@ -2185,7 +2185,7 @@
             justify-content: center;
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
-            transition: color 0.15s ease;
+            transition: color var(--dur-med) ease;
         }
         @media (hover: hover) and (pointer: fine) {
             #huddleViewerClose:hover { color: white; }
@@ -2258,14 +2258,14 @@
             background: var(--primary-blue);
             color: white;
             border: none;
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
             font-size: 1rem;
             font-weight: 700;
             padding: 14px 28px;
             cursor: pointer;
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
-            transition: background 0.15s ease, opacity 0.15s ease;
+            transition: background var(--dur-med) ease, opacity var(--dur-med) ease;
         }
         .huddle-open-btn:active { opacity: 0.8; }
         @media (hover: hover) and (pointer: fine) {
@@ -2317,7 +2317,7 @@
             background: var(--primary-blue);
             color: white;
             border: none;
-            border-radius: 999px;
+            border-radius: var(--radius-pill);
             font-size: var(--type-button);
             font-weight: 700;
             padding: 14px 28px;
@@ -2335,7 +2335,7 @@
         #monthJumpOverlay { z-index: 7000; transition: opacity 0.18s ease; }
         #monthJumpCard {
             background: white;
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             padding: 24px 28px 20px;
             min-width: 260px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
@@ -2387,7 +2387,7 @@
             font-family: inherit;
             cursor: pointer;
             border: none;
-            transition: background 0.15s, transform 0.1s;
+            transition: background var(--dur-med), transform 0.1s;
         }
         .month-jump-actions button:active { transform: scale(var(--press-scale)); }
 
@@ -2410,7 +2410,7 @@
             cursor: pointer;
             border-radius: 6px;
             padding: 2px 6px;
-            transition: background 0.15s;
+            transition: background var(--dur-med);
         }
         .month-year::after {
             content: ' ▾';
@@ -2442,7 +2442,7 @@
             color: var(--blue-sky);
             background: color-mix(in srgb, var(--blue-sky) 12%, transparent);
             border: 1px solid color-mix(in srgb, var(--blue-sky) 30%, transparent);
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             padding: 3px 9px;
             animation: sync-pulse 1.2s ease-in-out infinite;
         }

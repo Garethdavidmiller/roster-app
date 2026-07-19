@@ -8,7 +8,7 @@
 @view-transition { navigation: auto; }
 ::view-transition-old(root),
 ::view-transition-new(root) {
-    animation-duration: 0.15s;
+    animation-duration: var(--dur-med);
     animation-timing-function: ease;
 }
 /* The app neutralises motion everywhere else under reduced-motion; the page crossfade
@@ -277,6 +277,8 @@
     --radius-lg:    18px;
     --radius-button: 10px;  /* action/save buttons — between sm and md */
     --radius:       12px;   /* the app's common discrete-CARD corner (day-row, override/error/usage rows) — was hardcoded in ~8 places */
+    --radius-xl:    20px;   /* large lightbox/panel cards (v17.72 — was a hardcoded 20px in ~20 places) */
+    --radius-pill:  999px;  /* fully-rounded pills/chips (v17.72) */
 
     /* ── Spacing scale (v17.45) ───────────────────────────────────
        Route paddings / gaps through these so the app sits on ONE rhythm
@@ -292,6 +294,7 @@
     /* ── Typography scale ─────────────────────────────────────────
        16px form input size is intentional — iOS zooms inputs < 16px. */
     --type-micro:  10px;
+    --type-badge:  11px;   /* badges + dense rows (v17.72 — the most-used off-scale size, ~80 places) */
     --type-small:  12px;
     --type-label:  13px;   /* card headers, dense row text */
     --type-body:   14px;
@@ -330,7 +333,15 @@
     --ease-emphasized: cubic-bezier(0.32, 0.72, 0, 1); /* entrances, iOS-like decel */
     --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1); /* playful overshoot */
     --dur-fast: 0.12s;
+    --dur-med:  0.15s;   /* v17.72 — the de-facto third duration (was a hardcoded 0.15s in ~30 places) */
     --dur-base: 0.2s;
+
+    /* Stacking order (v17.72). The overlay layer was hand-picked magic numbers; the login overlay
+       and the paycalc one-time notices both sat at 9000 (a tie resolved only by source order). */
+    --z-lightbox: 8000;   /* .lb-overlay base (About / Tips / dialogs / pickers) */
+    --z-notice:   8500;   /* one-time notice lightboxes — above the lightbox base, below login */
+    --z-login:    9000;   /* login overlay — must sit above content and notices */
+    --z-splash:   9999;   /* splash-watchdog recovery panel + hover tooltip (top of everything) */
     --press-scale: 0.97;
 
     /* ── Native form control tinting ─────────────────────────────
@@ -437,7 +448,7 @@ body {
     position: fixed;
     inset: 0;
     background: rgba(0, 10, 20, 0.82);
-    z-index: 8000;
+    z-index: var(--z-lightbox);
     align-items: center;
     justify-content: center;
     opacity: 0;
@@ -494,7 +505,7 @@ body.lb-open #stickyTotal { display: none !important; }
     line-height: 1;
     cursor: pointer;
     padding: 6px;
-    transition: color 0.15s ease;
+    transition: color var(--dur-med) ease;
     touch-action: manipulation;
     min-width: 44px;
     min-height: 44px;
@@ -641,9 +652,9 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 5px 14px;
     background: color-mix(in oklch, var(--accent-gold) 15%, white);
     border: 1px solid color-mix(in oklch, var(--accent-gold) 35%, white);
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     color: var(--accent-gold);
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.6px;
@@ -660,7 +671,7 @@ body.lb-open #stickyTotal { display: none !important; }
     font-size: 12px;
     color: rgba(255,255,255,0.70); /* raised from 0.35 (3.2:1) — interactive link needs 4.5:1 */
     text-decoration: none;
-    transition: color 0.15s;
+    transition: color var(--dur-med);
 }
 @media (hover: hover) and (pointer: fine) {
     .lightbox-bug-link:hover { color: white; }
@@ -673,7 +684,7 @@ body.lb-open #stickyTotal { display: none !important; }
     padding-top: 12px;
     border-top: 1px solid rgba(255,255,255,0.1);
     width: 100%;
-    font-size: 11px;
+    font-size: var(--type-badge);
     line-height: 1.5;
     color: rgba(255,255,255,0.6);
     text-align: center;
@@ -695,7 +706,7 @@ body.lb-open #stickyTotal { display: none !important; }
     gap: 4px;
     padding: 3px 10px;
     border-radius: 14px;
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     letter-spacing: 0.4px;
     text-transform: uppercase;
@@ -812,7 +823,7 @@ body.lb-open #stickyTotal { display: none !important; }
     font-weight: 600;
     margin-top: 8px;
     padding: 4px 12px;
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     min-height: 24px;
 }
 .lightbox-status.up-to-date {
@@ -831,7 +842,7 @@ body.lb-open #stickyTotal { display: none !important; }
     width: 100%;
 }
 .lightbox-tips-title {
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     color: rgba(255,255,255,0.65); /* raised from 0.35 (3.2:1) to clear WCAG AA */
     text-transform: uppercase;
@@ -865,7 +876,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .lightbox-tip-key {
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     color: rgba(255,255,255,0.8);
     background: rgba(255,255,255,0.1);
@@ -891,14 +902,14 @@ body.lb-open #stickyTotal { display: none !important; }
     background: rgba(255,255,255,0.1);
     color: white;
     border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     font-family: inherit;
     font-size: 13px;
     font-weight: 600;
     padding: 8px 20px;
     cursor: pointer;
     touch-action: manipulation;
-    transition: background 0.15s;
+    transition: background var(--dur-med);
     width: 100%;
 }
 .lightbox-print-btn:active { background: rgba(255,255,255,0.2); }
@@ -906,7 +917,7 @@ body.lb-open #stickyTotal { display: none !important; }
     .lightbox-print-btn:hover { background: rgba(255,255,255,0.18); }
 }
 .lightbox-print-hint {
-    font-size: 11px;
+    font-size: var(--type-badge);
     color: rgba(255,255,255,0.65); /* raised from 0.35 to clear WCAG AA */
 }
 
@@ -966,10 +977,10 @@ body.lb-open #stickyTotal { display: none !important; }
 .badge-page {
     background: var(--accent-gold);
     color: var(--primary-blue);
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 800;
     padding: 4px 10px;
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     text-transform: uppercase;
     letter-spacing: 0.6px;
     flex-shrink: 0;
@@ -1028,7 +1039,7 @@ body.lb-open #stickyTotal { display: none !important; }
     .app-icon,
     .app-header img { width: 40px; height: 40px; }
     .badge-page {
-        font-size: 11px;
+        font-size: var(--type-badge);
         padding: 5px 12px;
     }
 }
@@ -1044,7 +1055,7 @@ body.lb-open #stickyTotal { display: none !important; }
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; flex-shrink: 0; touch-action: manipulation;
     font-family: inherit; line-height: 1;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
     vertical-align: middle; margin-left: 5px; position: relative;
 }
 .help-btn::before {
@@ -1064,8 +1075,8 @@ body.lb-open #stickyTotal { display: none !important; }
     align-items: center;
     gap: 3px;
     padding: 3px 8px;
-    border-radius: 20px;
-    font-size: 11px;
+    border-radius: var(--radius-xl);
+    font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -1257,7 +1268,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .nav-panel-version {
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 600;
     color: var(--nav-text-faint);
     letter-spacing: 0.2px;
@@ -1319,7 +1330,7 @@ body.lb-open #stickyTotal { display: none !important; }
     font-weight: 600;
     text-decoration: none;
     touch-action: manipulation;
-    transition: background 0.15s;
+    transition: background var(--dur-med);
     -webkit-user-select: none;
     user-select: none;
 }
@@ -1559,7 +1570,7 @@ button.nav-panel-link--notices {
     margin-bottom: 2px;
 }
 .notices-item-section {
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     letter-spacing: 0.4px;
     text-transform: uppercase;
@@ -1571,7 +1582,7 @@ button.nav-panel-link--notices {
 .notices-item-section--ops      { color: var(--orange); }
 .notices-item-section--calendar { color: var(--accent-gold); }
 .notices-item-date {
-    font-size: 11px;
+    font-size: var(--type-badge);
     color: rgba(255, 255, 255, 0.65); /* raised from 0.35 (2.79:1) to clear WCAG AA */
     white-space: nowrap;
 }
@@ -1668,7 +1679,7 @@ button.nav-panel-link--notices {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     line-height: 1;
     color: white;
@@ -1737,7 +1748,7 @@ button.nav-panel-link--notices {
     position: fixed;
     inset: 0;
     background: var(--primary-blue);
-    z-index: 9000;
+    z-index: var(--z-login);
     align-items: flex-start;
     justify-content: center;
     overflow-y: auto;
@@ -1781,7 +1792,7 @@ button.nav-panel-link--notices {
 }
 .login-field label {
     display: block;
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     color: var(--text-mid);
     text-transform: uppercase;
@@ -2040,7 +2051,7 @@ button.nav-panel-link--notices {
     border: 1.5px solid var(--border-mid);
     background: var(--bg-faint);
     color: var(--text-light);
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     cursor: pointer;
     vertical-align: middle;
@@ -2080,7 +2091,7 @@ button.nav-panel-link--notices {
     margin-bottom: 16px;
 }
 .tips-lb-section {
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;

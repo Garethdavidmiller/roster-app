@@ -54,40 +54,8 @@ body {
    chip-bar. fip.js refines this to the measured height; this is the pre-JS / JS-off fallback. */
 .section-label[id], details[id], div[id] { scroll-margin-top: 100px; }
 
-/* ── Section chip-bar (v17.66) — sticky quick-nav, mirrors railcard-guide ── */
-.chip-bar {
-    position: sticky;
-    top: 54px;   /* refined by fip.js to the measured header height */
-    z-index: 9;
-    background: var(--bg);
-    padding: 7px max(12px, env(safe-area-inset-left)) 8px;
-    display: flex;
-    gap: 5px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    border-bottom: 1px solid var(--border);
-}
-.chip-bar::-webkit-scrollbar { display: none; }
-.chip {
-    flex-shrink: 0;
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: 99px;
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--navy);
-    padding: 5px 11px;
-    cursor: pointer;
-    white-space: nowrap;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-}
-.chip:active { background: var(--navy); color: white; border-color: var(--navy); }
-.chip:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
-/* Active section (set by fip.js on click) — highlighted so it's clear which section you jumped to. */
-.chip[aria-current] { background: var(--navy); color: white; border-color: var(--navy); }
+/* Section chip-bar (.chip-bar / .chip, incl. .chip[aria-current]) is defined in
+   guide-shell.css (shared v17.72 — the fip variant is the canonical one). */
 
 /* ── Plain card ──────────────────────────── */
 .card {
@@ -429,7 +397,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
     /* The shell prints .page-header as the title banner and hides its
        buttons; here we just drop the remaining screen-only chrome. */
-    .chip-bar,
+    /* .chip-bar print-hide is in guide-shell.css (shared) */
     .country-finder,
     .country-jump,
     .btn-primary,

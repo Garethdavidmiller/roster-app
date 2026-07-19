@@ -180,7 +180,7 @@ body.auth-ready .container { display: grid; }
     margin: 0 0 12px;
 }
 .roster-outcome[hidden] { display: none; }
-.ro-h { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+.ro-h { margin: 0 0 8px; font-size: var(--type-badge); font-weight: 700; letter-spacing: 0.05em;
         text-transform: uppercase; color: var(--text-mid); }
 .ro-line { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; padding: 3px 0; color: var(--text-dark); }
 .ro-k { flex: 0 0 auto; width: 16px; text-align: center; font-weight: 800; line-height: 1.4; }
@@ -209,16 +209,16 @@ body.auth-ready .container { display: grid; }
 .roster-change-badge {
     font-size: 10px; font-weight: 700;
     background: var(--primary-blue); color: white;
-    border-radius: 20px; padding: 2px 7px;
+    border-radius: var(--radius-xl); padding: 2px 7px;
 }
 .roster-skip-all-btn {
-    font-size: 11px; font-weight: 600;
+    font-size: var(--type-badge); font-weight: 600;
     color: var(--text-mid);
     background: none;
     border: 1px solid var(--border-light);
-    border-radius: 20px; padding: 3px 10px;
+    border-radius: var(--radius-xl); padding: 3px 10px;
     cursor: pointer; white-space: nowrap;
-    transition: border-color 0.15s, color 0.15s;
+    transition: border-color var(--dur-med), color var(--dur-med);
 }
 @media (hover: hover) and (pointer: fine) {
     .roster-skip-all-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
@@ -264,16 +264,16 @@ body.auth-ready .container { display: grid; }
 }
 .roster-chg-day { display: flex; flex-direction: column; align-items: flex-start; min-width: 44px; }
 .roster-day-abbr { font-size: 12px; font-weight: 700; color: var(--text-dark); }
-.roster-day-date { font-size: 11px; color: var(--text-light); }
+.roster-day-date { font-size: var(--type-badge); color: var(--text-light); }
 .roster-chg-vals {
     display: flex; align-items: center; gap: 6px;
     flex: 1; flex-wrap: wrap; font-size: 12px;
 }
-.roster-from-val { opacity: 0.5; font-size: 11px; }
+.roster-from-val { opacity: 0.5; font-size: var(--type-badge); }
 .roster-from-val .shift-badge { font-size: 10px; padding: 1px 5px; }
-.roster-arrow { color: var(--text-light); font-size: 11px; }
+.roster-arrow { color: var(--text-light); font-size: var(--type-badge); }
 .roster-to-val { font-size: 12px; }
-.review-shift-time { font-size: 11px; font-weight: 600; color: var(--text-mid); margin-left: 4px; }
+.review-shift-time { font-size: var(--type-badge); font-weight: 600; color: var(--text-mid); margin-left: 4px; }
 /* Tick control — "this row will save". Ticked = green box; tap to skip (empties it + dims the row). */
 .roster-tick {
     flex: 0 0 auto; width: 24px; height: 24px; padding: 0;
@@ -281,7 +281,7 @@ body.auth-ready .container { display: grid; }
     background: var(--success-green); color: white;
     font-size: 14px; font-weight: 900; line-height: 1;
     display: inline-flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: background 0.15s, border-color 0.15s;
+    cursor: pointer; transition: background var(--dur-med), border-color var(--dur-med);
 }
 .roster-tick.off { background: white; border-color: var(--border-mid); color: transparent; }
 .roster-tick:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
@@ -312,12 +312,12 @@ body.auth-ready .container { display: grid; }
 .roster-pick { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
 .roster-choice-btn {
     flex: 1 1 auto;
-    font-size: 11px; font-weight: 700;
+    font-size: var(--type-badge); font-weight: 700;
     padding: 7px 11px; border-radius: 8px;
     border: 1.5px solid var(--border-light);
     background: white; color: var(--text-mid);
     cursor: pointer; white-space: nowrap;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
 }
 .roster-choice-btn.is-chosen { background: var(--success-green); color: white; border-color: var(--success-green); }
 @media (hover: hover) and (pointer: fine) {
@@ -339,14 +339,14 @@ body.auth-ready .container { display: grid; }
 .roster-change-row.roster-change-unreadable { background: color-mix(in oklch, var(--warning-amber) 10%, white); }
 .review-shift-unreadable { font-size: 12px; font-weight: 600; color: var(--warning-amber); }
 /* REMOVE_IMPORT — a stale PDF import whose day now matches base; approving deletes it (no write). */
-.roster-remove-note { font-size: 11px; color: var(--text-light); font-style: italic; }
+.roster-remove-note { font-size: var(--type-badge); color: var(--text-light); font-style: italic; }
 .roster-cancel-btn {
     display: block; width: 100%;
     background: none; border: 1.5px solid var(--border-light);
     color: var(--text-mid); padding: 11px; border-radius: 10px;
     font-size: 15px; font-weight: 600; cursor: pointer;
     margin-top: 10px; font-family: inherit;
-    transition: border-color 0.15s, color 0.15s;
+    transition: border-color var(--dur-med), color var(--dur-med);
 }
 @media (hover: hover) and (pointer: fine) {
     .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
@@ -424,7 +424,7 @@ select:focus-visible, input:focus-visible {
    dark backdrop, matching the app's other content lightboxes). */
 .dp-content {
     background: var(--surface);
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     padding: 20px;
     width: min(340px, calc(100vw - 40px));
     max-height: 88vh;
@@ -449,7 +449,7 @@ select:focus-visible, input:focus-visible {
 .dp-nav-btn:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; }
 .dp-month { font-size: 14px; font-weight: 700; color: var(--text-dark); }
 .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 8px; }
-.dp-dow { height: 28px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--text-light); }
+.dp-dow { height: 28px; display: flex; align-items: center; justify-content: center; font-size: var(--type-badge); font-weight: 600; color: var(--text-light); }
 .dp-filler { min-height: 44px; cursor: default; pointer-events: none; }
 .dp-day {
     height: 44px; min-height: 44px;
@@ -573,7 +573,7 @@ select:focus-visible, input:focus-visible {
     font-size: var(--type-small);
     background: var(--bg-faint);
     border: 1px solid var(--border-light);
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     padding: 3px 10px;
     color: var(--text-mid);
     white-space: nowrap;
@@ -635,7 +635,7 @@ select:focus-visible, input:focus-visible {
     min-width: 0;
 }
 .email-set-btn {
-    font-size: 11px;
+    font-size: var(--type-badge);
     padding: 3px 10px;
     border: 1px solid var(--border-mid);
     border-radius: var(--radius);
@@ -803,7 +803,7 @@ select:focus-visible, input:focus-visible {
 .error-when    { font-size: var(--type-small); color: var(--text-faint); white-space: nowrap; }
 .error-member  { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); }
 .error-page    { font-size: var(--type-small); color: var(--text-mid); font-family: monospace; }
-.error-version { font-size: 11px; color: var(--text-faint); font-family: monospace; }
+.error-version { font-size: var(--type-badge); color: var(--text-faint); font-family: monospace; }
 .error-msg     { font-size: 12px; color: var(--error-red); flex: 1 1 100%; word-break: break-word; margin-top: 2px; }
 
 .error-stack-details { margin-bottom: 6px; }
@@ -814,7 +814,7 @@ select:focus-visible, input:focus-visible {
     user-select: none;
 }
 .error-stack {
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-family: monospace;
     background-color: var(--surface-sunken);
     border-radius: 6px;
@@ -920,14 +920,14 @@ select:focus-visible, input:focus-visible {
     height: 8px;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     overflow: hidden;
 }
 .usage-bar-fill {
     display: block;
     height: 100%;
     background: var(--primary-blue);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
 }
 .usage-bar-count {
     font-size: var(--type-small);
@@ -1019,7 +1019,7 @@ select:focus-visible, input:focus-visible {
 .speed-bar {
     display: flex;
     height: 12px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     overflow: hidden;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
@@ -1043,7 +1043,7 @@ select:focus-visible, input:focus-visible {
 .speed-toggle {
     display: inline-flex;
     border: 1.5px solid var(--border-light);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     overflow: hidden;
     margin-bottom: 14px;
     background: var(--surface-sunken);
