@@ -68,7 +68,7 @@ body.auth-ready .container { display: grid; }
     align-items: center;
     flex-shrink: 0;
     padding: 3px 9px;
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.9px;
@@ -150,7 +150,7 @@ body.auth-ready .container { display: grid; }
 .links-save-status { font-size: 13px; color: var(--text-mid); }
 .links-save-status.ok  { color: var(--success-green); }
 .links-save-status.err { color: var(--error-red); }
-.links-last-saved  { font-size: 11px; color: var(--text-light); }
+.links-last-saved  { font-size: var(--type-badge); color: var(--text-light); }
 
 /* Links page uses .btn-save inline (not full-width) — override the shared defaults */
 .btn-save { flex: none; width: auto; padding: 10px 20px; }
@@ -217,7 +217,7 @@ body.auth-ready .container { display: grid; }
     padding: 4px 2px;
 }
 .cov-heat-note {
-    font-size: 11px;
+    font-size: var(--type-badge);
     color: var(--text-light);
     margin: 10px 0 0;
     line-height: 1.5;
@@ -253,7 +253,7 @@ body.auth-ready .container { display: grid; }
 }
 .links-grid thead th {
     background: var(--surface-sunken);
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -277,7 +277,7 @@ body.auth-ready .container { display: grid; }
 
 /* Position number cell */
 .links-grid .pos-num {
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     color: var(--text-light);
     padding: 0 4px;
@@ -384,7 +384,7 @@ body.auth-ready .container { display: grid; }
 .cov-cell .cov-num {
     display: block;
     font-weight: 700;
-    font-size: 11px;
+    font-size: var(--type-badge);
     color: var(--text-dark);
 }
 .cov-label-e { color: var(--shift-early-text); }
@@ -481,12 +481,12 @@ body.auth-ready .container { display: grid; }
 .check-cross     { color: var(--error-red); }
 .check-info-icon { color: var(--text-mid); }
 .check-body { flex: 1; min-width: 0; }
-.check-note { font-size: 11px; color: var(--text-mid); }
-.check-sub  { font-size: 11px; color: var(--text-mid); margin-top: 3px; }
+.check-note { font-size: var(--type-badge); color: var(--text-mid); }
+.check-sub  { font-size: var(--type-badge); color: var(--text-mid); margin-top: 3px; }
 .check-list {
     margin: 6px 0 0 0;
     padding-left: 18px;
-    font-size: 11px;
+    font-size: var(--type-badge);
     color: var(--text-mid);
     line-height: 1.5;
 }
@@ -594,7 +594,7 @@ body.auth-ready .container { display: grid; }
     min-height: 1em;
 }
 .gen-note {
-    font-size: 11px;
+    font-size: var(--type-badge);
     color: var(--text-light);
     margin: 8px 0 0;
 }
@@ -635,7 +635,7 @@ body.auth-ready .container { display: grid; }
 .design-chip {
     display: inline-flex;
     align-items: center;
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     border: 1px solid var(--border-light);
     background: var(--surface-sunken);
     color: var(--text-mid);
@@ -645,7 +645,7 @@ body.auth-ready .container { display: grid; }
 .design-chip-name {
     background: none;
     border: none;
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     padding: 4px 10px;
     font-size: 12px;
     font-weight: 600;
@@ -675,7 +675,7 @@ body.auth-ready .container { display: grid; }
     background: none;
     border: none;
     padding: 1px 3px;
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-family: inherit;
     color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
@@ -696,7 +696,7 @@ body.auth-ready .container { display: grid; }
 .btn-design-dup {
     background: none;
     border: 1px solid var(--border-light);
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     padding: 4px 10px;
     font-size: 12px;
     font-family: inherit;
@@ -717,7 +717,7 @@ body.auth-ready .container { display: grid; }
 .btn-design-compare {
     background: none;
     border: 1px solid var(--border-light);
-    border-radius: 20px;
+    border-radius: var(--radius-xl);
     padding: 4px 10px;
     font-size: 12px;
     font-family: inherit;
@@ -799,7 +799,7 @@ body.auth-ready .container { display: grid; }
 }
 .compare-col { min-width: 0; }
 .compare-col-head {
-    font-size: 11px;
+    font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;

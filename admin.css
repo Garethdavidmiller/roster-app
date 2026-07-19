@@ -190,7 +190,7 @@
         .al-banner.al-banner-low .al-banner-stat.stat-remaining .stat-val { color: var(--al-low); }
         .al-banner.al-banner-warning .al-banner-stat.stat-remaining .stat-val { color: var(--al-warning); }
         .al-banner-warning-msg {
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 600;
             color: var(--al-warning);
             background: var(--al-warning-bg);
@@ -368,7 +368,7 @@
         }
 
         .bulk-bar-label {
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             color: var(--text-mid);
             text-transform: uppercase;
@@ -393,7 +393,7 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             color: var(--text-mid);
             white-space: nowrap;
@@ -427,7 +427,7 @@
         }
 
         .bulk-sel-count {
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 600;
             color: var(--primary-blue);
             background: var(--blue-light);
@@ -441,7 +441,7 @@
             background: white;
             border: 1.5px solid var(--border-light);
             color: var(--text-mid);
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             padding: 5px 10px;
             border-radius: var(--radius-xs);
@@ -462,11 +462,11 @@
         .type-pill-btn {
             border: 1.5px solid currentColor;
             background: transparent;
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             padding: 5px 10px;
             min-height: 44px;
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             cursor: pointer;
             white-space: nowrap;
             transition: all 0.12s;
@@ -712,14 +712,14 @@
         }
 
         .col-day .day-date {
-            font-size: 11px;
+            font-size: var(--type-badge);
             color: var(--text-light);
             display: block;
         }
 
         /* Special day badges — ⭐ ✂️ 💷 🎄 🐣 🌙 ☪️ 🕌 */
         .day-badge {
-            font-size: 11px;
+            font-size: var(--type-badge);
             margin-left: 4px;
             vertical-align: middle;
             cursor: default;
@@ -736,7 +736,7 @@
            trimmed height + 1px border so short labels (AL, RDW) read as capsules, not the
            fat circles a 44px min-height produced. */
         .col-pills .type-pill-btn {
-            font-size: 11px;
+            font-size: var(--type-badge);
             padding: 5px 15px;
             min-height: 34px;
             border-width: 1px;
@@ -793,13 +793,13 @@
         /* Fixed types (AL, Set as Rest Day): hide inputs, show note instead */
         .day-row.active.fixed-type .col-time .time-input,
         .day-row.active.fixed-type .col-time .time-sep { visibility: hidden; }
-        .time-note { display: none; font-size: 11px; color: var(--text-light); font-style: italic; }
+        .time-note { display: none; font-size: var(--type-badge); color: var(--text-light); font-style: italic; }
         .day-row.active.fixed-type .time-note { display: block; }
 
         /* RD disambiguation hint — shown when Shift is chosen on a base rest day */
         .col-rd-hint {
             grid-column: 1 / -1;
-            font-size: 11px;
+            font-size: var(--type-badge);
             padding: 4px 8px;
             border-radius: 4px;
             background: var(--rd-hint-bg);
@@ -1127,7 +1127,7 @@
             background: transparent;
             color: var(--primary-blue);
             border: 1px solid var(--border-light);
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             padding: 4px 9px;
             border-radius: var(--radius-xs);
@@ -1142,7 +1142,7 @@
             background: transparent;
             color: var(--error-red);
             border: 1px solid currentColor;
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             padding: 4px 10px;
             border-radius: var(--radius-xs);
@@ -1280,7 +1280,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 600;
             color: var(--text-light);
         }
@@ -1361,7 +1361,7 @@
         .al-period-month { margin-bottom: 12px; }
         .al-period-month:last-child { margin-bottom: 0; }
         .al-period-month-hdr {
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             color: var(--text-light);
             text-transform: uppercase;
@@ -1395,7 +1395,7 @@
             gap: 8px;
         }
         .al-period-count {
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             color: var(--al-deep);
             background: var(--al-light);
@@ -1404,7 +1404,7 @@
             white-space: nowrap;
         }
         .sick-period-count {
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             color: var(--absence);
             background: var(--absence-light);
@@ -1419,7 +1419,7 @@
             border-radius: var(--radius-xs);
             background: transparent;
             color: var(--text-light);
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-family: inherit;
             cursor: pointer;
             white-space: nowrap;
@@ -1548,7 +1548,7 @@
             align-items: center;
             gap: 12px;
             flex-wrap: wrap;
-            z-index: 8000;
+            z-index: var(--z-lightbox);
             font-size: 14px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
@@ -1887,7 +1887,7 @@
             background: white;
             border: 1.5px solid var(--border-light);
             color: var(--text-mid);
-            font-size: 11px;
+            font-size: var(--type-badge);
             font-weight: 700;
             padding: 5px 10px;
             border-radius: var(--radius-xs);
@@ -1982,12 +1982,12 @@
    min-content is one chip, never the sum — prevents the touch-layout blowout at 360px. */
 .other-flavour-group { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .other-flavour-btn {
-    font-size: 11px; font-weight: 700;
-    padding: 3px 10px; border-radius: 20px;
+    font-size: var(--type-badge); font-weight: 700;
+    padding: 3px 10px; border-radius: var(--radius-xl);
     border: 1.5px solid var(--other);
     background: white; color: var(--other);
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--dur-med), color var(--dur-med);
 }
 .other-flavour-btn.active { background: var(--other); color: white; }
 /* Spare lives in this submenu but is its own thing — keep its 📋 purple colour (v15.57). */
@@ -2003,9 +2003,9 @@
     cursor: pointer; white-space: nowrap;
 }
 .other-rdw-label input { accent-color: var(--other); }
-.other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: 11px; }
+.other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
 .other-rdw-warn[hidden] { display: none; }
-.other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: 11px; }
+.other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
 @media print {
     .lpill-other { background: var(--other-light) !important; color: var(--other) !important; }
     .other-opts { display: none !important; }
