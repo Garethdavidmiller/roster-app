@@ -151,3 +151,19 @@ card + the four occasional cards, so column 3 is FILLED. The v16.14 version put 
 (now non-sticky) result, with the `#stickyTotal` bottom bar keeping the £ visible. A modest
 residual gap (left cards inherently taller) sits at the bottom-right. operations has no
 equivalent card to relocate, so its left-column void stands (admin's was mitigated — above).
+
+## Accepted colour overloads — reviewed and closed (v17.58)
+
+A colours review traced every semantic colour across all surfaces and found these cross-concept
+shares. All were **reviewed with the owner and accepted** — do not re-flag or "fix" them: the app
+never uses colour as the sole carrier of meaning (every badge has a label + emoji, per WCAG 1.4.1),
+the colliding surfaces are rarely co-visible, and adding new hues to separate them would cost more
+than the purity gain.
+
+- **paycalc pay badges deliberately borrow the roster's shift colours** — Saturday wears Early
+  orange, Sunday wears Late blue, and the Bank-Holiday badge wears the AL teal. The rate-chip
+  labels carry the meaning; the colours tie the pay categories to the roster's visual language.
+- **`--purple` = Spare shift AND the Links page identity** — Links is visible to two designers
+  only, so the pairing is effectively never co-visible for ordinary staff.
+- **`--blue-sky` = Late shift AND assorted admin accents** (source pill, overwrite-active) — same
+  rationale: labelled, low co-visibility.
