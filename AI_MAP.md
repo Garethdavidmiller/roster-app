@@ -314,10 +314,16 @@ Coordinator for `links.html` — the 28-line link-design workspace (designer-onl
 - Owns: the multi-design Firestore collection (`linkDesigns`) load/save (atomic `runTransaction` save + offline getDoc fallback, `writeWithClaimRetry`, the v17.18 `baselineUnknown` guard), the design picker (new/duplicate/rename/delete), delegated grid clicks + paint mode, compare mode, the generator UI, the unsaved-changes guards (beforeunload + capture-phase nav-link guard + logo/ops-link confirms), and the beta first-visit notice.
 - All pure design maths is imported from `links-design.js` — never duplicated back here.
 - The two read-only analysis panels (Coverage heat map + Design quality checks) are rendered by `links-analysis.js`, wired via `initLinksAnalysis({ getDesign: () => design })`.
+- Compare mode is `links-compare.js`, wired via `const compare = initLinksCompare({ getDesigns, getActiveDesignId, getDesign, renderDesignPicker, renderGrid, renderBrushBar, dearmBrush, emptyPattern, isUnfilledPattern, shiftLabel })`. It OWNS `compareMode`/`compareDesignId` — the coordinator only calls `compare.isCompareMode()`/`getCompareId()` (reads) or `resetCompare()` (delete/select/generator-apply) or `renderCompare()`.
 
 ### `links-analysis.js`
 The two read-only analysis panels on `links.html`, extracted from `links-app.js` (v17.70, extraction programme) as the cleanest first slice: both are pure render-from-a-pure-result — the maths already lives in `links-design.js`, so they only read the CURRENT design's patterns and write to their own container, carrying none of the coordinator's save/concurrency/dirty state.
 - `initLinksAnalysis({ getDesign })` → `{ renderCoverageChart, renderDesignChecks }`. `getDesign` is a thunk for the live active design (or null); the coordinator calls the two renderers on every pattern change, exactly as before. Imports `DAYS`/`calcHourlyCoverage`/`runDesignChecks` from `links-design.js`; DOM containers `#coverageHeatmap`/`#coverageEmptyMsg`/`#checksContent`. Tested by `links-analysis.test.mjs` (fake DOM).
+
+### `links-compare.js`
+Compare mode on `links.html` — two saved designs side by side with a gold-outline `.cell-diff` on differing cells. Extracted from `links-app.js` (v17.71, extraction programme).
+- **SINGLE SOURCE OF TRUTH for `compareMode` + `compareDesignId`** — links-app.js no longer stores them, so the coordinator and this module can never disagree. The coordinator only calls `compare.isCompareMode()`/`getCompareId()` (reads, e.g. in `renderDesignPicker`/`renderBrushBar`/`renderGrid`), `compare.resetCompare()` (on design delete/select and generator-apply), or `compare.renderCompare()`.
+- `initLinksCompare(deps)` → `{ toggleCompareMode, selectCompareDesign, renderCompare, isCompareMode, getCompareId, resetCompare }`. Reads the design collection READ-ONLY via injected getters (`getDesigns`/`getActiveDesignId`/`getDesign`) and never touches the save/concurrency baseline — the safety property that makes it a safe slice. Imports `escapeHtml` (roster-data) + `DAYS`/`classifyShift`/`calcCoverage` (links-design). Tested by `links-compare.test.mjs` (fake DOM).
 
 ### `links-design.js`
 Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).
