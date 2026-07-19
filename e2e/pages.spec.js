@@ -189,6 +189,8 @@ test('confirmDialog: renders an in-app dialog and resolves true/false (not nativ
         window.confirm = () => { throw new Error('native confirm() was called'); };
         const { confirmDialog } = await import('/overlay.js');
         const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        // The node is removed AFTER the close transition (~500ms), not synchronously — poll for it.
+        const gone = async () => { for (let i = 0; i < 40 && document.querySelector('.dialog-overlay'); i++) await new Promise(r => setTimeout(r, 40)); return !document.querySelector('.dialog-overlay'); };
 
         // Confirm path
         const pYes = confirmDialog({ title: 'T', message: 'M', confirmLabel: 'Yes' });
@@ -198,9 +200,9 @@ test('confirmDialog: renders an in-app dialog and resolves true/false (not nativ
         const hasInput = !!overlay?.querySelector('.dialog-input');
         overlay?.querySelector('.dialog-btn-confirm')?.click();
         const yes = await pYes;
-        const removedAfterConfirm = !document.querySelector('.dialog-overlay');
+        const removedAfterConfirm = await gone();   // eventually cleaned out of the DOM
 
-        // Cancel path
+        // Cancel path — only after the first overlay is fully gone (removal is async now)
         const pNo = confirmDialog({ message: 'M2' });
         await raf();
         document.querySelector('.dialog-overlay .dialog-btn-cancel')?.click();
@@ -222,6 +224,7 @@ test('promptDialog: resolves the typed value on confirm, null on cancel (not nat
         window.prompt = () => { throw new Error('native prompt() was called'); };
         const { promptDialog } = await import('/overlay.js');
         const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        const gone = async () => { for (let i = 0; i < 40 && document.querySelector('.dialog-overlay'); i++) await new Promise(r => setTimeout(r, 40)); };
 
         // Typed + confirm
         const pVal = promptDialog({ title: 'Name', message: 'Name?', defaultValue: 'seed' });
@@ -231,6 +234,7 @@ test('promptDialog: resolves the typed value on confirm, null on cancel (not nat
         input.value = 'Option A';
         document.querySelector('.dialog-overlay .dialog-btn-confirm')?.click();
         const val = await pVal;
+        await gone();   // wait out the async removal before opening the next dialog
 
         // Cancel → null
         const pNull = promptDialog({ message: 'Again?' });
@@ -243,6 +247,38 @@ test('promptDialog: resolves the typed value on confirm, null on cancel (not nat
     expect(r.seeded, 'input pre-filled with defaultValue').toBe('seed');
     expect(r.val, 'confirm resolves the typed value').toBe('Option A');
     expect(r.cancelled, 'cancel resolves null').toBe(null);
+});
+
+// Regression guard (v17.62): with unsaved changes, a nav-drawer GUIDE link (target="_blank")
+// must still open a new tab and leave the Links page (and its unsaved design) put — NOT get
+// caught by the unsaved-changes guard and navigate the current tab away. The guard is only for
+// same-tab navigation. Reproduces the bug the async-dialog conversion briefly introduced.
+test('links: a guide link (new tab) is not caught by the unsaved-changes guard', async ({ page, context }) => {
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+    await page.goto('/links.html');
+
+    // Make the page dirty: apply the auto-generated pattern (targets seed from static roster data,
+    // so this is deterministic in the hermetic env). Apply goes through the confirmDialog.
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+    await page.locator('#genApplyBtn').click();
+    await page.locator('.dialog-overlay .dialog-btn-confirm').click();      // "Apply"
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('#linksSaveRow')).toBeVisible();              // design now loaded (unsaved)
+
+    // Open the drawer and click a guide link (target="_blank").
+    await page.locator('#navMenuBtn').click();
+    const guide = page.locator('.nav-panel-link--guide').first();
+    await expect(guide).toBeVisible();
+    const popupPromise = context.waitForEvent('page');                     // the new tab
+    await guide.click();
+    const popup = await popupPromise;
+
+    // No leave-prompt appeared, and THIS tab stayed on the Links page (unsaved work preserved).
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page).toHaveURL(/links\.html/);
+    await popup.close();
 });
 
 // Regression guard: the auto-generate card holds a wide targets table (one row per shift

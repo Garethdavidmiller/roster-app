@@ -80,6 +80,17 @@ test('every Class is one of the allowed values', () => {
     }
 });
 
+// The Guide column must be a known guide. Without this, a MISTYPED Guide value (e.g. "railcrd")
+// would silently exempt a high-risk row from BOTH the block-anchoring requirement and orphan
+// detection below (those checks only iterate the known guides) — reopening the exact
+// "wrong claim, un-cross-referenced source" gap the linkage checks exist to close.
+const GUIDES = new Set(['railcard', 'fip', 'paycalc']);
+test('every Guide is one of the allowed guides', () => {
+    for (const row of rows) {
+        assert.ok(GUIDES.has(row.Guide), `row ${row.ID}: guide "${row.Guide}" is not one of ${[...GUIDES].join('/')}`);
+    }
+});
+
 test('Reviewed and Next are YYYY-MM and Next is strictly after Reviewed', () => {
     for (const row of rows) {
         assert.match(row.Reviewed, /^\d{4}-\d{2}$/, `row ${row.ID}: Reviewed "${row.Reviewed}" is not YYYY-MM`);

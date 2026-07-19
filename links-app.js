@@ -1601,8 +1601,12 @@ export function init() {
         if (!dirty) return;
         const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel a[href]'));
         if (!link) return;
+        // A target="_blank" link (the guide links) opens a NEW tab — the links page and its unsaved
+        // work stay put, so there is nothing to guard. Let it through untouched; intercepting it
+        // would strand the user by navigating the CURRENT tab into the guide and losing the design.
+        if (link.target === '_blank') return;
         // The custom dialog is async, so it can't decide preventDefault() inline the way the native
-        // confirm() did. Intercept EVERY dirty nav-drawer click, ask, and navigate on confirm.
+        // confirm() did. Intercept the same-tab nav-drawer click, ask, and navigate on confirm.
         e.preventDefault();
         e.stopPropagation();
         const href = link.href;

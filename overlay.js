@@ -342,14 +342,22 @@ function _openDialog(o) {
             initialFocus: () => input ?? confirmBtn,
             onClose: () => {
                 if (!settled) { settled = true; resolve(result); }
-                overlay.remove();                      // dynamic overlay — clean it out of the DOM
+                // Remove the dynamic node AFTER the close transition (not synchronously here): a
+                // node detached now would suppress dismissOverlay's transitionend, forcing its 500ms
+                // fallback AND skipping the fade-out every other lightbox shows. 500ms clears the
+                // 0.2s fade with margin; reduced-motion finishes sooner and the node just lingers
+                // invisibly until this fires.
+                setTimeout(() => overlay.remove(), 500);
             },
         });
 
-        confirmBtn.addEventListener('click', () => { result = o.resultOnConfirm(input); lb.close(); });
+        // try/finally so a throwing resultOnConfirm can never leave the dialog open and the Promise
+        // pending (today both resolvers are total, but this keeps the contract robust).
+        const confirmAndClose = () => { try { result = o.resultOnConfirm(input); } finally { lb.close(); } };
+        confirmBtn.addEventListener('click', confirmAndClose);
         // Enter in the prompt input submits (mirrors native prompt()).
         input?.addEventListener('keydown', e => {
-            if (e.key === 'Enter') { e.preventDefault(); result = o.resultOnConfirm(input); lb.close(); }
+            if (e.key === 'Enter') { e.preventDefault(); confirmAndClose(); }
         });
 
         lb.open();
