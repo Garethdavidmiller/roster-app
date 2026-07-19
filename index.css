@@ -2424,6 +2424,10 @@
         /* A "Syncing…" chip injected into .calendar-header while Firestore fetch is in flight.
            Fades in after 800 ms to avoid flashing on fast connections. */
 
+        /* The chip sits INSIDE the white calendar card (.calendar-header is transparent over the card,
+           NOT the navy page header), so mid-tone text on the light wash is correct. Washes/borders
+           are derived from the app tokens (were foreign rgb literals) (v17.57). The forced-state
+           axe test (axe.spec.js) verifies both chip states against the REAL composited background. */
         .sync-chip {
             display: inline-flex;
             align-items: center;
@@ -2434,8 +2438,8 @@
             -webkit-appearance: none;
             appearance: none;
             color: var(--blue-sky);
-            background: rgba(33,150,243,0.10);
-            border: 1px solid rgba(33,150,243,0.25);
+            background: color-mix(in srgb, var(--blue-sky) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--blue-sky) 30%, transparent);
             border-radius: 20px;
             padding: 3px 9px;
             animation: sync-pulse 1.2s ease-in-out infinite;
@@ -2443,8 +2447,8 @@
         .sync-chip-error {
             animation: none;
             color: var(--error-banner);
-            background: rgba(198,40,40,0.08);
-            border-color: rgba(198,40,40,0.25);
+            background: color-mix(in srgb, var(--error-red) 10%, transparent);
+            border-color: color-mix(in srgb, var(--error-red) 30%, transparent);
             text-decoration: underline;
             cursor: pointer;
         }

@@ -496,7 +496,7 @@
         .pill-rdw          { color: var(--rdw-text);                } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
         .pill-annual_leave { color: oklch(43.0% 0.1010 182.5deg);  } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
         .pill-sick         { color: var(--absence-text);            } .pill-sick.active         { background: var(--absence);  border-color: var(--absence);  }
-        .pill-correction   { color: oklch(44.0% 0.1741 64.1deg);   } .pill-correction.active   { background: var(--orange);   border-color: var(--orange);   }
+        .pill-correction   { color: var(--orange-text);            } .pill-correction.active   { background: var(--orange-deep); border-color: var(--orange-deep); }
         .pill-other     { color: var(--other-text);                 } .pill-other.active     { background: var(--other);      border-color: var(--other);      }
 
         .bulk-time-group {

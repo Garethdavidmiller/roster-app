@@ -71,6 +71,47 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // ── Forced transient/interactive states the settled-page scans above can never reach.
+    // Added v17.57 after a state-sweep review: the active Rest Day pill was a REAL shipped AA
+    // failure (white on bright --orange, 2.15:1 — invisible to a one-settled-state gate). The
+    // sync-chip "failures" the same sweep reported turned out to be FALSE positives (measured
+    // against the navy page header; the chip actually sits inside the white calendar card) —
+    // the chip test below now guards both states against the real composited background.
+
+    test('calendar sync-chip states (forced)', async ({ page }) => {
+        await seedMember(page);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        // Recreate both chips exactly as calendar-initial-fetch.js builds them, in their real
+        // parent (.calendar-header) so the composited navy background is authentic.
+        await page.evaluate(() => {
+            const header = document.querySelector('.calendar-header');
+            const loading = document.createElement('button');
+            loading.type = 'button'; loading.className = 'sync-chip'; loading.disabled = true;
+            loading.textContent = '↻ Updating your shifts…';
+            const error = document.createElement('button');
+            error.type = 'button'; error.className = 'sync-chip sync-chip-error';
+            error.textContent = '⚠ Couldn’t update — tap to retry';
+            header?.append(loading, error);
+        });
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('admin type-pills in the ACTIVE state (forced)', async ({ page }) => {
+        await seedSession(page);
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        // Force one pill of EACH type active (the collector normally allows one per row; forcing
+        // all in one row is fine for a colour scan — .active sets the fill + white text).
+        await page.evaluate(() => {
+            const row = document.querySelector('.day-row');
+            row?.querySelectorAll('.type-pill-btn').forEach(p => p.classList.add('active'));
+        });
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('paycalc (signed in)', async ({ page }) => {
         await seedSession(page);
         await page.addInitScript(() => {
