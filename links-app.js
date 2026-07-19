@@ -33,6 +33,7 @@ import {
     generatePatterns,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
+import { initLinksCompare } from './links-compare.js';
 
 
 /**
@@ -214,8 +215,6 @@ export function init() {
     /** @type {Array<{id:string, name:string, patterns:Object, updatedAt:*, updatedBy:string}>} */
     let designs         = [];
     /** @type {any} */ let activeDesignId  = null; // null = design not yet saved to Firestore
-    /** @type {any} */ let compareDesignId = null;
-    let compareMode     = false;
 
     // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
     // links-analysis.js (v17.70). They read only the live active design, via this getter.
@@ -295,6 +294,15 @@ export function init() {
         ].join('');
     }
 
+    // Compare mode — extracted to links-compare.js (v17.71). It OWNS compareMode/compareDesignId
+    // (single source of truth); the coordinator only reads them (compare.isCompareMode/getCompareId)
+    // or resets them (compare.resetCompare). Placed after emptyPattern/isUnfilledPattern (const
+    // arrows) so those injected deps exist; the render deps are hoisted function declarations.
+    const compare = initLinksCompare({
+        getDesigns: () => designs, getActiveDesignId: () => activeDesignId, getDesign: () => design,
+        renderDesignPicker, renderGrid, renderBrushBar, dearmBrush, emptyPattern, isUnfilledPattern, shiftLabel,
+    });
+
     // ============================================
     // DESIGN MANAGEMENT
     // ============================================
@@ -314,11 +322,11 @@ export function init() {
         // Delegated clicks on compare chips
         document.getElementById('compareChips')?.addEventListener('click', e => {
             const nameBtn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.design-chip-name'));
-            if (nameBtn) selectCompareDesign(nameBtn.dataset.id);
+            if (nameBtn) compare.selectCompareDesign(nameBtn.dataset.id);
         });
         document.getElementById('newDesignBtn')?.addEventListener('click',     createDesign);
         document.getElementById('dupDesignBtn')?.addEventListener('click',     duplicateDesign);
-        document.getElementById('compareBtn')?.addEventListener('click',       toggleCompareMode);
+        document.getElementById('compareBtn')?.addEventListener('click',       compare.toggleCompareMode);
     }
     initDesignPicker();
 
@@ -362,20 +370,22 @@ export function init() {
         // Duplicate button state
         if (dupBtn) dupBtn.disabled = !activeDesignId;
 
-        // Compare button state
+        // Compare button state (compare state is owned by links-compare.js)
+        const cmpMode = compare.isCompareMode();
+        const cmpId   = compare.getCompareId();
         if (compareBtn) {
             compareBtn.disabled = designs.length < 2;
-            compareBtn.classList.toggle('compare-active', compareMode);
-            compareBtn.setAttribute('aria-pressed', compareMode ? 'true' : 'false');
+            compareBtn.classList.toggle('compare-active', cmpMode);
+            compareBtn.setAttribute('aria-pressed', cmpMode ? 'true' : 'false');
         }
 
         // Compare picker row
-        if (comparePickerRow) comparePickerRow.style.display = compareMode ? '' : 'none';
-        if (compareMode && compareChipsEl) {
+        if (comparePickerRow) comparePickerRow.style.display = cmpMode ? '' : 'none';
+        if (cmpMode && compareChipsEl) {
             compareChipsEl.innerHTML = designs
                 .filter(d => d.id !== activeDesignId)
                 .map(d => {
-                    const isActive = d.id === compareDesignId;
+                    const isActive = d.id === cmpId;
                     return `<div class="design-chip${isActive ? ' design-chip--active' : ''}">` +
                         `<button class="design-chip-name" data-id="${escapeHtml(d.id)}" type="button">` +
                         `${escapeHtml(d.name)}</button></div>`;
@@ -540,11 +550,12 @@ export function init() {
             // target — otherwise a design would be compared against ITSELF (every cell "identical",
             // its compare chip filtered out) until the user manually toggles compare off. Deleting
             // the ACTIVE design while comparing also used to leave a <2-design self-compare soft-lock.
-            if (id === compareDesignId || designs.length < 2 || (newActive && newActive.id === compareDesignId)) {
-                compareDesignId = null; compareMode = false;
+            const cmpId = compare.getCompareId();
+            if (id === cmpId || designs.length < 2 || (newActive && newActive.id === cmpId)) {
+                compare.resetCompare();
             }
             if (newActive) _activateDesign(newActive);
-            else { renderDesignPicker(); renderGrid(); renderCompare(); }
+            else { renderDesignPicker(); renderGrid(); compare.renderCompare(); }
         } catch (err) {
             console.error('[Links] Delete failed:', err);
         }
@@ -560,7 +571,7 @@ export function init() {
         const d = designs.find(x => x.id === id);
         if (!d) return;
         // If selecting the current compare target, exit compare mode first
-        if (id === compareDesignId) { compareDesignId = null; compareMode = false; }
+        if (id === compare.getCompareId()) compare.resetCompare();
         _activateDesign(d);
     }
 
@@ -586,118 +597,12 @@ export function init() {
         renderBrushBar();
         renderDesignChecks();
         renderCoverageChart();
-        renderCompare();
+        compare.renderCompare();
         updateSaveBtn();
         updateLastSaved(d.updatedBy, d.updatedAt);
     }
 
-    // ============================================
-    // COMPARE MODE
-    // ============================================
-
-    /** Toggle between single-design and compare views. */
-    function toggleCompareMode() {
-        if (designs.length < 2) return;
-        // Disarm any painting brush before toggling — like every other renderBrushBar caller.
-        // renderBrushBar early-returns while compare is ON (so it never rebuilds/clears the chips),
-        // so a brush left armed here survived the compare round-trip with no visible highlight, and
-        // the next cell tap silently PAINTED instead of opening the edit dropdown (v16.19).
-        dearmBrush();
-        compareMode = !compareMode;
-        if (compareMode && !compareDesignId) {
-            compareDesignId = designs.find(d => d.id !== activeDesignId)?.id ?? null;
-        }
-        if (!compareMode) compareDesignId = null;
-        renderDesignPicker();
-        renderGrid();
-        renderBrushBar();
-        renderCompare();
-    }
-
-    /**
-     * Select the design shown in the compare column.
-     * @param {any} id
-     */
-    function selectCompareDesign(id) {
-        compareDesignId = id;
-        renderDesignPicker();
-        renderCompare();
-    }
-
-    /** Render (or clear) the compare grid pair. */
-    function renderCompare() {
-        const wrap = document.getElementById('compareGridsWrap');
-        if (!wrap) return;
-
-        if (!compareMode || !design || !compareDesignId) {
-            wrap.classList.remove('compare-mode-active');
-            return;
-        }
-        const other = designs.find(x => x.id === compareDesignId);
-        if (!other) { wrap.classList.remove('compare-mode-active'); return; }
-
-        const headA = document.getElementById('compareHeadA');
-        const headB = document.getElementById('compareHeadB');
-        if (headA) headA.textContent = design.name || 'Design A';
-        if (headB) headB.textContent = other.name   || 'Design B';
-
-        renderCompareGrid('compareGridBodyRowsA', 'compareGridFootA', design.patterns, other.patterns);
-        renderCompareGrid('compareGridBodyRowsB', 'compareGridFootB', other.patterns, design.patterns);
-        wrap.classList.add('compare-mode-active');
-    }
-
-    /**
-     * Render a read-only compare grid into tbodyId/tfootId.
-     * Cells that differ from otherPatterns get the .cell-diff class.
-     * @param {any} tbodyId
-     * @param {any} tfootId
-     * @param {any} patterns
-     * @param {any} otherPatterns
-     */
-    function renderCompareGrid(tbodyId, tfootId, patterns, otherPatterns) {
-        const tbody = document.getElementById(tbodyId);
-        const tfoot = document.getElementById(tfootId);
-        if (!tbody) return;
-
-        const rows = [];
-        for (let pos = 1; pos <= TOTAL_POS; pos++) {
-            const posStr   = String(pos);
-            const p        = patterns[posStr] || emptyPattern();
-            const op       = otherPatterns[posStr] || emptyPattern();
-            const rowClass = isUnfilledPattern(p) ? 'row-unfilled' : '';
-
-            const dayCells = DAYS.map((d, di) => {
-                const shift = p[d]  ?? 'RD';
-                const other = op[d] ?? 'RD';
-                const type  = classifyShift(shift);
-                const label = shiftLabel(shift);
-                const diff  = shift !== other ? ' cell-diff' : '';
-                return `<td class="shift-cell${diff}">` +
-                    `<button class="shift-cell-btn type-${type}" tabindex="-1" ` +
-                    `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${escapeHtml(shift)}">` +
-                    `${escapeHtml(label)}</button></td>`;
-            }).join('');
-
-            rows.push(`<tr class="${rowClass}" data-pos="${posStr}"><td class="pos-num">${posStr}</td>${dayCells}</tr>`);
-        }
-        tbody.innerHTML = rows.join('');
-
-        if (tfoot) {
-            const cov   = calcCoverage(patterns);
-            const cells = DAYS.map(d => {
-                const { early, late, spare, night } = (/** @type {Record<string, any>} */ (cov))[d];
-                const worked = early + late + spare + night;
-                return `<td class="cov-cell">` +
-                    `<span class="cov-num">${worked}</span>` +
-                    `<span class="cov-label-e"> E:${early}</span>` +
-                    ` <span class="cov-label-l">L:${late}</span>` +
-                    (night ? ` <span class="cov-label-n">N:${night}</span>` : '') +
-                    (spare ? ` <span class="cov-label-s">SP:${spare}</span>` : '') +
-                    `</td>`;
-            }).join('');
-            tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}</tr>`;
-        }
-    }
+    // COMPARE MODE was extracted to links-compare.js (v17.71); wired via `compare` above.
 
     // ============================================
     // PAINT BRUSH
@@ -724,7 +629,7 @@ export function init() {
     function renderBrushBar() {
         const bar = document.getElementById('brushBar');
         if (!bar) return;
-        if (!design || compareMode) { bar.style.display = 'none'; return; }
+        if (!design || compare.isCompareMode()) { bar.style.display = 'none'; return; }
         bar.style.display = '';
 
         const chip = (/** @type {any} */ shift, /** @type {any} */ label, /** @type {any} */ typeClass, /** @type {any} */ extra = '') =>
@@ -805,7 +710,7 @@ export function init() {
         // screen-scoped CSS) but stays fully rendered — print must always output
         // the active design, and an inline display:none would leak into print.
         if (wrapper) wrapper.style.display = '';
-        document.body.classList.toggle('links-compare-on', compareMode);
+        document.body.classList.toggle('links-compare-on', compare.isCompareMode());
 
         const rows = [];
         for (let pos = 1; pos <= TOTAL_POS; pos++) {
@@ -1155,14 +1060,13 @@ export function init() {
             }
 
             dirty = true;
-            compareMode = false;
-            compareDesignId = null;
+            compare.resetCompare();
             dearmBrush();
             renderDesignPicker();
             renderGrid();
             renderBrushBar();
             renderDesignChecks();
-            renderCompare();
+            compare.renderCompare();
             updateSaveBtn();
 
             const status = document.getElementById('linksSaveStatus');
