@@ -305,6 +305,22 @@ test('links: opening the auto-generator causes no horizontal page overflow (narr
     expect(scrollW, `page scrollWidth ${scrollW}px vs viewport ${clientW}px`).toBeLessThanOrEqual(clientW + 1);
 });
 
+// Extraction smoke (v17.70): the Coverage heat map + Design-checks panels are rendered by
+// links-analysis.js. Apply a generated design and confirm both populate in a real browser — proving
+// the extracted renderers + the getDesign() seam work end-to-end with an actual design.
+test('links: the analysis panels render for a generated design', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+    await page.locator('#genApplyBtn').click();
+    await page.locator('.dialog-overlay .dialog-btn-confirm').click();   // "Apply"
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('#coverageHeatmap .cov-heat')).toBeVisible();   // heat map table
+    await expect(page.locator('#checksContent .check-rows')).toBeVisible();   // checks panel
+});
+
 // ── ADMIN TOUCH LAYOUT — no horizontal blowout when a pill with hours is selected ──
 // Regression: on TOUCH devices (pointer: coarse) the bulk-bar time inputs' intrinsic
 // min-width (~180px each, unshrinkable without min-width: 0) stretched the whole page
@@ -374,12 +390,17 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     await page.goto('/fip.html');
     const search = page.locator('#countrySearch');
     await expect(search).toBeVisible();
+    // On an empty field the clear ✕ and the count are hidden (regression guard: an author `display`
+    // rule can silently override the `hidden` attribute).
+    await expect(page.locator('#countryClear')).toBeHidden();
+    await expect(page.locator('#countryCount')).toBeHidden();
 
-    // Filter to Spain: Spain stays, an unrelated country (Norway) is hidden, count appears.
+    // Filter to Spain: Spain stays, an unrelated country (Norway) is hidden, count + clear appear.
     await search.fill('spain');
     await expect(page.locator('#country-es')).toBeVisible();
     await expect(page.locator('#country-no')).toBeHidden();
     await expect(page.locator('#countryCount')).toContainText('of 25 countries');
+    await expect(page.locator('#countryClear')).toBeVisible();
     // The A–Z chip for a hidden country is hidden too (kept in lockstep with its card).
     await expect(page.locator('.country-jump a[href="#country-no"]')).toBeHidden();
 
@@ -394,6 +415,38 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     await expect(page.locator('#countryNoMatch')).toBeHidden();
     await expect(search).toHaveValue('');
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+test('fip: the section chip-bar jumps to a section and marks it current', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/fip.html');
+    const chip = page.locator('.chip-bar .chip[data-target="sec-mistakes"]');
+    await expect(chip).toBeVisible();
+    await chip.click();
+    await expect(page.locator('#sec-mistakes')).toBeInViewport();
+    await expect(chip).toHaveAttribute('aria-current', 'true');
+    // Clicking a different chip moves the current marker.
+    const other = page.locator('.chip-bar .chip[data-target="sec-booking"]');
+    await other.click();
+    await expect(other).toHaveAttribute('aria-current', 'true');
+    await expect(chip).not.toHaveAttribute('aria-current', 'true');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+test('fip: scrollspy marks the chip for the section scrolled into view', async ({ page }) => {
+    await page.goto('/fip.html');
+    // A mid-page section scrolled under the sticky stack becomes current.
+    await page.evaluate(() => document.getElementById('sec-ferries').scrollIntoView({ block: 'start' }));
+    await page.waitForTimeout(350);
+    await expect(page.locator('.chip[data-target="sec-ferries"]')).toHaveAttribute('aria-current', 'true');
+    // At the very bottom, the last chip (Apply) wins even if its short section never reached the line.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(350);
+    await expect(page.locator('.chip[data-target="sec-apply"]')).toHaveAttribute('aria-current', 'true');
+    // Back at the top, the first chip (Overview) wins (covers the page-intro above section 1).
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(350);
+    await expect(page.locator('.chip[data-target="sec-need"]')).toHaveAttribute('aria-current', 'true');
 });
 
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {

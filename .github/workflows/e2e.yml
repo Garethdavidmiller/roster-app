@@ -85,6 +85,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # parity with deploy-rules.yml (silences JS-action node-version warnings)
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -103,8 +105,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # emulators:exec downloads the emulator binaries on first run (cached in
-      # ~/.cache/firebase/emulators between runs).
+      # emulators:exec downloads the emulator binaries into ~/.cache/firebase/emulators on each run
+      # (CI runners are ephemeral, so there is no cross-run cache unless an actions/cache step is added
+      # — a possible future speed-up; the download is ~1 min and not correctness-relevant).
       - name: Run Firestore and Storage rules tests
         run: npm run test:rules
 
