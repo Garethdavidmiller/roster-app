@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v17.60 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.70 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `17.60` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `17.70` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -213,6 +213,7 @@ roster-app/
 ├── links-app.js            ← coordinator for links.html: multi-design Firestore, grid, paint, compare, generator UI. Body is an exported `init()` (Phase 4a.2) invoked by links-boot.js — early-return access gate, no top-level throw
 ├── links-boot.js           ← 2-line bootstrap for links.html: imports `init` from links-app.js and calls it (CSP blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── links-design.js         ← pure link-design maths: classifyShift, normaliseCustomShift, calcCoverage, calcHourlyCoverage, generatePatterns, runDesignChecks, dayClass
+├── links-analysis.js       ← links.html read-only analysis panels — Coverage heat map + Design quality checks (extracted from links-app.js v17.70). `initLinksAnalysis({ getDesign }) → { renderCoverageChart, renderDesignChecks }`; pure render-from-a-pure-result (maths in links-design.js), reads only the live active design via the getter, no coordinator save/dirty state. Tested by links-analysis.test.mjs
 ├── shared.css              ← CSS shared by all six app pages (nav panel, lightbox, login, card-header, btn-action) — NOT the guides
 ├── guide-shell.css         ← shared chrome for all 4 guide pages (header, .btn-back, .btn-pdf, print, palette tokens)
 ├── guide-doc.css           ← shared styles for the two document-style guides (guide.html, paycalc-guide.html): two-column print layout, info boxes, tables, numbered steps, banner. Loaded between guide-shell.css and page CSS. NOT linked by railcard-guide.html or fip.html.

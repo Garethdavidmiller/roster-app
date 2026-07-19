@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v17.60 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.70 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -313,6 +313,11 @@ Coordinator for `links.html` — the 28-line link-design workspace (designer-onl
 - Only export is `init()` (Phase 4a.2) — early-return access gate (designer via `requirePage`, else redirect), no top-level throw.
 - Owns: the multi-design Firestore collection (`linkDesigns`) load/save (atomic `runTransaction` save + offline getDoc fallback, `writeWithClaimRetry`, the v17.18 `baselineUnknown` guard), the design picker (new/duplicate/rename/delete), delegated grid clicks + paint mode, compare mode, the generator UI, the unsaved-changes guards (beforeunload + capture-phase nav-link guard + logo/ops-link confirms), and the beta first-visit notice.
 - All pure design maths is imported from `links-design.js` — never duplicated back here.
+- The two read-only analysis panels (Coverage heat map + Design quality checks) are rendered by `links-analysis.js`, wired via `initLinksAnalysis({ getDesign: () => design })`.
+
+### `links-analysis.js`
+The two read-only analysis panels on `links.html`, extracted from `links-app.js` (v17.70, extraction programme) as the cleanest first slice: both are pure render-from-a-pure-result — the maths already lives in `links-design.js`, so they only read the CURRENT design's patterns and write to their own container, carrying none of the coordinator's save/concurrency/dirty state.
+- `initLinksAnalysis({ getDesign })` → `{ renderCoverageChart, renderDesignChecks }`. `getDesign` is a thunk for the live active design (or null); the coordinator calls the two renderers on every pattern change, exactly as before. Imports `DAYS`/`calcHourlyCoverage`/`runDesignChecks` from `links-design.js`; DOM containers `#coverageHeatmap`/`#coverageEmptyMsg`/`#checksContent`. Tested by `links-analysis.test.mjs` (fake DOM).
 
 ### `links-design.js`
 Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).

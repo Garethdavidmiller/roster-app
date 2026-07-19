@@ -30,10 +30,9 @@ import {
     normaliseCustomShift,
     dayClass,
     calcCoverage,
-    calcHourlyCoverage,
     generatePatterns,
-    runDesignChecks,
 } from './links-design.js';
+import { initLinksAnalysis } from './links-analysis.js';
 
 
 /**
@@ -217,6 +216,10 @@ export function init() {
     /** @type {any} */ let activeDesignId  = null; // null = design not yet saved to Firestore
     /** @type {any} */ let compareDesignId = null;
     let compareMode     = false;
+
+    // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
+    // links-analysis.js (v17.70). They read only the live active design, via this getter.
+    const { renderCoverageChart, renderDesignChecks } = initLinksAnalysis({ getDesign: () => design });
 
     // ============================================
     // HELPERS
@@ -832,7 +835,7 @@ export function init() {
 
         const cov = calcCoverage(design.patterns);
         renderFooter(cov);
-        renderCoverageChart(cov);
+        renderCoverageChart();
     }
 
     // Delegated grid events — one listener instead of one per cell button.
@@ -878,7 +881,7 @@ export function init() {
 
         const cov = calcCoverage(design.patterns);
         renderFooter(cov);
-        renderCoverageChart(cov);
+        renderCoverageChart();
         renderDesignChecks();
     }
 
@@ -973,170 +976,8 @@ export function init() {
         cell.appendChild(btn);
     }
 
-    // ============================================
-    // COVERAGE HEAT MAP
-    // ============================================
-
-    /** @param {any} [_cov] */
-    function renderCoverageChart(_cov) {
-        const wrap     = document.getElementById('coverageHeatmap');
-        const emptyMsg = document.getElementById('coverageEmptyMsg');
-        if (!wrap) return;
-
-        if (!design) {
-            wrap.style.display = 'none';
-            if (emptyMsg) emptyMsg.style.display = '';
-            return;
-        }
-
-        if (emptyMsg) emptyMsg.style.display = 'none';
-        wrap.style.display = '';
-
-        const hourly = calcHourlyCoverage(design.patterns, TOTAL_POS);
-
-        let minH = 24, maxH = 0, maxCount = 0;
-        for (const d of DAYS) {
-            hourly[d].hours.forEach((n, h) => {
-                if (n > 0) {
-                    if (h < minH) minH = h;
-                    if (h + 1 > maxH) maxH = h + 1;
-                    if (n > maxCount) maxCount = n;
-                }
-            });
-        }
-        if (minH >= maxH) { minH = 6; maxH = 24; }
-
-        const hourTh = [];
-        for (let h = minH; h < maxH; h++) {
-            hourTh.push(`<th class="cov-heat-hour">${String(h).padStart(2, '0')}</th>`);
-        }
-
-        const rows = DAYS.map((d, di) => {
-            const { hours, spare } = hourly[d];
-            const dayHasWork = hours.some(n => n > 0);
-            const first = hours.findIndex(n => n > 0);
-            const last  = hours.length - 1 - [...hours].reverse().findIndex(n => n > 0);
-            const cells = [];
-            for (let h = minH; h < maxH; h++) {
-                const n = hours[h];
-                const bucket = n === 0 ? 0 : Math.max(1, Math.ceil((n / maxCount) * 5));
-                const isGap = dayHasWork && n === 0 && h > first && h < last;
-                cells.push(`<td class="cov-heat-cell heat-b${bucket}${isGap ? ' heat-gap' : ''}">${n || (isGap ? '0' : '')}</td>`);
-            }
-            return `<tr>` +
-                `<th class="cov-heat-day">${DAY_LABELS[di]}</th>` +
-                cells.join('') +
-                `<td class="cov-heat-spare">${spare || ''}</td>` +
-                `</tr>`;
-        }).join('');
-
-        wrap.innerHTML =
-            `<div class="cov-heat-wrap"><table class="cov-heat">` +
-            `<thead><tr><th class="cov-heat-day"></th>${hourTh.join('')}<th class="cov-heat-spare-h">SP</th></tr></thead>` +
-            `<tbody>${rows}</tbody>` +
-            `</table></div>` +
-            `<p class="cov-heat-note">Each cell shows how many people are on duty during that hour — darker means more. ` +
-            `Red 0 = a gap inside the working day. SP = spares on standby (no fixed time). Peak this week: ${maxCount}.</p>`;
-    }
-
-    // ============================================
-    // DESIGN QUALITY CHECKS
-    // ============================================
-
-    function renderDesignChecks() {
-        const content = document.getElementById('checksContent');
-        if (!content) return;
-
-        if (!design) {
-            content.innerHTML = '<p class="links-empty-msg">Load or create a link design to see quality checks.</p>';
-            return;
-        }
-
-        const checks = runDesignChecks(design.patterns, ROTATING_LINES);
-        const { weekendsOff, weekendsOffPct, totalWeeks, unfilledLines, turnarounds, longestStretch, balance } = checks;
-        const { early, late, spare, worked } = balance;
-        const earlyPct = worked ? Math.round((early / worked) * 100) : 0;
-        const latePct  = worked ? Math.round((late  / worked) * 100) : 0;
-
-        const tick  = `<span class="check-icon check-tick" aria-hidden="true">✓</span>`;
-        const warn  = `<span class="check-icon check-warn" aria-hidden="true">⚠</span>`;
-        const cross = `<span class="check-icon check-cross" aria-hidden="true">✗</span>`;
-        const info  = `<span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>`;
-
-        const rows = [];
-
-        if (unfilledLines.length === 0) {
-            rows.push(
-                `<div class="check-row check-good">` +
-                `${tick}<div class="check-body"><strong>All lines designed</strong> — every one of the ${totalWeeks} rotating lines has a pattern</div>` +
-                `</div>`
-            );
-        } else {
-            const cap  = unfilledLines.slice(0, 12);
-            const more = unfilledLines.length - cap.length;
-            rows.push(
-                `<div class="check-row check-bad">` +
-                `${cross}<div class="check-body">` +
-                `<strong>Lines not yet designed</strong> — ${unfilledLines.length} of ${totalWeeks} line${unfilledLines.length !== 1 ? 's are' : ' is'} still all rest days ` +
-                `<span class="check-note">(line${cap.length !== 1 ? 's' : ''} ${cap.join(', ')}${more > 0 ? `, +${more} more` : ''})</span>` +
-                `<div class="check-sub">Every rotating line must be filled — manually or by the generator — before the link is complete. Empty lines aren't vacancies; people rotate through them too.</div>` +
-                `</div></div>`
-            );
-        }
-
-        const wkendGood = weekendsOffPct >= 40;
-        rows.push(
-            `<div class="check-row ${wkendGood ? 'check-good' : 'check-warn-row'}">` +
-            `${wkendGood ? tick : warn}` +
-            `<div class="check-body">` +
-            `<strong>Weekends off</strong> — ${weekendsOff} out of ${totalWeeks} weeks ` +
-            `<span class="check-note">(${weekendsOffPct}%)</span>` +
-            `<div class="check-sub">A full weekend off = Saturday rest + next Sunday rest.</div>` +
-            `</div></div>`
-        );
-
-        if (turnarounds.length === 0) {
-            rows.push(
-                `<div class="check-row check-good">` +
-                `${tick}<div class="check-body"><strong>Rest between shifts</strong> — always 12 hours or more</div>` +
-                `</div>`
-            );
-        } else {
-            const cap = turnarounds.slice(0, 4);
-            const more = turnarounds.length - cap.length;
-            rows.push(
-                `<div class="check-row check-bad">` +
-                `${cross}<div class="check-body">` +
-                `<strong>Short turnarounds</strong> — ${turnarounds.length} transition${turnarounds.length !== 1 ? 's' : ''} with less than 12 hours rest` +
-                `<ul class="check-list">${cap.map(t =>
-                    `<li>Line ${t.fromLine} ${t.fromDay} (ends ${t.fromShift.split('-')[1] || ''}) → ` +
-                    `Line ${t.toLine} ${t.toDay} (starts ${t.toShift.split('-')[0] || ''}) — ` +
-                    `${Math.floor(t.restMinutes / 60)}h ${t.restMinutes % 60}m rest</li>`
-                ).join('')}${more > 0 ? `<li>…and ${more} more</li>` : ''}</ul>` +
-                `</div></div>`
-            );
-        }
-
-        const stretchOk = longestStretch <= 7;
-        rows.push(
-            `<div class="check-row ${stretchOk ? 'check-good' : 'check-warn-row'}">` +
-            `${stretchOk ? tick : warn}<div class="check-body">` +
-            `<strong>Longest run</strong> — ${longestStretch} consecutive working days` +
-            (longestStretch > 7 ? `<div class="check-sub">Over 7 days without a rest — worth reviewing.</div>` : '') +
-            `</div></div>`
-        );
-
-        rows.push(
-            `<div class="check-row check-neutral">` +
-            `${info}<div class="check-body">` +
-            `<strong>Shift balance</strong> — ${early} early / ${late} late / ${spare} spare` +
-            ` across the 28-line rotation` +
-            `<span class="check-note"> (${earlyPct}% early, ${latePct}% late)</span>` +
-            `</div></div>`
-        );
-
-        content.innerHTML = `<div class="check-rows">${rows.join('')}</div>`;
-    }
+    // COVERAGE HEAT MAP + DESIGN QUALITY CHECKS were extracted to links-analysis.js (v17.70);
+    // `renderCoverageChart` / `renderDesignChecks` are wired via initLinksAnalysis above.
 
     // ============================================
     // AUTO-GENERATOR

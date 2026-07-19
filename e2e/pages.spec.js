@@ -305,6 +305,22 @@ test('links: opening the auto-generator causes no horizontal page overflow (narr
     expect(scrollW, `page scrollWidth ${scrollW}px vs viewport ${clientW}px`).toBeLessThanOrEqual(clientW + 1);
 });
 
+// Extraction smoke (v17.70): the Coverage heat map + Design-checks panels are rendered by
+// links-analysis.js. Apply a generated design and confirm both populate in a real browser — proving
+// the extracted renderers + the getDesign() seam work end-to-end with an actual design.
+test('links: the analysis panels render for a generated design', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+    await page.locator('#genApplyBtn').click();
+    await page.locator('.dialog-overlay .dialog-btn-confirm').click();   // "Apply"
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('#coverageHeatmap .cov-heat')).toBeVisible();   // heat map table
+    await expect(page.locator('#checksContent .check-rows')).toBeVisible();   // checks panel
+});
+
 // ── ADMIN TOUCH LAYOUT — no horizontal blowout when a pill with hours is selected ──
 // Regression: on TOUCH devices (pointer: coarse) the bulk-bar time inputs' intrinsic
 // min-width (~180px each, unshrinkable without min-width: 0) stretched the whole page
