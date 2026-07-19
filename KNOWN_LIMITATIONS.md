@@ -458,6 +458,34 @@ to its peer dependency range. Check with `npm outdated` in `functions/`. When un
 3. Test all three Cloud Functions (ingestHuddle, parseRosterPDF, setupRosterAuth) before
    deploying to production
 
+### `firebase-tools` → `gaxios` dev-only advisory — no clean forward fix (F-DEP-1, reviewed v17.74)
+
+`npm audit` reports **5 moderate** advisories, all one root cause: a transitive `gaxios` in the
+**6.4.0 – 6.7.1** range pulled in by **`firebase-tools`** (root `devDependency`, currently
+`^15.22.2`).
+
+**Impact: none in production.** `firebase-tools` is a **dev/CI-only** tool (Firebase emulators +
+deploy) — it is **never bundled or served** to staff. The app ships no npm dependencies at all
+(vanilla JS, no bundler); this advisory cannot reach a user.
+
+**Why it is not "fixed" yet — the only npm fix is a *downgrade*.** The advisory is patched in
+`gaxios@7.x`, but the latest `firebase-tools` (15.24.0) still declares `gaxios@^6.7.0`, which
+resolves *within* the vulnerable range. `npm audit fix` therefore offers only
+`firebase-tools@14.23.0` — a **semver-major downgrade** that moves the toolchain backwards and is a
+breaking change. That is a worse position than the current moderate dev-only advisory, so it is
+**declined**.
+
+**Why not force it with `overrides`.** A root `"overrides": { "gaxios": "^7.2.0" }` would clear the
+audit, but `gaxios` 6→7 is a **major** API change and the 6.x copy is required by an intermediate
+Google dependency that expects the 6.x API — forcing 7.x risks breaking the **deploy/emulator
+toolchain** (which gates every rules/hosting deploy). Not worth that risk for a moderate dev-only
+advisory. (Contrast `functions/package.json`'s `uuid` override, which is safe because that pin stays
+within a compatible range.)
+
+**When to close:** once `firebase-tools` widens its `gaxios` range to include `7.x` (or its
+intermediate Google deps do). Re-check with `npm audit` / `npm outdated` periodically; bump
+`firebase-tools` then and confirm `npm run test:rules` + a hosting-emulator run still pass.
+
 ---
 
 ### Links design workspace — beta constraints (v12.37–v12.43)
