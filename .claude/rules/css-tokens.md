@@ -152,6 +152,21 @@ card + the four occasional cards, so column 3 is FILLED. The v16.14 version put 
 residual gap (left cards inherently taller) sits at the bottom-right. operations has no
 equivalent card to relocate, so its left-column void stands (admin's was mitigated — above).
 
+**Empirically re-confirmed (v17.73, Section B / F-VIS-1 review).** The operations void was
+re-examined with rendered desktop screenshots at 1024/1280/1440, and the one zero-mobile-regression
+card move was prototyped: relocating the **Weekly Roster** card (the boundary card — last-left ↔
+first-right) to the bottom of the left column keeps the mobile source order **identical** and the
+roster upload FORM fits the narrow (~340px) column fine. BUT the render proved the move does **not
+eliminate** the void — it merely **relocates** it (a tall expanded card on either side leaves navy
+below the shorter column; with Roster on the left, an expanded Roster makes the *right* column the
+short one). This is the general truth of any two-column collapsible layout: static card placement
+can only move a void, not remove it (only masonry — still not baseline — or a single column would).
+Combined with the roster-review table wanting the wide column and the e2e column-assignment guard,
+the reorder is **net-negative**, so operations is **left as-is** (this is not un-reviewed drift —
+it's the tested conclusion). The composition of all these surfaces (incl. the voids) is now **locked
+by the visual-regression baselines** (`e2e/visual.spec.js`, `npm run test:visual`), so any future
+change to it is caught rather than shipping silently.
+
 ## Accepted colour overloads — reviewed and closed (v17.58)
 
 A colours review traced every semantic colour across all surfaces and found these cross-concept

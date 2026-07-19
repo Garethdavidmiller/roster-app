@@ -18,6 +18,7 @@
         ".claude",
         "e2e",
         "playwright.config.mjs",
-        "playwright.csp.mjs"
+        "playwright.csp.mjs",
+        "playwright.visual.mjs"
     ]
 }
