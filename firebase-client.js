@@ -563,14 +563,21 @@ export async function savePushSubscription(subscription) {
         throw new Error('push/subscription-missing-keys');
     }
     const id = await endpointId(subscription.endpoint);
-    await setDoc(doc(db, COLLECTIONS.pushSubscriptions, id), {
+    /** @type {Record<string, any>} */
+    const data = {
         endpoint:     subscription.endpoint,
         keys: {
             p256dh: keyToBase64(p256dh),
             auth:   keyToBase64(authKey),
         },
         subscribedAt: serverTimestamp(),
-    });
+    };
+    // Stamp the owner (Firebase Auth uid) so only THIS identity can delete the subscription
+    // (F-SEC-5 / A5). Optional in the rules for backward-compat, so omit it only in the
+    // (rule-rejected) unauthenticated case rather than writing a null.
+    const owner = auth.currentUser?.uid;
+    if (owner) data.owner = owner;
+    await setDoc(doc(db, COLLECTIONS.pushSubscriptions, id), data);
 }
 
 /**

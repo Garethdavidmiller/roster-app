@@ -42,11 +42,17 @@ Storage rules prevented them from uploading files. The two rules now match: both
 and Firestore require admin claim for huddle writes. Cloud Function writes via Admin SDK
 bypass rules and are unaffected.
 
-### CSP connect-src includes firebasestorage.googleapis.com (v11.07)
-Firebase Storage browser uploads (manual Huddle upload in Operations) use
-`firebasestorage.googleapis.com`. This was implicitly covered by `https://*.googleapis.com`
-but is now also listed explicitly in `connect-src` in `firebase.json` for clarity.
-Both `connect-src` and `img-src` explicitly list `https://firebasestorage.googleapis.com`.
+### CSP connect-src — googleapis wildcard narrowed to the four hosts used (v11.07; tightened A6/F-SEC-6 v17.76)
+`connect-src` used a broad `https://*.googleapis.com` wildcard. **Narrowed (A6) to exactly the four
+googleapis hosts the app contacts**: `firestore.googleapis.com` (Firestore), `identitytoolkit.googleapis.com`
+(Auth sign-in), `securetoken.googleapis.com` (Auth token refresh), and `firebasestorage.googleapis.com`
+(Storage). Those are the only Firebase services used (Auth + Firestore + Storage — no Analytics/FCM/App
+Check/Remote Config, which would add `firebaseinstallations`/`fcmregistrations`). `img-src` also lists
+`firebasestorage.googleapis.com` explicitly. **Safe because it is runtime-verified:** `e2e/csp.spec.js`
+(`npm run test:csp`) loads the app under the REAL narrowed header in the Hosting emulator with the REAL
+Firebase SDK — a blocked host would fire a `securitypolicyviolation` and fail the suite; it passes.
+`csp-hygiene.test.mjs` keeps the header's host set aligned with what the code contacts. If a new
+googleapis-backed Firebase service is ever added, add its host here (and to the meta CSPs) in the same change.
 
 ### GitHub Pages mirror — CSP via `<meta>`, with two residual header-only gaps (v17.63)
 The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which

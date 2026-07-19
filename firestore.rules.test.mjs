@@ -963,6 +963,37 @@ describe('pushSubscriptions', () => {
         await setDoc(doc(staffDb(), 'pushSubscriptions', id), VALID_SUB());
         await assertSucceeds(deleteDoc(doc(staffDb(), 'pushSubscriptions', id)));
     });
+
+    // ── Per-owner ownership (A5, F-SEC-5) ───────────────────────────────────────────
+    test('can create with owner === own uid', async () => {
+        await assertSucceeds(
+            setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'uid_owner' })
+        );
+    });
+
+    test('cannot create claiming a FOREIGN owner uid', async () => {
+        await assertFails(
+            setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'someone_else' })
+        );
+    });
+
+    test('owner can delete their OWN (owner-stamped) subscription', async () => {
+        const id = uid();
+        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertSucceeds(deleteDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id)));
+    });
+
+    test('a DIFFERENT authed identity cannot delete an owner-stamped subscription', async () => {
+        const id = uid();
+        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertFails(deleteDoc(doc(staffDb('uid_intruder'), 'pushSubscriptions', id)));
+    });
+
+    test('legacy (no-owner) subscription stays deletable by any authed user (backward-compat escape)', async () => {
+        const id = uid();
+        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
+        await assertSucceeds(deleteDoc(doc(staffDb('uid_other'), 'pushSubscriptions', id)));
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
