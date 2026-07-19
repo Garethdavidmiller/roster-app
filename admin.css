@@ -492,9 +492,9 @@
         /* Idle text colours darkened to pass WCAG AA 4.5:1 on white (v13.50).
            Active state inherits white text from .type-pill-btn.active — these
            colour overrides only affect the outlined idle state. */
-        .pill-shift        { color: oklch(42.0% 0.1323 273.8deg);  } .pill-shift.active        { background: var(--ot);       border-color: var(--ot);       }
+        .pill-shift        { color: var(--ot-text);                 } .pill-shift.active        { background: var(--ot);       border-color: var(--ot);       }
         .pill-rdw          { color: var(--rdw-text);                } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
-        .pill-annual_leave { color: oklch(43.0% 0.1010 182.5deg);  } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
+        .pill-annual_leave { color: var(--al-text);                 } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
         .pill-sick         { color: var(--absence-text);            } .pill-sick.active         { background: var(--absence);  border-color: var(--absence);  }
         .pill-correction   { color: var(--orange-text);            } .pill-correction.active   { background: var(--orange-deep); border-color: var(--orange-deep); }
         .pill-other     { color: var(--other-text);                 } .pill-other.active     { background: var(--other);      border-color: var(--other);      }

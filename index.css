@@ -122,7 +122,9 @@
         .calendar-day.today.today-pulse {
             animation: todayPulse 0.5s ease-out forwards;
             /* Fallback box-shadow for browsers without @property */
-            box-shadow: 0 3px 10px rgba(245, 200, 0, 0.25), 0 0 0 1px var(--primary-blue);
+            box-shadow: 0 3px 10px var(--gold-glow), 0 0 0 1px var(--primary-blue);
+            /* Animated variant: --accent-gold oklch with a VARIABLE alpha (@property-driven) — cannot
+               route through a static token; documented exception to the no-literal rule. */
             box-shadow: 0 3px 10px oklch(84.7% 0.1734 92.3deg / var(--today-glow-alpha)), 0 0 0 1px var(--primary-blue);
         }
 
@@ -542,7 +544,7 @@
             border-color: var(--primary-blue);
             border-width: 3px;
             background: var(--accent-gold);
-            box-shadow: 0 3px 10px rgba(245, 200, 0, 0.25), 0 0 0 1px var(--primary-blue);
+            box-shadow: 0 3px 10px var(--gold-glow), 0 0 0 1px var(--primary-blue);
             transform: scale(1.02);
         }
 

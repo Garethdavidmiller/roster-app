@@ -167,3 +167,8 @@ than the purity gain.
   only, so the pairing is effectively never co-visible for ordinary staff.
 - **`--blue-sky` = Late shift AND assorted admin accents** (source pill, overwrite-active) — same
   rationale: labelled, low co-visibility.
+
+**Box-shadows are deliberately NOT routed through `--shadow-1/2/3`** (reviewed v17.58): ~120
+hand-rolled `rgba()` shadows exist with varied values; forcing them onto the three presets would
+visibly restyle depth across the app — a redesign, not hygiene. Use the `--shadow-*` tokens for NEW
+shadows; leave existing ones unless intentionally redesigning that surface.

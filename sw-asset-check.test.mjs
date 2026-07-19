@@ -252,27 +252,50 @@ test('functions/roster-members.json matches active staff in roster-data.js', asy
 });
 
 test('no unused CSS custom properties defined in :root', () => {
-    // Collect every root .css file and concatenate them for cross-file var() lookups.
     const cssFiles = readdirSync(ROOT).filter(f => f.endsWith('.css'));
-    const allCss = cssFiles.map(f => readFileSync(join(ROOT, f), 'utf8')).join('\n');
+    const cssText = Object.fromEntries(cssFiles.map(f => [f, readFileSync(join(ROOT, f), 'utf8')]));
 
-    // Walk :root { } blocks and collect every --token: definition.
-    // :root bodies never contain nested { } (they are flat property lists),
-    // so a simple scan for the matching } is safe.
-    const defined = new Set();
-    let idx = 0;
-    while (idx < allCss.length) {
-        const rootPos = allCss.indexOf(':root', idx);
-        if (rootPos === -1) break;
-        const openBrace = allCss.indexOf('{', rootPos);
-        if (openBrace === -1) break;
-        const closeBrace = allCss.indexOf('}', openBrace);
-        if (closeBrace === -1) break;
-        const block = allCss.slice(openBrace + 1, closeBrace);
-        const propRe = /(--[\w-]+)\s*:/g;
-        let m;
-        while ((m = propRe.exec(block)) !== null) defined.add(m[1]);
-        idx = closeBrace + 1;
+    // A token is only "used" if var(--token) appears in a stylesheet that is LINKED TOGETHER
+    // with the defining file on some page. Checking one concatenated blob (the pre-v17.58
+    // behaviour) let a dead guide-local token hide behind a SAME-NAMED token in another file
+    // (the guides deliberately run their own palettes, so names like --green/--light/--bg
+    // repeat across them). Link groups mirror the pages' actual <link> sets:
+    const APP_GROUP = ['shared.css', 'index.css', 'admin.css', 'paycalc.css',
+        'operations.css', 'settings.css', 'links.css'];
+    const LINK_GROUPS = [
+        APP_GROUP,
+        ['guide-shell.css', 'guide-doc.css', 'guide.css'],
+        ['guide-shell.css', 'guide-doc.css', 'paycalc-guide.css'],
+        ['guide-shell.css', 'railcard-guide.css'],
+        ['guide-shell.css', 'fip.css'],
+    ];
+    // Any css file not named in a group (a future addition) falls back to the app group,
+    // so a brand-new stylesheet can never silently dodge the check.
+    const groupsFor = (file) => {
+        const gs = LINK_GROUPS.filter(g => g.includes(file));
+        return gs.length ? gs : [APP_GROUP.concat(file)];
+    };
+
+    // Walk :root { } blocks PER FILE and collect (file, token) definitions.
+    // :root bodies never contain nested { } (they are flat property lists).
+    /** @type {Array<{file: string, token: string}>} */
+    const defined = [];
+    for (const f of cssFiles) {
+        const css = cssText[f];
+        let idx = 0;
+        while (idx < css.length) {
+            const rootPos = css.indexOf(':root', idx);
+            if (rootPos === -1) break;
+            const openBrace = css.indexOf('{', rootPos);
+            if (openBrace === -1) break;
+            const closeBrace = css.indexOf('}', openBrace);
+            if (closeBrace === -1) break;
+            const block = css.slice(openBrace + 1, closeBrace);
+            const propRe = /(--[\w-]+)\s*:/g;
+            let m;
+            while ((m = propRe.exec(block)) !== null) defined.push({ file: f, token: m[1] });
+            idx = closeBrace + 1;
+        }
     }
 
     // Tokens intentionally defined but not yet referenced via var() in CSS.
@@ -299,13 +322,18 @@ test('no unused CSS custom properties defined in :root', () => {
         '--row-selected-bg',
     ]);
 
-    // Every defined token must appear in a var() call somewhere in the combined CSS.
-    const dead = [...defined].filter(
-        token => !ALLOWED_DEAD_TOKENS.has(token) && !allCss.includes(`var(${token})`)
-    );
+    // Every (file, token) definition must appear in a var() call within a stylesheet it is
+    // actually linked with. Same-named tokens in unlinked files no longer count as usage.
+    const dead = defined
+        .filter(({ file, token }) => {
+            if (ALLOWED_DEAD_TOKENS.has(token)) return false;
+            const linked = new Set(groupsFor(file).flat());
+            return ![...linked].some(f => cssText[f] && cssText[f].includes(`var(${token})`));
+        })
+        .map(({ file, token }) => `${token} (${file})`);
     assert.deepEqual(
         dead, [],
-        `CSS custom properties defined in :root but never referenced via var():\n  ${dead.join('\n  ')}`
+        `CSS custom properties defined in :root but never referenced via var() in any linked stylesheet:\n  ${dead.join('\n  ')}`
     );
 });
 
