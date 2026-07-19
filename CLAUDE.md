@@ -290,10 +290,13 @@ roster-app/
 │   ├── responsive.spec.js  ← desktop-geometry checks: calendar/team-view/admin at 1024–1440px + short-height laptop cases (no horizontal overflow)
 │   ├── axe.spec.js         ← accessibility gate (axe-core, WCAG A/AA) — scans one rendered state per page. Tagged `@a11y`; GREEN + BLOCKING (part of `npm run test:e2e`) since v17.52; `npm run test:a11y` runs it standalone. One documented exclusion (calendar `.other-month` faint aria-hidden dates). Baseline in A11Y_FINDINGS.md. Imports test/expect from fixtures.js for the hermetic Firebase stub
 │   ├── csp.spec.js         ← deployed-CSP proof (v17.62): runs ONLY via `npm run test:csp` under `playwright.csp.mjs`, which serves the app from the Firebase Hosting emulator so firebase.json's real Content-Security-Policy header is applied + enforced by Chromium. For each page: asserts the CSP header is present, collects every `securitypolicyviolation`, asserts none — the RUNTIME counterpart to the static csp-hygiene.test.mjs. EXCLUDED from the http-server smoke run (playwright.config.mjs `testIgnore`), which serves no headers. Teeth-verified (blocking gstatic in script-src makes it fail)
+│   ├── visual.spec.js      ← visual-regression baselines (Section B / F-VIS, v17.73): runs ONLY via `npm run test:visual` under `playwright.visual.mjs`. Clock-pinned + Firebase-stubbed + fixed-member + overlays-dismissed → deterministic pixels; fixed-viewport (not fullPage) capture; `toHaveScreenshot` against committed baselines in `e2e/visual-baselines/`. Locks the composition of the key surfaces (calendar desktop; paycalc desktop+mobile; admin/operations desktop; settings mobile) incl. the accepted desktop voids, so a CSS/token/layout change can't silently restyle a page. EXCLUDED from the smoke run (env-sensitive pixels). Teeth-verified (a hue-shifted token trips it); stress-verified stable. **Mobile calendar (index.html @390px) is deliberately NOT baselined** — its fractional 7-column grid rasterises with run-to-run sub-pixel variation that flakes pixel-exact diffing (covered instead by the geometry-based responsive/calendar specs). Regenerate with `npm run test:visual -- --update-snapshots`
+│   ├── visual-baselines/   ← committed baseline PNGs for visual.spec.js (6, generated in the dev-container headless Chromium). Regenerate wholesale if the rendering environment (browser/OS/font stack) changes
 │   ├── helpers.js          ← shared spec helpers (collectFatalErrors, seedSession/seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay) — imported by all five specs
 │   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports. `enforceNamedSession(page)` rewrites roster-data.js to flip `ENFORCE_NAMED_SESSION` on, and `window.__E2E.failSignIn` forces sign-in to fail — for the B1 enforcement tests
 ├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own. `testIgnore: csp.spec.js` (that spec needs the Hosting emulator's headers)
 ├── playwright.csp.mjs      ← Playwright config for the deployed-CSP proof (e2e/csp.spec.js): baseURL → the Firebase Hosting emulator (127.0.0.1:5000), NO webServer (started by `npm run test:csp` = firebase emulators:exec --only hosting). Same chromium + mobile-chrome projects
+├── playwright.visual.mjs   ← Playwright config for the visual-regression baselines (e2e/visual.spec.js, `npm run test:visual`): one desktop project, http-server webServer, tolerant-but-teethed `toHaveScreenshot` defaults (threshold 0.15, maxDiffPixelRatio 0.003), flat baseline dir `e2e/visual-baselines/`. Opt-in (NOT in `npm test`/CI) because pixel diffs are environment-sensitive
 ├── package.json            ← dev dependencies only
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
 ├── scripts/
@@ -338,6 +341,12 @@ npm run test:a11y
 # header applied) and asserts real Chromium refuses nothing the app loads. Runtime counterpart to
 # the static csp-hygiene.test.mjs; not part of npm test. Gated in CI (e2e.yml `csp` job):
 npm run test:csp
+
+# Visual-regression baselines (Section B / F-VIS) — clock-pinned, Firebase-stubbed, fixed-member
+# screenshots of every key surface compared against committed PNGs in e2e/visual-baselines/.
+# Locks page composition (incl. the accepted desktop voids) against silent CSS/layout drift.
+# Opt-in, env-sensitive, NOT in npm test/CI. Regenerate: `npm run test:visual -- --update-snapshots`:
+npm run test:visual
 ```
 
 **Service worker caching:**

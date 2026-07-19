@@ -11,6 +11,7 @@
     "test:e2e": "playwright test",
     "test:a11y": "playwright test --grep @a11y --project=chromium",
     "test:csp": "firebase --project demo-myb-roster emulators:exec --only hosting 'playwright test --config=playwright.csp.mjs'",
+    "test:visual": "playwright test --config=playwright.visual.mjs",
     "test:functions": "node --test roster-parse-helpers.test.mjs",
     "bump": "node scripts/bump-version.mjs",
     "generate:roster-members": "node scripts/generate-roster-members.mjs",
