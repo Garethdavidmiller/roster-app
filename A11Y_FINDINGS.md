@@ -75,5 +75,8 @@ entry or a page `exclude` in `axe.spec.js` **with a one-line reason**, and recor
 
 1. ~~Fix `nested-interactive`~~ ✅ v17.50. 2. ~~Fix `color-contrast`~~ ✅ v17.51–52.
 3. ~~Green on both projects~~ ✅. 4. ~~Make it block (`test:e2e` includes `@a11y`)~~ ✅ v17.52.
-Optional next: add `npm run test:e2e` (or a dedicated `test:a11y`) to a CI workflow gate; wire more
-rendered STATES per page (e.g. an open lightbox, an error state) beyond the one snapshot each.
+5. ~~Wire more rendered STATES per page beyond the one settled snapshot~~ ✅ — forced transient
+states (sync-chip, active pills) v17.57; **open-overlay states (H2, v17.75): the login overlay,
+the nav drawer open, and the About lightbox open** — each a full interactive surface (focus trap,
+buttons, headings) the settled scans can't reach. All axe-clean.
+Optional next: add `npm run test:e2e` (or a dedicated `test:a11y`) to a CI workflow gate.
