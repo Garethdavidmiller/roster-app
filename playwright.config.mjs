@@ -7,6 +7,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
     testDir: './e2e',
+    // csp.spec.js belongs to the deployed-CSP proof (playwright.csp.mjs + `npm run test:csp`): it
+    // needs the Firebase Hosting emulator's real CSP header, which this http-server-backed config
+    // does NOT serve — running it here would fail its header assertion. Excluded from the smoke run.
+    testIgnore: 'csp.spec.js',
 
     // The Firebase SDK is stubbed at the network layer (e2e/fixtures.js), so pages
     // load from the local http-server only — no CDN cold-start to wait on. These

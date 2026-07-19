@@ -271,7 +271,7 @@ roster-app/
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
 ├── paycalc-migrations.test.mjs ← tests for pcPrefix, setPaycalcNamespace, SK rebuild, one-shot namespace migration (--experimental-test-module-mocks)
-├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
+├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); gates every branch/PR (e2e.yml `rules` job) AND deploy-rules.yml before any rules ship
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── storage-rules-static.test.mjs ← static (no-emulator) hygiene guard: asserts the 20 MB `request.resource.size` cap is present in all 3 upload blocks (the emulator suite can't practically test the size cap); part of `npm test` (test:hygiene)
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists (incl. non-JS HTML/CSS precache + no ghost entries), APP_VERSION sync, roster-members.json sync, admin/operations/settings/links have zero modulepreloads, NOTIFICATION_FEATURES hashPaths ⊆ SW SAFE_NOTIFICATION_PAGES, firestore.rules work-email domain = CONFIG.WORK_EMAIL_DOMAIN, all 5 doc "Last updated" stamps current to latest 0.10 milestone
@@ -279,16 +279,18 @@ roster-app/
 ├── guide-sources.test.mjs  ← structural guard for GUIDE_SOURCES.md: parses the source register and fails the build if a high-risk row loses its source, review dates (Next after Reviewed), or National/Local/Tip/Fact class. Structural only, not a date tripwire. Part of test:hygiene
 ├── guide-colour-parity.test.mjs ← guards the guide palettes' contract with the app: guide-shell --navy/--gold must mirror the brand hex (css-tokens.md table), and guide-doc must define the complete --sb-* shift set. Values of --sb-* deliberately diverge (accepted drift); the CONTRACT is mirror-parity + completeness. Part of test:hygiene
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
-├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, broken module graph, auth redirects) that pass all unit tests. Does NOT catch CSP header violations — the local http-server doesn't apply Firebase Hosting headers (use the Firebase Hosting emulator for CSP testing). NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
+├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, broken module graph, auth redirects) that pass all unit tests. Does NOT catch CSP header violations — the local http-server doesn't apply Firebase Hosting headers; the separate `npm run test:csp` (e2e/csp.spec.js via the Hosting emulator) covers that. NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
 │   ├── calendar.spec.js    ← calendar render, first-run, stale-member, dropdown, nav drawer (was part of smoke.spec.js; split by area v17.46 for parallelism + failure isolation). Each spec runs on Desktop Chrome + Pixel 5
 │   ├── auth.spec.js        ← login-overlay render + in-flight/failed states, B1 named-session enforcement (flag-ON: admin/settings re-show login, operations/links clear+in-place, paycalc soft) + happy path, and in-place sign-in (no reload) on every authenticated page
 │   ├── paycalc.spec.js     ← paycalc in-place login, signed-in period selector, desktop workspace geometry (1024–1440px + short height), one-time-notice stacking
 │   ├── pages.spec.js       ← settings/operations/links login + signed-in render, operations desktop columns + long-email layout + App-speed card, admin touch-layout blowout guard, FIP jump-link + malformed-hash
 │   ├── responsive.spec.js  ← desktop-geometry checks: calendar/team-view/admin at 1024–1440px + short-height laptop cases (no horizontal overflow)
 │   ├── axe.spec.js         ← accessibility gate (axe-core, WCAG A/AA) — scans one rendered state per page. Tagged `@a11y`; GREEN + BLOCKING (part of `npm run test:e2e`) since v17.52; `npm run test:a11y` runs it standalone. One documented exclusion (calendar `.other-month` faint aria-hidden dates). Baseline in A11Y_FINDINGS.md. Imports test/expect from fixtures.js for the hermetic Firebase stub
+│   ├── csp.spec.js         ← deployed-CSP proof (v17.62): runs ONLY via `npm run test:csp` under `playwright.csp.mjs`, which serves the app from the Firebase Hosting emulator so firebase.json's real Content-Security-Policy header is applied + enforced by Chromium. For each page: asserts the CSP header is present, collects every `securitypolicyviolation`, asserts none — the RUNTIME counterpart to the static csp-hygiene.test.mjs. EXCLUDED from the http-server smoke run (playwright.config.mjs `testIgnore`), which serves no headers. Teeth-verified (blocking gstatic in script-src makes it fail)
 │   ├── helpers.js          ← shared spec helpers (collectFatalErrors, seedSession/seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay) — imported by all five specs
 │   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports. `enforceNamedSession(page)` rewrites roster-data.js to flip `ENFORCE_NAMED_SESSION` on, and `window.__E2E.failSignIn` forces sign-in to fail — for the B1 enforcement tests
-├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own
+├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own. `testIgnore: csp.spec.js` (that spec needs the Hosting emulator's headers)
+├── playwright.csp.mjs      ← Playwright config for the deployed-CSP proof (e2e/csp.spec.js): baseURL → the Firebase Hosting emulator (127.0.0.1:5000), NO webServer (started by `npm run test:csp` = firebase emulators:exec --only hosting). Same chromium + mobile-chrome projects
 ├── package.json            ← dev dependencies only
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
 ├── scripts/
@@ -328,6 +330,11 @@ npm run test:e2e
 
 # Accessibility gate (axe-core, WCAG A/AA; one rendered state per page). Opt-in — see A11Y_FINDINGS.md:
 npm run test:a11y
+
+# Deployed-CSP proof — serves the app via the Firebase Hosting emulator (real firebase.json CSP
+# header applied) and asserts real Chromium refuses nothing the app loads. Runtime counterpart to
+# the static csp-hygiene.test.mjs; not part of npm test. Gated in CI (e2e.yml `csp` job):
+npm run test:csp
 ```
 
 **Service worker caching:**
