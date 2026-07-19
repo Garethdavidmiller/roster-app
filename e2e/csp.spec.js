@@ -50,6 +50,12 @@ for (const path of PAGES) {
         const cspHeader = resp?.headers()['content-security-policy'];
         expect(cspHeader, `${path} must be served with a Content-Security-Policy header`).toBeTruthy();
 
+        // Every page must ALSO carry the <meta> CSP — the mechanism that gives the header-less GitHub
+        // Pages mirror the same policy. Its content matching the header is enforced statically by
+        // csp-meta-parity.test.mjs; here we prove it's actually present on the served page.
+        const metaCsp = await page.locator('meta[http-equiv="Content-Security-Policy"]').count();
+        expect(metaCsp, `${path} must carry a <meta> CSP for GitHub Pages parity`).toBeGreaterThan(0);
+
         // Give the ES-module graph + the runtime Firebase SDK import/connect time to attempt their
         // loads under the live policy. A CSP refusal fires synchronously when the load is attempted;
         // an unreachable host merely fails the network (NOT a violation), so this stays robust
