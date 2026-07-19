@@ -216,6 +216,32 @@
         <!-- ── EUROPEAN DESTINATIONS ─────────────── -->
         <h2 class="section-label">European destinations</h2>
         <p class="section-intro" data-guide-source="fip-carrier-accept">Tap a country to see what to expect and how to book. If your journey crosses a border, see the <strong>multi-country</strong> note below before ordering coupons.</p>
+
+        <!-- Country finder (v17.64): live-filters the 25 country cards + the A–Z list below by name or
+             operator. Progressive enhancement — with JS off, every country stays visible. Logic in fip.js. -->
+        <div class="country-finder">
+            <div class="cf-search">
+                <span class="cf-search-icon" aria-hidden="true">🔍</span>
+                <input type="search" id="countrySearch" class="cf-input" autocomplete="off"
+                       placeholder="Search a country or operator — e.g. Spain, ÖBB, Railjet"
+                       aria-label="Search countries or operators" aria-describedby="countryCount">
+                <button type="button" id="countryClear" class="cf-clear" aria-label="Clear search" hidden>✕</button>
+            </div>
+            <span id="countryCount" class="cf-count" aria-live="polite" hidden></span>
+            <div class="cf-popular">
+                <span class="cf-popular-label">Popular from Marylebone</span>
+                <a href="#country-fr"><span aria-hidden="true">🇫🇷</span> France</a>
+                <a href="#country-be"><span aria-hidden="true">🇧🇪</span> Belgium</a>
+                <a href="#country-nl"><span aria-hidden="true">🇳🇱</span> Netherlands</a>
+                <a href="#country-ie"><span aria-hidden="true">🇮🇪</span> Ireland</a>
+                <a href="#country-de"><span aria-hidden="true">🇩🇪</span> Germany</a>
+                <a href="#country-it"><span aria-hidden="true">🇮🇹</span> Italy</a>
+                <a href="#country-es"><span aria-hidden="true">🇪🇸</span> Spain</a>
+                <a href="#country-ch"><span aria-hidden="true">🇨🇭</span> Switzerland</a>
+            </div>
+            <p class="cf-note">Carrier details change often — always confirm with RDG before you travel.</p>
+        </div>
+
         <div class="country-jump">
             <a href="#country-fr"><span aria-hidden="true">🇫🇷</span> France</a>
             <a href="#country-be"><span aria-hidden="true">🇧🇪</span> Belgium</a>
@@ -243,6 +269,8 @@
             <a href="#country-se" class="not-fip"><span aria-hidden="true">🇸🇪</span> Sweden</a>
             <a href="#country-fi" class="not-fip"><span aria-hidden="true">🇫🇮</span> Finland</a>
         </div>
+
+        <p id="countryNoMatch" class="cf-nomatch" role="status" hidden></p>
 
         <div class="box box-yellow mb-12">
             <strong>Always compare public fares first</strong>

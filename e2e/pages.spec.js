@@ -367,3 +367,43 @@ test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
     await expect(page.locator('.country-jump')).toBeVisible();
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
+
+// Country finder (v17.64): search filters the country cards + A–Z chips; clear + no-match + popular.
+test('fip: the country finder filters cards, shows a no-match, and clears', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/fip.html');
+    const search = page.locator('#countrySearch');
+    await expect(search).toBeVisible();
+
+    // Filter to Spain: Spain stays, an unrelated country (Norway) is hidden, count appears.
+    await search.fill('spain');
+    await expect(page.locator('#country-es')).toBeVisible();
+    await expect(page.locator('#country-no')).toBeHidden();
+    await expect(page.locator('#countryCount')).toContainText('of 25 countries');
+    // The A–Z chip for a hidden country is hidden too (kept in lockstep with its card).
+    await expect(page.locator('.country-jump a[href="#country-no"]')).toBeHidden();
+
+    // Gibberish → no-match message; every card hidden.
+    await search.fill('qwertyzzz');
+    await expect(page.locator('#countryNoMatch')).toBeVisible();
+    await expect(page.locator('#country-es')).toBeHidden();
+
+    // Clear button resets everything.
+    await page.locator('#countryClear').click();
+    await expect(page.locator('#country-no')).toBeVisible();
+    await expect(page.locator('#countryNoMatch')).toBeHidden();
+    await expect(search).toHaveValue('');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
+    await page.goto('/fip.html');
+    // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
+    // reveal France, and open it.
+    await page.locator('#countrySearch').fill('spain');
+    await expect(page.locator('#country-fr')).toBeHidden();
+    await page.locator('.cf-popular a[href="#country-fr"]').click();
+    await expect(page.locator('#country-fr')).toBeVisible();
+    await expect(page.locator('#country-fr')).toHaveAttribute('open', '');
+    await expect(page.locator('#countrySearch')).toHaveValue('');
+});
