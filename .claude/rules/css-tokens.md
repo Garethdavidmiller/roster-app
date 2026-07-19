@@ -84,6 +84,22 @@ The hex column is the brand reference (and is what the `<meta name="theme-color"
 
 All colour values must be in CSS variables in `:root` — never hardcode hex.
 
+## The orange family — a deliberate three-token split (v17.55–57)
+
+"Orange" is intentionally THREE tokens with distinct duties. This is not drift — the bright
+orange cannot carry white text at WCAG AA (2.15:1), so darker variants exist for those duties:
+
+| Token | L | Duty |
+|-------|---|------|
+| `--orange` (bright) | 77% | Ambient/identity colour only, never under white text: the Early calendar-cell tint + border, month-legend/Team-View key, **Operations page identity** (nav pill, `#opsBadge`), the Saturday badge's border, the admin overwrite-pending badge (idle) |
+| `--orange-deep` | 54% | Fills that carry **white text**: `.badge-early` (screen + print), `.pill-correction.active` |
+| `--orange-text` | 44% | Darkened orange **text on white / `--orange-light`**: `.badge-sat` text, `.pill-correction` idle text — the orange-family analogue of `--rdw-text`/`--other-text`/`--absence-text` |
+
+**Rules:** never put white text on `--orange` (use `--orange-deep`); never use `--orange` as text
+on a light surface (use `--orange-text`). The Early **cell** stays bright (owner decision v17.56:
+the current calendar design is kept) while the Early **badge** is deep — that lightness split is
+accepted and intentional, matching the badge family's 45–54% L fills.
+
 ## Dark (navy) nav drawer + scoped tokens (v11.54)
 
 The whole drawer is one continuous navy surface (`--nav-surface` = `--primary-blue`), matching the page header and the navy login overlay so the three read as one family. A set of **drawer-scoped tokens** on `.nav-panel`:
