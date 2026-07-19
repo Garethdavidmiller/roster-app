@@ -502,6 +502,11 @@ body.auth-ready .container { display: grid; }
     -webkit-overflow-scrolling: touch;
     margin: 0 0 10px;
     padding: 0;
+    /* position:relative makes this the containing block for the absolutely-positioned
+       `.sr-only` "Remove" label inside the (wider-than-viewport) table. Without it that
+       label escapes the overflow-x clip and pushes the whole PAGE sideways on a narrow
+       phone even though the table itself scrolls inside the wrapper (v17.59). */
+    position: relative;
 }
 @media (min-width: 768px) {
     .gen-slot-table-wrap { overflow-x: visible; }

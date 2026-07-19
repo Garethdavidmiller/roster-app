@@ -3,6 +3,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -47,19 +49,19 @@
         <h2 class="section-label">What you get</h2>
 
         <div class="two-up">
-            <div class="card card-pad">
+            <div class="card card-pad" data-guide-source="fip-card-validity">
                 <div class="icon">🃏</div>
                 <h3>FIP Card</h3>
                 <p>Discounted fares on most European railways. The standard discount is 50%; French, Belgian and Irish trains offer 75% off. The card is valid for <strong>two calendar years plus a little more</strong> — from 1 December before the printed period to 31 January after it (a 2025&ndash;26 card runs 1 Dec 2024 to 31 Jan 2027). Buy tickets at station offices abroad, or book from the UK via Trainseurope or bookmyrst.co.uk.</p>
             </div>
-            <div class="card card-pad">
+            <div class="card card-pad" data-guide-source="fip-request">
                 <div class="icon">🎟️</div>
                 <h3>Free Coupons</h3>
                 <p>Free travel on participating train operators. On some trains you'll also need to pay for a seat reservation or a supplement. Each coupon covers 48 hours in one country. Coupons are <strong>not sent automatically</strong> — order the ones you need each year from your annual allowance.</p>
             </div>
         </div>
 
-        <div class="box box-blue mb-8">
+        <div class="box box-blue mb-8" data-guide-source="fip-eligibility">
             <strong>Who's covered</strong>
             You generally qualify after <strong>12 months' service</strong> with a National Rail train operator (FIP is a discretionary benefit, not a contractual right). It then covers you, your partner (you must live together) and your dependent children. Whether family members get free coupons depends on the country — check the country cards below. Confirm with RST before ordering coupons for family members.
         </div>
@@ -78,7 +80,7 @@
                     <strong>Apply for your FIP Card</strong>
                     <span>Use the Rail Staff Travel (RST) form — link at the bottom of this page. RST is the team, run by the Rail Delivery Group (RDG), that administers staff travel benefits on behalf of UK train operators. Allow at least 6 weeks. For your <strong>first</strong> card, apply ahead of time even without travel plans — applications take time. Once you hold a card, RST normally <strong>renews it automatically</strong>, so you don't re-apply (the per-trip coupons are the thing you order each time). When it arrives, sign it and check your name matches your passport.</span>
                 </li>
-                <li>
+                <li data-guide-source="fip-allocation fip-coupon-expiry">
                     <strong>Order your free coupons once a year</strong>
                     <span>Use the RST coupon form (link at the bottom). Order at least <strong>3 weeks</strong> before travel; they're usually posted about 2 weeks before. A coupon is valid for up to <strong>3 months from the outward (start) date you declare</strong> — the start and end dates are printed on it (not simply 3 months from issue). As a rough guide you can order about <strong>one coupon per country per year</strong>, with two for a few (e.g. the Netherlands). But <strong>each operator sets its own annual limit</strong>, and family allowances often differ from staff — check the country cards below and confirm with RST before ordering.</span>
                 </li>
@@ -109,7 +111,7 @@
 
         <!-- ── BOOKING FROM UK ───────────────────── -->
         <h2 class="section-label">Booking from the UK</h2>
-        <p class="section-intro">Four ways to book your FIP trip from the UK.</p>
+        <p class="section-intro" data-guide-source="fip-contact">Four ways to book your FIP trip from the UK.</p>
 
         <div class="card">
             <ol class="steps">
@@ -213,7 +215,33 @@
 
         <!-- ── EUROPEAN DESTINATIONS ─────────────── -->
         <h2 class="section-label">European destinations</h2>
-        <p class="section-intro">Tap a country to see what to expect and how to book. If your journey crosses a border, see the <strong>multi-country</strong> note below before ordering coupons.</p>
+        <p class="section-intro" data-guide-source="fip-carrier-accept">Tap a country to see what to expect and how to book. If your journey crosses a border, see the <strong>multi-country</strong> note below before ordering coupons.</p>
+
+        <!-- Country finder (v17.64): live-filters the 25 country cards + the A–Z list below by name or
+             operator. Progressive enhancement — with JS off, every country stays visible. Logic in fip.js. -->
+        <div class="country-finder">
+            <div class="cf-search">
+                <span class="cf-search-icon" aria-hidden="true">🔍</span>
+                <input type="search" id="countrySearch" class="cf-input" autocomplete="off"
+                       placeholder="Search a country or operator — e.g. Spain, ÖBB, Railjet"
+                       aria-label="Search countries or operators" aria-describedby="countryCount">
+                <button type="button" id="countryClear" class="cf-clear" aria-label="Clear search" hidden>✕</button>
+            </div>
+            <span id="countryCount" class="cf-count" aria-live="polite" hidden></span>
+            <div class="cf-popular">
+                <span class="cf-popular-label">Popular from Marylebone</span>
+                <a href="#country-fr"><span aria-hidden="true">🇫🇷</span> France</a>
+                <a href="#country-be"><span aria-hidden="true">🇧🇪</span> Belgium</a>
+                <a href="#country-nl"><span aria-hidden="true">🇳🇱</span> Netherlands</a>
+                <a href="#country-ie"><span aria-hidden="true">🇮🇪</span> Ireland</a>
+                <a href="#country-de"><span aria-hidden="true">🇩🇪</span> Germany</a>
+                <a href="#country-it"><span aria-hidden="true">🇮🇹</span> Italy</a>
+                <a href="#country-es"><span aria-hidden="true">🇪🇸</span> Spain</a>
+                <a href="#country-ch"><span aria-hidden="true">🇨🇭</span> Switzerland</a>
+            </div>
+            <p class="cf-note">Carrier details change often — always confirm with RDG before you travel.</p>
+        </div>
+
         <div class="country-jump">
             <a href="#country-fr"><span aria-hidden="true">🇫🇷</span> France</a>
             <a href="#country-be"><span aria-hidden="true">🇧🇪</span> Belgium</a>
@@ -242,12 +270,14 @@
             <a href="#country-fi" class="not-fip"><span aria-hidden="true">🇫🇮</span> Finland</a>
         </div>
 
+        <p id="countryNoMatch" class="cf-nomatch" role="status" hidden></p>
+
         <div class="box box-yellow mb-12">
             <strong>Always compare public fares first</strong>
             A FIP discounted fare is not automatically the cheapest option. Advance public tickets, promotions, and low-cost operators can sometimes beat the FIP price — especially outside peak periods. Check before you book.
         </div>
 
-        <details id="multi-country" class="mb-12">
+        <details id="multi-country" class="mb-12" data-guide-source="fip-journey-coupon">
             <summary>ℹ️ Travelling through more than one country? <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <p>You need a coupon for <strong>each country you pass through</strong> — even if it's one continuous train.</p>
@@ -317,7 +347,7 @@
                     Most Dutch stations have automatic ticket barriers. Coupon holders are issued a separate gate pass when they buy — use this at the barriers. FIP tickets include a QR code. If you can't open a gate, ask station staff.
                 </div>
                 <div class="box box-blue mb-0">
-                    <strong>ICE trains:</strong> A €3 supplement applies per journey if you're using a 50% FIP ticket on an ICE high-speed train. This charge doesn't apply if you're using a free coupon.
+                    <strong>Supplements:</strong> On a 50% FIP ticket a small per-journey supplement can apply on some fast services (for example the Amsterdam–Rotterdam–Breda Intercity Direct) — a free coupon doesn't carry it. Amounts change, so check the exact charge with NS International when you buy.
                 </div>
             </div>
         </details>
@@ -352,7 +382,7 @@
                     <span class="tag tag-warn">Coupons: staff only</span>
                 </div>
                 <p><strong>Operator: DB (Deutsche Bahn)</strong></p>
-                <p>DB covers Germany's main rail network — ICE high-speed trains are included, though a supplement applies. Buy at any DB station ticket office or book ahead at <strong>bahn.de</strong>. Free coupons are valid for staff. Cross-border routes such as Paris–Frankfurt (TGV/ICE) can also be booked at DB ticket offices.</p>
+                <p>DB covers Germany's main rail network — ICE high-speed trains are included, with no domestic supplement on a FIP ticket or a free coupon. Reservations are optional (worth booking on busy long-distance trains). Buy at any DB station ticket office or book ahead at <strong>bahn.de</strong>. Free coupons are valid for staff. Cross-border routes such as Paris–Frankfurt (TGV/ICE) can also be booked at DB ticket offices.</p>
                 <div class="box box-red mt-8 mb-0">
                     <strong>⚠ Private operators — check before you travel</strong>
                     Germany has over 80 train operators, most of which do not accept FIP. Many regional routes are run by private companies rather than DB, and they look identical in journey planners. FlixTrain and WESTbahn also don't accept FIP. Always confirm you're on a DB service before assuming FIP applies.
@@ -387,7 +417,7 @@
                     <span class="tag tag-yes">Coupons: staff + family ✓</span>
                 </div>
                 <p><strong>Operator: Trenitalia</strong></p>
-                <p>Both 50% FIP tickets and free coupons are accepted at Trenitalia ticket offices. On high-speed Frecciarossa and Frecciargento trains, a seat reservation is required — the fee is paid on top of the discounted fare. Sicily is also reachable by Trenitalia night and InterCity trains, which include a ferry crossing of the Strait of Messina.</p>
+                <p>Both 50% FIP tickets and free coupons are accepted at Trenitalia ticket offices. High-speed Frecciarossa and Frecciargento trains need a seat reservation: on a <strong>50% FIP ticket</strong> the reservation is included in the fare, while on a <strong>free coupon</strong> the reservation fee is paid on top. Sicily is also reachable by Trenitalia night and InterCity trains, which include a ferry crossing of the Strait of Messina.</p>
                 <div class="box box-red mt-8 mb-0">
                     <strong>⚠ Private and regional operators — FIP not valid</strong>
                     Italo high-speed trains don't accept FIP. Trenord — which runs regional trains across Lombardy (Milan, Lake Como, Bergamo) — also doesn't accept FIP despite sharing tracks with Trenitalia. Ferrovie Sud Est (Puglia/Bari area) is the same. Always check the operator before boarding a regional train in northern or southern Italy.
@@ -403,7 +433,7 @@
                     <span class="tag tag-warn">Coupons: staff only</span>
                 </div>
                 <p><strong>Operator: Renfe</strong></p>
-                <p>Staff can use free coupons on standard Renfe services. On AVE high-speed trains a fixed staff fare applies (from €15) rather than 50% off — buy this at a Renfe ticket office in Spain, not from the UK in advance. Most stations have ticket barriers; coupon holders need to ask staff to open them manually. For long-distance trains, arrive at least 30 minutes before departure — luggage checks are conducted at the station.</p>
+                <p>Staff can use free coupons on standard Renfe services. On AVE high-speed trains a mandatory fixed staff supplement applies rather than a straight 50% off — check the current amount when you book. It's usually bought at a Renfe ticket office in Spain, though it can sometimes be arranged from the UK ahead of travel — ask Trainseurope or bookmyrst.co.uk. Most stations have ticket barriers; coupon holders need to ask staff to open them manually. For long-distance trains, arrive at least 30 minutes before departure — luggage checks are conducted at the station.</p>
                 <div class="box box-blue mt-8">
                     <strong>Euskotren (Basque Country) — free travel</strong>
                     Euskotren is a separate rail network in the Basque Country (Bilbao and San Sebastián) that has joined FIP — travel is free, and staff can also use coupons. Verify current terms with RDG or Trainseurope before you go, as newer FIP participants can have changing arrangements.
@@ -542,7 +572,7 @@
                     <span class="tag tag-warn">Coupons: staff only</span>
                 </div>
                 <p><strong>Operator: MÁV (Hungarian State Railways)</strong></p>
-                <p>Both 50% FIP tickets and free coupons are valid on MÁV services — coupons for staff only. Buy at MÁV ticket offices. Budapest is the main hub and well connected to Vienna by Railjet (around 2h 40min) — note that the Railjet is ÖBB-operated, so an Austrian coupon covers that journey.</p>
+                <p>Both 50% FIP tickets and free coupons are valid on MÁV services — coupons for staff only. Buy at MÁV ticket offices. Budapest is the main hub and well connected to Vienna by Railjet (around 2h 40min). Coupons follow the <strong>country you're travelling through, not the operator</strong>: even though the Railjet is ÖBB-operated, the Hungarian section of a Vienna–Budapest trip needs a Hungarian (MÁV) coupon and the Austrian section an ÖBB coupon — or use a single through FIP-discounted ticket for the whole journey.</p>
             </div>
         </details>
 

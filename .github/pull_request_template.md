@@ -19,7 +19,7 @@
 
 ### Service worker
 - [ ] New JS modules added to both asset lists in `service-worker.js`
-- [ ] Version bumped in all 9 locations (`npm run bump <version>`)
+- [ ] Runtime version updated with `npm run bump <version>` (2 runtime locations); `sw-asset-check.test.mjs` parity passes
 
 ### Error handling
 - [ ] No new silent `catch(() => {})` — use `catch(e => console.warn(...))` for fire-and-forget paths

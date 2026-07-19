@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v17.50 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.60 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `17.50` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `17.60` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -151,7 +151,7 @@ roster-app/
 ├── calendar-doc-viewer.js  ← Circular/Newsletter in-app viewer (index.html): opens a #circular/#newsletter notification deep link in a lightbox. Reuses createLightbox; separate from the Huddle viewer.
 ├── nav-panel.js            ← shared nav drawer: exports initNavPanel, archiveNotice, isNoticeExpired, resetNavPanel; the NAV_PAGES/INFORMATION/GUIDES arrays are internal data (not exported)
 ├── notif.js                ← shared Web Push: notifSupported, getNotifState, peekNotifState, enable/disableNotifications
-├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
+├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse, confirmDialog/promptDialog (v17.60 — Promise-based in-app replacements for native confirm()/prompt(), built on createLightbox; used by links-app.js + settings-app.js)
 ├── date-picker.js          ← brand-styled single-date picker for the Operations upload date fields: initDatePickers(ids) + pure monthCells(). Progressive-enhances each native `<input type="date">` (kept hidden as the value holder — consumers unchanged) into a trigger button that opens one shared modal calendar via createLightbox; sets value + dispatches input/change so the roster Saturday-snap and doc-upload defaults still flow through
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
 ├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
@@ -222,7 +222,7 @@ roster-app/
 ├── manifest.json           ← PWA manifest for all pages
 ├── guide.html / paycalc-guide.html / railcard-guide.html / fip.html ← printable guides (via nav panel)
 ├── railcard-guide.js       ← JS for railcard-guide.html: print, chip-bar navigation
-├── fip.js                  ← JS for fip.html: opens the target country <details> when a jump link or deep link navigates to it (native <details> otherwise land collapsed)
+├── fip.js                  ← JS for fip.html: (1) the **country finder** (v17.64) — a search box that live-filters the 25 country cards + the A–Z jump chips by country name OR operator/train text (so "ÖBB"/"Railjet" find their country), with a clear button, live count, no-match message, and "Popular from Marylebone" shortcuts; progressive enhancement (JS off → all visible). (2) opens the target country <details> on a jump/deep link (native <details> otherwise land collapsed), clearing an active filter first if the target was filtered out
 ├── guide-print.js          ← shared print button for guide.html and paycalc-guide.html
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512 · icon-badge.png (monochrome notification badge, 96px)
 ├── fonts/
@@ -271,24 +271,27 @@ roster-app/
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
 ├── paycalc-migrations.test.mjs ← tests for pcPrefix, setPaycalcNamespace, SK rebuild, one-shot namespace migration (--experimental-test-module-mocks)
-├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
+├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); gates every branch/PR (e2e.yml `rules` job) AND deploy-rules.yml before any rules ship
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── storage-rules-static.test.mjs ← static (no-emulator) hygiene guard: asserts the 20 MB `request.resource.size` cap is present in all 3 upload blocks (the emulator suite can't practically test the size cap); part of `npm test` (test:hygiene)
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists (incl. non-JS HTML/CSS precache + no ghost entries), APP_VERSION sync, roster-members.json sync, admin/operations/settings/links have zero modulepreloads, NOTIFICATION_FEATURES hashPaths ⊆ SW SAFE_NOTIFICATION_PAGES, firestore.rules work-email domain = CONFIG.WORK_EMAIL_DOMAIN, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── csp-hygiene.test.mjs    ← static (no-emulator) CSP guard: asserts firebase.json's Content-Security-Policy stays in step with what the app actually loads — every contacted host is permitted AND no stale origin lingers. Part of test:hygiene. (Its REQUIRED host list is itself hand-maintained — add a newly-contacted host there.)
+├── csp-meta-parity.test.mjs ← static guard that every served HTML page's `<meta http-equiv="Content-Security-Policy">` stays in lockstep with the firebase.json header CSP (minus the directives a meta CSP can't express — `frame-ancestors`/report/sandbox). The meta exists so the GitHub Pages staff mirror — which CANNOT serve HTTP headers — gets the SAME policy (and the CSP travels with the HTML through the SW cache on both origins). Part of test:hygiene. Teeth-verified
 ├── guide-sources.test.mjs  ← structural guard for GUIDE_SOURCES.md: parses the source register and fails the build if a high-risk row loses its source, review dates (Next after Reviewed), or National/Local/Tip/Fact class. Structural only, not a date tripwire. Part of test:hygiene
 ├── guide-colour-parity.test.mjs ← guards the guide palettes' contract with the app: guide-shell --navy/--gold must mirror the brand hex (css-tokens.md table), and guide-doc must define the complete --sb-* shift set. Values of --sb-* deliberately diverge (accepted drift); the CONTRACT is mirror-parity + completeness. Part of test:hygiene
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
-├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, broken module graph, auth redirects) that pass all unit tests. Does NOT catch CSP header violations — the local http-server doesn't apply Firebase Hosting headers (use the Firebase Hosting emulator for CSP testing). NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
+├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, broken module graph, auth redirects) that pass all unit tests. Does NOT catch CSP header violations — the local http-server doesn't apply Firebase Hosting headers; the separate `npm run test:csp` (e2e/csp.spec.js via the Hosting emulator) covers that. NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
 │   ├── calendar.spec.js    ← calendar render, first-run, stale-member, dropdown, nav drawer (was part of smoke.spec.js; split by area v17.46 for parallelism + failure isolation). Each spec runs on Desktop Chrome + Pixel 5
 │   ├── auth.spec.js        ← login-overlay render + in-flight/failed states, B1 named-session enforcement (flag-ON: admin/settings re-show login, operations/links clear+in-place, paycalc soft) + happy path, and in-place sign-in (no reload) on every authenticated page
 │   ├── paycalc.spec.js     ← paycalc in-place login, signed-in period selector, desktop workspace geometry (1024–1440px + short height), one-time-notice stacking
 │   ├── pages.spec.js       ← settings/operations/links login + signed-in render, operations desktop columns + long-email layout + App-speed card, admin touch-layout blowout guard, FIP jump-link + malformed-hash
 │   ├── responsive.spec.js  ← desktop-geometry checks: calendar/team-view/admin at 1024–1440px + short-height laptop cases (no horizontal overflow)
 │   ├── axe.spec.js         ← accessibility gate (axe-core, WCAG A/AA) — scans one rendered state per page. Tagged `@a11y`; GREEN + BLOCKING (part of `npm run test:e2e`) since v17.52; `npm run test:a11y` runs it standalone. One documented exclusion (calendar `.other-month` faint aria-hidden dates). Baseline in A11Y_FINDINGS.md. Imports test/expect from fixtures.js for the hermetic Firebase stub
+│   ├── csp.spec.js         ← deployed-CSP proof (v17.62): runs ONLY via `npm run test:csp` under `playwright.csp.mjs`, which serves the app from the Firebase Hosting emulator so firebase.json's real Content-Security-Policy header is applied + enforced by Chromium. For each page: asserts the CSP header is present, collects every `securitypolicyviolation`, asserts none — the RUNTIME counterpart to the static csp-hygiene.test.mjs. EXCLUDED from the http-server smoke run (playwright.config.mjs `testIgnore`), which serves no headers. Teeth-verified (blocking gstatic in script-src makes it fail)
 │   ├── helpers.js          ← shared spec helpers (collectFatalErrors, seedSession/seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay) — imported by all five specs
 │   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports. `enforceNamedSession(page)` rewrites roster-data.js to flip `ENFORCE_NAMED_SESSION` on, and `window.__E2E.failSignIn` forces sign-in to fail — for the B1 enforcement tests
-├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own
+├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own. `testIgnore: csp.spec.js` (that spec needs the Hosting emulator's headers)
+├── playwright.csp.mjs      ← Playwright config for the deployed-CSP proof (e2e/csp.spec.js): baseURL → the Firebase Hosting emulator (127.0.0.1:5000), NO webServer (started by `npm run test:csp` = firebase emulators:exec --only hosting). Same chromium + mobile-chrome projects
 ├── package.json            ← dev dependencies only
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
 ├── scripts/
@@ -296,7 +299,7 @@ roster-app/
 │   ├── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
 │   └── typecheck.mjs             ← `npm run typecheck` — type-checks every root JS module via tsc --noEmit using jsconfig.json
 ├── jsconfig.json               ← TypeScript project config for `// @ts-check` coverage; drives `npm run typecheck`
-├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects
+├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects, emulator ports. **Two-layer CSP:** the `Content-Security-Policy` HTTP header here is the primary policy on Firebase Hosting; a MIRRORED `<meta http-equiv>` CSP in every served HTML page (v17.63) carries the same policy to the GitHub Pages staff mirror, which cannot serve HTTP headers. Kept in lockstep by csp-meta-parity.test.mjs; proven at runtime by e2e/csp.spec.js. When you change the header CSP, update every page's meta to match (the parity test tells you exactly what)
 ├── firestore.rules         ← Firestore security rules (deployed via deploy-rules.yml, gated by firestore.rules.test.mjs)
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
 ├── generate-sri.mjs        ← dev utility: patches Mammoth CDN SRI hash in huddle.js
@@ -328,6 +331,11 @@ npm run test:e2e
 
 # Accessibility gate (axe-core, WCAG A/AA; one rendered state per page). Opt-in — see A11Y_FINDINGS.md:
 npm run test:a11y
+
+# Deployed-CSP proof — serves the app via the Firebase Hosting emulator (real firebase.json CSP
+# header applied) and asserts real Chromium refuses nothing the app loads. Runtime counterpart to
+# the static csp-hygiene.test.mjs; not part of npm test. Gated in CI (e2e.yml `csp` job):
+npm run test:csp
 ```
 
 **Service worker caching:**

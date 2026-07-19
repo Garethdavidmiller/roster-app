@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: July 2026 — v17.50 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.60 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -146,6 +146,21 @@ exceptions, the July/August minimum-fare waiver list). Card-by-card factual deta
 - Each card is self-contained — its exact time rule lives in its own **When** row so staff never have to cross-reference a key
 - Accuracy verified per card against the relevant official railcard site (nationalrail.co.uk and the individual card sites), re-checked May 2026
 - Static HTML, no module — kept deliberately simple as a low-frequency reference page
+
+### FIP guide information architecture (v1 ✓ v17.64)
+
+`fip.html` is a ~800-line, 25-country reference — the longest guide. **v1 (shipped v17.64):** a
+**country finder** in `fip.js` — a search box that live-filters the country cards AND the A–Z jump
+list by country name OR operator/train text (so "ÖBB"/"Railjet" find their country), with a clear
+button, a live "showing N of 25" count, a no-match message, and a "Popular from Marylebone" shortcut
+row. Progressive enhancement (JS off → every country visible); print unaffected (finder hidden, all
+cards expanded). Tested in `e2e/pages.spec.js` (filter, no-match, clear, popular-clears-filter).
+
+**Deferred to v2 (not scoped):** per-section review-date labels and per-card reliability badges
+(Confirmed / Check-before-travel / High-change) driven off the `GUIDE_SOURCES.md` register; a sticky
+section-contents bar (mirroring the railcard chip-bar); and collapsible major sections. The v1 finder
+was the highest-value, self-contained slice; the v2 items need per-card/section metadata and a
+bigger layout change, so they were held back to keep v1 shippable and low-risk.
 
 ### Cross-page / navy-chrome / typography consistency passes ✓ (v11.64–v11.88)
 

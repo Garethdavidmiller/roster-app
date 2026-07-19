@@ -39,9 +39,10 @@ jobs:
   # layer (e2e/fixtures.js) so the suite never depends on the gstatic CDN. Catches
   # blank-page failures (SyntaxError, missing import, broken module graph) that every
   # unit test passes but that would ship a broken page to staff. (It does NOT run under
-  # firebase.json's CSP — the local server doesn't apply those headers; csp-hygiene.test.mjs
-  # checks the CSP config statically instead.) Separate job so a
-  # smoke failure is attributable at a glance and runs in parallel with unit.
+  # firebase.json's CSP — the local http-server applies no headers; the `csp` job below
+  # proves the CSP at runtime via the Hosting emulator, and csp-hygiene.test.mjs checks the
+  # config statically.) Separate job so a smoke failure is attributable at a glance and runs
+  # in parallel with unit.
   smoke:
     runs-on: ubuntu-latest
     permissions:
@@ -73,5 +74,72 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # Emulator integration pack — Firestore + Storage security rules exercised against the REAL
+  # emulators (npm run test:rules). This previously ran ONLY at rules-deploy time
+  # (deploy-rules.yml); running it here gates every branch/PR, so a rules ↔ app contract
+  # regression is caught before merge, not at deploy.
+  rules:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      # firebase-tools v15 requires Java 21+ for the Firestore/Storage emulators.
+      - name: Install Java 21 (Firebase emulators)
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # emulators:exec downloads the emulator binaries on first run (cached in
+      # ~/.cache/firebase/emulators between runs).
+      - name: Run Firestore and Storage rules tests
+        run: npm run test:rules
+
+  # Deployed-CSP proof — serves the app via the Firebase Hosting emulator, which applies
+  # firebase.json's real Content-Security-Policy header, then loads every page in real Chromium
+  # and asserts the browser refuses nothing the app legitimately loads. This is the runtime
+  # counterpart to the static csp-hygiene.test.mjs and closes the gap the http-server smoke job
+  # can't (no headers). The Hosting emulator is Node-based, so no Java is needed here.
+  csp:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run deployed-CSP proof
+        run: npm run test:csp
+        env:
+          CI: true
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report-csp
           path: playwright-report/
           retention-days: 7

@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: July 2026 — v17.50 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.60 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -47,6 +47,25 @@ Firebase Storage browser uploads (manual Huddle upload in Operations) use
 `firebasestorage.googleapis.com`. This was implicitly covered by `https://*.googleapis.com`
 but is now also listed explicitly in `connect-src` in `firebase.json` for clarity.
 Both `connect-src` and `img-src` explicitly list `https://firebasestorage.googleapis.com`.
+
+### GitHub Pages mirror — CSP via `<meta>`, with two residual header-only gaps (v17.63)
+The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which
+**cannot serve custom HTTP response headers at all** (no `_headers` support). So the `firebase.json`
+CSP header — and every other security/cache header — never reaches the mirror. To close the biggest
+gap, every served HTML page now carries a `<meta http-equiv="Content-Security-Policy">` mirroring the
+header (v17.63; `csp-meta-parity.test.mjs` keeps them in lockstep, `e2e/csp.spec.js` proves it at
+runtime). On Firebase Hosting the page then carries header + meta (identical → same enforcement); on
+the mirror the meta is the only CSP, but it covers **all resource-loading directives** (`script-src`,
+`connect-src`, `style-src`, `img-src`, `frame-src`, `object-src`, `base-uri`, `form-action`, …).
+**Residual gaps on the mirror only — accepted, and a reason to retire the mirror:**
+1. **`frame-ancestors 'none'` (anti-clickjacking) can't be expressed in a `<meta>` CSP** (browsers
+   ignore it there), and GitHub Pages sends no `X-Frame-Options`. The mirror could therefore be
+   framed. Low impact — the app has no same-origin sensitive action a clickjack could drive (all
+   writes need a Firebase auth token, and `frame-src 'none'`/`object-src 'none'` still apply), but it
+   is a genuine difference from the Firebase origin.
+2. **`Cache-Control: no-cache` isn't applied** on the mirror; GitHub Pages uses its own caching.
+   Freshness is still carried by the service-worker version-bump lifecycle, so this is cosmetic.
+Both close automatically if/when the GitHub Pages mirror is retired (the stated long-term direction).
 
 ### localStorage session can be forged for UI access (#14)
 The `myb_admin_session` localStorage session can be modified via DevTools to

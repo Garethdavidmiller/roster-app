@@ -39,6 +39,23 @@ import { recordPageLatency } from './perf-reporter.js';
 
 
 /**
+ * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
+ * in step. `initCardCollapse` only syncs `aria-expanded` on user click, so a class-only
+ * `.open` (the auto-open / deep-link paths) would leave a screen reader hearing "collapsed"
+ * on an expanded card. The chevron is the focusable control that carries `aria-expanded`.
+ * @param {Element|null} body    - the `.card-collapsible-body`
+ * @param {Element|null} chevron - the `.collapse-chevron` control
+ */
+function openCollapsibleCard(body, chevron) {
+    if (body) body.classList.add('open');
+    if (chevron) {
+        chevron.classList.add('open');
+        chevron.setAttribute('aria-expanded', 'true');
+    }
+}
+
+
+/**
  * Coordinator body as an exported init() (ARCHITECTURE_PLAN.md Phase 4a.2 — admin was the last
  * coordinator still auto-running at module scope). admin-boot.js imports and calls init() once
  * (CSP `script-src 'self'` blocks an inline module call), so importing admin-app.js no longer runs
@@ -1478,10 +1495,7 @@ export function init() {
         if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
         // Auto-open the Annual Leave card — most staff visit here primarily to book AL
-        const alBody    = document.getElementById('alBody');
-        const alChevron = document.getElementById('alChevron');
-        if (alBody)    alBody.classList.add('open');
-        if (alChevron) alChevron.classList.add('open');
+        openCollapsibleCard(document.getElementById('alBody'), document.getElementById('alChevron'));
     }
 
     // ============================================
@@ -1625,10 +1639,7 @@ export function init() {
             catch { target = null; }
             if (target) {
                 // Open the collapsible body inside the target card if present
-                const body    = target.querySelector('.card-collapsible-body');
-                const chevron = target.querySelector('.collapse-chevron');
-                if (body)    body.classList.add('open');
-                if (chevron) chevron.classList.add('open');
+                openCollapsibleCard(target.querySelector('.card-collapsible-body'), target.querySelector('.collapse-chevron'));
                 requestAnimationFrame(() => requestAnimationFrame(() =>
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 ));

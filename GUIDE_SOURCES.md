@@ -17,6 +17,12 @@ date, and — critically — whether it is a **National** rule, a **Local** inte
 
 - **Before changing a high-risk guide claim:** find its row, open the Source, confirm the wording,
   update the guide, then bump `Reviewed` (and push `Next` out).
+- **Every railcard/fip row is wired to the block it certifies** via a `data-guide-source="<id>"`
+  attribute on that block in `railcard-guide.html` / `fip.html` (v17.59). `guide-sources.test.mjs`
+  enforces the two-way contract: no attribute may point at a missing row, and no railcard/fip row
+  may lack a block. So when you **add a high-risk row you must anchor it** with a
+  `data-guide-source` attribute (and vice-versa) — the build fails otherwise. A block may cite
+  several rows (space-separated). `paycalc` rows are exempt (they render on a different surface).
 - **Review cadence (manual, like the monthly notice cleanup):** each row carries its own `Next`
   date. Sections age at different rates — railcard time rules and pay/tax figures are the most
   time-sensitive; per-country FIP carrier details are the most volatile. When a row's `Next` month
@@ -44,6 +50,7 @@ belongs.
 | `Local` | A Marylebone/Chiltern interpretation or shortcut. Must be labelled as local, not universal. |
 | `Tip` | Practical guidance — how staff apply the rule day-to-day. |
 | `Fact` | A fixed figure or datum (fare, rate, threshold, phone number). |
+| `Contact` | A booking/enquiry contact point (agency phone, booking site) whose accuracy matters but which is neither a rule nor a fixed figure. |
 
 ## Register
 
@@ -72,8 +79,11 @@ belongs.
 | fip-journey-coupon | fip | FIP cross-border — a coupon per country travelled through (journey-validity rule, distinct from the annual allocation) | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
 | fip-carrier-accept | fip | FIP per-country carrier acceptance (e.g. Eurostar not accepted; OUIGO/Frecciarossa exclusions) — HIGH-CHURN, sampled not certified per-carrier | National | 2026-07 | 2026-10 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
 | fip-contact | fip | Booking-from-UK contacts (Trainseurope 01354 660222; bookmyrst.co.uk) | Contact | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
-| pay-rates | paycalc | CEA/CES hourly rates, contracted hours, pension, London Allowance | Fact | 2026-07 | 2027-04 | code:paycalc-calc.js |
-| pay-tax-thresholds | paycalc | Income tax / NI / student-loan / Scottish-band thresholds — 2026/27 all confirmed Jul 2026 vs GOV.UK SL3 2026-27 + Scottish Budget 2026/27; rUK income-tax freeze now runs to Apr 2031 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
+| pay-rates | paycalc | CEA/CES hourly rates, contracted hours, pension, London Allowance | Fact | 2026-07 | 2027-04 | internal |
+| pay-income-tax | paycalc | rUK income-tax bands + Personal Allowance (2026/27) — confirmed Jul 2026; the rUK income-tax/PA freeze now runs to Apr 2031 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
+| pay-ni | paycalc | National Insurance primary threshold + employee rates (2026/27) — confirmed Jul 2026 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
+| pay-student-loan | paycalc | Student-loan plan thresholds (2026/27) — confirmed Jul 2026 vs GOV.UK SL3 2026-27 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
+| pay-scottish | paycalc | Scottish income-tax bands (2026/27) — confirmed Jul 2026 vs the Scottish Budget 2026/27 | Fact | 2026-07 | 2027-03 | https://www.gov.scot/publications/scottish-budget-2026-to-2027/ |
 
 ## Not certified
 

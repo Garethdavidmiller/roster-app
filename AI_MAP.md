@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v17.50 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.60 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -216,6 +216,7 @@ Shared overlay helpers — singleton module, imported by every page that shows a
 - `dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler })` — the shared close routine `createLightbox` uses: removes `.open`, restores focus synchronously, then removes `.visible` + `unlockBodyScroll()` on `transitionend` with a mandatory 500ms `setTimeout` fallback (iOS suppresses `transitionend` on a backgrounded tab). Exported for the rare overlay that isn't built via `createLightbox`.
 - `registerPopInterceptor(fn)` / `suppressNextPop()` — popstate plumbing for an overlay with its OWN history handling (currently only `nav-panel.js`, the drawer): an interceptor gets first refusal on a Back pop; `suppressNextPop()` absorbs the echoed popstate from a programmatic `history.back()` so it can't reach the overlay stack.
 - `initCardCollapse(headerId, bodyId, chevronId, onToggle)` — wires a collapsible card header. Safe to call early; no-op if elements not found. **v17.50:** the focusable toggle is the **chevron/arrow** (`role="button"` + `aria-expanded`/`aria-controls` + an `aria-label` from the heading), NOT the whole header — a header can contain a Tips/Help `<button>`, and making the header the toggle nested one interactive control in another (WCAG `nested-interactive`). The header stays non-interactive with a mouse-only click that ignores nested controls; the no-chevron case falls back to header-as-toggle. Fixed the axe gate's `nested-interactive` findings.
+- `confirmDialog({ message, title?, confirmLabel?, cancelLabel?, danger? })` → `Promise<boolean>` and `promptDialog({ message, title?, defaultValue?, placeholder?, maxLength?, confirmLabel?, cancelLabel? })` → `Promise<string|null>` (v17.60) — in-app replacements for the browser-native `confirm()`/`prompt()`, so those reads carry the app's design language instead of raw OS chrome. Build a `.dialog-overlay` DOM node on the fly and run it through `createLightbox` (inheriting focus trap, Escape, Android Back, scroll lock, transitionend fallback); resolve on the user's choice and remove the node on close. **Async by nature — cannot stand in for a synchronous `confirm()` inside a capture-phase navigation guard (which must `preventDefault()` inline) or a `beforeunload` handler**; for a nav guard, intercept-always then navigate when the Promise resolves true (see `links-app.js`), and keep `beforeunload` native. Consumed by `links-app.js` (which replaced all 16 native `confirm()`/`prompt()` calls) and `settings-app.js` (the work-email remove confirm). Styled by `.dialog-*` in `shared.css`.
 - Imported by: `calendar-app.js`, `admin-app.js`, `paycalc-app.js`, `operations-app.js`, `settings-app.js`, `links-app.js`, `nav-panel.js`
 
 ### `about-lightbox.js`

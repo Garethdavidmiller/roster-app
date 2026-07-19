@@ -297,6 +297,54 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     font-size: 15px;
 }
 
+/* ── Country finder (v17.64) ─────────────── */
+.country-finder { margin-bottom: 12px; }
+.cf-search { position: relative; display: flex; align-items: center; }
+.cf-search-icon { position: absolute; left: 11px; font-size: 14px; pointer-events: none; }
+.cf-input {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 16px;   /* >=16px keeps iOS from focus-zooming the field */
+    padding: 11px 40px 11px 34px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--white);
+    color: var(--text);
+}
+.cf-input:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; border-color: var(--navy); }
+.cf-clear {
+    position: absolute; right: 6px;
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; color: var(--light);
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) { .cf-clear:hover { color: var(--navy); } }
+.cf-clear:focus-visible { outline: 2px solid var(--navy); }
+.cf-count { display: block; font-size: 12px; color: var(--mid); margin-top: 6px; }
+.cf-note  { font-size: 12px; color: var(--light); margin: 8px 0 0; }
+.cf-popular { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 10px; }
+.cf-popular-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--light); margin-right: 3px;
+}
+.cf-popular a {
+    font-size: 12px; padding: 6px 10px;
+    background: var(--blue-bg); border: 1px solid var(--blue-bdr); border-radius: 20px;
+    text-decoration: none; color: var(--navy); white-space: nowrap; touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) {
+    .cf-popular a:hover { background: var(--navy); color: white; border-color: var(--navy); }
+}
+.cf-popular a:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.cf-nomatch {
+    font-size: 13px; color: var(--text);
+    background: var(--yellow-bg); border: 1px solid var(--yellow-bdr);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;
+}
+
 /* ── Country jump list ───────────────────── */
 .country-jump {
     display: flex;
@@ -341,6 +389,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
     /* The shell prints .page-header as the title banner and hides its
        buttons; here we just drop the remaining screen-only chrome. */
+    .country-finder,
     .country-jump,
     .btn-primary,
     .btn-secondary,
@@ -350,8 +399,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
     .content { max-width: 100%; padding: 0 0 16px; }
 
-    /* Expand all <details> without JS */
+    /* Expand all <details> without JS; also un-hide any country card the finder filtered out on
+       screen (the 2 not-FIP <div>s), so a print taken mid-search still contains every country. */
     details { display: block !important; box-shadow: none; border: 1px solid var(--border); }
+    [id^="country-"][hidden] { display: block !important; }
     summary { display: none !important; }
     .detail-body { display: block !important; }
 

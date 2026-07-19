@@ -179,6 +179,132 @@ test('links: shows the in-place login when not signed in', async ({ page }) => {
     expect(errors, 'Uncaught JS exceptions triggering links redirect').toHaveLength(0);
 });
 
+// The Links page replaced every native confirm()/prompt() with the in-app confirmDialog/
+// promptDialog (overlay.js). Test those directly in a real browser: they build a .dialog-overlay
+// on the createLightbox lifecycle and resolve a Promise. overlay.js imports no Firebase, so it
+// loads standalone. Native confirm/prompt are overridden to throw — proving nothing falls back.
+test('confirmDialog: renders an in-app dialog and resolves true/false (not native confirm)', async ({ page }) => {
+    await page.goto('/links.html');
+    const r = await page.evaluate(async () => {
+        window.confirm = () => { throw new Error('native confirm() was called'); };
+        const { confirmDialog } = await import('/overlay.js');
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        // The node is removed AFTER the close transition (~500ms), not synchronously — poll for it.
+        const gone = async () => { for (let i = 0; i < 40 && document.querySelector('.dialog-overlay'); i++) await new Promise(r => setTimeout(r, 40)); return !document.querySelector('.dialog-overlay'); };
+
+        // Confirm path
+        const pYes = confirmDialog({ title: 'T', message: 'M', confirmLabel: 'Yes' });
+        await raf();
+        const overlay = document.querySelector('.dialog-overlay');
+        const isDialog = overlay?.getAttribute('role') === 'alertdialog';
+        const hasInput = !!overlay?.querySelector('.dialog-input');
+        overlay?.querySelector('.dialog-btn-confirm')?.click();
+        const yes = await pYes;
+        const removedAfterConfirm = await gone();   // eventually cleaned out of the DOM
+
+        // Cancel path — only after the first overlay is fully gone (removal is async now)
+        const pNo = confirmDialog({ message: 'M2' });
+        await raf();
+        document.querySelector('.dialog-overlay .dialog-btn-cancel')?.click();
+        const no = await pNo;
+
+        return { present: !!overlay, isDialog, hasInput, yes, no, removedAfterConfirm };
+    });
+    expect(r.present, 'a .dialog-overlay appeared').toBe(true);
+    expect(r.isDialog, 'confirm uses role=alertdialog').toBe(true);
+    expect(r.hasInput, 'confirm has no text input').toBe(false);
+    expect(r.yes, 'confirm button resolves true').toBe(true);
+    expect(r.no, 'cancel button resolves false').toBe(false);
+    expect(r.removedAfterConfirm, 'overlay removed from DOM after close').toBe(true);
+});
+
+test('promptDialog: resolves the typed value on confirm, null on cancel (not native prompt)', async ({ page }) => {
+    await page.goto('/links.html');
+    const r = await page.evaluate(async () => {
+        window.prompt = () => { throw new Error('native prompt() was called'); };
+        const { promptDialog } = await import('/overlay.js');
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        const gone = async () => { for (let i = 0; i < 40 && document.querySelector('.dialog-overlay'); i++) await new Promise(r => setTimeout(r, 40)); };
+
+        // Typed + confirm
+        const pVal = promptDialog({ title: 'Name', message: 'Name?', defaultValue: 'seed' });
+        await raf();
+        const input = document.querySelector('.dialog-overlay .dialog-input');
+        const seeded = input?.value;
+        input.value = 'Option A';
+        document.querySelector('.dialog-overlay .dialog-btn-confirm')?.click();
+        const val = await pVal;
+        await gone();   // wait out the async removal before opening the next dialog
+
+        // Cancel → null
+        const pNull = promptDialog({ message: 'Again?' });
+        await raf();
+        document.querySelector('.dialog-overlay .dialog-btn-cancel')?.click();
+        const cancelled = await pNull;
+
+        return { seeded, val, cancelled };
+    });
+    expect(r.seeded, 'input pre-filled with defaultValue').toBe('seed');
+    expect(r.val, 'confirm resolves the typed value').toBe('Option A');
+    expect(r.cancelled, 'cancel resolves null').toBe(null);
+});
+
+// Regression guard (v17.62): with unsaved changes, a nav-drawer GUIDE link (target="_blank")
+// must still open a new tab and leave the Links page (and its unsaved design) put — NOT get
+// caught by the unsaved-changes guard and navigate the current tab away. The guard is only for
+// same-tab navigation. Reproduces the bug the async-dialog conversion briefly introduced.
+test('links: a guide link (new tab) is not caught by the unsaved-changes guard', async ({ page, context }) => {
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+    await page.goto('/links.html');
+
+    // Make the page dirty: apply the auto-generated pattern (targets seed from static roster data,
+    // so this is deterministic in the hermetic env). Apply goes through the confirmDialog.
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+    await page.locator('#genApplyBtn').click();
+    await page.locator('.dialog-overlay .dialog-btn-confirm').click();      // "Apply"
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page.locator('#linksSaveRow')).toBeVisible();              // design now loaded (unsaved)
+
+    // Open the drawer and click a guide link (target="_blank").
+    await page.locator('#navMenuBtn').click();
+    const guide = page.locator('.nav-panel-link--guide').first();
+    await expect(guide).toBeVisible();
+    const popupPromise = context.waitForEvent('page');                     // the new tab
+    await guide.click();
+    const popup = await popupPromise;
+
+    // No leave-prompt appeared, and THIS tab stayed on the Links page (unsaved work preserved).
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page).toHaveURL(/links\.html/);
+    await popup.close();
+});
+
+// Regression guard: the auto-generate card holds a wide targets table (one row per shift
+// slot, Mon–Fri / Sat / Sun columns + a spare row). On a narrow phone that table must scroll
+// inside its own card, never stretch the page — a horizontal blowout clips the header and grid.
+test('links: opening the auto-generator causes no horizontal page overflow (narrow phone)', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });   // common Android CSS width
+    await seedSession(page, 'G. Miller');                       // G. Miller is a Links designer
+    await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+    await page.goto('/links.html');
+    await expect(page.locator('#generatorToggleHeader')).toBeVisible();
+
+    // Ensure the generator body is expanded (it auto-opens in the empty state, but make it
+    // deterministic regardless of stubbed-Firebase load order).
+    const opened = await page.evaluate(() => document.getElementById('generatorBody')?.classList.contains('open'));
+    if (!opened) await page.locator('#generatorChevron').click();
+    await expect(page.locator('#generatorBody')).toHaveClass(/open/);
+    await page.waitForTimeout(150);
+
+    const { scrollW, clientW } = await page.evaluate(() => ({
+        scrollW: document.documentElement.scrollWidth,
+        clientW: document.documentElement.clientWidth,
+    }));
+    expect(scrollW, `page scrollWidth ${scrollW}px vs viewport ${clientW}px`).toBeLessThanOrEqual(clientW + 1);
+});
+
 // ── ADMIN TOUCH LAYOUT — no horizontal blowout when a pill with hours is selected ──
 // Regression: on TOUCH devices (pointer: coarse) the bulk-bar time inputs' intrinsic
 // min-width (~180px each, unshrinkable without min-width: 0) stretched the whole page
@@ -240,4 +366,44 @@ test('fip: a malformed hash does not throw (safeDecode)', async ({ page }) => {
     // Page still renders (the jump bar exists) and nothing crashed.
     await expect(page.locator('.country-jump')).toBeVisible();
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+// Country finder (v17.64): search filters the country cards + A–Z chips; clear + no-match + popular.
+test('fip: the country finder filters cards, shows a no-match, and clears', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/fip.html');
+    const search = page.locator('#countrySearch');
+    await expect(search).toBeVisible();
+
+    // Filter to Spain: Spain stays, an unrelated country (Norway) is hidden, count appears.
+    await search.fill('spain');
+    await expect(page.locator('#country-es')).toBeVisible();
+    await expect(page.locator('#country-no')).toBeHidden();
+    await expect(page.locator('#countryCount')).toContainText('of 25 countries');
+    // The A–Z chip for a hidden country is hidden too (kept in lockstep with its card).
+    await expect(page.locator('.country-jump a[href="#country-no"]')).toBeHidden();
+
+    // Gibberish → no-match message; every card hidden.
+    await search.fill('qwertyzzz');
+    await expect(page.locator('#countryNoMatch')).toBeVisible();
+    await expect(page.locator('#country-es')).toBeHidden();
+
+    // Clear button resets everything.
+    await page.locator('#countryClear').click();
+    await expect(page.locator('#country-no')).toBeVisible();
+    await expect(page.locator('#countryNoMatch')).toBeHidden();
+    await expect(search).toHaveValue('');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
+    await page.goto('/fip.html');
+    // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
+    // reveal France, and open it.
+    await page.locator('#countrySearch').fill('spain');
+    await expect(page.locator('#country-fr')).toBeHidden();
+    await page.locator('.cf-popular a[href="#country-fr"]').click();
+    await expect(page.locator('#country-fr')).toBeVisible();
+    await expect(page.locator('#country-fr')).toHaveAttribute('open', '');
+    await expect(page.locator('#countrySearch')).toHaveValue('');
 });

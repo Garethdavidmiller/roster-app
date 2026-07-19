@@ -15,7 +15,7 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { initCardCollapse } from './overlay.js';
+import { initCardCollapse, confirmDialog } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -257,7 +257,7 @@ export function init() {
 
         if (removeBtn) {
             removeBtn.addEventListener('click', async () => {
-                if (!confirm('Remove your saved work email address?')) return;
+                if (!await confirmDialog({ message: 'Remove your saved work email address?', confirmLabel: 'Remove', danger: true })) return;
                 removeBtn.disabled = true;
                 try {
                     await sessionReady;

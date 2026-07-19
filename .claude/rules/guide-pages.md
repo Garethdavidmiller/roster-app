@@ -47,6 +47,12 @@ that register structurally (part of `npm run test:hygiene`) — every row must k
 gap the v17.45 audit flagged can't silently reopen.
 
 - **Before changing a high-risk claim**, update its register row (Source + `Reviewed`), then the guide.
+- **Block ↔ source linkage (v17.59):** each high-risk railcard/fip block carries a
+  `data-guide-source="<register-id>"` attribute wiring it to its register row. `guide-sources.test.mjs`
+  enforces both directions — an attribute pointing at a missing row fails, and a railcard/fip row with
+  no anchoring block fails. Adding a high-risk row therefore means anchoring it in the HTML (and
+  removing a block means removing/re-homing its row). The attribute is inert (no CSS/JS reads it), so
+  it needs no version bump. A block may cite multiple rows (space-separated).
 - The **National vs Local** flag is the anti-drift control: it is what stops a Marylebone shortcut
   being restated as a universal national rule (the root cause of the v17.45 railcard errors — see the
   three-layer format below).
