@@ -34,6 +34,17 @@ known; writes still require a named Firebase Auth session (`request.auth != null
 anonymous read from `firestore.rules`, and remove the anonymous auth block from
 `calendar-app.js`. See the June 2026 conversation for the full trade-off analysis.
 
+**Re-reviewed July 2026 (A2 / F-SEC-2) — decision stands, leave-as-is.** Note for future
+reviewers: the calendar now *does* establish an anonymous session (added v13.78 for error/usage
+reporting), so the v12.05 "anon-session workaround adds complexity" objection is now moot and an
+`allow read: if request.auth != null` gate would be near-free. It was **still declined** because
+the security value remains marginal — the v12.05 finding holds: an anonymous token is as freely
+obtainable as the app obtains it, so the gate only blocks a fully-token-less REST read, not a
+determined reader — and it carries real breakage risk (every override reader across calendar /
+paycalc / team-view / day-detail must read strictly after its session resolves, incl. cold/offline
+cases). The only *real* fix is the named-session gate, which the owner has declined for daily-UX
+reasons. Do not re-propose the anon-gate as a "quick win"; it is not one.
+
 ### Huddle Firestore writes restricted to admin (v11.07)
 `firestore.rules` now requires `request.auth.token.admin == true` for all browser
 create/update/delete on the `huddles` collection. Prior to v11.07, any signed-in staff
