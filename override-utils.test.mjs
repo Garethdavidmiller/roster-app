@@ -266,20 +266,13 @@ describe('isOverrideDisplaySuppressed', () => {
         assert.equal(isOverrideDisplaySuppressed({ type: 'sick' }, '09:00-17:00', false), false);
     });
 
-    // annual_leave: suppressed on any Sunday OR a rest-day base (you can't take leave on a day off) — F1
+    // annual_leave + other: suppressed on any Sunday only
     it('suppresses annual_leave on a Sunday (legacy backstop)', () => {
         assert.equal(isOverrideDisplaySuppressed({ type: 'annual_leave' }, 'RD', true), true);
     });
-    it('suppresses annual_leave on a rest-day base (RD), non-Sunday (F1)', () => {
-        assert.equal(isOverrideDisplaySuppressed({ type: 'annual_leave' }, 'RD', false), true);
-    });
-    it('suppresses annual_leave on an OFF base, non-Sunday (F1)', () => {
-        assert.equal(isOverrideDisplaySuppressed({ type: 'annual_leave' }, 'OFF', false), true);
-    });
-    it('does NOT suppress annual_leave on a worked weekday', () => {
+    it('does NOT suppress annual_leave on a weekday', () => {
         assert.equal(isOverrideDisplaySuppressed({ type: 'annual_leave' }, '09:00-17:00', false), false);
     });
-    // other (training) is suppressed on Sundays ONLY — a rest-day TRG RDW is valid and must render.
     it('suppresses Other-family on a Sunday', () => {
         assert.equal(isOverrideDisplaySuppressed({ type: 'other' }, '09:00-17:00', true), true);
     });

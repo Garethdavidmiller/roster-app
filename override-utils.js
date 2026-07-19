@@ -14,16 +14,10 @@ export function isRestShift(shift) {
 /**
  * Display-suppression rule (CLAUDE.md "Sundays are non-contracted", layer 5) — SINGLE SOURCE for the
  * calendar renderer, Team Week View, and month legend so they can never disagree. True when an
- * override must NOT replace the base shift on the calendar. **Leave is never displayed on a day the
- * member is already off:** both `sick` (Absent) AND `annual_leave` are suppressed on a rest-day base
- * OR any Sunday — you cannot be absent from, or take annual leave on, a non-contracted day. This keeps
- * the "Change a Shift" path in lockstep with the AL Booking flow (`isWorkingDate` skips rest days) and
- * the roster import (`restSafe` normalises AL/SICK-on-rest to RD), which is why AL was mis-displaying
- * and mis-counting on rest days before v17.77 (F1). The **Other family (`other`) is suppressed on
- * Sundays only** — training/induction on a rest day IS valid (a rest-day `TRG RDW`, paid as RDW), so
- * it must still render. (A worked Sunday is always RDW, never AL/Absent; such AL/sick-on-non-contracted
- * overrides are now blocked on write and only ever exist as legacy/hand-written data.) `rdw`,
- * `correction`, `spare_shift`, and plain `shift` are never suppressed.
+ * override must NOT replace the base shift on the calendar: a `sick` override on a rest-day base OR
+ * any Sunday, and `annual_leave` / Other-family (`other`) on any Sunday. (A worked Sunday is always
+ * RDW, never AL/Absent; Sundays and rest days are non-contracted — such overrides are only ever
+ * legacy/hand-written data.) `rdw`, `correction`, `spare_shift`, and plain `shift` are never suppressed.
  * Takes `sunday` as a boolean (not the date) so this module stays free of a roster-data import — that
  * would be a cycle, since roster-data imports from here. Callers pass `isSunday(dateStr)`.
  * @param {{type: string}} override
@@ -34,7 +28,7 @@ export function isRestShift(shift) {
 export function isOverrideDisplaySuppressed(override, baseShift, sunday) {
     switch (override.type) {
         case 'sick':         return isRestShift(baseShift) || sunday;
-        case 'annual_leave': return isRestShift(baseShift) || sunday;
+        case 'annual_leave': return sunday;
         case 'other':        return sunday;
         default:             return false;
     }
