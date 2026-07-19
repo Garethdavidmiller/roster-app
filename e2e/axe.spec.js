@@ -152,6 +152,41 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // ── Open-overlay states (H2, v17.75) — the settled-page scans above never OPEN these
+    // surfaces. A11Y_FINDINGS.md's promotion path calls for scanning more rendered states
+    // ("an open lightbox, an error state") per page; each of these is a full interactive
+    // surface (focus trap, buttons, headings) a one-settled-state gate can't reach.
+
+    test('login overlay (forced, signed out)', async ({ page }) => {
+        // settings.html shows the shared in-place sign-in overlay when no session exists — the
+        // first thing an unauthenticated staff member meets, previously unscanned by the gate.
+        await page.goto('/settings.html');
+        await expect(page.locator('#loginOverlay')).toBeVisible();
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('nav drawer open (calendar)', async ({ page }) => {
+        await seedMember(page);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('#navPanel')).toBeVisible();
+        // The calendar grid stays in the DOM behind the drawer → keep the .other-month exclusion.
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('About lightbox open (calendar)', async ({ page }) => {
+        await seedMember(page);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('.title-icon').first().click();   // calendar header logo → About
+        await expect(page.locator('#iconLightbox')).toBeVisible();
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // Static guide pages — no auth, no async state.
     for (const guide of ['guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html']) {
         test(`guide (${guide})`, async ({ page }) => {

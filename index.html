@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="light">
     <title>Marylebone Roster</title>
@@ -142,11 +142,11 @@
                 <div class="lightbox-tip"><span>Tap Today to jump back to the current week</span></div>
             </div>
             <div class="lightbox-print-wrap">
-                <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this calendar</button>
+                <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn"><span aria-hidden="true">🖨️</span> Print this calendar</button>
                 <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current month's calendar</span>
             </div>
-            <a href="./guide.html" target="_blank" rel="noopener" class="lightbox-bug-link" style="margin-top:4px">📖 View staff guide</a>
-            <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
+            <a href="./guide.html" target="_blank" rel="noopener" class="lightbox-bug-link" style="margin-top:4px"><span aria-hidden="true">📖</span> View staff guide</a>
+            <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
         </div>
     </div>
 
@@ -191,7 +191,7 @@
             <div class="day-detail-shift" id="dayDetailShift"></div>
             <div class="day-detail-extras" id="dayDetailExtras" hidden></div>
             <div class="day-detail-note" id="dayDetailNote" hidden></div>
-            <button type="button" class="day-detail-pay-btn" id="dayDetailPayBtn" hidden>💷 View pay estimate</button>
+            <button type="button" class="day-detail-pay-btn" id="dayDetailPayBtn" hidden><span aria-hidden="true">💷</span> View pay estimate</button>
         </div>
     </div>
 
@@ -300,7 +300,7 @@
 
         <!-- One-off notification enable prompt — hidden by JS once dismissed or enabled -->
         <div id="notifPrompt" class="notif-prompt" style="display:none">
-            <span class="notif-prompt-text">🔔 Get notified about the Daily Huddle, documents and pay reminders</span>
+            <span class="notif-prompt-text"><span aria-hidden="true">🔔</span> Get notified about the Daily Huddle, documents and pay reminders</span>
             <button type="button" class="notif-prompt-enable" id="notifPromptEnable">Enable</button>
             <button type="button" class="notif-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
         </div>

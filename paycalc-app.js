@@ -52,7 +52,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
-import { fd, fdShort, fmt } from './paycalc-format.js';
+import { fd, fdShort, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
 'use strict';
 
 /**
@@ -188,7 +188,9 @@ export function init() {
       const el = /** @type {HTMLInputElement|null} */ (document.getElementById(mId));
       if (!el) return;
       const v  = parseInt(el.value);
-      if (!isNaN(v)) { if (v > 59) el.value = '59'; if (v < 0) el.value = '0'; }
+      if (isNaN(v)) return;
+      const c = clampMinute(v);
+      if (c !== v) el.value = String(c); // only rewrite when out of range (preserves a typed "05")
     }
 
     // Find (or lazily create) the live decimal-conversion hint that sits beneath an
@@ -218,12 +220,10 @@ export function init() {
     function decPreview(hId) {
       const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
       const val = parseSmartFloat(raw);
-      if (raw.includes('.') && !isNaN(val) && val >= 0) {
-        let h = Math.floor(val);
-        let m = Math.round((val - h) * 60);
-        if (m >= 60) { h += 1; m = 0; } // floating-point rounding guard (e.g. 7.999)
+      const hm = raw.includes('.') ? decimalToHM(val) : null;
+      if (hm) {
         const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, true));
-        if (hint) { hint.textContent = `= ${h}h ${String(m).padStart(2, '0')}m`; hint.hidden = false; }
+        if (hint) { hint.textContent = `= ${hm.h}h ${String(hm.m).padStart(2, '0')}m`; hint.hidden = false; }
       } else {
         const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));
         if (hint) hint.hidden = true;
@@ -240,14 +240,10 @@ export function init() {
     function autoDecimalHours(hId, mId) {
       const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
       if (!raw.includes('.')) return;
-      const val = parseSmartFloat(raw);
-      if (isNaN(val) || val < 0) return;
-      let h = Math.floor(val);
-      let m = Math.round((val - h) * 60);
-      // Floating-point rounding can yield m === 60 (e.g. 7.999 → round(0.999×60)=60).
-      if (m >= 60) { h += 1; m = 0; }
-      /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(h);
-      /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = m ? String(m) : '';
+      const hm = decimalToHM(parseSmartFloat(raw));
+      if (!hm) return;
+      /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(hm.h);
+      /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = hm.m ? String(hm.m) : '';
       const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));
       if (hint) hint.hidden = true; // the split now shows in the hrs/mins fields
       autosave();

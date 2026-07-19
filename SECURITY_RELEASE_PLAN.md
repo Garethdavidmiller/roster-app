@@ -267,14 +267,17 @@ in `session.test.mjs`.
   H2 ✓ SHIPPED (v16.29)** — a dedicated **`linksDesigner: true`** claim is set by `setupRosterAuth`
   for `LINKS_DESIGNERS`, and writes are gated on `admin || linksDesigner` (reads stay open). Do
   **not** fold `linkDesigns` into the override member-name model.
-- **`pushSubscriptions` delete — CONSIDERED and kept as-is (rule-tighten remains OPEN).** The doc has
-  **no member identity** (keyed by a SHA-256 of the endpoint; fields are only `endpoint`,
-  `keys.p256dh`, `keys.auth`), so an owner check is **structurally impossible** without first adding
-  a stored owner field. Options: (a) **keep `request.auth != null`** and document that the id already
-  requires knowing the endpoint (mild obscurity, low risk — B2 chose this; it is the current live
-  posture); or (b) add an `ownerName`/`uid` field on create and check it on delete (a schema +
-  `savePushSubscription` change, not just a rule edit). Tightening remains an open owner decision —
-  see the owner-decisions table.
+- **`pushSubscriptions` delete — TIGHTENED (A5 / F-SEC-5, shipped v17.76).** Previously the doc had
+  **no member identity** (keyed by a SHA-256 of the endpoint; fields were only `endpoint`,
+  `keys.p256dh`, `keys.auth`), so an owner check was structurally impossible. Resolved via option (b):
+  `savePushSubscription` now stamps an **`owner` = Firebase Auth uid** on create (rules require it to
+  equal `request.auth.uid`, so you can only claim your own), and **delete requires
+  `resource.data.owner == request.auth.uid`** — OR no `owner` (legacy docs from older clients stay
+  deletable so VAPID-rotation cleanup isn't locked out; orphans from a uid change are swept by
+  `fanOutPush`'s server-side 410/404 cleanup). Non-breaking (owner is optional in the shape, so old
+  cached clients keep working) and gradually hardening (new subs protected immediately). Emulator-tested
+  in `firestore.rules.test.mjs` (a different identity cannot delete an owner-stamped sub; legacy escape
+  preserved).
 - **Provisioning invariant (executed in the B2 window, not deferred to B3):** the `manager` claim
   only lands when "Set up accounts" is re-run after `setupRosterAuth` ships, and takes effect on each
   manager's next token refresh — the permissive rule already required it for on-behalf writes (a
@@ -517,7 +520,7 @@ that reversal.
 | Code expiry / retry-rate-limit policy | C2, C4 | 10-minute expiry + 3-attempt lockout is the documented default. |
 | ~~A low-traffic **re-auth window**~~ | ~~B3~~ | **✓ DONE (v16.29): strict cutover shipped.** The window re-provisioned + refreshed tokens for the 6 managers too (`manager` claim), the `CLAIM_EPOCH == 2` sweep + `writeWithClaimRetry` self-heal meant no mass sign-out, and the no-name escape was removed. |
 | ~~`linkDesigns` isolation: leave open vs. add a `linksDesigner` claim~~ | ~~B2~~ | **SUPERSEDED — ✓ H2 SHIPPED (v16.29): added the `linksDesigner` claim.** The earlier "leave at `request.auth != null`" decision (Jul 2026) was replaced: `linkDesigns` writes now require `linksDesigner`/`admin` (reads stay open); `setupRosterAuth` sets the claim from `CONFIG.LINKS_DESIGNERS`. |
-| `pushSubscriptions` delete: keep `request.auth != null` vs. add a stored owner field | B2 | Recommendation: keep as-is (no member identity on the doc; the id already requires knowing the endpoint). |
+| ~~`pushSubscriptions` delete: keep `request.auth != null` vs. add a stored owner field~~ | ~~B2~~ | **✓ DONE (A5/F-SEC-5, v17.76): added an `owner`=uid field on create; delete now requires `owner == request.auth.uid` (legacy no-owner docs stay deletable; server 410 cleanup sweeps orphans).** |
 | ~~GCP **Workload Identity Pool** setup~~ | ~~A2~~ | **✓ DONE (v14.93)** — pool/provider/binding built with the repo-scoped `assertion.repository` condition (Appendix A2). |
 | reCAPTCHA Enterprise provider | D1/D2 | Required before App Check can attest. |
 | Is the app **official Chiltern infrastructure**? | App Check priority; header-capable hosting | If yes, App Check and Firebase-Hosting-only (drop github.io) rise in priority. |

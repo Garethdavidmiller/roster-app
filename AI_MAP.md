@@ -513,10 +513,12 @@ Back-pay lump sum calculator for `paycalc.html` (v13.81).
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `paycalc-hpp.js`, `paycalc-format.js`, `ls.js`
 
 ### `paycalc-format.js`
-Pure date/currency formatters shared by `paycalc-app.js` and `paycalc-backpay.js` (v14.06). No DOM, no Firebase.
+Pure date/currency formatters + time-input helpers shared by `paycalc-app.js` and `paycalc-backpay.js` (v14.06; time helpers added v17.74 / Section G). No DOM, no Firebase. Tested by `paycalc-format.test.mjs`.
 - `fd(d)` — formats a Date as "1 Apr '26" (day + short month + 2-digit year, Europe/London)
 - `fdShort(d)` — formats a Date as "1 Apr" (day + short month only)
 - `fmt(n)` — formats a number as a currency string, e.g. "£1,234.56"
+- `clampMinute(n)` — clamp a parsed minutes integer into [0, 59] (pure core of the hrs/mins field's `clampMins` DOM wrapper)
+- `decimalToHM(val)` — split decimal hours → `{h, m}` with a 60→next-hour float guard (e.g. 7.999 → 8h 00m); returns null for negative/non-finite. The single source for the live "= 7h 30m" preview AND the on-blur "7.5 → 7 hrs 30 mins" split (was duplicated inline in `paycalc-app.js`)
 
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).

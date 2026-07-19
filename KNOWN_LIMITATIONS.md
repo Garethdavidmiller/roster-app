@@ -34,6 +34,39 @@ known; writes still require a named Firebase Auth session (`request.auth != null
 anonymous read from `firestore.rules`, and remove the anonymous auth block from
 `calendar-app.js`. See the June 2026 conversation for the full trade-off analysis.
 
+**Re-reviewed July 2026 (A2 / F-SEC-2) — decision stands, leave-as-is.** Note for future
+reviewers: the calendar now *does* establish an anonymous session (added v13.78 for error/usage
+reporting), so the v12.05 "anon-session workaround adds complexity" objection is now moot and an
+`allow read: if request.auth != null` gate would be near-free. It was **still declined** because
+the security value remains marginal — the v12.05 finding holds: an anonymous token is as freely
+obtainable as the app obtains it, so the gate only blocks a fully-token-less REST read, not a
+determined reader — and it carries real breakage risk (every override reader across calendar /
+paycalc / team-view / day-detail must read strictly after its session resolves, incl. cold/offline
+cases). The only *real* fix is the named-session gate, which the owner has declined for daily-UX
+reasons. Do not re-propose the anon-gate as a "quick win"; it is not one.
+
+### Admin/manager password is surname-derived (F-SEC-1) — scoped July 2026, owner chose leave-as-is
+
+Every account's Firebase Auth password is the member's surname (lowercased, non-alpha stripped,
+padded to ≥6) — `normaliseSurname`. The typed login field is only a **local** gate that must equal
+the surname; the real credential is derived from the (public) display name. So the **admin**
+(`G. Miller` → `miller`) and **manager** accounts — which can do everything / write on-behalf — are
+guessable by anyone who knows the app URL + the surname convention (stated in the login hint).
+
+**A targeted fix was scoped (July 2026):** give admin/manager accounts a real secret, with a client
+login branch that (for those names) passes the typed password verbatim and skips the surname check,
+plus a `setupRosterAuth` guard so the break-glass surname-reset doesn't clobber it. Fully buildable;
+the only owner-only parts are setting + holding the secret (it can't live in the repo).
+
+**Owner decision: leave-as-is** — the exposure is impact-high but **likelihood-bounded by the
+unadvertised URL + small known team**, matching the existing surname-password posture ("passwords are
+surname-derived and not secrets; protection relies on Firebase Auth rate-limiting + Firestore rules").
+The full staff-wide replacement is the planned **Track C** in SECURITY_RELEASE_PLAN.md.
+
+**Revisit when:** the app URL is advertised more widely, or it becomes official Chiltern
+infrastructure — then build the targeted admin/manager fix (or sequence Track C). Do not treat the
+guessable admin password as fixed; it is an accepted, bounded risk, not a closed one.
+
 ### Huddle Firestore writes restricted to admin (v11.07)
 `firestore.rules` now requires `request.auth.token.admin == true` for all browser
 create/update/delete on the `huddles` collection. Prior to v11.07, any signed-in staff
@@ -42,11 +75,17 @@ Storage rules prevented them from uploading files. The two rules now match: both
 and Firestore require admin claim for huddle writes. Cloud Function writes via Admin SDK
 bypass rules and are unaffected.
 
-### CSP connect-src includes firebasestorage.googleapis.com (v11.07)
-Firebase Storage browser uploads (manual Huddle upload in Operations) use
-`firebasestorage.googleapis.com`. This was implicitly covered by `https://*.googleapis.com`
-but is now also listed explicitly in `connect-src` in `firebase.json` for clarity.
-Both `connect-src` and `img-src` explicitly list `https://firebasestorage.googleapis.com`.
+### CSP connect-src — googleapis wildcard narrowed to the four hosts used (v11.07; tightened A6/F-SEC-6 v17.76)
+`connect-src` used a broad `https://*.googleapis.com` wildcard. **Narrowed (A6) to exactly the four
+googleapis hosts the app contacts**: `firestore.googleapis.com` (Firestore), `identitytoolkit.googleapis.com`
+(Auth sign-in), `securetoken.googleapis.com` (Auth token refresh), and `firebasestorage.googleapis.com`
+(Storage). Those are the only Firebase services used (Auth + Firestore + Storage — no Analytics/FCM/App
+Check/Remote Config, which would add `firebaseinstallations`/`fcmregistrations`). `img-src` also lists
+`firebasestorage.googleapis.com` explicitly. **Safe because it is runtime-verified:** `e2e/csp.spec.js`
+(`npm run test:csp`) loads the app under the REAL narrowed header in the Hosting emulator with the REAL
+Firebase SDK — a blocked host would fire a `securitypolicyviolation` and fail the suite; it passes.
+`csp-hygiene.test.mjs` keeps the header's host set aligned with what the code contacts. If a new
+googleapis-backed Firebase service is ever added, add its host here (and to the meta CSPs) in the same change.
 
 ### GitHub Pages mirror — CSP via `<meta>`, with two residual header-only gaps (v17.63)
 The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which
@@ -457,6 +496,34 @@ to its peer dependency range. Check with `npm outdated` in `functions/`. When un
    `firebase-admin/firestore` directly
 3. Test all three Cloud Functions (ingestHuddle, parseRosterPDF, setupRosterAuth) before
    deploying to production
+
+### `firebase-tools` → `gaxios` dev-only advisory — no clean forward fix (F-DEP-1, reviewed v17.74)
+
+`npm audit` reports **5 moderate** advisories, all one root cause: a transitive `gaxios` in the
+**6.4.0 – 6.7.1** range pulled in by **`firebase-tools`** (root `devDependency`, currently
+`^15.22.2`).
+
+**Impact: none in production.** `firebase-tools` is a **dev/CI-only** tool (Firebase emulators +
+deploy) — it is **never bundled or served** to staff. The app ships no npm dependencies at all
+(vanilla JS, no bundler); this advisory cannot reach a user.
+
+**Why it is not "fixed" yet — the only npm fix is a *downgrade*.** The advisory is patched in
+`gaxios@7.x`, but the latest `firebase-tools` (15.24.0) still declares `gaxios@^6.7.0`, which
+resolves *within* the vulnerable range. `npm audit fix` therefore offers only
+`firebase-tools@14.23.0` — a **semver-major downgrade** that moves the toolchain backwards and is a
+breaking change. That is a worse position than the current moderate dev-only advisory, so it is
+**declined**.
+
+**Why not force it with `overrides`.** A root `"overrides": { "gaxios": "^7.2.0" }` would clear the
+audit, but `gaxios` 6→7 is a **major** API change and the 6.x copy is required by an intermediate
+Google dependency that expects the 6.x API — forcing 7.x risks breaking the **deploy/emulator
+toolchain** (which gates every rules/hosting deploy). Not worth that risk for a moderate dev-only
+advisory. (Contrast `functions/package.json`'s `uuid` override, which is safe because that pin stays
+within a compatible range.)
+
+**When to close:** once `firebase-tools` widens its `gaxios` range to include `7.x` (or its
+intermediate Google deps do). Re-check with `npm audit` / `npm outdated` periodically; bump
+`firebase-tools` then and confirm `npm run test:rules` + a hosting-emulator run still pass.
 
 ---
 

@@ -194,7 +194,7 @@ roster-app/
 ├── paycalc-roster-hint.js  ← roster-assist hint bar UI (updateRosterHint, fillFromRoster, fillCategoryFromRoster, snapKey, …)
 ├── paycalc-hpp.js          ← Holiday Pay Premium estimator and shared period helpers: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp
 ├── paycalc-backpay.js      ← back-pay lump sum calculator: prefillBackPay, calcBackPay, _bpAwardTaxYear, raiseByPercent
-├── paycalc-format.js       ← shared date/currency formatters (pure, no DOM): fd, fdShort, fmt. Imported by paycalc-app.js and paycalc-backpay.js.
+├── paycalc-format.js       ← shared pure helpers (no DOM): date/currency formatters fd, fdShort, fmt + time-input cores clampMinute, decimalToHM (extracted from paycalc-app.js v17.74/Section G — the hrs/mins split, previously inline+duplicated, is now written once and tested). Imported by paycalc-app.js and paycalc-backpay.js.
 ├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
 ├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
 ├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.), runMigrations(), and the shared saved-period decoder parseSavedPeriod/readSavedPeriod (returns {data,error}; back-pay + HPP surface a corrupt period instead of silently dropping it)
@@ -273,6 +273,7 @@ roster-app/
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
 ├── paycalc-migrations.test.mjs ← tests for pcPrefix, setPaycalcNamespace, SK rebuild, one-shot namespace migration (--experimental-test-module-mocks)
+├── paycalc-format.test.mjs ← tests for clampMinute + decimalToHM (hrs/mins split, incl. the 60→next-hour float guard) + fmt currency formatting; no mocks, part of test:hygiene
 ├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); gates every branch/PR (e2e.yml `rules` job) AND deploy-rules.yml before any rules ship
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── storage-rules-static.test.mjs ← static (no-emulator) hygiene guard: asserts the 20 MB `request.resource.size` cap is present in all 3 upload blocks (the emulator suite can't practically test the size cap); part of `npm test` (test:hygiene)
@@ -323,7 +324,7 @@ npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, guide-sources, guide-colour-parity
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, guide-sources, guide-colour-parity, links-analysis, links-compare, paycalc-format
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions pure-helper tests (roster-parse-helpers.test.mjs) — not part of npm test
@@ -586,12 +587,16 @@ Written by `savePushSubscription`, deleted by `deletePushSubscription` in `fireb
 Each document ID is a SHA-256 hash of the endpoint URL (first 20 hex chars). One doc per subscribed browser/device.
 Read by the `ingestHuddle` Cloud Function (Admin SDK) when fanning out push notifications.
 Client read: denied (`allow read: if false`) — no client may enumerate endpoints/keys. Create/update:
-any authenticated session, shape-validated (`endpoint`, `keys.p256dh`, `keys.auth`, `subscribedAt` only). **Delete:
-any authenticated session (`request.auth != null`) — there is no per-owner check, so an authenticated
-identity that knows a doc id could delete that subscription.** Low risk (the id is a hash of the
-endpoint, so it must be known) but a real hardening gap. Per-member override isolation shipped strict
-(v16.29), but this pushSubscriptions delete-rule tightening is a separate item that remains open —
-see `SECURITY_RELEASE_PLAN.md`.
+any authenticated session, shape-validated (`endpoint`, `keys.p256dh`, `keys.auth`, `subscribedAt`, and
+the optional `owner`). `owner` = the writer's Firebase Auth uid, stamped by `savePushSubscription`; when
+present the rules require it to equal `request.auth.uid`, so a session can only ever claim its own
+subscription. **Delete (per-owner, A5 / F-SEC-5, v17.76 — was `request.auth != null` for any id):** an
+authenticated session may delete a doc **only if `resource.data.owner == request.auth.uid`**, OR the doc
+carries **no `owner`** (legacy docs written by older clients — kept deletable so VAPID-rotation cleanup
+can't be locked out; orphans left by a uid change are swept server-side by `fanOutPush`'s 410/404
+cleanup). New subscriptions are protected immediately; legacy ones harden as devices re-subscribe. This
+closes the F-SEC-5 hardening gap (an identity that merely knew a doc id could previously delete any
+subscription).
 
 **clientErrors** (v13.31)
 ```

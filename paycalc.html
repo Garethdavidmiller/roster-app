@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
@@ -258,7 +258,7 @@
       <!-- Saturday -->
       <div class="hours-row">
         <div class="h-info">
-          <div class="h-title">🗓️ Rostered Saturday Hours</div>
+          <div class="h-title"><span aria-hidden="true">🗓️</span> Rostered Saturday Hours</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £25.92/hr</span>
           <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. Shows as "Ord Basic Pay @1.25" on your payslip.</div>
           <div class="val-warn" id="satWarn" role="alert">⚠ You've entered more Saturday hours than your roster allows — check the total</div>
@@ -281,7 +281,7 @@
       <!-- Bank Holiday rows — both hidden when period has no bank holidays -->
       <div class="hours-row hidden" id="bhRow">
         <div class="h-info">
-          <div class="h-title">🏛️ Bank Holiday Rostered</div>
+          <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Rostered</div>
           <span class="rate-badge badge-bh" id="badge-bh">1.25×  ·  £25.92/hr</span>
           <div class="h-sub">You were rostered to work, and it fell on a bank holiday (Easter, May Day, etc.). Shows as "Bank Holiday Rostered 1.25" on your payslip.</div>
         </div>
@@ -303,7 +303,7 @@
       <!-- Bank Holiday overtime — also hidden when no bank holiday in period -->
       <div class="hours-row hidden" id="bhOtRow">
         <div class="h-info">
-          <div class="h-title">🏛️ Bank Holiday Overtime</div>
+          <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Overtime</div>
           <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £25.92/hr</span>
           <div class="h-sub">Hours worked on a bank holiday beyond your rostered shift, or your rest day fell on a bank holiday and you worked it. Shows as "Bank Holiday Overtime 1.25" on your payslip.</div>
         </div>
@@ -328,7 +328,7 @@
       <!-- Overtime -->
       <div class="hours-row">
         <div class="h-info">
-          <div class="h-title">⏰ Overtime</div>
+          <div class="h-title"><span aria-hidden="true">⏰</span> Overtime</div>
           <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £25.92/hr</span>
           <div class="h-sub" id="overtimeSub">Extra hours worked on top of your roster this period. Shows as "Overtime 1.25" on your payslip.</div>
         </div>
@@ -350,7 +350,7 @@
       <!-- Rostered RDW -->
       <div class="hours-row">
         <div class="h-info">
-          <div class="h-title">💼 Rest Day Working</div>
+          <div class="h-title"><span aria-hidden="true">💼</span> Rest Day Working</div>
           <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £25.92/hr</span>
           <div class="h-sub" id="rdwSub">Came in on a rest day, or worked a Saturday that wasn't in your roster. Shows as "RDW 1.25" on your payslip.</div>
         </div>
@@ -372,7 +372,7 @@
       <!-- Sunday RDW -->
       <div class="hours-row">
         <div class="h-info">
-          <div class="h-title">☀️ Sunday Working</div>
+          <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
           <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £31.11/hr</span>
           <div class="h-sub" id="sundaySub">All Sunday hours are at 1.5×. Shows as "RDW Sun 1.5" on your payslip.</div>
         </div>
@@ -394,7 +394,7 @@
       <!-- Boxing Day -->
       <div class="hours-row hidden" id="boxingRow">
         <div class="h-info">
-          <div class="h-title">🎁 Boxing Day Working</div>
+          <div class="h-title"><span aria-hidden="true">🎁</span> Boxing Day Working</div>
           <span class="rate-badge badge-box" id="badge-box">3×  ·  £62.22/hr</span>
           <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. Shows as "Bank Holiday Overtime 3.0" on your payslip.</div>
         </div>
@@ -418,7 +418,7 @@
 
       <div class="hours-row">
         <div class="h-info">
-          <div class="h-title">🎓 Training Days</div>
+          <div class="h-title"><span aria-hidden="true">🎓</span> Training Days</div>
           <span class="rate-badge badge-peer">+2 hrs pay</span>
           <div class="h-sub">Each day you trained a colleague adds 2 hours' pay at your basic rate. Shows as extra basic pay on your payslip.</div>
         </div>

@@ -347,8 +347,9 @@ service cloud.firestore {
       allow read: if false;
       allow create, update: if
         request.auth != null &&
-        // hasOnly prevents injecting extra fields (e.g. memberName, metadata)
-        request.resource.data.keys().hasOnly(['endpoint', 'keys', 'subscribedAt']) &&
+        // hasOnly prevents injecting extra fields (e.g. memberName, metadata). `owner` is
+        // permitted (see below) but not required — older cached clients omit it.
+        request.resource.data.keys().hasOnly(['endpoint', 'keys', 'subscribedAt', 'owner']) &&
         request.resource.data.endpoint is string &&
         request.resource.data.endpoint.size() > 0 &&
         request.resource.data.endpoint.size() < 2048 &&
@@ -360,8 +361,18 @@ service cloud.firestore {
         request.resource.data.keys.p256dh.size() < 256 &&
         request.resource.data.keys.auth is string &&
         request.resource.data.keys.auth.size() < 64 &&
-        request.resource.data.subscribedAt is timestamp;
-      allow delete: if request.auth != null;
+        request.resource.data.subscribedAt is timestamp &&
+        // `owner` (Firebase Auth uid) is OPTIONAL for backward-compat, but WHEN PRESENT must be
+        // the caller's own uid — so a session can only ever claim its own subscription. New
+        // clients always write it; that's what lets the per-owner delete rule below protect them.
+        (!('owner' in request.resource.data) ||
+          (request.resource.data.owner is string && request.resource.data.owner == request.auth.uid));
+      // Delete YOUR OWN subscription (owner == your uid), OR a legacy doc that carries no owner
+      // (older clients wrote none) — keeping those deletable so VAPID-rotation cleanup can't be
+      // locked out. Orphans left by a uid change are swept server-side by fanOutPush's 410/404
+      // cleanup, so nothing accumulates. (A5, F-SEC-5 — was `request.auth != null` for any id.)
+      allow delete: if request.auth != null &&
+        (!('owner' in resource.data) || resource.data.owner == request.auth.uid);
     }
 
     match /analytics/{docId} {
