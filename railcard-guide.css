@@ -15,6 +15,7 @@
     --red:      #c62828;
     --red-bg:   #ffebee;
     --navy-bg:  #eef1f6;
+    --navy-tag-bg: #e2e7f0;  /* light-navy tag fill (three-layer OFFICIAL chip) */
 }
 
 /* Shell chrome (* reset, .page-header, .btn-back, .btn-pdf, print)
@@ -217,7 +218,7 @@ body {
     border-radius: 3px;
     white-space: nowrap;
 }
-.tl-tag.official { color: var(--navy);  background: #e2e7f0; }
+.tl-tag.official { color: var(--navy);  background: var(--navy-tag-bg); }
 .tl-tag.local    { color: var(--amber); background: var(--amber-bg); }
 .tl-tag.check    { color: var(--red);   background: var(--red-bg); }
 

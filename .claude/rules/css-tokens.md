@@ -84,6 +84,22 @@ The hex column is the brand reference (and is what the `<meta name="theme-color"
 
 All colour values must be in CSS variables in `:root` — never hardcode hex.
 
+## The orange family — a deliberate three-token split (v17.55–57)
+
+"Orange" is intentionally THREE tokens with distinct duties. This is not drift — the bright
+orange cannot carry white text at WCAG AA (2.15:1), so darker variants exist for those duties:
+
+| Token | L | Duty |
+|-------|---|------|
+| `--orange` (bright) | 77% | Ambient/identity colour only, never under white text: the Early calendar-cell tint + border, month-legend/Team-View key, **Operations page identity** (nav pill, `#opsBadge`), the Saturday badge's border, the admin overwrite-pending badge (idle) |
+| `--orange-deep` | 54% | Fills that carry **white text**: `.badge-early` (screen + print), `.pill-correction.active` |
+| `--orange-text` | 44% | Darkened orange **text on white / `--orange-light`**: `.badge-sat` text, `.pill-correction` idle text — the orange-family analogue of `--rdw-text`/`--other-text`/`--absence-text` |
+
+**Rules:** never put white text on `--orange` (use `--orange-deep`); never use `--orange` as text
+on a light surface (use `--orange-text`). The Early **cell** stays bright (owner decision v17.56:
+the current calendar design is kept) while the Early **badge** is deep — that lightness split is
+accepted and intentional, matching the badge family's 45–54% L fills.
+
 ## Dark (navy) nav drawer + scoped tokens (v11.54)
 
 The whole drawer is one continuous navy surface (`--nav-surface` = `--primary-blue`), matching the page header and the navy login overlay so the three read as one family. A set of **drawer-scoped tokens** on `.nav-panel`:
@@ -135,3 +151,24 @@ card + the four occasional cards, so column 3 is FILLED. The v16.14 version put 
 (now non-sticky) result, with the `#stickyTotal` bottom bar keeping the £ visible. A modest
 residual gap (left cards inherently taller) sits at the bottom-right. operations has no
 equivalent card to relocate, so its left-column void stands (admin's was mitigated — above).
+
+## Accepted colour overloads — reviewed and closed (v17.58)
+
+A colours review traced every semantic colour across all surfaces and found these cross-concept
+shares. All were **reviewed with the owner and accepted** — do not re-flag or "fix" them: the app
+never uses colour as the sole carrier of meaning (every badge has a label + emoji, per WCAG 1.4.1),
+the colliding surfaces are rarely co-visible, and adding new hues to separate them would cost more
+than the purity gain.
+
+- **paycalc pay badges deliberately borrow the roster's shift colours** — Saturday wears Early
+  orange, Sunday wears Late blue, and the Bank-Holiday badge wears the AL teal. The rate-chip
+  labels carry the meaning; the colours tie the pay categories to the roster's visual language.
+- **`--purple` = Spare shift AND the Links page identity** — Links is visible to two designers
+  only, so the pairing is effectively never co-visible for ordinary staff.
+- **`--blue-sky` = Late shift AND assorted admin accents** (source pill, overwrite-active) — same
+  rationale: labelled, low co-visibility.
+
+**Box-shadows are deliberately NOT routed through `--shadow-1/2/3`** (reviewed v17.58): ~120
+hand-rolled `rgba()` shadows exist with varied values; forcing them onto the three presets would
+visibly restyle depth across the app — a redesign, not hygiene. Use the `--shadow-*` tokens for NEW
+shadows; leave existing ones unless intentionally redesigning that surface.

@@ -45,7 +45,10 @@ calendar `#alBtn` / `#payBtn` and other-month day numbers; paycalc badges (`#pay
 - **Calendar + paycalc + admin (v17.52):** deepened the shared shift/pay tokens just enough to clear
   white-text AA (`--green`, `--al`, `--ot`, `--success-green`) while keeping the hue, and switched
   the badges that can't (orange `.badge-early`/`.badge-sat`, admin's gold "today" text) to **navy
-  text on the colour tint** — the tint + border keep each badge's identity. Screenshotted: no brand
+  text on the colour tint** — the tint + border keep each badge's identity. (v17.56 aesthetic
+  revision, owner-approved: `.badge-sat` moved from navy to the new `--orange-text` — a darkened
+  64.1°-hue orange that clears AA on `--orange-light` — restoring Saturday's category colour-coding
+  to match the OT/Peer badges, whose text kept their category colour.) Screenshotted: no brand
   drift. Also fixed the `aria-allowed-attr` regression this surfaced (`setSettingsCardOpen` was
   setting `aria-expanded` on the now-non-interactive paycalc header — moved it to the arrow control).
 - **Documented exclusion:** the calendar's faint **other-month day numbers** are `aria-hidden`

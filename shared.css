@@ -75,6 +75,18 @@
        WHITE text at AA (the bright --orange can't), keeping Early consistent with every other filled
        shift badge (white on a deep colour). Calendar cells/pills keep the bright --orange. (v17.55) */
     --orange-deep:  oklch(54.0% 0.150 64.1deg);
+    /* Darkened orange TEXT for use on white/--orange-light tints (clears WCAG AA 4.5:1) — the
+       orange-family analogue of --rdw-text/--other-text/--absence-text. Used by paycalc's Saturday
+       badge so its text keeps the category's orange coding instead of falling back to navy (v17.56). */
+    --orange-text:  oklch(44.0% 0.1741 64.1deg);
+    /* Darkened idle-pill text for the admin type pills (analogues of --rdw-text/--orange-text):
+       clears WCAG AA 4.5:1 on white where the base fills (--ot / --al) sit right at the margin. */
+    --ot-text:      oklch(42.0% 0.1323 273.8deg);
+    --al-text:      oklch(43.0% 0.1010 182.5deg);
+    /* Today-cell gold glow shadow (--accent-gold rgb(245,200,0) @ 25%). Kept as a literal rgba
+       INSIDE this token (rule-compliant) because it also serves the no-@property fallback path,
+       where color-mix support can't be assumed. */
+    --gold-glow: rgba(245, 200, 0, 0.25);
     --orange-light: color-mix(in oklch, var(--orange) 19%, white);
 
     /* Late shift */
@@ -166,7 +178,7 @@
     --al-confirm-accent: oklch(79.2% 0.1603 72.4deg);
 
     /* Success (online/ok states) */
-    --success-green:        oklch(49.5% 0.132 144.2deg);
+    --success-green:        var(--green);   /* merged v17.58 — was oklch(49.5% .132 144.2), 1% L from --green; one source */
     --success-green-bg:     var(--green-light);
     --success-green-border: oklch(82.9% 0.0827 145.8deg);
     --roster-success-bg:    color-mix(in oklch, var(--green) 8%, white);
