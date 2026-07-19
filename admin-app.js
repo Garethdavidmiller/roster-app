@@ -768,6 +768,16 @@ export function init() {
                 errors.push(`${formatDisplay(date)}: annual leave cannot be recorded on a Sunday`);
                 return;
             }
+            // Annual leave can't land on a base rest day either — the member is already off, so it
+            // would show 🏖️ over a day off AND wrongly consume a day of entitlement (F1, v17.77).
+            // Mirrors the AL Booking flow (isWorkingDate skips rest days) and the roster import
+            // (restSafe → RD). `data-baseIsRd` is set per row by renderWeekGrid. (Other/training on a
+            // rest day IS valid — a rest-day TRG RDW — so it is deliberately NOT blocked here.)
+            if (type === 'annual_leave' && row.dataset.baseIsRd === '1') {
+                row.classList.add('row-error');
+                errors.push(`${formatDisplay(date)}: annual leave can't be recorded on a rest day — the member is already off`);
+                return;
+            }
             if (type === 'sick' && isSunday(date)) {
                 row.classList.add('row-error');
                 errors.push(`${formatDisplay(date)}: absence cannot be recorded on a Sunday`);
@@ -892,6 +902,10 @@ export function init() {
         const alInBatch = toSave.filter(e => e.type === 'annual_leave');
         if (alInBatch.length > 0) {
             const member      = /** @type {any} */ (teamMembers.find(m => m.name === memberName));
+            // AL on a base rest day is not real leave (the member is already off), so it must not
+            // count toward the year's entitlement — excludes both new and any legacy rest-day AL, in
+            // lockstep with the write-time block above and the display suppression (F1, v17.77).
+            const isBaseRestDay = (/** @type {string} */ d) => isRestShift(getBaseShift(member, parseISODate(d)));
             const overwriteDates  = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
             const deletedALDates  = new Set(
                 getAllOverrides()
@@ -912,10 +926,11 @@ export function init() {
                         o.date       && o.date.startsWith(yearStr) &&
                         !overwriteDates.has(o.date) &&
                         !deletedALDates.has(o.date) &&
-                        !isSunday(o.date)
+                        !isSunday(o.date) &&
+                        !isBaseRestDay(o.date)
                     ).map(o => o.date)
                 );
-                const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
+                const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d) && !isBaseRestDay(d)))];
                 const overage = projectAnnualLeaveOverage({ name: memberName, year: yearStr, existingALDates, newALDates, entitlement });
                 if (overage) {
                     showALConfirm(overage.headline, overage.detail, toSave, toDelete);

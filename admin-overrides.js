@@ -383,6 +383,18 @@ export function buildWeekGridInto(container, dateStr) {
                 otherPill.title    = 'Other days (training, induction, assessment, team days) cannot be recorded on a Sunday — Sundays are not contracted days';
                 otherPill.setAttribute('aria-label', 'Other — unavailable on Sundays (not a contracted day)');
             }
+        } else if (isRestShift(baseShift)) {
+            // Annual leave can't land on a base rest day either — the member is already off, so AL
+            // there would show over a day off AND wrongly consume entitlement (F1, v17.77). Disable
+            // only the AL pill: unlike Sunday, a rest day CAN be worked (Shift/RDW) and CAN hold an
+            // Other/training day (a rest-day TRG RDW), so those pills stay enabled. Mirrors the AL
+            // Booking flow (isWorkingDate skips rest days) and the roster import (restSafe → RD).
+            const alPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-annual_leave'));
+            if (alPill) {
+                alPill.disabled = true;
+                alPill.title    = 'Annual leave cannot be recorded on a rest day — the member is already off';
+                alPill.setAttribute('aria-label', 'Annual Leave — unavailable on a rest day (the member is already off)');
+            }
         }
 
         const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
@@ -902,13 +914,14 @@ function _initBulkBar() {
     bulkApplyBtn?.addEventListener('click', () => {
         if (!_bulkActiveType) { _showError('Choose a type in step 2 first, then tap Apply.'); return; }
         const typeMeta = TYPES[_bulkActiveType];
-        let ticked = 0, applied = 0, sundaySkipped = 0;
+        let ticked = 0, applied = 0, sundaySkipped = 0, restSkipped = 0;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox || !checkbox.checked) return;
             ticked++;
             if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick' || _bulkActiveType === 'other') && isSunday(row.dataset.date ?? '')) { sundaySkipped++; return; } // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
+            if (_bulkActiveType === 'annual_leave' && row.dataset.baseIsRd === '1') { restSkipped++; return; } // AL can't land on a base rest day — skip like Sundays (F1, v17.77)
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
@@ -923,12 +936,17 @@ function _initBulkBar() {
         // Silent-no-op fixes: "Apply" used to do nothing (no feedback) when no days were
         // ticked, or when the only ticked day was a Sunday that AL/Absent/Other skips.
         if (ticked === 0)  { _showError('Tick some days first — use the buttons above, or tap the day checkboxes.'); return; }
-        if (applied === 0) { _showError('Nothing applied — Sunday is not a contracted day. Tick a working day.'); return; }
+        if (applied === 0) { _showError('Nothing applied — the ticked days aren\'t contracted for this (Sundays, and rest days for annual leave). Tick a working day.'); return; }
         _markChanged();
         updateSaveBtn();
         _updateBulkSelCount();
-        // Tell the user when ticked Sundays were dropped, so "All 7 → 6 applied" isn't a surprise.
-        if (sundaySkipped > 0) _showSuccess(`Set ${applied} day${applied !== 1 ? 's' : ''} — Sunday skipped (not a contracted day).`);
+        // Tell the user when ticked non-contracted days were dropped, so "All 7 → 6 applied" isn't a surprise.
+        if (sundaySkipped > 0 || restSkipped > 0) {
+            const parts = [];
+            if (sundaySkipped > 0) parts.push('Sunday');
+            if (restSkipped > 0)   parts.push(restSkipped === 1 ? 'a rest day' : 'rest days');
+            _showSuccess(`Set ${applied} day${applied !== 1 ? 's' : ''} — ${parts.join(' & ')} skipped (not contracted).`);
+        }
     });
 }
 
