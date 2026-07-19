@@ -45,6 +45,28 @@ paycalc / team-view / day-detail must read strictly after its session resolves, 
 cases). The only *real* fix is the named-session gate, which the owner has declined for daily-UX
 reasons. Do not re-propose the anon-gate as a "quick win"; it is not one.
 
+### Admin/manager password is surname-derived (F-SEC-1) — scoped July 2026, owner chose leave-as-is
+
+Every account's Firebase Auth password is the member's surname (lowercased, non-alpha stripped,
+padded to ≥6) — `normaliseSurname`. The typed login field is only a **local** gate that must equal
+the surname; the real credential is derived from the (public) display name. So the **admin**
+(`G. Miller` → `miller`) and **manager** accounts — which can do everything / write on-behalf — are
+guessable by anyone who knows the app URL + the surname convention (stated in the login hint).
+
+**A targeted fix was scoped (July 2026):** give admin/manager accounts a real secret, with a client
+login branch that (for those names) passes the typed password verbatim and skips the surname check,
+plus a `setupRosterAuth` guard so the break-glass surname-reset doesn't clobber it. Fully buildable;
+the only owner-only parts are setting + holding the secret (it can't live in the repo).
+
+**Owner decision: leave-as-is** — the exposure is impact-high but **likelihood-bounded by the
+unadvertised URL + small known team**, matching the existing surname-password posture ("passwords are
+surname-derived and not secrets; protection relies on Firebase Auth rate-limiting + Firestore rules").
+The full staff-wide replacement is the planned **Track C** in SECURITY_RELEASE_PLAN.md.
+
+**Revisit when:** the app URL is advertised more widely, or it becomes official Chiltern
+infrastructure — then build the targeted admin/manager fix (or sequence Track C). Do not treat the
+guessable admin password as fixed; it is an accepted, bounded risk, not a closed one.
+
 ### Huddle Firestore writes restricted to admin (v11.07)
 `firestore.rules` now requires `request.auth.token.admin == true` for all browser
 create/update/delete on the `huddles` collection. Prior to v11.07, any signed-in staff
