@@ -75,6 +75,10 @@
        WHITE text at AA (the bright --orange can't), keeping Early consistent with every other filled
        shift badge (white on a deep colour). Calendar cells/pills keep the bright --orange. (v17.55) */
     --orange-deep:  oklch(54.0% 0.150 64.1deg);
+    /* Darkened orange TEXT for use on white/--orange-light tints (clears WCAG AA 4.5:1) — the
+       orange-family analogue of --rdw-text/--other-text/--absence-text. Used by paycalc's Saturday
+       badge so its text keeps the category's orange coding instead of falling back to navy (v17.56). */
+    --orange-text:  oklch(44.0% 0.1741 64.1deg);
     --orange-light: color-mix(in oklch, var(--orange) 19%, white);
 
     /* Late shift */
