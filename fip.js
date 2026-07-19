@@ -79,6 +79,37 @@ if (clearBtn && searchInput) {
     clearBtn.addEventListener('click', function () { searchInput.value = ''; applyCountryFilter(''); searchInput.focus(); });
 }
 
+// ── Section chip-bar: sticky quick-nav to the major sections (v17.66) ──────────────────────────
+document.querySelector('.chip-bar')?.addEventListener('click', function (e) {
+    var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
+    if (!chip) return;
+    var target = document.getElementById(chip.dataset.target || '');
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Land focus on the section (keyboard / screen-reader users) and mark the active chip.
+    target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+    document.querySelectorAll('.chip-bar .chip[aria-current]').forEach(function (c) { c.removeAttribute('aria-current'); });
+    chip.setAttribute('aria-current', 'true');
+});
+
+// Sit the sticky chip-bar directly under the sticky header, then set scroll-margin-top on every jump
+// target (section headings + country cards) so a jump isn't hidden under header + chip-bar. Runs
+// after fonts load so the header height is measured accurately (mirrors railcard-guide.js).
+function adjustFipOffsets() {
+    var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
+    var bar = /** @type {HTMLElement|null} */ (document.querySelector('.chip-bar'));
+    if (!hdr || !bar) return;
+    var hdrH = hdr.offsetHeight;
+    bar.style.top = hdrH + 'px';
+    var stickyH = hdrH + bar.offsetHeight + 8;
+    document.querySelectorAll('.section-label[id], [id^="country-"]').forEach(function (el) {
+        /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
+    });
+}
+if (document.fonts && document.fonts.ready) { document.fonts.ready.then(adjustFipOffsets); }
+else { requestAnimationFrame(adjustFipOffsets); }
+
 // ── Open-on-jump ──────────────────────────────────────────────────────────────────────────────
 
 /** Open whatever the current URL hash points at (deep links + back/forward navigation). */

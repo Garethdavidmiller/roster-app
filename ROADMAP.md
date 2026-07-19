@@ -156,11 +156,26 @@ button, a live "showing N of 25" count, a no-match message, and a "Popular from 
 row. Progressive enhancement (JS off → every country visible); print unaffected (finder hidden, all
 cards expanded). Tested in `e2e/pages.spec.js` (filter, no-match, clear, popular-clears-filter).
 
-**Deferred to v2 (not scoped):** per-section review-date labels and per-card reliability badges
-(Confirmed / Check-before-travel / High-change) driven off the `GUIDE_SOURCES.md` register; a sticky
-section-contents bar (mirroring the railcard chip-bar); and collapsible major sections. The v1 finder
-was the highest-value, self-contained slice; the v2 items need per-card/section metadata and a
-bigger layout change, so they were held back to keep v1 shippable and low-risk.
+**v2 (v17.66):** the **sticky section chip-bar** shipped — a quick-nav under the header (Overview,
+How it works, Booking, Eurostar, Countries, Ferries, Mistakes, Apply), mirroring the railcard
+chip-bar (click → smooth-scroll + `aria-current`; `fip.js` sits it under the header and sets
+scroll-margin). Tested in `pages.spec.js`.
+
+The other three v2 ideas were **reconsidered and NOT shipped**, on purpose:
+- **Per-card reliability badges (Confirmed / Check-before-travel / High-change):** a "Confirmed" tier
+  would over-promise against `GUIDE_SOURCES.md`, which *explicitly* declines to certify per-country
+  carrier details (the `fip-carrier-accept` row is "sampled, not certified"). A uniform "Check before
+  travel" badge on all 25 cards just duplicates the finder's `cf-note` and the per-card contextual
+  warnings that already exist where volatility is real (Belgium's July-2026 on-board note, Poland's
+  "KMŁ new April 2026" tag). So the honest confidence posture stays in one note + the specific
+  warnings, not 25 badges.
+- **Per-section review dates:** internal governance already tracked per-row in `GUIDE_SOURCES.md`;
+  surfacing a date on every section is clutter on a staff reference. Left in the register.
+- **Collapsible major sections:** invasive (hides read-through prose) and low marginal value now that
+  the finder + chip-bar carry navigation. Held.
+
+Future polish (not scoped): scrollspy `aria-current` as you scroll (the bar currently marks the
+section only on click, matching railcard).
 
 ### Cross-page / navy-chrome / typography consistency passes ✓ (v11.64–v11.88)
 

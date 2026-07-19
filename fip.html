@@ -28,6 +28,17 @@
         <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
     </header>
 
+    <nav class="chip-bar" aria-label="Jump to section">
+        <button class="chip" type="button" data-target="sec-get">Overview</button>
+        <button class="chip" type="button" data-target="sec-how">How it works</button>
+        <button class="chip" type="button" data-target="sec-booking">Booking</button>
+        <button class="chip" type="button" data-target="sec-eurostar">Eurostar</button>
+        <button class="chip" type="button" data-target="sec-countries">Countries</button>
+        <button class="chip" type="button" data-target="sec-ferries">Ferries</button>
+        <button class="chip" type="button" data-target="sec-mistakes">Mistakes</button>
+        <button class="chip" type="button" data-target="sec-apply">Apply</button>
+    </nav>
+
     <main class="content">
 
         <p class="page-intro">FIP is your European rail travel benefit as a Chiltern Railways employee — discounted or free travel on most European national rail networks. This page tells you what to do, where it works, and how to book. (FIP stands for the French <em>Facilités de circulation Internationales du Personnel des chemins de fer</em> — International Travel Facilities for Railway Staff.)</p>
@@ -46,7 +57,7 @@
         </div>
 
         <!-- ── WHAT YOU GET ──────────────────────── -->
-        <h2 class="section-label">What you get</h2>
+        <h2 class="section-label" id="sec-get">What you get</h2>
 
         <div class="two-up">
             <div class="card card-pad" data-guide-source="fip-card-validity">
@@ -72,7 +83,7 @@
 
 
         <!-- ── HOW IT WORKS ──────────────────────── -->
-        <h2 class="section-label">How it works</h2>
+        <h2 class="section-label" id="sec-how">How it works</h2>
 
         <div class="card">
             <ol class="steps">
@@ -110,7 +121,7 @@
 
 
         <!-- ── BOOKING FROM UK ───────────────────── -->
-        <h2 class="section-label">Booking from the UK</h2>
+        <h2 class="section-label" id="sec-booking">Booking from the UK</h2>
         <p class="section-intro" data-guide-source="fip-contact">Four ways to book your FIP trip from the UK.</p>
 
         <div class="card">
@@ -136,7 +147,7 @@
 
 
         <!-- ── EUROSTAR ───────────────────────────── -->
-        <h2 class="section-label">Eurostar — London to Paris, Brussels, Amsterdam &amp; beyond</h2>
+        <h2 class="section-label" id="sec-eurostar">Eurostar — London to Paris, Brussels, Amsterdam &amp; beyond</h2>
 
         <div class="card">
             <p class="price-subtitle">Paris, Brussels, Lille, Calais — each way</p>
@@ -214,7 +225,7 @@
 
 
         <!-- ── EUROPEAN DESTINATIONS ─────────────── -->
-        <h2 class="section-label">European destinations</h2>
+        <h2 class="section-label" id="sec-countries">European destinations</h2>
         <p class="section-intro" data-guide-source="fip-carrier-accept">Tap a country to see what to expect and how to book. If your journey crosses a border, see the <strong>multi-country</strong> note below before ordering coupons.</p>
 
         <!-- Country finder (v17.64): live-filters the 25 country cards + the A–Z list below by name or
@@ -712,7 +723,7 @@
 
 
         <!-- ── FERRY SERVICES ─────────────────────── -->
-        <h2 class="section-label">Ferry services</h2>
+        <h2 class="section-label" id="sec-ferries">Ferry services</h2>
         <p class="section-intro">A small number of ferry operators take part in FIP — useful for reaching Ireland or Greece, whether you're travelling as a foot passenger or taking a car.</p>
 
         <details id="ferry-stena-north-sea">
@@ -762,7 +773,7 @@
 
 
         <!-- ── COMMON MISTAKES ───────────────────── -->
-        <h2 class="section-label">Common mistakes</h2>
+        <h2 class="section-label" id="sec-mistakes">Common mistakes</h2>
 
         <div class="card">
             <ul class="rule-list">
@@ -812,7 +823,7 @@
         <hr>
 
         <!-- ── ACTION LINKS ───────────────────────── -->
-        <h2 class="section-label">Book, order &amp; apply</h2>
+        <h2 class="section-label" id="sec-apply">Book, order &amp; apply</h2>
 
         <p class="sub-label">Book a trip</p>
         <a href="https://www.trainseurope.co.uk"

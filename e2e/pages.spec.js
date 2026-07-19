@@ -401,6 +401,22 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
+test('fip: the section chip-bar jumps to a section and marks it current', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/fip.html');
+    const chip = page.locator('.chip-bar .chip[data-target="sec-mistakes"]');
+    await expect(chip).toBeVisible();
+    await chip.click();
+    await expect(page.locator('#sec-mistakes')).toBeInViewport();
+    await expect(chip).toHaveAttribute('aria-current', 'true');
+    // Clicking a different chip moves the current marker.
+    const other = page.locator('.chip-bar .chip[data-target="sec-booking"]');
+    await other.click();
+    await expect(other).toHaveAttribute('aria-current', 'true');
+    await expect(chip).not.toHaveAttribute('aria-current', 'true');
+    expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
     await page.goto('/fip.html');
     // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,
