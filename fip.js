@@ -118,47 +118,67 @@ function setActiveChip(/** @type {HTMLElement|null} */ chip) {
 var spyPaused = false;
 var spyTimer = 0;
 var spyTicking = false;
+var spyThreshold = 106;   // header + chip-bar + margin; measured for real once the header lays out
+
+/** Cache the sticky-stack height so the scroll handler never forces a layout read per frame. */
+function measureThreshold() {
+    var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
+    spyThreshold = (hdr ? hdr.offsetHeight : 54) + (chipBar ? chipBar.offsetHeight : 40) + 12;
+}
 
 /** @returns {HTMLElement|null} */
 function currentChip() {
     if (!chipTargets.length) return null;
-    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
-        return chipTargets[chipTargets.length - 1].chip;   // at the bottom → last chip
+    // At (or a hair from) the very bottom, the last chip wins — a short final section may never scroll
+    // its top up to the trigger line. Math.ceil absorbs sub-pixel scroll heights; the margin covers
+    // browser-zoom / mobile-toolbar rounding that a tight `- 2` could miss (leaving the last chip unlit).
+    if (Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 2) {
+        return chipTargets[chipTargets.length - 1].chip;
     }
-    var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
-    var threshold = (hdr ? hdr.offsetHeight : 54) + (chipBar ? chipBar.offsetHeight : 40) + 12;
     var chosen = chipTargets[0].chip;   // default: first chip (page-intro sits above section 1)
     for (var i = 0; i < chipTargets.length; i++) {
         var sec = /** @type {HTMLElement} */ (chipTargets[i].section);
-        if (sec.getBoundingClientRect().top <= threshold) chosen = chipTargets[i].chip;
+        if (sec.getBoundingClientRect().top <= spyThreshold) chosen = chipTargets[i].chip;
         else break;
     }
     return chosen;
 }
 function updateSpy() { if (!spyPaused) setActiveChip(currentChip()); }
 
+/** Lift the post-click pause and reconcile the active chip to the settled scroll position. */
+function resumeSpy() { spyPaused = false; if (spyTimer) { clearTimeout(spyTimer); spyTimer = 0; } updateSpy(); }
+
 if (chipTargets.length) {
+    measureThreshold();
     window.addEventListener('scroll', function () {
         if (spyTicking) return;
         spyTicking = true;
-        requestAnimationFrame(function () { updateSpy(); spyTicking = false; });
+        // finally: a throw in updateSpy must never latch spyTicking true (that would kill the spy).
+        requestAnimationFrame(function () { try { updateSpy(); } finally { spyTicking = false; } });
     }, { passive: true });
-    window.addEventListener('resize', updateSpy, { passive: true });
+    window.addEventListener('resize', function () { measureThreshold(); updateSpy(); }, { passive: true });
+    // scrollend lifts the click pause EXACTLY when the smooth scroll settles (no fixed-time guess), so
+    // a long jump can't unpause mid-flight and flicker; harmless on a user's own free-scroll.
+    window.addEventListener('scrollend', resumeSpy);
     updateSpy();   // initial highlight (re-run once fonts settle the header height, below)
 }
 
-// Chip click → smooth-scroll to the section, focus it, mark it active; pause the spy briefly so
-// mid-flight scroll frames don't flicker a different chip before we land on the target.
+// Chip click → smooth-scroll to the section, focus it, mark it active. While a NON-instant scroll is
+// in flight, pause the spy so mid-flight frames don't flicker a different chip; scrollend (or the
+// fallback timer, for engines without it) resumes it on landing. A reduced-motion (instant) jump
+// lands immediately, so it needs no pause.
 if (chipBar) {
     chipBar.addEventListener('click', function (e) {
         var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
         if (!chip) return;
         var target = document.getElementById(chip.dataset.target || '');
         if (!target) return;
-        spyPaused = true;
-        if (spyTimer) clearTimeout(spyTimer);
-        spyTimer = setTimeout(function () { spyPaused = false; spyTimer = 0; }, 700);
         setActiveChip(chip);
+        if (!reduceMotion) {
+            spyPaused = true;
+            if (spyTimer) clearTimeout(spyTimer);
+            spyTimer = setTimeout(resumeSpy, 1500);   // ceiling fallback where scrollend is unsupported
+        }
         target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
         // Land focus on the section (keyboard / screen-reader users).
         target.setAttribute('tabindex', '-1');
@@ -179,7 +199,8 @@ function adjustFipOffsets() {
     document.querySelectorAll('.section-label[id], [id^="country-"]').forEach(function (el) {
         /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
     });
-    updateSpy();   // re-evaluate with the accurate header height
+    measureThreshold();   // keep the cached scrollspy threshold in step with the real header height
+    updateSpy();          // re-evaluate with the accurate header height
 }
 if (document.fonts && document.fonts.ready) { document.fonts.ready.then(adjustFipOffsets); }
 else { requestAnimationFrame(adjustFipOffsets); }
