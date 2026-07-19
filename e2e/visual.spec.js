@@ -111,3 +111,43 @@ test('settings — mobile 390 (signed in)', async ({ page }) => {
     await settle(page, '.card');
     await expect(page).toHaveScreenshot('settings-mobile-390.png');
 });
+
+// ── Guide pages (static, auth-free) ────────────────────────────────────────────────────────
+// The four guides don't import shared.css and have no Firebase/fractional-grid, so they baseline
+// cleanly. These lock the layouts touched by Section C (the .chip/.chip-bar hoist into
+// guide-shell.css) and Section D (railcard min-fare + FIP content edits). No prep(): guides need
+// no session/clock — just a viewport, fonts, and layout settle.
+async function guideSettle(page, ready) {
+    await expect(page.locator(ready).first()).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
+test('guide — railcard mobile 390', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 6200 });
+    await page.goto('/railcard-guide.html');
+    await guideSettle(page, '.chip-bar, .rc');
+    await expect(page).toHaveScreenshot('railcard-guide-mobile-390.png');
+});
+
+test('guide — fip mobile 390', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 6200 });
+    await page.goto('/fip.html');
+    await guideSettle(page, '.chip-bar, .section-label');
+    await expect(page).toHaveScreenshot('fip-guide-mobile-390.png');
+});
+
+test('guide — staff/admin desktop 900', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 3600 });
+    await page.goto('/guide.html');
+    await guideSettle(page, '.content, main, .guide-header');
+    await expect(page).toHaveScreenshot('staff-guide-desktop-900.png');
+});
+
+test('guide — paycalc-guide desktop 900', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 3600 });
+    await page.goto('/paycalc-guide.html');
+    await guideSettle(page, '.content, main, .guide-header');
+    await expect(page).toHaveScreenshot('paycalc-guide-desktop-900.png');
+});
