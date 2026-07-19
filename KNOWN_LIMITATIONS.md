@@ -75,17 +75,23 @@ Storage rules prevented them from uploading files. The two rules now match: both
 and Firestore require admin claim for huddle writes. Cloud Function writes via Admin SDK
 bypass rules and are unaffected.
 
-### CSP connect-src — googleapis wildcard narrowed to the four hosts used (v11.07; tightened A6/F-SEC-6 v17.76)
-`connect-src` used a broad `https://*.googleapis.com` wildcard. **Narrowed (A6) to exactly the four
-googleapis hosts the app contacts**: `firestore.googleapis.com` (Firestore), `identitytoolkit.googleapis.com`
-(Auth sign-in), `securetoken.googleapis.com` (Auth token refresh), and `firebasestorage.googleapis.com`
-(Storage). Those are the only Firebase services used (Auth + Firestore + Storage — no Analytics/FCM/App
-Check/Remote Config, which would add `firebaseinstallations`/`fcmregistrations`). `img-src` also lists
-`firebasestorage.googleapis.com` explicitly. **Safe because it is runtime-verified:** `e2e/csp.spec.js`
-(`npm run test:csp`) loads the app under the REAL narrowed header in the Hosting emulator with the REAL
-Firebase SDK — a blocked host would fire a `securitypolicyviolation` and fail the suite; it passes.
-`csp-hygiene.test.mjs` keeps the header's host set aligned with what the code contacts. If a new
-googleapis-backed Firebase service is ever added, add its host here (and to the meta CSPs) in the same change.
+### CSP connect-src uses the `https://*.googleapis.com` wildcard — narrowing was tried and reverted (v11.07; A6/F-SEC-6 attempted + reverted v17.76–78)
+`connect-src` deliberately keeps the broad `https://*.googleapis.com` wildcard. **A6 (F-SEC-6)
+tried to narrow it** to the four hosts the app was believed to contact (`firestore` / `identitytoolkit`
+/ `securetoken` / `firebasestorage`) — but that **broke the deployed-CSP CI proof** (`e2e/csp.spec.js`,
+the `csp` job in `e2e.yml`) and was **reverted**. The lesson: the local `npm run test:csp` run passed
+(a **false pass** — behind the dev-container's outbound proxy the real Firebase SDK never completed the
+network init that reaches the extra hosts), while on CI's real network the SDK contacts **additional
+`*.googleapis.com` sub-hosts** the four-host list omitted (the Firebase App core / an internal service
+such as `firebaseinstallations.googleapis.com`, plus possibly others). Blocking those fired
+`securitypolicyviolation`s and failed the suite.
+
+**So the wildcard stays.** It only permits Google-owned `*.googleapis.com` origins (not arbitrary
+hosts), `script-src 'self'` already blocks injected script, and this is P4 defence-in-depth with no
+live vector — not worth the breakage. **If narrowing is retried:** first capture the COMPLETE host set
+from a real-network run — read every `blockedURI` from the CI `csp` job (or a browser with the narrowed
+header on a live network), not a proxied dev run — then list exactly those hosts in `firebase.json` AND
+all ten `<meta>` CSPs, and confirm the CI `csp` job (not just local) goes green.
 
 ### GitHub Pages mirror — CSP via `<meta>`, with two residual header-only gaps (v17.63)
 The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which
