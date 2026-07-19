@@ -174,8 +174,11 @@ The other three v2 ideas were **reconsidered and NOT shipped**, on purpose:
 - **Collapsible major sections:** invasive (hides read-through prose) and low marginal value now that
   the finder + chip-bar carry navigation. Held.
 
-Future polish (not scoped): scrollspy `aria-current` as you scroll (the bar currently marks the
-section only on click, matching railcard).
+**Scrollspy (v17.68):** the chip-bar now marks the current section's chip as you scroll (not only on
+click) — a rAF-throttled scroll tracker with top-of-page / page-bottom edge handling, auto-scrolls the
+active chip into view within the bar, pauses briefly after a click to avoid mid-scroll flicker, and
+honours `prefers-reduced-motion`. Tested in `pages.spec.js`. (This is a fip-only enhancement; the
+railcard chip-bar still marks on click only.)
 
 ### Cross-page / navy-chrome / typography consistency passes ✓ (v11.64–v11.88)
 

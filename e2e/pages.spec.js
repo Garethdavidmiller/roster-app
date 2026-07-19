@@ -417,6 +417,22 @@ test('fip: the section chip-bar jumps to a section and marks it current', async 
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
+test('fip: scrollspy marks the chip for the section scrolled into view', async ({ page }) => {
+    await page.goto('/fip.html');
+    // A mid-page section scrolled under the sticky stack becomes current.
+    await page.evaluate(() => document.getElementById('sec-ferries').scrollIntoView({ block: 'start' }));
+    await page.waitForTimeout(350);
+    await expect(page.locator('.chip[data-target="sec-ferries"]')).toHaveAttribute('aria-current', 'true');
+    // At the very bottom, the last chip (Apply) wins even if its short section never reached the line.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(350);
+    await expect(page.locator('.chip[data-target="sec-apply"]')).toHaveAttribute('aria-current', 'true');
+    // Back at the top, the first chip (Overview) wins (covers the page-intro above section 1).
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(350);
+    await expect(page.locator('.chip[data-target="sec-need"]')).toHaveAttribute('aria-current', 'true');
+});
+
 test('fip: a "popular" shortcut opens its country, clearing an active filter first', async ({ page }) => {
     await page.goto('/fip.html');
     // Filter so France is hidden, then tap the popular France shortcut: it must clear the filter,

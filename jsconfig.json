@@ -17,6 +17,7 @@
         "functions",
         ".claude",
         "e2e",
-        "playwright.config.mjs"
+        "playwright.config.mjs",
+        "playwright.csp.mjs"
     ]
 }

@@ -70,42 +70,116 @@ function applyCountryFilter(/** @type {string} */ raw) {
 }
 
 if (searchInput) {
-    searchInput.addEventListener('input', function () { applyCountryFilter(searchInput.value); });
-    searchInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && searchInput.value) { e.preventDefault(); searchInput.value = ''; applyCountryFilter(''); }
+    // Capture into a const so TS narrows it inside these callbacks (a closed-over `var` is not
+    // narrowed — it could in principle be reassigned before the listener fires).
+    const si = searchInput;
+    si.addEventListener('input', function () { applyCountryFilter(si.value); });
+    si.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && si.value) { e.preventDefault(); si.value = ''; applyCountryFilter(''); }
     });
 }
 if (clearBtn && searchInput) {
-    clearBtn.addEventListener('click', function () { searchInput.value = ''; applyCountryFilter(''); searchInput.focus(); });
+    const si = searchInput;
+    clearBtn.addEventListener('click', function () { si.value = ''; applyCountryFilter(''); si.focus(); });
 }
 
-// ── Section chip-bar: sticky quick-nav to the major sections (v17.66) ──────────────────────────
-document.querySelector('.chip-bar')?.addEventListener('click', function (e) {
-    var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
-    if (!chip) return;
-    var target = document.getElementById(chip.dataset.target || '');
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // Land focus on the section (keyboard / screen-reader users) and mark the active chip.
-    target.setAttribute('tabindex', '-1');
-    target.focus({ preventScroll: true });
-    document.querySelectorAll('.chip-bar .chip[aria-current]').forEach(function (c) { c.removeAttribute('aria-current'); });
+// ── Section chip-bar: sticky quick-nav + scrollspy (chip-bar v17.66, scrollspy v17.68) ─────────
+var chipBar = /** @type {HTMLElement|null} */ (document.querySelector('.chip-bar'));
+var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+// [{ chip, section }] for the chipped sections, in document (== chip-bar) order.
+var chipTargets = chipBar
+    ? Array.prototype.slice.call(chipBar.querySelectorAll('.chip')).map(function (c) {
+        var chip = /** @type {HTMLElement} */ (c);
+        return { chip: chip, section: document.getElementById(chip.dataset.target || '') };
+    }).filter(function (t) { return t.section; })
+    : [];
+
+/** @type {HTMLElement|null} */
+var activeChip = null;
+
+/** Mark exactly one chip current (idempotent) and reveal it within the horizontally-scrollable bar. */
+function setActiveChip(/** @type {HTMLElement|null} */ chip) {
+    if (chip === activeChip) return;
+    if (activeChip) activeChip.removeAttribute('aria-current');
+    activeChip = chip;
+    if (!chip || !chipBar) return;
     chip.setAttribute('aria-current', 'true');
-});
+    // Centre the active chip; this scrolls ONLY the bar's own horizontal overflow, never the page.
+    var left = chip.offsetLeft - (chipBar.clientWidth - chip.offsetWidth) / 2;
+    var max = chipBar.scrollWidth - chipBar.clientWidth;
+    chipBar.scrollTo({ left: Math.max(0, Math.min(left, max)), behavior: reduceMotion ? 'auto' : 'smooth' });
+}
+
+// Scrollspy: the current section is the LAST chipped section whose top has scrolled below the sticky
+// header + chip-bar. Above the first section the first chip wins (covers the page-intro); at the page
+// bottom the last chip wins (a short final section may never reach the line). Non-chipped sections
+// fall naturally into the zone of the preceding chipped section.
+var spyPaused = false;
+var spyTimer = 0;
+var spyTicking = false;
+
+/** @returns {HTMLElement|null} */
+function currentChip() {
+    if (!chipTargets.length) return null;
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+        return chipTargets[chipTargets.length - 1].chip;   // at the bottom → last chip
+    }
+    var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
+    var threshold = (hdr ? hdr.offsetHeight : 54) + (chipBar ? chipBar.offsetHeight : 40) + 12;
+    var chosen = chipTargets[0].chip;   // default: first chip (page-intro sits above section 1)
+    for (var i = 0; i < chipTargets.length; i++) {
+        var sec = /** @type {HTMLElement} */ (chipTargets[i].section);
+        if (sec.getBoundingClientRect().top <= threshold) chosen = chipTargets[i].chip;
+        else break;
+    }
+    return chosen;
+}
+function updateSpy() { if (!spyPaused) setActiveChip(currentChip()); }
+
+if (chipTargets.length) {
+    window.addEventListener('scroll', function () {
+        if (spyTicking) return;
+        spyTicking = true;
+        requestAnimationFrame(function () { updateSpy(); spyTicking = false; });
+    }, { passive: true });
+    window.addEventListener('resize', updateSpy, { passive: true });
+    updateSpy();   // initial highlight (re-run once fonts settle the header height, below)
+}
+
+// Chip click → smooth-scroll to the section, focus it, mark it active; pause the spy briefly so
+// mid-flight scroll frames don't flicker a different chip before we land on the target.
+if (chipBar) {
+    chipBar.addEventListener('click', function (e) {
+        var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
+        if (!chip) return;
+        var target = document.getElementById(chip.dataset.target || '');
+        if (!target) return;
+        spyPaused = true;
+        if (spyTimer) clearTimeout(spyTimer);
+        spyTimer = setTimeout(function () { spyPaused = false; spyTimer = 0; }, 700);
+        setActiveChip(chip);
+        target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        // Land focus on the section (keyboard / screen-reader users).
+        target.setAttribute('tabindex', '-1');
+        target.focus({ preventScroll: true });
+    });
+}
 
 // Sit the sticky chip-bar directly under the sticky header, then set scroll-margin-top on every jump
 // target (section headings + country cards) so a jump isn't hidden under header + chip-bar. Runs
 // after fonts load so the header height is measured accurately (mirrors railcard-guide.js).
 function adjustFipOffsets() {
+    if (!chipBar) return;
     var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
-    var bar = /** @type {HTMLElement|null} */ (document.querySelector('.chip-bar'));
-    if (!hdr || !bar) return;
+    if (!hdr) return;
     var hdrH = hdr.offsetHeight;
-    bar.style.top = hdrH + 'px';
-    var stickyH = hdrH + bar.offsetHeight + 8;
+    chipBar.style.top = hdrH + 'px';
+    var stickyH = hdrH + chipBar.offsetHeight + 8;
     document.querySelectorAll('.section-label[id], [id^="country-"]').forEach(function (el) {
         /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
     });
+    updateSpy();   // re-evaluate with the accurate header height
 }
 if (document.fonts && document.fonts.ready) { document.fonts.ready.then(adjustFipOffsets); }
 else { requestAnimationFrame(adjustFipOffsets); }

@@ -10,6 +10,7 @@ export default [
             'scripts/**',         // Dev utilities: bump-version, generate-roster-members
             'e2e/**',             // Playwright smoke tests — Node + Playwright globals, not browser
             'playwright.config.mjs', // Playwright config — Node globals (process.env)
+            'playwright.csp.mjs',    // Playwright config (CSP proof) — Node globals (process.env)
             '*.test.mjs',         // Test files — use test-runner globals, not browser
             '*.test.js',
             'purify.es.mjs',      // Vendor bundle — do not lint
