@@ -109,3 +109,83 @@ test('the railcard time-rule cards flagged in the audit are present and classifi
         assert.equal(row.Class, 'National', `entry "${id}" should be classified National`);
     }
 });
+
+// ── Block ↔ source linkage (v17.59, Tier 3) ────────────────────────────────
+// The structural checks above prove the register is COHERENT; they can't prove it is
+// CONNECTED to the guides it vouches for. That gap is exactly how the Germany/Hungary/Italy
+// FIP errors shipped — a wrong claim sat in the HTML with a "correct" register row nobody
+// cross-referenced. Each high-risk guide block now carries a `data-guide-source="<id>"`
+// attribute naming its register row; these tests enforce the two-way contract:
+//   • every attribute in the HTML points at a real register row (no orphan refs), and
+//   • every railcard/fip register row is referenced by at least one block (no dead rows).
+// So a claim can no longer drift from the source that certifies it, in either direction.
+
+// Which guide file each Guide value lives in. Rows in other guides (paycalc) are exempt from
+// the HTML-block requirement — they render on a different surface with no data-guide-source blocks.
+const GUIDE_FILES = { railcard: 'railcard-guide.html', fip: 'fip.html' };
+
+/**
+ * Pull every `data-guide-source="a b c"` value out of an HTML file, space-splitting so one
+ * block can cite multiple rows (e.g. the FIP coupon step cites allocation + expiry).
+ * @param {string} file
+ * @returns {string[]} referenced register IDs, in document order (dupes preserved)
+ */
+function refsInFile(file) {
+    const html = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+    const ids = [];
+    for (const m of html.matchAll(/data-guide-source="([^"]+)"/g)) {
+        for (const id of m[1].trim().split(/\s+/)) if (id) ids.push(id);
+    }
+    return ids;
+}
+
+const registerIds = new Set(rows.map(r => r.ID));
+const refsByFile = new Map(Object.values(GUIDE_FILES).map(f => [f, refsInFile(f)]));
+
+test('every data-guide-source in the guides points at a real register row (no orphan refs)', () => {
+    for (const [file, ids] of refsByFile) {
+        for (const id of ids) {
+            assert.ok(registerIds.has(id),
+                `${file}: data-guide-source="${id}" has no matching row in the GUIDE_SOURCES register`);
+        }
+    }
+});
+
+test('a block cites a row from its OWN guide (railcard blocks cite railcard rows, fip cite fip)', () => {
+    const guideOf = new Map(rows.map(r => [r.ID, r.Guide]));
+    for (const [guide, file] of Object.entries(GUIDE_FILES)) {
+        for (const id of refsByFile.get(file)) {
+            assert.equal(guideOf.get(id), guide,
+                `${file}: cites "${id}", whose register Guide is "${guideOf.get(id)}" not "${guide}"`);
+        }
+    }
+});
+
+test('every railcard/fip register row is referenced by at least one guide block (no dead rows)', () => {
+    for (const [guide, file] of Object.entries(GUIDE_FILES)) {
+        const referenced = new Set(refsByFile.get(file));
+        for (const row of rows.filter(r => r.Guide === guide)) {
+            assert.ok(referenced.has(row.ID),
+                `register row "${row.ID}" (${guide}) is not anchored by any data-guide-source in ${file} — ` +
+                `add data-guide-source="${row.ID}" to the block it certifies, or remove the dead row`);
+        }
+    }
+});
+
+// Non-failing diagnostic: surface rows whose manual review is overdue. Deliberately NOT an
+// assertion — a today-driven failure would break unrelated commits (the same reason the whole
+// file is a structural guard, not a date tripwire). It just prints a reminder so the manual
+// cadence in GUIDE_SOURCES.md has a nudge in CI logs.
+test('review-cadence reminder (never fails; logs overdue high-risk rows)', () => {
+    const now = new Date();
+    const cur = now.getFullYear() * 12 + (now.getMonth() + 1); // 1-indexed month
+    const overdue = rows.filter(r => {
+        const [y, m] = r.Next.split('-').map(Number);
+        return y * 12 + m < cur;
+    });
+    if (overdue.length) {
+        console.warn(`\n⏰ GUIDE_SOURCES review overdue for ${overdue.length} row(s) — re-check against source and re-stamp:`);
+        for (const r of overdue) console.warn(`   • ${r.ID} (${r.Guide}) — Next was ${r.Next}`);
+    }
+    assert.ok(true); // always passes — this is a reminder, not a gate
+});
