@@ -55,6 +55,31 @@ calendar `#alBtn` / `#payBtn` and other-month day numbers; paycalc badges (`#pay
   decorative context (darkening them defeats the "not this month" cue for zero SR benefit), so they
   are `.exclude('.other-month')`d in the calendar scan — a targeted exclusion, not a rule waiver.
 
+## Functional-emoji screen-reader treatment (H1, v17.75)
+
+An audit of every emoji RENDERED to users (shift badges, markers, headings, buttons, nav) checked
+each against WCAG: emoji that duplicate adjacent text should be `aria-hidden`; an emoji that is the
+sole label of a control/marker needs an accessible name. **Result: the app already had a strong,
+consistent convention** (shift badges wrap the glyph in `aria-hidden`; every emoji-only button —
+📍/☰/✕/✎/🔔 — carries an `aria-label`; the calendar day cell's `aria-label` carries payday/cut-off
+so the CSS `::before` markers are correctly decorative). **No P1 (control-unusable) findings.**
+
+Fixed this pass:
+- **P2 (real correctness gain):** the "Change a Shift" per-day badge (`admin-overrides.js`
+  `renderWeekGrid`) conveyed Bank Holiday / Payday / Cut-off by emoji + `title` only — `title`
+  isn't reliably announced (esp. mobile SR), and the meaning wasn't in the row's visible text.
+  Now `role="img" aria-label="<title>"`.
+- **P3 convention gaps** (emoji duplicated visible text but wasn't hidden — brought back in line
+  with the app's own pattern): nav-drawer link + guide builders (`nav-panel.js`); paycalc card
+  sub-headings (`.h-title` ×8); admin `.al-booked-title` ×2; `admin-overrides.js` overwrite-badge
+  ⚠ + the Spare 📋 flavour button; index.html action buttons (🖨️ Print, 📖 guide, 🐛 Report a bug,
+  💷 View pay estimate, 🔔 notify).
+
+These are aria-tree-only changes (glyphs still render — visual baselines byte-identical). **Deferred
+(P3, low return):** the ~dozens of transient status strings that prefix `textContent` with ✓/⚠/✗/ℹ️
+in `aria-live` regions — the glyph arguably reinforces the status, and hiding it needs a span
+restructure at each site; best done later via one shared `setStatus(el, glyph, text)` helper.
+
 ## Known pre-existing (not gate-caught, low priority)
 
 - **Stale `aria-expanded` on programmatically-opened cards.** A few coordinators open a collapsible

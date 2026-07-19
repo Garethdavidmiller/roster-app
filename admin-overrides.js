@@ -311,7 +311,7 @@ export function buildWeekGridInto(container, dateStr) {
         const baseShift = getBaseShift(member, date);
 
         const badges    = getSpecialDayBadges(date, dateISO);
-        const badgeHTML = badges.map(b => `<span class="day-badge" title="${b.title}">${b.icon}</span>`).join('');
+        const badgeHTML = badges.map(b => `<span class="day-badge" role="img" aria-label="${b.title}" title="${b.title}">${b.icon}</span>`).join('');
 
         const existing = memberDateMap.get(dateISO);
 
@@ -331,7 +331,7 @@ export function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-day">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${badgeHTML}${existing ? ` <span class="overwrite-badge">⚠ ${escapeHtml(existing.value === 'SICK' ? 'Absent' : existing.value === 'SPARE' ? 'Spare' : (existing.value || existing.type))}</span>` : ''}</span>
+                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${badgeHTML}${existing ? ` <span class="overwrite-badge"><span aria-hidden="true">⚠</span> ${escapeHtml(existing.value === 'SICK' ? 'Absent' : existing.value === 'SPARE' ? 'Spare' : (existing.value || existing.type))}</span>` : ''}</span>
             </div>
             <div class="col-base">${getShiftBadge(baseShift)}</div>
             <div class="col-pills">
@@ -351,7 +351,7 @@ export function buildWeekGridInto(container, dateStr) {
                     ${Object.entries(OTHER_FLAVOURS).map(([k, f]) =>
                         `<button type="button" class="other-flavour-btn" data-flavour="${k}" aria-pressed="false">${f.full}</button>`
                     ).join('\n                    ')}
-                    <button type="button" class="other-flavour-btn other-flavour-spare" data-flavour="SPARE" aria-pressed="false" title="On standby — shift not yet assigned">📋 Spare</button>
+                    <button type="button" class="other-flavour-btn other-flavour-spare" data-flavour="SPARE" aria-pressed="false" title="On standby — shift not yet assigned"><span aria-hidden="true">📋</span> Spare</button>
                 </span>
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled title="Rest day — RDW is automatic"' : ''}> Rest day (RDW)</label>
                 <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(baseShift)} this day — RDW pays it as rest-day working instead</span>

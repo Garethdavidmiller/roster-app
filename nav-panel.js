@@ -799,11 +799,11 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
         ${NAV_INFORMATION.length > 1 ? `<p class="nav-panel-group-heading">${group.heading}</p>` : ''}
         <ul class="nav-panel-links">
             ${group.links.map(/** @param {any} link */ link => {
-                if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
-                if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
-                if (link.newsletter)  return `<li><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
-                if (link.notices)   return `<li><button type="button" class="nav-panel-link nav-panel-link--notices">${link.icon} ${link.label}</button></li>`;
-                return `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`;
+                if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
+                if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
+                if (link.newsletter)  return `<li><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
+                if (link.notices)   return `<li><button type="button" class="nav-panel-link nav-panel-link--notices"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
+                return `<li><a href="${link.url}" class="nav-panel-link"><span aria-hidden="true">${link.icon}</span> ${link.label}</a></li>`;
             }).join('')}
         </ul>`).join('');
 
@@ -812,7 +812,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // your place (open the Railcard guide from Admin, tap back → Calendar, not Admin). Opening in
     // a new tab keeps the page you were on — and matches the guide links in the About panel.
     const guideLinks = NAV_GUIDES
-        .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide" target="_blank" rel="noopener">${g.icon} ${g.label}</a></li>`)
+        .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide" target="_blank" rel="noopener"><span aria-hidden="true">${g.icon}</span> ${g.label}</a></li>`)
         .join('');
 
     // Settings link — always visible except on the settings page itself.
