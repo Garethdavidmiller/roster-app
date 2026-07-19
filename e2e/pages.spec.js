@@ -179,6 +179,72 @@ test('links: shows the in-place login when not signed in', async ({ page }) => {
     expect(errors, 'Uncaught JS exceptions triggering links redirect').toHaveLength(0);
 });
 
+// The Links page replaced every native confirm()/prompt() with the in-app confirmDialog/
+// promptDialog (overlay.js). Test those directly in a real browser: they build a .dialog-overlay
+// on the createLightbox lifecycle and resolve a Promise. overlay.js imports no Firebase, so it
+// loads standalone. Native confirm/prompt are overridden to throw — proving nothing falls back.
+test('confirmDialog: renders an in-app dialog and resolves true/false (not native confirm)', async ({ page }) => {
+    await page.goto('/links.html');
+    const r = await page.evaluate(async () => {
+        window.confirm = () => { throw new Error('native confirm() was called'); };
+        const { confirmDialog } = await import('/overlay.js');
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+
+        // Confirm path
+        const pYes = confirmDialog({ title: 'T', message: 'M', confirmLabel: 'Yes' });
+        await raf();
+        const overlay = document.querySelector('.dialog-overlay');
+        const isDialog = overlay?.getAttribute('role') === 'alertdialog';
+        const hasInput = !!overlay?.querySelector('.dialog-input');
+        overlay?.querySelector('.dialog-btn-confirm')?.click();
+        const yes = await pYes;
+        const removedAfterConfirm = !document.querySelector('.dialog-overlay');
+
+        // Cancel path
+        const pNo = confirmDialog({ message: 'M2' });
+        await raf();
+        document.querySelector('.dialog-overlay .dialog-btn-cancel')?.click();
+        const no = await pNo;
+
+        return { present: !!overlay, isDialog, hasInput, yes, no, removedAfterConfirm };
+    });
+    expect(r.present, 'a .dialog-overlay appeared').toBe(true);
+    expect(r.isDialog, 'confirm uses role=alertdialog').toBe(true);
+    expect(r.hasInput, 'confirm has no text input').toBe(false);
+    expect(r.yes, 'confirm button resolves true').toBe(true);
+    expect(r.no, 'cancel button resolves false').toBe(false);
+    expect(r.removedAfterConfirm, 'overlay removed from DOM after close').toBe(true);
+});
+
+test('promptDialog: resolves the typed value on confirm, null on cancel (not native prompt)', async ({ page }) => {
+    await page.goto('/links.html');
+    const r = await page.evaluate(async () => {
+        window.prompt = () => { throw new Error('native prompt() was called'); };
+        const { promptDialog } = await import('/overlay.js');
+        const raf = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+
+        // Typed + confirm
+        const pVal = promptDialog({ title: 'Name', message: 'Name?', defaultValue: 'seed' });
+        await raf();
+        const input = document.querySelector('.dialog-overlay .dialog-input');
+        const seeded = input?.value;
+        input.value = 'Option A';
+        document.querySelector('.dialog-overlay .dialog-btn-confirm')?.click();
+        const val = await pVal;
+
+        // Cancel → null
+        const pNull = promptDialog({ message: 'Again?' });
+        await raf();
+        document.querySelector('.dialog-overlay .dialog-btn-cancel')?.click();
+        const cancelled = await pNull;
+
+        return { seeded, val, cancelled };
+    });
+    expect(r.seeded, 'input pre-filled with defaultValue').toBe('seed');
+    expect(r.val, 'confirm resolves the typed value').toBe('Option A');
+    expect(r.cancelled, 'cancel resolves null').toBe(null);
+});
+
 // Regression guard: the auto-generate card holds a wide targets table (one row per shift
 // slot, Mon–Fri / Sat / Sun columns + a spare row). On a narrow phone that table must scroll
 // inside its own card, never stretch the page — a horizontal blowout clips the header and grid.

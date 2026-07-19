@@ -16,7 +16,7 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { initCardCollapse, createLightbox } from './overlay.js';
+import { initCardCollapse, createLightbox, confirmDialog, promptDialog } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -57,8 +57,14 @@ export function init() {
     // Register the SW before the access gate — a signed-out visit early-returns below and would
     // otherwise never register/update the SW for that load (v16.23; matches operations/settings).
     registerServiceWorker({
-        beforeReload() {
-            if (!_isDirty() || confirm('An update is available. Reload to apply it? Unsaved changes will be lost.')) {
+        async beforeReload() {
+            // sw-register.js ignores the return value (this callback reloads itself), so an async
+            // dialog is safe here — it just reloads once the user confirms.
+            if (!_isDirty() || await confirmDialog({
+                title: 'Update available',
+                message: 'Reload to apply the update? Unsaved changes will be lost.',
+                confirmLabel: 'Reload',
+            })) {
                 window.location.reload();
             }
         },
@@ -139,8 +145,8 @@ export function init() {
         isAdmin,
         isLinksDesigner: true,
         onLogoClick:     () => openAboutLightbox?.(),
-        onSignOut: () => {
-            if (dirty && !confirm('You have unsaved changes. Sign out anyway?')) return;
+        onSignOut: async () => {
+            if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true })) return;
             clearSession();
             window.location.href = './';
         },
@@ -397,10 +403,10 @@ export function init() {
 
     /** Create a new blank design. */
     async function createDesign() {
-        const name = prompt('Name for this design (e.g. "Option A"):')?.trim();
+        const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. "Option A"):', placeholder: 'Option A', maxLength: 100, confirmLabel: 'Create' }))?.trim();
         if (!name) return;
         if (_designNameTooLong(name)) return;
-        if (dirty && !confirm('You have unsaved changes in the current design. Create a new one anyway?')) return;
+        if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
         try {
             const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
                 name,
@@ -428,7 +434,7 @@ export function init() {
      * "duplicate what I'm looking at", not "duplicate the last save". */
     async function duplicateDesign() {
         if (!activeDesignId || !design) return;
-        const name = prompt('Name for the duplicate:', `${design.name || 'Design'} copy`)?.trim();
+        const name = (await promptDialog({ title: 'Duplicate design', message: 'Name for the duplicate:', defaultValue: `${design.name || 'Design'} copy`, maxLength: 100, confirmLabel: 'Duplicate' }))?.trim();
         if (!name) return;
         if (_designNameTooLong(name)) return;
         const patterns = deepCopyPatterns(design.patterns);
@@ -466,7 +472,7 @@ export function init() {
     async function renameDesign(id) {
         const d = designs.find(x => x.id === id);
         if (!d) return;
-        const name = prompt('New name:', d.name)?.trim();
+        const name = (await promptDialog({ title: 'Rename design', message: 'New name:', defaultValue: d.name, maxLength: 100, confirmLabel: 'Rename' }))?.trim();
         if (!name || name === d.name) return;
         if (_designNameTooLong(name)) return;
         try {
@@ -520,7 +526,8 @@ export function init() {
     async function deleteDesign(id) {
         if (designs.length <= 1) return;
         const d = designs.find(x => x.id === id);
-        if (!d || !confirm(`Delete "${d.name}"? This can't be undone.`)) return;
+        if (!d) return;
+        if (!await confirmDialog({ title: 'Delete design', message: `Delete "${d.name}"? This can't be undone.`, confirmLabel: 'Delete', danger: true })) return;
         try {
             await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkDesigns, id)));
             designs = designs.filter(x => x.id !== id);
@@ -544,9 +551,9 @@ export function init() {
      * Switch the active design. Warns if dirty.
      * @param {any} id
      */
-    function selectDesign(id) {
+    async function selectDesign(id) {
         if (id === activeDesignId) return;
-        if (dirty && !confirm('You have unsaved changes. Switch to another design? Changes will be lost.')) return;
+        if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) return;
         const d = designs.find(x => x.id === id);
         if (!d) return;
         // If selecting the current compare target, exit compare mode first
@@ -731,11 +738,11 @@ export function init() {
         ].join('');
 
         bar.querySelectorAll('.brush-chip').forEach(c => {
-            c.addEventListener('click', () => {
+            c.addEventListener('click', async () => {
                 let shift = /** @type {HTMLElement} */ (c).dataset.shift;
                 if (shift === '__custom__') {
                     const typed = normaliseCustomShift(
-                        prompt('Enter a shift time, e.g. 06:00-14:00 (start between 04:00 and 20:59):', ''));
+                        await promptDialog({ title: 'Custom shift', message: 'Enter a shift time, e.g. 06:00-14:00 (start between 04:00 and 20:59):', placeholder: '06:00-14:00', confirmLabel: 'Set' }));
                     if (!typed) return;
                     shift = typed;
                 }
@@ -919,13 +926,12 @@ export function init() {
             restoreBtn(cell, pos, day, current);
         }
 
-        select.addEventListener('change', () => {
-            committed = true;
+        select.addEventListener('change', async () => {
+            committed = true;   // set BEFORE the await so the blur guard below never cancels mid-dialog
             let newVal = select.value;
             if (newVal === '__custom__') {
                 const typed = normaliseCustomShift(
-                    prompt('Type the shift as start–end, e.g. 06:00-14:00 (CEA shifts start between 04:00 and 20:59)',
-                        current.includes('-') ? current : ''));
+                    await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–end, e.g. 06:00-14:00 (CEA shifts start between 04:00 and 20:59)', defaultValue: current.includes('-') ? current : '', placeholder: '06:00-14:00', confirmLabel: 'Set' }));
                 if (!typed) { cancel(); return; }
                 newVal = typed;
             }
@@ -1228,14 +1234,14 @@ export function init() {
             updateGenTotals();
         });
 
-        tbody.addEventListener('change', e => {
+        tbody.addEventListener('change', async e => {
             const select = /** @type {HTMLSelectElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-time'));
             if (!select) return;
             const slot = genSlots[+(select.dataset.slot ?? '')];
             if (!slot) return;
             if (select.value === '__custom__') {
                 const typed = normaliseCustomShift(
-                    prompt('Type the shift as start–end, e.g. 09:30-17:30 (start between 04:00 and 20:59):', slot.time));
+                    await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–end, e.g. 09:30-17:30 (start between 04:00 and 20:59):', defaultValue: slot.time, placeholder: '09:30-17:30', confirmLabel: 'Set' }));
                 if (typed) slot.time = typed;
                 renderGenTable();
                 return;
@@ -1272,7 +1278,7 @@ export function init() {
             if (errEl) errEl.textContent = '';
         });
 
-        document.getElementById('genApplyBtn')?.addEventListener('click', () => {
+        document.getElementById('genApplyBtn')?.addEventListener('click', async () => {
             const errEl = document.getElementById('genError');
             if (errEl) errEl.textContent = '';
 
@@ -1297,7 +1303,7 @@ export function init() {
                 return;
             }
 
-            if (!confirm('Apply the generated pattern to all 28 lines?')) return;
+            if (!await confirmDialog({ title: 'Apply pattern', message: 'Apply the generated pattern to all 28 lines?', confirmLabel: 'Apply' })) return;
 
             if (!design) {
                 // No active design yet — load into an unsaved in-memory design
@@ -1417,9 +1423,13 @@ export function init() {
             };
             const confirmOverwrite = (/** @type {{by:string, at:any}} */ c) => {
                 const when = c.at?.toDate?.()?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? '';
-                return confirm(
-                    `${c.by} saved a different version${when ? ` at ${when}` : ''} after you opened this page.\n\n` +
-                    `Save anyway and replace their changes?`);
+                return confirmDialog({
+                    title: 'Someone else saved',
+                    message: `${c.by} saved a different version${when ? ` at ${when}` : ''} after you opened this page.\n\n` +
+                        `Save anyway and replace their changes?`,
+                    confirmLabel: 'Replace',
+                    danger: true,
+                });
             };
             const markNotSaved = () => {
                 if (btn) btn.disabled = false;
@@ -1444,7 +1454,7 @@ export function init() {
                     // The transaction saw a co-editor's newer version. Ask; on overwrite write
                     // UNCONDITIONALLY (the user accepted the replace) — a plain setDoc, which also
                     // queues offline. On decline, stop without writing.
-                    if (!confirmOverwrite(_e.conflict)) { markNotSaved(); return; }
+                    if (!await confirmOverwrite(_e.conflict)) { markNotSaved(); return; }
                     await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
                     committed = true;
                 }
@@ -1456,7 +1466,7 @@ export function init() {
                 try {
                     const fresh = await getDoc(designRef);
                     const c = conflictOf(fresh.data() || {}, fresh.exists());
-                    if (c && !confirmOverwrite(c)) { markNotSaved(); return; }
+                    if (c && !await confirmOverwrite(c)) { markNotSaved(); return; }
                 } catch { /* offline — no reachable server state to compare; proceed with the queued write */ }
                 await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
             }
@@ -1589,11 +1599,15 @@ export function init() {
 
     document.addEventListener('click', e => {
         if (!dirty) return;
-        const link = /** @type {Element} */ (e.target).closest('.nav-panel a[href]');
-        if (link && !confirm('You have unsaved changes. Leave this page anyway?')) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+        const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel a[href]'));
+        if (!link) return;
+        // The custom dialog is async, so it can't decide preventDefault() inline the way the native
+        // confirm() did. Intercept EVERY dirty nav-drawer click, ask, and navigate on confirm.
+        e.preventDefault();
+        e.stopPropagation();
+        const href = link.href;
+        confirmDialog({ message: 'You have unsaved changes. Leave this page anyway?', confirmLabel: 'Leave' })
+            .then(ok => { if (ok) { dirty = false; window.location.href = href; } });   // clear dirty so beforeunload doesn't double-prompt
     }, true);
 
     // ============================================
@@ -1616,7 +1630,11 @@ export function init() {
         if (opsLink && isAdmin) {
             opsLink.hidden = false;
             opsLink.addEventListener('click', e => {
-                if (dirty && !confirm('You have unsaved changes. Leave anyway?')) e.preventDefault();
+                if (!dirty) return;
+                e.preventDefault();   // async dialog — intercept, then follow the link on confirm
+                const href = /** @type {HTMLAnchorElement} */ (opsLink).href;
+                confirmDialog({ message: 'You have unsaved changes. Leave anyway?', confirmLabel: 'Leave' })
+                    .then(ok => { if (ok) { dirty = false; window.location.href = href; } });
             });
         }
 
@@ -1625,8 +1643,9 @@ export function init() {
         if (!headerIcon) return;
         headerIcon.title = 'Back to calendar';
         headerIcon.setAttribute('aria-label', 'Back to calendar');
-        headerIcon.addEventListener('click', () => {
-            if (dirty && !confirm('You have unsaved changes. Leave anyway?')) return;
+        headerIcon.addEventListener('click', async () => {
+            if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Leave anyway?', confirmLabel: 'Leave' })) return;
+            dirty = false;   // clear so beforeunload doesn't double-prompt
             window.location.href = './';
         });
     })();

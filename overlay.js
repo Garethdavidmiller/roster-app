@@ -246,6 +246,167 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     return { open, close };
 }
 
+// Monotonic id source for dynamically-built dialogs (aria-labelledby/-describedby targets).
+// A plain counter — deterministic, no Math.random/Date needed.
+let _dialogSeq = 0;
+
+/**
+ * Build the DOM for a confirm/prompt dialog and wire it through createLightbox. Shared by
+ * confirmDialog and promptDialog. The overlay reuses the `.lb-overlay`/`.lb-content` chrome
+ * (so it inherits the canonical open animation, backdrop, blur) plus dialog-specific classes
+ * styled in shared.css. Returns a Promise resolving to the caller's result.
+ *
+ * @param {object}  o
+ * @param {string}  o.message
+ * @param {string} [o.title]
+ * @param {string}  o.confirmLabel
+ * @param {string}  o.cancelLabel
+ * @param {boolean} o.danger
+ * @param {boolean} o.withInput            - render a text input (prompt) vs none (confirm)
+ * @param {string} [o.defaultValue]        - initial input value (prompt)
+ * @param {string} [o.placeholder]         - input placeholder (prompt)
+ * @param {number} [o.maxLength]           - input maxlength (prompt)
+ * @param {(input: HTMLInputElement|null) => any} o.resultOnConfirm - value to resolve on confirm
+ * @param {any}     o.resultOnCancel       - value to resolve on cancel/dismiss
+ * @returns {Promise<any>}
+ */
+function _openDialog(o) {
+    return new Promise(resolve => {
+        const seq   = ++_dialogSeq;
+        const msgId = `mybDlgMsg${seq}`;
+        const titleId = `mybDlgTitle${seq}`;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'lb-overlay dialog-overlay';
+        overlay.setAttribute('role', o.withInput ? 'dialog' : 'alertdialog');
+        overlay.setAttribute('aria-modal', 'true');
+        if (o.title) overlay.setAttribute('aria-labelledby', titleId);
+        else overlay.setAttribute('aria-label', o.message);
+        overlay.setAttribute('aria-describedby', msgId);
+
+        const content = document.createElement('div');
+        content.className = 'lb-content dialog-lb-content';
+
+        if (o.title) {
+            const h = document.createElement('h2');
+            h.className = 'dialog-title';
+            h.id = titleId;
+            h.textContent = o.title;
+            content.appendChild(h);
+        }
+
+        const p = document.createElement('p');
+        p.className = 'dialog-message';
+        p.id = msgId;
+        p.textContent = o.message;   // textContent — never innerHTML (message can be arbitrary)
+        content.appendChild(p);
+
+        /** @type {HTMLInputElement|null} */
+        let input = null;
+        if (o.withInput) {
+            input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'dialog-input';
+            input.value = o.defaultValue ?? '';
+            if (o.placeholder) input.placeholder = o.placeholder;
+            if (o.maxLength)   input.maxLength = o.maxLength;
+            input.setAttribute('aria-label', o.title || o.message);
+            content.appendChild(input);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'dialog-actions';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'dialog-btn dialog-btn-cancel';
+        cancelBtn.textContent = o.cancelLabel;
+        const confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.className = 'dialog-btn dialog-btn-confirm' + (o.danger ? ' danger' : '');
+        confirmBtn.textContent = o.confirmLabel;
+        // Cancel first, confirm last — matches the app's primary-action-on-the-right convention.
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+        content.appendChild(actions);
+
+        overlay.appendChild(content);
+        document.body.appendChild(overlay);
+
+        let settled = false;
+        let result = o.resultOnCancel;
+
+        const lb = createLightbox({
+            overlay,
+            content,
+            closeBtn: cancelBtn,                       // Cancel = the close control (also Esc/backdrop/Back)
+            initialFocus: () => input ?? confirmBtn,
+            onClose: () => {
+                if (!settled) { settled = true; resolve(result); }
+                overlay.remove();                      // dynamic overlay — clean it out of the DOM
+            },
+        });
+
+        confirmBtn.addEventListener('click', () => { result = o.resultOnConfirm(input); lb.close(); });
+        // Enter in the prompt input submits (mirrors native prompt()).
+        input?.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); result = o.resultOnConfirm(input); lb.close(); }
+        });
+
+        lb.open();
+    });
+}
+
+/**
+ * Promise-based replacement for the browser's confirm(), styled as an app lightbox (inherits the
+ * createLightbox lifecycle: focus trap, Escape, Android Back, scroll lock, transitionend fallback).
+ * Resolves true if the user confirms; false on Cancel / backdrop / Escape / Android Back.
+ *
+ * ASYNC by nature — it cannot stand in for confirm() in a SYNCHRONOUS context that must decide
+ * `preventDefault()` inline (a capture-phase navigation guard) or in a `beforeunload` handler.
+ * For a navigation guard, intercept-always then navigate when the returned Promise resolves true;
+ * beforeunload must keep the native dialog.
+ *
+ * @param {object} opts
+ * @param {string}  opts.message
+ * @param {string} [opts.title]
+ * @param {string} [opts.confirmLabel='OK']
+ * @param {string} [opts.cancelLabel='Cancel']
+ * @param {boolean} [opts.danger=false]  - style the confirm button as destructive (e.g. Delete)
+ * @returns {Promise<boolean>}
+ */
+export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false }) {
+    return _openDialog({
+        message, title, confirmLabel, cancelLabel, danger,
+        withInput: false,
+        resultOnConfirm: () => true,
+        resultOnCancel: false,
+    });
+}
+
+/**
+ * Promise-based replacement for the browser's prompt(), styled as an app lightbox. Resolves the
+ * entered string on confirm (Enter or the confirm button), or null on Cancel / dismiss — matching
+ * native prompt()'s string|null contract, so callers keep their `(await promptDialog(...))?.trim()`.
+ *
+ * @param {object} opts
+ * @param {string}  opts.message
+ * @param {string} [opts.title]
+ * @param {string} [opts.defaultValue='']
+ * @param {string} [opts.placeholder]
+ * @param {number} [opts.maxLength]
+ * @param {string} [opts.confirmLabel='OK']
+ * @param {string} [opts.cancelLabel='Cancel']
+ * @returns {Promise<string|null>}
+ */
+export function promptDialog({ message, title, defaultValue = '', placeholder, maxLength, confirmLabel = 'OK', cancelLabel = 'Cancel' }) {
+    return _openDialog({
+        message, title, confirmLabel, cancelLabel, danger: false,
+        withInput: true, defaultValue, placeholder, maxLength,
+        resultOnConfirm: input => (input ? input.value : null),
+        resultOnCancel: null,
+    });
+}
+
 /**
  * Wire up a collapsible card header: clicking the header toggles .open on
  * the body and (optionally) the chevron. Adds keyboard (Enter/Space) and

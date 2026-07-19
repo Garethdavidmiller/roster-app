@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v17.50 · Updated every 0.10 version*
+*Last updated: July 2026 — v17.60 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `17.50` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `17.60` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -151,7 +151,7 @@ roster-app/
 ├── calendar-doc-viewer.js  ← Circular/Newsletter in-app viewer (index.html): opens a #circular/#newsletter notification deep link in a lightbox. Reuses createLightbox; separate from the Huddle viewer.
 ├── nav-panel.js            ← shared nav drawer: exports initNavPanel, archiveNotice, isNoticeExpired, resetNavPanel; the NAV_PAGES/INFORMATION/GUIDES arrays are internal data (not exported)
 ├── notif.js                ← shared Web Push: notifSupported, getNotifState, peekNotifState, enable/disableNotifications
-├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
+├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse, confirmDialog/promptDialog (v17.60 — Promise-based in-app replacements for native confirm()/prompt(), built on createLightbox; used by links-app.js + settings-app.js)
 ├── date-picker.js          ← brand-styled single-date picker for the Operations upload date fields: initDatePickers(ids) + pure monthCells(). Progressive-enhances each native `<input type="date">` (kept hidden as the value holder — consumers unchanged) into a trigger button that opens one shared modal calendar via createLightbox; sets value + dispatches input/change so the roster Saturday-snap and doc-upload defaults still flow through
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
 ├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
