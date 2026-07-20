@@ -93,6 +93,21 @@ from a real-network run — read every `blockedURI` from the CI `csp` job (or a 
 header on a live network), not a proxied dev run — then list exactly those hosts in `firebase.json` AND
 all ten `<meta>` CSPs, and confirm the CI `csp` job (not just local) goes green.
 
+### `script-src`/`frame-src` must allow Firebase Auth's Google-API iframe — `apis.google.com` (fixed v17.82)
+Firebase Auth (`firebase-auth.js`, loaded from gstatic) pulls in the Google API client
+**`https://apis.google.com/js/api.js`** and opens an auth-helper iframe on the **authDomain**
+(`myb-roster.firebaseapp.com`). `apis.google.com` is a **different domain** from the
+`*.googleapis.com` `connect-src` wildcard, so it was never covered — the CI `csp` job failed on the
+three app pages that initialise Auth with `Refused to load the script 'https://apis.google.com/js/api.js'`
+(directive `script-src-elem`). It only surfaced on CI: behind the dev-container proxy `www.gstatic.com`
+is tunnel-blocked, so the SDK never loads and never makes the call (the documented **false pass** — a
+local `npm run test:csp` stays green while CI is red). Fix: `script-src` now includes
+`https://apis.google.com`; `frame-src` (was `'none'`) now allows
+`https://myb-roster.firebaseapp.com https://apis.google.com` for the auth iframe — the standard
+Firebase-Auth-under-CSP requirement. Applied to the `firebase.json` header AND all ten `<meta>` CSPs
+(csp-meta-parity), with `apis.google.com` added to `csp-hygiene.test.mjs`'s `DYNAMIC_HOSTS` (it's
+requested by the gstatic SDK, not built in our source).
+
 ### GitHub Pages mirror — CSP via `<meta>`, with two residual header-only gaps (v17.63)
 The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which
 **cannot serve custom HTTP response headers at all** (no `_headers` support). So the `firebase.json`
