@@ -23,7 +23,14 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
  *  entries even though the grep below can't find them — list them here so "no stale" doesn't
  *  false-positive. Keep this list tight: a host belongs here only if it's genuinely used but
  *  unfindable in source. */
-const DYNAMIC_HOSTS = ['firebasestorage.googleapis.com'];
+const DYNAMIC_HOSTS = ['firebasestorage.googleapis.com',
+    // Firebase Auth (firebase-auth.js from gstatic) loads the Google API client
+    // (apis.google.com/js/api.js) for its auth-helper iframe, and opens that iframe on the
+    // authDomain (myb-roster.firebaseapp.com). Neither URL is built in our source — the gstatic
+    // SDK requests them — so they'd false-positive as "stale" without being listed here.
+    // (myb-roster.firebaseapp.com DOES appear as `authDomain` in firebase-client.js, so it's not
+    // flagged; apis.google.com does not, so it must be declared.) See KNOWN_LIMITATIONS → CSP.
+    'apis.google.com'];
 
 /** The runtime source files whose network calls the CSP must permit. */
 const APP_SOURCES = ['firebase-client.js', 'service-worker.js', 'huddle.js', 'notif.js', 'index.html',
