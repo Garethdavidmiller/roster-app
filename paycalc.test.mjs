@@ -30,7 +30,7 @@ describe('constants', () => {
   test('HPP_FRACTION is 4/52', () => { approx(HPP_FRACTION, 4 / 52, 'HPP_FRACTION'); });
 
   test('GRADES.cea has correct rate and contracted hours', () => {
-    assert.equal(GRADES.cea.rate, 20.74);
+    assert.equal(GRADES.cea.rate, 21.49); // current (2026/27) settled rate — 3.6% award from 31 Jul 2026
     assert.equal(GRADES.cea.contr, 140);
     assert.equal(GRADES.cea.pension, 147.36);
   });
@@ -47,10 +47,11 @@ describe('constants', () => {
     assert.equal(AWARD_RATES.cea['2025/26'].rate, 20.74);
   });
 
-  test('AWARD_RATES: pending 2026/27 has old = last year rate, new unconfirmed (null)', () => {
-    assert.equal(AWARD_RATES.cea['2026/27'].pre, 20.74); // 2025/26 rate is the pending award's OLD rate
-    assert.equal(AWARD_RATES.cea['2026/27'].rate, null); // award not yet agreed
+  test('AWARD_RATES: 2026/27 3.6% award confirmed — old = last year rate, new = settled rate', () => {
+    assert.equal(AWARD_RATES.cea['2026/27'].pre, 20.74);  // 2025/26 rate is the award's OLD rate
+    assert.equal(AWARD_RATES.cea['2026/27'].rate, 21.49); // 3.6% award, confirmed on the 31 Jul 2026 payslip
     assert.equal(AWARD_RATES.ces['2026/27'].pre, 21.81);
+    assert.equal(AWARD_RATES.ces['2026/27'].rate, 22.60);
   });
 
   test('awardRatesFor: known grade/year returns the record, unknown returns null', () => {
@@ -73,16 +74,23 @@ describe('constants', () => {
   test('getRateForPeriod: no step when the year/grade has no recorded pre-rate', () => {
     // CES 2025/26 has no recorded pre rate → always settled, even before the award date.
     assert.equal(getRateForPeriod({ payday: new Date(2025, 5, 6) }, 'ces', '2025/26', 21.81), 21.81);
-    // Pending 2026/27 has from:null → always settled.
-    assert.equal(getRateForPeriod({ payday: new Date(2026, 4, 8) }, 'cea', '2026/27', 20.74), 20.74);
     // Unknown year → settled (never throws).
     assert.equal(getRateForPeriod({ payday: new Date(2030, 0, 1) }, 'cea', '2099/00', 25), 25);
+  });
+
+  test('getRateForPeriod: CEA 2026/27 mid-year step at 31 Jul 2026 (£20.74 → £21.49)', () => {
+    const settled = 21.49;
+    // Periods paid BEFORE the 31 Jul 2026 award payslip were still on the old rate…
+    assert.equal(getRateForPeriod({ payday: new Date(2026, 6,  3) }, 'cea', '2026/27', settled), 20.74);
+    // …the award-date payslip and after use the settled (post-rise) rate.
+    assert.equal(getRateForPeriod({ payday: new Date(2026, 6, 31) }, 'cea', '2026/27', settled), 21.49);
+    assert.equal(getRateForPeriod({ payday: new Date(2026, 7, 28) }, 'cea', '2026/27', settled), 21.49);
   });
 
   test('awardFromForYear: single-sourced from the year’s londonAllowFrom', () => {
     // The award-application date is NOT stored in AWARD_RATES — it is the year's londonAllowFrom.
     assert.deepEqual(awardFromForYear('2025/26'), new Date(2025, 9, 24)); // 24 Oct 2025
-    assert.equal(awardFromForYear('2026/27'), null);                      // pending — no mid-year step
+    assert.deepEqual(awardFromForYear('2026/27'), new Date(2026, 6, 31)); // 31 Jul 2026 (3.6% award)
     assert.equal(awardFromForYear('2099/00'), null);                      // unknown year
   });
 
@@ -90,22 +98,24 @@ describe('constants', () => {
     assert.equal(isPreAwardPeriod({ payday: new Date(2025, 8, 26) }, 'cea', '2025/26'), true);  // 26 Sep 2025
     assert.equal(isPreAwardPeriod({ payday: new Date(2025, 9, 24) }, 'cea', '2025/26'), false); // on the award date
     assert.equal(isPreAwardPeriod({ payday: new Date(2025, 5, 6) },  'ces', '2025/26'), false); // CES has no recorded pre
-    assert.equal(isPreAwardPeriod({ payday: new Date(2026, 4, 8) },  'cea', '2026/27'), false); // pending, no date
+    assert.equal(isPreAwardPeriod({ payday: new Date(2026, 4, 8) },  'cea', '2026/27'), true);  // 8 May 2026 — before the 31 Jul award payslip
+    assert.equal(isPreAwardPeriod({ payday: new Date(2026, 6, 31) }, 'cea', '2026/27'), false); // on the award date
   });
 
   test('AWARD_RATES drift guards: settled rate matches GRADES; each year’s pre = prior year rate', () => {
     for (const grade of ['cea', 'ces']) {
-      // The settled 2025/26 rate must equal the grade default (the two must not drift apart).
-      assert.equal(AWARD_RATES[grade]['2025/26'].rate, GRADES[grade].rate,
-        `${grade} 2025/26 AWARD_RATES.rate must match GRADES.rate`);
+      // GRADES.rate holds the CURRENT (2026/27) settled rate — the two must not drift apart.
+      assert.equal(AWARD_RATES[grade]['2026/27'].rate, GRADES[grade].rate,
+        `${grade} 2026/27 AWARD_RATES.rate must match GRADES.rate`);
       // A year's `pre` is the prior year's settled rate.
       assert.equal(AWARD_RATES[grade]['2026/27'].pre, AWARD_RATES[grade]['2025/26'].rate,
         `${grade} 2026/27 pre must equal 2025/26 rate`);
     }
     // A SETTLED mid-year rate step (recorded pre AND a real hourly rate that grade was stepped to)
-    // must have an award-application date, else getRateForPeriod would never fire the step. 2025/26
-    // is the only settled step on record; the pending 2026/27 correctly has pre but no date yet.
+    // must have an award-application date, else getRateForPeriod would never fire the step. Both
+    // 2025/26 (24 Oct 2025) and the 2026/27 3.6% award (31 Jul 2026) are settled steps on record.
     assert.ok(awardFromForYear('2025/26') instanceof Date, '2025/26 award date must be set');
+    assert.ok(awardFromForYear('2026/27') instanceof Date, '2026/27 award date must be set');
   });
 
   describe('capHours (shared hour-capping cascade)', () => {
@@ -217,9 +227,12 @@ describe('getLondonAllowanceForPeriod', () => {
     approx(getLondonAllowanceForPeriod({ payday: cutover }, TY25), 276.16, 'on cutover');
   });
 
-  test('2026/27 has no londonAllowPre → always returns londonAllow', () => {
-    const payday = new Date(2026, 5, 1);
-    approx(getLondonAllowanceForPeriod({ payday }, TY26), TY26.londonAllow, '2026/27 single rate');
+  test('2026/27 London step at 31 Jul 2026 (£276.16 → £286.10)', () => {
+    // The 3.6% award steps London on the same 31 Jul payslip as the hourly rate.
+    const cutover26 = TY26.londonAllowFrom; // new Date(2026, 6, 31)
+    const before = new Date(cutover26.getTime() - 86400000);
+    approx(getLondonAllowanceForPeriod({ payday: before }, TY26), 276.16, 'pre-award London');
+    approx(getLondonAllowanceForPeriod({ payday: cutover26 }, TY26), 286.10, 'post-award London');
   });
 });
 

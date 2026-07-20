@@ -11,7 +11,7 @@
  * Do not edit here for: pay maths, period date maths, roster pre-fill.
  */
 
-import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod } from './paycalc-calc.js';
+import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
 import { getSession } from './session.js';
@@ -101,7 +101,14 @@ export function getStoredRateForYear(ty, useLegacyFallback = true) {
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted'); }
   const g = getGrade();
+  // The year's CONFIRMED settled rate (from AWARD_RATES) is authoritative per tax year, so an
+  // earlier year keeps its own rate even though GRADES.rate now holds the current (2026/27) rate —
+  // without this, a fresh device (no per-year store) would price a post-24-Oct-2025 period at the
+  // new rate. Ranked above the legacy single-rate override so a returning device still picks up the
+  // rise automatically; an explicit per-year Save (rates[ty.label]) still wins over everything.
+  const award = awardRatesFor(g, ty.label);
   return rates[ty.label]
+      || (award && award.rate != null ? award.rate : 0)
       || (useLegacyFallback ? parseFloat(lsGet(SK.rate) ?? '') : 0)
       || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
 }

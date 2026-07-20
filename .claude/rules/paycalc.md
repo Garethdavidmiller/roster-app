@@ -15,12 +15,20 @@ Primarily **manual-entry**. Staff enter hours; calculator computes tax, NI, pens
 
 **Grades supported:** CEA and CES. Dispatcher not yet supported — rates not confirmed.
 
-| Grade | 2025/26 rate | Contracted hrs | Pension | London Allowance |
-|-------|-------------|----------------|---------|-----------------|
-| CEA | £20.74/hr | 140/period | £147.36 (from P51 May 8 2026) | £276.16 |
-| CES | £21.81/hr | 140/period | £147.36 (from P51 May 8 2026) | £276.16 |
+| Grade | 2025/26 rate | 2026/27 rate (from 31 Jul 2026) | Contracted hrs | Pension | London Allowance |
+|-------|-------------|----------------------------------|----------------|---------|-----------------|
+| CEA | £20.74/hr | **£21.49/hr** | 140/period | £147.36 (from P51 May 8 2026) | £276.16 → **£286.10** (from 31 Jul 2026) |
+| CES | £21.81/hr | **£22.60/hr** | 140/period | £147.36 (from P51 May 8 2026) | £276.16 → **£286.10** (from 31 Jul 2026) |
 
-2026/27 rates: not yet confirmed — update `GRADES` in `paycalc-calc.js` when announced.
+**2026/27: the 3.6% RMT award, confirmed on the 31 Jul 2026 payslip.** It applies automatically from
+that payslip — the hourly rate lives in `GRADES` (current default) + `AWARD_RATES['2026/27']`
+(authoritative per-year settled rate, consulted by `getStoredRateForYear`), and the mid-year step
+(pre-31-Jul periods still on £20.74/£21.81 + London £276.16) is applied by
+`getRateForPeriod`/`getLondonAllowanceForPeriod`, keyed on `TAX_YEARS['2026/27'].londonAllowFrom` =
+31 Jul 2026. The **arrears** back to 1 Apr 2026 remain the **opt-in** back-pay lump (see below) — not
+auto-added to take-home. When the NEXT award is announced: bump `GRADES.rate` + labels, set the new
+year's `AWARD_RATES.rate`, add the following year with `pre` = this rate, and set the new year's
+`londonAllow`/`londonAllowPre`/`londonAllowFrom` on `TAX_YEARS`.
 
 **Members with `startDate`:** for the joining period, `calcProRateFactor` scales contracted hours, London Allowance, and the pension default. All subsequent periods use standard amounts automatically. **HPP is NOT pro-rated by any factor, and must not be** (owner-confirmed Jul 2026): HPP accrues purely on the actual extras you do (overtime / RDW / Saturday / Sunday / BH / Boxing premiums), so a joiner's lump is naturally lower simply because they did fewer extras after joining — there is no separate "reduced-for-part-year" scaling. This is exactly what `_varPayForPeriod` does (no pro-rate term since v17.23 — London, its only one, was removed as it doesn't accrue HPP). Do not re-introduce a joiner pro-rate factor into the HPP base.
 
