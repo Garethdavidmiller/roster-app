@@ -158,11 +158,9 @@ export function prefillBackPay() {
     if (keep) _setSelectPeriod(paidSel, +keep); // no-op if the kept period isn't in this award's window
   }
 
-  // The "Pay rise %" shortcut only makes sense while the award is an estimate — for a settled year
-  // the real old→new rates are on record and prefilled, so the % box would be a dead control
-  // (its auto-fill deliberately never overwrites the prefilled figures). Hide it.
-  const pctField = document.getElementById('bpRisePctField');
-  if (pctField) pctField.style.display = ty.rateUnconfirmed ? '' : 'none';
+  // NB: the "Pay rise %" field visibility and the rate-box read-only lock are applied in calcBackPay
+  // (which runs after BOTH prefill and restoreBpState), not here — otherwise a year switch that
+  // restores a saved blob would keep the previous year's lock/visibility state.
 
   // The award year is TODAY's award (pinned above), so the card always computes the current award
   // regardless of the period being viewed. Its OLD rate = the rate paid before that year's award =
@@ -191,14 +189,6 @@ export function prefillBackPay() {
     if (!newRateEl.value && award && award.rate != null) newRateEl.value = award.rate.toFixed(2);
     if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
     if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
-  }
-  // Lock the Old→New rate boxes for a CONFIRMED award (v17.87): its rates are on record (AWARD_RATES),
-  // so they're fixed — not typed — matching the grade-fixed hourly rate in Settings. Editable only for
-  // an as-yet-unconfirmed future award (where the New rate genuinely isn't known). Manual mode hides
-  // these boxes entirely, so this only affects compute mode.
-  const _lockRates = !ty.rateUnconfirmed;
-  for (const el of [oldRateEl, newRateEl, oldLondonEl, newLondonEl]) {
-    if (el) { el.readOnly = _lockRates; el.classList.toggle('bp-rate-locked', _lockRates); }
   }
   // Name the award year on the card so it's clear WHICH annual rise is being calculated. For a
   // settled award, also show WHEN it was applied — it explains why later periods aren't in the count.
@@ -287,6 +277,14 @@ export function restoreBpState() {
   // the paid-in would stick on the wrong year (v17.86 per-year switch).
   if (paidSel) buildBackPayPeriodSelect(48 + awardTy.first, 48 + awardTy.last);
   if (paidSel && s.paidIn) _setSelectPeriod(paidSel, +s.paidIn);
+  // Safety net (review finding): a decided award hides the selector, so if the saved paid-in is
+  // missing or no longer valid for this year's window, fall back to the award payslip — otherwise
+  // bpPNum would be 0 and the lump would silently drop to £0 with no way to fix it.
+  if (paidSel && !(/** @type {HTMLSelectElement} */ (paidSel)).value) {
+    const _from = awardFromForYear(awardTy.label);
+    const _tgt  = _from ? (getPeriods().find(/** @param {any} x */ x => x.payday >= _from)?.num ?? 0) : todaysPeriodNum();
+    if (_tgt) _setSelectPeriod(paidSel, _tgt);
+  }
   const incTick = /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'));
   if (incTick) incTick.checked = s.inc === '1';
   applyBpMode(s.mode || _defaultBpMode(awardTy));
@@ -391,6 +389,19 @@ export function calcBackPay() {
   // selector. `_periodDisplay` = 'block' when the selector should show, else 'none'.
   const _awardDecided  = !!awardFromForYear(awardTy?.label);
   const _periodDisplay = _awardDecided ? 'none' : 'block';
+  // Compute-mode field state, applied HERE (runs after both prefill AND restoreBpState — so a year
+  // switch that restores a saved blob can't leave the previous year's state, per review): hide the
+  // "Pay rise %" helper for a settled award (its rates are on record), and lock the Old→New rate
+  // boxes so they read as fixed — but ONLY a box that actually holds a value. A grade/year with no
+  // recorded rate (e.g. CES 2025/26, pre:null) leaves the Old box BLANK, and that box must stay
+  // editable so compute mode can be completed by hand (review finding — a blank+locked box was a dead end).
+  const _lockRates = !awardTy?.rateUnconfirmed;
+  for (const _id of ['oldRate', 'newRateInput', 'oldLondon', 'newLondon']) {
+    const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(_id));
+    if (_el) { const _lk = _lockRates && _el.value !== ''; _el.readOnly = _lk; _el.classList.toggle('bp-rate-locked', _lk); }
+  }
+  const _pctField = document.getElementById('bpRisePctField');
+  if (_pctField) _pctField.style.display = awardTy?.rateUnconfirmed ? '' : 'none';
   const bpSel     = /** @type {HTMLSelectElement} */ (document.getElementById('backPayPeriod'));
   const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
   const bpP       = bpPNum ? getPeriods().find(/** @param {any} x */ x => x.num === bpPNum) : null;

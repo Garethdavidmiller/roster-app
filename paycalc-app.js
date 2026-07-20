@@ -16,7 +16,7 @@ import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat, parseSmartFloatOrN
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, getPensionForPeriod, awardRatesFor,
+  computeGross, computeTax, computeNI, computeSL, getPensionForPeriod,
   isPreAwardPeriod, getRateForPeriod,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
@@ -1204,40 +1204,8 @@ export function init() {
       btn.setAttribute('aria-expanded', String(open));
     }
 
-    function applyNewRate() {
-      const newRate = numVal('newRateInput');
-      if (!newRate) return;
-      // Write the rate against the AWARD's tax year. Going through the rate field +
-      // saveSettings() would store it on whichever tax year is being viewed —
-      // silently corrupting last year's rate if an old period happens to be open.
-      const awardTy  = _bpAwardTaxYear(_backdatedFromPNum());
-      /** @type {Record<string,any>} */
-      let rates = {};
-      try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
-      rates[awardTy.label] = newRate;
-      // Backfill every OTHER tax year that has a known settled rate (AWARD_RATES) but no stored
-      // entry. Without this, on a fresh device the SK.rate legacy fallback below — which we're
-      // about to set to the NEW rate — would bleed into any historic year with no stored rate,
-      // making e.g. post-award 2025/26 periods compute at the 2026/27 figure.
-      for (const t of CONFIG.TAX_YEARS) {
-        if (t.label === awardTy.label || rates[t.label] != null) continue;
-        const _known = awardRatesFor(getGrade(), t.label);
-        if (_known && _known.rate != null) rates[t.label] = _known.rate;
-      }
-      lsSet(SK.rates, JSON.stringify(rates));
-      lsSet(SK.rate,  newRate.toFixed(2)); // legacy single-rate fallback for years with no stored rate
-      // Refresh the rate field for the tax year being viewed (it may be a different
-      // year, in which case its rate is correctly left unchanged).
-      const curP  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
-      const curTy = taxYearForPeriod(curP);
-      updateRateForPeriod(curTy, curP);
-      calculate();
-      // Update button state to reflect it's been applied
-      const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById('applyRateBtn'));
-      const fb  = document.getElementById('applyRateFeedback');
-      if (btn) { btn.textContent = `✓ New rate already applied — £${newRate.toFixed(2)}/hr (${awardTy.label})`; btn.disabled = true; }
-      if (fb)  { fb.textContent  = `Settings updated — periods in ${awardTy.label} will now calculate at the new rate.`; }
-    }
+    // (applyNewRate removed v17.90 — the Settings hourly rate is now grade-fixed + auto-derived, so
+    // there was nothing to push into settings; the button it drove was already permanently hidden.)
 
     // ── HPP FORMULA NOTE TOGGLE ───────────────────────────────────────────────────
     // ── HOURS SHOW MORE TOGGLE ────────────────────────────────────────────────────
@@ -1420,7 +1388,6 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn')).addEventListener('click', toggleBpBreakdown);
     /** @type {HTMLElement} */ (document.getElementById('backPayPeriod')).addEventListener('change', _runCalcBackPay);
     /** @type {HTMLElement} */ (document.getElementById('bpIncludeTick')).addEventListener('change', _runCalcBackPay);
-    /** @type {HTMLElement} */ (document.getElementById('applyRateBtn')).addEventListener('click', applyNewRate);
     /** @type {HTMLElement} */ (document.getElementById('saveSettingsBtn')).addEventListener('click', () => confirmSettings(calculate));
 
     // Hours card — show more toggle
