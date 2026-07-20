@@ -1052,7 +1052,11 @@ export function init() {
         if (_bpAvailableHere) {
           /** @type {HTMLElement} */ (document.getElementById('bpBannerText')).textContent = _bpThisPeriod > 0
             ? `✓ Includes ${_bpIsEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(_bpThisPeriod)}`
-            : `ℹ️ ${_bpIsEstimate ? 'Estimated' : 'A'} back pay lump sum of ${fmt(_bpAmount)} could land on this payslip — not added to this estimate`;
+            // Confirmed award → the lump DOES land on this payslip (definite); an unconfirmed
+            // estimate stays hedged ("could land"). Either way it's opt-in (not added unless ticked).
+            : _bpIsEstimate
+              ? `ℹ️ Estimated back pay lump sum of ${fmt(_bpAmount)} could land on this payslip — not added to this estimate`
+              : `ℹ️ Your back pay lump sum of ${fmt(_bpAmount)} will land on this payslip — not added to this estimate`;
           /** @type {HTMLInputElement} */ (document.getElementById('bpBannerTick')).checked = _bpIncluded;
           const _bpAprilYr = _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4);
           /** @type {HTMLElement} */ (document.getElementById('bpBannerNote')).textContent =
