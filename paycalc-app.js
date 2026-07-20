@@ -343,6 +343,10 @@ export function init() {
         const _chip = document.getElementById(_cid);
         if (_chip) _chip.textContent = ty.label;
       }
+      // Settings card chip shows the PERIOD/payslip you're on (the rate + pension are period-specific)
+      // — the settings summary already carries the tax year. (v17.92)
+      const _spc = document.getElementById('settingsPeriodChip');
+      if (_spc) _spc.textContent = `P${payslipPeriodNum(p)} · ${fdShort(p.payday)}`;
 
       // Load the rate and Year to Date figures for this period's tax year (period-aware: an
       // early-in-the-year period before its mid-year pay-award date shows the pre-rise rate).
