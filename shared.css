@@ -89,18 +89,18 @@
     --gold-glow: rgba(245, 200, 0, 0.25);
     --orange-light: color-mix(in oklch, var(--orange) 19%, white);
     /* Early-shift CALENDAR cell tint + border (month grid, legend, Team-View cell + key dot).
-       DECOUPLED from --orange at v17.80 (owner: "softer amber, only on calendar") — a gentler,
-       less-saturated amber than the bright --orange. Same warm hue (~63°) so the shift still reads
-       as sunrise/Early, just calmer on the dense 390px grid. --orange / --orange-light are left
-       UNCHANGED so the Operations page accent, the paycalc Saturday pay badge, and the admin
-       correction pills keep their existing bright orange. */
-    --early-cell-border: oklch(72.0% 0.1250 63.0deg);
-    --early-cell:        color-mix(in oklch, var(--early-cell-border) 15%, white);
-    /* ☀️ Early shift BADGE fill (white text). Own token since v17.84 (owner: option C) — a cleaner,
-       warmer DEEP AMBER at the same hue as the softer cell (~63°) so badge + cell read as one family,
-       replacing the muddy "burnt orange" --orange-deep. Dark enough for white text at AA (5.5:1).
-       DECOUPLED from --orange-deep, which stays for the admin .pill-correction.active only. */
-    --early-badge:       oklch(53.0% 0.1650 63.0deg);
+       RESTORED to the ORIGINAL bright amber at v17.88 (owner: "closest to original") — after the
+       v17.80 softening was tried and reverted. The cell sits behind a DARK date number, so it has no
+       white-text contrast rule and can be the full bright --orange with nothing lost on accessibility.
+       Kept as named tokens (aliasing --orange/--orange-light) so the Early cell stays a one-line lever. */
+    --early-cell-border: var(--orange);
+    --early-cell:        var(--orange-light);
+    /* ☀️ Early shift BADGE fill (white text). The BRIGHTEST/most-saturated true-orange that still
+       clears WCAG AA 4.5:1 under white text — L57% at the original hue = 4.64:1 (v17.88). This is the
+       accessible ceiling, so the badge is as close to the bright cell orange as white text allows;
+       above ~L57% white text fails (a brighter badge would need DARK text instead). Own token, so it
+       stays independent of --orange-deep (admin .pill-correction.active only). */
+    --early-badge:       oklch(57.0% 0.1741 64.1deg);
 
     /* Late shift */
     --blue-sky:   oklch(51.3% 0.1603 255.7deg);

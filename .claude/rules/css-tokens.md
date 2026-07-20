@@ -94,23 +94,19 @@ orange cannot carry white text at WCAG AA (2.15:1), so darker variants exist for
 | `--orange` (bright) | 77% | Ambient/identity colour only, never under white text: **Operations page identity** (nav pill, `#opsBadge`, ops notice badge), the paycalc Saturday pay badge's border, the admin overwrite-pending / correction pills |
 | `--orange-deep` | 54% | Fill carrying **white text**: the admin `.pill-correction.active` only (was also the Early badge until v17.84) |
 | `--orange-text` | 44% | Darkened orange **text on white / `--orange-light`**: `.badge-sat` text, `.pill-correction` idle text — the orange-family analogue of `--rdw-text`/`--other-text`/`--absence-text` |
-| `--early-cell` / `--early-cell-border` | 72% border | **Early-shift CALENDAR surfaces only** (v17.80): the month-grid cell tint + border, the legend swatch, the Team-View cell + key dot, and the print rule. A softer, less-saturated amber than `--orange` (same warm ~63° hue). |
-| `--early-badge` | 53% | **☀️ Early BADGE fill only** (`.badge-early`, screen + print; white text, AA 5.5:1). Deep amber at the cell's ~63° hue so badge + cell match (v17.84, owner: option C) — replaced the muddy `--orange-deep` "burnt orange". |
+| `--early-cell` / `--early-cell-border` | = `--orange` | **Early-shift CALENDAR surfaces only** (month-grid cell tint + border, legend swatch, Team-View cell + key dot, print rule). **Restored to the ORIGINAL bright amber at v17.88** (alias `--orange-light` / `--orange`) after the v17.80 softening was tried and reverted — the cell has no white-text rule (dark date number), so it can be the full bright orange. Kept as named tokens so it stays a one-line lever. |
+| `--early-badge` | 57% | **☀️ Early BADGE fill only** (`.badge-early`, screen + print; white text). The BRIGHTEST true-orange that still clears WCAG AA under white text — L57% at the original hue = **4.64:1** (v17.88, owner: "closest to original"). This is the accessible ceiling; above ~L57% white text fails (a brighter badge would need dark text). |
 
 **Rules:** never put white text on `--orange` (use `--orange-deep`/`--early-badge`); never use
-`--orange` as text on a light surface (use `--orange-text`). The Early **badge** (`--early-badge`)
-sits in the badge family's 45–54% L range.
+`--orange` as text on a light surface (use `--orange-text`). The Early **badge** (`--early-badge`) is
+the max-brightness white-text orange (L57%, at the AA line — do not lighten further).
 
-**Early calendar cell decoupled from `--orange` (v17.80).** Owner request "softer amber, only on the
-calendar": the Early *calendar* surfaces moved off `--orange`/`--orange-light` onto the dedicated,
-gentler `--early-cell` / `--early-cell-border` (index.css). `--orange`/`--orange-light` are
-**deliberately unchanged**, so the Operations accent, the paycalc **Saturday pay badge** (still
-`--orange-light` fill + `--orange` border), and the admin correction pills keep the original bright
-orange. This means the Saturday pay badge no longer exactly matches the Early calendar cell — an
-**intentional** divergence (the earlier "Saturday wears Early orange" tie in the accepted-overloads
-note is scoped to the *hue family*, not an exact-value match). Superseded the v17.56 "Early cell
-stays bright" decision. If the two are ever re-unified, point the calendar rules back at
-`--orange`/`--orange-light` and delete the `--early-cell*` tokens.
+**Early calendar cell = the original bright `--orange` (v17.88).** The v17.80 "softer amber" cell was
+tried and reverted; `--early-cell` / `--early-cell-border` now alias `--orange-light` / `--orange`, so
+the Early cell, the Operations accent, and the paycalc Saturday pay badge all share the one bright
+orange again. The tokens are kept (rather than pointing index.css back at `--orange`) so the Early
+cell remains a single-line change if it's ever retuned. The **badge** keeps its own `--early-badge`
+token because white text caps its lightness (L57%) well below the L77% cell.
 
 ## Dark (navy) nav drawer + scoped tokens (v11.54)
 
