@@ -69,7 +69,7 @@ export const SK = {
 function _rebuildSK() {
     const p = pcPrefix();
     SK.rate    = `${p}rate`;
-    SK.rates   = `${p}rates`;   // JSON object: { '2025/26': 20.74, '2026/27': 21.50 }
+    SK.rates   = `${p}rates`;   // JSON object: { '2025/26': 20.74, '2026/27': 21.49 }
     SK.code    = `${p}code`;
     SK.sl      = `${p}sl`;      // undergraduate plan: 'none'|'plan1'|'plan2'|'plan4'|'plan5'
     SK.pgLoan  = `${p}pg_loan`; // separate Postgraduate Loan flag ('1' | absent) — repayable ALONGSIDE a plan

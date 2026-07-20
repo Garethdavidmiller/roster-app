@@ -17,11 +17,14 @@ export const RATE_300 = 3.00;
 // use payslipPeriodNum() in paycalc-periods.js for user-facing labels.
 // 2025/26: internal num 37 → 49  (offsets -11 to +1) — printed P4 → P52
 // 2026/27: internal num 50 → 62  (offsets  +2 to +14) — printed P4 → P52
+/** @type {Array<{ label: string, first: number, last: number, hppPaidJan: number, londonAllow: number, londonAllowPre?: number, londonAllowFrom?: Date, rateUnconfirmed?: boolean }>} */
 export const TAX_YEARS = [
   { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027,
     londonAllow: 276.16, londonAllowPre: 267.08, londonAllowFrom: new Date(2025, 9, 24) },
   { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028,
-    londonAllow: 276.16, rateUnconfirmed: true }, // ⚠️ Remove rateUnconfirmed + set londonAllowPre + londonAllow when pay award confirmed
+    londonAllow: 286.10, londonAllowPre: 276.16, londonAllowFrom: new Date(2026, 6, 31) }, // 3.6% RMT award, paid from the 31 Jul 2026 payslip (rate + London step together)
+  // NEXT award: add the new tax year here with rateUnconfirmed: true until its payslip lands, then
+  // set its londonAllow/londonAllowPre/londonAllowFrom + AWARD_RATES.rate and drop rateUnconfirmed.
 ];
 
 // ── Tax & NI thresholds by tax year ───────────────────────────────────────
@@ -92,13 +95,18 @@ export const SCOTTISH_TAX_BY_YEAR = {
   ]},
 };
 
-// Grade contractual data. 2026/27 pay awards not yet confirmed.
-// pensionPre / pensionFrom: pension changed from £154.77 → £147.36 at the May 8 2026 payslip.
+// Grade contractual data. `rate` is the CURRENT (2026/27) settled rate — the 3.6% RMT award
+// paid from the 31 Jul 2026 payslip. Per-YEAR settled rates come from AWARD_RATES (consulted by
+// getStoredRateForYear), so an earlier year keeps its own rate; GRADES.rate is the grade default
+// + dropdown label. The mid-year step (pre-31-Jul-2026 periods still on £20.74/£21.81) is applied
+// by getRateForPeriod via awardFromForYear.
+// pensionPre / pensionFrom: pension changed from £154.77 → £147.36 at the May 8 2026 payslip (a
+// SEPARATE change from the pay award — unaffected by the 3.6% rise).
 // Periods with payday < pensionFrom use pensionPre; from pensionFrom onwards use pension.
 /** @type {Record<string, any>} */
 export const GRADES = {
-  cea: { label: 'CEA — £20.74/hr', rate: 20.74, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) },
-  ces: { label: 'CES — £21.81/hr', rate: 21.81, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) }, // 2026/27 rate TBC
+  cea: { label: 'CEA — £21.49/hr', rate: 21.49, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) },
+  ces: { label: 'CES — £22.60/hr', rate: 22.60, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) },
 };
 
 // ── Annual pay-award rates by grade + tax year ─────────────────────────────
@@ -122,11 +130,11 @@ export const GRADES = {
 export const AWARD_RATES = {
   cea: {
     '2025/26': { rate: 20.74, pre: 20.06 },
-    '2026/27': { rate: null,  pre: 20.74 }, // 3.6% accepted by RMT (Jul 2026), awaiting payslip confirmation
+    '2026/27': { rate: 21.49, pre: 20.74 }, // 3.6% RMT award, confirmed on the 31 Jul 2026 payslip
   },
   ces: {
     '2025/26': { rate: 21.81, pre: null },  // 2024/25 CES rate not on record
-    '2026/27': { rate: null,  pre: 21.81 },
+    '2026/27': { rate: 22.60, pre: 21.81 }, // 3.6% RMT award, confirmed on the 31 Jul 2026 payslip
   },
 };
 
