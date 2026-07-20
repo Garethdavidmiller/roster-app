@@ -350,7 +350,9 @@ export function init() {
       // Settings card chip shows the PERIOD/payslip you're on (the rate + pension are period-specific)
       // — the settings summary already carries the tax year. (v17.92)
       const _spc = document.getElementById('settingsPeriodChip');
-      if (_spc) _spc.textContent = `P${payslipPeriodNum(p)} · ${fdShort(p.payday)}`;
+      // Just "P24" (v17.95): the payday date sits in the period selector directly below, and the
+      // shorter chip keeps the collapsed settings summary to a single line at 390px.
+      if (_spc) _spc.textContent = `P${payslipPeriodNum(p)}`;
 
       // Load the rate and Year to Date figures for this period's tax year (period-aware: an
       // early-in-the-year period before its mid-year pay-award date shows the pre-rise rate).
@@ -402,9 +404,11 @@ export function init() {
         const _hintPreAward = isPreAwardPeriod(p, _hdrGrade, ty.label);
         const _hintRate = _hintPreAward ? getRateForPeriod(p, _hdrGrade, ty.label, _settledRate) : _settledRate;
         const rate = (_hintRate || numVal('hourlyRate') || (GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
-        const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
+        // No tax code in the collapsed summary (v17.95): with the period chip beside it the code
+        // widowed onto a second line at 390px, and it's the least period-relevant item — the year,
+        // rate and pre/post-rise position are the at-a-glance facts. The code lives inside the card.
         /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent =
-          `✓ ${ty.label} — £${rate}/hr${_hintPreAward ? ' · pre-rise rate' : ''} · ${code}`;
+          `✓ ${ty.label} — £${rate}/hr${_hintPreAward ? ' · pre-rise' : ''}`;
       } else {
         /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
           `We've filled in the usual defaults — <strong>check your grade and tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
