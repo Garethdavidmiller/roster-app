@@ -1291,7 +1291,7 @@ export function init() {
       const el = document.getElementById('gradeRateHint');
       if (!el) return;
       el.textContent = 'CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. '
-        + `Your grade sets the default hourly rate below. CEA: £${GRADES.cea.rate.toFixed(2)}/hr · CES: £${GRADES.ces.rate.toFixed(2)}/hr.`;
+        + `Your grade sets your hourly rate below. CEA: £${GRADES.cea.rate.toFixed(2)}/hr · CES: £${GRADES.ces.rate.toFixed(2)}/hr.`;
     })();
 
     loadSettings();

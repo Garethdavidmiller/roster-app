@@ -559,12 +559,17 @@
       font-size: 15px; font-weight: 600; color: var(--text-mid); pointer-events: none;
     }
     .pfx input { padding-left: 26px; width: 100%; }
-    /* Read-only, grade-set rate (v17.87) — reads as a fixed display, not an editable field. */
+    /* Read-only, grade-set rate (v17.87; restyled v17.91) — reads as a fixed VALUE, not an empty
+       field: solid faint fill, bold value, and a small lock on the right. */
     .pfx--readonly input, input[readonly]#hourlyRate {
-      background: var(--bg-faint); color: var(--text-dark); font-weight: 600;
-      cursor: default; border-style: dashed;
+      background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
+      cursor: default; border-color: var(--border-light); padding-right: 36px;
     }
     .pfx--readonly input:focus { outline: none; box-shadow: none; }
+    .pfx--readonly::after {
+      content: "🔒"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      font-size: 13px; opacity: .5; pointer-events: none;
+    }
     .adj-sign-btn {
       width: 44px; height: 44px; flex-shrink: 0;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);

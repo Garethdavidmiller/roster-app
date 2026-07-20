@@ -130,7 +130,7 @@ export function updateRateForPeriod(ty, p) {
     const from = awardFromForYear(ty.label);
     const show = preAward && !!from;
     note.textContent = show
-      ? `This payslip is before the ${fdShort(from)} pay rise, so it uses the pre-rise rate — £${rate.toFixed(2)}/hr. Payslips from ${fdShort(from)} onward use the new rate automatically.`
+      ? `This payslip predates the ${fdShort(from)} pay rise — later payslips switch to the new rate automatically.`
       : '';
     note.style.display = show ? '' : 'none';
   }
