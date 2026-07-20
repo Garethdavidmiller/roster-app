@@ -130,20 +130,20 @@
           <option value="ces">CES</option>
         </select>
         <!-- Rates filled by paycalc-app.js from GRADES — one-place update at the April pay award -->
-        <div class="field-hint" id="gradeRateHint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. Your grade sets the default hourly rate below.</div>
+        <div class="field-hint" id="gradeRateHint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. Your grade sets your hourly rate below.</div>
       </div>
 
       <div class="field">
         <label for="hourlyRate">Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
-        <div class="pfx">
+        <div class="pfx pfx--readonly">
           <span class="pfx-sym">£</span>
-          <input type="text" id="hourlyRate" value="21.49" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+          <input type="text" id="hourlyRate" value="21.49" readonly aria-readonly="true" tabindex="-1">
         </div>
-        <div class="field-hint">Check your latest payslip. The app stores a separate rate per tax year — updating here won't affect other years.</div>
+        <div class="field-hint">Set automatically by your <strong>grade</strong> — CEA and CES each have a fixed hourly rate, so there's nothing to type here. It updates with each pay award on its own.</div>
+        <div class="field-hint" id="rateStepNote" style="display:none"></div>
         <div class="val-warn" id="rateWarn" role="alert" aria-live="polite"></div>
-        <!-- "3.6%" / "31 July" reflect the current pay-award status (accepted by the RMT, awaiting
-             payment). Update/generalise once it's confirmed on payslips, or if the payment date slips. -->
-        <div class="joiner-notice hidden" id="rateUnconfirmedNotice">⚠ 2026/27 pay award (3.6%) accepted by the RMT — expected on your 31 July payslip, but not yet confirmed. The rate shown here is still last year's; update it once your payslip reflects the new rate, then tap Save settings.</div>
+        <!-- Shown only while a FUTURE award is accepted but not yet on payslips (ty.rateUnconfirmed). -->
+        <div class="joiner-notice hidden" id="rateUnconfirmedNotice">⚠ Next year's pay award has been accepted but isn't on payslips yet — the rate shown stays on this year's until the award lands on a payslip, then it updates automatically.</div>
       </div>
 
       <div class="field">

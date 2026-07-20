@@ -11,12 +11,13 @@
  * Do not edit here for: pay maths, period date maths, roster pre-fill.
  */
 
-import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor } from './paycalc-calc.js';
+import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
 import { getSession } from './session.js';
 import { teamMembers } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
+import { fdShort } from './paycalc-format.js';
 
 // ── GRADE CACHE ───────────────────────────────────────────────────────────────
 // lsGet is called in calculate() / calcHPP() on every keystroke; the grade only
@@ -82,43 +83,23 @@ export function getPensionDefault(pObj) {
 // Loads the stored rate for the given tax year into the hourly rate field.
 // Falls back to the legacy single rate, then to the current grade's default.
 /**
- * Stored hourly rate for a tax year (pure — no DOM). Falls back to the legacy single-rate key, then
- * the grade default. Use this wherever a SPECIFIC tax year's rate is needed (e.g. the prior-year HPP
- * estimate) — reading the live `hourlyRate` field or the current grade default gives the wrong year's
- * rate after an April pay award.
- *
- * `useLegacyFallback` (default true) controls the middle leg — the legacy single `SK.rate` key. That
- * key holds the LAST-SAVED rate (not year-specific), so it is the right migration fallback when
- * loading a rate into the field, but WRONG for a PRIOR year's estimate: after an award it would price
- * last year at the new rate. Callers estimating a specific past year (updatePriorHpp) pass `false` so
- * an absent per-year rate falls straight through to the grade default instead.
+ * The hourly rate for a tax year (pure — no DOM). Since v17.87 the rate is FIXED BY GRADE and no
+ * longer user-stored, so this derives it purely from AWARD_RATES (the year's confirmed settled rate)
+ * with the grade default as a fallback. Use it wherever a SPECIFIC tax year's rate is needed (e.g. the
+ * prior-year HPP estimate); the mid-year pre/post-rise step is applied per period by getRateForPeriod.
  * @param {any} ty
- * @param {boolean} [useLegacyFallback=true]
+ * @param {boolean} [_useLegacyFallback=true] - retained for call-site compatibility; no longer used.
  * @returns {number}
  */
-export function getStoredRateForYear(ty, useLegacyFallback = true) {
-  /** @type {Record<string, any>} */
-  let rates = {};
-  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted'); }
+export function getStoredRateForYear(ty, _useLegacyFallback = true) {
+  // The hourly rate is FIXED BY GRADE + the confirmed award (v17.87) — it is no longer user-editable
+  // or stored, so it derives purely from AWARD_RATES (the year's settled rate) with the grade default
+  // as a fallback. This removes the whole stale-saved-rate failure class (a device could otherwise
+  // hold last year's rate). The mid-year pre/post-rise step is applied per period by getRateForPeriod.
+  // (`_useLegacyFallback` is retained for call-site compatibility but no longer consulted.)
   const g = getGrade();
-  // The year's CONFIRMED settled rate (from AWARD_RATES) is authoritative per tax year, so an
-  // earlier year keeps its own rate even though GRADES.rate now holds the current (2026/27) rate —
-  // without this, a fresh device (no per-year store) would price a post-24-Oct-2025 period at the
-  // new rate. Ranked above the legacy single-rate override so a returning device still picks up the
-  // rise automatically; an explicit per-year Save (rates[ty.label]) still wins over everything.
-  const award   = awardRatesFor(g, ty.label);
-  const settled = award && award.rate != null ? award.rate : 0;
-  const stored  = rates[ty.label];
-  // SELF-HEAL a stale stored rate: a returning device that tapped "Save settings" on this tax year
-  // BEFORE the award landed has the PRE-award rate auto-saved (e.g. 2026/27 = £20.74). Once the award
-  // is confirmed, that stored value equals the year's `pre` rate and is superseded by the settled
-  // rate — otherwise the rise silently never appears for existing users (London stepped but the
-  // hourly rate stayed old). A genuinely custom rate won't equal `pre`, so it is preserved. On the
-  // next Save the correct rate persists, so this heal is a one-shot per device.
-  if (stored && award && settled && award.pre != null && Number(stored) === award.pre) return settled;
-  return stored
-      || settled
-      || (useLegacyFallback ? parseFloat(lsGet(SK.rate) ?? '') : 0)
+  const award = awardRatesFor(g, ty.label);
+  return (award && award.rate != null ? award.rate : 0)
       || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
 }
 
@@ -137,15 +118,22 @@ export function updateRateForPeriod(ty, p) {
   const rate     = preAward ? getRateForPeriod(p, grade, ty.label, settled) : settled;
   const field    = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
   field.value = rate.toFixed(2);
-  // On a pre-award period the field shows the fixed HISTORIC rate (a payslip fact, not a setting) —
-  // make it read-only so a typed edit isn't silently discarded by saveSettings (which persists the
-  // settled rate for that year, never the pre-rise value). Editable again on post-award/current periods.
-  field.readOnly = preAward;
-  field.title    = preAward ? 'Rate paid before this year’s mid-year pay rise — fixed for this period' : '';
-  // Label: show the tax year, and flag when the pre-rise rate is in effect so a user checking an
-  // early-in-the-year payslip isn't surprised the rate is lower than the settled one.
+  // The rate is FIXED BY GRADE (v17.87) — ALWAYS read-only; the member never types it. A pre-rise
+  // payslip shows that period's historic rate, a current/post-rise payslip the new rate.
+  field.readOnly = true;
+  field.title    = 'Set by your grade — CEA and CES each have a fixed hourly rate';
   const lbl = document.getElementById('rateYearLabel');
-  if (lbl) lbl.textContent = preAward ? `for ${ty.label} · pre-rise rate` : `for ${ty.label}`;
+  if (lbl) lbl.textContent = preAward ? `${ty.label} · pre-rise rate` : `${ty.label} · current rate`;
+  // Spell out the pre/post-rise position plainly under the field (owner: make pre vs post clear).
+  const note = document.getElementById('rateStepNote');
+  if (note) {
+    const from = awardFromForYear(ty.label);
+    const show = preAward && !!from;
+    note.textContent = show
+      ? `This payslip is before the ${fdShort(from)} pay rise, so it uses the pre-rise rate — £${rate.toFixed(2)}/hr. Payslips from ${fdShort(from)} onward use the new rate automatically.`
+      : '';
+    note.style.display = show ? '' : 'none';
+  }
 }
 
 /** Load the stored Year to Date figures for this tax year into the Year to Date Figures card.
@@ -168,32 +156,16 @@ export function settingsKey(ty) { return `${pcPrefix()}setup_${ty.label.replace(
 /** Persist all field values. Called on every input change (auto-save).
  *  Does NOT set the confirmed flag or collapse the card — that's confirmSettings(). */
 export function saveSettings() {
-  const rateVal = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value;
   const pNum    = currentPeriodNum();
   const curP    = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const curTy   = taxYearForPeriod(curP);
-  /** @type {Record<string, any>} */
-  let rates = {};
-  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
   const _savedGrade   = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
-  const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
-  const _fieldRate    = parseFloat(rateVal) || _gradeDefault;
   // Save grade and invalidate the cache FIRST — every getGrade()-backed helper below
-  // (getStoredRateForYear on the pre-award branch, getPensionDefault) must read the NEW grade.
-  // If the user just switched grade, the cache still holds the old value until invalidated, so
-  // getStoredRateForYear would fall back to the OLD grade's default rate and persist it as this
-  // year's settled rate (over-stating the whole-year HPP estimate). (v17.40 review fix.)
+  // (getStoredRateForYear, getPensionDefault) must read the NEW grade. (v17.40 review fix.)
   lsSet(SK.grade, _savedGrade);
   invalidateGrade();
-  // Guard the SETTLED rate on a pre-award period: the field shows that period's OLD (pre-rise)
-  // rate, so never persist it as the year's settled rate. Store the settled rate instead — mirrors
-  // the pension pro-rate guard below. (On a normal/post-award period _fieldRate is the settled rate.)
-  // Uses the shared isPreAwardPeriod predicate (single source, also used by getRateForPeriod).
-  const _isPreAward  = !!curP && isPreAwardPeriod(curP, _savedGrade, curTy.label);
-  const _rateToSave  = _isPreAward ? getStoredRateForYear(curTy) : _fieldRate;
-  rates[curTy.label] = _rateToSave;
-  lsSet(SK.rates,     JSON.stringify(rates));
-  lsSet(SK.rate,      _rateToSave.toFixed(2));
+  // NB: the hourly rate is NO LONGER persisted (v17.87) — it is fixed by grade and derived by
+  // getStoredRateForYear/getRateForPeriod, so there is nothing to save and no stale rate can form.
   lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
   lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
   lsSet(SK.pgLoan,    /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked ? '1' : '');

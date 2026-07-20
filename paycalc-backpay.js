@@ -20,7 +20,7 @@ import {
 import { getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect } from './paycalc-periods.js';
 import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { SK, bpKey, readSavedPeriod } from './paycalc-migrations.js';
+import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours } from './paycalc-hpp.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
 
@@ -191,6 +191,14 @@ export function prefillBackPay() {
     if (!newRateEl.value && award && award.rate != null) newRateEl.value = award.rate.toFixed(2);
     if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
     if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
+  }
+  // Lock the Old→New rate boxes for a CONFIRMED award (v17.87): its rates are on record (AWARD_RATES),
+  // so they're fixed — not typed — matching the grade-fixed hourly rate in Settings. Editable only for
+  // an as-yet-unconfirmed future award (where the New rate genuinely isn't known). Manual mode hides
+  // these boxes entirely, so this only affects compute mode.
+  const _lockRates = !ty.rateUnconfirmed;
+  for (const el of [oldRateEl, newRateEl, oldLondonEl, newLondonEl]) {
+    if (el) { el.readOnly = _lockRates; el.classList.toggle('bp-rate-locked', _lockRates); }
   }
   // Name the award year on the card so it's clear WHICH annual rise is being calculated. For a
   // settled award, also show WHEN it was applied — it explains why later periods aren't in the count.
@@ -377,6 +385,12 @@ export function calcBackPay() {
   // Derived ONCE and reused (estimate banner, tax-year fence, award-from cap, apply button) —
   // previously the same tax year was re-derived three times in this function.
   const awardTy   = _bpAwardTaxYear(fromPNum);
+  // A DECIDED award (its payment date is on record — awardFromForYear) lands on a KNOWN payslip, so
+  // the "which payslip?" selector is hidden and set automatically (v17.87 — owner: "that should be
+  // automatic"). The notice below still names the payslip. Only an undecided future award shows the
+  // selector. `_periodDisplay` = 'block' when the selector should show, else 'none'.
+  const _awardDecided  = !!awardFromForYear(awardTy?.label);
+  const _periodDisplay = _awardDecided ? 'none' : 'block';
   const bpSel     = /** @type {HTMLSelectElement} */ (document.getElementById('backPayPeriod'));
   const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
   const bpP       = bpPNum ? getPeriods().find(/** @param {any} x */ x => x.num === bpPNum) : null;
@@ -393,7 +407,6 @@ export function calcBackPay() {
   const labelEl    = document.getElementById('backPayTotalLabel');
   const periodWrap = document.getElementById('backPayPeriodWrap');
   const applyWrap  = document.getElementById('applyRateWrap');
-  const applyBtn   = document.getElementById('applyRateBtn');
 
   // Estimate banner — visible whenever the award's tax-year rates are still unconfirmed (accepted
   // by the RMT but not yet confirmed on payslips). Set before the early return so it shows the moment the
@@ -431,7 +444,7 @@ export function calcBackPay() {
     totalAmtEl.textContent = fmt(manualAmt);
     if (labelEl) labelEl.textContent = bpP ? `💷 Lump sum · Paid ${fdShort(bpP.payday)}` : '💷 Lump sum on one payslip';
     totalBasEl.textContent = `Entered from your ${awardTy.label} payslip`;
-    if (periodWrap) periodWrap.style.display = 'block';
+    if (periodWrap) periodWrap.style.display = _periodDisplay;
     noticeEl.style.display = 'block';
     if (bpP) {
       const payLong = bpP.payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London' });
@@ -544,7 +557,7 @@ export function calcBackPay() {
     if (hasLondon) parts.push(`London Allowance ${fmt(oldLondon)} → ${fmt(newLondon)}`);
     totalBasEl.textContent = `${pCount} period${pCount > 1 ? 's' : ''} backdated · ${parts.join(' · ')}`;
 
-    if (periodWrap) periodWrap.style.display = 'block';
+    if (periodWrap) periodWrap.style.display = _periodDisplay;
 
     noticeEl.style.display = 'block';
     if (bpP) {
@@ -560,24 +573,9 @@ export function calcBackPay() {
       noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
     }
 
-    // "Apply new rate" button — shown once rates are entered. Compares against the stored rate
-    // for the AWARD's tax year (awardTy, derived once above), not the rate field (which shows
-    // whichever tax year is being viewed). While the award is unconfirmed the figure is an
-    // ESTIMATE — the label must say so before it's written into Settings.
-    if (applyWrap && applyBtn && hasRate) {
-      /** @type {Record<string, any>} */
-      let _storedRates = {};
-      try { _storedRates = JSON.parse(lsGet(SK.rates) || '{}'); } catch {}
-      const alreadyApplied = Math.abs((parseFloat(_storedRates[awardTy.label]) || 0) - newRate) < 0.001;
-      const rateWord = awardTy.rateUnconfirmed ? 'estimated rate' : 'new rate';
-      applyBtn.textContent = alreadyApplied
-        ? `✓ ${rateWord[0].toUpperCase()}${rateWord.slice(1)} already applied — £${newRate.toFixed(2)}/hr (${awardTy.label})`
-        : `Apply ${rateWord} to settings — £${newRate.toFixed(2)}/hr (${awardTy.label}) →`;
-      /** @type {HTMLButtonElement} */ (applyBtn).disabled = alreadyApplied;
-      applyWrap.style.display = 'block';
-    } else if (applyWrap) {
-      applyWrap.style.display = 'none';
-    }
+    // "Apply new rate to settings" button removed (v17.87): the Settings hourly rate is now
+    // grade-fixed and auto-derived from AWARD_RATES, so there's nothing to push into settings.
+    if (applyWrap) applyWrap.style.display = 'none';
 
     rowsEl.innerHTML = rows;
     breakdownBtn.style.display = 'flex';

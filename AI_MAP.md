@@ -469,8 +469,8 @@ Grade/contracted-hours helpers and settings persistence for `paycalc.html` (v13.
 - `getLoggedMember()` — returns the logged-in member's `teamMembers` entry or null
 - `getEffectiveContr(p)` / `getProRateFactor(p)` — pro-rated helpers (full period if `noProRate`)
 - `getPensionDefault(pObj)` — period-aware pension default for the current grade
-- `updateRateForPeriod(ty, p)` / `updateYtdForTaxYear(ty)` — load stored rate (period-aware — pre-award periods get the old rate) and YTD figures into form fields; called from coordinator's `onPeriodChange`
-- `getStoredRateForYear(ty)` — pure accessor for a specific tax year's stored hourly rate (falls back to the legacy single-rate key, then grade default); used by `updateRateForPeriod` and the prior-year HPP estimate so a past year isn't computed at the current (post-award) rate (v15.21)
+- `updateRateForPeriod(ty, p)` / `updateYtdForTaxYear(ty)` — load the period-aware rate (pre-award periods get the old rate) and YTD figures into form fields; called from coordinator's `onPeriodChange`. The rate field is **read-only** (grade-fixed, v17.87) with a "· pre-rise/current rate" label + `#rateStepNote` explaining the step
+- `getStoredRateForYear(ty)` — the hourly rate for a tax year. Since v17.87 the rate is FIXED BY GRADE and no longer user-editable/stored, so this derives it purely from `AWARD_RATES` (the year's confirmed settled rate) → grade default (no localStorage). Used by `updateRateForPeriod`, the prior-year HPP estimate, and back-pay prefill. `saveSettings` persists NO rate now (removed the stale-saved-rate bug class); Grade + Tax Code + Pension are the editable settings
 - `settingsKey(ty)` — per-tax-year localStorage key for the confirmed flag
 - `saveSettings()` — persists all settings fields; does not set confirmed flag
 - `confirmSettings(calculate)` — saves, marks confirmed, collapses card; calls `calculate` callback (passed by coordinator to avoid circular dep)
