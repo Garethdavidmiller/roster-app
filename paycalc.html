@@ -613,7 +613,7 @@
       </div>
     </div>
     <div class="card-body collapsible-body" id="backPayBody">
-      <p class="card-explainer">When a pay award is backdated, all the extra money owed is paid as a single lump sum. The award always runs from 1 April (Chiltern's pay anniversary) — check the pre-filled figures against your payslip, then choose which payslip the lump sum lands on.</p>
+      <p class="card-explainer">When a pay award is backdated, all the extra money owed is paid as a single lump sum, always from 1 April (Chiltern's pay anniversary). For a past award you can just enter the figure from your payslip; for the current one the app estimates it from your hours. It lands on the right payslip automatically.</p>
 
       <div class="field-hint" id="bpAwardScope" style="margin-bottom:12px"></div>
 
@@ -703,11 +703,6 @@
       </div>
       <div class="backpay-notice" id="backPayNotice" style="display:none">
         ⚠️ This lump sum is taxed in the period it is paid. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown — check your payslip carefully. Your payslip may split the back pay across multiple lines (Basic Pay, Overtime, RDW, etc.) but the total should match this figure.
-      </div>
-      <!-- Apply new rate — updates Settings so future periods calculate at the new rate -->
-      <div id="applyRateWrap" style="display:none;margin-top:10px">
-        <button type="button" class="btn-primary" id="applyRateBtn"></button>
-        <div class="field-hint apply-rate-feedback" id="applyRateFeedback"></div>
       </div>
       <!-- Per-period breakdown — collapsible, secondary to the total -->
       <button type="button" class="bd-btn" id="bpBreakdownBtn" style="display:none" aria-expanded="false" aria-controls="backPayRows">
