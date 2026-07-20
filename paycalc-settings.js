@@ -130,7 +130,7 @@ export function updateRateForPeriod(ty, p) {
     const from = awardFromForYear(ty.label);
     const show = preAward && !!from;
     note.textContent = show
-      ? `This payslip is before the ${fdShort(from)} pay rise, so it uses the pre-rise rate — £${rate.toFixed(2)}/hr. Payslips from ${fdShort(from)} onward use the new rate automatically.`
+      ? `This payslip predates the ${fdShort(from)} pay rise — later payslips switch to the new rate automatically.`
       : '';
     note.style.display = show ? '' : 'none';
   }
@@ -207,13 +207,16 @@ export function confirmSettings(calculate) {
   lsSet(SK.setup, '1');
   document.getElementById('setupBanner')?.classList.add('hidden');
   document.getElementById('settingsNewYearNotice')?.classList.add('hidden');
-  // Update header hint. Fall back to grade default when rate field is blank.
+  // Update header hint. Period-aware like the coordinator's hint writer (review parity fix): on a
+  // pre-award payslip the field shows the pre-rise rate, so the hint must carry the same qualifier —
+  // otherwise a Save briefly implied the pre-rise figure was the year's settled rate.
   const _cfGrade = getGrade();
   const rate = (parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value)
     || (GRADES[_cfGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
   const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
   const hintEl = document.getElementById('settingsHint');
-  if (hintEl) hintEl.textContent = `✓ ${curTy.label} — £${rate}/hr · ${code}`;
+  const _cfPre = !!curP && isPreAwardPeriod(curP, _cfGrade, curTy.label);
+  if (hintEl) hintEl.textContent = `✓ ${curTy.label} — £${rate}/hr${_cfPre ? ' · pre-rise rate' : ''} · ${code}`;
   // Brief "saved" confirmation then collapse
   const fb = document.getElementById('settingsSaveFeedback');
   if (fb) fb.textContent = '✓ Settings saved';

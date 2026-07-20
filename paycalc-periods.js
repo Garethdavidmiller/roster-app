@@ -31,7 +31,7 @@ export const CONFIG = {
   PERIOD_DAYS:    28,
   PERIODS_PER_YR: P_YR,
   FIRST_OFFSET:   -11,   // internal num 37 — first period of 2025/26 (~11 Apr 2025; printed "Period 4")
-  LAST_OFFSET:     14,   // internal num 62 — last period of 2026/27 (~11 Mar 2027; printed "Period 52")
+  LAST_OFFSET:     14,   // internal num 62 — last period of 2026/27 (payday 12 Mar 2027; printed "Period 52")
   TAX_YEARS,             // imported from paycalc-calc.js
 };
 
@@ -223,7 +223,7 @@ function _populatePeriodSelect(/** @type {any} */ el, /** @type {any} */ periods
     const o = document.createElement('option');
     o.value = p.num;
     const payStr = p.payday.toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+      day: 'numeric', month: 'short', year: 'numeric'
     });
     o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `P${payslipPeriodNum(p)} · Paid ${payStr}`;
     currentGroup.appendChild(o);
@@ -279,11 +279,13 @@ export function buildPeriodSelect() {
 }
 
 /**
- * Populate the back-pay "paid in" period selector. With `minPNum`, only periods from that num
- * onward are offered — prefillBackPay passes the award's April so the dropdown can't offer a
- * payslip that predates the award (choosing one produced a confusing empty result). Rebuilding
- * clears the selection; callers re-select/default afterwards.
+ * Populate the back-pay "paid in" period selector. With `minPNum`/`maxPNum`, only periods inside
+ * that range are offered — the back-pay card passes the award's own tax year (April → last period,
+ * v17.86) so the dropdown can neither offer a payslip that predates the award nor leak into the
+ * next year (a cross-year selection could survive a year switch). Rebuilding clears the selection;
+ * callers re-select/default afterwards.
  * @param {number} [minPNum=0]
+ * @param {number} [maxPNum=Infinity]
  */
 export function buildBackPayPeriodSelect(minPNum = 0, maxPNum = Infinity) {
   const sel = document.getElementById('backPayPeriod');

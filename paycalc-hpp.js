@@ -306,10 +306,9 @@ export function updatePriorHpp(ty) {
       }, 0);
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     } else {
-      // The PRIOR year's stored per-year rate, else the grade default. Pass useLegacyFallback=false
-      // so an absent per-year rate does NOT fall through to the legacy SK.rate (the last-saved rate):
-      // after an April award that key holds the NEW rate, which would over-price last year's variable
-      // pay in this persisted, January-payslip-bound estimate.
+      // The PRIOR year's settled rate — derived from AWARD_RATES per tax year (v17.87), so last
+      // year prices at last year's rate, never the current one. (The second arg is a retained
+      // no-op since the localStorage rate store was removed.)
       const rate = getStoredRateForYear(priorTy, false);
       let _priorVar = 0;
       _priorPeriods.forEach(/** @param {any} p */ p => {

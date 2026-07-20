@@ -434,12 +434,15 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // Verified against G. Miller payslips P20 (01/08/2025) and P28 (26/09/2025).
     const taxable = Math.floor(Math.max(0, amount - scaledPa));
     if (isScottish) return calcBandedTax(taxable, SCOT.bands, scale || 1);
-    // The basic-rate LIMIT is a fixed £37,700 of taxable income (= standard threshold TAX.b minus
-    // standard PA), regardless of the code's own allowance. Deriving it as (TAX.b − thisCode'sPA)
-    // was only correct for 1257L; a 0T (PA 0) or K code (negative PA) got a too-wide 20% band, taxing
-    // income at 20% that should have been 40%.
+    // HMRC's Taxable Pay Tables band TAXABLE pay (post-allowance) at fixed thresholds, regardless of
+    // the code's own allowance: 20% to £37,700, 40% to £125,140, 45% above. The basic-rate LIMIT is
+    // therefore a fixed £37,700 of taxable income (= TAX.b minus standard PA) — deriving it from the
+    // code's own PA was only correct for 1257L (the original 0T/K fix). The HIGHER-rate band has the
+    // same property (review parity fix): its taxable-pay TOP is £125,140, so its width is
+    // 125,140 − 37,700 = £87,440 — NOT TAX.h − TAX.b (an income-space width that started the 45% rate
+    // one PA-width early for 0T/K codes: computeTax(9000,'0T') gave £3,037.04 vs HMRC's £3,020.00).
     const basicBand = Math.max(0, (TAX.b - TAX.pa)) * (scale || 1);
-    const highBand  = Math.max(0, TAX.h - TAX.b) * (scale || 1);
+    const highBand  = Math.max(0, TAX.h - (TAX.b - TAX.pa)) * (scale || 1);
     if      (taxable <= basicBand)            return taxable * TAX.r20;
     else if (taxable <= basicBand + highBand) return basicBand * TAX.r20 + (taxable - basicBand) * TAX.r40;
     else                                      return basicBand * TAX.r20 + highBand * TAX.r40 + (taxable - basicBand - highBand) * TAX.r45;

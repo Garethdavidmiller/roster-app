@@ -559,12 +559,17 @@
       font-size: 15px; font-weight: 600; color: var(--text-mid); pointer-events: none;
     }
     .pfx input { padding-left: 26px; width: 100%; }
-    /* Read-only, grade-set rate (v17.87) — reads as a fixed display, not an editable field. */
+    /* Read-only, grade-set rate (v17.87; restyled v17.91) — reads as a fixed VALUE, not an empty
+       field: solid faint fill, bold value, and a small lock on the right. */
     .pfx--readonly input, input[readonly]#hourlyRate {
-      background: var(--bg-faint); color: var(--text-dark); font-weight: 600;
-      cursor: default; border-style: dashed;
+      background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
+      cursor: default; border-color: var(--border-light); padding-right: 36px;
     }
     .pfx--readonly input:focus { outline: none; box-shadow: none; }
+    .pfx--readonly::after {
+      content: "🔒"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      font-size: 13px; opacity: .5; pointer-events: none;
+    }
     .adj-sign-btn {
       width: 44px; height: 44px; flex-shrink: 0;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
@@ -693,9 +698,10 @@
     .bp-mode-opt { display: flex; align-items: center; gap: 9px; cursor: pointer;
       font-size: var(--type-medium); color: var(--text-dark); line-height: 1.35; }
     .bp-mode-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-blue); }
-    /* Locked (confirmed-award) rate boxes — read as fixed, not editable (v17.87) */
-    input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 600;
-      border-style: dashed; cursor: default; }
+    /* Locked (confirmed-award) rate boxes — read as fixed VALUES, matching the Settings read-only
+       rate treatment (solid faint fill, bold; unified v17.93 — was dashed, which read as "empty"). */
+    input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
+      border-color: var(--border-light); cursor: default; }
     input.bp-rate-locked:focus { outline: none; box-shadow: none; }
     .bp-row {
       display: flex; justify-content: space-between; align-items: center;
@@ -1372,7 +1378,6 @@
   .card-optional-tag { font-size: var(--type-small); font-weight: 400; color: var(--text-light); }
   .pfx--adj { width: 90px; }
   #otherAdj { text-align: right; }
-  .apply-rate-feedback { margin-top: 6px; color: var(--success-text); }
   .actuals-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: var(--type-medium); box-sizing: border-box; }
   .actuals-status { font-size: var(--type-small); min-height: 18px; margin: 6px 0; }
 

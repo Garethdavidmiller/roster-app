@@ -169,12 +169,20 @@ describe('getPeriods', () => {
         assert.equal(p.start.getDay(),   0);   // Sunday
     });
 
-    test('every consecutive payday is exactly 28 days apart', () => {
+    test('every consecutive payday is exactly 28 CALENDAR days apart (DST-safe)', () => {
+        // Compare in calendar days, not exact milliseconds: getPeriods() anchors every date at
+        // LOCAL noon via setDate arithmetic, so under a DST timezone (TZ=Europe/London — the
+        // timezone staff actually live in) a gap that spans a clock change is 28 days ± 1 hour.
+        // The old strict ms/86400000 === 28 assertion failed there (P44→P45 spans the autumn
+        // change → 28.0417), making `npm test` spuriously red on any UK-configured machine.
         const periods = getPeriods();
         for (let i = 1; i < periods.length; i++) {
-            const diffDays = (periods[i].payday - periods[i - 1].payday) / 86400000;
+            const diffDays = Math.round((periods[i].payday - periods[i - 1].payday) / 86400000);
             assert.equal(diffDays, 28,
-                `gap P${periods[i-1].num}→P${periods[i].num} should be 28 days`);
+                `gap P${periods[i-1].num}→P${periods[i].num} should be 28 calendar days`);
+            // And the noon anchor survives every transition — the app's DST-safety invariant.
+            assert.equal(periods[i].payday.getHours(), 12,
+                `P${periods[i].num} payday must stay anchored at local noon`);
         }
     });
 
@@ -184,12 +192,14 @@ describe('getPeriods', () => {
         assert.equal(periods[periods.length - 1].num, 48 + PC_CONFIG.LAST_OFFSET);
     });
 
-    test('each period start is exactly one day after the previous cutoff', () => {
+    test('each period start is exactly one CALENDAR day after the previous cutoff (DST-safe)', () => {
         const periods = getPeriods();
         for (let i = 1; i < periods.length; i++) {
             const prevCutoff = periods[i - 1].cutoff;
             const curStart   = periods[i].start;
-            const diffDays   = (curStart - prevCutoff) / 86400000;
+            // Rounded for the same DST reason as the payday-gap test above (a start landing on a
+            // clock-change Sunday makes the exact diff 1 ± 1/24).
+            const diffDays   = Math.round((curStart - prevCutoff) / 86400000);
             assert.equal(diffDays, 1,
                 `P${periods[i].num} start should be the day after P${periods[i-1].num} cutoff`);
         }
