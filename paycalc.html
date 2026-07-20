@@ -112,7 +112,7 @@
     <div class="card-header card-header-toggle" id="settingsToggle">
       <div>
         <h2><span aria-hidden="true">⚙️</span> Your Settings</h2>
-        <span class="hint" id="settingsHint">Check once per tax year — tap Save when done</span>
+        <span class="hint" id="settingsHint">Check once per tax year — pension saves per payslip</span>
       </div>
       <div class="card-header-actions">
         <span class="card-year-chip" id="settingsPeriodChip" title="Payslip you're viewing"></span>
@@ -142,9 +142,8 @@
         </div>
         <div class="field-hint">Set automatically by your <strong>grade</strong> — nothing to type here; it updates with each pay award on its own.</div>
         <div class="field-hint" id="rateStepNote" style="display:none"></div>
-        <div class="val-warn" id="rateWarn" role="alert" aria-live="polite"></div>
         <!-- Shown only while a FUTURE award is accepted but not yet on payslips (ty.rateUnconfirmed). -->
-        <div class="joiner-notice hidden" id="rateUnconfirmedNotice">⚠ Next year's pay award has been accepted but isn't on payslips yet — the rate shown stays on this year's until the award lands on a payslip, then it updates automatically.</div>
+        <div class="joiner-notice hidden" id="rateUnconfirmedNotice">⚠ This year's pay award has been accepted but isn't on payslips yet — the rate shown stays on last year's until the award lands on a payslip, then it updates automatically.</div>
       </div>
 
       <div class="field">
@@ -202,7 +201,7 @@
     <div class="period-nav">
       <button type="button" class="nav-pill" id="prevBtn">← Earlier</button>
       <button type="button" class="nav-pill" id="nextBtn">Later →</button>
-      <button type="button" class="nav-pill-today hidden" id="todayPeriodBtn" title="Jump to current period" aria-label="Jump to current pay period">📍</button>
+      <button type="button" class="nav-pill-today hidden" id="todayPeriodBtn" title="Jump to current pay period" aria-label="Jump to current pay period">📍</button>
     </div>
     <div class="period-meta">
       <div class="pm-range" id="pmRange">–</div>
@@ -260,7 +259,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🗓️</span> Rostered Saturday Hours</div>
-          <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £25.92/hr</span>
+          <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £26.86/hr</span>
           <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. Shows as "Ord Basic Pay @1.25" on your payslip.</div>
           <div class="val-warn" id="satWarn" role="alert">⚠ You've entered more Saturday hours than your roster allows — check the total</div>
         </div>
@@ -283,7 +282,7 @@
       <div class="hours-row hidden" id="bhRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Rostered</div>
-          <span class="rate-badge badge-bh" id="badge-bh">1.25×  ·  £25.92/hr</span>
+          <span class="rate-badge badge-bh" id="badge-bh">1.25×  ·  £26.86/hr</span>
           <div class="h-sub">You were rostered to work, and it fell on a bank holiday (Easter, May Day, etc.). Shows as "Bank Holiday Rostered 1.25" on your payslip.</div>
         </div>
         <div>
@@ -305,7 +304,7 @@
       <div class="hours-row hidden" id="bhOtRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Overtime</div>
-          <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £25.92/hr</span>
+          <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £26.86/hr</span>
           <div class="h-sub">Hours worked on a bank holiday beyond your rostered shift, or your rest day fell on a bank holiday and you worked it. Shows as "Bank Holiday Overtime 1.25" on your payslip.</div>
         </div>
         <div>
@@ -330,8 +329,8 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">⏰</span> Overtime</div>
-          <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £25.92/hr</span>
-          <div class="h-sub" id="overtimeSub">Extra hours worked on top of your roster this period. Shows as "Overtime 1.25" on your payslip.</div>
+          <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £26.86/hr</span>
+          <div class="h-sub" id="overtimeSub">Extra hours on top of a rostered shift. Shows as "Overtime 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -352,7 +351,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">💼</span> Rest Day Working</div>
-          <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £25.92/hr</span>
+          <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £26.86/hr</span>
           <div class="h-sub" id="rdwSub">Came in on a rest day, or worked a Saturday that wasn't in your roster. Shows as "RDW 1.25" on your payslip.</div>
         </div>
         <div>
@@ -374,7 +373,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
-          <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £31.11/hr</span>
+          <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £32.24/hr</span>
           <div class="h-sub" id="sundaySub">All Sunday hours are at 1.5×. Shows as "RDW Sun 1.5" on your payslip.</div>
         </div>
         <div>
@@ -396,7 +395,7 @@
       <div class="hours-row hidden" id="boxingRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🎁</span> Boxing Day Working</div>
-          <span class="rate-badge badge-box" id="badge-box">3×  ·  £62.22/hr</span>
+          <span class="rate-badge badge-box" id="badge-box">3×  ·  £64.47/hr</span>
           <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. Shows as "Bank Holiday Overtime 3.0" on your payslip.</div>
         </div>
         <div>
@@ -498,7 +497,7 @@
       ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not reconcile line-for-line with your payslip.
     </div>
     <div id="resultRateNotice" class="payslip-note" style="display:none">
-      ⚠️ <strong>2026/27 pay award (3.6%) accepted — expected on your 31 July payslip, not yet confirmed.</strong> This estimate still uses last year's rate — update your hourly rate in ⚙️ Settings once your payslip confirms the new figure.
+      ⚠️ <strong>This year's pay award has been accepted but isn't confirmed on payslips yet.</strong> This estimate still uses the current rate — the app switches to the new rate automatically once the award lands on a payslip.
     </div>
     <button type="button" class="bd-btn" id="bdBtn" aria-expanded="false" aria-controls="bdBody">
       Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>
@@ -618,7 +617,7 @@
 
       <div class="field-hint" id="bpAwardScope" style="margin-bottom:12px"></div>
 
-      <div class="backpay-estimate-note" id="bpEstimateNote" style="display:none">ℹ️ The 2026/27 pay award (3.6%) has been accepted by the RMT and is expected on your 31 July payslip — treat the figures below as an estimate until it's confirmed on your payslip.</div>
+      <div class="backpay-estimate-note" id="bpEstimateNote" style="display:none">ℹ️ This pay award has been accepted but isn't confirmed on a payslip yet — treat the figures below as an estimate until it appears there.</div>
 
       <!-- Amount source (v17.86): compute the lump from your hours, OR enter the actual figure from
            your payslip (the default for a prior, already-paid year). -->
@@ -693,13 +692,13 @@
         <select id="backPayPeriod">
           <option value="">— select when the lump sum will land —</option>
         </select>
-        <div class="field-hint">Which payslip will carry the full lump sum? Select it to see a specific tax warning for that period.</div>
+        <div class="field-hint">Pick the payslip the lump sum will land on — you’ll get a tax note for that period.</div>
         <!-- Opt-in state-holder — the VISIBLE control lives in the paid-in-period banner
              (#bpBannerTick) which proxies this tick. Kept in the DOM (hidden) so calcBackPay /
              _saveBpState / restoreBpState keep reading it on every period (v17.30). -->
         <div class="toggle-row" id="bpIncludeRow" style="display:none">
           <input type="checkbox" id="bpIncludeTick">
-          <label for="bpIncludeTick">Add this lump sum to that payslip's take-home estimate</label>
+          <label for="bpIncludeTick">Add this lump sum to this payslip's take-home estimate</label>
         </div>
       </div>
       <div class="backpay-notice" id="backPayNotice" style="display:none">

@@ -164,8 +164,11 @@ export function _restoreRosterSuggested(pNum) {
     const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
     const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
     if (!elH || !elM) continue;
-    if (elH.value === String(hVal || '')) elH.classList.add('roster-suggested');
-    if (elM.value === String(mVal || '')) elM.classList.add('roster-suggested');
+    // `hVal != null` (not `hVal ||`): a snapped value of 0 is a REAL roster suggestion (e.g. the
+    // hours half of a 0h30m fill) — coercing it to '' dropped the gold highlight on reload and made
+    // the field read as hand-edited, blocking future re-fills (review finding).
+    if (elH.value === (hVal != null ? String(hVal) : '')) elH.classList.add('roster-suggested');
+    if (elM.value === (mVal != null ? String(mVal) : '')) elM.classList.add('roster-suggested');
   }
 }
 

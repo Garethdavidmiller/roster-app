@@ -393,6 +393,16 @@ describe('computeTax', () => {
     approx(tax, expected, '0T tax');
   });
 
+  test('0T at the additional-rate boundary: 45% starts at TAXABLE £125,140, not one PA-width early', () => {
+    // HMRC's Taxable Pay Tables band TAXABLE pay at fixed thresholds (20% to £37,700, 40% to
+    // £125,140, 45% above) regardless of the code's allowance. £9,000/period taxable on 0T sits
+    // below £125,140/13 = £9,626.15, so it must all stay at 20%/40%:
+    //   £2,900 × 20% + £6,100 × 40% = £3,020.00.
+    // The old income-space width (TAX.h − TAX.b) started 45% at taxable £8,659.23 → £3,037.04.
+    const { tax } = computeTax(9000, '0T', T25);
+    approx(tax, 3020.00, '0T additional-rate boundary');
+  });
+
   test('1257L: sacGross below PA → 0 tax', () => {
     // PA = 12570/13 ≈ 967.69
     const { tax } = computeTax(800, '1257L', T25);

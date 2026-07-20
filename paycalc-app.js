@@ -54,7 +54,6 @@ import { recordPageLatency } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
-'use strict';
 
 /**
  * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
@@ -247,6 +246,11 @@ export function init() {
       /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = hm.m ? String(hm.m) : '';
       const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));
       if (hint) hint.hidden = true; // the split now shows in the hrs/mins fields
+      // Re-run the Saturday contracted-hours cap on the SPLIT value (review finding): the cap fires
+      // on 'input', but the blur-time decimal split writes new h/m values without it — "140.5" blurred
+      // to 140h30m and was silently stored over the cap (money stayed right via capHours; the stored
+      // fields and the ⚠ warning didn't).
+      if (hId === 'satH') onHhMm('satH', 'satM', 'satWarn');
       autosave();
     }
 
@@ -308,13 +312,13 @@ export function init() {
 
       const ty = getTaxYearForOffset(p.num - 48);
       const startStr = p.start.toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short', timeZone: 'Europe/London'
+        day: 'numeric', month: 'short'
       });
       const cutLongStr = p.cutoff.toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+        day: 'numeric', month: 'short', year: 'numeric'
       });
       const payStr = p.payday.toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+        day: 'numeric', month: 'short', year: 'numeric'
       });
       /** @type {HTMLElement} */ (document.getElementById('pmRange')).textContent   = `${startStr} – ${cutLongStr}`;
       /** @type {HTMLElement} */ (document.getElementById('pmSub')).textContent     = `💷 Paid: ${payStr}  ·  Tax year ${ty.label}`;
@@ -414,8 +418,8 @@ export function init() {
             const notice = document.getElementById('settingsNewYearNotice');
             if (notice) {
               notice.textContent = ty.rateUnconfirmed
-                ? `New tax year ${ty.label} — the 3.6% pay award has been accepted by the RMT but isn't confirmed on payslips yet. The default rate may still be last year's; update once your payslip reflects the new rate, then tap Save settings.`
-                : `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
+                ? `New tax year ${ty.label} — a pay award has been accepted but isn't on payslips yet. Your rate stays on last year's until the award lands on a payslip, then it updates automatically. Check your tax code, then tap Save settings.`
+                : `New tax year ${ty.label} — your hourly rate updates automatically. Check your tax code and pension, then tap Save settings.`;
               notice.classList.remove('hidden');
             }
           }
@@ -768,7 +772,7 @@ export function init() {
         { id: 'pbbPension', cls: 'pbb-pension', val: pension, label: 'Pension', legendId: 'pblPension', dotCls: 'pbl-dot pbb-pension' },
         { id: 'pbbTax',     cls: 'pbb-tax',     val: tax,     label: 'Tax',     legendId: 'pblTax',     dotCls: 'pbl-dot pbb-tax' },
         { id: 'pbbNI',      cls: 'pbb-ni',      val: ni,      label: 'NI',      legendId: 'pblNI',      dotCls: 'pbl-dot pbb-ni' },
-        { id: 'pbbSL',      cls: 'pbb-sl',      val: sl,      label: 'Student loan', legendId: 'pblSL', dotCls: 'pbl-dot pbb-sl' },
+        { id: 'pbbSL',      cls: 'pbb-sl',      val: sl,      label: 'Student Loan', legendId: 'pblSL', dotCls: 'pbl-dot pbb-sl' },
         { id: 'pbbNet',     cls: 'pbb-net',     val: net,     label: 'Take-home', legendId: 'pblNet',   dotCls: 'pbl-dot pbb-net' },
       ];
 
@@ -792,18 +796,10 @@ export function init() {
 
       const _calcGrade = getGrade();
       const _calcDefaultRate = GRADES[_calcGrade]?.rate ?? GRADES.cea.rate;
-      // Math.max floor: a negative typed rate would produce a nonsense negative estimate with
-      // neither rateWarn branch firing. Zero/empty still falls back to the grade default via ||.
+      // The field is read-only + grade-derived (v17.87), so this read is belt-and-braces: the
+      // Math.max floor and grade-default fallback only matter if the DOM value is ever missing.
+      // (The old typo/low-rate warnings were removed with the editable field — unreachable.)
       const rate = Math.max(0, numVal('hourlyRate')) || _calcDefaultRate;
-      const _rateWarn = document.getElementById('rateWarn');
-      if (_rateWarn) {
-        if (numVal('hourlyRate') > 100)
-          _rateWarn.textContent = `⚠ Looks like a typo — did you mean £${(numVal('hourlyRate') / 100).toFixed(2)}/hr?`;
-        else if (numVal('hourlyRate') > 0 && numVal('hourlyRate') < 15)
-          _rateWarn.textContent = '⚠ Rate seems low — double-check your payslip';
-        else
-          _rateWarn.textContent = '';
-      }
       updateBadges(rate);
       const r125 = rate * RATE_125;
       const r150 = rate * RATE_150;
@@ -947,7 +943,7 @@ export function init() {
       // The per-period "not deducted" skip governs BOTH loans → ONE combined row (was two identical
       // rows), matching the single breakdown line below.
       const slLines = (slSkip && (plan !== 'none' || pgLoan))
-        ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
+        ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
         : _slLine('Student Loan', slUnder, plan !== 'none', _slPlanLabel, _slThreshold,
                   plan === 'plan5' && !_plan5Allowed ? `Plan 5 is not repayable in ${_ty.label} (repayments begin April 2026)` : null)
           + _slLine('Postgraduate Loan', slPost, pgLoan, 'Postgraduate Loan', _pgThreshold, null);
@@ -1001,7 +997,7 @@ export function init() {
       if (otherAdj !== 0)
         bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;
       if (slSkip && (plan !== 'none' || pgLoan))
-        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student loan not deducted this period</span><span class="b-val"></span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan not deducted this period</span><span class="b-val"></span></div>`;
       if (usingCumulative)
         bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your last payslip</span><span class="b-val"></span></div>`;
       if (_bpThisPeriod > 0)
@@ -1536,6 +1532,12 @@ export function init() {
       // newly-selected grade (never a typed value); updateRateForPeriod also updates its pre/post label.
       if (_gP) updateRateForPeriod(taxYearForPeriod(_gP), _gP);
       if (_pa && penUntouched) _pa.value = (getPensionDefault(_gP) * getProRateFactor(_gP)).toFixed(2);
+      // Recompute the back-pay card for the NEW grade (review finding): its saved blob was built with
+      // the old grade's award rates, and without this the stale lump persisted in read-only boxes with
+      // no repair path. calcBackPay re-enforces the authoritative AWARD_RATES for the current grade
+      // (and _saveBpState persists the corrected figures); _applyBpState triggers calculate() itself
+      // if the lump changed, so the calculate() below stays for the pension/rate updates.
+      _runCalcBackPay();
       calculate();
     });
     // No #hourlyRate listener — the rate is read-only and grade-derived (v17.87).

@@ -3,14 +3,18 @@
  * Pure: no DOM, no Firebase, no side effects. Imported by paycalc-app.js and paycalc-backpay.js.
  */
 
+// NO timeZone option (review fix): period Dates are LOCAL-calendar values (constructed at
+// device-local noon by getPeriods), not instants — so they must render in the device's own
+// timezone. Forcing 'Europe/London' shifted the printed day one back on devices at UTC+13/+14
+// (device-local noon 13 Feb = 22:59Z the 12th = London 12 Feb).
 /** @param {Date} d */
 export const fd = d => d.toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: '2-digit', timeZone: 'Europe/London',
+    day: 'numeric', month: 'short', year: '2-digit',
 });
 
 /** @param {Date} d */
 export const fdShort = d => d.toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', timeZone: 'Europe/London',
+    day: 'numeric', month: 'short',
 });
 
 /** @param {number} n */
