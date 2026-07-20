@@ -118,8 +118,9 @@ export function hppEstKey(ty)     { return `${pcPrefix()}hpp_est_${ty.label.repl
 export function hppActualKey(ty)  { return `${pcPrefix()}hpp_actual_${ty.label.replace('/', '_')}`; }
 /** Per-tax-year opt-in flag ('1' = the member ticked "add my HPP to the January take-home"). @param {{ label:string }} ty @returns {string} */
 export function hppIncKey(ty)     { return `${pcPrefix()}hpp_inc_${ty.label.replace('/', '_')}`; }
-/** Back-pay card state (rates/%/paid-in, one JSON blob) — per-member like all pay data. @returns {string} */
-export function bpKey()           { return `${pcPrefix()}bp_state`; }
+/** Back-pay card state (rates/%/paid-in/mode/manual, one JSON blob) — PER TAX YEAR since v17.86 (the
+ *  card follows the viewed payslip's award year), keyed like hppIncKey. @param {{ label:string }} ty @returns {string} */
+export function bpKey(ty)          { return `${pcPrefix()}bp_state_${ty.label.replace('/', '_')}`; }
 /** @param {{ label:string }} ty @returns {string} */
 export function ytdPayKey(ty)     { return `${pcPrefix()}ytd_pay_${ty.label.replace('/', '_')}`; }
 /** @param {{ label:string }} ty @returns {string} */
@@ -372,4 +373,22 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     // true, prompts the member to resolve ownership via resolveLegacyMigration().
     const _nsMember = getLoggedMember();
     setPaycalcNamespace(_nsMember?.name);
+
+    // Migration (v17.86): the single back-pay blob (myb_pc_<slug>_bp_state — one pinned award) →
+    // per-tax-year keys (bp_state_<year>), now that the card follows the viewed payslip's year.
+    // Runs AFTER namespace activation (the blob is member-namespaced). Idempotent — once the old key
+    // is gone it does nothing. The blob carries its own award-year label, so it re-homes under that
+    // year with no loss (preserves an in-flight include-tick / hand-entered rates).
+    try {
+        const _oldBp = lsGet(`${pcPrefix()}bp_state`);
+        if (_oldBp) {
+            const _parsed = JSON.parse(_oldBp);
+            const _yr = _parsed && typeof _parsed.year === 'string' ? _parsed.year : null;
+            if (_yr) {
+                const _yk = `${pcPrefix()}bp_state_${_yr.replace('/', '_')}`;
+                if (!lsGet(_yk)) lsSet(_yk, _oldBp);
+            }
+            lsDel(`${pcPrefix()}bp_state`);
+        }
+    } catch { try { lsDel(`${pcPrefix()}bp_state`); } catch { /* storage unavailable */ } }
 }

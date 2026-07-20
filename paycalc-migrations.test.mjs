@@ -261,3 +261,40 @@ describe('parseSavedPeriod', () => {
         assert.deepEqual(parseSavedPeriod('{"a":1,,}'),   { data: null, error: true });
     });
 });
+
+describe('back-pay per-year migration (v17.86)', () => {
+    test('moves the single bp_state blob to its award-year key, preserving the tick', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_bp_state': JSON.stringify({ year: '2026/27', inc: '1', oldR: '20.74', newR: '21.49' }),
+            'myb_pc_cea_migrated': '1',
+            'myb_pc_pension_v882_migrated': '1',
+        });
+        runMigrations(deps(MEMBER));
+        const ls = global.localStorage;
+        assert.equal(ls.getItem('myb_pc_gmiller_bp_state'), null, 'old single-blob key removed');
+        const moved = JSON.parse(ls.getItem('myb_pc_gmiller_bp_state_2026_27') || 'null');
+        assert.ok(moved, 'blob re-homed under the award-year key');
+        assert.equal(moved.inc, '1', 'include-tick preserved');
+        assert.equal(moved.newR, '21.49', 'entered rate preserved');
+    });
+
+    test('no old blob → no-op (does not throw, creates nothing)', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_cea_migrated': '1', 'myb_pc_pension_v882_migrated': '1',
+        });
+        runMigrations(deps(MEMBER));
+        assert.equal(global.localStorage.getItem('myb_pc_gmiller_bp_state'), null);
+    });
+
+    test('a year-key blob already present is not overwritten', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_bp_state': JSON.stringify({ year: '2026/27', newR: '99.99' }),
+            'myb_pc_gmiller_bp_state_2026_27': JSON.stringify({ year: '2026/27', newR: '21.49' }),
+            'myb_pc_cea_migrated': '1', 'myb_pc_pension_v882_migrated': '1',
+        });
+        runMigrations(deps(MEMBER));
+        const kept = JSON.parse(global.localStorage.getItem('myb_pc_gmiller_bp_state_2026_27'));
+        assert.equal(kept.newR, '21.49', 'existing year-key blob preserved');
+        assert.equal(global.localStorage.getItem('myb_pc_gmiller_bp_state'), null, 'old key still cleaned up');
+    });
+});

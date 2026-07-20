@@ -285,11 +285,14 @@ export function buildPeriodSelect() {
  * clears the selection; callers re-select/default afterwards.
  * @param {number} [minPNum=0]
  */
-export function buildBackPayPeriodSelect(minPNum = 0) {
+export function buildBackPayPeriodSelect(minPNum = 0, maxPNum = Infinity) {
   const sel = document.getElementById('backPayPeriod');
   if (!sel) return;
-  // A new starter can only pay a lump into a period they can view (visiblePeriods).
-  const periods = visiblePeriods().filter((/** @type {any} */ p) => p.num >= minPNum);
+  // A new starter can only pay a lump into a period they can view (visiblePeriods). The optional
+  // maxPNum bounds the list to the award's OWN tax year (v17.86): a backdated award is paid within
+  // its own year, and without the upper bound a prior year's paid-in list leaked into the next year,
+  // letting a stale cross-year selection (e.g. this year's payslip) survive a switch to a prior award.
+  const periods = visiblePeriods().filter((/** @type {any} */ p) => p.num >= minPNum && p.num <= maxPNum);
   _populatePeriodSelect(sel, periods, { placeholder: '— select when the lump sum will land —' });
 }
 

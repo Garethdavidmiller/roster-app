@@ -682,6 +682,11 @@
       border: 1px solid color-mix(in srgb, var(--accent-gold) 38%, white);
       border-radius: 8px; padding: 9px 12px; margin-bottom: 14px;
     }
+    /* Amount-source toggle (compute vs enter-from-payslip) — v17.86 */
+    .bp-mode-toggle { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .bp-mode-opt { display: flex; align-items: center; gap: 9px; cursor: pointer;
+      font-size: var(--type-medium); color: var(--text-dark); line-height: 1.35; }
+    .bp-mode-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-blue); }
     .bp-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: 13px;
