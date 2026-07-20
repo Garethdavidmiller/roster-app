@@ -1545,13 +1545,7 @@ export function init() {
       // the grade (e.g. just to check it) must not silently wipe that figure.
       // lsGet(SK.grade) still holds the previous grade until saveSettings() runs.
       const _oldGrade = lsGet(SK.grade);
-      const g   = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
       const _gP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
-
-      const rateEl = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
-      const _oldRateDefault = (_oldGrade && GRADES[_oldGrade]) ? GRADES[_oldGrade].rate.toFixed(2) : '';
-      const rateUntouched   = rateEl.value.trim() === '' || rateEl.value === _oldRateDefault;
-      if (g && GRADES[g] && rateUntouched) rateEl.value = GRADES[g].rate.toFixed(2);
 
       const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
       const _oldPenDefault = (_oldGrade && GRADES[_oldGrade] && _gP)
@@ -1560,10 +1554,13 @@ export function init() {
       const penUntouched = !_pa || _pa.value.trim() === '' || _pa.value === _oldPenDefault;
 
       saveSettings(); // calls invalidateGrade() so getGrade() returns the new grade below
+      // The hourly rate is grade-fixed + read-only (v17.87) — refresh the period-aware rate for the
+      // newly-selected grade (never a typed value); updateRateForPeriod also updates its pre/post label.
+      if (_gP) updateRateForPeriod(taxYearForPeriod(_gP), _gP);
       if (_pa && penUntouched) _pa.value = (getPensionDefault(_gP) * getProRateFactor(_gP)).toFixed(2);
       calculate();
     });
-    /** @type {HTMLElement} */ (document.getElementById('hourlyRate')).addEventListener('input',  () => { saveSettings(); calculate(); });
+    // No #hourlyRate listener — the rate is read-only and grade-derived (v17.87).
     /** @type {HTMLElement} */ (document.getElementById('taxCode')).addEventListener('input',     () => { saveSettings(); calculate(); });
     /** @type {HTMLElement} */ (document.getElementById('studentLoan')).addEventListener('change', () => {
       // Clear the "not deducted this period" skip only when NO loan is active (plan none AND no PGL) —
