@@ -88,6 +88,14 @@
        where color-mix support can't be assumed. */
     --gold-glow: rgba(245, 200, 0, 0.25);
     --orange-light: color-mix(in oklch, var(--orange) 19%, white);
+    /* Early-shift CALENDAR cell tint + border (month grid, legend, Team-View cell + key dot).
+       DECOUPLED from --orange at v17.80 (owner: "softer amber, only on calendar") — a gentler,
+       less-saturated amber than the bright --orange. Same warm hue (~63°) so the shift still reads
+       as sunrise/Early, just calmer on the dense 390px grid. --orange / --orange-light are left
+       UNCHANGED so the Operations page accent, the paycalc Saturday pay badge, and the admin
+       correction pills keep their existing bright orange. The ☀️ Early BADGE stays --orange-deep. */
+    --early-cell-border: oklch(72.0% 0.1250 63.0deg);
+    --early-cell:        color-mix(in oklch, var(--early-cell-border) 15%, white);
 
     /* Late shift */
     --blue-sky:   oklch(51.3% 0.1603 255.7deg);

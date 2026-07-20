@@ -494,8 +494,8 @@
         }
 
         .calendar-day.early-shift {
-            background: var(--orange-light);
-            border-color: var(--orange);
+            background: var(--early-cell);
+            border-color: var(--early-cell-border);
         }
 
         .calendar-day.late-shift {
@@ -700,7 +700,7 @@
 
         /* Legend colour variants */
         .legend-color.rest    { background: var(--rest-day-bg);   border-color: var(--border-mid); }
-        .legend-color.early   { background: var(--orange-light); border-color: var(--orange); }
+        .legend-color.early   { background: var(--early-cell); border-color: var(--early-cell-border); }
         .legend-color.late    { background: var(--blue-light);   border-color: var(--blue-sky); }
         .legend-color.spare   { background: var(--purple-light); border-color: var(--purple); }
         .legend-color.rdw     { background: var(--rdw-light);    border-color: var(--rdw); }
@@ -1412,7 +1412,7 @@
         }
         /* Cell type colours — same variables as calendar-day cells */
         .tv-rest  { background: var(--rest-day-bg); color: var(--text-faint); }
-        .tv-early { background: var(--orange-light); }
+        .tv-early { background: var(--early-cell); }
         .tv-late  { background: var(--blue-light); }
         .tv-night { background: var(--night-cell-bg); }
         .tv-spare { background: var(--purple-light); }
@@ -1504,7 +1504,7 @@
             flex-shrink: 0;
             border: 1px solid rgba(255,255,255,0.25);
         }
-        .tv-key-dot--early  { background: var(--orange-light);  border-color: var(--orange); }
+        .tv-key-dot--early  { background: var(--early-cell);  border-color: var(--early-cell-border); }
         .tv-key-dot--late   { background: var(--blue-light);    border-color: var(--blue-sky); }
         .tv-key-dot--night  { background: var(--night-cell-bg); border-color: var(--night-cell-border); }
         .tv-key-dot--al     { background: var(--al-light);      border-color: var(--al); }
@@ -1728,7 +1728,7 @@
             }
 
             .calendar-day.early-shift {
-                background: var(--orange-light) !important;
+                background: var(--early-cell) !important;
             }
 
             .calendar-day.late-shift {
