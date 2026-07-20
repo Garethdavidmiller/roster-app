@@ -106,9 +106,18 @@ export function getStoredRateForYear(ty, useLegacyFallback = true) {
   // without this, a fresh device (no per-year store) would price a post-24-Oct-2025 period at the
   // new rate. Ranked above the legacy single-rate override so a returning device still picks up the
   // rise automatically; an explicit per-year Save (rates[ty.label]) still wins over everything.
-  const award = awardRatesFor(g, ty.label);
-  return rates[ty.label]
-      || (award && award.rate != null ? award.rate : 0)
+  const award   = awardRatesFor(g, ty.label);
+  const settled = award && award.rate != null ? award.rate : 0;
+  const stored  = rates[ty.label];
+  // SELF-HEAL a stale stored rate: a returning device that tapped "Save settings" on this tax year
+  // BEFORE the award landed has the PRE-award rate auto-saved (e.g. 2026/27 = £20.74). Once the award
+  // is confirmed, that stored value equals the year's `pre` rate and is superseded by the settled
+  // rate — otherwise the rise silently never appears for existing users (London stepped but the
+  // hourly rate stayed old). A genuinely custom rate won't equal `pre`, so it is preserved. On the
+  // next Save the correct rate persists, so this heal is a one-shot per device.
+  if (stored && award && settled && award.pre != null && Number(stored) === award.pre) return settled;
+  return stored
+      || settled
       || (useLegacyFallback ? parseFloat(lsGet(SK.rate) ?? '') : 0)
       || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
 }
