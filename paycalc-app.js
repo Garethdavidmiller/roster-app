@@ -44,7 +44,7 @@ import {
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS,
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod } from './paycalc-hpp.js';
-import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent } from './paycalc-backpay.js';
+import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -484,11 +484,11 @@ export function init() {
       // Load saved data for this period
       loadPeriodData(p.num);
 
-      // If the back-pay card is open, refresh it. Since v16.91 the card is pinned to the CURRENT
-      // award (its year no longer follows the selected period), so this just recomputes with fresh
-      // data — still wanted so `_bpPNum === _pNum` re-evaluates when you navigate onto the paid-in
-      // period with the card open (the lump then appears), and so the April-rollover re-prefill fires.
-      if (document.getElementById('backPayBody')?.classList.contains('open')) _refreshBackPayCard();
+      // Sync the back-pay card to the newly-viewed period's award year (v17.86 per-year viewing) —
+      // ALWAYS, not only when the card is open, so the banner + take-home reflect whichever payslip
+      // is on screen (each year's lump lands on its own payslip; the coordinator still gates the
+      // gross on `_bpPNum === _pNum`). Per-year keys keep each year's tick/rates/manual amount apart.
+      _syncBackPayForViewedYear();
 
       stampPaycalcPrintLine();
     }
@@ -1161,6 +1161,30 @@ export function init() {
       _applyBpRisePct();
     }
 
+    // Sync the back-pay card to the VIEWED award year (v17.86 per-year viewing): restore that year's
+    // own saved blob, or — when it has none — prefill its default (compute for the current award,
+    // enter-from-payslip for a prior one). Runs at init AND on every period change so the banner +
+    // take-home reflect whichever payslip is on screen. Per-year keys (bpKey(ty)) mean switching
+    // years loads the right state instead of resetting the tick — the fix that lets the card follow
+    // the viewed period again (the reason v16.91 pinned it).
+    function _syncBackPayForViewedYear() {
+      if (restoreBpState()) {
+        // Re-seed the "these New values were AUTO-derived from %" markers so _applyBpRisePct doesn't
+        // clobber hand-edits (see v16.23 note in the old init block).
+        const _rv = /** @param {string} id */ id => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
+        const _pct = parseFloat(_rv('bpRisePct'));
+        if (_pct > 0) {
+          const dR = raiseByPercent(parseFloat(_rv('oldRate'))   || 0, _pct);
+          const dL = raiseByPercent(parseFloat(_rv('oldLondon')) || 0, _pct);
+          if (dR && _rv('newRateInput') === dR.toFixed(2)) _bpAutoNewR = _rv('newRateInput');
+          if (dL && _rv('newLondon')    === dL.toFixed(2)) _bpAutoNewL = _rv('newLondon');
+        }
+        _runCalcBackPay();
+      } else {
+        _refreshBackPayCard();
+      }
+    }
+
     function toggleBpBreakdown() {
       const btn  = /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn'));
       const body = /** @type {HTMLElement} */ (document.getElementById('backPayRows'));
@@ -1303,32 +1327,10 @@ export function init() {
     _defaultPeriodNum = buildPeriodSelect();
     onPeriodChange();
 
-    // Back-pay at init: restore the member's persisted figures for the current award year, or —
-    // when there is NO saved state at all (first visit, or a fresh award year after the rollover
-    // discard) — compute the DEFAULT pending-award estimate automatically, exactly as opening the
-    // card would (prefill + % derivation). Staff no longer need to know the card exists to see
-    // the estimated lump on the right payslip; the result card labels it "estimated"
-    // (_bpIsEstimate) and links to the card to fine-tune. A saved-but-CLEARED state returns true
-    // from restoreBpState, so a member who blanked the card stays opted out.
-    if (restoreBpState()) {
-        // Re-seed the "these New values were AUTO-derived" markers from the restored figures
-        // (v16.23): _bpAutoNewR/_bpAutoNewL reset to '' on every load, so after a restore the
-        // fill-guard in _applyBpRisePct saw a non-blank box that matched neither marker and
-        // NEVER refilled — editing the "Pay rise %" became a dead control (the % changed, the
-        // lump didn't). A restored New value that exactly equals raiseByPercent(Old, pct) was
-        // auto-derived (a hand-typed identical figure behaves the same — refilling reproduces it).
-        const _rv = /** @param {string} id */ id => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
-        const _pct = parseFloat(_rv('bpRisePct'));
-        if (_pct > 0) {
-            const dR = raiseByPercent(parseFloat(_rv('oldRate'))   || 0, _pct);
-            const dL = raiseByPercent(parseFloat(_rv('oldLondon')) || 0, _pct);
-            if (dR && _rv('newRateInput') === dR.toFixed(2)) _bpAutoNewR = _rv('newRateInput');
-            if (dL && _rv('newLondon')    === dL.toFixed(2)) _bpAutoNewL = _rv('newLondon');
-        }
-        _runCalcBackPay();
-    } else {
-        _refreshBackPayCard();
-    }
+    // Back-pay at init: onPeriodChange() above already synced the card to the opening period's award
+    // year (restore its saved blob, else prefill its default) via _syncBackPayForViewedYear — so the
+    // estimated/actual lump shows on the right payslip without the member ever opening the card. No
+    // separate init restore is needed now the sync runs on every period change (v17.86).
 
     // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 
@@ -1386,6 +1388,11 @@ export function init() {
     ['oldRate','oldLondon','bpRisePct'].forEach(/** @param {string} id */ id => {
       /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', _applyBpRisePct);
     });
+    // Amount-source toggle + manual amount (v17.86): flipping the mode shows/hides the field group
+    // and recomputes; typing the manual figure recomputes.
+    document.getElementsByName('bpMode').forEach(/** @param {any} r */ r =>
+      r.addEventListener('change', () => { applyBpMode(); _runCalcBackPay(); }));
+    document.getElementById('bpManualAmt')?.addEventListener('input', _runCalcBackPay);
 
     // Card collapse toggles — shared initCardCollapse (overlay.js) adds keyboard +
     // aria-expanded support. Passing the header id as the chevron id toggles .open

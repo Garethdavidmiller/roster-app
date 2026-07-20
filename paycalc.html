@@ -617,6 +617,28 @@
 
       <div class="backpay-estimate-note" id="bpEstimateNote" style="display:none">ℹ️ The 2026/27 pay award (3.6%) has been accepted by the RMT and is expected on your 31 July payslip — treat the figures below as an estimate until it's confirmed on your payslip.</div>
 
+      <!-- Amount source (v17.86): compute the lump from your hours, OR enter the actual figure from
+           your payslip (the default for a prior, already-paid year). -->
+      <div class="field" id="bpModeRow" style="display:none">
+        <label>How should we get the amount?</label>
+        <div class="bp-mode-toggle" role="radiogroup" aria-label="Back pay amount source">
+          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeCompute" value="compute"> Work it out from my hours</label>
+          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeManual" value="manual"> Enter the amount from my payslip</label>
+        </div>
+      </div>
+
+      <!-- Manual entry (shown in "enter the amount" mode) -->
+      <div class="field" id="bpManualWrap" style="display:none">
+        <label for="bpManualAmt">Back-pay lump sum <span class="note">from your payslip</span></label>
+        <div class="pfx">
+          <span class="pfx-sym">£</span>
+          <input type="text" id="bpManualAmt" aria-label="Back-pay lump sum from your payslip" placeholder="e.g. 535.37" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+        </div>
+        <div class="field-hint">The total back-pay figure printed on the payslip that carried it.</div>
+      </div>
+
+      <!-- Compute inputs (shown in "work it out from my hours" mode) -->
+      <div id="bpComputeFields">
       <div class="field" id="bpRisePctField">
         <label for="bpRisePct">Pay rise %</label>
         <input type="text" id="bpRisePct" aria-label="Pay rise percentage" placeholder="e.g. 3.6" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -655,6 +677,7 @@
       <!-- Shown when an Old/New pair is inverted (likely swapped boxes) — otherwise the card
            would silently show nothing, with no clue why -->
       <div class="field-hint" id="bpOrderWarn" style="display:none" role="status">The New figure should be higher than the Old figure — check the boxes aren't swapped.</div>
+      </div><!-- /bpComputeFields -->
       <!-- Total shown first — it's the headline figure (the lump sum on one payslip) -->
       <div class="hpp-result" id="backPayTotal" style="display:none">
         <div class="hpp-label" id="backPayTotalLabel">💷 Lump sum on one payslip</div>
