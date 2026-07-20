@@ -92,13 +92,14 @@ orange cannot carry white text at WCAG AA (2.15:1), so darker variants exist for
 | Token | L | Duty |
 |-------|---|------|
 | `--orange` (bright) | 77% | Ambient/identity colour only, never under white text: **Operations page identity** (nav pill, `#opsBadge`, ops notice badge), the paycalc Saturday pay badge's border, the admin overwrite-pending / correction pills |
-| `--orange-deep` | 54% | Fills that carry **white text**: `.badge-early` (screen + print), `.pill-correction.active` |
+| `--orange-deep` | 54% | Fill carrying **white text**: the admin `.pill-correction.active` only (was also the Early badge until v17.84) |
 | `--orange-text` | 44% | Darkened orange **text on white / `--orange-light`**: `.badge-sat` text, `.pill-correction` idle text — the orange-family analogue of `--rdw-text`/`--other-text`/`--absence-text` |
 | `--early-cell` / `--early-cell-border` | 72% border | **Early-shift CALENDAR surfaces only** (v17.80): the month-grid cell tint + border, the legend swatch, the Team-View cell + key dot, and the print rule. A softer, less-saturated amber than `--orange` (same warm ~63° hue). |
+| `--early-badge` | 53% | **☀️ Early BADGE fill only** (`.badge-early`, screen + print; white text, AA 5.5:1). Deep amber at the cell's ~63° hue so badge + cell match (v17.84, owner: option C) — replaced the muddy `--orange-deep` "burnt orange". |
 
-**Rules:** never put white text on `--orange` (use `--orange-deep`); never use `--orange` as text
-on a light surface (use `--orange-text`). The Early **badge** stays deep (`--orange-deep`), matching
-the badge family's 45–54% L fills.
+**Rules:** never put white text on `--orange` (use `--orange-deep`/`--early-badge`); never use
+`--orange` as text on a light surface (use `--orange-text`). The Early **badge** (`--early-badge`)
+sits in the badge family's 45–54% L range.
 
 **Early calendar cell decoupled from `--orange` (v17.80).** Owner request "softer amber, only on the
 calendar": the Early *calendar* surfaces moved off `--orange`/`--orange-light` onto the dedicated,

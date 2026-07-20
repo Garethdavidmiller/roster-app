@@ -17,6 +17,7 @@ import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, getPensionForPeriod, awardRatesFor,
+  isPreAwardPeriod, getRateForPeriod,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -376,12 +377,19 @@ export function init() {
         // Confirmed — hide banner, update card header hint with saved values.
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
         const _hdrGrade = getGrade();
-        // The YEAR'S stored settled rate, not the live field: on a pre-award period
-        // updateRateForPeriod has already loaded the PRE-RISE rate (e.g. £20.06) into the field,
-        // and this hint claims to summarise the year's SAVED settings (v16.69 review fix).
-        const rate = (getStoredRateForYear(ty) || numVal('hourlyRate') || (GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
+        // PERIOD-AWARE rate for the summary: on a pre-award period the payslip was actually paid at
+        // the pre-rise rate, so show THAT (with a "· pre-rise rate" qualifier, mirroring the rate
+        // field's own label) — otherwise the summary contradicts the £-breakdown + the payslip on
+        // screen (the "why does July 3rd show the new rate at the top?" report). Post-award/current
+        // periods show the year's settled rate. (Supersedes the v16.69 "always show the settled rate"
+        // hint, which pre-dated a confirmed mid-year award making the two rates diverge on screen.)
+        const _settledRate = getStoredRateForYear(ty);
+        const _hintPreAward = isPreAwardPeriod(p, _hdrGrade, ty.label);
+        const _hintRate = _hintPreAward ? getRateForPeriod(p, _hdrGrade, ty.label, _settledRate) : _settledRate;
+        const rate = (_hintRate || numVal('hourlyRate') || (GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
         const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
-        /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
+        /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent =
+          `✓ ${ty.label} — £${rate}/hr${_hintPreAward ? ' · pre-rise rate' : ''} · ${code}`;
       } else {
         /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
           `We've filled in the usual defaults — <strong>check your hourly rate and tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
