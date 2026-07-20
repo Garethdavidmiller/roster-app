@@ -71,9 +71,9 @@
        (8–14% toward white) were so pale the month read as near-uniform off-white, especially on
        the dense 390px grid. Hues are unchanged (the legend stays valid) — only saturation. */
     --orange:       oklch(77.0% 0.1741 64.1deg);
-    /* Deep orange for the ☀️ Early shift BADGE only — same hue as --orange but dark enough to carry
-       WHITE text at AA (the bright --orange can't), keeping Early consistent with every other filled
-       shift badge (white on a deep colour). Calendar cells/pills keep the bright --orange. (v17.55) */
+    /* Deep orange carrying WHITE text at AA. Since v17.84 the ☀️ Early badge has its own
+       --early-badge token, so --orange-deep now backs only the admin "correction" pill
+       (.pill-correction.active). (was the Early badge fill v17.55–83.) */
     --orange-deep:  oklch(54.0% 0.150 64.1deg);
     /* Darkened orange TEXT for use on white/--orange-light tints (clears WCAG AA 4.5:1) — the
        orange-family analogue of --rdw-text/--other-text/--absence-text. Used by paycalc's Saturday
@@ -93,9 +93,14 @@
        less-saturated amber than the bright --orange. Same warm hue (~63°) so the shift still reads
        as sunrise/Early, just calmer on the dense 390px grid. --orange / --orange-light are left
        UNCHANGED so the Operations page accent, the paycalc Saturday pay badge, and the admin
-       correction pills keep their existing bright orange. The ☀️ Early BADGE stays --orange-deep. */
+       correction pills keep their existing bright orange. */
     --early-cell-border: oklch(72.0% 0.1250 63.0deg);
     --early-cell:        color-mix(in oklch, var(--early-cell-border) 15%, white);
+    /* ☀️ Early shift BADGE fill (white text). Own token since v17.84 (owner: option C) — a cleaner,
+       warmer DEEP AMBER at the same hue as the softer cell (~63°) so badge + cell read as one family,
+       replacing the muddy "burnt orange" --orange-deep. Dark enough for white text at AA (5.5:1).
+       DECOUPLED from --orange-deep, which stays for the admin .pill-correction.active only. */
+    --early-badge:       oklch(53.0% 0.1650 63.0deg);
 
     /* Late shift */
     --blue-sky:   oklch(51.3% 0.1603 255.7deg);
@@ -1092,7 +1097,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .badge-rest  { background: var(--charcoal);  color: white; }
-.badge-early { background: var(--orange-deep); color: white; }
+.badge-early { background: var(--early-badge); color: white; }
 .badge-late  { background: var(--blue-sky);  color: white; }
 .badge-night { background: white; color: var(--night); border: 2px solid var(--night); }
 .badge-spare { background: var(--purple);    color: white; }
@@ -1106,7 +1111,7 @@ body.lb-open #stickyTotal { display: none !important; }
    black-and-white printers than an all-dark filled badge. */
 @media print {
     .badge-rest  { background: var(--charcoal)  !important; color: white !important; }
-    .badge-early { background: var(--orange-deep) !important; color: white !important; }
+    .badge-early { background: var(--early-badge) !important; color: white !important; }
     .badge-late  { background: var(--blue-sky)  !important; color: white !important; }
     .badge-spare { background: var(--purple)    !important; color: white !important; }
     .badge-rdw   { background: var(--rdw)       !important; color: white !important; }
