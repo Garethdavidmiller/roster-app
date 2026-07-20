@@ -1255,6 +1255,15 @@
     display: flex; align-items: center; gap: 6px;
     flex-shrink: 0; padding-top: 2px;
   }
+  /* Tax-year chip in the back-pay / HPP card headers — always shows which year the card is for,
+     even when collapsed (v17.89). :empty hides it until JS fills the year. */
+  .card-year-chip {
+    font-size: var(--type-small); font-weight: 700; letter-spacing: .02em;
+    color: var(--primary-blue); background: var(--bg-faint);
+    border: 1px solid var(--border-light); border-radius: 999px;
+    padding: 2px 9px; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .card-year-chip:empty { display: none; }
 
   /* Card header that lays out left content + right actions in a row.
      Overrides shared.css .card-header flex-direction:column. */

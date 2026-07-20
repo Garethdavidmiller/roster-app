@@ -337,6 +337,13 @@ export function init() {
       // Update tax year tab active state
       updateTyTabs();
 
+      // Tax-year chip in the back-pay + HPP card headers — makes clear WHICH year each card is
+      // editing, even when collapsed (both cards follow the viewed period's tax year). (v17.89)
+      for (const _cid of ['bpYearChip', 'hppYearChip']) {
+        const _chip = document.getElementById(_cid);
+        if (_chip) _chip.textContent = ty.label;
+      }
+
       // Load the rate and Year to Date figures for this period's tax year (period-aware: an
       // early-in-the-year period before its mid-year pay-award date shows the pre-rise rate).
       updateRateForPeriod(ty, p);
