@@ -121,3 +121,16 @@ exact payslip line name first and quote it.
 **Year to Date:** always spell it out as "Year to Date" (never bare "YTD") and call the two figures
 exactly `Taxable Pay` / `Tax Paid` — NOT "Gross Pay" (the YTD figure is taxable pay, post-pension,
 not gross). Don't invent friendlier names for these — the whole point is they match the payslip box.
+
+**Year to Date figures are ANCHORED to their source payslip (v17.98 — owner request).** The card
+records which payslip the two totals were copied from (`ytdSrcKey(ty)`, a "From which payslip?"
+select auto-stamped to the latest PAID payslip on first entry, correctable). The cumulative PAYE
+method in `calculate()` engages ONLY on the payslip immediately after the source (`p.num ===
+src + 1`) — any other payslip nulls the YTD inputs and falls back to the standard non-cumulative
+method. Previously the figures were a per-year snapshot the maths silently treated as
+last-payslip totals whatever was viewed (quietly skewing tax when stale). Legacy figures with no
+recorded source are stamped on load with the app's old standing assumption (the payslip before
+today's, clamped into the year) so a maintained user's next-payslip estimate is unchanged. The
+`#ytdUptoNote` states the position per payslip ("✓ … sharpen this payslip's estimate" / "uses the
+standard method — update from P__"). `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the
+year's paid payslips, newest first.

@@ -123,6 +123,10 @@ export function hppIncKey(ty)     { return `${pcPrefix()}hpp_inc_${ty.label.repl
 export function bpKey(ty)          { return `${pcPrefix()}bp_state_${ty.label.replace('/', '_')}`; }
 /** @param {{ label:string }} ty @returns {string} */
 export function ytdPayKey(ty)     { return `${pcPrefix()}ytd_pay_${ty.label.replace('/', '_')}`; }
+/** SOURCE payslip of the year's Year to Date figures (internal period num, e.g. "53") — which
+ *  payslip the two totals were copied from. Anchors the cumulative tax method: it only engages on
+ *  the payslip immediately after the source (v17.98). @param {{ label:string }} ty @returns {string} */
+export function ytdSrcKey(ty)     { return `${pcPrefix()}ytd_src_${ty.label.replace('/', '_')}`; }
 /** @param {{ label:string }} ty @returns {string} */
 export function ytdTaxKey(ty)     { return `${pcPrefix()}ytd_tax_${ty.label.replace('/', '_')}`; }
 

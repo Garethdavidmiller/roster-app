@@ -528,6 +528,7 @@ Pure data module — help/tooltip text for the pay calculator (v11.40).
 - No DOM, no Firebase — safe to import anywhere
 
 ### `paycalc-migrations.js`
+- `ytdSrcKey(ty)` — per-tax-year SOURCE payslip of the Year to Date figures (internal period num); anchors the cumulative tax method to source+1 (v17.98)
 localStorage key constants and data migration logic for the pay calculator (v11.40).
 - `SK` — object of top-level localStorage key strings, rebuilt in place when the namespace changes
 - `pcPrefix()` — the active per-member key prefix (`myb_pc_` or `myb_pc_<slug>_`); every key builder and `SK` derives from it (v14.11)
