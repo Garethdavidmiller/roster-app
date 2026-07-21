@@ -1172,6 +1172,10 @@ export function renderTable() {
         const capped  = _overridesTruncated ? ` — showing the ${OVERRIDES_QUERY_CAP} most recent; older changes aren't listed` : '';
         listCount.textContent = label + context + capped;
     }
+    // Header context chip (v18.16): the count at a glance while the card is collapsed. Mirrors the
+    // list's current view (member/month filter); empty at zero — the :empty rule hides the chip.
+    const countChip = document.getElementById('overridesCountChip');
+    if (countChip) countChip.textContent = rows.length ? String(rows.length) : '';
 
     if (!rows.length) {
         const who = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';

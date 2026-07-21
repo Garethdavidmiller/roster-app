@@ -1088,21 +1088,8 @@
     border: 2px solid var(--border-light);
   }
 
-  .card-header-toggle {
-    cursor: pointer; user-select: none;
-    display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between;
-    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .card-header-toggle:hover { background: var(--bg-faint); }
-  }
-  .card-toggle-arrow {
-    font-size: var(--type-micro); color: var(--text-light);
-    transition: transform 0.25s; flex-shrink: 0;
-    padding: 3px 0 0 12px; line-height: 1.5;
-  }
-  .card-header-toggle.open .card-toggle-arrow { transform: rotate(180deg); }
-  /* The arrow is the focusable collapse toggle (v17.50 — header no longer role="button"). */
+  /* .card-header-toggle / .card-toggle-arrow — PROMOTED to shared.css (v18.16, canonical
+     header system for all pages). The arrow is the focusable collapse toggle (v17.50). */
   .card-toggle-arrow { cursor: pointer; }
   .card-toggle-arrow:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; border-radius: 3px; }
   .collapsible-body {
@@ -1325,30 +1312,8 @@
 
   /* ── LAYOUT UTILITIES ── (replaces inline styles in paycalc.html) */
 
-  /* Right-side button cluster inside a card header (help btn + toggle arrow) */
-  .card-header-actions {
-    display: flex; align-items: center; gap: 6px;
-    flex-shrink: 0; padding-top: 2px;
-  }
-  /* Tax-year chip in the back-pay / HPP card headers — always shows which year the card is for,
-     even when collapsed (v17.89). :empty hides it until JS fills the year. */
-  .card-year-chip {
-    font-size: var(--type-small); font-weight: 700; letter-spacing: .02em;
-    color: var(--primary-blue); background: var(--bg-faint);
-    border: 1px solid var(--border-light); border-radius: var(--radius-pill);
-    padding: 2px 9px; white-space: nowrap; font-variant-numeric: tabular-nums;
-  }
-  .card-year-chip:empty { display: none; }
-
-  /* Card header that lays out left content + right actions in a row.
-     Overrides shared.css .card-header flex-direction:column. */
-  .card-header--row {
-    display: flex; /* override shared.css display:grid so flex-direction takes effect */
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 8px;
-  }
+  /* .card-header-actions / .card-year-chip / .card-header--row — PROMOTED to shared.css
+     (v18.16, canonical header system for all pages). */
 
   /* Two side-by-side field columns (YTD pair, back-pay rate pair) */
   .field-pair {
@@ -1366,14 +1331,7 @@
   }
 
   /* Eyebrow label above an input (all-caps, small, muted) */
-  .field-eyebrow {
-    font-size: var(--type-micro);
-    font-weight: 700;
-    color: var(--text-light);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-  }
+  /* .field-eyebrow — PROMOTED to shared.css (v18.16, the app-wide field-label convention). */
 
   /* The → arrow separator between Old and New rate columns */
   .rate-sep {

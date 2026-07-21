@@ -169,6 +169,7 @@ export function init() {
                         { icon: '1️⃣', html: 'Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick individual days' },
                         { icon: '2️⃣', html: 'Pick a type — add a start and end time if needed' },
                         { icon: '3️⃣', html: 'Tap <strong>3. Apply to ticked days</strong>' },
+                        { icon: '🏖️', html: 'Booking several days of annual leave at once? The <strong>Record Annual Leave</strong> card below does the whole date range in one go' },
                     ]},
                     { heading: 'Type meanings', items: [
                         { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift; use for spare-week confirmations, changed shift times, and swaps with colleagues' },
@@ -720,7 +721,9 @@ export function init() {
         if (headerBalEl && headerRemEl) {
             headerRemEl.textContent = String(remaining);
             headerBalEl.hidden = false;
-            headerBalEl.className = 'al-header-balance'
+            // Header context chip (v18.16 — shared .card-year-chip, the paycalc-parity pattern);
+            // .al-left-chip modifiers colour the low/none states.
+            headerBalEl.className = 'card-year-chip al-left-chip'
                 + (remaining <= 0 ? ' balance-none' : remaining <= 5 ? ' balance-low' : '');
         }
     }

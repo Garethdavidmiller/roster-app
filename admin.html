@@ -157,9 +157,14 @@
     <!-- ==================== OVERRIDE FORM ==================== -->
     <div class="col-main">
     <div class="card">
-        <div class="card-header">
-            <h2>Change a Shift <button type="button" class="btn-card-tips" data-card="change-shift" aria-label="Tips for changing a shift" title="Tips for changing a shift">?</button></h2>
-            <span class="hint">Tick a day you worked, choose a type (shift, RDW, rest day, etc.), then Save — or tick several days and use Apply to ticked days below. To book several days of annual leave at once, use the Annual Leave card.</span>
+        <div class="card-header card-header--row">
+            <div>
+                <h2>Change a Shift</h2>
+                <span class="hint">Tick a day, choose a type, then Save changes — the ? has the full steps</span>
+            </div>
+            <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="change-shift" aria-label="Tips for changing a shift" title="Tips for changing a shift">?</button>
+            </div>
         </div>
         <div class="card-body">
 
@@ -227,11 +232,16 @@
     <div class="col-side">
     <!-- ==================== ANNUAL LEAVE BOOKING ==================== -->
     <div class="card" id="book-annual-leave">
-        <div class="card-header card-collapsible-header" id="alToggleHeader">
-            <h2><span aria-hidden="true">🏖️</span> Record Annual Leave <button type="button" class="btn-card-tips" data-card="annual-leave" aria-label="Tips for recording annual leave" title="Tips for recording annual leave">?</button></h2>
-            <span class="al-header-balance" id="alHeaderBalance" hidden>AL left: <strong id="alHeaderRemaining">—</strong></span>
-            <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
-            <span class="collapse-chevron" id="alChevron">▾</span>
+        <div class="card-header card-header-toggle" id="alToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🏖️</span> Record Annual Leave</h2>
+                <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="card-year-chip al-left-chip" id="alHeaderBalance" title="Annual leave remaining this year" hidden>AL left: <strong id="alHeaderRemaining">—</strong></span>
+                <button type="button" class="btn-card-tips" data-card="annual-leave" aria-label="Tips for recording annual leave" title="Tips for recording annual leave">?</button>
+                <span class="collapse-chevron" id="alChevron">▾</span>
+            </div>
         </div>
         <div class="card-collapsible-body" id="alBody">
             <!-- Annual Leave balance banner — updates when a member is selected -->
@@ -293,10 +303,15 @@
 
     <!-- ==================== ABSENCE ==================== -->
     <div class="card" id="record-sick-days">
-        <div class="card-header card-collapsible-header" id="sickToggleHeader">
-            <h2><span aria-hidden="true">🪑</span> Record Absence <button type="button" class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence" title="Tips for recording absence">?</button></h2>
-            <span class="hint">Mark days when a staff member isn't in — visible to all staff in the calendar</span>
-            <span class="collapse-chevron" id="sickChevron">▾</span>
+        <div class="card-header card-header-toggle" id="sickToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🪑</span> Record Absence</h2>
+                <span class="hint">Mark days when a staff member isn't in — visible to all staff in the calendar</span>
+            </div>
+            <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence" title="Tips for recording absence">?</button>
+                <span class="collapse-chevron" id="sickChevron">▾</span>
+            </div>
         </div>
         <div class="card-collapsible-body" id="sickBody">
             <div class="al-form">
@@ -333,10 +348,16 @@
          instead of stacking under Change a Shift in the left column. Reads fine at the
          ~340–420px column width (same list it already renders at 390px on mobile). -->
     <div class="card" id="overridesCard">
-        <div class="card-header card-collapsible-header" id="overridesToggleHeader">
-            <h2><span aria-hidden="true">📋</span> Saved Changes <button type="button" class="btn-card-tips" data-card="saved-changes" aria-label="Tips for Saved Changes" title="Tips for Saved Changes">?</button></h2>
-            <span class="hint">All recorded changes — use Edit or Delete on any row</span>
-            <span class="collapse-chevron" id="overridesChevron">▾</span>
+        <div class="card-header card-header-toggle" id="overridesToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">📋</span> Saved Changes</h2>
+                <span class="hint">All recorded changes — use Edit or Delete on any row</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="card-year-chip" id="overridesCountChip" title="Changes in the list below"></span>
+                <button type="button" class="btn-card-tips" data-card="saved-changes" aria-label="Tips for Saved Changes" title="Tips for Saved Changes">?</button>
+                <span class="collapse-chevron" id="overridesChevron">▾</span>
+            </div>
         </div>
         <div class="card-collapsible-body" id="overridesBody">
         <div class="list-toolbar">
