@@ -1668,7 +1668,11 @@ export function init() {
       const _p2  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
       const _ty2 = taxYearForPeriod(_p2);
       const _v = /** @type {HTMLSelectElement} */ (document.getElementById('ytdSrcSelect')).value;
-      if (_v) lsSet(ytdSrcKey(_ty2), _v);
+      // Selecting the blank placeholder un-anchors the figures: clear the stored source so
+      // calculate() drops back to the standard (non-cumulative) method — matching the note it now
+      // shows. Without the else-clear the old source lingered and tax stayed cumulative while the
+      // note claimed otherwise (v18.08 review fix).
+      if (_v) lsSet(ytdSrcKey(_ty2), _v); else lsDel(ytdSrcKey(_ty2));
       _updateYtdNote(_ty2, _p2, parseInt(_v, 10) || 0);
       calculate();
     });

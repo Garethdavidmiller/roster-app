@@ -397,7 +397,7 @@ html {
        overscroll gutter — so the gradient never actually rendered in the content area, while its
        `background-attachment: fixed` still risked a per-scroll-frame repaint on budget Androids.
        Plain solid navy is what shipped visually anyway; keep it. */
-    color-scheme: light; /* prevents dark-mode scrollbars and form controls */
+    color-scheme: only light; /* 'only light' hard-opts-out of browser force-dark (Chrome auto-dark / WebView algorithmic darkening) as well as dark-mode scrollbars and form controls — the app is a fixed navy-brand design with no dark theme */
     -webkit-text-size-adjust: 100%; /* prevents auto-scaling on orientation change; 100% (not none) preserves user font-size accessibility settings */
     text-size-adjust: 100%;
 }

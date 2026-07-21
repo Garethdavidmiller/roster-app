@@ -228,7 +228,7 @@ export function getRosterSuggestion(p, member) {
           const _labelTxt = _otherParsed.time ?? `${OTHER_RDW_DEFAULT_MINS / 60}h default — adjust to actual`;
           const _isBoxingT = cur.getMonth() === 11 && cur.getDate() === 26;
           if (_isBoxingT) {
-            boxMins += _mins; boxCount++;
+            boxMins += _mins; boxCount++; boxFromOv = true; // always from the override (mirrors bhOt/rdwFromOv)
             if (!_otherParsed.time) defaulted8h.box = true;
             days.push({ date: new Date(cur), shift: _labelTxt, type: 'box', source: 'override' });
           } else if (_isDateBH(cur)) {
