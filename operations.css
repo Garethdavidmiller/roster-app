@@ -832,6 +832,9 @@ select:focus-visible, input:focus-visible {
 .error-resolve-btn { font-size: 12px; padding: 4px 10px; }
 /* Resolve-all toolbar above the error list (B3) — one action to clear a post-release spike. */
 .error-log-toolbar { margin: 2px 0 12px; }
+/* Error Log header count chip (v18.17): red text on the shared .card-year-chip base — an error
+   count wants the eye. Only ever visible when non-empty (0 → :empty hides it), so no state class. */
+.errorlog-count-chip { color: var(--error-red); }
 /* Per-card "Try again" button (B2) — retries just this monitoring card, not a whole-page reload. */
 .card-retry-btn { margin-top: 10px; }
 

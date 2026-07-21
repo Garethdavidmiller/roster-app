@@ -46,13 +46,15 @@ polish generation): `.card-header-toggle` (collapsible) / `.card-header--row` (s
 left `<div>` (title `h2` + `.hint`) against a right `.card-header-actions` cluster (optional
 `.card-year-chip` context chip → Tips/Help `?` button → collapse arrow). `.card-year-chip` names
 the card's tax year / balance / count even while collapsed (`:empty` hides it); `.field-eyebrow`
-is the shared uppercase micro field label (GRADE, TAX CODE, …). **Used by paycalc + admin**
-(admin's chips: `AL left: N` with `.al-left-chip` low/none recolours; the Saved Changes count).
-**Do not re-create page-local copies of these classes** — that split is exactly how the header
-systems drifted apart pre-v18.16. operations/settings still use the older
-`.card-collapsible-header` grid in shared.css; migrate them onto this system in a later pass,
-then delete that block. A11y invariant (v17.50): the focusable collapse toggle is the
-ARROW/CHEVRON, never a header wrapping another button — `initCardCollapse` enforces it, the axe
+is the shared uppercase micro field label (GRADE, TAX CODE, …). **Used by ALL six app pages** (paycalc + admin v18.16; operations + settings + links v18.17). The
+old `.card-collapsible-header` grid header is **retired** — only the shared `.card-collapsible-body`
+(show/hide) and `.collapse-chevron` remain. Header context chips currently: `AL left: N` on admin
+(`.al-left-chip` low/none recolours) and the Saved Changes count; the Error Log unresolved count on
+operations (`.errorlog-count-chip`, red). Chips are added only where a card is often COLLAPSED and
+has one clear datum — not on default-open cards (settings/links analysis got structural migration,
+no chips). **Do not re-create page-local copies of these classes** — that split is exactly how the
+header systems drifted apart pre-v18.16. A11y invariant (v17.50): the focusable collapse toggle is
+the ARROW/CHEVRON, never a header wrapping another button — `initCardCollapse` enforces it, the axe
 gate fails on violations.
 
 ## Motion vocabulary + unified press (v11.56)
