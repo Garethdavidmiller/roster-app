@@ -824,7 +824,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     const settingsHtml = (currentPage !== 'settings') ? `
         <div class="nav-panel-settings">
             <ul class="nav-panel-links">
-                <li><a href="./settings.html" class="nav-panel-link">⚙ Settings</a></li>
+                <li><a href="./settings.html" class="nav-panel-link"><span aria-hidden="true">⚙️</span> Settings</a></li>
             </ul>
         </div>` : '';
 
@@ -885,7 +885,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                 <div class="nav-panel-section">
                     <button type="button" class="nav-panel-guides-toggle open" id="navGuidesToggle"
                             aria-expanded="true" aria-controls="navGuidesList">
-                        <span class="nav-panel-guides-heading">📖 Guides</span>
+                        <span class="nav-panel-guides-heading">Guides</span>
                         <span class="nav-panel-guides-arrow" aria-hidden="true">▾</span>
                     </button>
                     <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList">
