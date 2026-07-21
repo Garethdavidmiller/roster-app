@@ -118,6 +118,14 @@ exact payslip line name first and quote it.
 | Holiday Pay Premium (annual January lump) | `Holiday Pay Premium` | 7.69% (4/52) of variable pay |
 | Peer training | shows as **extra basic pay** (no distinct line) | basic |
 
+**Date-first payslip identity (v18.04 — owner: "staff don't remember period numbers, they remember
+paydates").** Every user-facing reference to a payslip LEADS with its payday and keeps the printed
+P-number as the secondary cross-check (it matches the number printed on the payslip): the period
+selector reads "Paid 3 Jul 2026 · P16", the Settings chip shows the payday, notes say "your 31 Jul
+payslip (P20)", the pension label "for the 3 Jul payslip", breakdown rows date-first. The gold
+`#periodBadge` P-chip beside the date strip stays (the date is adjacent; the badge IS the
+cross-check). Internal `p.num` keys and `payslipPeriodNum()` are unchanged — display order only.
+
 **Year to Date:** always spell it out as "Year to Date" (never bare "YTD") and call the two figures
 exactly `Taxable Pay` / `Tax Paid` — NOT "Gross Pay" (the YTD figure is taxable pay, post-pension,
 not gross). Don't invent friendlier names for these — the whole point is they match the payslip box.
