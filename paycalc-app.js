@@ -1088,9 +1088,15 @@ export function init() {
           `Compare with estimate &nbsp;<span class="bd-arrow">▼</span>`;
         const _stickyAmt = document.getElementById('stickyAmount');
         if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
-        // Keep the sticky label honest — this figure is the confirmed actual, not an estimate.
+        // Keep the sticky label honest — this figure is the confirmed actual, not an estimate — and
+        // lead with the payslip identity (v18.14) so a scrolled-away figure names WHICH payslip.
         const _stickyLbl = document.getElementById('stickyLabel');
-        if (_stickyLbl) _stickyLbl.textContent = '✅ Actual take-home';
+        if (_stickyLbl) _stickyLbl.textContent = _curP
+            ? `✅ Paid ${fdShort(_curP.payday)} · Actual take-home`
+            : '✅ Actual take-home';
+        const _stickyBar = document.getElementById('stickyTotal');
+        if (_stickyBar) _stickyBar.setAttribute('aria-label',
+            `Actual take-home${_curP ? ` for the ${fdShort(_curP.payday)} payslip` : ''} — tap to view the full breakdown`);
       } else {
         const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? `inc. ${_bpIsEstimate ? 'est. ' : ''}back pay & HPP`
             : _bpThisPeriod > 0  ? `inc. ${_bpIsEstimate ? 'est. ' : ''}back pay`
@@ -1101,10 +1107,16 @@ export function init() {
             : '💷 Estimated Take-Home Pay';
         const _stickyAmt = document.getElementById('stickyAmount');
         if (_stickyAmt) _stickyAmt.textContent = fmt(net);
+        // Lead the sticky label with the payslip identity (v18.14) so a scrolled-away £ is never
+        // ambiguous about WHICH payslip — the back-pay lump lands on only one, so this matters. The
+        // full "(inc. back pay & HPP)" wording stays on the hero result card; the strip stays compact.
         const _stickyLbl = document.getElementById('stickyLabel');
-        if (_stickyLbl) _stickyLbl.textContent = _suffix
-            ? `💷 Estimated take-home (${_suffix})`
-            : '💷 Estimated take-home';
+        if (_stickyLbl) _stickyLbl.textContent = _curP
+            ? `💷 Paid ${fdShort(_curP.payday)} · Estimated take-home`
+            : (_suffix ? `💷 Estimated take-home (${_suffix})` : '💷 Estimated take-home');
+        const _stickyBar = document.getElementById('stickyTotal');
+        if (_stickyBar) _stickyBar.setAttribute('aria-label',
+            `Estimated take-home${_curP ? ` for the ${fdShort(_curP.payday)} payslip` : ''} — tap to view the full breakdown`);
         /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
           `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
       }
