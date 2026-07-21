@@ -343,7 +343,7 @@ export function init() {
 
       // Tax-year chip in the back-pay + HPP card headers — makes clear WHICH year each card is
       // editing, even when collapsed (both cards follow the viewed period's tax year). (v17.89)
-      for (const _cid of ['bpYearChip', 'hppYearChip']) {
+      for (const _cid of ['bpYearChip', 'hppYearChip', 'ytdYearChip']) {
         const _chip = document.getElementById(_cid);
         if (_chip) _chip.textContent = ty.label;
       }
