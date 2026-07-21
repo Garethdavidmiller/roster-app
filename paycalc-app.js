@@ -1091,9 +1091,12 @@ export function init() {
         // Keep the sticky label honest — this figure is the confirmed actual, not an estimate — and
         // lead with the payslip identity (v18.14) so a scrolled-away figure names WHICH payslip.
         const _stickyLbl = document.getElementById('stickyLabel');
-        if (_stickyLbl) _stickyLbl.textContent = _curP
-            ? `✅ Paid ${fdShort(_curP.payday)} · Actual take-home`
-            : '✅ Actual take-home';
+        // Two-weight label (v18.15): the payday is the load-bearing part, so it renders full-white
+        // semibold (.s-pay) while the boilerplate descriptor stays muted (.s-desc) — one flat
+        // 0.75-opacity string read as noise. Static app-built markup, no user content.
+        if (_stickyLbl) _stickyLbl.innerHTML = _curP
+            ? `✅ <span class="s-pay">Paid ${fdShort(_curP.payday)}</span><span class="s-desc"> · Actual take-home</span>`
+            : `<span class="s-desc">✅ Actual take-home</span>`;
         const _stickyBar = document.getElementById('stickyTotal');
         if (_stickyBar) _stickyBar.setAttribute('aria-label',
             `Actual take-home${_curP ? ` for the ${fdShort(_curP.payday)} payslip` : ''} — tap to view the full breakdown`);
@@ -1111,9 +1114,10 @@ export function init() {
         // ambiguous about WHICH payslip — the back-pay lump lands on only one, so this matters. The
         // full "(inc. back pay & HPP)" wording stays on the hero result card; the strip stays compact.
         const _stickyLbl = document.getElementById('stickyLabel');
-        if (_stickyLbl) _stickyLbl.textContent = _curP
-            ? `💷 Paid ${fdShort(_curP.payday)} · Estimated take-home`
-            : (_suffix ? `💷 Estimated take-home (${_suffix})` : '💷 Estimated take-home');
+        // Two-weight label (v18.15) — payday semibold, descriptor muted; see the actuals branch note.
+        if (_stickyLbl) _stickyLbl.innerHTML = _curP
+            ? `💷 <span class="s-pay">Paid ${fdShort(_curP.payday)}</span><span class="s-desc"> · Estimated take-home</span>`
+            : `<span class="s-desc">💷 ${_suffix ? `Estimated take-home (${_suffix})` : 'Estimated take-home'}</span>`;
         const _stickyBar = document.getElementById('stickyTotal');
         if (_stickyBar) _stickyBar.setAttribute('aria-label',
             `Estimated take-home${_curP ? ` for the ${fdShort(_curP.payday)} payslip` : ''} — tap to view the full breakdown`);
