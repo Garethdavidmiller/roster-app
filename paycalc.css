@@ -1167,8 +1167,16 @@
     gap: 8px;
   }
   #stickyTotal.visible { display: flex; }
-  #stickyTotal .sticky-label { font-size: var(--type-small); opacity: 0.75; }
+  #stickyTotal .sticky-label {
+    font-size: var(--type-small); opacity: 0.75;
+    /* The payday LEADS the label, so on a narrow phone the trailing "· Estimated take-home"
+       ellipsis-truncates rather than wrapping the bar to two lines — the payslip identity is
+       never lost. The amount (below) never shrinks. */
+    flex: 1 1 auto; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   #stickyTotal .sticky-amount {
+    flex: 0 0 auto;
     font-size: var(--type-large); font-weight: 700; letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
     font-feature-settings: 'tnum' 1;
