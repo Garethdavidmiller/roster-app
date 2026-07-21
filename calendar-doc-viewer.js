@@ -21,7 +21,7 @@
 import { createLightbox } from './overlay.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, officeViewerUrl } from './firebase-client.js';
 import { recordOpen } from './usage-reporter.js';
-import { getCurrentMember } from './calendar-member.js';
+import { getCurrentMember, isFirstRun } from './calendar-member.js';
 
 /**
  * Per-document config. The emoji matches each feature's in-app icon (nav drawer /
@@ -86,7 +86,9 @@ export function initDocViewer() {
                 // Counted here (not on viewer open) so the count means the document was actually
                 // opened — mirroring the nav-drawer path (v18.20; admin-excluded, anonymous).
                 btn.addEventListener('click', () => {
-                    recordOpen(key, getCurrentMember()?.name ?? null);
+                    // Identity: null on a first-run device — the DEFAULT selection is the
+                    // developer, and excluding on it would drop fresh visitors' opens (v18.22).
+                    recordOpen(key, isFirstRun() ? null : getCurrentMember()?.name ?? null);
                     window.open(openUrl, '_blank', 'noopener');
                 });
                 bodyEl.appendChild(btn);

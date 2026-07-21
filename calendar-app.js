@@ -919,10 +919,11 @@ const _calendarSession = getSession();
 initNavPanel({
     currentPage: 'calendar',
     memberName:  _calendarSession?.name || null,
-    // Open-counter exclusion identity (v18.20): the SELECTED member, not just the (optional)
-    // session — same precedent as recordUsage below, so the developer's own guide/doc opens
-    // from the calendar drawer are excluded even without a live session.
-    usageIdentity: _calendarSession?.name || getCurrentMember()?.name || null,
+    // Open-counter exclusion identity: the session name, else the SELECTED member — but null on
+    // a first-run device, where the "selection" is only the DEFAULT member (the developer) and
+    // excluding on it would silently drop every fresh visitor's opens (v18.22 review fix — the
+    // same trap the recordUsage call below documents avoiding).
+    usageIdentity: _calendarSession?.name || (isFirstRun() ? null : getCurrentMember()?.name) || null,
     isAdmin:         CONFIG.ADMIN_NAMES.includes(_calendarSession?.name),
     isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(_calendarSession?.name),
     onLogoClick: () => openAboutLightbox?.(),
