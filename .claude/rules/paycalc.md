@@ -15,17 +15,17 @@ Primarily **manual-entry**. Staff enter hours; calculator computes tax, NI, pens
 
 **Grades supported:** CEA and CES. Dispatcher not yet supported — rates not confirmed.
 
-| Grade | 2025/26 rate | 2026/27 rate (from 31 Jul 2026) | Contracted hrs | Pension | London Allowance |
+| Grade | 2025/26 rate | 2026/27 rate (from 28 Aug 2026) | Contracted hrs | Pension | London Allowance |
 |-------|-------------|----------------------------------|----------------|---------|-----------------|
-| CEA | £20.74/hr | **£21.49/hr** | 140/period | £147.36 (from P51 May 8 2026) | £276.16 → **£286.10** (from 31 Jul 2026) |
-| CES | £21.81/hr | **£22.60/hr** | 140/period | £147.36 (from P51 May 8 2026) | £276.16 → **£286.10** (from 31 Jul 2026) |
+| CEA | £20.74/hr | **£21.49/hr** | 140/period | £147.36 (from P51 May 8 2026) | £276.16 → **£286.10** (from 28 Aug 2026) |
+| CES | £21.81/hr | **£22.60/hr** | 140/period | £147.36 (from P51 May 8 2026) | £276.16 → **£286.10** (from 28 Aug 2026) |
 
-**2026/27: the 3.6% RMT award, confirmed on the 31 Jul 2026 payslip.** It applies automatically from
+**2026/27: the 3.6% RMT award, paid on the 28 Aug 2026 payslip (deferred from 31 Jul, informed Jul 2026).** It applies automatically from
 that payslip — the hourly rate lives in `GRADES` (current default) + `AWARD_RATES['2026/27']`
 (authoritative per-year settled rate, consulted by `getStoredRateForYear`), and the mid-year step
-(pre-31-Jul periods still on £20.74/£21.81 + London £276.16) is applied by
+(pre-28-Aug periods still on £20.74/£21.81 + London £276.16) is applied by
 `getRateForPeriod`/`getLondonAllowanceForPeriod`, keyed on `TAX_YEARS['2026/27'].londonAllowFrom` =
-31 Jul 2026. The **arrears** back to 1 Apr 2026 remain the **opt-in** back-pay lump (see below) — not
+28 Aug 2026. The **arrears** back to 1 Apr 2026 remain the **opt-in** back-pay lump (see below) — not
 auto-added to take-home. When the NEXT award is announced: bump `GRADES.rate` + labels, set the new
 year's `AWARD_RATES.rate`, add the following year with `pre` = this rate, and set the new year's
 `londonAllow`/`londonAllowPre`/`londonAllowFrom` on `TAX_YEARS`.

@@ -27,7 +27,7 @@ import { fd, fdShort, fmt } from './paycalc-format.js';
 /**
  * The currently OFFERED (but not-yet-confirmed) annual pay award, as a percentage. Pre-fills the
  * back-pay card's "Pay rise %" so an UNCONFIRMED award year (`ty.rateUnconfirmed`) opens with a live
- * estimate. DORMANT right now — the 2026/27 award is confirmed (31 Jul 2026 payslip; no TAX_YEARS
+ * estimate. DORMANT right now — the 2026/27 award is confirmed (paid on the 28 Aug 2026 payslip; no TAX_YEARS
  * entry carries `rateUnconfirmed`) — and re-arms when the NEXT award year is added with
  * `rateUnconfirmed: true`. Update the % then.
  */

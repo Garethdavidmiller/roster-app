@@ -22,7 +22,7 @@ export const TAX_YEARS = [
   { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027,
     londonAllow: 276.16, londonAllowPre: 267.08, londonAllowFrom: new Date(2025, 9, 24) },
   { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028,
-    londonAllow: 286.10, londonAllowPre: 276.16, londonAllowFrom: new Date(2026, 6, 31) }, // 3.6% RMT award, paid from the 31 Jul 2026 payslip (rate + London step together)
+    londonAllow: 286.10, londonAllowPre: 276.16, londonAllowFrom: new Date(2026, 7, 28) }, // 3.6% RMT award, paid from the 28 Aug 2026 payslip (rate + London step together; DEFERRED from the 31 Jul payslip — informed Jul 2026)
   // NEXT award: add the new tax year here with rateUnconfirmed: true until its payslip lands, then
   // set its londonAllow/londonAllowPre/londonAllowFrom + AWARD_RATES.rate and drop rateUnconfirmed.
 ];
@@ -96,9 +96,9 @@ export const SCOTTISH_TAX_BY_YEAR = {
 };
 
 // Grade contractual data. `rate` is the CURRENT (2026/27) settled rate — the 3.6% RMT award
-// paid from the 31 Jul 2026 payslip. Per-YEAR settled rates come from AWARD_RATES (consulted by
+// paid from the 28 Aug 2026 payslip. Per-YEAR settled rates come from AWARD_RATES (consulted by
 // getStoredRateForYear), so an earlier year keeps its own rate; GRADES.rate is the grade default
-// + dropdown label. The mid-year step (pre-31-Jul-2026 periods still on £20.74/£21.81) is applied
+// + dropdown label. The mid-year step (pre-28-Aug-2026 periods still on £20.74/£21.81) is applied
 // by getRateForPeriod via awardFromForYear.
 // pensionPre / pensionFrom: pension changed from £154.77 → £147.36 at the May 8 2026 payslip (a
 // SEPARATE change from the pay award — unaffected by the 3.6% rise).
@@ -130,11 +130,11 @@ export const GRADES = {
 export const AWARD_RATES = {
   cea: {
     '2025/26': { rate: 20.74, pre: 20.06 },
-    '2026/27': { rate: 21.49, pre: 20.74 }, // 3.6% RMT award, confirmed on the 31 Jul 2026 payslip
+    '2026/27': { rate: 21.49, pre: 20.74 }, // 3.6% RMT award, paid on the 28 Aug 2026 payslip (deferred from 31 Jul)
   },
   ces: {
     '2025/26': { rate: 21.81, pre: null },  // 2024/25 CES rate not on record
-    '2026/27': { rate: 22.60, pre: 21.81 }, // 3.6% RMT award, confirmed on the 31 Jul 2026 payslip
+    '2026/27': { rate: 22.60, pre: 21.81 }, // 3.6% RMT award, paid on the 28 Aug 2026 payslip (deferred from 31 Jul)
   },
 };
 
