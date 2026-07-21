@@ -26,6 +26,19 @@ const PAGE_META = {
     links:      { emoji: '🔗', label: 'Links' },
 };
 
+/** Document/guide OPEN counters (v18.20) — share the pv_ counts map with the page ids above but
+ *  render as their own "opens" group (an open is a different act from a page view). Emojis match
+ *  each feature's in-app icon (nav drawer / notification signature).
+ * @type {Record<string, { emoji: string, label: string }>}
+ */
+const OPEN_META = {
+    'huddle':         { emoji: '📋', label: 'Daily Huddle' },
+    'circular':       { emoji: '📰', label: 'Weekly Retail Circular' },
+    'newsletter':     { emoji: '🗞️', label: 'Marylebone Newsletter' },
+    'guide-railcard': { emoji: '🎫', label: 'Railcard Guide' },
+    'guide-fip':      { emoji: '🇪🇺', label: 'FIP Travel Guide' },
+};
+
 /**
  * Render a monitoring-card load failure with a "Try again" button that re-runs JUST this card
  * (B2). Previously each card's catch told the admin to "reload" — a full page reload that re-runs
@@ -266,25 +279,14 @@ async function initUsageCard() {
         heading.className = 'usage-section-label';
         const popBody = document.createElement('div');
 
-        const renderPop = () => {
-            const counts = popActive === 'this' ? stats.pageCounts : stats.prevPageCounts;
-            const month  = popActive === 'this' ? stats.month : stats.prevMonth;
-            heading.textContent = `Page popularity — ${_usageMonthLabel(month)}`;
-            popBody.innerHTML = '';
-            if (!counts.length) {
-                const none = document.createElement('p');
-                none.className = 'auth-desc';
-                none.textContent = popActive === 'this'
-                    ? 'No page views recorded yet this month.'
-                    : 'No page views recorded last month.';
-                popBody.appendChild(none);
-                return;
-            }
-            const max = counts[0].count || 1;
+        /** Build one bar list (page views or opens); each list scales to its own max.
+         * @param {Array<{page:string,count:number}>} items @param {Record<string,{emoji:string,label:string}>} metaMap */
+        const _bars = (items, metaMap) => {
+            const max = items[0].count || 1;
             const list = document.createElement('div');
             list.className = 'usage-bars';
-            counts.forEach(({ page, count }) => {
-                const meta  = PAGE_META[page];
+            items.forEach(({ page, count }) => {
+                const meta  = metaMap[page];
                 const emoji = meta ? meta.emoji : '📄';
                 // Known labels are static/safe; an unknown page key (a tampered client
                 // could write one) is escaped before it reaches innerHTML.
@@ -298,7 +300,34 @@ async function initUsageCard() {
                     `<span class="usage-bar-count">${count.toLocaleString('en-GB')}</span>`;
                 list.appendChild(row);
             });
-            popBody.appendChild(list);
+            return list;
+        };
+
+        const renderPop = () => {
+            const all   = popActive === 'this' ? stats.pageCounts : stats.prevPageCounts;
+            const month = popActive === 'this' ? stats.month : stats.prevMonth;
+            // Split the shared counts map: page views vs document/guide opens (v18.20).
+            const counts = all.filter(c => !OPEN_META[c.page]);
+            const opens  = all.filter(c => OPEN_META[c.page]);
+            heading.textContent = `Page popularity — ${_usageMonthLabel(month)}`;
+            popBody.innerHTML = '';
+            if (!counts.length && !opens.length) {
+                const none = document.createElement('p');
+                none.className = 'auth-desc';
+                none.textContent = popActive === 'this'
+                    ? 'No page views recorded yet this month.'
+                    : 'No page views recorded last month.';
+                popBody.appendChild(none);
+                return;
+            }
+            if (counts.length) popBody.appendChild(_bars(counts, PAGE_META));
+            if (opens.length) {
+                const openLbl = document.createElement('p');
+                openLbl.className = 'usage-section-label';
+                openLbl.textContent = 'Documents & guides — opens';
+                popBody.appendChild(openLbl);
+                popBody.appendChild(_bars(opens, OPEN_META));
+            }
         };
 
         [['this', 'This month'], ['last', 'Last month']].forEach(([key, label]) => {

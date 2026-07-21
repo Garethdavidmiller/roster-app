@@ -47,6 +47,12 @@ mock.module('./ls.js', {
         lsDel: (k)    => { store.delete(k); },
     },
 });
+mock.module('./usage-reporter.js', {
+    namedExports: {
+        recordUsage: () => {},
+        recordOpen:  () => {},   // v18.20 — drawer doc/guide open counters (no-op under test)
+    },
+});
 
 const { isNoticeExpired, archiveNotice, initNavPanel } = await import('./nav-panel.js');
 

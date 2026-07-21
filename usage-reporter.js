@@ -60,3 +60,18 @@ export function recordUsage(page, member = null, identity = member) {
         if (rollHit)  lsSet(rollStoreKey, String(now.getTime()));
     } catch (_e) { /* best-effort — usage tracking must never affect the app */ }
 }
+
+/**
+ * Record an anonymous "opened" count for a document or guide (v18.20). Same counter store as
+ * page views (analytics/pv_<YYYY-MM>.counts) and the same write-time admin exclusion — the
+ * developer's own opens are never recorded. No dedup: every open counts ("how many times"),
+ * unlike the active-account metric. Item ids (also allowlisted in firestore.rules):
+ *   'huddle' | 'circular' | 'newsletter' | 'guide-railcard' | 'guide-fip'
+ * @param {string} itemId - stable open id (see list above)
+ * @param {string|null} [identity] - the acting member's name for the admin-exclusion check
+ *        (signed-in name, or the calendar's selected member); null records anonymously
+ */
+export function recordOpen(itemId, identity = null) {
+    if (identity && CONFIG.ADMIN_NAMES.includes(identity)) return;
+    try { recordPageView(itemId); } catch (_e) { /* best-effort */ }
+}

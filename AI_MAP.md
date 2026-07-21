@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v18.10 · Updated every 0.10 version*
+*Last updated: July 2026 — v18.20 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -612,6 +612,8 @@ Shared uncaught-error reporter (v13.31). Only export is `initErrorReporter()` �
 
 ### `usage-reporter.js`
 Anonymous usage recorder (v14.14) — the usage analogue of `error-reporter.js`. `recordUsage(page, member?, identity?)`: records an anonymous page-view counter, and (when a signed-in member is passed) counts that account toward the active-account metric, deduped client-side via localStorage flags keyed by member name (`myb_usage_m_*`, `myb_usage_d30_*`) so the server only ever receives `increment(1)` and never learns who was active. **Records nothing when `identity` (defaults to `member`) is in `CONFIG.ADMIN_NAMES`** — the developer's own test loads are excluded so figures reflect real staff (v14.95); the anonymous calendar passes its selected member as `identity` while leaving `member` null. Called once per page from each coordinator at the same point as `initErrorReporter()`. Imports the I/O from `firebase-client.js`, the dedup maths from `usage-stats.js`, `lsGet`/`lsSet` from `ls.js`, and `CONFIG` from `roster-data.js`. Fire-and-forget — never throws.
+
+- `recordOpen(itemId, identity?)` (v18.20) — anonymous "opened" counter for documents/guides, sharing the pv_ counts map and the admin exclusion; ids `huddle`/`circular`/`newsletter`/`guide-railcard`/`guide-fip` (allowlisted in firestore.rules). No dedup — every open counts. Called from `nav-panel.js` (drawer doc opens + guide-link taps; identity = `usageIdentity` opt, the calendar passes its selected member), `calendar-huddle-viewer.js` (viewer auto-open), `calendar-doc-viewer.js` (notification-tap Open button). Rendered by the Usage card's "Documents & guides — opens" group.
 
 ### `usage-stats.js`
 Pure date-bucketing + aggregation for the usage analytics — no DOM, no Firebase. Imported by `firebase-client.js` and `usage-reporter.js`; tested by `usage-stats.test.mjs`.

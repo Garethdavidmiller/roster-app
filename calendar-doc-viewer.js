@@ -20,6 +20,8 @@
  */
 import { createLightbox } from './overlay.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, officeViewerUrl } from './firebase-client.js';
+import { recordOpen } from './usage-reporter.js';
+import { getCurrentMember } from './calendar-member.js';
 
 /**
  * Per-document config. The emoji matches each feature's in-app icon (nav drawer /
@@ -81,7 +83,12 @@ export function initDocViewer() {
                 // viewer instead. PDFs open by their own URL (browsers show them inline).
                 const openUrl = doc.fileType === 'docx' ? officeViewerUrl(doc.storageUrl) : doc.storageUrl;
                 // Real user gesture → window.open opens a Custom Tab over the standalone app.
-                btn.addEventListener('click', () => window.open(openUrl, '_blank', 'noopener'));
+                // Counted here (not on viewer open) so the count means the document was actually
+                // opened — mirroring the nav-drawer path (v18.20; admin-excluded, anonymous).
+                btn.addEventListener('click', () => {
+                    recordOpen(key, getCurrentMember()?.name ?? null);
+                    window.open(openUrl, '_blank', 'noopener');
+                });
                 bodyEl.appendChild(btn);
                 btn.focus();
             } else {
