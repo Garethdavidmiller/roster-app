@@ -702,10 +702,22 @@
       font-size: var(--type-medium); color: var(--text-dark); line-height: 1.35; }
     .bp-mode-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-blue); }
     /* Locked (confirmed-award) rate boxes — read as fixed VALUES, matching the Settings read-only
-       rate treatment (solid faint fill, bold; unified v17.93 — was dashed, which read as "empty"). */
+       rate treatment (solid faint fill, bold, small 🔒; unified v17.93 / lock added v18.00). */
     input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
-      border-color: var(--border-light); cursor: default; }
+      border-color: var(--border-light); cursor: default; padding-right: 30px; }
     input.bp-rate-locked:focus { outline: none; box-shadow: none; }
+    .pfx:has(> input.bp-rate-locked)::after {
+      content: "🔒"; position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+      font-size: 11px; opacity: .45; pointer-events: none;
+    }
+    /* Award context strip at the top of the back-pay card — the card's key fact (which award,
+       backdated from, paid when), styled as a neutral navy info strip rather than a plain hint
+       (mirrors .backpay-notice geometry; navy = informational, gold = warning). (v18.00) */
+    .bp-award-scope {
+      font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
+      border-left: 3px solid var(--primary-blue); padding: 8px 10px;
+      background: var(--bg-faint); border-radius: 0 6px 6px 0; margin-bottom: 12px;
+    }
     .bp-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: 13px;
