@@ -378,6 +378,14 @@ export function updatePriorHpp(ty) {
     const stored = actualRaw || '';
     if (document.activeElement !== input) /** @type {HTMLInputElement} */ (input).value = stored;
   }
+  // The entry apparatus must not go stale once a figure is confirmed (v17.99): the "enter when the
+  // payslip arrives" note only shows while EMPTY, and the hint flips to how to undo.
+  const actNote = document.getElementById('priorHppActualNote');
+  if (actNote) actNote.classList.toggle('hidden', hasActual);
+  const actHint = document.getElementById('priorHppActualHint');
+  if (actHint) actHint.innerHTML = hasActual
+    ? 'Entered from your January payslip — clear the box to go back to the estimate.'
+    : `Find the <strong>Holiday Pay Premium</strong> line on your January ${priorTy.hppPaidJan} payslip and enter it here — it replaces the estimate above and updates your January take-home.`;
 
   section.classList.remove('hidden');
 }

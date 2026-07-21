@@ -1321,20 +1321,17 @@
     justify-content: space-between; gap: 8px; margin-bottom: 8px;
   }
 
-  /* Primary section sub-heading (dark) — HPP confirmed title etc. */
+  /* HPP year headings — same uppercase eyebrow rank as the hours card's .sec-hd dividers
+     (v17.99: was two near-duplicate bold classes; the rule under each replaces .field-divider). */
   .hpp-section-title {
-    font-size: var(--type-label); font-weight: 700; color: var(--text-dark);
+    font-size: var(--type-small); font-weight: 700; color: var(--text-mid);
+    text-transform: uppercase; letter-spacing: .05em;
   }
-
-  /* Secondary period heading (muted) — "This year (2026/27)" etc. */
+  .hpp-section-header { border-bottom: 1px solid var(--border-light); padding-bottom: 5px; }
   .section-subhead {
-    font-size: var(--type-label); font-weight: 700;
-    color: var(--text-mid); margin-bottom: 4px;
-  }
-
-  /* Thin rule divider between HPP prior-year and current-year sections */
-  .field-divider {
-    border-top: 1px solid var(--border-light); margin-bottom: 10px;
+    font-size: var(--type-small); font-weight: 700; color: var(--text-mid);
+    text-transform: uppercase; letter-spacing: .05em;
+    border-bottom: 1px solid var(--border-light); padding-bottom: 5px; margin-bottom: 10px;
   }
 
   /* "Due this January" badge on the HPP prior-year card */
