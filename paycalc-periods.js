@@ -287,6 +287,23 @@ export function buildPeriodSelect() {
  * @param {number} [minPNum=0]
  * @param {number} [maxPNum=Infinity]
  */
+/**
+ * Populate the Year-to-Date "From which payslip?" selector with the tax year's PAID payslips
+ * (you can only copy totals from a payslip that exists), newest first — the latest payslip is
+ * the overwhelmingly common source. Rebuilding clears the selection; the caller re-applies the
+ * stored source afterwards. (v17.98)
+ * @param {{ first:number, last:number }} ty - the tax year whose payslips to offer
+ */
+export function buildYtdSourceSelect(ty) {
+  const sel = document.getElementById('ytdSrcSelect');
+  if (!sel) return;
+  const today = todaysPeriodNum();
+  const paid = visiblePeriods()
+    .filter((/** @type {any} */ p) => p.num >= 48 + ty.first && p.num <= 48 + ty.last && p.num < today)
+    .reverse();
+  _populatePeriodSelect(sel, paid, { placeholder: '— which payslip did they come from? —' });
+}
+
 export function buildBackPayPeriodSelect(minPNum = 0, maxPNum = Infinity) {
   const sel = document.getElementById('backPayPeriod');
   if (!sel) return;

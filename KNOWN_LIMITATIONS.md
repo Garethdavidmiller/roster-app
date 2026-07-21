@@ -104,7 +104,11 @@ is tunnel-blocked, so the SDK never loads and never makes the call (the document
 local `npm run test:csp` stays green while CI is red). Fix: `script-src` now includes
 `https://apis.google.com`; `frame-src` (was `'none'`) now allows
 `https://myb-roster.firebaseapp.com https://apis.google.com` for the auth iframe — the standard
-Firebase-Auth-under-CSP requirement. Applied to the `firebase.json` header AND all ten `<meta>` CSPs
+Firebase-Auth-under-CSP requirement. **Second layer (v17.96):** once the gapi script could load, it
+began pinging its own telemetry endpoint (`apis.google.com/js/gen_204`) — a `connect-src` violation
+(the `*.googleapis.com` wildcard does NOT cover `apis.google.com`). `connect-src` now includes
+`https://apis.google.com` too. Lesson: allowing a third-party script means allowing what it then
+CONNECTS to — check the CI csp job after each layer, not just the first. Applied to the `firebase.json` header AND all ten `<meta>` CSPs
 (csp-meta-parity), with `apis.google.com` added to `csp-hygiene.test.mjs`'s `DYNAMIC_HOSTS` (it's
 requested by the gstatic SDK, not built in our source).
 

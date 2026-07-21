@@ -31,7 +31,7 @@ import {
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
-  _setSelectPeriod,
+  _setSelectPeriod, buildYtdSourceSelect,
 } from './paycalc-periods.js';
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
@@ -51,7 +51,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
-import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
+import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
 
@@ -281,6 +281,59 @@ export function init() {
     // updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod) imported from paycalc-periods.js.
     // getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod imported from paycalc-calc.js.
 
+    /**
+     * Refresh the Year-to-Date source-payslip anchor for the viewed tax year (v17.98): rebuild the
+     * "From which payslip?" select with the year's paid payslips, restore the stored source (legacy
+     * figures with no recorded source are stamped with the app's own standing assumption — the
+     * payslip before today's, clamped into the year — making the old implicit behaviour explicit
+     * and editable), and rewrite the note that states whether the figures sharpen THIS payslip.
+     * @param {any} ty @param {any} p
+     */
+    function _refreshYtdSrc(ty, p) {
+      const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ytdSrcSelect'));
+      if (!sel) return;
+      buildYtdSourceSelect(ty);
+      let src = parseInt(lsGet(ytdSrcKey(ty)) ?? '', 10) || 0;
+      const hasFigures = ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay')))?.value.trim() || '') !== ''
+                      || ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdTax')))?.value.trim() || '') !== '';
+      if (!src && hasFigures) {
+        // Legacy stamp: the maths always ASSUMED the figures were the totals through the payslip
+        // before the one on screen; anchor them to the payslip before TODAY's (the latest paid),
+        // clamped into this tax year — so a maintained user's next-payslip estimate is unchanged.
+        src = Math.min(Math.max(todaysPeriodNum() - 1, 48 + ty.first), 48 + ty.last);
+        lsSet(ytdSrcKey(ty), String(src));
+      }
+      if (src) _setSelectPeriod(sel, src);
+      _updateYtdNote(ty, p, src);
+    }
+
+    /** The YTD note: states which payslip the figures are from and whether they sharpen the one on
+     *  screen (the cumulative method engages only on source + 1). @param {any} ty @param {any} p @param {number} src */
+    function _updateYtdNote(ty, p, src) {
+      const note = document.getElementById('ytdUptoNote');
+      if (!note) return;
+      const periodIdx = (p.num - 48) - ty.first + 1; // 1-based HMRC period within the tax year
+      if (periodIdx <= 1) {
+        note.innerHTML = `P${payslipPeriodNum(p)} is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;
+        return;
+      }
+      const srcP = src ? getPeriods().find(/** @param {any} x */ x => x.num === src) : null;
+      if (!srcP) {
+        note.innerHTML = `Copy the two figures from your <strong>latest payslip</strong> and pick which payslip they came from — the estimate right after it gets sharper.`;
+        return;
+      }
+      const from = `<strong>P${payslipPeriodNum(srcP)} (paid ${fdShort(srcP.payday)})</strong>`;
+      if (p.num === src + 1) {
+        note.innerHTML = `✓ Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.`;
+      } else {
+        const prevP = getPeriods().find(/** @param {any} x */ x => x.num === p.num - 1);
+        const upd = prevP && prevP.num < todaysPeriodNum()
+          ? ` Update them from <strong>P${payslipPeriodNum(prevP)} (paid ${fdShort(prevP.payday)})</strong> to sharpen it.`
+          : '';
+        note.innerHTML = `Your Year to Date figures are from ${from}, so this payslip uses the standard method.${upd}`;
+      }
+    }
+
     function onPeriodChange() {
       _resetClearConfirm();   // switching period disarms a pending two-tap Clear (v16.84)
       const pNum    = +/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect')).value;
@@ -343,7 +396,7 @@ export function init() {
 
       // Tax-year chip in the back-pay + HPP card headers — makes clear WHICH year each card is
       // editing, even when collapsed (both cards follow the viewed period's tax year). (v17.89)
-      for (const _cid of ['bpYearChip', 'hppYearChip']) {
+      for (const _cid of ['bpYearChip', 'hppYearChip', 'ytdYearChip']) {
         const _chip = document.getElementById(_cid);
         if (_chip) _chip.textContent = ty.label;
       }
@@ -359,28 +412,11 @@ export function init() {
       updateRateForPeriod(ty, p);
       updateYtdForTaxYear(ty);
 
-      // Year-to-Date "up to" note. The cumulative-PAYE tax method (computeTax) adds the entered YTD
-      // figures to the VIEWED period's gross, so they are only correct when they are the totals as of
-      // the payslip IMMEDIATELY BEFORE the one on screen. IMPORTANT: the figures are stored ONCE per
-      // tax year (shared across all 13 periods) — the app does NOT know which payslip they came from.
-      // So the note frames them as a single latest-payslip snapshot and names the ideal source
-      // payslip for the viewed period, rather than implying a per-period accuracy it can't guarantee
-      // (v17.33 note; wording softened v17.41 — the per-year storage means "enter from P44" could
-      // otherwise read as satisfied while the fields still held older figures).
-      const _ytdNote = document.getElementById('ytdUptoNote');
-      if (_ytdNote) {
-        const periodIdx = (p.num - 48) - ty.first + 1; // 1-based HMRC period within the tax year
-        if (periodIdx <= 1) {
-          // First payslip of the tax year — cumulative totals restart from £0 in April, so no prior
-          // payslip exists to copy from.
-          _ytdNote.innerHTML = `P${payslipPeriodNum(p)} is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;
-        } else {
-          const prevP = periods.find(/** @param {any} x */ x => x.num === p.num - 1);
-          _ytdNote.innerHTML = prevP
-            ? `The Year to Date figures are one running total from your <strong>latest payslip</strong>, shared across the year. They sharpen the P${payslipPeriodNum(p)} estimate most when they're the totals from the payslip just before it — <strong>P${payslipPeriodNum(prevP)} (paid ${fdShort(prevP.payday)})</strong>. Update them whenever a newer payslip arrives.`
-            : `The Year to Date figures are one running total from your latest payslip — keep them updated as new payslips arrive.`;
-        }
-      }
+      // Year-to-Date SOURCE anchor (v17.98 — owner: "doesn't YTD also need what payslip you're
+      // attaching it to?"). The figures are stored once per tax year WITH the payslip they were
+      // copied from (ytdSrcKey); the cumulative method engages only on the payslip immediately
+      // after that source (see calculate()), and the note states the position plainly.
+      _refreshYtdSrc(ty, p);
       // Update the "for P__" label next to the pension field so users can see
       // which period's pension they are viewing or editing.
       const pensionPeriodLbl = document.getElementById('pensionPeriodLabel');
@@ -887,10 +923,16 @@ export function init() {
       const ytdTaxEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdTax'));
       // Garbage (NaN) falls back to null too — a stray character means "not usable", not "£0 YTD",
       // so tax quietly stays non-cumulative rather than asserting a £0 year-to-date figure.
-      const ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numValOr('ytdPay', null) : null;
+      let ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numValOr('ytdPay', null) : null;
       // Mirror the ytdPay guard — pass null (not 0) when blank so computeTax treats
       // "ytdPay filled, ytdTax left blank" as incomplete rather than "£0 tax collected".
-      const ytdT = (ytdTaxEl?.value ?? '').trim() !== '' ? numValOr('ytdTax', null) : null;
+      let ytdT = (ytdTaxEl?.value ?? '').trim() !== '' ? numValOr('ytdTax', null) : null;
+      // SOURCE anchor (v17.98): the cumulative method adds this payslip's gross to the entered
+      // totals, so it is only VALID on the payslip immediately after the one the figures came
+      // from. Any other payslip falls back to the standard (non-cumulative) method — previously
+      // stale figures were silently treated as last-payslip totals and quietly skewed the tax.
+      const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
+      if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
       const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
       const { tax, usingCumulative } = computeTax(
         sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
@@ -1614,8 +1656,26 @@ export function init() {
     })();
 
     // Payslip card inputs
-    /** @type {HTMLElement} */ (document.getElementById('ytdPay')).addEventListener('input',    () => { saveSettings(); calculate(); });
-    /** @type {HTMLElement} */ (document.getElementById('ytdTax')).addEventListener('input',    () => { saveSettings(); calculate(); });
+    // YTD figures: auto-stamp the source payslip on first entry (defaults to the latest paid
+    // payslip — where the totals almost always come from), then persist + recalc. The select
+    // lets the member correct it if they copied from an older payslip. (v17.98)
+    const _ytdFigureInput = () => {
+      saveSettings();
+      const _p2  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+      const _ty2 = taxYearForPeriod(_p2);
+      if (!lsGet(ytdSrcKey(_ty2))) _refreshYtdSrc(_ty2, _p2); else _updateYtdNote(_ty2, _p2, parseInt(lsGet(ytdSrcKey(_ty2)) ?? '', 10) || 0);
+      calculate();
+    };
+    /** @type {HTMLElement} */ (document.getElementById('ytdPay')).addEventListener('input', _ytdFigureInput);
+    /** @type {HTMLElement} */ (document.getElementById('ytdTax')).addEventListener('input', _ytdFigureInput);
+    /** @type {HTMLElement} */ (document.getElementById('ytdSrcSelect')).addEventListener('change', () => {
+      const _p2  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+      const _ty2 = taxYearForPeriod(_p2);
+      const _v = /** @type {HTMLSelectElement} */ (document.getElementById('ytdSrcSelect')).value;
+      if (_v) lsSet(ytdSrcKey(_ty2), _v);
+      _updateYtdNote(_ty2, _p2, parseInt(_v, 10) || 0);
+      calculate();
+    });
 
     // Prior year HPP actual — saves to per-year key and refreshes the prior HPP section display.
     // Commit on `change` (fires on blur / keyboard "done"), NOT `input` (v17.26): committing per

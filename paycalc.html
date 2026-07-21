@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://apis.google.com; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src https://myb-roster.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://apis.google.com; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://apis.google.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src https://myb-roster.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
@@ -509,10 +509,11 @@
   <div class="content-card" id="payslipCard">
     <div class="card-header card-header-toggle" id="payslipCardToggle">
       <div>
-        <h2><span aria-hidden="true">📊</span> Year to Date Figures <span class="card-optional-tag">(optional)</span></h2>
-        <span class="hint">Sharpens the tax estimate on every payslip — copy two figures from your latest payslip</span>
+        <h2><span aria-hidden="true">📊</span> Year to Date Figures</h2>
+        <span class="hint">Optional — sharpens the tax estimate; copy two figures from your latest payslip</span>
       </div>
       <div class="card-header-actions">
+        <span class="card-year-chip" id="ytdYearChip" title="Tax year"></span>
         <button type="button" class="help-btn" data-help="accuracy" aria-label="Help: Year to Date Figures">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
@@ -539,6 +540,13 @@
           </div>
         </div>
         <div class="field-hint">Find these in the <strong>Year to Date</strong> box on your payslip — copy "Taxable Pay" and "Tax Paid" across. The app will use them to give a more accurate tax figure. Update whenever you get a new payslip.</div>
+      </div>
+
+      <!-- Source payslip anchor (v17.98): records WHICH payslip the two totals were copied from,
+           so the cumulative tax method engages only on the payslip right after it. -->
+      <div class="field" id="ytdSrcField">
+        <label for="ytdSrcSelect">From which payslip? <span class="note">the one you copied them from</span></label>
+        <select id="ytdSrcSelect"></select>
       </div>
 
       <div class="field-hint" style="padding-top:4px">When a January payslip arrives with your Holiday Pay Premium, enter the confirmed figure in the <strong>Holiday Pay Premium</strong> card — it replaces the running estimate there.</div>

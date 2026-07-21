@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://apis.google.com; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src https://myb-roster.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://apis.google.com; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://apis.google.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src https://myb-roster.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -57,7 +57,7 @@
                 <li>Open it from the <strong>💷 Pay</strong> button on the roster</li>
                 <li>The <strong>Settings</strong> card opens — fill it in once</li>
                 <li>Pick your <strong>grade</strong> (CEA or CES) — this sets your hourly rate</li>
-                <li>Check the <strong>hourly rate</strong> matches your latest payslip</li>
+                <li>Your <strong>hourly rate</strong> fills in automatically from your grade</li>
                 <li>Enter your <strong>tax code</strong> (e.g. <code>1257L</code>) — from your payslip or P60</li>
                 <li>Enter your <strong>pension</strong> — the "Smart RPS CR Scheme" £ figure</li>
                 <li>Pick a <strong>student loan</strong> plan if you have one, then <strong>Save settings</strong></li>
