@@ -82,6 +82,16 @@ async function initErrorLog() {
         // tap per row (with no refresh) is a grind. This resolves every unresolved error currently
         // shown, then refreshes the card in place to pull the next batch (B3).
         let unresolvedShown = errors.filter(e => !e.resolved);
+        // Header count chip (v18.17): the unresolved backlog at a glance while the card is collapsed.
+        // '100+' when the query cap hid the true total; empty (→ :empty hides it) at zero. Re-set on
+        // every render (resolve-all does a full refresh) and on each per-row resolve (via
+        // _syncResolveAllBtn below), so it never goes stale.
+        const _countChip = document.getElementById('errorLogCountChip');
+        const _setCountChip = () => {
+            if (_countChip) _countChip.textContent = unresolvedShown.length
+                ? (truncated ? '100+' : String(unresolvedShown.length)) : '';
+        };
+        _setCountChip();
         /** Keep the resolve-all button's count in step as individual resolves prune the
          *  snapshot; disable it when nothing unresolved remains shown. Assigned below. */
         let _syncResolveAllBtn = () => {};
@@ -97,6 +107,7 @@ async function initErrorLog() {
                     ? `✓ Resolve all shown (${unresolvedShown.length})`
                     : '✓ All shown resolved';
                 allBtn.disabled = unresolvedShown.length === 0;
+                _setCountChip();
             };
             allBtn.addEventListener('click', async () => {
                 allBtn.disabled = true;
