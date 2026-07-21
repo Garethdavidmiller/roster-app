@@ -1035,8 +1035,10 @@
   .decimal-conv-field {
     display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 130px;
   }
+  /* Same eyebrow rank as every other input label in the calculator (v18.02). */
   .decimal-conv-field label {
-    font-size: var(--type-small); font-weight: 600; color: var(--text-mid);
+    font-size: var(--type-micro); font-weight: 700; color: var(--text-light);
+    text-transform: uppercase; letter-spacing: 0.5px;
   }
   .decimal-hrs-input {
     width: 100%; padding: 10px 12px; border: 2px solid var(--border-mid);
@@ -1045,16 +1047,17 @@
     transition: border-color var(--dur-med), background-color var(--dur-med);
   }
   .decimal-hrs-input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color); background-color: white; }
+  /* Both columns now carry an eyebrow label, so the boxes align naturally — the old +20px
+     padding/margin compensation hacks are gone; the = centres on the box row instead. (v18.02) */
   .decimal-conv-equals {
     font-size: 1.3rem; font-weight: 700; color: var(--text-light);
-    flex-shrink: 0; padding-top: 20px;
+    flex-shrink: 0; align-self: flex-end; padding-bottom: 9px;
   }
   .decimal-conv-result {
     flex: 1.5; min-width: 140px; padding: 10px 14px;
     background: var(--bg-faint); border-radius: var(--radius-sm);
     font-size: 1rem; font-weight: 700; color: var(--primary-blue);
     border: 2px solid var(--border-light);
-    margin-top: 20px;
   }
 
   .card-header-toggle {

@@ -726,17 +726,22 @@
         <h2><span aria-hidden="true">🔢</span> Decimal Hours Converter</h2>
         <span class="hint">Chiltern payslips show hours as decimals — tap to convert</span>
       </div>
-      <span class="card-toggle-arrow">▼</span>
+      <div class="card-header-actions">
+        <span class="card-toggle-arrow">▼</span>
+      </div>
     </div>
     <div class="card-body collapsible-body" id="decimalConverterBody">
-      <p class="card-explainer">Your payslip shows hours worked as a decimal — for example, 7.5 means 7 hours 30 minutes, and 0.25 means 15 minutes. Use this converter when entering figures from an old payslip into the calculator above.</p>
+      <p class="card-explainer">Your payslip shows hours as a decimal — <strong>7.5</strong> means 7&nbsp;hours 30&nbsp;minutes, <strong>0.25</strong> means 15&nbsp;minutes. Convert a figure here before typing it in above.</p>
       <div class="decimal-conv-row">
         <div class="decimal-conv-field">
           <label for="decimalHrsInput">Decimal from payslip</label>
           <input type="text" id="decimalHrsInput" class="decimal-hrs-input" placeholder="e.g. 7.5" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
-        <div class="decimal-conv-equals">=</div>
-        <div class="decimal-conv-result" id="decimalHrsResult" aria-live="polite">–</div>
+        <div class="decimal-conv-equals" aria-hidden="true">=</div>
+        <div class="decimal-conv-field">
+          <div class="field-eyebrow" id="decimalHrsResultLabel">Hours and minutes</div>
+          <div class="decimal-conv-result" id="decimalHrsResult" aria-live="polite" aria-labelledby="decimalHrsResultLabel">–</div>
+        </div>
       </div>
     </div>
   </div>
