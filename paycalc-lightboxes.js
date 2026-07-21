@@ -14,6 +14,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { lsGet, lsSet } from './ls.js';
+import { decimalToHM } from './paycalc-format.js';
 import { GRADES } from './paycalc-calc.js';
 import { SK, NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
          readPayslipActuals, writePayslipActuals, clearPayslipActuals, isActualsDev } from './paycalc-migrations.js';
@@ -157,11 +158,9 @@ export function initPaycalcLightboxes() {
     function convert() {
       const _input  = /** @type {HTMLInputElement} */ (input);
       const _result = /** @type {HTMLElement} */ (result);
-      const val = parseFloat(_input.value);
-      if (isNaN(val) || val < 0) { _result.textContent = '–'; return; }
-      const totalMins = Math.round(val * 60);
-      const hrs  = Math.floor(totalMins / 60);
-      const mins = totalMins % 60;
+      const hm = decimalToHM(parseFloat(_input.value)); // single source: paycalc-format.js (60→next-hour guard)
+      if (!hm) { _result.textContent = '–'; return; }
+      const { h: hrs, m: mins } = hm;
       if (hrs === 0) {
         _result.textContent = `${mins} min${mins !== 1 ? 's' : ''}`;
       } else if (mins === 0) {
