@@ -328,7 +328,10 @@
 
     /* Section headings inside cards */
     .sec-hd {
-      font-size: 13px; font-weight: 700; color: var(--text-mid);
+      /* Uppercase eyebrow (v17.95) — matches the app's field-label convention (GRADE, TAX CODE…)
+         so section dividers read as a different rank from card titles, not competing bold text. */
+      font-size: var(--type-small); font-weight: 700; color: var(--text-mid);
+      text-transform: uppercase; letter-spacing: .05em;
       padding: 10px 0 5px; border-bottom: 1px solid var(--border-light);
     }
     .sec-hd.first { padding-top: 4px; }

@@ -213,10 +213,10 @@ export function confirmSettings(calculate) {
   const _cfGrade = getGrade();
   const rate = (parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value)
     || (GRADES[_cfGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
-  const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
   const hintEl = document.getElementById('settingsHint');
   const _cfPre = !!curP && isPreAwardPeriod(curP, _cfGrade, curTy.label);
-  if (hintEl) hintEl.textContent = `✓ ${curTy.label} — £${rate}/hr${_cfPre ? ' · pre-rise rate' : ''} · ${code}`;
+  // No tax code here — matches the coordinator's summary writer (one line at 390px; v17.95).
+  if (hintEl) hintEl.textContent = `✓ ${curTy.label} — £${rate}/hr${_cfPre ? ' · pre-rise' : ''}`;
   // Brief "saved" confirmation then collapse
   const fb = document.getElementById('settingsSaveFeedback');
   if (fb) fb.textContent = '✓ Settings saved';
