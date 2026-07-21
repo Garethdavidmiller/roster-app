@@ -30,7 +30,7 @@ const _unknownShiftWarned = new Set();
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
- * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any }}
+ * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any }}
  */
 export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSelectedMemberIndex, isFirstRun, renderCalendar,
                                 _pushOverlayState, _clearOverlayHistory }) {

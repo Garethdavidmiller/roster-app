@@ -335,6 +335,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
      * Falls back to the coming-soon lightbox if no document exists or fetch fails.
      * @param {HTMLElement} triggerEl
      * @param {() => Promise<any>} fetchFn
+     * @param {string} docId - open-counter id ('circular' | 'newsletter'), recorded on the success path (v18.20)
      */
     function _openLatestDoc(triggerEl, fetchFn, docId) {
         if (_docFetching) return;
