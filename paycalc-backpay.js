@@ -490,8 +490,8 @@ export function calcBackPay() {
     if (bpP) {
       const payLong = bpP.payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
       noticeEl.innerHTML = bpP.payday < new Date()
-        ? `ℹ️ This lump sum appeared on your <strong>P${payslipPeriodNum(bpP)} payslip (paid ${payLong})</strong>. It was taxed in full in that period.`
-        : `⚠️ This lump sum will appear on your <strong>P${payslipPeriodNum(bpP)} payslip (paid ${payLong})</strong>. It is taxed in full in that period.`;
+        ? `ℹ️ This lump sum appeared on your <strong>${payLong} payslip</strong> (P${payslipPeriodNum(bpP)}). It was taxed in full in that period.`
+        : `⚠️ This lump sum will appear on your <strong>${payLong} payslip</strong> (P${payslipPeriodNum(bpP)}). It is taxed in full in that period.`;
     } else {
       noticeEl.textContent = '⚠️ Select which payslip carried this lump sum above.';
     }
@@ -551,7 +551,7 @@ export function calcBackPay() {
       // contracted component + London diff. GUARDED by fromPNum: with no "backdated from" period
       // selected there is no award window, so an unvisited period has nothing to accrue and is
       // skipped — otherwise contracted arrears would be summed across unbounded history.
-      if (parsed.error) { _skipped.push(`P${payslipPeriodNum(p)}`); console.warn('[PayCalc] Back-pay corrupt period', p.num); return; }
+      if (parsed.error) { _skipped.push(fdShort(p.payday)); console.warn('[PayCalc] Back-pay corrupt period', p.num); return; }
       if (!parsed.data && !fromPNum) return;
       const d = parsed.data || {};
       // All the money arithmetic lives in the PURE _accrueBackPayPeriod (unit-tested) — this loop
@@ -574,14 +574,14 @@ export function calcBackPay() {
         grandVarTotal += varPay;
         pCount++;
         rows += `<div class="bp-row">
-          <span class="bp-lbl">P${payslipPeriodNum(p)} · ${fd(p.payday)}</span>
+          <span class="bp-lbl">${fd(p.payday)} · P${payslipPeriodNum(p)}</span>
           <span class="bp-val">${fmt(bpRow)}</span>
         </div>`;
       }
     } catch (e) {
       // A corrupted saved period must not abort the whole lump — but dropping its arrears
       // silently would under-state money, so record it (surfaced below) as well as tracing it.
-      _skipped.push(`P${payslipPeriodNum(p)}`);
+      _skipped.push(fdShort(p.payday));
       console.warn('[PayCalc] Back-pay skipped period', p.num, e);
     }
   });
@@ -609,7 +609,7 @@ export function calcBackPay() {
       // A paid-in payday in the past means the lump has already been paid (a settled award being
       // reviewed) — say so in the past tense; "will appear" for a nine-months-ago payslip reads wrong.
       noticeEl.innerHTML = bpP.payday < new Date()
-        ? `ℹ️ This lump sum appeared on your <strong>P${payslipPeriodNum(bpP)} payslip (paid ${payLong})</strong>. It was taxed in full in that period.`
+        ? `ℹ️ This lump sum appeared on your <strong>${payLong} payslip</strong> (P${payslipPeriodNum(bpP)}). It was taxed in full in that period.`
         : `⚠️ This lump sum will appear on your <strong>P${payslipPeriodNum(bpP)} payslip (paid ${payLong})</strong>. It is taxed in full in that period — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.`;
     } else {
       noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
@@ -641,7 +641,7 @@ export function calcBackPay() {
   // both branches above, so append to it.
   if (_skipped.length) {
     noticeEl.style.display = 'block';
-    noticeEl.innerHTML += `<span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved period${_skipped.length > 1 ? 's' : ''} (${_skipped.join(', ')}), so this total may be too low. Open ${_skipped.length > 1 ? 'those periods' : 'that period'} on the calculator to re-save, then check again.</span>`;
+    noticeEl.innerHTML += `<span class="pay-skip-warn">⚠️ Couldn't read ${_skipped.length} saved payslip${_skipped.length > 1 ? 's' : ''} (${_skipped.join(', ')}), so this total may be too low. Open ${_skipped.length > 1 ? 'those payslips' : 'that payslip'} on the calculator to re-save, then check again.</span>`;
   }
 
   // Surface a CORRUPT saved-CARD-state reset once (Finding #7) — shared helper, also called on the

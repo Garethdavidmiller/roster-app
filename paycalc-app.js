@@ -316,7 +316,7 @@ export function init() {
       note.classList.toggle('ytd-upto-note--live', !!(srcP0 && p.num === src + 1));
       const periodIdx = (p.num - 48) - ty.first + 1; // 1-based HMRC period within the tax year
       if (periodIdx <= 1) {
-        note.innerHTML = `P${payslipPeriodNum(p)} is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;
+        note.innerHTML = `This is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;
         return;
       }
       const srcP = src ? getPeriods().find(/** @param {any} x */ x => x.num === src) : null;
@@ -324,13 +324,13 @@ export function init() {
         note.innerHTML = `Copy the two figures from your <strong>latest payslip</strong> and pick which payslip they came from — the estimate right after it gets sharper.`;
         return;
       }
-      const from = `<strong>P${payslipPeriodNum(srcP)} (paid ${fdShort(srcP.payday)})</strong>`;
+      const from = `your <strong>${fdShort(srcP.payday)} payslip</strong> (P${payslipPeriodNum(srcP)})`;
       if (p.num === src + 1) {
         note.innerHTML = `✓ Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.`;
       } else {
         const prevP = getPeriods().find(/** @param {any} x */ x => x.num === p.num - 1);
         const upd = prevP && prevP.num < todaysPeriodNum()
-          ? ` Update them from <strong>P${payslipPeriodNum(prevP)} (paid ${fdShort(prevP.payday)})</strong> to sharpen it.`
+          ? ` Update them from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}) to sharpen it.`
           : '';
         note.innerHTML = `Your Year to Date figures are from ${from}, so this payslip uses the standard method.${upd}`;
       }
@@ -405,9 +405,8 @@ export function init() {
       // Settings card chip shows the PERIOD/payslip you're on (the rate + pension are period-specific)
       // — the settings summary already carries the tax year. (v17.92)
       const _spc = document.getElementById('settingsPeriodChip');
-      // Just "P24" (v17.95): the payday date sits in the period selector directly below, and the
-      // shorter chip keeps the collapsed settings summary to a single line at 390px.
-      if (_spc) _spc.textContent = `P${payslipPeriodNum(p)}`;
+      // The PAYDAY, not the period number (v18.04 — owner: staff remember paydates, not P-numbers).
+      if (_spc) _spc.textContent = fdShort(p.payday);
 
       // Load the rate and Year to Date figures for this period's tax year (period-aware: an
       // early-in-the-year period before its mid-year pay-award date shows the pre-rise rate).
@@ -422,7 +421,7 @@ export function init() {
       // Update the "for P__" label next to the pension field so users can see
       // which period's pension they are viewing or editing.
       const pensionPeriodLbl = document.getElementById('pensionPeriodLabel');
-      if (pensionPeriodLbl) pensionPeriodLbl.textContent = `for P${payslipPeriodNum(p)}`;
+      if (pensionPeriodLbl) pensionPeriodLbl.textContent = `for the ${fdShort(p.payday)} payslip`;
 
       // Settings confirmation check for this tax year.
       const tyConfirmed = lsGet(settingsKey(ty));
@@ -1788,7 +1787,7 @@ export function init() {
       const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
       const p = periodSel ? getPeriods().find(/** @param {any} x */ x => x.num === +periodSel.value) : null;
       const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-      const label = p ? `Period P${payslipPeriodNum(p)} · Paid ${fdShort(p.payday)} · Printed ${now}` : `MYB Pay Calculator · Printed ${now}`;
+      const label = p ? `Paid ${fd(p.payday)} (P${payslipPeriodNum(p)}) · Printed ${now}` : `MYB Pay Calculator · Printed ${now}`;
       hdr.setAttribute('data-print-line', label);
     }
     stampPaycalcPrintLine();

@@ -225,7 +225,9 @@ function _populatePeriodSelect(/** @type {any} */ el, /** @type {any} */ periods
     const payStr = p.payday.toLocaleDateString('en-GB', {
       day: 'numeric', month: 'short', year: 'numeric'
     });
-    o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `P${payslipPeriodNum(p)} · Paid ${payStr}`;
+    // Date FIRST — staff remember paydates, not period numbers (owner, Jul 2026); the printed
+    // P-number stays as the secondary cross-check against the payslip.
+    o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `Paid ${payStr} · P${payslipPeriodNum(p)}`;
     currentGroup.appendChild(o);
   });
 }
