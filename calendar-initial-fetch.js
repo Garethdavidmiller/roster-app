@@ -14,9 +14,17 @@ import { formatISO } from './roster-data.js';
 /**
  * Kick off the initial 3-month Firestore fetch and wire the sync chip + visibility handler.
  *
- * @param {{ isTeamViewMode: () => boolean, renderCalendar: () => void }} deps
+ * @param {{ isTeamViewMode: () => boolean, renderCalendar: () => void, renderTeamView?: () => void }} deps
+ *   renderTeamView — re-renders the Team Week View grid from the (now-populated) cache
+ *   WITHOUT re-fetching (v18.21). Without it, a user in team view when this fetch resolved
+ *   was stranded on a base-roster grid: this success path rendered nothing in team view,
+ *   and the team view's own week fetch then reconciled against the cache this fetch had
+ *   ALREADY populated → "no change" → it skipped its re-render too. Both notifiers stood
+ *   down. Deterministic on boot-into-team-view (restored mode), because Firestore's
+ *   IndexedDB persistence makes this 3-month read reliably beat the week query — which is
+ *   why a refresh never recovered.
  */
-export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
+export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamView = () => {} }) {
   const now  = new Date();
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -139,7 +147,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       // (The initial silent fetch below stays silent so it isn't announced on every load.)
       announceSync('Shifts updated');
       setTimeout(() => announceSync(''), 3000);
-      if (!isTeamViewMode()) renderCalendar();
+      if (isTeamViewMode()) renderTeamView(); else renderCalendar();
     } catch (err) {
       console.error('[Firestore] Retry failed:', err);
       // Bail if a later retry superseded this one OR if a fetch has meanwhile actually LOADED the
@@ -177,7 +185,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       // the 3-month window, this render's ensureOverridesCached must be allowed to top it up —
       // waiting for the finally would skip that fetch and leave the month override-less.
       setInitialFetchInProgress(false);
-      if (!isTeamViewMode()) renderCalendar();
+      if (isTeamViewMode()) renderTeamView(); else renderCalendar();
 
       if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
       announceSync('');
@@ -217,7 +225,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
   // re-render from whatever cached data we have so the calendar is not blank.
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && _initialFetchInProgress) {
-      if (!isTeamViewMode()) renderCalendar();
+      if (isTeamViewMode()) renderTeamView(); else renderCalendar();
     }
   });
 }

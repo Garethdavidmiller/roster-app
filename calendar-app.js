@@ -559,6 +559,10 @@ try {
             // Deferred: the 3-month fetch can resolve mid-swipe on a slow connection — an immediate
             // render would wipe the carousel and freeze the grid on the old month (v16.23).
             renderCalendar: renderCalendarWhenIdle,
+            // Team view active when the 3-month fetch lands → repaint its grid from the cache
+            // (v18.21 — without this an early/boot-time team view stayed base-roster-only: see
+            // initInitialFetch's JSDoc for the two-sided stand-down).
+            renderTeamView: () => teamView.refreshFromCache(),
         });
 
         // Restore team view if the user was in it before the last refresh; else render the

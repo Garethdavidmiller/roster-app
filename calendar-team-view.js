@@ -445,5 +445,12 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         isTeamViewMode:  () => teamViewMode,
         restoreTeamView,
         jumpToCurrentWeek,
+        // Re-render the grid from the ALREADY-populated shared cache, no re-fetch (v18.21).
+        // Called by the initial 3-month fetch's success path when team view is active — the
+        // missing notification that stranded an early team-view open on a base-roster grid
+        // (this view's own week fetch then found the cache already matching its snapshot and
+        // skipped ITS re-render — both notifiers stood down). skipFetch avoids a redundant
+        // query and any fetch↔render loop.
+        refreshFromCache: () => { if (teamViewMode) renderTeamView(currentTeamGrade, { skipFetch: true }); },
     };
 }
