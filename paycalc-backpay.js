@@ -55,6 +55,26 @@ function _surfaceCorruptReset(/** @type {HTMLElement} */ noticeEl) {
   noticeEl.innerHTML += `<span class="pay-skip-warn">⚠️ Your saved back-pay entries couldn't be read and were reset — re-check the figures and the tick above.</span>`;
 }
 
+// ── PAID-IN PERIOD (pure) ─────────────────────────────────────────────────────
+
+/**
+ * The paid-in payslip period for a DECIDED award: the number of the FIRST period whose payday is
+ * on/after the award-application date — the payslip that actually carries the backdated lump. PURE
+ * (DOM callers pass `getPeriods()` + `awardFromForYear(label)`), so it is unit-testable. Extracted
+ * v18.13 after an award-date MOVE (the 3.6% award, 31 Jul → 28 Aug) left a stale saved paid-in
+ * pinning the lump to the old payslip — this locks the derivation so a future date move is caught by
+ * a test, not by a member noticing the "green box" on the wrong payslip. Returns null for an
+ * undecided award (no date) or when no period qualifies.
+ * @param {Array<{num:number, payday:Date}>} periods  - ascending by payday, as getPeriods() returns
+ * @param {Date|null|undefined} awardFrom
+ * @returns {number|null}
+ */
+export function paidInPeriodNum(periods, awardFrom) {
+  if (!awardFrom) return null;
+  const p = periods.find(/** @param {any} x */ x => x.payday >= awardFrom);
+  return p ? p.num : null;
+}
+
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
 
 /**
@@ -214,7 +234,7 @@ export function prefillBackPay() {
   // itself excluded from the accrual (see calcBackPay's _capPNum).
   if (paidSel && !paidSel.value) {
     const _target = _fromDate
-      ? (getPeriods().find(/** @param {any} x */ x => x.payday >= _fromDate)?.num ?? pNum)
+      ? (paidInPeriodNum(getPeriods(), _fromDate) ?? pNum)
       : todaysPeriodNum();
     _setSelectPeriod(paidSel, _target);
   }
@@ -297,7 +317,7 @@ export function restoreBpState() {
   // bpPNum would be 0 and the lump would silently drop to £0 with no way to fix it.
   if (paidSel && !(/** @type {HTMLSelectElement} */ (paidSel)).value) {
     const _from = awardFromForYear(awardTy.label);
-    const _tgt  = _from ? (getPeriods().find(/** @param {any} x */ x => x.payday >= _from)?.num ?? 0) : todaysPeriodNum();
+    const _tgt  = _from ? (paidInPeriodNum(getPeriods(), _from) ?? 0) : todaysPeriodNum();
     if (_tgt) _setSelectPeriod(paidSel, _tgt);
   }
   const incTick = /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'));
@@ -440,8 +460,7 @@ export function calcBackPay() {
   // no control to fix it. restoreBpState restores that stale value, so overriding it here is the
   // single choke point; _saveBpState (below) then heals the persisted blob. (v18.12)
   if (bpSel && _awardDecided) {
-    const _from = awardFromForYear(awardTy.label);
-    const _tgt  = _from ? (getPeriods().find(/** @param {any} x */ x => x.payday >= _from)?.num ?? 0) : 0;
+    const _tgt = paidInPeriodNum(getPeriods(), awardFromForYear(awardTy.label)) ?? 0;
     if (_tgt && +bpSel.value !== _tgt) _setSelectPeriod(bpSel, _tgt);
   }
   const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap

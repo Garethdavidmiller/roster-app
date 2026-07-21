@@ -98,7 +98,7 @@ const {
     settingsKey, getContr, getEffectiveContr, getProRateFactor,
 } = await import('./paycalc-settings.js');
 
-const { _bpAwardTaxYear, raiseByPercent, _accrueBackPayPeriod } = await import('./paycalc-backpay.js');
+const { _bpAwardTaxYear, raiseByPercent, _accrueBackPayPeriod, paidInPeriodNum } = await import('./paycalc-backpay.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -648,5 +648,42 @@ describe('_accrueBackPayPeriod', () => {
         });
         approx(backPay, LONDON_DIFF * 0.5, 'rateDiff 0 zeroes every hours bucket; only London arrears remain');
         approx(varPay, 0, 'varPay = 0 — London does not accrue HPP');
+    });
+});
+
+// paycalc-backpay.js — paidInPeriodNum (which payslip carries a decided award's lump)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('paidInPeriodNum', () => {
+    // Real 2026/27 paydays: P53 = 3 Jul, P54 = 31 Jul, P55 = 28 Aug, P56 = 25 Sep.
+    const periods = [
+        { num: 53, payday: new Date(2026, 6,  3) },
+        { num: 54, payday: new Date(2026, 6, 31) },
+        { num: 55, payday: new Date(2026, 7, 28) },
+        { num: 56, payday: new Date(2026, 8, 25) },
+    ];
+
+    test('the lump lands on the FIRST payslip on/after the award date', () => {
+        assert.equal(paidInPeriodNum(periods, new Date(2026, 7, 28)), 55); // award 28 Aug → the 28 Aug payslip
+    });
+
+    test('a payday exactly ON the award date qualifies (>= boundary)', () => {
+        assert.equal(paidInPeriodNum(periods, new Date(2026, 6, 31)), 54);
+    });
+
+    test('an award-date MOVE moves the paid-in payslip (31 Jul → 28 Aug regression, v18.11/v18.12)', () => {
+        // The bug: the 3.6% award was deferred from the 31 Jul (P54) to the 28 Aug (P55) payslip, but a
+        // paid-in saved as P54 lingered and the "green box" stayed on 31 Jul. The derivation MUST track
+        // the award date — P54 when the award is 31 Jul, P55 when it moves to 28 Aug.
+        assert.equal(paidInPeriodNum(periods, new Date(2026, 6, 31)), 54);
+        assert.equal(paidInPeriodNum(periods, new Date(2026, 7, 28)), 55);
+    });
+
+    test('undecided award (no date) → null (the selector stays visible for a manual pick)', () => {
+        assert.equal(paidInPeriodNum(periods, null), null);
+        assert.equal(paidInPeriodNum(periods, undefined), null);
+    });
+
+    test('no payslip on/after the date → null (never guesses)', () => {
+        assert.equal(paidInPeriodNum(periods, new Date(2030, 0, 1)), null);
     });
 });
