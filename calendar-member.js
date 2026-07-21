@@ -172,7 +172,7 @@ export function populateTeamMemberDropdown() {
     }
 }
 
-/** @returns {object} */
+/** @returns {any} the resolved teamMembers entry — callers read .name/.role/etc. (`object` hid every property from the checker) */
 export function getCurrentMember() {
     const selectedIndex = getSelectedMemberIndex();
     const member = teamMembers[selectedIndex];

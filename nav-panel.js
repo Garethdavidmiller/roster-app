@@ -21,6 +21,7 @@ import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, officeViewerU
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
+import { recordOpen } from './usage-reporter.js';
 
 /**
  * Page navigation destinations. The current page is omitted from the pill row.
@@ -200,12 +201,16 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, onLogoClick?: (() => void)|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null }} opts
  *   onLogoClick — opens the page's existing About/version lightbox when the
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, onLogoClick = null } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, onLogoClick = null, usageIdentity = null } = {}) {
+    // Identity for the anonymous open-counters' admin-exclusion (v18.20): the signed-in name by
+    // default; the calendar passes its SELECTED member (its session is optional — same precedent
+    // as recordUsage's identity there). Never stored — only compared against CONFIG.ADMIN_NAMES.
+    const _usageId = usageIdentity ?? memberName;
     const burger = /** @type {HTMLElement} */ (document.getElementById('navMenuBtn'));
     if (!burger) return;
     if (burger.dataset.navPanelInit) return;
@@ -330,8 +335,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
      * Falls back to the coming-soon lightbox if no document exists or fetch fails.
      * @param {HTMLElement} triggerEl
      * @param {() => Promise<any>} fetchFn
+     * @param {string} docId - open-counter id ('circular' | 'newsletter'), recorded on the success path (v18.20)
      */
-    function _openLatestDoc(triggerEl, fetchFn) {
+    function _openLatestDoc(triggerEl, fetchFn, docId) {
         if (_docFetching) return;
         _docFetching = true;
         // Visible in-flight state — the fetch races an 8s timeout, and on weak signal the tapped
@@ -352,6 +358,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 // A .docx would download if opened directly — render it via the Office Online
                 // viewer instead. PDFs open by their own URL (browsers show them inline).
                 const openUrl = data.fileType === 'docx' ? officeViewerUrl(safeUrl) : safeUrl;
+                // The document genuinely opens on both branches below — count it (anonymous,
+                // admin-excluded; v18.20). Failure/no-doc paths never reach here.
+                recordOpen(docId, _usageId);
                 if (newTab) {
                     // Doc opened in a SEPARATE tab — this page STAYS put, so close with a real
                     // history.back() to CONSUME the drawer's pushed entry. closePanelForNavigation()
@@ -390,9 +399,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             return;
         }
         const circular = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--circular'));
-        if (circular) { _openLatestDoc(circular, getLatestCircular); return; }
+        if (circular) { _openLatestDoc(circular, getLatestCircular, 'circular'); return; }
         const newsletter = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--newsletter'));
-        if (newsletter) { _openLatestDoc(newsletter, getLatestNewsletter); return; }
+        if (newsletter) { _openLatestDoc(newsletter, getLatestNewsletter, 'newsletter'); return; }
         if (/** @type {Element} */ (e.target).closest('.nav-panel-link--notices')) {
             _closePanelVisualOnly();
             _openNotices();
@@ -403,7 +412,16 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // the flag (no back()), leaving a dead same-URL entry that swallows the next Android Back press
         // (the same leak the doc-in-new-tab and brand→About paths fix). The anchor's default action
         // still opens the new tab. (A6)
-        if (/** @type {Element} */ (e.target).closest('.nav-panel-link--guide')) { closePanel(); return; }
+        const guideLink = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--guide'));
+        if (guideLink) {
+            // Anonymous open-counter for the two reference guides (v18.20; admin-excluded). The
+            // guides are static pages with no Firebase, so the tap here — their only in-app
+            // route — is where the open is counted. Fire-and-forget; the anchor still navigates.
+            const _href = guideLink.getAttribute('href') || '';
+            if (_href.includes('railcard-guide')) recordOpen('guide-railcard', _usageId);
+            else if (_href.includes('fip.html'))  recordOpen('guide-fip', _usageId);
+            closePanel(); return;
+        }
         // Same-tab page navigation (pills, Settings, real info links). The drawer pushed a history
         // entry on open whose URL equals THIS page's; a plain <a> nav stacks the destination ON TOP of
         // it, leaving that entry as a phantom same-URL duplicate that swallows one Android Back press
@@ -824,7 +842,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     const settingsHtml = (currentPage !== 'settings') ? `
         <div class="nav-panel-settings">
             <ul class="nav-panel-links">
-                <li><a href="./settings.html" class="nav-panel-link">⚙ Settings</a></li>
+                <li><a href="./settings.html" class="nav-panel-link"><span aria-hidden="true">⚙️</span> Settings</a></li>
             </ul>
         </div>` : '';
 
@@ -885,7 +903,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                 <div class="nav-panel-section">
                     <button type="button" class="nav-panel-guides-toggle open" id="navGuidesToggle"
                             aria-expanded="true" aria-controls="navGuidesList">
-                        <span class="nav-panel-guides-heading">📖 Guides</span>
+                        <span class="nav-panel-guides-heading">Guides</span>
                         <span class="nav-panel-guides-arrow" aria-hidden="true">▾</span>
                     </button>
                     <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList">

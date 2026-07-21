@@ -1438,15 +1438,23 @@ body.lb-open #stickyTotal { display: none !important; }
     border: none;
     border-radius: var(--radius-sm);
     padding: 4px 8px;
-    margin: 0;
+    /* Negative left margin cancels the padding so the label's text edge aligns with the
+       INFORMATION heading above (which has no padding); the padding stays for the hover pill. */
+    margin: 0 0 0 -8px;
     font-family: inherit;
     cursor: pointer;
     touch-action: manipulation;
 }
+/* Same heading RANK as .nav-panel-section-heading (v18.18): the two sibling sections used to wear
+   different grammars — INFORMATION a caps eyebrow, Guides a sentence-case link-like label — the
+   drawer's one "two generations" note. One eyebrow rank for both; the gold chevron still marks
+   this one as collapsible, and the button keeps its full tap target. */
 .nav-panel-guides-heading {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--nav-text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--nav-text-faint);
 }
 .nav-panel-guides-arrow {
     font-size: 14px;
@@ -1477,6 +1485,15 @@ body.lb-open #stickyTotal { display: none !important; }
     color: var(--nav-text);
     font-size: 14px;
     transition: background 0.1s;
+}
+/* Fixed-width icon slot (v18.18): emojis have varying natural widths, so without this the label
+   text edges wobble a few px row to row. Centring each icon in a 22px slot puts every label on
+   one clean left edge (the aria-hidden span already wraps every row's icon). */
+.nav-panel-link > span[aria-hidden="true"] {
+    display: inline-flex;
+    width: 22px;
+    justify-content: center;
+    flex-shrink: 0;
 }
 .nav-panel-link:active { background: var(--nav-raised-strong); }
 /* In-flight state for the Circular/Newsletter links (a Firestore fetch, up to 8s) — appends a
@@ -1736,6 +1753,10 @@ button.nav-panel-link--notices {
 /* ---- Nav panel settings link — flat, pinned above footer ---- */
 .nav-panel-settings {
     padding: 8px 16px;
+    /* Hairline above the pinned shelf (v18.18): head and footer are already delimited by
+       --nav-border, but this zone floated ambiguously between the scrolling body and the footer —
+       now the drawer reads as four cleanly-bounded zones (head / body / shelf / footer). */
+    border-top: 1px solid var(--nav-border);
 }
 
 /* Keyboard focus rings for the whole drawer — gold reads clearly on the navy

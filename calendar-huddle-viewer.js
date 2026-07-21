@@ -39,6 +39,8 @@ function _loadPurify() {
 }
 import { subscribeToLatestHuddle, isSafeStorageUrl } from './firebase-client.js';
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus } from './overlay.js';
+import { recordOpen } from './usage-reporter.js';
+import { getCurrentMember } from './calendar-member.js';
 
 // Module-level state — set once at startup and survives the page lifetime.
 /** @type {any} */
@@ -185,6 +187,10 @@ export function initHuddleViewer() {
     function _triggerAutoOpen(huddle) {
         _autoOpened = true;
         try {
+            // Anonymous open-counter (v18.20; admin-excluded via the selected member — the
+            // calendar has no session). One count per user open: hashchange resets _autoOpened,
+            // and the subscription only re-triggers while it is false.
+            recordOpen('huddle', getCurrentMember()?.name ?? null);
             if (huddle.htmlContent) {
                 // DOCX converted to HTML server-side — render inline.
                 showInlineHuddle(huddle);

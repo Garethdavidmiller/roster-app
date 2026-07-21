@@ -1,6 +1,8 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
-// Last swept v17.03 (Jul 2026): B3 strict override isolation · override update-owner re-check (v16.80) ·
+// Last swept v18.20 (Jul 2026): analytics pv_ counts allowlist gains the five document/guide open ids
+// (huddle/circular/newsletter/guide-railcard/guide-fip). Prior sweep v17.03: B3 strict override
+// isolation · override update-owner re-check (v16.80) ·
 // H2 linksDesigner writes + linkDesigns shape-validation (v17.02) · analytics anti-wipe map guard
 // (v17.03) · staffContact Chiltern work-email validation (v16.34 local-part tightening) · 20 MB
 // inclusive upload cap lives in storage.rules · analytics doc-id pinning.
@@ -406,13 +408,21 @@ service cloud.firestore {
            request.resource.data.month is string &&
            docId == 'pv_' + request.resource.data.month &&
            request.resource.data.counts is map &&
-           request.resource.data.counts.keys().hasOnly(['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links']) &&
+           // Six page-view ids + five document/guide OPEN ids (v18.20 — Huddle/Circular/Newsletter
+           // opens and the two reference-guide opens share the same anonymous counter map).
+           request.resource.data.counts.keys().hasOnly(['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links',
+                                                        'huddle', 'circular', 'newsletter', 'guide-railcard', 'guide-fip']) &&
            (!('calendar'   in request.resource.data.counts) || request.resource.data.counts.calendar   is int) &&
            (!('admin'      in request.resource.data.counts) || request.resource.data.counts.admin      is int) &&
            (!('paycalc'    in request.resource.data.counts) || request.resource.data.counts.paycalc    is int) &&
            (!('operations' in request.resource.data.counts) || request.resource.data.counts.operations is int) &&
            (!('settings'   in request.resource.data.counts) || request.resource.data.counts.settings   is int) &&
            (!('links'      in request.resource.data.counts) || request.resource.data.counts.links      is int) &&
+           (!('huddle'     in request.resource.data.counts) || request.resource.data.counts.huddle     is int) &&
+           (!('circular'   in request.resource.data.counts) || request.resource.data.counts.circular   is int) &&
+           (!('newsletter' in request.resource.data.counts) || request.resource.data.counts.newsletter is int) &&
+           (!('guide-railcard' in request.resource.data.counts) || request.resource.data.counts['guide-railcard'] is int) &&
+           (!('guide-fip'      in request.resource.data.counts) || request.resource.data.counts['guide-fip']      is int) &&
            (resource == null || request.auth.token.admin == true ||
             request.resource.data.counts.keys().hasAll(resource.data.counts.keys()))) ||
           // Active-account counters: analytics/activeAccounts = { months?: {…}, daily?: {…} }

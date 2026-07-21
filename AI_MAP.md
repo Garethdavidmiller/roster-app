@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v18.10 · Updated every 0.10 version*
+*Last updated: July 2026 — v18.20 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -131,7 +131,7 @@ AL lightbox and day-detail lightbox for `index.html` — extracted from `calenda
 
 ### `calendar-initial-fetch.js`
 Initial 3-month Firestore fetch and sync-chip UI for `index.html` — extracted from `calendar-app.js` at v13.86.
-- `initInitialFetch({ isTeamViewMode, renderCalendar })` — kicks off a 3-month date-range query (prev/cur/next), manages the sync chip state machine (hidden → "↻ Updating…" after 800ms → "⚠ Couldn't update" on 10s timeout), handles retry, and wires the `visibilitychange` guard for iOS background suspension
+- `initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamView? })` — kicks off a 3-month date-range query (prev/cur/next), manages the sync chip state machine (hidden → "↻ Updating…" after 800ms → "⚠ Couldn't update" on 10s timeout), handles retry, and wires the `visibilitychange` guard for iOS background suspension. On success it renders whichever view is ACTIVE: `renderTeamView` (v18.21 — team view's cache-only repaint) when `isTeamViewMode()`, else `renderCalendar`
 - Pre-marks all three months as fetched before awaiting to prevent competing per-month fetches from `ensureOverridesCached()` during the initial load
 - Imports: `calendar-overrides.js`, `roster-data.js`
 
@@ -184,7 +184,7 @@ In-app viewer for the Weekly Retail Circular and Marylebone Newsletter, opened f
 
 ### `calendar-team-view.js`
 Team Week View for `index.html` — the grade-wide week grid toggled from the calendar header.
-- Only export is `initTeamView({...deps})` → the coordinator passes the override cache, member/render callbacks, and DOM hooks; returns `{ toggleTeamView, isTeamViewMode, restoreTeamView, jumpToCurrentWeek }` for `calendar-app.js` to wire up. Everything else (grade state `currentTeamGrade`, week navigation clamped to `CONFIG.MIN_YEAR`/`MAX_YEAR`, `fetchTeamWeekOverrides` with its week-start fetch token, `getTeamCellDisplay` via the shared `resolveEffectiveShift`) is internal.
+- Only export is `initTeamView({...deps})` → the coordinator passes the override cache, member/render callbacks, and DOM hooks; returns `{ toggleTeamView, isTeamViewMode, restoreTeamView, jumpToCurrentWeek, refreshFromCache }` for `calendar-app.js` to wire up. `refreshFromCache` (v18.21) repaints the grid from the already-populated shared cache with NO re-fetch — called by the initial 3-month fetch's success path via `initInitialFetch`'s `renderTeamView` dep, closing the early-team-view stand-down (the initial fetch rendered nothing in team view, then the week fetch found the cache already matching its snapshot and skipped its own re-render — a permanently base-roster grid, deterministic on boot-into-team-view because IndexedDB persistence makes the 3-month read win). Everything else (grade state `currentTeamGrade`, week navigation clamped to `CONFIG.MIN_YEAR`/`MAX_YEAR`, `fetchTeamWeekOverrides` with its week-start fetch token, `getTeamCellDisplay` via the shared `resolveEffectiveShift`) is internal.
 - Failure model: a week fetch reconciles only on a successful snapshot (via `reconcileRangeIntoCache`), stale results are discarded by the fetch token, and a failed refresh silently keeps the last-good grid — deliberately NO freshness indicator (CLAUDE.md → Team Week View, "minimal-noise app").
 
 ### `admin-app.js`
@@ -612,6 +612,8 @@ Shared uncaught-error reporter (v13.31). Only export is `initErrorReporter()` �
 
 ### `usage-reporter.js`
 Anonymous usage recorder (v14.14) — the usage analogue of `error-reporter.js`. `recordUsage(page, member?, identity?)`: records an anonymous page-view counter, and (when a signed-in member is passed) counts that account toward the active-account metric, deduped client-side via localStorage flags keyed by member name (`myb_usage_m_*`, `myb_usage_d30_*`) so the server only ever receives `increment(1)` and never learns who was active. **Records nothing when `identity` (defaults to `member`) is in `CONFIG.ADMIN_NAMES`** — the developer's own test loads are excluded so figures reflect real staff (v14.95); the anonymous calendar passes its selected member as `identity` while leaving `member` null. Called once per page from each coordinator at the same point as `initErrorReporter()`. Imports the I/O from `firebase-client.js`, the dedup maths from `usage-stats.js`, `lsGet`/`lsSet` from `ls.js`, and `CONFIG` from `roster-data.js`. Fire-and-forget — never throws.
+
+- `recordOpen(itemId, identity?)` (v18.20) — anonymous "opened" counter for documents/guides, sharing the pv_ counts map and the admin exclusion; ids `huddle`/`circular`/`newsletter`/`guide-railcard`/`guide-fip` (allowlisted in firestore.rules). No dedup — every open counts. Called from `nav-panel.js` (drawer doc opens + guide-link taps; identity = `usageIdentity` opt, the calendar passes its selected member), `calendar-huddle-viewer.js` (viewer auto-open), `calendar-doc-viewer.js` (notification-tap Open button). Rendered by the Usage card's "Documents & guides — opens" group.
 
 ### `usage-stats.js`
 Pure date-bucketing + aggregation for the usage analytics — no DOM, no Firebase. Imported by `firebase-client.js` and `usage-reporter.js`; tested by `usage-stats.test.mjs`.

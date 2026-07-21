@@ -228,7 +228,7 @@ describe('createCalendarHeader', () => {
 
     test('multiple weeks → plural label with range', () => {
         const html = createCalendarHeader(3, 5, 'CEA Week', 0, 2026);
-        assert.ok(html.includes('CEA Weeks 3-5'));
+        assert.ok(html.includes('CEA Weeks 3–5')); // en-dash range (v18.19)
     });
 
     test('empty weekPrefix → no week-info-text span', () => {
@@ -244,7 +244,7 @@ describe('createCalendarHeader', () => {
 
     test('BL Week prefix pluralises correctly → BL Weeks', () => {
         const html = createCalendarHeader(1, 3, 'BL Week', 0, 2026);
-        assert.ok(html.includes('BL Weeks 1-3'));
+        assert.ok(html.includes('BL Weeks 1–3')); // en-dash range (v18.19)
     });
 });
 

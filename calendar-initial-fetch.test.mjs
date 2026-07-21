@@ -173,6 +173,34 @@ describe('success path', () => {
         assert.equal(rendered, false);
     });
 
+    test('renderTeamView() IS called on success while in team view (v18.21 regression)', async () => {
+        // The two-sided stand-down: without this notification, a user in team view when the
+        // 3-month fetch resolved was stranded on a base-roster grid — this path rendered
+        // nothing, and the team week fetch then reconciled against the already-populated
+        // cache → "no change" → skipped ITS re-render too. Deterministic on boot-into-team-view
+        // (IndexedDB persistence makes this fetch reliably win), so refreshing never recovered.
+        let calRendered = false, teamRendered = false;
+        initInitialFetch({
+            isTeamViewMode: () => true,
+            renderCalendar: () => { calRendered = true; },
+            renderTeamView: () => { teamRendered = true; },
+        });
+        await flushAsync();
+        assert.equal(teamRendered, true,  'team view must be repainted from the fresh cache');
+        assert.equal(calRendered,  false, 'the personal calendar render stays suppressed in team view');
+    });
+
+    test('renderTeamView() NOT called when in calendar view', async () => {
+        let teamRendered = false;
+        initInitialFetch({
+            isTeamViewMode: () => false,
+            renderCalendar: () => {},
+            renderTeamView: () => { teamRendered = true; },
+        });
+        await flushAsync();
+        assert.equal(teamRendered, false);
+    });
+
     test('setInitialFetchInProgress(false) called in finally on success', async () => {
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         await flushAsync();
