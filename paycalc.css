@@ -112,7 +112,7 @@
       padding: 10px 14px;
       background: var(--primary-blue); color: white;
       border: none; border-radius: var(--radius-md);
-      font-family: inherit; font-size: 13px; font-weight: 700;
+      font-family: inherit; font-size: var(--type-label); font-weight: 700;
       cursor: pointer; touch-action: manipulation;
       transition: background var(--dur-med), transform var(--dur-fast) var(--ease-standard); white-space: nowrap;
     }
@@ -126,7 +126,7 @@
       width: 38px; height: 38px; padding: 0;
       background: var(--accent-gold); color: var(--primary-blue);
       border: none; border-radius: var(--radius-md);
-      font-family: inherit; font-size: 10px; font-weight: 700;
+      font-family: inherit; font-size: var(--type-micro); font-weight: 700;
       cursor: pointer; touch-action: manipulation;
       transition: background var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
       display: flex; align-items: center; justify-content: center;
@@ -138,10 +138,10 @@
     }
     .period-hint   { margin: 4px 0 0; font-size: var(--type-micro); color: var(--text-faint); text-align: center; }
     .period-meta   { display: flex; flex-direction: column; gap: 3px; width: 100%; }
-    .pm-range      { font-size: 13px; font-weight: 600; color: var(--text-dark); }
+    .pm-range      { font-size: var(--type-label); font-weight: 600; color: var(--text-dark); }
     .pm-sub        { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
     .pm-sub-text   { font-size: var(--type-small); color: var(--text-mid); flex: 1; min-width: 0; }
-    .period-badge { font-size: var(--type-micro); font-weight: 800; background: var(--accent-gold); color: var(--primary-blue); padding: 3px 10px; border-radius: 50px; white-space: nowrap; }
+    .period-badge { font-size: var(--type-micro); font-weight: 800; background: var(--accent-gold); color: var(--primary-blue); padding: 3px 10px; border-radius: var(--radius-pill); white-space: nowrap; }
 
     /* Save indicator row */
     .save-row {
@@ -194,7 +194,7 @@
       font-feature-settings: 'tnum' 1;
     }
     .net-period { font-size: var(--type-medium); font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
-    .net-hint   { font-size: 13px; color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
+    .net-hint   { font-size: var(--type-label); color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
 
     #payBreakBar {
       display: none; margin: 12px 16px 4px; height: 10px;
@@ -212,7 +212,7 @@
     .pbb-net     { background: var(--green); }
     #payBreakLegend {
       display: none; margin: 0 16px 10px; gap: 8px 12px; flex-wrap: wrap;
-      font-size: 10px; color: var(--text-light);
+      font-size: var(--type-micro); color: var(--text-light);
     }
     #payBreakLegend.pbb-visible { display: flex; }
     .pbl-item { display: flex; align-items: center; gap: 3px; }
@@ -231,10 +231,10 @@
       font-feature-settings: 'tnum' 1;
     }
     .sum-row.sum-gross .lbl { font-weight: 700; color: var(--text-dark); }
-    .sum-row.sum-gross .val { font-size: 15px; }
+    .sum-row.sum-gross .val { font-size: var(--type-button); }
     .sum-row.sum-ded .val  { color: var(--error-red); }
-    .sum-row.sum-net .lbl  { font-weight: 800; color: var(--primary-blue); font-size: 15px; }
-    .sum-row.sum-net .val  { font-weight: 800; color: var(--primary-blue); font-size: 16px; }
+    .sum-row.sum-net .lbl  { font-weight: 800; color: var(--primary-blue); font-size: var(--type-button); }
+    .sum-row.sum-net .val  { font-weight: 800; color: var(--primary-blue); font-size: var(--type-medium); }
     .sum-row.sum-bp .lbl  { color: var(--text-mid); }
     .sum-row.sum-hpp .lbl { color: var(--text-mid); }
     .sum-row.sum-hpp .val { font-weight: 700; color: var(--success-green); }
@@ -242,12 +242,12 @@
        muted, not red (it's information, not a deduction), smaller so the WHY fits on a phone. */
     .sum-row.sum-sl-zero .lbl { color: var(--text-light); font-size: var(--type-small); }
     .sum-row.sum-sl-zero .val { color: var(--text-light); }
-    .sum-est { font-size: 10px; font-weight: 400; color: var(--text-faint); margin-left: 4px; }
+    .sum-est { font-size: var(--type-micro); font-weight: 400; color: var(--text-faint); margin-left: 4px; }
     .sum-row.sum-bp .val  { font-weight: 700; color: var(--success-green); }
     /* Green "included on this payslip" banners — back pay (on its paid-in period) and HPP (on the
        January period it lands). Shared styling so the two read as one pattern. */
     .bp-active-banner, .hpp-active-banner {
-      margin: 0 16px 0; padding: 8px 12px; border-radius: 6px;
+      margin: 0 16px 0; padding: 8px 12px; border-radius: var(--radius-xs);
       background: var(--success-green-bg); border: 1px solid var(--success-green);
       font-size: var(--type-small); color: var(--success-text); line-height: 1.4;
     }
@@ -287,13 +287,13 @@
     .bd-btn {
       width: 100%; padding: 10px 16px;
       background: var(--bg-faint); border: none; border-top: 1px solid var(--border-light);
-      font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text-light);
+      font-family: inherit; font-size: var(--type-small); font-weight: 600; color: var(--text-light);
       display: flex; align-items: center; justify-content: center; gap: 6px;
       cursor: pointer; touch-action: manipulation; transition: background var(--dur-med);
     }
     .bd-btn:active { background: var(--border-light); }
     .bd-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; }
-    .bd-arrow { font-size: 9px; transition: transform 0.25s; display: inline-block; }
+    .bd-arrow { font-size: var(--type-micro); transition: transform 0.25s; display: inline-block; }
     .bd-btn.open .bd-arrow { transform: rotate(180deg); }
     .bd-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
     /* 1400px is a deliberate finite cap so the open/close can ANIMATE (max-height:none can't
@@ -307,7 +307,7 @@
     .bd-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 16px; border-bottom: 1px solid var(--border-light);
-      font-size: 13px; gap: 8px;
+      font-size: var(--type-label); gap: 8px;
     }
     .bd-row:last-child { border-bottom: none; }
     .bd-row .b-lbl { color: var(--text-light); flex: 1; }
@@ -320,6 +320,8 @@
     .bd-row.bd-extra .b-val { color: var(--success-green); }
 
     /* ── CONTENT CARDS ── */
+    /* NB: cards stack at 12px on mobile (deliberately tighter than the hero blocks' 16px);
+       the desktop grid overrides everything to a uniform 16px row-gap. (v18.07 audit note) */
     .content-card {
       background: var(--surface); border-radius: var(--radius-lg);
       box-shadow: var(--shadow-2); margin-bottom: 12px; overflow: hidden;
@@ -347,7 +349,7 @@
 
   /* ── HELP LIGHTBOX ── */
   /* #helpLightbox uses .lb-overlay; unique: higher z-index for pay calc context */
-  #helpLightbox { z-index: 8500; }
+  #helpLightbox { z-index: var(--z-notice); }
   #helpLightboxContent {
     background: rgba(255,255,255,0.09);
     border: 1px solid rgba(255,255,255,0.15);
@@ -357,7 +359,7 @@
     max-height: 78vh;
   }
   .help-lightbox-title {
-    color: white; font-size: 16px; font-weight: 700;
+    color: white; font-size: var(--type-medium); font-weight: 700;
     margin-bottom: 14px; padding-right: 22px; line-height: 1.3;
   }
   .help-lightbox-list {
@@ -365,7 +367,7 @@
   }
   .help-lightbox-list li {
     color: rgba(255,255,255,0.72);
-    font-size: 13px; line-height: 1.6;
+    font-size: var(--type-label); line-height: 1.6;
     padding: 7px 0 7px 18px;
     border-bottom: 1px solid rgba(255,255,255,0.07);
     position: relative;
@@ -373,7 +375,7 @@
   .help-lightbox-list li:last-child { border-bottom: none; padding-bottom: 0; }
   .help-lightbox-list li::before {
     content: '·'; position: absolute; left: 0; top: 7px;
-    color: var(--accent-gold); font-weight: 800; font-size: 16px; line-height: 1.3;
+    color: var(--accent-gold); font-weight: 800; font-size: var(--type-medium); line-height: 1.3;
   }
   .help-lightbox-list strong { color: rgba(255,255,255,0.92); font-weight: 700; }
   #helpLightboxClose { color: rgba(255,255,255,0.45); }
@@ -396,7 +398,7 @@
       .show-more-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
     }
     .show-more-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
-    .show-more-arrow { font-size: 9px; transition: transform 0.25s; }
+    .show-more-arrow { font-size: var(--type-micro); transition: transform 0.25s; }
     .show-more-btn.open .show-more-arrow { transform: rotate(180deg); }
     .hours-extra { display: none; }
     .hours-extra.open { display: block; }
@@ -409,14 +411,14 @@
       padding: 11px 12px; gap: 12px;
       background: var(--surface);
       border: 1px solid var(--border-light);
-      border-radius: 12px;
+      border-radius: var(--radius);
       margin-bottom: 8px;
     }
     .hours-row:last-child { margin-bottom: 0; }
 
     .h-info { flex: 1; min-width: 0; }
     .h-title {
-      font-size: 14px; font-weight: 600; color: var(--text-dark);
+      font-size: var(--type-body); font-weight: 600; color: var(--text-dark);
       display: flex; align-items: center; gap: 6px; line-height: 1.3;
     }
     /* Badge sits on its own line between the title and sub-description */
@@ -426,7 +428,7 @@
     /* Rate badges — pill-shaped, colour-coded to match the roster's shift system */
     .rate-badge {
       font-size: var(--type-badge); font-weight: 700;
-      padding: 3px 10px; border-radius: 50px;
+      padding: 3px 10px; border-radius: var(--radius-pill);
       white-space: nowrap; flex-shrink: 0;
       display: inline-flex; align-items: center;
       border: 1.5px solid transparent;
@@ -457,7 +459,7 @@
     .hhmm-field input::-webkit-inner-spin-button,
     .hhmm-field input::-webkit-outer-spin-button { -webkit-appearance: none; }
     .hhmm-field input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color); background-color: white; }
-    .hhmm-field .hhmm-lbl { font-size: var(--type-micro); color: var(--text-faint); font-weight: 600; letter-spacing: 0.3px; }
+    .hhmm-field .hhmm-lbl { font-size: var(--type-micro); color: var(--text-light); font-weight: 600; letter-spacing: 0.5px; }
     .hhmm-sep { font-size: 20px; font-weight: 300; color: var(--text-light); padding-bottom: 14px; flex-shrink: 0; }
 
     /* Live decimal-conversion preview, e.g. "= 7h 30m", shown beneath an hours
@@ -559,7 +561,7 @@
     .pfx { position: relative; min-width: 0; }
     .pfx-sym {
       position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-      font-size: 15px; font-weight: 600; color: var(--text-mid); pointer-events: none;
+      font-size: var(--type-button); font-weight: 600; color: var(--text-mid); pointer-events: none;
     }
     .pfx input { padding-left: 26px; width: 100%; }
     /* Pre-rise status strip under the rate (v18.03): a STATUS line about the payslip on screen —
@@ -567,24 +569,26 @@
     .rate-step-note {
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
       border-left: 3px solid var(--primary-blue); padding: 8px 10px;
-      background: var(--bg-faint); border-radius: 0 6px 6px 0; margin-top: 8px;
+      background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; margin-top: 8px;
     }
     /* Read-only, grade-set rate (v17.87; restyled v17.91) — reads as a fixed VALUE, not an empty
        field: solid faint fill, bold value, and a small lock on the right. */
     .pfx--readonly input, input[readonly]#hourlyRate {
       background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
-      cursor: default; border-color: var(--border-light); padding-right: 36px;
+      cursor: default; border-color: var(--border-light); padding-right: 32px;
     }
     .pfx--readonly input:focus { outline: none; box-shadow: none; }
+    /* ONE lock treatment everywhere (v18.07): same glyph size/offset/opacity as the back-pay
+       locked boxes below — the two had drifted in all four values. */
     .pfx--readonly::after {
-      content: "🔒"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-      font-size: 13px; opacity: .5; pointer-events: none;
+      content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      font-size: 12px; opacity: .5; pointer-events: none;
     }
     .adj-sign-btn {
       width: 44px; height: 44px; flex-shrink: 0;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
       background: white; color: var(--text-dark);
-      font-family: inherit; font-size: 18px; font-weight: 700;
+      font-family: inherit; font-size: var(--type-large); font-weight: 700;
       cursor: pointer; touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
       display: flex; align-items: center; justify-content: center; padding: 0;
@@ -600,11 +604,11 @@
     /* YTD source-status strip (v18.01): navy = informational (matches .bp-award-scope) — gold read
        as a WARNING, wrong for a status line. The --live variant (figures sharpen THIS payslip) goes
        success-green, echoing the ✓ Confirmed language. */
-    .ytd-upto-note { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--primary-blue);
-      background: var(--bg-faint); border-radius: 0 6px 6px 0;
+    .ytd-upto-note { margin: 0 0 12px; padding: 8px 10px; border-left: 3px solid var(--primary-blue);
+      background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5; }
     .ytd-upto-note--live { border-left-color: var(--green);
-      background: color-mix(in oklch, var(--green) 9%, white); color: var(--success-text); }
+      background: var(--success-green-bg); color: var(--success-text); }
     .ytd-upto-note:empty { display: none; }
 
     /* First-run banner */
@@ -615,8 +619,8 @@
       border-left: 4px solid var(--accent-gold);
     }
     .setup-banner h2 { font-size: var(--type-button); font-weight: 800; color: var(--primary-blue); margin-bottom: 4px; }
-    .setup-banner p  { font-size: 13px; color: var(--text-mid); line-height: 1.5; }
-    .privacy-note { font-size: var(--type-small); color: var(--text-mid); margin-top: 10px; padding: 8px 10px; background: var(--bg-faint); border-left: 3px solid var(--primary-blue); border-radius: 0 6px 6px 0; line-height: 1.5; }
+    .setup-banner p  { font-size: var(--type-label); color: var(--text-mid); line-height: 1.5; }
+    .privacy-note { font-size: var(--type-small); color: var(--text-mid); margin-top: 10px; padding: 8px 10px; background: var(--bg-faint); border-left: 3px solid var(--primary-blue); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; line-height: 1.5; }
     /* Standalone privacy note — always visible, sits below the conditional setup banner */
     .privacy-note-standalone {
       background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
@@ -644,7 +648,7 @@
     }
     .hpp-toggle-btn:active { color: var(--text-mid); }
     .hpp-toggle-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; }
-    .hpp-toggle-arrow { font-size: 9px; transition: transform 0.25s; display: inline-block; }
+    .hpp-toggle-arrow { font-size: var(--type-micro); transition: transform 0.25s; display: inline-block; }
     .hpp-toggle-btn.open .hpp-toggle-arrow { transform: rotate(180deg); }
     .hpp-note-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
     .hpp-note-body.open { max-height: 400px; }
@@ -653,7 +657,7 @@
     .actual-badge {
       font-size: var(--type-micro); font-weight: 800;
       background: var(--green-light); color: var(--green); border: 1.5px solid var(--green);
-      padding: 2px 8px; border-radius: 50px; margin-left: 8px; vertical-align: middle;
+      padding: 2px 8px; border-radius: var(--radius-pill); margin-left: 8px; vertical-align: middle;
     }
 
     /* Disclaimer expand */
@@ -670,7 +674,7 @@
     .disclaimer-extra.open { display: inline; }
 
     .card-explainer {
-      font-size: 13px; color: var(--text-mid); line-height: 1.55; margin-bottom: 12px;
+      font-size: var(--type-label); color: var(--text-mid); line-height: 1.55; margin-bottom: 12px;
     }
     .hpp-result {
       background: var(--bg-faint); border-radius: var(--radius-md);
@@ -699,15 +703,17 @@
     .backpay-notice {
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.55;
       border-left: 3px solid var(--accent-gold); padding: 8px 10px;
-      background: var(--bg-faint); border-radius: 0 6px 6px 0;
+      background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
       margin-top: 10px;
     }
     /* Estimate banner — shown while the award year's rates are unconfirmed (offered, awaiting acceptance) */
+    /* Gold boxed-notice family (matches .settings-notice / .joiner-notice / #resultRateNotice) —
+       was the file's only srgb color-mix + literal radius/odd padding (v18.07 consistency audit). */
     .backpay-estimate-note {
       font-size: var(--type-small); color: var(--primary-blue); line-height: 1.5;
-      background: color-mix(in srgb, var(--accent-gold) 12%, white);
-      border: 1px solid color-mix(in srgb, var(--accent-gold) 38%, white);
-      border-radius: 8px; padding: 9px 12px; margin-bottom: 14px;
+      background: var(--al-confirm-bg);
+      border: 1px solid var(--accent-gold);
+      border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 14px;
     }
     /* Amount-source toggle (compute vs enter-from-payslip) — v17.86 */
     /* Amount-source choice ROWS (v18.06 — "looks undesigned"): each option is a bordered, tappable
@@ -732,11 +738,11 @@
     /* Locked (confirmed-award) rate boxes — read as fixed VALUES, matching the Settings read-only
        rate treatment (solid faint fill, bold, small 🔒; unified v17.93 / lock added v18.00). */
     input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
-      border-color: var(--border-light); cursor: default; padding-right: 30px; }
+      border-color: var(--border-light); cursor: default; padding-right: 32px; }
     input.bp-rate-locked:focus { outline: none; box-shadow: none; }
     .pfx:has(> input.bp-rate-locked)::after {
-      content: "🔒"; position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
-      font-size: 11px; opacity: .45; pointer-events: none;
+      content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      font-size: 12px; opacity: .5; pointer-events: none;
     }
     /* Award context strip at the top of the back-pay card — the card's key fact (which award,
        backdated from, paid when), styled as a neutral navy info strip rather than a plain hint
@@ -744,11 +750,11 @@
     .bp-award-scope {
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
       border-left: 3px solid var(--primary-blue); padding: 8px 10px;
-      background: var(--bg-faint); border-radius: 0 6px 6px 0; margin-bottom: 12px;
+      background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; margin-bottom: 12px;
     }
     .bp-row {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: 13px;
+      padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: var(--type-label);
     }
     .bp-row:last-child { border-bottom: none; }
     .bp-row .bp-lbl { color: var(--text-mid); }
@@ -878,7 +884,7 @@
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
-      .net-period { font-size: 17px; }
+      .net-period { font-size: var(--type-large); }
 
       /* Fill from calendar — the obvious first action, top-left of the workspace. A little
          more presence on the roster hint bar's primary button on desktop (scoped to the
@@ -922,11 +928,11 @@
         page-break-inside: avoid !important;
         flex-wrap: wrap !important;
       }
-      .app-header h1 { color: var(--primary-blue) !important; font-size: 16px !important; }
+      .app-header h1 { color: var(--primary-blue) !important; font-size: var(--type-medium) !important; }
       .btn-burger { color: var(--primary-blue) !important; }
       .app-header::after {
         content: attr(data-print-line);
-        display: block; font-size: 10px;
+        display: block; font-size: var(--type-micro);
         color: var(--text-light); margin-top: 3px;
         flex-basis: 100%;
       }
@@ -949,15 +955,15 @@
       .hhmm-field input {
         border: none !important; background: transparent !important;
         padding: 0 !important; font-weight: 700 !important;
-        font-size: 13px !important; width: 2.5ch !important;
+        font-size: var(--type-label) !important; width: 2.5ch !important;
         min-width: 0 !important;
       }
-      .hhmm-lbl { font-size: 10px !important; color: var(--text-light) !important; }
+      .hhmm-lbl { font-size: var(--type-micro) !important; color: var(--text-light) !important; }
       .stepper { display: flex !important; align-items: center !important; }
       .stepper button { display: none !important; }
-      .stepper-val { font-weight: 700 !important; font-size: 13px !important; }
+      .stepper-val { font-weight: 700 !important; font-size: var(--type-label) !important; }
       .disclaimer {
-        box-shadow: none !important; font-size: 10px !important;
+        box-shadow: none !important; font-size: var(--type-micro) !important;
         border-left: 3px solid var(--primary-blue) !important;
       }
       /* Rate badge colours — ensure they print with background */
@@ -977,7 +983,7 @@
       display: flex; flex-direction: column; align-items: center; gap: 8px;
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 24px; padding: 36px 40px 32px;
+      border-radius: var(--radius-xl); padding: 36px 40px 32px;
       width: min(300px, 85vw); text-align: center;
       max-height: 80vh;
       /* Deeper entrance start than the shared 0.88 — the ID selector outranks
@@ -994,20 +1000,20 @@
     .welcome-emoji { font-size: 56px; line-height: 1; margin-bottom: 4px; }
     .welcome-grade-badge {
       background: var(--primary-blue); color: var(--accent-gold);
-      font-size: 10px; font-weight: 800;
-      padding: 3px 10px; border-radius: 50px;
+      font-size: var(--type-micro); font-weight: 800;
+      padding: 3px 10px; border-radius: var(--radius-pill);
       letter-spacing: 0.5px; text-transform: uppercase;
       margin: 2px 0 4px;
     }
     .welcome-desc {
-      font-size: 13px; color: rgba(255,255,255,0.68); line-height: 1.6;
+      font-size: var(--type-label); color: rgba(255,255,255,0.68); line-height: 1.6;
       margin: 0;
     }
     .welcome-guide-link {
       display: block; margin-top: 14px; padding-top: 12px;
       border-top: 1px solid rgba(255,255,255,0.1);
       width: 100%; text-align: center;
-      font-size: 13px; font-weight: 600;
+      font-size: var(--type-label); font-weight: 600;
       color: var(--accent-gold); text-decoration: none;
       transition: color var(--dur-med);
     }
@@ -1022,7 +1028,7 @@
       display: flex; flex-direction: column; align-items: center; gap: 8px;
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 24px; padding: 36px 40px 32px;
+      border-radius: var(--radius-xl); padding: 36px 40px 32px;
       width: min(300px, 85vw); text-align: center;
       max-height: 80vh;
       transform: scale(0.85);
@@ -1057,14 +1063,14 @@
   .decimal-conv-field {
     display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 130px;
   }
-  /* Same eyebrow rank as every other input label in the calculator (v18.02). */
+  /* Sub-eyebrow rank (micro, like .field-eyebrow) — the paired-column label pattern. */
   .decimal-conv-field label {
     font-size: var(--type-micro); font-weight: 700; color: var(--text-light);
     text-transform: uppercase; letter-spacing: 0.5px;
   }
   .decimal-hrs-input {
     width: 100%; padding: 10px 12px; border: 2px solid var(--border-mid);
-    border-radius: var(--radius-sm); font-size: 1rem; font-family: inherit;
+    border-radius: var(--radius-sm); font-size: var(--type-medium); font-family: inherit;
     background-color: var(--field-bg); color: var(--text-dark);
     transition: border-color var(--dur-med), background-color var(--dur-med);
   }
@@ -1072,13 +1078,13 @@
   /* Both columns now carry an eyebrow label, so the boxes align naturally — the old +20px
      padding/margin compensation hacks are gone; the = centres on the box row instead. (v18.02) */
   .decimal-conv-equals {
-    font-size: 1.3rem; font-weight: 700; color: var(--text-light);
+    font-size: 20px; font-weight: 700; color: var(--text-light);
     flex-shrink: 0; align-self: flex-end; padding-bottom: 9px;
   }
   .decimal-conv-result {
     flex: 1.5; min-width: 140px; padding: 10px 14px;
     background: var(--bg-faint); border-radius: var(--radius-sm);
-    font-size: 1rem; font-weight: 700; color: var(--primary-blue);
+    font-size: var(--type-medium); font-weight: 700; color: var(--primary-blue);
     border: 2px solid var(--border-light);
   }
 
@@ -1091,7 +1097,7 @@
     .card-header-toggle:hover { background: var(--bg-faint); }
   }
   .card-toggle-arrow {
-    font-size: 10px; color: var(--text-light);
+    font-size: var(--type-micro); color: var(--text-light);
     transition: transform 0.25s; flex-shrink: 0;
     padding: 3px 0 0 12px; line-height: 1.5;
   }
@@ -1177,7 +1183,7 @@
     #stickyTotal {
       left: 50%; right: auto; transform: translateX(-50%);
       width: min(100%, var(--content-max-width));
-      border-radius: 12px 12px 0 0;
+      border-radius: var(--radius) var(--radius) 0 0;
     }
   }
   /* Space so the disclaimer is never hidden behind the sticky bar */
@@ -1210,7 +1216,7 @@
   }
   .roster-state-badge {
     font-size: var(--type-micro); font-weight: 600; padding: 2px 8px;
-    border-radius: 99px; white-space: nowrap;
+    border-radius: var(--radius-pill); white-space: nowrap;
   }
   .roster-state-badge.loaded    { background: var(--conf-high-bg);     color: var(--conf-high-text); }
   .roster-state-badge.checking  { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
@@ -1218,16 +1224,16 @@
   /* (.conf-high class removed — only the recorded/possible badges are rendered;
      the --conf-high-* tokens above stay for the .loaded state badge) */
   /* Roster "From your calendar" rows — discrete cards, matching the hours-row +
-     admin day-card treatment (white on the cream card, hairline border, 10px radius). */
+     admin day-card treatment (white on the cream card, hairline border, var(--radius) corners). */
   .roster-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
   .roster-row {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
     padding: 8px 10px;
-    background: var(--surface); border: 1px solid var(--border-light); border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius);
     font-family: inherit; text-align: left;
     cursor: pointer; touch-action: manipulation; transition: background 0.12s, border-color 0.12s;
   }
-  .roster-row-icon  { font-size: 14px; flex-shrink: 0; width: 20px; text-align: center; }
+  .roster-row-icon  { font-size: var(--type-body); flex-shrink: 0; width: 20px; text-align: center; }
   .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); white-space: nowrap; flex-shrink: 0; }
   .roster-row-total { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); min-width: 52px; flex-shrink: 0; }
   .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; min-width: 0; }
@@ -1235,13 +1241,13 @@
   @media (hover: hover) and (pointer: fine) {
     .roster-row:hover { background: var(--bg-faint); }
   }
-  .roster-row:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: 12px; }
+  .roster-row:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: var(--radius); }
   .roster-row--matched { background: var(--row-matched-bg); }
   .roster-row--differs { background: var(--row-differs-bg); }
   .roster-cat-match { font-size: var(--type-small); font-weight: 700; color: var(--row-matched-text); flex-shrink: 0; }
   .roster-row--differs .roster-row-total { color: var(--chip-ot-bg); }
   .roster-cat-arrow--differs { color: var(--chip-ot-bg); }
-  .conf-badge { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; vertical-align: middle; line-height: 1.6; white-space: nowrap; }
+  .conf-badge { display: inline-block; font-size: var(--type-micro); padding: 1px 5px; border-radius: 3px; font-weight: 600; vertical-align: middle; line-height: 1.6; white-space: nowrap; }
   .conf-recorded { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .conf-possible { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
   .roster-card-note {
@@ -1249,19 +1255,23 @@
     line-height: 1.45; margin: 0 0 8px;
   }
   .roster-card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  /* Primary-button family member (v18.07 audit): --radius-button, the shared press scale, and the
+     token focus ring — it was the file's only hand-rolled ring + the only pressless primary. */
   .fill-roster-btn {
     padding: 10px 16px; background: var(--primary-blue); color: white;
-    border: none; border-radius: var(--radius-sm); min-height: 44px;
+    border: none; border-radius: var(--radius-button); min-height: 44px;
     font-family: inherit; font-size: var(--type-small); font-weight: 700;
-    cursor: pointer; touch-action: manipulation; transition: background var(--dur-med);
+    cursor: pointer; touch-action: manipulation;
+    transition: background var(--dur-med), transform var(--dur-fast) var(--ease-standard);
   }
+  .fill-roster-btn:active { transform: scale(var(--press-scale)); }
   @media (hover: hover) and (pointer: fine) {
     .fill-roster-btn:hover { background: var(--primary-blue-dark); }
   }
   .fill-roster-btn:focus-visible {
     outline: 2px solid var(--primary-blue);
     outline-offset: 2px;
-    box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+    box-shadow: 0 0 0 4px var(--focus-ring-color);
   }
   .roster-days-toggle {
     background: none; border: none; padding: 0;
@@ -1283,7 +1293,7 @@
   }
   .roster-day-date  { width: 68px; flex-shrink: 0; font-weight: 600; color: var(--text-dark); }
   .roster-day-shift { font-family: ui-monospace, 'Roboto Mono', monospace; color: var(--text-dark); flex: 1; }
-  .roster-day-chip  { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
+  .roster-day-chip  { font-size: var(--type-micro); font-weight: 700; padding: 1px 6px; border-radius: var(--radius-pill); white-space: nowrap; flex-shrink: 0; }
   .roster-day-chip--sat { background: var(--primary-blue); color: white; }
   .roster-day-chip--sun { background: var(--blue-sky); color: white; }
   .roster-day-chip--bh  { background: var(--chip-bh-bg);   color: white; }
@@ -1312,7 +1322,7 @@
   .card-year-chip {
     font-size: var(--type-small); font-weight: 700; letter-spacing: .02em;
     color: var(--primary-blue); background: var(--bg-faint);
-    border: 1px solid var(--border-light); border-radius: 999px;
+    border: 1px solid var(--border-light); border-radius: var(--radius-pill);
     padding: 2px 9px; white-space: nowrap; font-variant-numeric: tabular-nums;
   }
   .card-year-chip:empty { display: none; }
@@ -1355,7 +1365,7 @@
   /* The → arrow separator between Old and New rate columns */
   .rate-sep {
     display: flex; align-items: center;
-    font-size: 18px; color: var(--text-light); flex-shrink: 0;
+    font-size: var(--type-large); color: var(--text-light); flex-shrink: 0;
   }
 
   /* HPP prior-year section header row: title left, badge right */
@@ -1418,7 +1428,6 @@
     background: none; border: none; text-decoration: underline;
     cursor: pointer; padding: 4px; color: var(--text-faint);
   }
-  .card-optional-tag { font-size: var(--type-small); font-weight: 400; color: var(--text-light); }
   .pfx--adj { width: 90px; }
   #otherAdj { text-align: right; }
   .actuals-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: var(--type-medium); box-sizing: border-box; }
