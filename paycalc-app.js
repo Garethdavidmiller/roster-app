@@ -312,6 +312,8 @@ export function init() {
     function _updateYtdNote(ty, p, src) {
       const note = document.getElementById('ytdUptoNote');
       if (!note) return;
+      const srcP0 = src ? getPeriods().find(/** @param {any} x */ x => x.num === src) : null;
+      note.classList.toggle('ytd-upto-note--live', !!(srcP0 && p.num === src + 1));
       const periodIdx = (p.num - 48) - ty.first + 1; // 1-based HMRC period within the tax year
       if (periodIdx <= 1) {
         note.innerHTML = `P${payslipPeriodNum(p)} is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;

@@ -590,8 +590,14 @@
     .field-hint { font-size: var(--type-small); color: var(--text-light); margin-top: 5px; line-height: 1.45; }
     /* "Up to which payslip" pointer at the top of the Year to Date card — a subtle gold-accented
        note so it reads as guidance about WHICH payslip to copy from, not just another hint. */
-    .ytd-upto-note { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--accent-gold);
-      background: color-mix(in oklch, var(--accent-gold) 10%, transparent); border-radius: 0 6px 6px 0; }
+    /* YTD source-status strip (v18.01): navy = informational (matches .bp-award-scope) — gold read
+       as a WARNING, wrong for a status line. The --live variant (figures sharpen THIS payslip) goes
+       success-green, echoing the ✓ Confirmed language. */
+    .ytd-upto-note { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--primary-blue);
+      background: var(--bg-faint); border-radius: 0 6px 6px 0;
+      font-size: var(--type-small); color: var(--text-mid); line-height: 1.5; }
+    .ytd-upto-note--live { border-left-color: var(--green);
+      background: color-mix(in oklch, var(--green) 9%, white); color: var(--success-text); }
     .ytd-upto-note:empty { display: none; }
 
     /* First-run banner */
