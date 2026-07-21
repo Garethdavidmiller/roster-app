@@ -40,7 +40,9 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
             const pluralPrefix = lastSpaceIdx !== -1
                 ? weekPrefix.slice(0, lastSpaceIdx + 1) + weekPrefix.slice(lastSpaceIdx + 1) + 's'
                 : weekPrefix + 's';
-            weekDisplay = `· ${pluralPrefix} ${firstWeekNum}-${lastWeekNum}`;
+            // En-dash for the range (v18.19) — matches the Team Week View's "19–25 July" strip;
+            // the ASCII hyphen was the app's one range rendered with the wrong dash.
+            weekDisplay = `· ${pluralPrefix} ${firstWeekNum}–${lastWeekNum}`;
         }
     }
     return `
