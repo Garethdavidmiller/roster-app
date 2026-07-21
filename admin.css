@@ -1817,14 +1817,10 @@
         #iconLightbox .lightbox-badge { background: color-mix(in oklch, var(--accent-gold) 15%, white); border-color: color-mix(in oklch, var(--accent-gold) 35%, white); color: var(--accent-gold); }
 
         /* AL balance shown in the collapsed card header */
-        .al-header-balance {
-            font-size: 12px;
-            color: var(--text-light);
-            font-weight: 500;
-            margin-top: 2px;
-        }
-        .al-header-balance.balance-low  { color: var(--accent-gold-dark); font-weight: 600; }
-        .al-header-balance.balance-none { color: var(--error-red); font-weight: 700; }
+        /* AL-remaining header chip — base look comes from the shared .card-year-chip (v18.16);
+           these modifiers only recolour the low/none balance states. */
+        .al-left-chip.balance-low  { color: var(--accent-gold-dark); }
+        .al-left-chip.balance-none { color: var(--error-red); }
 
         /* ---- Staged changes bar (fixed bottom, shown when pending saves exist) ---- */
         #stagedBar {

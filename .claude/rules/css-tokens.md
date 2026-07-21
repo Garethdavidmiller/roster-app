@@ -39,6 +39,22 @@ Internet / Chrome auto-dark / system force-dark), not an app bug to "fix" with a
 stale cached copy predating v17.16 (no opt-out at all) is the other cause — resolved by updating
 the install, not by code.
 
+## Canonical card-header system (v18.16 — the admin parity pass)
+
+`shared.css` hosts ONE row-header system, promoted verbatim from paycalc (the v17.95–v18.07
+polish generation): `.card-header-toggle` (collapsible) / `.card-header--row` (static) lay out a
+left `<div>` (title `h2` + `.hint`) against a right `.card-header-actions` cluster (optional
+`.card-year-chip` context chip → Tips/Help `?` button → collapse arrow). `.card-year-chip` names
+the card's tax year / balance / count even while collapsed (`:empty` hides it); `.field-eyebrow`
+is the shared uppercase micro field label (GRADE, TAX CODE, …). **Used by paycalc + admin**
+(admin's chips: `AL left: N` with `.al-left-chip` low/none recolours; the Saved Changes count).
+**Do not re-create page-local copies of these classes** — that split is exactly how the header
+systems drifted apart pre-v18.16. operations/settings still use the older
+`.card-collapsible-header` grid in shared.css; migrate them onto this system in a later pass,
+then delete that block. A11y invariant (v17.50): the focusable collapse toggle is the
+ARROW/CHEVRON, never a header wrapping another button — `initCardCollapse` enforces it, the axe
+gate fails on violations.
+
 ## Motion vocabulary + unified press (v11.56)
 
 One easing/duration vocabulary in `shared.css :root`:

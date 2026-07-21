@@ -1993,6 +1993,64 @@ button.nav-panel-link--notices {
     flex-shrink: 0;
 }
 .collapse-chevron.open { transform: rotate(180deg); }
+
+/* ── Row card header + actions cluster (canonical since v18.16) ─────────
+   Promoted VERBATIM from paycalc.css (the v17.95–v18.07 polish generation) so every page
+   can use one header system instead of page-local copies drifting apart. The layout puts
+   title+hint in a left <div> and a .card-header-actions cluster (context chip, Tips/Help
+   button, collapse arrow) on the right. Adopted by admin v18.16; operations/settings still
+   use the older .card-collapsible-header grid above — migrate them onto this, then delete
+   that block. A11y (v17.50): the focusable collapse toggle is the ARROW/CHEVRON, never a
+   header that wraps another button — initCardCollapse enforces this. */
+.card-header-toggle {
+    cursor: pointer; user-select: none;
+    display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) {
+    .card-header-toggle:hover { background: var(--bg-faint); }
+}
+.card-toggle-arrow {
+    font-size: var(--type-micro); color: var(--text-light);
+    transition: transform 0.25s; flex-shrink: 0;
+    padding: 3px 0 0 12px; line-height: 1.5;
+}
+.card-header-toggle.open .card-toggle-arrow { transform: rotate(180deg); }
+
+/* Non-collapsible variant: same row layout without the toggle affordance. */
+.card-header--row {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+/* Right-side cluster inside a card header (context chip + help/tips btn + arrow). */
+.card-header-actions {
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0; padding-top: 2px;
+}
+
+/* Context chip in a card header — names the card's tax year / balance / count even when
+   collapsed. :empty hides it until JS fills it. */
+.card-year-chip {
+    font-size: var(--type-small); font-weight: 700; letter-spacing: .02em;
+    color: var(--primary-blue); background: var(--bg-faint);
+    border: 1px solid var(--border-light); border-radius: var(--radius-pill);
+    padding: 2px 9px; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.card-year-chip:empty { display: none; }
+
+/* Uppercase micro field label (GRADE, TAX CODE, …) — the app's field-label convention. */
+.field-eyebrow {
+    font-size: var(--type-micro);
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
 /* The chevron is the focusable collapse toggle (v17.50 — the header is no longer role="button",
    so it can't nest the Tips button). It needs its own pointer + a visible keyboard focus ring. */
 .collapse-chevron { cursor: pointer; }
