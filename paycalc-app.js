@@ -1333,14 +1333,9 @@ export function init() {
       });
     })();
 
-    // Grade hint — rates interpolated from GRADES so the April pay award is a
-    // one-place update (paycalc-calc.js), not a hunt through hardcoded HTML copy.
-    (function fillGradeRateHint() {
-      const el = document.getElementById('gradeRateHint');
-      if (!el) return;
-      el.textContent = 'CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. '
-        + `Your grade sets your hourly rate below. CEA: £${GRADES.cea.rate.toFixed(2)}/hr · CES: £${GRADES.ces.rate.toFixed(2)}/hr.`;
-    })();
+    // (The old fillGradeRateHint JS builder is gone — it existed to interpolate the grade RATES
+    // into the hint, which duplicated the read-only rate field directly below; the static HTML
+    // hint now carries the one-line version. v18.03)
 
     loadSettings();
     // _defaultPeriodNum must be assigned BEFORE onPeriodChange() runs — the period

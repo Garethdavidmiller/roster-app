@@ -131,7 +131,7 @@
           <option value="ces">CES</option>
         </select>
         <!-- Rates filled by paycalc-app.js from GRADES — one-place update at the April pay award -->
-        <div class="field-hint" id="gradeRateHint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. Your grade sets your hourly rate below.</div>
+        <div class="field-hint" id="gradeRateHint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. Your grade sets the hourly rate below.</div>
       </div>
 
       <div class="field">
@@ -141,7 +141,7 @@
           <input type="text" id="hourlyRate" value="21.49" readonly aria-readonly="true" tabindex="-1">
         </div>
         <div class="field-hint">Set automatically by your <strong>grade</strong> — nothing to type here; it updates with each pay award on its own.</div>
-        <div class="field-hint" id="rateStepNote" style="display:none"></div>
+        <div class="rate-step-note" id="rateStepNote" style="display:none"></div>
         <!-- Shown only while a FUTURE award is accepted but not yet on payslips (ty.rateUnconfirmed). -->
         <div class="joiner-notice hidden" id="rateUnconfirmedNotice">⚠ This year's pay award has been accepted but isn't on payslips yet — the rate shown stays on last year's until the award lands on a payslip, then it updates automatically.</div>
       </div>
@@ -158,7 +158,7 @@
           <span class="pfx-sym">£</span>
           <input type="text" id="pensionAmt" value="147.36" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
-        <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — it's the same thing. <strong>Saved per period</strong> — update here when your pension changes and past periods will keep their own amount automatically.</div>
+        <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme". <strong>Saved per payslip</strong> — change it here and past payslips keep their own amount.</div>
         <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite">⚠ Pension exceeds gross pay — check the amount</div>
       </div>
 
