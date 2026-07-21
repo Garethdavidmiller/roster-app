@@ -201,9 +201,9 @@ export function prefillBackPay() {
   // settled award, also show WHEN it was applied — it explains why later periods aren't in the count.
   const awardScopeEl = document.getElementById('bpAwardScope');
   const _fromDate    = awardFromForYear(ty.label);
-  if (awardScopeEl) awardScopeEl.textContent = _fromDate
-    ? `You're calculating the ${ty.label} pay award — backdated to 1 April, applied from ${fdShort(_fromDate)} (later periods were already on the new rate).`
-    : `You're calculating the ${ty.label} pay award (backdated to 1 April).`;
+  if (awardScopeEl) awardScopeEl.innerHTML = _fromDate
+    ? `<strong>The ${ty.label} pay award</strong> — backdated to 1 April, paid from ${fdShort(_fromDate)} (later payslips were already on the new rate).`
+    : `<strong>The ${ty.label} pay award</strong> — backdated to 1 April; not yet paid.`;
   // The award is always backdated to 1 April (Chiltern's pay anniversary) — computed
   // internally by _backdatedFromPNum(); there is no "backdated from" selector to pre-set.
   // Default the "paid in" period: a SETTLED award defaults to the payslip that actually carried

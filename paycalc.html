@@ -584,14 +584,13 @@
           <div class="hpp-basis" id="priorHppBasis"></div>
         </div>
         <div class="field" style="margin-bottom:12px">
-          <label for="priorHppActualInput">Confirmed amount from your January payslip <span class="note note-block">enter when payslip arrives</span></label>
+          <label for="priorHppActualInput">Confirmed amount — January payslip <span class="note note-block" id="priorHppActualNote">enter when the payslip arrives</span></label>
           <div class="pfx">
             <span class="pfx-sym">£</span>
             <input type="text" id="priorHppActualInput" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
-          <div class="field-hint">Find the <strong>Holiday Pay Premium</strong> line on your January payslip and enter it here — it replaces the estimate above and updates your January take-home.</div>
+          <div class="field-hint" id="priorHppActualHint">Find the <strong>Holiday Pay Premium</strong> line on your January payslip and enter it here — it replaces the estimate above and updates your January take-home.</div>
         </div>
-        <div class="field-divider"></div>
         <div class="section-subhead" id="currentHppTitle">This year (2026/27)</div>
       </div>
 
@@ -621,9 +620,9 @@
       </div>
     </div>
     <div class="card-body collapsible-body" id="backPayBody">
-      <p class="card-explainer">When a pay award is backdated, all the extra money owed is paid as a single lump sum, always from 1 April (Chiltern's pay anniversary). For a past award you can just enter the figure from your payslip; for the current one the app estimates it from your hours. It lands on the right payslip automatically.</p>
+      <p class="card-explainer">When a pay award is backdated, everything owed since <strong>1 April</strong> (Chiltern's pay anniversary) arrives as one lump sum on a single payslip — and it lands on the right payslip here automatically.</p>
 
-      <div class="field-hint" id="bpAwardScope" style="margin-bottom:12px"></div>
+      <div class="bp-award-scope" id="bpAwardScope"></div>
 
       <div class="backpay-estimate-note" id="bpEstimateNote" style="display:none">ℹ️ This pay award has been accepted but isn't confirmed on a payslip yet — treat the figures below as an estimate until it appears there.</div>
 
