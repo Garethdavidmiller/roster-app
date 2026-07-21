@@ -293,13 +293,17 @@ export function init() {
       const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ytdSrcSelect'));
       if (!sel) return;
       buildYtdSourceSelect(ty);
-      let src = parseInt(lsGet(ytdSrcKey(ty)) ?? '', 10) || 0;
+      const _rawSrc = lsGet(ytdSrcKey(ty));
+      let src = parseInt(_rawSrc ?? '', 10) || 0;
       const hasFigures = ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay')))?.value.trim() || '') !== ''
                       || ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdTax')))?.value.trim() || '') !== '';
-      if (!src && hasFigures) {
-        // Legacy stamp: the maths always ASSUMED the figures were the totals through the payslip
-        // before the one on screen; anchor them to the payslip before TODAY's (the latest paid),
-        // clamped into this tax year — so a maintained user's next-payslip estimate is unchanged.
+      // Legacy stamp: ONLY when NO source was EVER recorded (raw === null) — anchor pre-v17.98 figures
+      // to the payslip before TODAY's (the latest paid), clamped into this tax year, so a maintained
+      // user's next-payslip estimate is unchanged. A recorded '0' means the member DELIBERATELY
+      // un-anchored (picked the blank placeholder); that must PERSIST and never be re-stamped here —
+      // otherwise the next period change silently re-engages cumulative PAYE against figures the
+      // member detached (v18.12 — the un-anchor handler now records '0' rather than deleting the key).
+      if (_rawSrc == null && hasFigures) {
         src = Math.min(Math.max(todaysPeriodNum() - 1, 48 + ty.first), 48 + ty.last);
         lsSet(ytdSrcKey(ty), String(src));
       }
@@ -1668,11 +1672,12 @@ export function init() {
       const _p2  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
       const _ty2 = taxYearForPeriod(_p2);
       const _v = /** @type {HTMLSelectElement} */ (document.getElementById('ytdSrcSelect')).value;
-      // Selecting the blank placeholder un-anchors the figures: clear the stored source so
+      // Selecting the blank placeholder un-anchors the figures: record an explicit '0' source so
       // calculate() drops back to the standard (non-cumulative) method — matching the note it now
-      // shows. Without the else-clear the old source lingered and tax stayed cumulative while the
-      // note claimed otherwise (v18.08 review fix).
-      if (_v) lsSet(ytdSrcKey(_ty2), _v); else lsDel(ytdSrcKey(_ty2));
+      // shows — and the un-anchor PERSISTS. (v18.08 deleted the key, which the legacy auto-stamp in
+      // _refreshYtdSrc then silently re-anchored on the next period change because the figures remain;
+      // '0' is a recorded value the stamp leaves alone — v18.12.)
+      if (_v) lsSet(ytdSrcKey(_ty2), _v); else lsSet(ytdSrcKey(_ty2), '0');
       _updateYtdNote(_ty2, _p2, parseInt(_v, 10) || 0);
       calculate();
     });

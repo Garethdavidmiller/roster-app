@@ -433,6 +433,17 @@ export function calcBackPay() {
   const oldLondon = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldLondon')).value);
   const newLondon = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('newLondon')).value);
   const bpSel     = /** @type {HTMLSelectElement} */ (document.getElementById('backPayPeriod'));
+  // A DECIDED award's paid-in payslip is deterministic (the award-application payslip) and its
+  // selector is HIDDEN, so DERIVE it here rather than trust a persisted value. Without this, a
+  // paid-in saved before an award-date MOVE (the 3.6% award deferred 31 Jul → 28 Aug) stays pinned to
+  // the old payslip — the include banner ("green box") shows on the wrong, now-invisible payslip with
+  // no control to fix it. restoreBpState restores that stale value, so overriding it here is the
+  // single choke point; _saveBpState (below) then heals the persisted blob. (v18.12)
+  if (bpSel && _awardDecided) {
+    const _from = awardFromForYear(awardTy.label);
+    const _tgt  = _from ? (getPeriods().find(/** @param {any} x */ x => x.payday >= _from)?.num ?? 0) : 0;
+    if (_tgt && +bpSel.value !== _tgt) _setSelectPeriod(bpSel, _tgt);
+  }
   const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
   const bpP       = bpPNum ? getPeriods().find(/** @param {any} x */ x => x.num === bpPNum) : null;
   const hasRate   = oldRate   > 0 && newRate   > 0 && newRate   > oldRate;
