@@ -10,6 +10,7 @@ import {
     isResolvedErrorExpired,
     expiredResolvedIds,
     orderClientErrors,
+    capUnresolvedErrors,
 } from './client-errors.js';
 
 const NOW = 1_700_000_000_000;
@@ -78,5 +79,30 @@ describe('orderClientErrors', () => {
     });
     test('retention window constant is 90 days', () => {
         assert.equal(CLIENT_ERROR_RETENTION_MS, 90 * 24 * 60 * 60 * 1000);
+    });
+});
+
+describe('capUnresolvedErrors (over-fetch → shown + truncated)', () => {
+    const rows = n => Array.from({ length: n }, (_, i) => ({ id: `e${i}` }));
+    test('the (cap+1)th row proves > cap exist → truncated, shows exactly cap', () => {
+        const { shown, truncated } = capUnresolvedErrors(rows(101), 100);
+        assert.equal(shown.length, 100);
+        assert.equal(truncated, true);
+        assert.equal(shown[99].id, 'e99', 'shows the first cap rows in order');
+    });
+    test('exactly cap rows is NOT truncated (no false banner)', () => {
+        const { shown, truncated } = capUnresolvedErrors(rows(100), 100);
+        assert.equal(shown.length, 100);
+        assert.equal(truncated, false);
+    });
+    test('fewer than cap → all shown, not truncated', () => {
+        const { shown, truncated } = capUnresolvedErrors(rows(7), 100);
+        assert.equal(shown.length, 7);
+        assert.equal(truncated, false);
+    });
+    test('empty → empty, not truncated', () => {
+        const { shown, truncated } = capUnresolvedErrors([], 100);
+        assert.deepEqual(shown, []);
+        assert.equal(truncated, false);
     });
 });

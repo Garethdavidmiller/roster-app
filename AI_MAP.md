@@ -649,7 +649,14 @@ Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by
 - `isResolvedErrorExpired(rec, now, [retentionMs])` — true if a resolved record is past the retention window; records with no `resolvedAt` are never expired
 - `expiredResolvedIds(resolved, now, [retentionMs])` — IDs of resolved records that should be pruned
 - `orderClientErrors(unresolved, resolved, now, [opts])` — ordered list for the Error Log card: all unresolved first (newest-first), then up to `resolvedLimit` (default 30) recent resolved records. Unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) resolved backlogs cannot displace them.
+- `capUnresolvedErrors(fetchedUnresolved, cap)` → `{ shown, truncated }` (v18.28) — the over-fetch→display split extracted from `getClientErrors`: fetch `cap + 1`, show the first `cap`, `truncated` only when the extra row came back (no-silent-caps)
 - Tested by `client-errors.test.mjs` (no mocks, runs in `test:hygiene`)
+
+### `claim-retry.js`
+Pure stale-claim self-heal runner — no DOM, no Firebase. Imported by `firebase-client.js` only (v18.28). Extracted so the security-critical write-retry decision is unit-testable in Node (firebase-client.js can't load in a test — it pulls the gstatic SDK).
+- `isClaimRetryable(err, retryCode, hasUser)` — true iff `err.code === retryCode` AND a user is present
+- `runWithClaimRetry(fn, { retryCode, hasUser, refresh })` — run `fn`; on a retryable stale-claim rejection with a user, force `refresh()` then retry ONCE; a failed refresh re-throws the ORIGINAL error (never masks an auth denial with a connectivity error); at most one retry. `fn` must build a fresh WriteBatch each call. `firebase-client.js`'s `withClaimRetry` (`permission-denied`) and `_uploadBytesWithClaimRetry` (`storage/unauthorized`) inject the Firebase auth deps.
+- Tested by `claim-retry.test.mjs` (no mocks, runs in `test:hygiene`)
 
 ### `nav-panel.js`
 Shared slide-out navigation panel — imported by all six app pages.

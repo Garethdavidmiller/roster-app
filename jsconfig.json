@@ -19,6 +19,7 @@
         "e2e",
         "playwright.config.mjs",
         "playwright.csp.mjs",
-        "playwright.visual.mjs"
+        "playwright.visual.mjs",
+        "playwright.offline.mjs"
     ]
 }

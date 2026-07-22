@@ -21,7 +21,8 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
-import { orderClientErrors, expiredResolvedIds } from './client-errors.js';
+import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
+import { runWithClaimRetry } from './claim-retry.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys } from './usage-stats.js';
 import { perfSampleKey, summarisePerf } from './perf-stats.js';
 import { APP_VERSION } from './roster-data.js';
@@ -136,24 +137,14 @@ export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnony
  * @returns {Promise<T>}
  */
 export async function withClaimRetry(fn) {
-    try {
-        return await fn();
-    } catch (err) {
-        const user = auth.currentUser;
-        if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
-            // Force a token refresh to pick up a newly-set claim, then retry once. If the refresh
-            // itself fails (offline/flaky), do NOT let its network error REPLACE the original
-            // permission-denied — the caller keys its user-facing message on `err.code`, so a genuine
-            // authorisation denial must not be reported to staff as a connectivity problem.
-            try {
-                await user.getIdToken(true);   // force refresh → pick up the newly-set claim
-            } catch {
-                throw err;                     // preserve the original permission-denied
-            }
-            return await fn();               // retry once with the fresh token
-        }
-        throw err;
-    }
+    // The retry DECISION (only `permission-denied` with a live user, at most once, preserve the
+    // original error if the refresh itself fails) is the pure runWithClaimRetry in claim-retry.js,
+    // unit-tested in claim-retry.test.mjs. This wrapper only injects the Firebase auth dependencies.
+    return runWithClaimRetry(fn, {
+        retryCode: 'permission-denied',
+        hasUser: () => !!auth.currentUser,
+        refresh: () => /** @type {any} */ (auth.currentUser).getIdToken(true),
+    });
 }
 
 /** Back-compat alias for the write call sites (admin-overrides, admin-roster-upload, links-app, …).
@@ -173,17 +164,12 @@ export const writeWithClaimRetry = withClaimRetry;
  * @param {any} storageRef @param {any} file @param {any} metadata
  */
 async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadata) {
-    try {
-        return await uploadBytes(storageRef, file, metadata);
-    } catch (err) {
-        const user = auth.currentUser;
-        if (/** @type {any} */ (err)?.code === 'storage/unauthorized' && user) {
-            try { await user.getIdToken(true); }
-            catch { throw err; }              // preserve the original storage/unauthorized
-            return await uploadBytes(storageRef, file, metadata);
-        }
-        throw err;
-    }
+    // Storage-side mirror of withClaimRetry — same pure runner, keyed on `storage/unauthorized`.
+    return runWithClaimRetry(() => uploadBytes(storageRef, file, metadata), {
+        retryCode: 'storage/unauthorized',
+        hasUser: () => !!auth.currentUser,
+        refresh: () => /** @type {any} */ (auth.currentUser).getIdToken(true),
+    });
 }
 
 // normaliseSurname + nameToEmail (the account-identity derivations) live in the pure, import-free
@@ -689,8 +675,9 @@ export async function getClientErrors() {
         getDocs(query(collection(db, COLLECTIONS.clientErrors), where('resolved', '==', false), limit(UNRESOLVED_CAP + 1))),
         getDocs(query(collection(db, COLLECTIONS.clientErrors), where('resolved', '==', true),  limit(200))),
     ]);
-    const truncated      = unresolvedSnap.size > UNRESOLVED_CAP;
-    const unresolvedDocs = unresolvedSnap.docs.slice(0, UNRESOLVED_CAP); // show at most the cap
+    // Pure truncation split (client-errors.capUnresolvedErrors, unit-tested): show at most the cap;
+    // `truncated` is true only when the (cap+1)th row came back, i.e. > cap genuinely exist.
+    const { shown: unresolvedDocs, truncated } = capUnresolvedErrors(unresolvedSnap.docs, UNRESOLVED_CAP);
     const unresolved = unresolvedDocs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
     const resolved   = resolvedSnap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
 
