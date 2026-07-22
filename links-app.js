@@ -1392,6 +1392,10 @@ export function init() {
         if (!headerIcon) return;
         headerIcon.title = 'Back to calendar';
         headerIcon.setAttribute('aria-label', 'Back to calendar');
+        // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
+        headerIcon.setAttribute('role', 'button');
+        headerIcon.tabIndex = 0;
+        headerIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); headerIcon.click(); } });
         headerIcon.addEventListener('click', async () => {
             if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Leave anyway?', confirmLabel: 'Leave' })) return;
             dirty = false;   // clear so beforeunload doesn't double-prompt

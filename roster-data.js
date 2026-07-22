@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '18.28';
+export const APP_VERSION = '18.29';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -217,8 +217,9 @@ export const teamMembers = [
 //                    "Worked" means the resolved shift (base roster after Firestore overrides)
 //                    is not RD, OFF, SPARE, AL, or SICK. SPARE does NOT count — only actual
 //                    worked shifts (time-format shifts or RDW) earn a lieu day.
-//   C. Reen        → 34 days (fixed roster)
-//   All CEAs       → 32 days  (main, bilingual, or any other CEA rosterType)
+//   All CEAs       → 32 days  (main, bilingual, fixed, or any other CEA rosterType).
+//                    C. Reen is a CEA on a fixed roster (NOT CEA-BL), so 32 — corrected Jun 2026;
+//                    getALEntitlement returns 32 for every CEA incl. fixed. Pinned by roster-data.test.mjs.
 
 /**
  * Count how many UK bank holidays a dispatcher actually worked in a given year,

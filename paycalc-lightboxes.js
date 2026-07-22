@@ -56,6 +56,10 @@ export function initPaycalcLightboxes() {
     if (!appIcon) return;
     appIcon.title = 'Back to calendar';
     appIcon.setAttribute('aria-label', 'Back to calendar');
+    // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
+    appIcon.setAttribute('role', 'button');
+    appIcon.tabIndex = 0;
+    appIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); appIcon.click(); } });
     appIcon.addEventListener('click', () => { window.location.href = './'; });
   })();
 

@@ -57,6 +57,10 @@
        add their own flex + chevron rules). Keeping this base flat avoids fighting
        those modifiers; do not fold it back onto the shared flex header. */
     .card-header {
+      /* Match the faint grey strip the other five pages' headers carry (shared.css .card-header),
+         so all six pages read identically — the flat LAYOUT (no flex row) is still deliberate; only
+         the fill is aligned here. v18.29. */
+      background: var(--bg-light);
       padding: 11px 16px;
       border-bottom: 1px solid var(--border-light);
     }
@@ -293,7 +297,7 @@
     }
     .bd-btn:active { background: var(--border-light); }
     .bd-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; }
-    .bd-arrow { font-size: var(--type-micro); transition: transform 0.25s; display: inline-block; }
+    .bd-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
     .bd-btn.open .bd-arrow { transform: rotate(180deg); }
     .bd-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
     /* 1400px is a deliberate finite cap so the open/close can ANIMATE (max-height:none can't
@@ -359,7 +363,7 @@
     max-height: 78vh;
   }
   .help-lightbox-title {
-    color: white; font-size: var(--type-medium); font-weight: 700;
+    color: white; font-size: var(--type-large); font-weight: 700;   /* unified overlay title (v18.29) */
     margin-bottom: 14px; padding-right: 22px; line-height: 1.3;
   }
   .help-lightbox-list {
@@ -398,7 +402,7 @@
       .show-more-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
     }
     .show-more-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
-    .show-more-arrow { font-size: var(--type-micro); transition: transform 0.25s; }
+    .show-more-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); }
     .show-more-btn.open .show-more-arrow { transform: rotate(180deg); }
     .hours-extra { display: none; }
     .hours-extra.open { display: block; }
@@ -648,7 +652,7 @@
     }
     .hpp-toggle-btn:active { color: var(--text-mid); }
     .hpp-toggle-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; }
-    .hpp-toggle-arrow { font-size: var(--type-micro); transition: transform 0.25s; display: inline-block; }
+    .hpp-toggle-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
     .hpp-toggle-btn.open .hpp-toggle-arrow { transform: rotate(180deg); }
     .hpp-note-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
     .hpp-note-body.open { max-height: 400px; }

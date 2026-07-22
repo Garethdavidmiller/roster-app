@@ -45,7 +45,19 @@ export function init() {
     // Register the service worker UNCONDITIONALLY, before the access gate — a signed-out (or
     // non-admin) visit returns early below and would otherwise never register/update the SW for
     // that page load. Matches settings-app.js (module-scope registration). (v16.21)
-    registerServiceWorker();
+    // Defer an SW-update reload while an admin is mid-way through a Weekly Roster Upload REVIEW —
+    // the one piece of unsaved, in-flight work on this page (uncommitted review edits would be lost
+    // on a reload). #rosterReviewSection carries `.visible` only while a review table is on screen;
+    // otherwise reload immediately. Mirrors admin-app.js's hasUnsavedChanges guard. (v18.29)
+    registerServiceWorker({
+        beforeReload() {
+            const reviewing = document.getElementById('rosterReviewSection')?.classList.contains('visible');
+            if (!reviewing) { window.location.reload(); return; }
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') window.location.reload();
+            }, { once: true });
+        },
+    });
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
@@ -605,6 +617,10 @@ export function init() {
         if (!headerIcon) return;
         headerIcon.title = 'Back to calendar';
         headerIcon.setAttribute('aria-label', 'Back to calendar');
+        // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
+        headerIcon.setAttribute('role', 'button');
+        headerIcon.tabIndex = 0;
+        headerIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); headerIcon.click(); } });
         headerIcon.addEventListener('click', () => { window.location.href = './'; });
     })();
 

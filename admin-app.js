@@ -145,6 +145,11 @@ export function init() {
         if (!headerIcon) return;
         headerIcon.title = 'Back to calendar';
         headerIcon.setAttribute('aria-label', 'Back to calendar');
+        // The logo is an interactive control, so make it keyboard-operable (it was an <img> with a
+        // click handler — not focusable, no button role). v18.29.
+        headerIcon.setAttribute('role', 'button');
+        headerIcon.tabIndex = 0;
+        headerIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); headerIcon.click(); } });
         headerIcon.addEventListener('click', () => { window.location.href = './'; });
     })();
 
