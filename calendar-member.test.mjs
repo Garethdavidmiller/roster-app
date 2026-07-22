@@ -46,7 +46,7 @@ const {
     takeStaleMemberName, getDefaultMemberIndex,
     getSelectedMemberIndex, saveSelectedMember,
     getCurrentMember, validateTeamMembers,
-    isFirstRun, _resetSelectionFallbackForTests,
+    isFirstRun, _resetSelectionFallbackForTest,
 } = await import('./calendar-member.js');
 
 const MEMBER_KEY = 'myb_roster_selected_member';
@@ -55,7 +55,7 @@ beforeEach(() => {
     store.clear();
     _session = null;
     takeStaleMemberName();               // clear any stale name left by the previous test
-    _resetSelectionFallbackForTests();   // clear the in-memory selection backstop between tests
+    _resetSelectionFallbackForTest();   // clear the in-memory selection backstop between tests
 });
 
 // ── getDefaultMemberIndex ─────────────────────────────────────────────────────

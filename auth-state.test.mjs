@@ -4,9 +4,9 @@
  */
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { getAuthSnapshot, subscribeAuth, dispatchAuth, _resetAuthState } from './auth-state.js';
+import { getAuthSnapshot, subscribeAuth, dispatchAuth, _resetAuthStateForTest } from './auth-state.js';
 
-beforeEach(() => _resetAuthState());
+beforeEach(() => _resetAuthStateForTest());
 
 describe('getAuthSnapshot / dispatchAuth', () => {
     test('starts at the initialising state', () => {
@@ -61,12 +61,12 @@ describe('subscribeAuth', () => {
     });
 });
 
-describe('_resetAuthState', () => {
+describe('_resetAuthStateForTest', () => {
     test('resets the state and drops listeners', () => {
         /** @type {any[]} */ const seen = [];
         subscribeAuth(s => seen.push(s.status));
         dispatchAuth({ type: 'NAMED', member: 'X' });
-        _resetAuthState();
+        _resetAuthStateForTest();
         assert.deepEqual(getAuthSnapshot(), { status: 'initialising', member: null, error: null });
         dispatchAuth({ type: 'NAMED', member: 'Y' });   // old listener was dropped
         assert.ok(!seen.includes('named') || seen.filter(x => x === 'named').length === 1,

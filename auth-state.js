@@ -61,7 +61,7 @@ export function dispatchAuth(event) {
 }
 
 /** Test-only: reset the store to INITIAL_STATE and drop all listeners. Not used in production. */
-export function _resetAuthState() {
+export function _resetAuthStateForTest() {
     _state = INITIAL_STATE;
     _listeners.clear();
 }

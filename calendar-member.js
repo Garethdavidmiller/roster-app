@@ -108,7 +108,7 @@ export function getSelectedMemberIndex() {
  * state (mirrors how takeStaleMemberName() resets _staleMemberName in beforeEach). Not used in
  * production — the fallback is meant to persist for the life of the page.
  */
-export function _resetSelectionFallbackForTests() {
+export function _resetSelectionFallbackForTest() {
     _selectedIndexFallback = null;
 }
 
@@ -177,7 +177,7 @@ export function getCurrentMember() {
     const selectedIndex = getSelectedMemberIndex();
     const member = teamMembers[selectedIndex];
     if (!member) {
-        console.error(`Invalid team member index: ${selectedIndex}`);
+        console.error(`[calendar-member] Invalid team member index: ${selectedIndex}`);
         return teamMembers[0] || { name: 'Unknown', currentWeek: 1, rosterType: 'main', role: 'CEA' };
     }
     return member;
