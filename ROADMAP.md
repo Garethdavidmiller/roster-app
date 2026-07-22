@@ -461,6 +461,12 @@ step-by-step upgrade checklist live in **KNOWN_LIMITATIONS.md**.
 
 **Do not add a bundler speculatively.** The current no-build setup is the right call while the app is small enough that every file is readable without tooling. Add complexity when the pain of not having it is concrete.
 
+**Load-time measurement — the calendar (Jul 2026, field + local).** Field telemetry (Operations → App Speed) shows the calendar is the slowest page but ~85% of loads are sub-second — good, not a problem. A local investigation into the >1s tail characterised *what* gates its first paint, so a future optimiser doesn't chase the wrong lever:
+- The paint path is fully synchronous (base roster renders with no `await`); every Firestore write is gated behind `calendarAuthReady.finally(…)`, off the critical path. Nothing is blocked on a query.
+- Under **6× CPU throttle**, FCP moved only 272 → 360ms — i.e. eager JS execution is **~18ms**. The cost is **not** parse/execute; it's **fetching the module graph** (35 JS files before FCP; the slowest single request ~104ms is the Firebase SDK).
+- **Consequence — lazy-loading modules (dynamic `import()`) does NOT help here.** It reduces execution cost, and execution isn't the bottleneck; it would only add a fetch round-trip when a deferred feature (huddle/doc viewer) is first used. Measured and rejected — do not re-propose without new evidence.
+- **The only real levers are file-count/size on the eager path:** (a) a bundler (this section — collapses ~35 files into 1–2), or (b) deferring the **Firebase SDK** off the eager path (render base roster first, then load Firebase + fetch). (b) is the single biggest item but high-risk — `firebase-client.js` is imported transitively across the module graph. **Neither is worth its risk while the page is 85% sub-second.** Reach for (b), or reconsider the bundler, only if the App Speed card shows the calendar tail drifting materially worse.
+
 ---
 
 ## Open decisions
