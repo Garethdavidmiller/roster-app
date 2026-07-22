@@ -17,7 +17,7 @@ paths:
 
 ## Beta marker + first-visit notice (v12.33)
 
-**Header:** a gold-OUTLINE `.beta-chip` ("Beta") sits beside the solid-gold "🔗 Links" `.badge-page` inside a `.header-end` flex wrapper — outline vs solid keeps them as secondary + primary tags. A slow `beta-sheen` sweep animates it (disabled under `prefers-reduced-motion`).
+**Header:** a gold-OUTLINE `.beta-chip` ("Beta") sits beside the solid-gold "🔗 Links" `.badge-page` inside a `.header-end` flex wrapper — outline vs solid keeps them as secondary + primary tags. A slow `beta-sheen` sweep runs a couple of times on load then rests — finite, not a perpetual loop (v18.31; disabled entirely under `prefers-reduced-motion`).
 
 **First-visit lightbox:** `#betaLightbox` follows the canonical `createLightbox` lifecycle — shown once, gated on `lsGet('myb_links_beta_seen')` set on close. Uses `.notice-badge notice-badge--links` (purple) and `.lightbox-app-name` (scoped to 17px within `.notice-lb-content`); no per-notice CSS in `links.css`.
 

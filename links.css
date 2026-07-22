@@ -59,8 +59,11 @@ body.auth-ready .container { display: grid; }
 /* ---- Header beta marker ----
    Sits beside the gold "🔗 Links" page badge. Deliberately a gold-OUTLINE chip
    (not solid gold like the page badge) so the two read as primary + secondary
-   tags rather than two identical pills. A slow sheen sweep keeps it lively
-   without drawing the eye away from the workspace; disabled for reduced motion. */
+   tags rather than two identical pills. A slow sheen sweep runs a couple of times
+   on load to catch the eye, then rests — it is NOT a perpetual loop (v18.31: every
+   other `infinite` animation in the app is a transient loader that's removed when its
+   state ends; this was the lone perpetual-motion animation on always-visible chrome).
+   Also disabled entirely for reduced motion. */
 .header-end {
     display: inline-flex;
     align-items: center;
@@ -89,7 +92,7 @@ body.auth-ready .container { display: grid; }
     inset: 0;
     background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.5) 50%, transparent 62%);
     transform: translateX(-130%);
-    animation: beta-sheen 5s var(--ease-standard) infinite;
+    animation: beta-sheen 5s var(--ease-standard) 2;   /* finite: two sweeps on load, then rests (v18.31) */
 }
 @keyframes beta-sheen {
     0%, 55%   { transform: translateX(-130%); }
