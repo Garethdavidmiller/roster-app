@@ -298,14 +298,21 @@ deductions.
 
 ---
 
-### Deferred: mid-year pension step for 2025/26
+### ~~Deferred: mid-year pension step for 2025/26~~ — SHIPPED v18.43
 
-**What:** The pay calculator models the pension contribution as two values — `pensionPre` £154.77 (before 8 May 2026) and `pension` £147.36 (from 8 May 2026) in `GRADES` (`paycalc-calc.js`). But G. Miller's **09/05/2025** payslip shows `Smart RPS CR Scheme` at **£160.78**, so the pension actually stepped **£160.78 → £154.77** at some point during the 2025/26 tax year that the app doesn't model. Historic pre-step 2025/26 periods therefore estimate pension ~£6 too low (take-home ~£6 too high). This is the pension counterpart to the mid-year *rate* step already modelled by `getRateForPeriod` (v15.95) and the London step (`londonAllowFrom`).
-
-**Blocked on:** Finding **when the £160.78 → £154.77 pension change came in** — the exact payslip/date it dropped. One payslip (09/05/2025 = £160.78) isn't enough to locate the step; need a payslip from later in 2025/26 showing £154.77 and ideally the first one that changed. `MILLER_ACTUALS` stores net/tax/NI but **not** the pension line, so the date can't be read from the repo — it needs a payslip.
-
-**When to do it:** Once the step date is known, model it exactly like the rate/London steps — add `pensionPre2/pensionFrom2` (or generalise to a small per-date pension table) so `getPensionForPeriod` returns £160.78 before the step, £154.77 between the step and 8 May 2026, and £147.36 after. Then a historic 2025/26 period matches the real payslip on pension too.
-
+**Shipped (v18.43 — review item 8).** The "can't be read from the repo" blocker turned out to be
+wrong: the per-payslip pension IS derivable from `MILLER_ACTUALS` as
+`pension ≈ basic (140 × era rate) + varPay − Taxable Pay` — the derivation self-validates by
+reproducing both payslip-confirmed values (£160.78 Apr–Jul 2025, £154.77 from 29 Aug 2025) in the
+right eras with a consistent reconstruction bias. The old two-value `pensionPre`/`pensionFrom` pair
+was generalised to the **`PENSION_STEPS`** table in `paycalc-calc.js` (newest-first, null-from
+floor; `getPensionForPeriod` walks it): £160.78 → **£156.29 on the 1 Aug 2025 payslip** (a
+transitional value matching NEITHER era — DERIVED, not read; correct it from the real payslip's
+`Smart RPS CR Scheme` line if ever checked) → £154.77 from 29 Aug 2025 → £147.36 from 8 May 2026.
+Historic 2025/26 periods now default the right pension (the ~£6 take-home overstatement is gone),
+and the year-so-far summary inherits the fix via `getPensionDefault`. The companion
+KNOWN_LIMITATIONS deferral ("pension default is frozen onto a touched period") was closed in the
+same change — `readFormData` stores `null` when the field still equals the period's default.
 ---
 
 ### Deferred: validate the back-pay accrual against the real 24 Oct 2025 payslip

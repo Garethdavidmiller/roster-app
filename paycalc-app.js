@@ -593,7 +593,21 @@ export function init() {
         // or "-" left mid-edit (then autosaved) stored a real £0 opt-out and overstated take-home by
         // ~£147. null (empty OR garbage) means "not provided" → the period default is re-applied on
         // load; a genuine typed "0" parses to 0 and is preserved (the deliberate opt-out).
-        pension:  (() => { const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt')); return (_el && _el.value.trim() !== '') ? parseSmartFloatOrNull(_el.value) : null; })(),
+        pension:  (() => {
+          const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
+          if (!_el || _el.value.trim() === '') return null;
+          const _v = parseSmartFloatOrNull(_el.value);
+          // Self-heal (closes the KNOWN_LIMITATIONS "pension default is frozen onto a touched
+          // period" deferral, done WITH the pension cut-overs as it prescribed — v18.43): a value
+          // still EQUAL to this period's default is stored as null, so the period keeps healing to
+          // future default changes; a genuinely custom pension (differs from the default) persists.
+          // Mirrors updateSaveStatus's _hasCustomPension comparison (default × pro-rate, 2dp, ±0.005).
+          if (_v != null) {
+            const _p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+            if (_p && Math.abs(_v - parseFloat((getPensionDefault(_p) * getProRateFactor(_p)).toFixed(2))) < 0.005) return null;
+          }
+          return _v;
+        })(),
         // Real take-home from the payslip (v18.42 — review item 3): null when blank/garbage, like
         // pension — mid-edit autosaves must not store a phantom £0 "actual". Deliberately NOT in
         // isDataEmpty: a period with only this figure has no hours to compute from.

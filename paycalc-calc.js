@@ -100,14 +100,35 @@ export const SCOTTISH_TAX_BY_YEAR = {
 // getStoredRateForYear), so an earlier year keeps its own rate; GRADES.rate is the grade default
 // + dropdown label. The mid-year step (pre-28-Aug-2026 periods still on £20.74/£21.81) is applied
 // by getRateForPeriod via awardFromForYear.
-// pensionPre / pensionFrom: pension changed from £154.77 → £147.36 at the May 8 2026 payslip (a
-// SEPARATE change from the pay award — unaffected by the 3.6% rise).
-// Periods with payday < pensionFrom use pensionPre; from pensionFrom onwards use pension.
+// `pension` is the CURRENT default; the per-era history lives in PENSION_STEPS below (the old
+// two-value pensionPre/pensionFrom pair was generalised to the table at v18.43 — review item 8).
 /** @type {Record<string, any>} */
 export const GRADES = {
-  cea: { label: 'CEA — £21.49/hr', rate: 21.49, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) },
-  ces: { label: 'CES — £22.60/hr', rate: 22.60, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) },
+  cea: { label: 'CEA — £21.49/hr', rate: 21.49, contr: 140, pension: 147.36 },
+  ces: { label: 'CES — £22.60/hr', rate: 22.60, contr: 140, pension: 147.36 },
 };
+
+// ── Pension (Smart RPS CR Scheme) default per payslip era ──────────────────────
+// The pension contribution steps on specific PAYSLIPS (RPS reviews — separate from the pay award).
+// Newest first; each entry applies to paydays ON/AFTER its `from` (the final null-from entry is the
+// floor). Shared by both grades — the recorded values are payslip-confirmed for CEA (G. Miller);
+// no CES payslip history is on record, so CES uses the same table (same £147.36 today).
+// (v18.43 — review item 8; the pension counterpart of getRateForPeriod/getLondonAllowanceForPeriod.)
+//
+//  £147.36  from the  8 May 2026 payslip — payslip-confirmed (P51)
+//  £154.77  from the 29 Aug 2025 payslip — payslip-confirmed
+//  £156.29  on   the  1 Aug 2025 payslip — DERIVED, not read from a payslip: reconstructed from
+//           MILLER_ACTUALS totals (pension ≈ basic + varPay − Taxable Pay, bias-corrected against
+//           the two payslip-confirmed eras). A transitional value between the £160.78 and £154.77
+//           eras; correct it from the real payslip's "Smart RPS CR Scheme" line if ever read.
+//  £160.78  up to the 4 Jul 2025 payslip — payslip-confirmed (9 May 2025)
+/** @type {Array<{ from: Date|null, amount: number }>} */
+export const PENSION_STEPS = [
+  { from: new Date(2026, 4, 8),  amount: 147.36 },
+  { from: new Date(2025, 7, 29), amount: 154.77 },
+  { from: new Date(2025, 7, 1),  amount: 156.29 },
+  { from: null,                  amount: 160.78 },
+];
 
 // ── Annual pay-award rates by grade + tax year ─────────────────────────────
 // A pay rise happens once a year, backdated to 1 April (Chiltern's pay anniversary), and is
@@ -272,16 +293,18 @@ export function getLondonAllowanceForPeriod(p, ty) {
 }
 
 /**
- * Return the pension contribution default for a grade and pay period.
- * Handles the cut-over at pensionFrom: periods before that date use pensionPre.
+ * Return the pension contribution default for a grade and pay period — the first PENSION_STEPS
+ * era whose `from` the payday has reached (v18.43: table walk, was a single pensionPre/pensionFrom
+ * pair). The grade param is kept for signature stability; both grades currently share the table.
  * @param {string} grade - 'cea' | 'ces'
  * @param {Date} payday  - Period payday
  * @returns {number} Full-period pension contribution £
  */
 export function getPensionForPeriod(grade, payday) {
-  const g = GRADES[grade] ?? GRADES.cea;
-  if (g.pensionPre && g.pensionFrom && payday < g.pensionFrom) return g.pensionPre;
-  return g.pension;
+  for (const step of PENSION_STEPS) {
+    if (step.from == null || payday >= step.from) return step.amount;
+  }
+  return (GRADES[grade] ?? GRADES.cea).pension;   // unreachable (null-from floor) — belt and braces
 }
 
 /**
