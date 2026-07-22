@@ -45,6 +45,7 @@ import {
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
+import { computeYearSoFar } from './paycalc-year-summary.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -975,13 +976,25 @@ export function init() {
       const plan   = _slSel.value;
       const pgLoan = /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked;
       const slSkip = /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked;
+      const _anyLoan = plan !== 'none' || pgLoan;
       // The "not deducted this period" skip + its row apply to whichever loan(s) are active.
-      /** @type {HTMLElement} */ (document.getElementById('slSkipRow')).classList.toggle('hidden', plan === 'none' && !pgLoan);
+      /** @type {HTMLElement} */ (document.getElementById('slSkipRow')).classList.toggle('hidden', !_anyLoan);
+      // Loan-repaid cutover (v18.41 — review item 9): the loan settles ONCE, on a specific payslip —
+      // deductions stop from that payslip onward while EARLIER payslips keep theirs, so historic
+      // periods still reconcile against the real payslips (setting the plan to None would wrongly
+      // strip them too). Complements slSkip (a one-off per-period skip). Applies to both loans —
+      // HMRC stops PGL alongside when the balance clears; a member with genuinely separate end
+      // dates can use the per-period skip for the gap.
+      const _slPaidOffSel   = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
+      const _slPaidOffField = document.getElementById('slPaidOffField');
+      if (_slPaidOffField) _slPaidOffField.classList.toggle('hidden', !_anyLoan);
+      const _slPaidOffFromP = parseInt(_slPaidOffSel?.value || '', 10) || 0;
+      const slPaidOff       = !!(_slPaidOffFromP && _pNum >= _slPaidOffFromP);
       // One undergraduate plan AND a Postgraduate Loan can be repaid together — HMRC deducts each
       // independently (9% above the plan threshold; 6% above the £21,000 PGL threshold). The TOTAL feeds
       // net + the break bar; the summary shows a separate line per active loan.
-      const slUnder = computeSL(sacGross, plan, thresholds.sl, slSkip);
-      const slPost  = pgLoan ? computeSL(sacGross, 'postgrad', thresholds.sl, slSkip) : 0;
+      const slUnder = slPaidOff ? 0 : computeSL(sacGross, plan, thresholds.sl, slSkip);
+      const slPost  = (pgLoan && !slPaidOff) ? computeSL(sacGross, 'postgrad', thresholds.sl, slSkip) : 0;
       const sl = slUnder + slPost;
 
       const net = sacGross - tax - ni - sl;
@@ -1007,9 +1020,13 @@ export function init() {
           : `<div class="sum-row sum-sl-zero"><span class="lbl">${rowLabel} — no deduction: pay after pension is under the ${planLabel} threshold (${fmt(threshold)} per period)</span><span class="val">£0.00</span></div>`;
         return '';
       };
-      // The per-period "not deducted" skip governs BOTH loans → ONE combined row (was two identical
-      // rows), matching the single breakdown line below.
-      const slLines = (slSkip && (plan !== 'none' || pgLoan))
+      // The repaid cutover outranks the per-period skip (a settled loan is the stronger fact); the
+      // skip governs BOTH loans → ONE combined row (was two identical rows), matching the single
+      // breakdown line below.
+      const _slPaidOffP = slPaidOff ? getPeriods().find(/** @param {any} x */ x => x.num === _slPaidOffFromP) : null;
+      const slLines = (slPaidOff && _anyLoan)
+        ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — repaid in full (no deduction from your ${_slPaidOffP ? fdShort(_slPaidOffP.payday) + ' payslip' : 'chosen payslip'} onwards)</span><span class="val">£0.00</span></div>`
+        : (slSkip && _anyLoan)
         ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
         : _slLine('Student Loan', slUnder, plan !== 'none', _slPlanLabel, _slThreshold,
                   plan === 'plan5' && !_plan5Allowed ? `Plan 5 is not repayable in ${_ty.label} (repayments begin April 2026)` : null)
@@ -1034,7 +1051,7 @@ export function init() {
       const bd = buildBreakdownRows({
         nonBhNorm, rate, gBasicNorm, satCapped, r125, gBasicSat, bhCapped, gBankHol,
         bhOtHrs, gBhOt, oHrs, gOvertime, rHrs, gRdw, sHrs, r150, gSunday, bHrs, r300, gBoxing,
-        peer, gPeer, LONDON, otherAdj, slSkip, plan, pgLoan, usingCumulative,
+        peer, gPeer, LONDON, otherAdj, slSkip, slPaidOff, plan, pgLoan, usingCumulative,
         _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate,
       });
       if (bd !== _lastBdBodyHtml) {
@@ -1160,6 +1177,34 @@ export function init() {
       // _bpVarAmount in as well double-counted it (v16.89). The tick still adds the lump to
       // _bpThisPeriod's take-home above.
       calcHPP();
+      _renderYearSoFar(_ty, plan, pgLoan, _slPaidOffFromP);
+    }
+
+    /**
+     * "This tax year so far" in the Year to Date card (v18.41 — review item 11): sums the year's
+     * ENTERED payslips (headless per-payslip re-run — paycalc-year-summary.js) + a rough full-year
+     * projection. Runs after every calculate() like calcHPP, so it tracks edits live. Hidden until
+     * at least one payslip of the year has hours (quiet default).
+     * @param {any} ty @param {string} plan @param {boolean} pgLoan @param {number} slPaidOffFromP
+     */
+    function _renderYearSoFar(ty, plan, pgLoan, slPaidOffFromP) {
+      const el = document.getElementById('ytdYearSoFar');
+      if (!el) return;
+      const taxCode = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L');
+      const y = computeYearSoFar(ty, { taxCode, plan, pgLoan, slPaidOffFromP });
+      if (!y.entered && !y.skipped) { el.hidden = true; el.innerHTML = ''; return; }
+      el.hidden = false;
+      const row = /** @param {string} lbl @param {number} val */ (lbl, val) =>
+        `<div class="yearso-row"><span class="lbl">${lbl}</span><span class="val">≈ ${fmt(val)}</span></div>`;
+      el.innerHTML =
+        `<div class="yearso-head">This tax year so far <span class="yearso-count">${y.entered} of ${y.paid} paid payslip${y.paid !== 1 ? 's' : ''} entered</span></div>` +
+        row('Taxable pay', y.taxable) + row('Tax', y.tax) + row('National Insurance', y.ni) +
+        (y.sl > 0 ? row('Student Loan', y.sl) : '') +
+        row('Take-home', y.net) +
+        // The projection is deliberately labelled rough — it assumes the rest of the year looks
+        // like the entered payslips (premiums vary period to period).
+        `<div class="yearso-proj">If the rest of ${ty.label} looks similar: take-home ≈ <strong>${fmt(y.projectedNet)}</strong> for the year (rough — based on your entered payslips).</div>` +
+        (y.skipped ? `<div class="yearso-proj pay-skip-warn">⚠️ Couldn't read ${y.skipped} saved payslip${y.skipped > 1 ? 's' : ''}, so these totals may be too low.</div>` : '');
     }
 
     // isDataEmpty, calcHPP, updatePriorHpp imported from paycalc-hpp.js.
@@ -1337,6 +1382,27 @@ export function init() {
     // (The old fillGradeRateHint JS builder is gone — it existed to interpolate the grade RATES
     // into the hint, which duplicated the read-only rate field directly below; the static HTML
     // hint now carries the one-line version. v18.03)
+
+    // Loan-repaid cutover options (v18.41 — review item 9): one option per visible payslip,
+    // grouped by tax year, date-first. Built BEFORE loadSettings so the saved p.num restores.
+    (function _buildSlPaidOffOptions() {
+      const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
+      if (!sel) return;
+      let group = null; let groupLabel = '';
+      for (const p of visiblePeriods()) {
+        const ty = taxYearForPeriod(p);
+        if (ty.label !== groupLabel) {
+          groupLabel = ty.label;
+          group = document.createElement('optgroup');
+          group.label = ty.label;
+          sel.appendChild(group);
+        }
+        const o = document.createElement('option');
+        o.value = String(p.num);
+        o.textContent = `Paid ${fdLong(p.payday)} · P${payslipPeriodNum(p)}`;   // full-year date — the list spans tax years
+        (group || sel).appendChild(o);
+      }
+    })();
 
     loadSettings();
     // _defaultPeriodNum must be assigned BEFORE onPeriodChange() runs — the period
@@ -1609,6 +1675,9 @@ export function init() {
       saveSettings();
       autosave(); // persists the cleared slSkip flag; autosave() calls calculate() internally
     });
+    // Loan-repaid cutover (v18.41) — a SETTING: persist + recompute so the viewed payslip's SL
+    // reflects the new cutover immediately.
+    document.getElementById('slPaidOffFrom')?.addEventListener('change', () => { saveSettings(); calculate(); });
     // Postgraduate Loan flag — a SETTING (like the plan), repayable ALONGSIDE a plan. Reveal the
     // "not deducted this period" row when either loan is active; the toggle is handled in calculate().
     /** @type {HTMLElement} */ (document.getElementById('pgLoanCheck')).addEventListener('change', () => {

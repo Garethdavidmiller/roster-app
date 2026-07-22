@@ -621,6 +621,26 @@
       background: var(--success-green-bg); color: var(--success-text);
       border-color: color-mix(in oklch, var(--green) 40%, white);
     }
+    /* "This tax year so far" block (v18.41 — review item 11): a sunken summary inside the YTD
+       card — recessed reference data, not an input, so it sits on --surface-sunken like other
+       read-only insets. Rows mirror the result card's label/value rhythm at hint scale. */
+    .ytd-yearso {
+      background: var(--surface-sunken); border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm); padding: 10px 12px; margin: 12px 0 4px;
+    }
+    .yearso-head {
+      font-size: var(--type-small); font-weight: 700; color: var(--text-dark); margin-bottom: 6px;
+    }
+    .yearso-count { font-weight: 600; color: var(--text-light); float: right; }
+    .yearso-row {
+      display: flex; justify-content: space-between; padding: 3px 0;
+      font-size: var(--type-small); color: var(--text-mid);
+    }
+    .yearso-row .val { font-weight: 700; color: var(--primary-blue); font-variant-numeric: tabular-nums; }
+    .yearso-proj {
+      font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
+      border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 6px;
+    }
 
     /* First-run banner */
     .setup-banner {

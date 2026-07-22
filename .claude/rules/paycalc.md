@@ -46,6 +46,7 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 - **One undergraduate plan + a Postgraduate Loan can apply together** — the UI is a plan `<select>` (None/1/2/4/5) plus a separate Postgraduate Loan yes/no; the coordinator sums `computeSL(plan) + computeSL('postgrad')`. HMRC deducts both independently.
 - **Scottish flat-rate codes:** `SD0`→intermediate 21% (`bands[2]`), `SD1`→higher 42% (`bands[3]`), `SD2`→advanced 45% (`bands[4]`), `SD3`→top 48% (`bands[5]`). rUK has no D2/D3.
 - **50% overriding limit (`computeTax`, PAYE reg 23):** the tax deducted in a period can never exceed 50% of the period's taxable pay — applied on both the cumulative and non-cumulative paths. Bites mainly on K codes; inert for ordinary codes.
+- **Loan repaid mid-year (v18.41 — review item 9):** a settled loan stops deducting on a specific payslip while EARLIER payslips keep theirs (so they still reconcile — setting the plan to None would wrongly strip them too; G. Miller's own 2025/26 payslips show SL to Aug then £0). The `#slPaidOffFrom` select in Settings (visible only when a loan is active) records the **first payslip with no deduction** (p.num, member-level `SK.slPaidOff` — once-ever, NOT per-tax-year); `calculate()` zeroes BOTH loan legs for `p.num >=` it, the summary shows "Student Loan — repaid in full (no deduction from your ⟨date⟩ payslip onwards)", and the cutover outranks the per-period `slSkip`. Applies to both loans together — genuinely separate end dates use the per-period skip for the gap.
 
 **Chiltern Saturday payroll:** rostered Saturday → `sat` (1.25×); Saturday-on-RD → `rdw` bucket — staff use the RDW field, not the Saturday field. Confirmed by Gareth May 2026. Tests assert this.
 
@@ -150,3 +151,13 @@ in the card header shows the in-use state even while the card is collapsed — g
 the figures sharpen the viewed payslip, neutral "not in use" otherwise, hidden when there's nothing
 to report (no figures, no source, or the year's first payslip). Written by `_updateYtdNote`
 alongside the note, so every path that refreshes one refreshes both.
+
+**"This tax year so far" (v18.41 — review item 11):** `#ytdYearSoFar` inside the YTD card sums the
+year's ENTERED payslips — `computeYearSoFar(ty, opts)` in **`paycalc-year-summary.js`** re-runs the
+same engine headlessly per paid payslip with saved hours (decode → `computeGross` with period-aware
+rate/London/pension → non-cumulative `computeTax`/`computeNI`/`computeSL`, honouring the per-period
+`slSkip` and the item-9 repaid cutover) → taxable/tax/NI/SL/take-home totals + a projection
+(net ÷ entered × the year's payslip count, deliberately labelled rough). Rendered by the
+coordinator's `_renderYearSoFar` after every `calculate()`; hidden until a payslip has hours;
+corrupt periods surface a "may be too low" warning (no-silent-caps). Unit-tested by
+`paycalc-year-summary.test.mjs` (assertions mirror each payslip through the REAL calc engine).

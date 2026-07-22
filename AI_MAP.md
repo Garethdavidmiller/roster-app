@@ -506,6 +506,13 @@ Holiday Pay Premium estimator and shared period decode helpers for `paycalc.html
 - `updatePriorHpp(ty)` — renders the prior-year actual HPP section
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `roster-data.js`, `ls.js`
 
+### `paycalc-year-summary.js`
+"This tax year so far" for the Year to Date Figures card (v18.41 — review item 11).
+- `computeYearSoFar(ty, opts)` — a headless re-run of the calculator over every PAID payslip of the tax year with saved hours: per payslip, decode (`_decodeHours`) → `computeGross` (period-aware rate + pro-rated London + the payslip's own saved pension, else the default) → non-cumulative `computeTax`/`computeNI`/`computeSL` (honouring the per-period `slSkip` AND the item-9 loan-repaid cutover via `opts.slPaidOffFromP`). Returns `{ entered, paid, total, taxable, tax, ni, sl, net, projectedNet, skipped }` — `projectedNet` = (net ÷ entered) × the year's payslip count, deliberately labelled rough; corrupt periods are counted in `skipped`, never silently dropped. NO DOM — the caller passes the current tax-code/loan settings in `opts` (and an injectable `now` for tests)
+- Rendered by the coordinator's `_renderYearSoFar` into `#ytdYearSoFar` after every `calculate()`; hidden until at least one payslip of the year has hours
+- Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `paycalc-hpp.js`
+- Tested by `paycalc-year-summary.test.mjs` (mock harness mirrors `paycalc-hpp.test.mjs`; the money assertions mirror each payslip through the REAL calc engine)
+
 ### `paycalc-backpay.js`
 Back-pay lump sum calculator for `paycalc.html` (v13.81).
 - `_bpAwardTaxYear(fromPNum)` — tax year of the back-pay award (derived from "backdated from" period); exported for the coordinator and tests

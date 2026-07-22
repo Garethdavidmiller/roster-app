@@ -72,6 +72,7 @@
   <link rel="modulepreload" href="./paycalc-roster-hint.js">
   <link rel="modulepreload" href="./paycalc-roster-suggestions.js">
   <link rel="modulepreload" href="./paycalc-settings.js">
+  <link rel="modulepreload" href="./paycalc-year-summary.js">
   <link rel="modulepreload" href="./perf-reporter.js">
   <link rel="modulepreload" href="./perf-stats.js">
   <link rel="modulepreload" href="./roster-cycle-data.js">
@@ -182,6 +183,18 @@
           <label for="pgLoanCheck">I also repay a <strong>Postgraduate Loan</strong></label>
         </div>
         <div class="field-hint">Tick this only if a separate Postgraduate Loan deduction (6%) also shows on your payslip. It is repaid <em>in addition</em> to any plan above.</div>
+      </div>
+
+      <!-- Loan fully repaid mid-year (v18.41 — review item 9): the deduction stops on a specific
+           payslip while earlier payslips keep theirs (so they still reconcile). Options are built
+           by paycalc-app.js at init (one per payslip, grouped by tax year); hidden while no loan
+           is selected. -->
+      <div class="field hidden" id="slPaidOffField">
+        <label for="slPaidOffFrom">Finished repaying your loan?</label>
+        <select id="slPaidOffFrom">
+          <option value="">No — still repaying</option>
+        </select>
+        <div class="field-hint">If your loan is fully repaid, pick the <strong>first payslip that had no deduction</strong> on it — earlier payslips keep their deductions, so they still match your payslips.</div>
       </div>
 
       <button type="button" class="btn-primary" id="saveSettingsBtn">Save settings</button>
@@ -554,6 +567,12 @@
         <label for="ytdSrcSelect">From which payslip? <span class="note">the one you copied them from</span></label>
         <select id="ytdSrcSelect"></select>
       </div>
+
+      <!-- "This tax year so far" (v18.41 — review item 11): summed from the year's ENTERED payslips
+           (a headless re-run of the calculator per payslip — paycalc-year-summary.js) + a rough
+           full-year projection. Rendered by the coordinator after every calculate(); hidden when
+           no payslip of the year has hours yet. -->
+      <div class="ytd-yearso" id="ytdYearSoFar" hidden></div>
 
       <div class="field-hint" style="padding-top:4px">January payslip with your Holiday Pay Premium on it? Enter the confirmed figure in the <strong>Holiday Pay Premium</strong> card.</div>
 
