@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v18.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v18.30 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `18.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `18.30` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -194,7 +194,8 @@ roster-app/
 ├── paycalc-roster-hint.js  ← roster-assist hint bar UI (updateRosterHint, fillFromRoster, fillCategoryFromRoster, snapKey, …)
 ├── paycalc-hpp.js          ← Holiday Pay Premium estimator and shared period helpers: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp
 ├── paycalc-backpay.js      ← back-pay lump sum calculator: prefillBackPay, calcBackPay, _bpAwardTaxYear, raiseByPercent
-├── paycalc-format.js       ← shared pure helpers (no DOM): date/currency formatters fd, fdShort, fmt + time-input cores clampMinute, decimalToHM (extracted from paycalc-app.js v17.74/Section G — the hrs/mins split, previously inline+duplicated, is now written once and tested). Imported by paycalc-app.js and paycalc-backpay.js.
+├── paycalc-format.js       ← shared pure helpers (no DOM): date/currency formatters fd, fdShort, fdLong, fmt + time-input cores clampMinute, decimalToHM (extracted from paycalc-app.js v17.74/Section G — the hrs/mins split, previously inline+duplicated, is now written once and tested). fdLong ("3 Jul 2026" full-year form) was de-duplicated from ~8 inline copies across paycalc-app/backpay/periods/roster-hint (v18.30). Imported by paycalc-app, -backpay, -periods, -roster-hint.
+├── paycalc-breakdown.js    ← the two PURE HTML builders for the pay-result card — buildSummaryRows + buildBreakdownRows (+ fmtHrsMins) — extracted from calculate() in paycalc-app.js (v18.30, review item 20) so the result markup is written + unit-testable independent of the DOM read/calc phases. No DOM/Firebase; only dep is fmt. Byte-identical output to the old inline templates. Tested by paycalc-breakdown.test.mjs
 ├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
 ├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
 ├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.), runMigrations(), and the shared saved-period decoder parseSavedPeriod/readSavedPeriod (returns {data,error}; back-pay + HPP surface a corrupt period instead of silently dropping it)
@@ -274,7 +275,8 @@ roster-app/
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
 ├── paycalc-migrations.test.mjs ← tests for pcPrefix, setPaycalcNamespace, SK rebuild, one-shot namespace migration (--experimental-test-module-mocks)
-├── paycalc-format.test.mjs ← tests for clampMinute + decimalToHM (hrs/mins split, incl. the 60→next-hour float guard) + fmt currency formatting; no mocks, part of test:hygiene
+├── paycalc-format.test.mjs ← tests for clampMinute + decimalToHM (hrs/mins split, incl. the 60→next-hour float guard) + fmt currency formatting + fd/fdShort/fdLong variant distinctness; no mocks, part of test:hygiene
+├── paycalc-breakdown.test.mjs ← tests for buildSummaryRows + buildBreakdownRows + fmtHrsMins (paycalc-breakdown.js): per-line guards, back-pay/HPP branches, estimate labels; no mocks, part of test:hygiene
 ├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); gates every branch/PR (e2e.yml `rules` job) AND deploy-rules.yml before any rules ship
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── storage-rules-static.test.mjs ← static (no-emulator) hygiene guard: asserts the 20 MB `request.resource.size` cap is present in all 3 upload blocks (the emulator suite can't practically test the size cap); part of `npm test` (test:hygiene)
@@ -319,7 +321,7 @@ roster-app/
 
 **Run all tests:**
 ```
-npm test              # test:hygiene + test:parse + test:unit (~1045 unit tests)
+npm test              # test:hygiene + test:parse + test:unit (~1420 tests)
 npm run check         # lint + typecheck + npm test (full pre-push gate)
 npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules

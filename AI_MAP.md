@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v18.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v18.30 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -56,6 +56,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Holiday Pay Premium estimator, shared period decode helpers | `paycalc-hpp.js` |
 | Back-pay lump sum calculator | `paycalc-backpay.js` |
 | Shared date/currency formatters (pure) | `paycalc-format.js` |
+| Result-card HTML builders (pure) — summary + breakdown | `paycalc-breakdown.js` |
 | Pay calculator help/tooltip text | `paycalc-help.js` |
 | Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
@@ -516,11 +517,18 @@ Back-pay lump sum calculator for `paycalc.html` (v13.81).
 
 ### `paycalc-format.js`
 Pure date/currency formatters + time-input helpers shared by `paycalc-app.js` and `paycalc-backpay.js` (v14.06; time helpers added v17.74 / Section G). No DOM, no Firebase. Tested by `paycalc-format.test.mjs`.
-- `fd(d)` — formats a Date as "1 Apr '26" (day + short month + 2-digit year, Europe/London)
+- `fd(d)` — formats a Date as "1 Apr 26" (day + short month + 2-digit year)
 - `fdShort(d)` — formats a Date as "1 Apr" (day + short month only)
+- `fdLong(d)` — formats a Date as "1 Apr 2026" (day + short month + full year) — the payday / joined-on / printed-on long form; de-duplicated from ~8 inline `toLocaleDateString` copies across `paycalc-app`/`-backpay`/`-periods`/`-roster-hint` (v18.30). Same no-timeZone rationale as `fd`
 - `fmt(n)` — formats a number as a currency string, e.g. "£1,234.56"
 - `clampMinute(n)` — clamp a parsed minutes integer into [0, 59] (pure core of the hrs/mins field's `clampMins` DOM wrapper)
 - `decimalToHM(val)` — split decimal hours → `{h, m}` with a 60→next-hour float guard (e.g. 7.999 → 8h 00m); returns null for negative/non-finite. The single source for the live "= 7h 30m" preview AND the on-blur "7.5 → 7 hrs 30 mins" split (was duplicated inline in `paycalc-app.js`)
+
+### `paycalc-breakdown.js`
+The two PURE HTML builders for the pay-result card, extracted from `calculate()` in `paycalc-app.js` (v18.30, review item 20). `calculate()` used to interleave DOM reads, pay maths, and result-markup string-building; the markup now lives here, written + unit-testable independent of those phases. No DOM, no Firebase — only dependency is `fmt` from `paycalc-format.js`. Output is byte-identical to the old inline templates (a mechanical extraction, not a redesign). Each builder takes a plain params object whose field names match the caller's locals, so `paycalc-app.js`'s call site is a shorthand object literal. Tested by `paycalc-breakdown.test.mjs`.
+- `fmtHrsMins(h)` — decimal hours → "Nh"/"Nh Mm" (the per-row hours label; was the inline `fh` in `calculate()`)
+- `buildSummaryRows(d)` — the `#summary` estimate rows: Regular/Total pay → back pay → HPP → pension → tax → NI → Student Loan (`d.slLines`, pre-rendered) → estimated take-home
+- `buildBreakdownRows(d)` — the `#bdBody` full breakdown: one row per pay component present (Mon–Fri + London always; premiums/OT/RDW/training/adjustment/notes/extras guarded on > 0)
 
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).

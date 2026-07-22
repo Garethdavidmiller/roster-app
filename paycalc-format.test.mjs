@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmt, clampMinute, decimalToHM } from './paycalc-format.js';
+import { fd, fdShort, fdLong, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
 
 test('clampMinute clamps into [0, 59]', () => {
     assert.equal(clampMinute(0), 0);
@@ -46,4 +46,15 @@ test('fmt renders GBP with thousands separators and 2dp', () => {
     assert.equal(fmt(1234.5), '£1,234.50');
     assert.equal(fmt(1000000), '£1,000,000.00');
     assert.equal(fmt(-42.1), '£-42.10');
+});
+
+// Date formatters. fdLong was extracted (review item 21) from ~8 inline copies of the same
+// en-GB long form; these pin the three variants apart so a future edit can't silently merge them.
+// Dates are constructed via new Date(y, m-1, d) — device-local calendar values (no timeZone), matching
+// how getPeriods builds period dates, so the printed day is stable regardless of the runner's zone.
+test('fd / fdShort / fdLong are three distinct en-GB variants', () => {
+    const d = new Date(2026, 6, 3);           // 3 Jul 2026, local noon-free calendar date
+    assert.equal(fdLong(d),  '3 Jul 2026');   // full year — the payday / joined-on / printed-on form
+    assert.equal(fd(d),      '3 Jul 26');     // 2-digit year
+    assert.equal(fdShort(d), '3 Jul');        // no year
 });

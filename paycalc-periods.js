@@ -15,6 +15,7 @@ import {
   P_YR, TAX_YEARS, getTaxYearForOffset,
 } from './paycalc-calc.js';
 import { bhsForYear } from './paycalc-roster-suggestions.js';
+import { fdLong } from './paycalc-format.js';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Period arithmetic constants.
@@ -222,9 +223,7 @@ function _populatePeriodSelect(/** @type {any} */ el, /** @type {any} */ periods
     }
     const o = document.createElement('option');
     o.value = p.num;
-    const payStr = p.payday.toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric'
-    });
+    const payStr = fdLong(p.payday);
     // Date FIRST — staff remember paydates, not period numbers (owner, Jul 2026); the printed
     // P-number stays as the secondary cross-check against the payslip.
     o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `Paid ${payStr} · P${payslipPeriodNum(p)}`;
