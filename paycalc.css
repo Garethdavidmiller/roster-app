@@ -684,11 +684,14 @@
       background: var(--bg-faint); border-radius: var(--radius-md);
       padding: 14px 16px; margin-bottom: 12px; text-align: center;
     }
-    /* Card hierarchy (v18.33 polish): the CURRENT-year figure is the card's primary output, so raise
-       it to a white chip with a hairline + soft lift — it reads as the live result — while the
-       prior-year block above stays the recessed grey `.hpp-result` (a settled, secondary reference).
-       Direct-child selector: the prior-year copy is nested in #priorHppSection, this one isn't. */
-    #hppCardBody > .hpp-result {
+    /* Card hierarchy (v18.33 polish): a card's PRIMARY figure is raised to a white chip with a hairline
+       + soft lift so it reads as the headline result. Two of them: the HPP current-year estimate
+       (#hppCardBody > .hpp-result — the prior-year copy is nested in #priorHppSection and stays the
+       recessed grey `.hpp-result`, a settled secondary reference) and the back-pay lump sum
+       (#backPayTotal), which is that card's one headline figure. Unified v18.37 — before, only HPP was
+       raised and the back-pay lump sat flat grey, so the two sibling cards' results looked different. */
+    #hppCardBody > .hpp-result,
+    #backPayTotal {
       background: white;
       border: 1px solid var(--border-light);
       box-shadow: var(--shadow-1);
@@ -704,8 +707,9 @@
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum' 1;
     }
-    /* The current-year figure is the hero — a touch larger than the prior-year reference above. */
-    #hppCardBody > .hpp-result .hpp-amount { font-size: 42px; }
+    /* Headline figures are a touch larger than a recessed reference (the HPP prior-year block). */
+    #hppCardBody > .hpp-result .hpp-amount,
+    #backPayTotal .hpp-amount { font-size: 42px; }
     .hpp-basis {
       font-size: var(--type-small); color: var(--text-light); margin-top: 4px; line-height: 1.4;
     }
