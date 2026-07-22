@@ -55,7 +55,7 @@ import { recordPageLatency } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fdList, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
-import { buildSummaryRows, buildBreakdownRows, buildActualCheck } from './paycalc-breakdown.js';
+import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
 
 /**
  * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
@@ -1071,6 +1071,19 @@ export function init() {
         const _caActual = _caPaid ? Math.max(0, parseSmartFloat(_caEl?.value ?? '') || 0) : 0;
         const _caV = document.getElementById('actualVerdict');
         if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net);
+      }
+
+      // Provenance chips under the take-home £ (v18.44 — review item 1): what fed THIS number.
+      // Empty (invisible) on a normal payslip — chips only appear when noteworthy.
+      const _chipsEl = document.getElementById('provChips');
+      if (_chipsEl) {
+        const _srcP = _ytdSrc ? getPeriods().find(/** @param {any} x */ x => x.num === _ytdSrc) : null;
+        _chipsEl.innerHTML = buildProvChips({
+          usingCumulative,
+          srcLabel: _srcP ? fdShort(_srcP.payday) : '',
+          bpAmount: _bpThisPeriod, hppAmount: _hppForPeriod,
+          hoursFromCalendar: !!document.querySelector('#hoursCard .roster-suggested'),
+        });
       }
 
       // Result markup is built by the two pure builders in paycalc-breakdown.js (review item 20) —

@@ -488,6 +488,10 @@
       <div class="net-label" id="netLabel">💷 Estimated Take-Home Pay</div>
       <div class="net-amount" id="netDisplay" aria-live="polite">£–</div>
       <div class="net-period" id="netPeriod">Select a pay period above</div>
+      <!-- Provenance chips (v18.44 — review item 1): what fed THIS number — cumulative-tax source,
+           ticked back-pay/HPP adds, calendar-filled hours. Written by calculate() via
+           buildProvChips; EMPTY (and so invisible) on a normal payslip. -->
+      <div class="prov-chips" id="provChips"></div>
       <div class="net-hint" id="netHint">Your estimate updates automatically as you enter your hours</div>
     </div>
     <div id="payBreakBar" aria-hidden="true"></div>
