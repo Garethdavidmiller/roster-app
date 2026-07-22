@@ -515,6 +515,10 @@
         <span class="hint">Optional — sharpens the tax estimate; copy two figures from your latest payslip</span>
       </div>
       <div class="card-header-actions">
+        <!-- Status chip (v18.40 — review item 6): whether the entered figures sharpen the VIEWED
+             payslip's tax estimate (cumulative engages only on the payslip after the source) —
+             visible even while the card is collapsed. Written by _updateYtdNote. -->
+        <span class="card-year-chip ytd-status-chip" id="ytdStatusChip"></span>
         <span class="card-year-chip" id="ytdYearChip" title="Tax year"></span>
         <button type="button" class="help-btn" data-help="accuracy" aria-label="Help: Year to Date Figures">?</button>
         <span class="card-toggle-arrow">▼</span>
@@ -602,9 +606,11 @@
       <div class="field" id="hppModeRow">
         <label>How should we work out this year's estimate?</label>
         <div class="hpp-mode-toggle" role="radiogroup" aria-label="Holiday Pay Premium amount source">
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeHours" value="hours" checked> From my payslips in the calculator — most accurate</label>
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeYtd" value="ytd"> Rough estimate from my Year to Date pay</label>
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeExact" value="exact"> Enter the figure myself</label>
+          <!-- Each option shows its CURRENT figure on the right (v18.40 — filled by calcHPP via
+               _updateModeAmounts on every recompute) so the choice is informed, not blind. -->
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeHours" value="hours" checked> <span class="hpp-mode-text">From my payslips in the calculator — most accurate</span> <span class="hpp-mode-amt" id="hppModeHoursAmt"></span></label>
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeYtd" value="ytd"> <span class="hpp-mode-text">Rough estimate from my Year to Date pay</span> <span class="hpp-mode-amt" id="hppModeYtdAmt"></span></label>
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeExact" value="exact"> <span class="hpp-mode-text">Enter the figure myself</span> <span class="hpp-mode-amt" id="hppModeExactAmt"></span></label>
         </div>
       </div>
 

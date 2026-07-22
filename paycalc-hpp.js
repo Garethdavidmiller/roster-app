@@ -168,6 +168,22 @@ function _expectedNonPremiumYtd(ty) {
   return { nonPremium, count: covered.length };
 }
 
+/** The 'ytd'-mode rough figure and its ingredients, read live from the Year to Date card.
+ *  hpp is 0 when the source can't estimate (no Taxable Pay entered, or no covered periods yet —
+ *  the caller branches on taxable/count for the specific message). Shared by _renderHppManual
+ *  and the per-radio figures (_updateModeAmounts) so the two can never disagree. @param {any} ty
+ *  @returns {{ taxable: number, nonPremium: number, count: number, extra: number, hpp: number }} */
+function _ytdRoughHpp(ty) {
+  const ytdPayEl = /** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay'));
+  const taxable  = Math.max(0, parseSmartFloat(ytdPayEl?.value ?? '') || 0);
+  const { nonPremium, count } = _expectedNonPremiumYtd(ty);
+  return {
+    taxable, nonPremium, count,
+    extra: Math.max(0, taxable - nonPremium),
+    hpp:   (taxable > 0 && count > 0) ? hppFromYtdTaxable(taxable, nonPremium) : 0,
+  };
+}
+
 /** The amount-source mode currently selected on the card ('hours' | 'ytd' | 'exact'; default 'hours'). */
 function _hppMode() {
   const r = /** @type {HTMLInputElement|null} */ (document.querySelector('input[name="hppMode"]:checked'));
@@ -229,26 +245,23 @@ function _renderHppManual(ty, mode) {
   const basisEl  = document.getElementById('hppBasis');
 
   if (mode === 'ytd') {
-    const ytdPayEl = /** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay'));
-    const taxable  = Math.max(0, parseSmartFloat(ytdPayEl?.value ?? '') || 0);
-    if (taxable <= 0) {
+    const y = _ytdRoughHpp(ty);
+    if (y.taxable <= 0) {
       lsDel(hppEstKey(ty));
       if (amountEl) amountEl.textContent = '£–';
       if (basisEl)  basisEl.textContent  = 'Fill in the Year to Date Figures card above (Taxable Pay) to use this';
       return;
     }
-    const { nonPremium, count } = _expectedNonPremiumYtd(ty);
     // Zero covered periods (a tax year that hasn't started yet — reachable once next year is added
     // to TAX_YEARS ahead of April, as each new award year is): nonPremium would be 0 and the WHOLE
     // Taxable Pay would be presented as premium — wildly overstated. Refuse to estimate instead.
-    if (count === 0) {
+    if (y.count === 0) {
       lsDel(hppEstKey(ty));
       if (amountEl) amountEl.textContent = '£–';
       if (basisEl)  basisEl.textContent  = `No ${ty.label} payslips have been paid yet, so there's nothing to estimate from — try again once the year is under way.`;
       return;
     }
-    const extra = Math.max(0, taxable - nonPremium);
-    const hpp   = hppFromYtdTaxable(taxable, nonPremium);
+    const { extra, hpp } = y;
     if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2)); else lsDel(hppEstKey(ty));
     if (amountEl) amountEl.textContent = hpp > 0 ? fmt(hpp) : '£–';
     if (basisEl) {
@@ -267,6 +280,86 @@ function _renderHppManual(ty, mode) {
   if (basisEl)  basisEl.textContent  = hpp > 0
     ? `Your entered figure · due January ${ty.hppPaidJan}`
     : 'Enter your Holiday Pay Premium figure above';
+}
+
+/**
+ * The hours-mode ('from my payslips') estimate, extracted from calcHPP (v18.40) so it can run in
+ * EVERY mode — it feeds the per-radio figures as well as the hours-mode render. NO side effects:
+ * no DOM writes, no persistence (calcHPP's hours path owns those, guarded on `skipped`).
+ *
+ * Rate: THIS tax year's stored settled rate — deliberately NOT the live #hourlyRate field.
+ * The field shows the PRE-AWARD rate whenever a pre-award period is selected (updateRateForPeriod),
+ * so reading it made the whole-year HPP estimate SHIFT depending on which period you were viewing
+ * (same year → two different premiums, purely from clicking Prev/Next). The stored year rate is
+ * stable across navigation and mirrors updatePriorHpp's prior-year path, which already does this.
+ *
+ * @param {any} ty @param {any[]} allPeriods
+ * @returns {{ hpp: number, totalVar: number, pCount: number, usingActuals: boolean,
+ *             skipped: number[], total: number }}
+ */
+function _hoursEstimate(ty, allPeriods) {
+  const rate    = getStoredRateForYear(ty);
+  const periods = allPeriods.filter(/** @param {any} p */ p => {
+    const o = p.num - 48;
+    return o >= ty.first && o <= ty.last;
+  });
+
+  let totalVar     = 0;
+  let pCount       = 0;
+  let usingActuals = false;
+  const skipped = /** @type {number[]} */ ([]);   // periods whose saved data couldn't be read — surfaced, never dropped silently
+  // Device-local payslip actuals (G. Miller only; imported once per device, never served).
+  // When a period has real figures, its actual varPay is used instead of the entered-hours
+  // estimate — read once here, not per period.
+  const _actuals = isActualsDev(getLoggedMember()) ? readPayslipActuals() : null;
+
+  periods.forEach(/** @param {any} p */ p => {
+    try {
+      const _hppActual = _actuals?.[formatISO(p.payday)];
+      if (_hppActual?.varPay != null) {
+        totalVar += _hppActual.varPay;
+        pCount++;
+        usingActuals = true;
+        return;
+      }
+
+      const parsed = readSavedPeriod(p.num);
+      if (parsed.error) { skipped.push(p.num); console.warn('[PayCalc] HPP corrupt period', p.num); return; }
+      if (!parsed.data) return;
+      const d = parsed.data;
+      if (isDataEmpty(d)) return;
+      pCount++;
+      totalVar += _varPayForPeriod(p, d, rate);
+    } catch (e) {
+      // A corrupt saved period must not abort the whole estimate, but dropping it silently would
+      // under-state the premium — record it (surfaced by calcHPP) and trace it.
+      skipped.push(p.num);
+      console.warn('[PayCalc] HPP skipped period', p.num, e);
+    }
+  });
+
+  return { hpp: totalVar * HPP_FRACTION, totalVar, pCount, usingActuals, skipped, total: periods.length };
+}
+
+/**
+ * Print each amount-source's CURRENT figure beside its radio (v18.40 — review item 4), so choosing
+ * a mode is informed rather than blind — and a big gap between "from my payslips" and "from Year
+ * to Date" is itself a signal the entered hours are incomplete. Estimates carry a leading "≈";
+ * the member's own exact figure is shown plain. A source with nothing to offer shows nothing
+ * (quiet default — the empty span costs no space).
+ * @param {any} ty @param {{ hpp: number, pCount: number }} hoursRes
+ */
+function _updateModeAmounts(ty, hoursRes) {
+  const set = /** @param {string} id @param {string} txt */ (id, txt) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  };
+  set('hppModeHoursAmt', (hoursRes.pCount > 0 && hoursRes.hpp > 0) ? `≈ ${fmt(hoursRes.hpp)}` : '');
+  const _ytd = _ytdRoughHpp(ty);
+  set('hppModeYtdAmt', _ytd.hpp > 0 ? `≈ ${fmt(_ytd.hpp)}` : '');
+  const exactEl = /** @type {HTMLInputElement|null} */ (document.getElementById('hppExactAmt'));
+  const exact   = Math.max(0, parseSmartFloat(exactEl?.value ?? '') || 0);
+  set('hppModeExactAmt', exact > 0 ? fmt(exact) : '');
 }
 
 /**
@@ -301,56 +394,17 @@ export function calcHPP() {
   const _noteEl = document.getElementById('hppNote');
   if (_noteEl) _noteEl.innerHTML = _hppNoteHtml(ty);
 
+  // The hours estimate is computed in EVERY mode now (v18.40 — review item 4): it feeds the
+  // per-radio figures so choosing an amount source is informed, not blind. Persistence stays
+  // strictly per-mode below — only the ACTIVE mode's figure is written to hppEstKey.
+  const hoursRes = _hoursEstimate(ty, allPeriods);
+  _updateModeAmounts(ty, hoursRes);
+
   // Manual amount sources ('ytd' / 'exact') short-circuit the per-payslip estimator below (v18.32).
   const _mode = _hppMode();
   if (_mode !== 'hours') { _renderHppManual(ty, _mode); updatePriorHpp(ty); return; }
 
-  // Rate: THIS tax year's stored settled rate — deliberately NOT the live #hourlyRate field.
-  // The field shows the PRE-AWARD rate whenever a pre-award period is selected (updateRateForPeriod),
-  // so reading it made the whole-year HPP estimate SHIFT depending on which period you were viewing
-  // (same year → two different premiums, purely from clicking Prev/Next). The stored year rate is
-  // stable across navigation and mirrors updatePriorHpp's prior-year path, which already does this.
-  const rate    = getStoredRateForYear(ty);
-  const periods = allPeriods.filter(/** @param {any} p */ p => {
-    const o = p.num - 48;
-    return o >= ty.first && o <= ty.last;
-  });
-
-  let totalVar    = 0;
-  let pCount      = 0;
-  let usingActuals = false;
-  const _skipped  = /** @type {number[]} */ ([]);   // periods whose saved data couldn't be read — surfaced, never dropped silently
-  // Device-local payslip actuals (G. Miller only; imported once per device, never served).
-  // When a period has real figures, its actual varPay is used instead of the entered-hours
-  // estimate — read once here, not per period.
-  const _actuals = isActualsDev(getLoggedMember()) ? readPayslipActuals() : null;
-
-  periods.forEach(/** @param {any} p */ p => {
-    try {
-      const _hppActual = _actuals?.[formatISO(p.payday)];
-      if (_hppActual?.varPay != null) {
-        totalVar += _hppActual.varPay;
-        pCount++;
-        usingActuals = true;
-        return;
-      }
-
-      const parsed = readSavedPeriod(p.num);
-      if (parsed.error) { _skipped.push(p.num); console.warn('[PayCalc] HPP corrupt period', p.num); return; }
-      if (!parsed.data) return;
-      const d = parsed.data;
-      if (isDataEmpty(d)) return;
-      pCount++;
-      totalVar += _varPayForPeriod(p, d, rate);
-    } catch (e) {
-      // A corrupt saved period must not abort the whole estimate, but dropping it silently would
-      // under-state the premium — record it (surfaced below) and trace it.
-      _skipped.push(p.num);
-      console.warn('[PayCalc] HPP skipped period', p.num, e);
-    }
-  });
-
-  const hpp      = totalVar * HPP_FRACTION;
+  const { hpp, totalVar, pCount, usingActuals, skipped: _skipped } = hoursRes;
   const amountEl = document.getElementById('hppAmount');
   const basisEl  = document.getElementById('hppBasis');
 
@@ -385,7 +439,7 @@ export function calcHPP() {
       // sees WHY the figure is small (the single biggest support-question risk — a partial estimate
       // looks authoritative). One 4-weekly period = one payslip, so "payslips" reads plainer than
       // "periods" for staff.
-      const _total = periods.length;
+      const _total = hoursRes.total;
       basisEl.textContent = usingActuals
         ? `All ${pCount} payslips of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
         : `${pCount} of ${_total} payslip${_total !== 1 ? 's' : ''} entered · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;

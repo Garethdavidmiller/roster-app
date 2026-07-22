@@ -614,6 +614,13 @@
     .ytd-upto-note--live { border-left-color: var(--green);
       background: var(--success-green-bg); color: var(--success-text); }
     .ytd-upto-note:empty { display: none; }
+    /* YTD header status chip (v18.40 — review item 6): whether the entered figures sharpen the
+       VIEWED payslip, readable even while the card is collapsed. The --live variant echoes the
+       note's success-green voice; the resting state stays the neutral chip. */
+    .ytd-status-chip--live {
+      background: var(--success-green-bg); color: var(--success-text);
+      border-color: color-mix(in oklch, var(--green) 40%, white);
+    }
 
     /* First-run banner */
     .setup-banner {
@@ -766,6 +773,15 @@
       outline: 2px solid var(--primary-blue); outline-offset: 2px;
     }
     .bp-mode-opt input, .hpp-mode-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-blue); }
+    /* Per-option figure on the HPP amount-source rows (v18.40 — review item 4): each radio shows
+       its CURRENT £ on the right so the choice is informed. "≈" marks the two estimates; the
+       member's own figure shows plain. Empty span = that source has nothing to offer (costs no
+       space — the text flexes into it). */
+    .hpp-mode-text { flex: 1 1 auto; }
+    .hpp-mode-amt {
+      font-size: var(--type-label); font-weight: 700; color: var(--primary-blue);
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
     /* Locked (confirmed-award) rate boxes — read as fixed VALUES, matching the Settings read-only
        rate treatment (solid faint fill, bold, small 🔒; unified v17.93 / lock added v18.00). */
     input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;

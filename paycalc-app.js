@@ -313,13 +313,29 @@ export function init() {
     }
 
     /** The YTD note: states which payslip the figures are from and whether they sharpen the one on
-     *  screen (the cumulative method engages only on source + 1). @param {any} ty @param {any} p @param {number} src */
+     *  screen (the cumulative method engages only on source + 1). Also writes the header status
+     *  chip (#ytdStatusChip, v18.40 — review item 6) so the in-use state is visible even while the
+     *  card is collapsed. @param {any} ty @param {any} p @param {number} src */
     function _updateYtdNote(ty, p, src) {
       const note = document.getElementById('ytdUptoNote');
       if (!note) return;
       const srcP0 = src ? getPeriods().find(/** @param {any} x */ x => x.num === src) : null;
       note.classList.toggle('ytd-upto-note--live', !!(srcP0 && p.num === src + 1));
       const periodIdx = (p.num - 48) - ty.first + 1; // 1-based HMRC period within the tax year
+      // Header status chip: "✓ in use" (green) when the figures sharpen THIS payslip, "not in use"
+      // when another payslip is viewed, empty (hidden) when there's nothing to report — no figures,
+      // no source, or the year's first payslip (Year to Date starts fresh in April).
+      const _chip = document.getElementById('ytdStatusChip');
+      if (_chip) {
+        const _hasFigures = ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay')))?.value.trim() || '') !== ''
+                         || ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdTax')))?.value.trim() || '') !== '';
+        const _live = !!(srcP0 && p.num === src + 1 && _hasFigures);
+        _chip.classList.toggle('ytd-status-chip--live', _live);
+        _chip.textContent = (!_hasFigures || !srcP0 || periodIdx <= 1) ? '' : (_live ? '✓ in use' : 'not in use');
+        _chip.title = _live
+          ? 'Your Year to Date figures sharpen this payslip’s tax estimate'
+          : 'This payslip uses the standard method — the Year to Date figures don’t apply to it';
+      }
       if (periodIdx <= 1) {
         note.innerHTML = `This is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;
         return;
