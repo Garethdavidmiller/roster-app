@@ -603,19 +603,15 @@
         <label>How should we work out this year's estimate?</label>
         <div class="hpp-mode-toggle" role="radiogroup" aria-label="Holiday Pay Premium amount source">
           <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeHours" value="hours" checked> From the hours I've entered above</label>
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeYtd" value="ytd"> Quick estimate from my year-to-date extra pay</label>
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeYtd" value="ytd"> Rough estimate from my Year to Date pay</label>
           <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeExact" value="exact"> Enter the figure myself</label>
         </div>
       </div>
 
-      <!-- Quick year-to-date estimate (shown in "ytd" mode) -->
-      <div class="field" id="hppYtdWrap" style="display:none">
-        <label for="hppYtdExtra">Extra pay so far this year <span class="note">overtime, RDW, Saturday/Sunday/bank-holiday premiums</span></label>
-        <div class="pfx">
-          <span class="pfx-sym">£</span>
-          <input type="text" id="hppYtdExtra" aria-label="Extra pay so far this year" placeholder="e.g. 2400.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
-        </div>
-        <div class="field-hint">The premium/overtime total from your payslip's <strong>Year to Date</strong> box — <strong>not</strong> Taxable Pay (that includes basic pay, which earns no premium). HPP ≈ this × 7.69%.</div>
+      <!-- Year to Date estimate (shown in "ytd" mode): no input — it reads the Year to Date Figures
+           card's Taxable Pay and works out the premium portion automatically. -->
+      <div class="field-hint" id="hppYtdWrap" style="display:none">
+        Uses the <strong>Taxable Pay</strong> from your <strong>Year to Date Figures</strong> card above. The app subtracts your expected basic pay and London Allowance to estimate the premium part, then takes 7.69% — so it's a <strong>rough</strong> figure. Update the Year to Date card and this updates with it.
       </div>
 
       <!-- Enter the figure yourself (shown in "exact" mode) -->

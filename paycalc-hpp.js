@@ -11,12 +11,12 @@
 
 import {
   HPP_FRACTION, RATE_125, RATE_150, RATE_300,
-  taxYearForPeriod, capHours,
+  taxYearForPeriod, capHours, getRateForPeriod, getLondonAllowanceForPeriod,
 } from './paycalc-calc.js';
-import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
-import { getLoggedMember, getEffectiveContr, getStoredRateForYear } from './paycalc-settings.js';
+import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
+import { getLoggedMember, getGrade, getEffectiveContr, getPensionDefault, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
+import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
 import { fmt } from './paycalc-format.js';
 
@@ -119,16 +119,53 @@ export function _varPayForPeriod(p, d, rate) {
 // the fixed London Allowance is paid every period incl. during leave, so it does NOT accrue HPP
 // (see _varPayForPeriod). Confirmed by a real Jan-2026 payslip (HPP and London are separate lines).
 
-// ── AMOUNT SOURCE (v18.32) ────────────────────────────────────────────────────
-// The current-year estimate can come from three sources, mirroring the back-pay card's
-// compute/enter toggle: 'hours' (default — the per-payslip estimator below), 'ytd' (one quick
-// "extra pay so far this year" figure × 7.69%), or 'exact' (a figure the member enters). Whichever
-// mode is active, calcHPP writes the resulting figure to hppEstKey(ty) — so the existing January
-// take-home add + prior-year rollover (both read hppEstKey via resolveHppForPeriod) work unchanged.
+// ── AMOUNT SOURCE (v18.32; 'ytd' reworked to read the Year to Date card v18.34) ──────────────────
+// The current-year estimate can come from three sources, mirroring the back-pay card's compute/enter
+// toggle: 'hours' (default — the per-payslip estimator below), 'ytd' (derived FROM the Year to Date
+// Figures card's Taxable Pay — see below), or 'exact' (a figure the member enters). Whichever mode
+// is active, calcHPP writes the resulting figure to hppEstKey(ty) — so the existing January take-home
+// add + prior-year rollover (both read hppEstKey via resolveHppForPeriod) work unchanged.
 
-/** HPP = the year-to-date extra pay × 4/52. Pure — the one place the quick-estimate maths lives. */
-export function hppFromYtdExtra(/** @type {number} */ extra) {
-  return Math.max(0, extra || 0) * HPP_FRACTION;
+/**
+ * Rough HPP from a Year to Date TAXABLE PAY figure. Taxable Pay is ALL pay (basic + premiums +
+ * London, after pension); HPP is 7.69% of the PREMIUM part only. So we subtract the expected
+ * non-premium pay (basic + London − pension) to isolate the premiums, then take 4/52. Pure — the
+ * caller computes `nonPremiumYtd` from the covered periods (`_expectedNonPremiumYtd`). Clamps at 0
+ * (a negative "premium" means the Taxable Pay figure is below expected basic — nothing to premium).
+ * @param {number} taxablePayYtd  Year to Date Taxable Pay from the YTD card
+ * @param {number} nonPremiumYtd  expected basic + London − pension over the covered periods
+ * @returns {number}
+ */
+export function hppFromYtdTaxable(taxablePayYtd, nonPremiumYtd) {
+  return Math.max(0, (taxablePayYtd || 0) - (nonPremiumYtd || 0)) * HPP_FRACTION;
+}
+
+/**
+ * Expected NON-premium taxable pay (basic + London − pension) summed over the tax-year periods the
+ * Year to Date figure covers (up to its source payslip, or today if unknown). Subtracted from the
+ * YTD Taxable Pay to leave the premium pay that accrues HPP. Reads live grade/rate/pension via the
+ * settings + calc helpers, so it tracks the mid-year rate/London steps. @param {any} ty
+ * @returns {{ nonPremium: number, count: number }}
+ */
+function _expectedNonPremiumYtd(ty) {
+  const grade       = getGrade();
+  const settledRate = getStoredRateForYear(ty);
+  const srcNum      = parseInt(lsGet(ytdSrcKey(ty)) ?? '', 10) || 0;
+  // Cap at the YTD source payslip; if none recorded, cap at today's period (never the whole year,
+  // which would over-count basic for periods not yet paid and understate the premium).
+  const capNum = srcNum || todaysPeriodNum();
+  const covered = getPeriods().filter(/** @param {any} p */ p => {
+    const o = p.num - 48;
+    return o >= ty.first && o <= ty.last && p.num <= capNum;
+  });
+  let nonPremium = 0;
+  for (const p of covered) {
+    const basic   = getEffectiveContr(p) * getRateForPeriod(p, grade, ty.label, settledRate);
+    const london  = getLondonAllowanceForPeriod(p, ty);
+    const pension = parseFloat(String(getPensionDefault(p))) || 0;
+    nonPremium += basic + london - pension;
+  }
+  return { nonPremium, count: covered.length };
 }
 
 /** The amount-source mode currently selected on the card ('hours' | 'ytd' | 'exact'; default 'hours'). */
@@ -150,25 +187,21 @@ export function applyHppMode(mode = '') {
   if (exactWrap) exactWrap.style.display = m === 'exact' ? '' : 'none';
 }
 
-/** Persist the card's mode + both manual inputs for a tax year (one JSON blob). @param {any} ty */
+/** Persist the card's mode + the exact-figure input for a tax year (one JSON blob). The 'ytd' mode
+ *  has no input of its own (it reads the Year to Date card), so only the mode + exact are stored. @param {any} ty */
 export function saveHppState(ty) {
   if (!ty) return;
-  const v = (/** @type {string} */ id) => {
-    const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
-    return el ? el.value : '';
-  };
-  lsSet(hppModeKey(ty), JSON.stringify({ mode: _hppMode(), ytdExtra: v('hppYtdExtra'), exact: v('hppExactAmt') }));
+  const exactEl = /** @type {HTMLInputElement|null} */ (document.getElementById('hppExactAmt'));
+  lsSet(hppModeKey(ty), JSON.stringify({ mode: _hppMode(), exact: exactEl ? exactEl.value : '' }));
 }
 
-/** Restore a tax year's saved mode + manual inputs into the DOM (called before calcHPP reads them on
- *  a period/year change). Missing/corrupt blob → default 'hours' with empty inputs. @param {any} ty */
+/** Restore a tax year's saved mode + exact-figure input into the DOM (called before calcHPP reads it
+ *  on a period/year change). Missing/corrupt blob → default 'hours'. @param {any} ty */
 export function restoreHppState(ty) {
-  let s = /** @type {{mode?:string, ytdExtra?:string, exact?:string}} */ ({});
+  let s = /** @type {{mode?:string, exact?:string}} */ ({});
   try { const raw = ty ? lsGet(hppModeKey(ty)) : null; if (raw) s = JSON.parse(raw); } catch { s = {}; }
-  const ytdEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('hppYtdExtra'));
   const exactEl = /** @type {HTMLInputElement|null} */ (document.getElementById('hppExactAmt'));
-  if (ytdEl)   ytdEl.value   = s.ytdExtra || '';
-  if (exactEl) exactEl.value = s.exact    || '';
+  if (exactEl) exactEl.value = s.exact || '';
   applyHppMode(s.mode === 'ytd' || s.mode === 'exact' ? s.mode : 'hours');
 }
 
@@ -185,29 +218,46 @@ function _hppNoteHtml(ty) {
   return `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> Your extra pay above basic hours (Saturday, overtime, rest day working, Sunday, bank-holiday and Boxing Day premiums) × 7.69% (that's 4 weeks' leave out of 52). Basic pay, London Allowance, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>, and it shows as <strong>Holiday Pay Premium</strong> on that payslip. The more of your payslips you enter above, the closer this gets to the full-year figure.`;
 }
 
-/** Render the current-year card from a MANUAL source ('ytd' or 'exact') and persist the resulting
- *  figure to hppEstKey so the take-home add + rollover use it exactly like the hours-mode figure.
- *  Deleting on zero mirrors the hours path so a cleared box can't leave a stale figure. @param {any} ty @param {string} mode */
+/** Render the current-year card from a NON-hours source and persist the resulting figure to
+ *  hppEstKey so the take-home add + rollover use it exactly like the hours-mode figure. Deleting on
+ *  zero mirrors the hours path so a cleared/empty source can't leave a stale figure.
+ *  - 'ytd'   : derive a ROUGH premium figure from the Year to Date card's Taxable Pay (#ytdPay).
+ *  - 'exact' : the member's own entered figure (#hppExactAmt).
+ *  @param {any} ty @param {string} mode */
 function _renderHppManual(ty, mode) {
-  const rawEl = /** @type {HTMLInputElement|null} */ (document.getElementById(mode === 'ytd' ? 'hppYtdExtra' : 'hppExactAmt'));
-  const num   = Math.max(0, parseSmartFloat(rawEl?.value ?? '') || 0);
-  const hpp   = mode === 'ytd' ? hppFromYtdExtra(num) : num;
-  if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
-  else lsDel(hppEstKey(ty));
-
   const amountEl = document.getElementById('hppAmount');
   const basisEl  = document.getElementById('hppBasis');
-  if (hpp > 0) {
-    if (amountEl) amountEl.textContent = fmt(hpp);
-    if (basisEl)  basisEl.textContent  = mode === 'ytd'
-      ? `${fmt(num)} extra pay × 7.69% · your quick estimate · due January ${ty.hppPaidJan}`
-      : `Your entered figure · due January ${ty.hppPaidJan}`;
-  } else {
-    if (amountEl) amountEl.textContent = '£–';
-    if (basisEl)  basisEl.textContent  = mode === 'ytd'
-      ? 'Enter your year-to-date extra pay above to estimate'
-      : 'Enter your Holiday Pay Premium figure above';
+
+  if (mode === 'ytd') {
+    const ytdPayEl = /** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay'));
+    const taxable  = Math.max(0, parseSmartFloat(ytdPayEl?.value ?? '') || 0);
+    if (taxable <= 0) {
+      lsDel(hppEstKey(ty));
+      if (amountEl) amountEl.textContent = '£–';
+      if (basisEl)  basisEl.textContent  = 'Fill in the Year to Date Figures card above (Taxable Pay) to use this';
+      return;
+    }
+    const { nonPremium } = _expectedNonPremiumYtd(ty);
+    const extra = Math.max(0, taxable - nonPremium);
+    const hpp   = hppFromYtdTaxable(taxable, nonPremium);
+    if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2)); else lsDel(hppEstKey(ty));
+    if (amountEl) amountEl.textContent = hpp > 0 ? fmt(hpp) : '£–';
+    if (basisEl) {
+      basisEl.innerHTML = hpp > 0
+        ? `Rough estimate: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay + London) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — the hours option above is more accurate if you fill each payslip in.</span>`
+        : `Your Year to Date Taxable Pay looks lower than the expected basic pay, so there's no premium to estimate from it — try the hours option, or enter the figure yourself.`;
+    }
+    return;
   }
+
+  // 'exact' — the member's own figure.
+  const exactEl = /** @type {HTMLInputElement|null} */ (document.getElementById('hppExactAmt'));
+  const hpp     = Math.max(0, parseSmartFloat(exactEl?.value ?? '') || 0);
+  if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2)); else lsDel(hppEstKey(ty));
+  if (amountEl) amountEl.textContent = hpp > 0 ? fmt(hpp) : '£–';
+  if (basisEl)  basisEl.textContent  = hpp > 0
+    ? `Your entered figure · due January ${ty.hppPaidJan}`
+    : 'Enter your Holiday Pay Premium figure above';
 }
 
 /**

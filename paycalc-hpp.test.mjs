@@ -29,6 +29,7 @@ mock.module('./paycalc-periods.js', {
         hasBoxingDay:     () => _hasBoxingDayVal,
         getPeriods:       () => [],
         currentPeriodNum: () => 48,
+        todaysPeriodNum:  () => 48,
         isTaxYearVisible: () => true,   // new-starter clamp — default visible; updatePriorHpp gates on it
         CONFIG:           { TAX_YEARS: [] },
     },
@@ -42,6 +43,7 @@ mock.module('./paycalc-settings.js', {
         // getProRateFactor kept for module shape only — _varPayForPeriod no longer imports it
         // (London was the only component it touched; removed with London at v17.23).
         getProRateFactor:  () => 1,
+        getPensionDefault: () => 147.36,
         getStoredRateForYear: () => 20.74,
     },
 });
@@ -64,7 +66,7 @@ mock.module('./roster-data.js', {
     },
 });
 
-const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdExtra } = await import('./paycalc-hpp.js');
+const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable } = await import('./paycalc-hpp.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -291,14 +293,15 @@ describe('_varPayForPeriod', () => {
     });
 });
 
-describe('hppFromYtdExtra (v18.32 — quick year-to-date estimate)', () => {
-    test('multiplies extra pay by 4/52 (7.69%)', () => {
-        assert.equal(hppFromYtdExtra(2600), 2600 * (4 / 52));   // = 200
-        assert.ok(Math.abs(hppFromYtdExtra(1000) - 76.923) < 0.001);
+describe('hppFromYtdTaxable (v18.34 — estimate from Year to Date Taxable Pay)', () => {
+    test('(taxable − expected non-premium) × 4/52 = the premium portion HPP', () => {
+        // Isolate the premium pay by removing expected basic + London − pension, then take 7.69%.
+        assert.ok(Math.abs(hppFromYtdTaxable(62554, 38948) - (62554 - 38948) * (4 / 52)) < 0.001);
+        assert.equal(hppFromYtdTaxable(40000, 30000), 10000 * (4 / 52));
     });
-    test('zero / negative / non-numeric clamp to 0', () => {
-        assert.equal(hppFromYtdExtra(0), 0);
-        assert.equal(hppFromYtdExtra(-500), 0);
-        assert.equal(hppFromYtdExtra(NaN), 0);
+    test('clamps to 0 when expected non-premium ≥ taxable (nothing to premium)', () => {
+        assert.equal(hppFromYtdTaxable(30000, 35000), 0);
+        assert.equal(hppFromYtdTaxable(0, 0), 0);
+        assert.equal(hppFromYtdTaxable(NaN, 100), 0);
     });
 });

@@ -1406,7 +1406,8 @@ export function init() {
     };
     document.getElementsByName('hppMode').forEach(/** @param {any} r */ r =>
       r.addEventListener('change', () => { applyHppMode(); _saveHppForViewedYear(); calculate(); }));
-    document.getElementById('hppYtdExtra')?.addEventListener('input', () => { _saveHppForViewedYear(); calculate(); });
+    // 'ytd' mode has no input of its own — it reads the Year to Date card, and editing that card
+    // already re-runs calculate() (→ calcHPP), so the HPP auto-updates. Only 'exact' has an input.
     document.getElementById('hppExactAmt')?.addEventListener('input', () => { _saveHppForViewedYear(); calculate(); });
 
     // Card collapse toggles — shared initCardCollapse (overlay.js) adds keyboard +
