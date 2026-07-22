@@ -169,6 +169,10 @@ export function saveSettings() {
   lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
   lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
   lsSet(SK.pgLoan,    /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked ? '1' : '');
+  // Loan-repaid cutover (v18.41): the p.num of the first payslip with no deduction, '' = still
+  // repaying. The select may not exist in old cached HTML — guard rather than throw.
+  const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
+  if (_slPaidOffEl) lsSet(SK.slPaidOff, _slPaidOffEl.value);
   // On a joining period the pension field shows the pro-rated amount.
   // Always write the full-period default to SK.pension so future full periods
   // don't inherit the pro-rated value as their default.
@@ -257,6 +261,11 @@ export function loadSettings() {
   if (sl === 'postgrad') { sl = 'none'; pgLoan = '1'; lsSet(SK.sl, 'none'); lsSet(SK.pgLoan, '1'); }
   if (sl)      /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value = sl;
   /** @type {HTMLInputElement} */ (document.getElementById('pgLoanCheck')).checked = pgLoan === '1';
+  // Loan-repaid cutover (v18.41). The coordinator builds the payslip options BEFORE calling
+  // loadSettings, so the saved p.num resolves to a real option here (an unknown value no-ops).
+  const _slPaidOff   = lsGet(SK.slPaidOff);
+  const _slPaidOffEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('slPaidOffFrom'));
+  if (_slPaidOffEl && _slPaidOff) _slPaidOffEl.value = _slPaidOff;
   let grade = lsGet(SK.grade);
   if (!grade || !GRADES[grade]) {
     // Auto-detect from the logged-in member's role

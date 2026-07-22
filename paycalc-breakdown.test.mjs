@@ -118,3 +118,14 @@ test('buildBreakdownRows: SL-skip note only with an active plan; cumulative + bp
     assert.ok(extras.includes('Back pay lump sum (pay award — estimate)</span><span class="b-val">+£500.00</span>'));
     assert.ok(extras.includes('Holiday Pay Premium (estimated)</span><span class="b-val">+£120.00</span>'));
 });
+
+test('buildBreakdownRows: SL repaid-in-full note (v18.41) — active plan only, outranks the skip', () => {
+    assert.ok(buildBreakdownRows({ ...BD_BASE, slPaidOff: true, plan: 'plan1' }).includes('Student Loan repaid in full'));
+    assert.ok(!buildBreakdownRows({ ...BD_BASE, slPaidOff: true, plan: 'none' }).includes('repaid in full'),
+        'paid-off with no active loan → no note');
+    const both = buildBreakdownRows({ ...BD_BASE, slPaidOff: true, slSkip: true, plan: 'plan1' });
+    assert.ok(both.includes('repaid in full') && !both.includes('not deducted this period'),
+        'repaid outranks the one-off skip — one note, not two');
+    assert.ok(!buildBreakdownRows({ ...BD_BASE, plan: 'plan1' }).includes('repaid in full'),
+        'omitted param defaults to still-repaying');
+});

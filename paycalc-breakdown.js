@@ -63,8 +63,8 @@ export function buildSummaryRows(d) {
  *   gBasicSat:number, bhCapped:number, gBankHol:number, bhOtHrs:number, gBhOt:number,
  *   oHrs:number, gOvertime:number, rHrs:number, gRdw:number, sHrs:number, r150:number,
  *   gSunday:number, bHrs:number, r300:number, gBoxing:number, peer:number, gPeer:number,
- *   LONDON:number, otherAdj:number, slSkip:boolean, plan:string, pgLoan:boolean,
- *   usingCumulative:boolean, _bpThisPeriod:number, _bpIsEstimate:boolean,
+ *   LONDON:number, otherAdj:number, slSkip:boolean, slPaidOff?:boolean, plan:string,
+ *   pgLoan:boolean, usingCumulative:boolean, _bpThisPeriod:number, _bpIsEstimate:boolean,
  *   _hppForPeriod:number, _hppIsEstimate:boolean
  * }} d
  * @returns {string} innerHTML for #bdBody
@@ -73,7 +73,7 @@ export function buildBreakdownRows(d) {
     const {
         nonBhNorm, rate, gBasicNorm, satCapped, r125, gBasicSat, bhCapped, gBankHol,
         bhOtHrs, gBhOt, oHrs, gOvertime, rHrs, gRdw, sHrs, r150, gSunday, bHrs, r300, gBoxing,
-        peer, gPeer, LONDON, otherAdj, slSkip, plan, pgLoan, usingCumulative,
+        peer, gPeer, LONDON, otherAdj, slSkip, slPaidOff = false, plan, pgLoan, usingCumulative,
         _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate,
     } = d;
     const fh = fmtHrsMins;
@@ -98,7 +98,10 @@ export function buildBreakdownRows(d) {
     bd += `<div class="bd-row"><span class="b-lbl">London Allowance</span><span class="b-val">${fmt(LONDON)}</span></div>`;
     if (otherAdj !== 0)
         bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;
-    if (slSkip && (plan !== 'none' || pgLoan))
+    // The repaid cutover outranks the one-off skip (mirrors the summary-row precedence).
+    if (slPaidOff && (plan !== 'none' || pgLoan))
+        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan repaid in full — no deduction from this payslip onwards</span><span class="b-val"></span></div>`;
+    else if (slSkip && (plan !== 'none' || pgLoan))
         bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan not deducted this period</span><span class="b-val"></span></div>`;
     if (usingCumulative)
         bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your last payslip</span><span class="b-val"></span></div>`;

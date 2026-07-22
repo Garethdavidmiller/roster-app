@@ -614,6 +614,33 @@
     .ytd-upto-note--live { border-left-color: var(--green);
       background: var(--success-green-bg); color: var(--success-text); }
     .ytd-upto-note:empty { display: none; }
+    /* YTD header status chip (v18.40 — review item 6): whether the entered figures sharpen the
+       VIEWED payslip, readable even while the card is collapsed. The --live variant echoes the
+       note's success-green voice; the resting state stays the neutral chip. */
+    .ytd-status-chip--live {
+      background: var(--success-green-bg); color: var(--success-text);
+      border-color: color-mix(in oklch, var(--green) 40%, white);
+    }
+    /* "This tax year so far" block (v18.41 — review item 11): a sunken summary inside the YTD
+       card — recessed reference data, not an input, so it sits on --surface-sunken like other
+       read-only insets. Rows mirror the result card's label/value rhythm at hint scale. */
+    .ytd-yearso {
+      background: var(--surface-sunken); border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm); padding: 10px 12px; margin: 12px 0 4px;
+    }
+    .yearso-head {
+      font-size: var(--type-small); font-weight: 700; color: var(--text-dark); margin-bottom: 6px;
+    }
+    .yearso-count { font-weight: 600; color: var(--text-light); float: right; }
+    .yearso-row {
+      display: flex; justify-content: space-between; padding: 3px 0;
+      font-size: var(--type-small); color: var(--text-mid);
+    }
+    .yearso-row .val { font-weight: 700; color: var(--primary-blue); font-variant-numeric: tabular-nums; }
+    .yearso-proj {
+      font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
+      border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 6px;
+    }
 
     /* First-run banner */
     .setup-banner {
@@ -766,6 +793,15 @@
       outline: 2px solid var(--primary-blue); outline-offset: 2px;
     }
     .bp-mode-opt input, .hpp-mode-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-blue); }
+    /* Per-option figure on the HPP amount-source rows (v18.40 — review item 4): each radio shows
+       its CURRENT £ on the right so the choice is informed. "≈" marks the two estimates; the
+       member's own figure shows plain. Empty span = that source has nothing to offer (costs no
+       space — the text flexes into it). */
+    .hpp-mode-text { flex: 1 1 auto; }
+    .hpp-mode-amt {
+      font-size: var(--type-label); font-weight: 700; color: var(--primary-blue);
+      font-variant-numeric: tabular-nums; white-space: nowrap;
+    }
     /* Locked (confirmed-award) rate boxes — read as fixed VALUES, matching the Settings read-only
        rate treatment (solid faint fill, bold, small 🔒; unified v17.93 / lock added v18.00). */
     input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
@@ -775,14 +811,17 @@
       content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       font-size: 12px; opacity: .5; pointer-events: none;
     }
-    /* Award context strip at the top of the back-pay card — the card's key fact (which award,
-       backdated from, paid when), styled as a neutral navy info strip rather than a plain hint
-       (mirrors .backpay-notice geometry; navy = informational, gold = warning). (v18.00) */
+    /* The STORY strip leading the back-pay card (v18.00 as the award-context line; promoted to the
+       card's lead narrative v18.39 — which award, paid from which payslip, backdated to which
+       1 April, and this member's rough £, written live by calcBackPay via bpStoryHtml). Navy info
+       voice (mirrors .backpay-notice geometry; navy = informational, gold = warning); one type step
+       up from a hint because it now IS the card's message, not context for it. */
     .bp-award-scope {
-      font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
-      border-left: 3px solid var(--primary-blue); padding: 8px 10px;
-      background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; margin-bottom: 12px;
+      font-size: var(--type-label); color: var(--text-dark); line-height: 1.55;
+      border-left: 3px solid var(--primary-blue); padding: 10px 12px;
+      background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; margin-bottom: 14px;
     }
+    .bp-award-scope .bp-story-amt { color: var(--primary-blue); font-weight: 700; }
     .bp-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: var(--type-label);

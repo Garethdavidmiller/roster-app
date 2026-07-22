@@ -72,6 +72,7 @@
   <link rel="modulepreload" href="./paycalc-roster-hint.js">
   <link rel="modulepreload" href="./paycalc-roster-suggestions.js">
   <link rel="modulepreload" href="./paycalc-settings.js">
+  <link rel="modulepreload" href="./paycalc-year-summary.js">
   <link rel="modulepreload" href="./perf-reporter.js">
   <link rel="modulepreload" href="./perf-stats.js">
   <link rel="modulepreload" href="./roster-cycle-data.js">
@@ -182,6 +183,18 @@
           <label for="pgLoanCheck">I also repay a <strong>Postgraduate Loan</strong></label>
         </div>
         <div class="field-hint">Tick this only if a separate Postgraduate Loan deduction (6%) also shows on your payslip. It is repaid <em>in addition</em> to any plan above.</div>
+      </div>
+
+      <!-- Loan fully repaid mid-year (v18.41 — review item 9): the deduction stops on a specific
+           payslip while earlier payslips keep theirs (so they still reconcile). Options are built
+           by paycalc-app.js at init (one per payslip, grouped by tax year); hidden while no loan
+           is selected. -->
+      <div class="field hidden" id="slPaidOffField">
+        <label for="slPaidOffFrom">Finished repaying your loan?</label>
+        <select id="slPaidOffFrom">
+          <option value="">No — still repaying</option>
+        </select>
+        <div class="field-hint">If your loan is fully repaid, pick the <strong>first payslip that had no deduction</strong> on it — earlier payslips keep their deductions, so they still match your payslips.</div>
       </div>
 
       <button type="button" class="btn-primary" id="saveSettingsBtn">Save settings</button>
@@ -515,6 +528,10 @@
         <span class="hint">Optional — sharpens the tax estimate; copy two figures from your latest payslip</span>
       </div>
       <div class="card-header-actions">
+        <!-- Status chip (v18.40 — review item 6): whether the entered figures sharpen the VIEWED
+             payslip's tax estimate (cumulative engages only on the payslip after the source) —
+             visible even while the card is collapsed. Written by _updateYtdNote. -->
+        <span class="card-year-chip ytd-status-chip" id="ytdStatusChip"></span>
         <span class="card-year-chip" id="ytdYearChip" title="Tax year"></span>
         <button type="button" class="help-btn" data-help="accuracy" aria-label="Help: Year to Date Figures">?</button>
         <span class="card-toggle-arrow">▼</span>
@@ -550,6 +567,12 @@
         <label for="ytdSrcSelect">From which payslip? <span class="note">the one you copied them from</span></label>
         <select id="ytdSrcSelect"></select>
       </div>
+
+      <!-- "This tax year so far" (v18.41 — review item 11): summed from the year's ENTERED payslips
+           (a headless re-run of the calculator per payslip — paycalc-year-summary.js) + a rough
+           full-year projection. Rendered by the coordinator after every calculate(); hidden when
+           no payslip of the year has hours yet. -->
+      <div class="ytd-yearso" id="ytdYearSoFar" hidden></div>
 
       <div class="field-hint" style="padding-top:4px">January payslip with your Holiday Pay Premium on it? Enter the confirmed figure in the <strong>Holiday Pay Premium</strong> card.</div>
 
@@ -602,9 +625,11 @@
       <div class="field" id="hppModeRow">
         <label>How should we work out this year's estimate?</label>
         <div class="hpp-mode-toggle" role="radiogroup" aria-label="Holiday Pay Premium amount source">
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeHours" value="hours" checked> From my payslips in the calculator — most accurate</label>
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeYtd" value="ytd"> Rough estimate from my Year to Date pay</label>
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeExact" value="exact"> Enter the figure myself</label>
+          <!-- Each option shows its CURRENT figure on the right (v18.40 — filled by calcHPP via
+               _updateModeAmounts on every recompute) so the choice is informed, not blind. -->
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeHours" value="hours" checked> <span class="hpp-mode-text">From my payslips in the calculator — most accurate</span> <span class="hpp-mode-amt" id="hppModeHoursAmt"></span></label>
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeYtd" value="ytd"> <span class="hpp-mode-text">Rough estimate from my Year to Date pay</span> <span class="hpp-mode-amt" id="hppModeYtdAmt"></span></label>
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeExact" value="exact"> <span class="hpp-mode-text">Enter the figure myself</span> <span class="hpp-mode-amt" id="hppModeExactAmt"></span></label>
         </div>
       </div>
 
@@ -650,8 +675,10 @@
       </div>
     </div>
     <div class="card-body collapsible-body" id="backPayBody">
-      <p class="card-explainer">When a pay award is backdated, everything owed since <strong>1 April</strong> (Chiltern's pay anniversary) arrives as one lump sum on a single payslip — and it lands on the right payslip here automatically.</p>
-
+      <!-- The STORY leads the card (v18.39): one plain-English strip — which award, paid from which
+           payslip, backdated to which 1 April, and this member's rough £ — written live by
+           calcBackPay (bpStoryHtml). The old generic explainer paragraph folded into it; the
+           controls below are the mechanics, not the message. -->
       <div class="bp-award-scope" id="bpAwardScope"></div>
 
       <div class="backpay-estimate-note" id="bpEstimateNote" style="display:none">ℹ️ This pay award has been accepted but isn't confirmed on a payslip yet — treat the figures below as an estimate until it appears there.</div>

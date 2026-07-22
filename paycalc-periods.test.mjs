@@ -98,7 +98,7 @@ const {
     settingsKey, getContr, getEffectiveContr, getProRateFactor,
 } = await import('./paycalc-settings.js');
 
-const { _bpAwardTaxYear, raiseByPercent, _accrueBackPayPeriod, paidInPeriodNum } = await import('./paycalc-backpay.js');
+const { _bpAwardTaxYear, raiseByPercent, _accrueBackPayPeriod, paidInPeriodNum, bpStoryHtml } = await import('./paycalc-backpay.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -685,5 +685,61 @@ describe('paidInPeriodNum', () => {
 
     test('no payslip on/after the date → null (never guesses)', () => {
         assert.equal(paidInPeriodNum(periods, new Date(2030, 0, 1)), null);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// paycalc-backpay.js — bpStoryHtml (the plain-English story strip, v18.39)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('bpStoryHtml', () => {
+    // The real current case: the 2026/27 award, decided (paid from the 28 Aug 2026 payslip),
+    // viewed before that payday.
+    const decided = {
+        label: '2026/27', fromDate: new Date(2026, 7, 28),
+        payday: new Date(2026, 7, 28), pNum: 20,
+        now: new Date(2026, 6, 22),
+    };
+
+    test('decided future award, computed: payslip date-first, April year, "roughly £"', () => {
+        const h = bpStoryHtml({ ...decided, amount: 460.12, state: 'computed' });
+        assert.match(h, /2026\/27 pay award/);
+        assert.match(h, /28 Aug 2026 payslip<\/strong> \(P20\)/); // date-first payslip identity
+        assert.match(h, /1 April 2026/);                          // April derives from the label
+        assert.match(h, /is paid from/);                          // future tense (payday ahead)
+        assert.match(h, /roughly .*£460\.12/);                    // computed = estimate framing
+    });
+
+    test('decided PAST award reads in the past tense', () => {
+        const h = bpStoryHtml({
+            label: '2025/26', fromDate: new Date(2025, 9, 24),
+            payday: new Date(2025, 9, 24), pNum: 28,
+            amount: 535.37, state: 'computed', now: new Date(2026, 6, 22),
+        });
+        assert.match(h, /was paid from/);
+        assert.match(h, /arrived as one lump sum/);
+        assert.match(h, /1 April 2025/);
+    });
+
+    test('undecided award: no payslip named, future-facts sentence', () => {
+        const h = bpStoryHtml({ label: '2027/28', fromDate: null, payday: null, pNum: 0, amount: 0, state: 'no-figures' });
+        assert.match(h, /hasn't been paid yet/);
+        assert.match(h, /1 April 2027/);
+        assert.ok(!/\(P\d/.test(h), 'no P-number without a payslip');
+    });
+
+    test('manual mode: exact figure (no "roughly"), tense-aware; empty manual prompts for it', () => {
+        const future = bpStoryHtml({ ...decided, amount: 535.37, state: 'manual' });
+        assert.match(future, /£535\.37/);
+        assert.ok(!/roughly/.test(future), 'a payslip figure is exact, not an estimate');
+        assert.match(future, /You've entered/, 'future payslip → present-tense entry, not "was"');
+        const pastSlip = bpStoryHtml({ ...decided, payday: new Date(2026, 5, 5), amount: 535.37, state: 'manual' });
+        assert.match(pastSlip, /Yours was/, 'past payslip → past tense');
+        assert.match(bpStoryHtml({ ...decided, amount: 0, state: 'manual-empty' }), /Enter your figure/);
+    });
+
+    test('empty accrual window says so; no-figures state is the award facts alone', () => {
+        assert.match(bpStoryHtml({ ...decided, amount: 0, state: 'empty-window' }), /Nothing to backdate/);
+        const bare = bpStoryHtml({ ...decided, amount: 0, state: 'no-figures' });
+        assert.ok(!/£/.test(bare), 'no amount sentence without figures');
     });
 });
