@@ -667,12 +667,18 @@
       border-top: 1px solid var(--border-light); margin: 12px 16px 0; padding-top: 12px;
     }
     .check-actual .pfx { max-width: 240px; margin-top: 6px; }
+    /* Field convention (v18.46 — sweep item 14): 2px --border-mid + the token focus ring,
+       matching every other input (it launched with a one-off 1px + outline). */
     .check-actual input {
       width: 100%; font-size: var(--type-medium); padding: 8px 10px 8px 26px;
-      border: 1px solid var(--border-mid); border-radius: var(--radius-sm);
+      border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
       background-color: var(--field-bg);
+      transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
-    .check-actual input:focus-visible { background-color: white; outline: 2px solid var(--primary-blue); outline-offset: 1px; }
+    .check-actual input:focus-visible {
+      border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color);
+      background-color: white; outline: none;
+    }
     .check-actual-line {
       font-size: var(--type-small); line-height: 1.5; margin: 8px 0 12px; color: var(--text-mid);
     }

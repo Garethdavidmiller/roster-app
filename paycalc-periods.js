@@ -244,9 +244,10 @@ export function buildPeriodSelect() {
   const periods = visiblePeriods(); // hide tax years before a new starter's join year
   const today   = new Date();
 
-  // Default to the first period whose payday is still in the future.
-  const upcoming = periods.find((/** @type {any} */ p) => p.payday > today);
-  let defPNum    = upcoming ? upcoming.num : periods[periods.length - 1].num;
+  // The current earning period (first future payday) — also the default selection.
+  const upcoming     = periods.find((/** @type {any} */ p) => p.payday > today);
+  const _currentPNum = upcoming ? upcoming.num : periods[periods.length - 1].num;
+  let defPNum        = _currentPNum;
 
   // URL params let the roster calendar pre-select a specific period.
   const _urlParams = new URLSearchParams(window.location.search);
@@ -271,7 +272,6 @@ export function buildPeriodSelect() {
     if (_matched) defPNum = _matched.num;
   }
 
-  const _currentPNum = upcoming ? upcoming.num : periods[periods.length - 1].num;
   _populatePeriodSelect(sel, periods, { currentPNum: _currentPNum });
 
   _setSelectPeriod(sel, defPNum);
@@ -279,15 +279,6 @@ export function buildPeriodSelect() {
   return _currentPNum; // coordinator stores this as _defaultPeriodNum
 }
 
-/**
- * Populate the back-pay "paid in" period selector. With `minPNum`/`maxPNum`, only periods inside
- * that range are offered — the back-pay card passes the award's own tax year (April → last period,
- * v17.86) so the dropdown can neither offer a payslip that predates the award nor leak into the
- * next year (a cross-year selection could survive a year switch). Rebuilding clears the selection;
- * callers re-select/default afterwards.
- * @param {number} [minPNum=0]
- * @param {number} [maxPNum=Infinity]
- */
 /**
  * Populate the Year-to-Date "From which payslip?" selector with the tax year's PAID payslips
  * (you can only copy totals from a payslip that exists), newest first — the latest payslip is
@@ -305,6 +296,15 @@ export function buildYtdSourceSelect(ty) {
   _populatePeriodSelect(sel, paid, { placeholder: '— which payslip did they come from? —' });
 }
 
+/**
+ * Populate the back-pay "paid in" period selector. With `minPNum`/`maxPNum`, only periods inside
+ * that range are offered — the back-pay card passes the award's own tax year (April → last period,
+ * v17.86) so the dropdown can neither offer a payslip that predates the award nor leak into the
+ * next year (a cross-year selection could survive a year switch). Rebuilding clears the selection;
+ * callers re-select/default afterwards.
+ * @param {number} [minPNum=0]
+ * @param {number} [maxPNum=Infinity]
+ */
 export function buildBackPayPeriodSelect(minPNum = 0, maxPNum = Infinity) {
   const sel = document.getElementById('backPayPeriod');
   if (!sel) return;

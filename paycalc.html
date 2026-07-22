@@ -345,7 +345,9 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">⏰</span> Overtime</div>
           <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub" id="overtimeSub">Extra hours on top of a rostered shift. Shows as "Overtime 1.25" on your payslip.</div>
+          <!-- Prose lives here ONLY (v18.46 — sweep item 12): JS fills just the cut-off date span,
+               so the copy can't drift between HTML and a JS duplicate (it used to exist in both). -->
+          <div class="h-sub">Extra hours on top of a rostered shift (cut-off: <span id="cutoffOt">–</span>). Shows as "Overtime 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -367,7 +369,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">💼</span> Rest Day Working</div>
           <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £26.86/hr</span>
-          <div class="h-sub" id="rdwSub">Came in on a rest day, or worked a Saturday that wasn't in your roster. Shows as "RDW 1.25" on your payslip.</div>
+          <div class="h-sub">Came in on a rest day, or worked a Saturday that wasn't in your roster (cut-off: <span id="cutoffRdw">–</span>). Shows as "RDW 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -389,7 +391,7 @@
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
           <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £32.24/hr</span>
-          <div class="h-sub" id="sundaySub">All Sunday hours are at 1.5×. Shows as "RDW Sun 1.5" on your payslip.</div>
+          <div class="h-sub">Any hours you worked on a Sunday (cut-off: <span id="cutoffSun">–</span>). Shows as "RDW Sun 1.5" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">

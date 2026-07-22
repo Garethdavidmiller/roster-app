@@ -88,15 +88,13 @@ export function getPensionDefault(pObj) {
  * with the grade default as a fallback. Use it wherever a SPECIFIC tax year's rate is needed (e.g. the
  * prior-year HPP estimate); the mid-year pre/post-rise step is applied per period by getRateForPeriod.
  * @param {any} ty
- * @param {boolean} [_useLegacyFallback=true] - retained for call-site compatibility; no longer used.
  * @returns {number}
  */
-export function getStoredRateForYear(ty, _useLegacyFallback = true) {
+export function getStoredRateForYear(ty) {
   // The hourly rate is FIXED BY GRADE + the confirmed award (v17.87) — it is no longer user-editable
   // or stored, so it derives purely from AWARD_RATES (the year's settled rate) with the grade default
   // as a fallback. This removes the whole stale-saved-rate failure class (a device could otherwise
   // hold last year's rate). The mid-year pre/post-rise step is applied per period by getRateForPeriod.
-  // (`_useLegacyFallback` is retained for call-site compatibility but no longer consulted.)
   const g = getGrade();
   const award = awardRatesFor(g, ty.label);
   return (award && award.rate != null ? award.rate : 0)

@@ -36,7 +36,7 @@ year's `AWARD_RATES.rate`, add the following year with `pre` = this rate, and se
 
 `saveSettings` guards the pension default on joining periods — writes `getPensionDefault(curP)` (full rate), not the field value (pro-rated). Without this guard, saving Settings on the joining period corrupts the default for subsequent periods.
 
-The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from base roster + Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled fields turn gold.
+The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from base roster + Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled fields turn gold. **Viewing never persists (v18.46, sweep item 15):** the background fetch's auto-apply is DISPLAY-ONLY — the suggestion shows gold and feeds the live estimate (`_applyRosterSuggestion` + `calculate()`, no `autosave()`), but is NOT written to the period blob. Persistence requires an explicit action: typing anything into the period (autosave picks up the gold values too — implicit acceptance) or the "Fill from calendar" buttons. Before v18.46 merely VIEWING a period with special shifts autosaved it, silently marking it "entered" for HPP / year-so-far / back-pay counts.
 
 ## Payroll rules — do not change without confirmation
 

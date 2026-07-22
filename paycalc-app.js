@@ -140,6 +140,19 @@ export function init() {
 
     // periodKey (and SK, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey) imported from paycalc-migrations.js
 
+    /**
+     * This period's DEFAULT pension as the £ number the field would show: the period-aware scheme
+     * default (PENSION_STEPS via getPensionDefault) × the joining-period pro-rate, rounded to 2dp.
+     * The ONE source for a comparison/write that was hand-rolled at six sites (v18.46 — sweep
+     * item 9). No period → the bare current default.
+     * @param {any} [p] @returns {number}
+     */
+    function _periodDefaultPension(p) {
+      return p
+        ? parseFloat((getPensionDefault(p) * getProRateFactor(p)).toFixed(2))
+        : (parseFloat(String(getPensionDefault())) || 0);
+    }
+
     // Period data schema — all fields that get saved per period
     function emptyPeriodData() {
       return { satH:0, satM:0, bhH:0, bhM:0, bhOtH:0, bhOtM:0, otH:0, otM:0, rdwH:0, rdwM:0, sunH:0, sunM:0, boxH:0, boxM:0, peer:0, slSkip:false, otherAdj:0, actualNet:null };
@@ -283,6 +296,13 @@ export function init() {
     // updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod) imported from paycalc-periods.js.
     // getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod imported from paycalc-calc.js.
 
+    /** True when either Year to Date field holds text — the shared guard the anchor stamp, the
+     *  note and the header chip all branch on (was three inline copies; v18.46 — sweep item 10). */
+    function _ytdHasFigures() {
+      return ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay')))?.value.trim() || '') !== ''
+          || ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdTax')))?.value.trim() || '') !== '';
+    }
+
     /**
      * Refresh the Year-to-Date source-payslip anchor for the viewed tax year (v17.98): rebuild the
      * "From which payslip?" select with the year's paid payslips, restore the stored source (legacy
@@ -297,8 +317,7 @@ export function init() {
       buildYtdSourceSelect(ty);
       const _rawSrc = lsGet(ytdSrcKey(ty));
       let src = parseInt(_rawSrc ?? '', 10) || 0;
-      const hasFigures = ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay')))?.value.trim() || '') !== ''
-                      || ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdTax')))?.value.trim() || '') !== '';
+      const hasFigures = _ytdHasFigures();
       // Legacy stamp: ONLY when NO source was EVER recorded (raw === null) — anchor pre-v17.98 figures
       // to the payslip before TODAY's (the latest paid), clamped into this tax year, so a maintained
       // user's next-payslip estimate is unchanged. A recorded '0' means the member DELIBERATELY
@@ -328,8 +347,7 @@ export function init() {
       // no source, or the year's first payslip (Year to Date starts fresh in April).
       const _chip = document.getElementById('ytdStatusChip');
       if (_chip) {
-        const _hasFigures = ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay')))?.value.trim() || '') !== ''
-                         || ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdTax')))?.value.trim() || '') !== '';
+        const _hasFigures = _ytdHasFigures();
         const _live = !!(srcP0 && p.num === src + 1 && _hasFigures);
         _chip.classList.toggle('ytd-status-chip--live', _live);
         _chip.textContent = (!_hasFigures || !srcP0 || periodIdx <= 1) ? '' : (_live ? '✓ in use' : 'not in use');
@@ -341,7 +359,7 @@ export function init() {
         note.innerHTML = `This is the first payslip of ${ty.label} — Year to Date starts fresh in April, so you can leave these blank.`;
         return;
       }
-      const srcP = src ? getPeriods().find(/** @param {any} x */ x => x.num === src) : null;
+      const srcP = srcP0;   // same lookup as above — do not re-find (sweep item 10)
       if (!srcP) {
         note.innerHTML = `Copy the two figures from your <strong>latest payslip</strong> and pick which payslip they came from — the estimate right after it gets sharper.`;
         return;
@@ -399,13 +417,12 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('periodBadge')).textContent = `P${payslipPeriodNum(p)}`;
       /** @type {HTMLElement} */ (document.getElementById('netPeriod')).textContent   = `Paid ${fd(p.payday)}`;
 
-      // Update cut-off date in sub descriptions
-      /** @type {HTMLElement} */ (document.getElementById('overtimeSub')).textContent =
-        `Extra hours on top of a rostered shift (cut-off: ${cutStr}). Shows as "Overtime 1.25" on your payslip.`;
-      /** @type {HTMLElement} */ (document.getElementById('rdwSub')).textContent =
-        `Came in on a rest day, or worked a Saturday that wasn't in your roster (cut-off: ${cutStr}). Shows as "RDW 1.25" on your payslip.`;
-      /** @type {HTMLElement} */ (document.getElementById('sundaySub')).textContent =
-        `Any hours you worked on a Sunday (cut-off: ${cutStr}). Shows as "RDW Sun 1.5" on your payslip.`;
+      // Cut-off date in the three row descriptions — JS writes ONLY the date spans; the prose
+      // lives once in the HTML (v18.46 — sweep item 12: it used to exist in both, a drift hazard).
+      for (const _cid of ['cutoffOt', 'cutoffRdw', 'cutoffSun']) {
+        const _el = document.getElementById(_cid);
+        if (_el) _el.textContent = cutStr;
+      }
 
       const boxing = hasBoxingDay(p);
       /** @type {HTMLElement} */ (document.getElementById('boxingBanner')).classList.toggle('visible', boxing);
@@ -552,11 +569,17 @@ export function init() {
           // will replace them". The hint bar still refreshed above, so the member can choose to
           // "Fill from calendar" — an explicit action that legitimately replaces it.
           if (_periodLoadWasCorrupt) return;
-          // Silently refresh any gold-highlighted fields filled during 'checking' state.
+          // Silently refresh any gold-highlighted fields filled during 'checking' state — but
+          // DISPLAY-ONLY (v18.46 — sweep item 15, owner decision): the suggestion shows gold and
+          // feeds the live estimate, but is NOT persisted. Merely VIEWING a payslip used to
+          // autosave the suggestion, so the period counted as "entered" in the HPP / year-so-far /
+          // back-pay aggregates without the member ever confirming it. Persistence now requires an
+          // explicit action: typing anything (autosave captures the gold values with it — implicit
+          // acceptance) or the Fill from calendar buttons. calculate() keeps the on-screen £ live.
           const _refreshP = getPeriods().find(/** @param {any} x */ x => x.num === _fetchedPNum);
           if (_refreshP) {
             const _refreshS = getRosterSuggestion(_refreshP, getLoggedMember());
-            if (_refreshS) { _applyRosterSuggestion(_refreshS); autosave(); }
+            if (_refreshS) { _applyRosterSuggestion(_refreshS); calculate(); }
           }
         });
       }
@@ -607,7 +630,7 @@ export function init() {
           // Mirrors updateSaveStatus's _hasCustomPension comparison (default × pro-rate, 2dp, ±0.005).
           if (_v != null) {
             const _p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
-            if (_p && Math.abs(_v - parseFloat((getPensionDefault(_p) * getProRateFactor(_p)).toFixed(2))) < 0.005) return null;
+            if (_p && Math.abs(_v - _periodDefaultPension(_p)) < 0.005) return null;
           }
           return _v;
         })(),
@@ -681,9 +704,8 @@ export function init() {
       // rate, new periods show the new rate) and (b) joining-period pro-ration.
       const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
       if (d.pension == null && _pObj) {
-        const _fullPension = getPensionDefault(_pObj);
         const pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
-        if (pa) pa.value = (_fullPension * getProRateFactor(_pObj)).toFixed(2);
+        if (pa) pa.value = _periodDefaultPension(_pObj).toFixed(2);
       }
       updateAdjSign();
       // Auto-expand "more options" if this period has extras saved
@@ -721,10 +743,7 @@ export function init() {
         }
         if (d) {
           const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-          const _defaultPension = _pObj
-            ? parseFloat((getPensionDefault(_pObj) * getProRateFactor(_pObj)).toFixed(2))
-            : getPensionDefault();
-          const _hasCustomPension = d.pension != null && Math.abs(d.pension - _defaultPension) > 0.005;
+          const _hasCustomPension = d.pension != null && Math.abs(d.pension - _periodDefaultPension(_pObj)) > 0.005;
           if (!isDataEmpty(d) || _hasCustomPension) {
             el.textContent = '✓ Entries saved for this period';
             el.className   = 'save-status saved';
@@ -791,7 +810,7 @@ export function init() {
       const _clearP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
       if (_clearP) {
         const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
-        if (_pa) _pa.value = (getPensionDefault(_clearP) * getProRateFactor(_clearP)).toFixed(2);
+        if (_pa) _pa.value = _periodDefaultPension(_clearP).toFixed(2);
       }
       _adjNegative = false;
       updateAdjSign();
@@ -962,7 +981,7 @@ export function init() {
       const _pRaw      = _pField && _pField.value.trim() !== '' ? parseSmartFloatOrNull(_pField.value) : null;
       const pension    = _pRaw != null
           ? Math.max(0, _pRaw)
-          : (_curP ? parseFloat((getPensionDefault(_curP) * getProRateFactor(_curP)).toFixed(2)) : getPensionDefault());
+          : _periodDefaultPension(_curP);
       const pensionWarn = document.getElementById('pensionWarn');
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
       const sacGross   = Math.max(0, grossWithBp - pension);
@@ -1343,41 +1362,52 @@ export function init() {
     }
 
     function toggleBpBreakdown() {
-      const btn  = /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn'));
-      const body = /** @type {HTMLElement} */ (document.getElementById('backPayRows'));
-      const open = btn.classList.toggle('open');
-      body.classList.toggle('open', open);
-      // Drive max-height from the actual rendered height so a long back-pay breakdown (many
-      // periods, or large text/zoom) is never clipped by the fixed CSS `.bd-body.open` cap.
-      // Cleared on close so the CSS collapse (max-height:0) animates the panel shut.
-      body.style.maxHeight = open ? `${body.scrollHeight}px` : '';
-      btn.setAttribute('aria-expanded', String(open));
+      // Max-height from the actual rendered height so a long back-pay breakdown (many periods,
+      // large text/zoom) is never clipped by the fixed CSS `.bd-body.open` cap; cleared on close
+      // so the CSS collapse animates shut. (Arrow rotation is CSS — .bd-btn.open .bd-arrow.)
+      _toggleDisclosure('bpBreakdownBtn', 'backPayRows', {
+        onToggle: (open, body) => { body.style.maxHeight = open ? `${body.scrollHeight}px` : ''; },
+      });
     }
 
     // (applyNewRate removed v17.90 — the Settings hourly rate is now grade-fixed + auto-derived, so
     // there was nothing to push into settings; the button it drove was already permanently hidden.)
 
-    // ── HPP FORMULA NOTE TOGGLE ───────────────────────────────────────────────────
-    // ── HOURS SHOW MORE TOGGLE ────────────────────────────────────────────────────
-    function toggleHoursExtra() {
-      const btn  = /** @type {HTMLElement} */ (document.getElementById('hoursShowMore'));
-      const body = /** @type {HTMLElement} */ (document.getElementById('hoursExtra'));
+    // ── DISCLOSURE TOGGLES (one core; v18.46 — sweep item 11) ─────────────────────
+    // The page's four button+panel disclosures shared the same 5-line open/close core, each
+    // hand-rolled (and loadPeriodData carried a fifth inline copy of the arrow strings). ONE
+    // helper now owns the core; per-toggle differences (arrow glyph, label swap, measured
+    // max-height) ride the options. The disclaimer's More/Less inline-span toggle keeps its own
+    // 3-line shape — it has no panel/arrow, so the helper would fit it worse than it helps.
+    /**
+     * @param {string} btnId @param {string} bodyId
+     * @param {{ arrowSel?: string, onToggle?: (open: boolean, body: HTMLElement) => void }} [opts]
+     */
+    function _toggleDisclosure(btnId, bodyId, opts = {}) {
+      const btn  = /** @type {HTMLElement|null} */ (document.getElementById(btnId));
+      const body = /** @type {HTMLElement|null} */ (document.getElementById(bodyId));
+      if (!btn || !body) return;
       const open = body.classList.toggle('open');
       btn.classList.toggle('open', open);
       btn.setAttribute('aria-expanded', String(open));
-      // Label stays CONSTANT — only the arrow flips, matching every other toggle on the page
-      // (v18.45 — sweep item 6: the old open-state "Hide adjustments" renamed the section mid-use).
-      /** @type {HTMLElement} */ (btn.querySelector('.show-more-arrow')).textContent = open ? '▲' : '▼';
+      if (opts.arrowSel) {
+        const a = btn.querySelector(opts.arrowSel);
+        if (a) a.textContent = open ? '▲' : '▼';
+      }
+      opts.onToggle?.(open, body);
     }
 
+    // Hours show-more: label CONSTANT — only the arrow flips (v18.45, sweep item 6).
+    function toggleHoursExtra() { _toggleDisclosure('hoursShowMore', 'hoursExtra', { arrowSel: '.show-more-arrow' }); }
+
     function toggleHppNote() {
-      const btn  = /** @type {HTMLElement} */ (document.getElementById('hppToggleBtn'));
-      const body = /** @type {HTMLElement} */ (document.getElementById('hppNoteBody'));
-      const open = body.classList.toggle('open');
-      btn.classList.toggle('open', open);
-      btn.setAttribute('aria-expanded', String(open));
-      /** @type {HTMLElement} */ (btn.querySelector('.hpp-toggle-arrow')).textContent = open ? '▲' : '▼';
-      /** @type {HTMLElement} */ (document.getElementById('hppToggleBtnLabel')).textContent = open ? 'Hide calculation details ' : 'How is this calculated? ';
+      _toggleDisclosure('hppToggleBtn', 'hppNoteBody', {
+        arrowSel: '.hpp-toggle-arrow',
+        onToggle: open => {
+          const l = document.getElementById('hppToggleBtnLabel');
+          if (l) l.textContent = open ? 'Hide calculation details ' : 'How is this calculated? ';
+        },
+      });
     }
 
     // ── DISCLAIMER TOGGLE ─────────────────────────────────────────────────────────
@@ -1398,12 +1428,7 @@ export function init() {
     }
 
     // ── BREAKDOWN TOGGLE ──────────────────────────────────────────────────────────
-    function toggleBD() {
-      const btn  = /** @type {HTMLElement} */ (document.getElementById('bdBtn'));
-      const open = btn.classList.toggle('open');
-      /** @type {HTMLElement} */ (document.getElementById('bdBody')).classList.toggle('open', open);
-      btn.setAttribute('aria-expanded', String(open));
-    }
+    function toggleBD() { _toggleDisclosure('bdBtn', 'bdBody'); }   // arrow rotation is CSS
 
     // ── INIT ──────────────────────────────────────────────────────────────────────
     runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
@@ -1712,7 +1737,7 @@ export function init() {
       // The hourly rate is grade-fixed + read-only (v17.87) — refresh the period-aware rate for the
       // newly-selected grade (never a typed value); updateRateForPeriod also updates its pre/post label.
       if (_gP) updateRateForPeriod(taxYearForPeriod(_gP), _gP);
-      if (_pa && penUntouched) _pa.value = (getPensionDefault(_gP) * getProRateFactor(_gP)).toFixed(2);
+      if (_pa && penUntouched) _pa.value = _periodDefaultPension(_gP).toFixed(2);
       // Recompute the back-pay card for the NEW grade (review finding): its saved blob was built with
       // the old grade's award rates, and without this the stale lump persisted in read-only boxes with
       // no repair path. calcBackPay re-enforces the authoritative AWARD_RATES for the current grade
