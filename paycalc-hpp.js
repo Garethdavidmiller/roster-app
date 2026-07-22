@@ -16,7 +16,7 @@ import {
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
 import { getLoggedMember, getEffectiveContr, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { readSavedPeriod, hppEstKey, hppActualKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
+import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
 import { fmt } from './paycalc-format.js';
 
@@ -119,6 +119,97 @@ export function _varPayForPeriod(p, d, rate) {
 // the fixed London Allowance is paid every period incl. during leave, so it does NOT accrue HPP
 // (see _varPayForPeriod). Confirmed by a real Jan-2026 payslip (HPP and London are separate lines).
 
+// ── AMOUNT SOURCE (v18.32) ────────────────────────────────────────────────────
+// The current-year estimate can come from three sources, mirroring the back-pay card's
+// compute/enter toggle: 'hours' (default — the per-payslip estimator below), 'ytd' (one quick
+// "extra pay so far this year" figure × 7.69%), or 'exact' (a figure the member enters). Whichever
+// mode is active, calcHPP writes the resulting figure to hppEstKey(ty) — so the existing January
+// take-home add + prior-year rollover (both read hppEstKey via resolveHppForPeriod) work unchanged.
+
+/** HPP = the year-to-date extra pay × 4/52. Pure — the one place the quick-estimate maths lives. */
+export function hppFromYtdExtra(/** @type {number} */ extra) {
+  return Math.max(0, extra || 0) * HPP_FRACTION;
+}
+
+/** The amount-source mode currently selected on the card ('hours' | 'ytd' | 'exact'; default 'hours'). */
+function _hppMode() {
+  const r = /** @type {HTMLInputElement|null} */ (document.querySelector('input[name="hppMode"]:checked'));
+  return r ? r.value : 'hours';
+}
+
+/** Reflect a mode into the DOM: tick its radio and show only the matching input group. Exported so
+ *  the coordinator can restore a saved mode. @param {string} [mode] */
+export function applyHppMode(mode = '') {
+  const m = mode || _hppMode();
+  const radio = /** @type {HTMLInputElement|null} */ (document.getElementById(
+    m === 'ytd' ? 'hppModeYtd' : m === 'exact' ? 'hppModeExact' : 'hppModeHours'));
+  if (radio) radio.checked = true;
+  const ytdWrap   = document.getElementById('hppYtdWrap');
+  const exactWrap = document.getElementById('hppExactWrap');
+  if (ytdWrap)   ytdWrap.style.display   = m === 'ytd'   ? '' : 'none';
+  if (exactWrap) exactWrap.style.display = m === 'exact' ? '' : 'none';
+}
+
+/** Persist the card's mode + both manual inputs for a tax year (one JSON blob). @param {any} ty */
+export function saveHppState(ty) {
+  if (!ty) return;
+  const v = (/** @type {string} */ id) => {
+    const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+    return el ? el.value : '';
+  };
+  lsSet(hppModeKey(ty), JSON.stringify({ mode: _hppMode(), ytdExtra: v('hppYtdExtra'), exact: v('hppExactAmt') }));
+}
+
+/** Restore a tax year's saved mode + manual inputs into the DOM (called before calcHPP reads them on
+ *  a period/year change). Missing/corrupt blob → default 'hours' with empty inputs. @param {any} ty */
+export function restoreHppState(ty) {
+  let s = /** @type {{mode?:string, ytdExtra?:string, exact?:string}} */ ({});
+  try { const raw = ty ? lsGet(hppModeKey(ty)) : null; if (raw) s = JSON.parse(raw); } catch { s = {}; }
+  const ytdEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('hppYtdExtra'));
+  const exactEl = /** @type {HTMLInputElement|null} */ (document.getElementById('hppExactAmt'));
+  if (ytdEl)   ytdEl.value   = s.ytdExtra || '';
+  if (exactEl) exactEl.value = s.exact    || '';
+  applyHppMode(s.mode === 'ytd' || s.mode === 'exact' ? s.mode : 'hours');
+}
+
+/** The status-word label, shared by both modes: bare "Estimated" when a prior-year subhead carries
+ *  the year, else the self-contained form. @param {any} ty */
+function _hppLabelText(ty) {
+  const idx = CONFIG.TAX_YEARS.findIndex(t => t.label === ty.label);
+  const hasPrior = idx > 0 && isTaxYearVisible(CONFIG.TAX_YEARS[idx - 1]);
+  return hasPrior ? 'Estimated' : `Estimated ${ty.label} Holiday Pay Premium`;
+}
+
+/** The "how it's calculated" explainer, shared by both modes (it describes what HPP IS). @param {any} ty */
+function _hppNoteHtml(ty) {
+  return `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> Your extra pay above basic hours (Saturday, overtime, rest day working, Sunday, bank-holiday and Boxing Day premiums) × 7.69% (that's 4 weeks' leave out of 52). Basic pay, London Allowance, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>, and it shows as <strong>Holiday Pay Premium</strong> on that payslip. The more of your payslips you enter above, the closer this gets to the full-year figure.`;
+}
+
+/** Render the current-year card from a MANUAL source ('ytd' or 'exact') and persist the resulting
+ *  figure to hppEstKey so the take-home add + rollover use it exactly like the hours-mode figure.
+ *  Deleting on zero mirrors the hours path so a cleared box can't leave a stale figure. @param {any} ty @param {string} mode */
+function _renderHppManual(ty, mode) {
+  const rawEl = /** @type {HTMLInputElement|null} */ (document.getElementById(mode === 'ytd' ? 'hppYtdExtra' : 'hppExactAmt'));
+  const num   = Math.max(0, parseSmartFloat(rawEl?.value ?? '') || 0);
+  const hpp   = mode === 'ytd' ? hppFromYtdExtra(num) : num;
+  if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
+  else lsDel(hppEstKey(ty));
+
+  const amountEl = document.getElementById('hppAmount');
+  const basisEl  = document.getElementById('hppBasis');
+  if (hpp > 0) {
+    if (amountEl) amountEl.textContent = fmt(hpp);
+    if (basisEl)  basisEl.textContent  = mode === 'ytd'
+      ? `${fmt(num)} extra pay × 7.69% · your quick estimate · due January ${ty.hppPaidJan}`
+      : `Your entered figure · due January ${ty.hppPaidJan}`;
+  } else {
+    if (amountEl) amountEl.textContent = '£–';
+    if (basisEl)  basisEl.textContent  = mode === 'ytd'
+      ? 'Enter your year-to-date extra pay above to estimate'
+      : 'Enter your Holiday Pay Premium figure above';
+  }
+}
+
 /**
  * Compute and display the HPP estimate for the current tax year.
  * Called by calculate() after every calculation.
@@ -144,6 +235,17 @@ export function calcHPP() {
   const pNum    = currentPeriodNum();
   const curP    = allPeriods.find(/** @param {any} x */ x => x.num === pNum);
   const ty      = taxYearForPeriod(curP);
+
+  // Label + explainer are the same in every amount-source mode — set them once, up front.
+  const _labelEl = document.getElementById('hppLabel');
+  if (_labelEl) _labelEl.textContent = _hppLabelText(ty);
+  const _noteEl = document.getElementById('hppNote');
+  if (_noteEl) _noteEl.innerHTML = _hppNoteHtml(ty);
+
+  // Manual amount sources ('ytd' / 'exact') short-circuit the per-payslip estimator below (v18.32).
+  const _mode = _hppMode();
+  if (_mode !== 'hours') { _renderHppManual(ty, _mode); updatePriorHpp(ty); return; }
+
   // Rate: THIS tax year's stored settled rate — deliberately NOT the live #hourlyRate field.
   // The field shows the PRE-AWARD rate whenever a pre-award period is selected (updateRateForPeriod),
   // so reading it made the whole-year HPP estimate SHIFT depending on which period you were viewing
@@ -192,7 +294,6 @@ export function calcHPP() {
   const hpp      = totalVar * HPP_FRACTION;
   const amountEl = document.getElementById('hppAmount');
   const basisEl  = document.getElementById('hppBasis');
-  const labelEl  = document.getElementById('hppLabel');
 
   // Persist the running estimate so it survives when the user moves to the next
   // tax year. Delete when the estimate drops to zero to avoid a stale figure
@@ -209,13 +310,7 @@ export function calcHPP() {
     else lsDel(hppEstKey(ty));
   }
 
-  // One heading pattern with the prior section: "Last year (2025/26)" / "This year (2026/27)"
-  // subheads carry the year, so the amount label is just the status word — matching the prior
-  // block's Estimated/✓ Confirmed labels. When the prior section is HIDDEN (first tax year /
-  // new-starter clamp) no subhead shows, so keep the full self-contained label.
-  const _tyIdx    = CONFIG.TAX_YEARS.findIndex(t => t.label === ty.label);
-  const _hasPrior = _tyIdx > 0 && isTaxYearVisible(CONFIG.TAX_YEARS[_tyIdx - 1]);
-  if (labelEl) labelEl.textContent = _hasPrior ? 'Estimated' : `Estimated ${ty.label} Holiday Pay Premium`;
+  // The status-word label ("Estimated" / self-contained form) was set up front via _hppLabelText.
   if (pCount === 0) {
     if (amountEl) amountEl.textContent = '£–';
     if (basisEl)  basisEl.textContent  = 'Enter your hours on each payslip above to calculate';
@@ -248,11 +343,7 @@ export function calcHPP() {
     }
   }
 
-  const noteEl = document.getElementById('hppNote');
-  if (noteEl) {
-    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> Your extra pay above basic hours (Saturday, overtime, rest day working, Sunday, bank-holiday and Boxing Day premiums) × 7.69% (that's 4 weeks' leave out of 52). Basic pay, London Allowance, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>, and it shows as <strong>Holiday Pay Premium</strong> on that payslip. The more of your payslips you enter above, the closer this gets to the full-year figure.`;
-  }
-
+  // The "how it's calculated" note was set up front via _hppNoteHtml (shared with the manual modes).
   updatePriorHpp(ty);
 }
 

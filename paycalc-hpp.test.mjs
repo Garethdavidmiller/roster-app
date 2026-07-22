@@ -64,7 +64,7 @@ mock.module('./roster-data.js', {
     },
 });
 
-const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod } = await import('./paycalc-hpp.js');
+const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdExtra } = await import('./paycalc-hpp.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -288,5 +288,17 @@ describe('_varPayForPeriod', () => {
         assertPounds(
             _varPayForPeriod(makeP50(), { bhOtH: 2 }, RATE),
             2 * R125, '2 bhOt hrs');
+    });
+});
+
+describe('hppFromYtdExtra (v18.32 — quick year-to-date estimate)', () => {
+    test('multiplies extra pay by 4/52 (7.69%)', () => {
+        assert.equal(hppFromYtdExtra(2600), 2600 * (4 / 52));   // = 200
+        assert.ok(Math.abs(hppFromYtdExtra(1000) - 76.923) < 0.001);
+    });
+    test('zero / negative / non-numeric clamp to 0', () => {
+        assert.equal(hppFromYtdExtra(0), 0);
+        assert.equal(hppFromYtdExtra(-500), 0);
+        assert.equal(hppFromYtdExtra(NaN), 0);
     });
 });

@@ -43,7 +43,7 @@ import {
   fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS,
 } from './paycalc-roster-hint.js';
-import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod } from './paycalc-hpp.js';
+import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
@@ -417,6 +417,11 @@ export function init() {
       // copied from (ytdSrcKey); the cumulative method engages only on the payslip immediately
       // after that source (see calculate()), and the note states the position plainly.
       _refreshYtdSrc(ty, p);
+
+      // HPP amount-source (v18.32): restore THIS tax year's saved mode + manual inputs into the DOM
+      // BEFORE loadPeriodData() runs calculate() (→ calcHPP reads the mode), so switching tax years
+      // shows each year's own choice. Per-year, keyed like the HPP include-tick / back-pay blob.
+      restoreHppState(ty);
       // Update the "for P__" label next to the pension field so users can see
       // which period's pension they are viewing or editing.
       const pensionPeriodLbl = document.getElementById('pensionPeriodLabel');
@@ -1391,6 +1396,18 @@ export function init() {
     document.getElementsByName('bpMode').forEach(/** @param {any} r */ r =>
       r.addEventListener('change', () => { applyBpMode(); _runCalcBackPay(); }));
     document.getElementById('bpManualAmt')?.addEventListener('input', _runCalcBackPay);
+
+    // HPP amount-source toggle + manual inputs (v18.32): flip the mode → show/hide the matching field
+    // group, persist the choice for the viewed tax year, and recompute (calculate() → calcHPP reads
+    // the mode and writes the resulting figure to hppEstKey, so the January take-home add is unchanged).
+    const _saveHppForViewedYear = () => {
+      const _hp = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+      saveHppState(taxYearForPeriod(_hp));
+    };
+    document.getElementsByName('hppMode').forEach(/** @param {any} r */ r =>
+      r.addEventListener('change', () => { applyHppMode(); _saveHppForViewedYear(); calculate(); }));
+    document.getElementById('hppYtdExtra')?.addEventListener('input', () => { _saveHppForViewedYear(); calculate(); });
+    document.getElementById('hppExactAmt')?.addEventListener('input', () => { _saveHppForViewedYear(); calculate(); });
 
     // Card collapse toggles — shared initCardCollapse (overlay.js) adds keyboard +
     // aria-expanded support. Passing the header id as the chevron id toggles .open

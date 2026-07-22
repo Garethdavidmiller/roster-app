@@ -724,21 +724,23 @@
        card; the checked one gets the navy border + faint fill + bold, so the choice reads as part of
        the design system instead of two bare browser radios floating in space. Real radios kept for
        accessibility; the container styles via :has(). */
-    .bp-mode-toggle { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-    .bp-mode-opt {
+    /* HPP shares this same radio-group styling (v18.32) — the current-year estimate can come from
+       entered hours, a quick year-to-date figure, or a hand-entered amount, mirroring back-pay. */
+    .bp-mode-toggle, .hpp-mode-toggle { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .bp-mode-opt, .hpp-mode-opt {
       display: flex; align-items: center; gap: 10px; cursor: pointer;
       font-size: var(--type-medium); color: var(--text-dark); line-height: 1.35;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
       padding: 10px 12px; background-color: white;
       transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
     }
-    .bp-mode-opt:has(input:checked) {
+    .bp-mode-opt:has(input:checked), .hpp-mode-opt:has(input:checked) {
       border-color: var(--primary-blue); background-color: var(--bg-faint); font-weight: 600;
     }
-    .bp-mode-opt:has(input:focus-visible) {
+    .bp-mode-opt:has(input:focus-visible), .hpp-mode-opt:has(input:focus-visible) {
       outline: 2px solid var(--primary-blue); outline-offset: 2px;
     }
-    .bp-mode-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-blue); }
+    .bp-mode-opt input, .hpp-mode-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-blue); }
     /* Locked (confirmed-award) rate boxes — read as fixed VALUES, matching the Settings read-only
        rate treatment (solid faint fill, bold, small 🔒; unified v17.93 / lock added v18.00). */
     input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;

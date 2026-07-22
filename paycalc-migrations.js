@@ -118,6 +118,10 @@ export function hppEstKey(ty)     { return `${pcPrefix()}hpp_est_${ty.label.repl
 export function hppActualKey(ty)  { return `${pcPrefix()}hpp_actual_${ty.label.replace('/', '_')}`; }
 /** Per-tax-year opt-in flag ('1' = the member ticked "add my HPP to the January take-home"). @param {{ label:string }} ty @returns {string} */
 export function hppIncKey(ty)     { return `${pcPrefix()}hpp_inc_${ty.label.replace('/', '_')}`; }
+/** HPP amount-source state (mode + quick-YTD-extra + exact figure, one JSON blob) — PER TAX YEAR,
+ *  keyed like hppIncKey. Lets the current-year estimate come from entered hours (default), a quick
+ *  year-to-date extra-pay figure, or a hand-entered amount (v18.32). @param {{ label:string }} ty @returns {string} */
+export function hppModeKey(ty)    { return `${pcPrefix()}hpp_mode_${ty.label.replace('/', '_')}`; }
 /** Back-pay card state (rates/%/paid-in/mode/manual, one JSON blob) — PER TAX YEAR since v17.86 (the
  *  card follows the viewed payslip's award year), keyed like hppIncKey. @param {{ label:string }} ty @returns {string} */
 export function bpKey(ty)          { return `${pcPrefix()}bp_state_${ty.label.replace('/', '_')}`; }

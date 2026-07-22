@@ -499,7 +499,10 @@ Holiday Pay Premium estimator and shared period decode helpers for `paycalc.html
 - `isDataEmpty(d)` — returns true if all hour fields in a persisted period object are zero/falsy; exported for coordinator's `updateSaveStatus` and for `paycalc-backpay.js`
 - `_decodeHours(p, d)` — decodes raw period data into `{satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs}` floats; exported for `paycalc-backpay.js`
 - `_varPayForPeriod(p, d, rate)` — the HPP-accruing variable pay for one period (OT/RDW/Sun/Sat/BH/Boxing premiums). **Excludes contracted basic, peer pay, AND London Allowance** — London is a fixed allowance that does not accrue HPP (removed v17.23; see KNOWN_LIMITATIONS #3). Used by `calcHPP`, `updatePriorHpp`, and `paycalc-backpay.js`
-- `calcHPP()` — renders the HPP estimate card (takes NO args since v16.89: back pay is deliberately not folded into HPP — the whole-year settled-rate pricing already carries the award uplift)
+- `calcHPP()` — renders the HPP estimate card (takes NO args since v16.89: back pay is deliberately not folded into HPP — the whole-year settled-rate pricing already carries the award uplift). **Amount-source aware (v18.32):** `'hours'` (default — the per-payslip estimator), `'ytd'` (a quick "extra pay so far this year" figure × 7.69%), or `'exact'` (a hand-entered figure). Whichever mode, the resulting figure is written to `hppEstKey(ty)`, so the January take-home add + prior-year rollover are unchanged
+- `hppFromYtdExtra(extra)` — PURE: the quick-estimate maths, `extra × 4/52` (clamps negatives/NaN to 0); unit-tested
+- `applyHppMode(mode?)` — reflect a mode into the DOM (tick its radio, show only the matching input group)
+- `saveHppState(ty)` / `restoreHppState(ty)` — persist / restore the card's mode + both manual inputs, PER TAX YEAR (`hppModeKey`), mirroring the back-pay per-year blob; the coordinator restores before `calcHPP` reads the DOM on a period/year change
 - `updatePriorHpp(ty)` — renders the prior-year actual HPP section
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `roster-data.js`, `ls.js`
 
