@@ -390,9 +390,12 @@ export function init() {
       const ty = getTaxYearForOffset(p.num - 48);
       const startStr = fdShort(p.start);
       const cutLongStr = fdLong(p.cutoff);
-      const payStr = fdLong(p.payday);
+      // The payday is NOT repeated here (v18.45 — sweep item 2): the select directly above already
+      // reads "Paid 31 Jul 2026 · P20" (date-first identity), so the meta row carries only what the
+      // select doesn't — the shift-date range and the tax year. The gold P-badge stays (the docs'
+      // payslip cross-check).
       /** @type {HTMLElement} */ (document.getElementById('pmRange')).textContent   = `${startStr} – ${cutLongStr}`;
-      /** @type {HTMLElement} */ (document.getElementById('pmSub')).textContent     = `💷 Paid: ${payStr}  ·  Tax year ${ty.label}`;
+      /** @type {HTMLElement} */ (document.getElementById('pmSub')).textContent     = `Tax year ${ty.label}`;
       /** @type {HTMLElement} */ (document.getElementById('periodBadge')).textContent = `P${payslipPeriodNum(p)}`;
       /** @type {HTMLElement} */ (document.getElementById('netPeriod')).textContent   = `Paid ${fd(p.payday)}`;
 
@@ -690,11 +693,9 @@ export function init() {
       if (hasExtras && extraBody && !extraBody.classList.contains('open')) {
         extraBody.classList.add('open');
         if (extraBtn) { extraBtn.classList.add('open'); /** @type {HTMLElement} */ (extraBtn.querySelector('.show-more-arrow')).textContent = '▲'; }
-        /** @type {HTMLElement} */ (document.getElementById('hoursShowMoreLabel')).textContent = 'Hide adjustments';
       } else if (!hasExtras && extraBody && extraBody.classList.contains('open')) {
         extraBody.classList.remove('open');
         if (extraBtn) { extraBtn.classList.remove('open'); /** @type {HTMLElement} */ (extraBtn.querySelector('.show-more-arrow')).textContent = '▼'; }
-        /** @type {HTMLElement} */ (document.getElementById('hoursShowMoreLabel')).textContent = 'Unusual deductions or corrections';
       }
       updateSaveStatus(pNum);
       calculate();
@@ -941,6 +942,13 @@ export function init() {
 
       const grossWithBp = gross + _bpThisPeriod + _hppForPeriod;
 
+      // First-use hint only (v18.45 — sweep item 5): once this period has any entered hours the
+      // "updates automatically" line has done its job — hide it so the hero stays information-dense
+      // (the provenance chips occupy that space with real facts).
+      const _netHintEl = document.getElementById('netHint');
+      if (_netHintEl) _netHintEl.hidden =
+        satHrs > 0 || bhHrs > 0 || bhOtHrs > 0 || oHrs > 0 || rHrs > 0 || sHrs > 0 || bHrs > 0 || peer > 0;
+
       // Pension — salary sacrifice: deducted from gross before tax and NI are calculated.
       // A BLANK field means "use this period's default" (matching the null convention in
       // readFormData/loadPeriodData), NOT £0 — otherwise clearing the field to retype it would show
@@ -1057,8 +1065,8 @@ export function init() {
       // UI
       /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(net);
       /** @type {HTMLElement} */ (document.getElementById('pensionRef')).textContent = pension.toFixed(2);
-      /** @type {HTMLElement} */ (document.getElementById('payslipNote')).style.display = 'block';
-      /** @type {HTMLElement} */ (document.getElementById('absenceCaveat')).style.display = 'block';
+      // (The pension explainer + absence caveat live INSIDE the Full pay breakdown now — v18.45,
+      // sweep item 4: two permanent paragraphs at the result's foot diluted the real notices.)
 
       // Check against the real payslip (v18.42 — review item 3): PAID payslips only (a future one
       // has nothing to compare), verdict from the pure builder. The input autosaves in this
@@ -1101,7 +1109,9 @@ export function init() {
         _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate,
       });
       if (bd !== _lastBdBodyHtml) {
-        /** @type {HTMLElement} */ (document.getElementById('bdBody')).innerHTML = bd;
+        // #bdRows, not #bdBody: the pension/absence notes are static siblings inside the panel
+        // (sweep item 4) and must survive the innerHTML rebuild.
+        /** @type {HTMLElement} */ (document.getElementById('bdRows')).innerHTML = bd;
         _lastBdBodyHtml = bd;
       }
 
@@ -1117,8 +1127,6 @@ export function init() {
       if (_actual) {
         if (_netLabel) _netLabel.textContent = '✅ Your Actual Take-Home Pay';
         /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(_actual.net);
-        /** @type {HTMLElement} */ (document.getElementById('payslipNote')).style.display   = 'none';
-        /** @type {HTMLElement} */ (document.getElementById('absenceCaveat')).style.display = 'none';
         /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = `
           <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(_actual.gross)}</span></div>
           <div class="sum-row sum-ded"><span class="lbl">Income Tax</span><span class="val">−${fmt(_actual.tax)}</span></div>
@@ -1357,10 +1365,9 @@ export function init() {
       const open = body.classList.toggle('open');
       btn.classList.toggle('open', open);
       btn.setAttribute('aria-expanded', String(open));
+      // Label stays CONSTANT — only the arrow flips, matching every other toggle on the page
+      // (v18.45 — sweep item 6: the old open-state "Hide adjustments" renamed the section mid-use).
       /** @type {HTMLElement} */ (btn.querySelector('.show-more-arrow')).textContent = open ? '▲' : '▼';
-      /** @type {HTMLElement} */ (document.getElementById('hoursShowMoreLabel')).textContent = open
-        ? 'Hide adjustments'
-        : 'Unusual deductions or corrections';
     }
 
     function toggleHppNote() {
