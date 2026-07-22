@@ -28,6 +28,12 @@
     --info-bg:   #eef4ff;   /* blue tint used for .info boxes in guide + paycalc-guide */
 }
 
+/* Force-dark opt-out — the guides don't import shared.css, so this is their belt-and-braces
+   CSS signal (alongside the <meta name="color-scheme" content="only light"> on each page).
+   The `only` keyword forbids a conforming browser from algorithmically inverting the off-white
+   surfaces. Mirrors shared.css:`html { color-scheme: only light }`. */
+html { color-scheme: only light; }
+
 /* Typography polish — mirrors shared.css for the guides (which don't import it): balance
    multi-line headings, avoid orphan lines in prose. Additive; degrades to normal wrapping on
    engines without text-wrap. Uses :where() so it never raises specificity over page CSS. */
