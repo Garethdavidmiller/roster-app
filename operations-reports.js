@@ -205,6 +205,14 @@ async function initErrorLog() {
             copyBtn.className = 'btn-action btn-secondary error-copy-btn';
             copyBtn.textContent = '⎘ Copy details';
             copyBtn.addEventListener('click', () => {
+                // Guard first: on iOS (and any non-secure context) `navigator.clipboard` can be
+                // undefined, so `navigator.clipboard.writeText` would throw synchronously — the
+                // `.catch()` below only handles a rejected Promise, not that throw.
+                if (!navigator.clipboard?.writeText) {
+                    copyBtn.textContent = '✗ Copy unavailable';
+                    setTimeout(() => { copyBtn.textContent = '⎘ Copy details'; }, 2000);
+                    return;
+                }
                 navigator.clipboard.writeText(_formatForClaude(err)).then(() => {
                     copyBtn.textContent = '✓ Copied';
                     setTimeout(() => { copyBtn.textContent = '⎘ Copy details'; }, 2000);

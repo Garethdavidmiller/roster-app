@@ -149,7 +149,10 @@ export function requirePage(snapshot, pageName) {
     // 'constructor', …), returning a truthy FUNCTION as the "policy" — requirePageAuth would then
     // see requireNamed undefined and ALLOW it as a public page, inverting the fail-closed
     // guarantee for exactly the misconfiguration class this guard exists for (v16.23).
-    const policy = Object.hasOwn(PAGE_POLICIES, pageName) ? PAGE_POLICIES[pageName] : null;
+    // hasOwnProperty.call (not Object.hasOwn, which is Safari 15.4+) so page auth doesn't hard-throw
+    // on an iPhone stuck below iOS 15.4 — same anti-prototype-match intent (a bare index would match
+    // 'toString'/'constructor' etc.), just a wider-supported call.
+    const policy = Object.prototype.hasOwnProperty.call(PAGE_POLICIES, pageName) ? PAGE_POLICIES[pageName] : null;
     const roles  = rolesFor(snapshot && snapshot.member);
     if (!policy) {
         console.error(`[auth-policy] unknown page "${pageName}" — failing closed (named admin required)`);
