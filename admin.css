@@ -1971,7 +1971,7 @@
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
     padding: 6px 8px;
     background: var(--other-light);
-    border-radius: var(--radius-sm, 6px);
+    border-radius: var(--radius-sm);
     font-size: var(--type-small);
 }
 .other-opts[hidden] { display: none; }

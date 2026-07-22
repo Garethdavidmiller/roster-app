@@ -180,7 +180,7 @@ export function init() {
                 ],
             },
             'annual-leave': {
-                title: 'Annual leave',
+                title: 'Record Annual Leave',
                 sections: [
                     { items: [
                         { icon: '🏖️', html: 'Select a <strong>staff member</strong> and date range — rest days and Sundays are skipped automatically', adminOnly: true },

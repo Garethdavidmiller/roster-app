@@ -72,8 +72,8 @@ service cloud.firestore {
       allow create, update: if
         request.auth != null &&
         // hasOnly (not hasAll) — reject any field beyond the known override shape.
-        // The complete set written by every path is verified: manual saves and the
-        // AL/sick range writer add changedBy; roster_import omits it; all paths write
+        // The complete set written by every path is verified: all three write paths
+        // (manual save, AL/sick range writer, roster_import) write changedBy and
         // createdAt. No path writes updatedAt/updatedBy. (Field PRESENCE of the six core
         // fields is still enforced by the `is string` checks below — a missing field is
         // null, and `null is string` is false.)
