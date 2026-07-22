@@ -88,8 +88,13 @@ jobs:
           ok=false
           for i in 1 2 3 4 5 6; do
             code=$(curl -sS -o /tmp/root.html -w '%{http_code}' https://myb-roster.web.app/ || echo 000)
-            live=$(curl -sS https://myb-roster.web.app/roster-data.js || true)
-            if [ "$code" = "200" ] && grep -q "Marylebone Roster" /tmp/root.html && printf '%s' "$live" | grep -q "APP_VERSION = '$VERSION'"; then
+            curl -sS -o /tmp/rd.js https://myb-roster.web.app/roster-data.js || true
+            # grep the downloaded FILES (not a `printf "$live" | grep -q` pipe): under `set -o pipefail`,
+            # grep -q exits on first match and closes the pipe, so printf takes SIGPIPE (141) once the
+            # file exceeds the ~64KB pipe buffer, and pipefail reports the whole pipeline as FAILED — a
+            # false negative that fired on the real deploy EXACTLY when the version DID match (the check
+            # was only ever "green" when the site was actually stale/broken). File greps have no pipe.
+            if [ "$code" = "200" ] && grep -q "Marylebone Roster" /tmp/root.html && grep -q "APP_VERSION = '$VERSION'" /tmp/rd.js; then
               ok=true; break
             fi
             echo "Attempt $i: http=$code, v$VERSION not yet live — retrying in 10s"; sleep 10
