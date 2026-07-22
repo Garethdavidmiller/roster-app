@@ -329,6 +329,10 @@ export function init() {
         if (iconBtn) {
             iconBtn.title = 'Back to calendar';
             iconBtn.setAttribute('aria-label', 'Back to calendar');
+            // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
+            iconBtn.setAttribute('role', 'button');
+            iconBtn.tabIndex = 0;
+            iconBtn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); iconBtn.click(); } });
             iconBtn.addEventListener('click', () => { window.location.href = './'; });
         }
         // The coming-soon lightbox is owned entirely by nav-panel.js (open/close, Escape,

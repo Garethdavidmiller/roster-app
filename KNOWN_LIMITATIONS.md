@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: July 2026 — v18.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v18.30 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -584,9 +584,9 @@ for now:
   A field-level merge is not worth the complexity for a 2-person beta tool.
 
 ### Test coverage gaps
-The suite is now broad (40+ test files, ~1045 unit tests — see CLAUDE.md's file tree for the
+The suite is now broad (40+ test files, ~1420 tests — see CLAUDE.md's file tree for the
 full per-suite listing; nearly every pure module has a companion `.test.mjs`, the exceptions
-being trivial data/formatter modules like `paycalc-format.js`, `paycalc-help.js`, and
+being trivial data/formatter modules like `paycalc-help.js` and
 `roster-cycle-data.js`). What matters here is what is **still not** covered:
 
 **Closed v16.32–16.33:** the push-notification state machine + subscribe/unsubscribe flow

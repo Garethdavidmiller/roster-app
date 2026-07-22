@@ -12,7 +12,9 @@ export default defineConfig({
     //    Firebase Hosting emulator's real CSP header, which this http-server-backed config doesn't serve.
     //  • visual.spec.js — the visual-regression baselines (playwright.visual.mjs + `npm run test:visual`):
     //    pixel diffs are environment-sensitive, so they're an opt-in tool, not a behavioural gate.
-    testIgnore: ['csp.spec.js', 'visual.spec.js'],
+    //  • offline.spec.js — the offline SW integration test (playwright.offline.mjs + `npm run
+    //    test:offline`): needs `serviceWorkers: 'allow'`, the opposite of this config's block.
+    testIgnore: ['csp.spec.js', 'visual.spec.js', 'offline.spec.js'],
 
     // The Firebase SDK is stubbed at the network layer (e2e/fixtures.js), so pages
     // load from the local http-server only — no CDN cold-start to wait on. These

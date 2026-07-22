@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v18.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v18.30 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `18.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `18.30` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -194,7 +194,8 @@ roster-app/
 ├── paycalc-roster-hint.js  ← roster-assist hint bar UI (updateRosterHint, fillFromRoster, fillCategoryFromRoster, snapKey, …)
 ├── paycalc-hpp.js          ← Holiday Pay Premium estimator and shared period helpers: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp
 ├── paycalc-backpay.js      ← back-pay lump sum calculator: prefillBackPay, calcBackPay, _bpAwardTaxYear, raiseByPercent
-├── paycalc-format.js       ← shared pure helpers (no DOM): date/currency formatters fd, fdShort, fmt + time-input cores clampMinute, decimalToHM (extracted from paycalc-app.js v17.74/Section G — the hrs/mins split, previously inline+duplicated, is now written once and tested). Imported by paycalc-app.js and paycalc-backpay.js.
+├── paycalc-format.js       ← shared pure helpers (no DOM): date/currency formatters fd, fdShort, fdLong, fmt + time-input cores clampMinute, decimalToHM (extracted from paycalc-app.js v17.74/Section G — the hrs/mins split, previously inline+duplicated, is now written once and tested). fdLong ("3 Jul 2026" full-year form) was de-duplicated from ~8 inline copies across paycalc-app/backpay/periods/roster-hint (v18.30). Imported by paycalc-app, -backpay, -periods, -roster-hint.
+├── paycalc-breakdown.js    ← the two PURE HTML builders for the pay-result card — buildSummaryRows + buildBreakdownRows (+ fmtHrsMins) — extracted from calculate() in paycalc-app.js (v18.30, review item 20) so the result markup is written + unit-testable independent of the DOM read/calc phases. No DOM/Firebase; only dep is fmt. Byte-identical output to the old inline templates. Tested by paycalc-breakdown.test.mjs
 ├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
 ├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
 ├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.), runMigrations(), and the shared saved-period decoder parseSavedPeriod/readSavedPeriod (returns {data,error}; back-pay + HPP surface a corrupt period instead of silently dropping it)
@@ -204,7 +205,8 @@ roster-app/
 ├── firebase-client.js      ← shared: Firebase init, db, all Firestore helpers
 ├── auth-identity.js        ← pure account-identity helpers extracted from firebase-client (no Firebase import, so unit-testable): normaliseSurname (surname derivation for Firebase Auth) + nameToEmail (initial.surname@myb-roster.local account email). Re-exported by firebase-client.js; the surname-parity source-equivalence check + the functions/roster-parse-helpers.js duplicate track THIS file
 ├── storage-utils.js        ← pure Storage helpers extracted from firebase-client (no Firebase import, so unit-testable): isSafeStorageUrl (download-URL allowlist — a security control), isDocxUpload (upload file-type detect), officeViewerUrl (wraps a .docx download URL in Microsoft's Office Online viewer so Word circulars/newsletters open+render instead of downloading), sixMonthCutoffISO (month-underflow-safe 6-month retention cutoff for _pruneOldDocs). Re-exported by firebase-client.js
-├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors
+├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors, capUnresolvedErrors (the over-fetch→shown+truncated split, extracted from getClientErrors)
+├── claim-retry.js          ← pure stale-claim self-heal runner (runWithClaimRetry, isClaimRetryable) extracted from firebase-client.js so the security-critical write retry (permission-denied/storage-unauthorized → force token refresh → retry once → preserve original error) is unit-testable in Node. firebase-client's withClaimRetry/_uploadBytesWithClaimRetry inject the Firebase auth deps. Tested by claim-retry.test.mjs
 ├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel, lsKeys
 ├── storage-keys.js         ← single source for the CROSS-FILE localStorage keys (SELECTED_MEMBER + legacy alias, VIEWED_MONTH/YEAR); shared by calendar-member/calendar-state/admin-app so a shared key has ONE spelling (v16.81). Per-module + paycalc-namespaced keys stay local.
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
@@ -273,7 +275,8 @@ roster-app/
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
 ├── paycalc-migrations.test.mjs ← tests for pcPrefix, setPaycalcNamespace, SK rebuild, one-shot namespace migration (--experimental-test-module-mocks)
-├── paycalc-format.test.mjs ← tests for clampMinute + decimalToHM (hrs/mins split, incl. the 60→next-hour float guard) + fmt currency formatting; no mocks, part of test:hygiene
+├── paycalc-format.test.mjs ← tests for clampMinute + decimalToHM (hrs/mins split, incl. the 60→next-hour float guard) + fmt currency formatting + fd/fdShort/fdLong variant distinctness; no mocks, part of test:hygiene
+├── paycalc-breakdown.test.mjs ← tests for buildSummaryRows + buildBreakdownRows + fmtHrsMins (paycalc-breakdown.js): per-line guards, back-pay/HPP branches, estimate labels; no mocks, part of test:hygiene
 ├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); gates every branch/PR (e2e.yml `rules` job) AND deploy-rules.yml before any rules ship
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── storage-rules-static.test.mjs ← static (no-emulator) hygiene guard: asserts the 20 MB `request.resource.size` cap is present in all 3 upload blocks (the emulator suite can't practically test the size cap); part of `npm test` (test:hygiene)
@@ -291,7 +294,7 @@ roster-app/
 │   ├── responsive.spec.js  ← desktop-geometry checks: calendar/team-view/admin at 1024–1440px + short-height laptop cases (no horizontal overflow)
 │   ├── axe.spec.js         ← accessibility gate (axe-core, WCAG A/AA) — scans one rendered state per page. Tagged `@a11y`; GREEN + BLOCKING (part of `npm run test:e2e`) since v17.52; `npm run test:a11y` runs it standalone. One documented exclusion (calendar `.other-month` faint aria-hidden dates). Baseline in A11Y_FINDINGS.md. Imports test/expect from fixtures.js for the hermetic Firebase stub
 │   ├── csp.spec.js         ← deployed-CSP proof (v17.62): runs ONLY via `npm run test:csp` under `playwright.csp.mjs` (serves the app from the Firebase Hosting emulator so the real firebase.json CSP header is applied + enforced by Chromium). Per page: collects every `securitypolicyviolation`, asserts none — the RUNTIME counterpart to the static csp-hygiene.test.mjs. Excluded from the http-server smoke run. Teeth-verified
-│   ├── visual.spec.js      ← visual-regression baselines (Section B / F-VIS, v17.73): runs ONLY via `npm run test:visual` under `playwright.visual.mjs`. Clock-pinned + Firebase-stubbed + fixed-member → deterministic fixed-viewport screenshots vs committed baselines in `e2e/visual-baselines/` (10: the app surfaces incl. the accepted desktop voids + the 4 static guides). Locks composition so a CSS/token/layout change cannot silently restyle a page. Opt-in, env-sensitive, EXCLUDED from the smoke run. **Mobile calendar @390px deliberately NOT baselined** (its fractional 7-col grid flakes pixel diffing). Regenerate: `npm run test:visual -- --update-snapshots`
+│   ├── visual.spec.js      ← visual-regression baselines (Section B / F-VIS, v17.73): runs ONLY via `npm run test:visual` under `playwright.visual.mjs`. Clock-pinned + Firebase-stubbed + fixed-member → deterministic fixed-viewport screenshots vs committed baselines in `e2e/visual-baselines/` (10: the app surfaces incl. the accepted desktop voids + the 4 static guides). Catches composition drift from a CSS/token/layout change — but only WHEN RUN: it is **opt-in and deliberately NOT a CI gate** (pixel diffs are environment-sensitive — the baselines were generated in this dev-container's headless Chromium, so a CI runner on a different image would flake). So a CSS/layout change can still ship un-screenshotted; run `npm run test:visual` (and re-baseline intended changes) before merging one. EXCLUDED from the smoke run. **Mobile calendar @390px deliberately NOT baselined** (its fractional 7-col grid flakes pixel diffing). Regenerate: `npm run test:visual -- --update-snapshots`
 │   ├── visual-baselines/   ← committed baseline PNGs for visual.spec.js (10, generated in the dev-container headless Chromium). Regenerate wholesale if the rendering environment (browser/OS/font stack) changes
 │   ├── helpers.js          ← shared spec helpers (collectFatalErrors, seedSession/seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay) — imported by all five specs
 │   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports. `enforceNamedSession(page)` rewrites roster-data.js to flip `ENFORCE_NAMED_SESSION` on, and `window.__E2E.failSignIn` forces sign-in to fail — for the B1 enforcement tests
@@ -318,7 +321,7 @@ roster-app/
 
 **Run all tests:**
 ```
-npm test              # test:hygiene + test:parse + test:unit (~1045 unit tests)
+npm test              # test:hygiene + test:parse + test:unit (~1420 tests)
 npm run check         # lint + typecheck + npm test (full pre-push gate)
 npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules

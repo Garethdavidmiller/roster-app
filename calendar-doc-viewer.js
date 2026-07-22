@@ -110,7 +110,7 @@ export function initDocViewer() {
         const key = window.location.hash.slice(1);
         if (key !== 'circular' && key !== 'newsletter') return;
         // Clear the hash so a manual reload / Back doesn't re-open the viewer.
-        history.replaceState(null, '', window.location.pathname);
+        history.replaceState(null, '', window.location.pathname + window.location.search);
         openDoc(key);
     }
     handleHash();

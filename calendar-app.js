@@ -658,6 +658,14 @@ try {
             // Calendar keeps its header logo opening About (no "back" target on
             // home). Also expose it so the nav-panel drawer logo opens the same panel.
             openAboutLightbox = about.open;
+            // The logo opens the About panel — make it a keyboard-operable control (it was a
+            // non-focusable <img> with a click handler). Its own label describes the ACTION (the
+            // <img alt> stays the brand). About is also reachable via the nav-drawer brand button. v18.29.
+            const titleIconEl = /** @type {HTMLElement} */ (titleIcon);
+            titleIconEl.setAttribute('role', 'button');
+            titleIconEl.setAttribute('aria-label', 'About Marylebone Roster');
+            titleIconEl.tabIndex = 0;
+            titleIconEl.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); titleIconEl.click(); } });
             titleIcon.addEventListener('click', (e) => {
                 e.stopPropagation();
                 about.open(); // Content adjusts based on teamViewMode inside onOpen()

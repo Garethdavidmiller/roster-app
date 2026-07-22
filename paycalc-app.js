@@ -43,7 +43,7 @@ import {
   fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS,
 } from './paycalc-roster-hint.js';
-import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod } from './paycalc-hpp.js';
+import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
@@ -53,7 +53,8 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
-import { fd, fdShort, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
+import { fd, fdShort, fdLong, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
+import { buildSummaryRows, buildBreakdownRows } from './paycalc-breakdown.js';
 
 /**
  * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
@@ -370,15 +371,9 @@ export function init() {
       }
 
       const ty = getTaxYearForOffset(p.num - 48);
-      const startStr = p.start.toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short'
-      });
-      const cutLongStr = p.cutoff.toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short', year: 'numeric'
-      });
-      const payStr = p.payday.toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short', year: 'numeric'
-      });
+      const startStr = fdShort(p.start);
+      const cutLongStr = fdLong(p.cutoff);
+      const payStr = fdLong(p.payday);
       /** @type {HTMLElement} */ (document.getElementById('pmRange')).textContent   = `${startStr} – ${cutLongStr}`;
       /** @type {HTMLElement} */ (document.getElementById('pmSub')).textContent     = `💷 Paid: ${payStr}  ·  Tax year ${ty.label}`;
       /** @type {HTMLElement} */ (document.getElementById('periodBadge')).textContent = `P${payslipPeriodNum(p)}`;
@@ -422,6 +417,11 @@ export function init() {
       // copied from (ytdSrcKey); the cumulative method engages only on the payslip immediately
       // after that source (see calculate()), and the note states the position plainly.
       _refreshYtdSrc(ty, p);
+
+      // HPP amount-source (v18.32): restore THIS tax year's saved mode + manual inputs into the DOM
+      // BEFORE loadPeriodData() runs calculate() (→ calcHPP reads the mode), so switching tax years
+      // shows each year's own choice. Per-year, keyed like the HPP include-tick / back-pay blob.
+      restoreHppState(ty);
       // Update the "for P__" label next to the pension field so users can see
       // which period's pension they are viewing or editing.
       const pensionPeriodLbl = document.getElementById('pensionPeriodLabel');
@@ -1007,54 +1007,20 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('payslipNote')).style.display = 'block';
       /** @type {HTMLElement} */ (document.getElementById('absenceCaveat')).style.display = 'block';
 
-      /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = `
-        ${(_bpThisPeriod > 0 || _hppForPeriod > 0)
-          ? `<div class="sum-row"><span class="lbl">Regular pay</span><span class="val">${fmt(gross)}</span></div>
-             ${_bpThisPeriod > 0 ? `<div class="sum-row sum-bp"><span class="lbl">Back pay lump sum (pay award${_bpIsEstimate ? ' — estimate' : ''})</span><span class="val">+${fmt(_bpThisPeriod)}</span></div>` : ''}
-             ${_hppForPeriod > 0 ? `<div class="sum-row sum-hpp"><span class="lbl">Holiday Pay Premium${_hppIsEstimate ? ' <span class="sum-est">(estimated)</span>' : ''}</span><span class="val">+${fmt(_hppForPeriod)}</span></div>` : ''}
-             <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(grossWithBp)}</span></div>`
-          : `<div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>`}
-        ${pension > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Pension contribution</span><span class="val">−${fmt(pension)}</span></div>` : ''}
-        ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
-        <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
-        <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
-        ${slLines}
-        <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay & HPP)` : _bpThisPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay)` : _hppForPeriod > 0 ? ` (inc. ${_hppIsEstimate ? 'estimated ' : ''}HPP)` : ''}</span><span class="val">${fmt(net)}</span></div>
-      `;
+      // Result markup is built by the two pure builders in paycalc-breakdown.js (review item 20) —
+      // params are shorthand so field name === local name (see that module). calculate() keeps the
+      // DOM read + pay maths; the string-building lives beside its unit tests.
+      /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = buildSummaryRows({
+        _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
+        pension, sacGross, usingCumulative, tax, ni, slLines, net,
+      });
 
-      const fh = /** @param {number} h */ h => {
-        const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
-        return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
-      };
-      let bd = '';
-      bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Mon–Fri (${fh(nonBhNorm)} × ${fmt(rate)})</span><span class="b-val">${fmt(gBasicNorm)}</span></div>`;
-      if (satCapped > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Saturday (${fh(satCapped)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBasicSat)}</span></div>`;
-      if (bhCapped > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Bank Holiday Rostered (${fh(bhCapped)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBankHol)}</span></div>`;
-      if (bhOtHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Bank Holiday Overtime (${fh(bhOtHrs)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBhOt)}</span></div>`;
-      if (oHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Overtime (${fh(oHrs)} × ${fmt(r125)})</span><span class="b-val">${fmt(gOvertime)}</span></div>`;
-      if (rHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Rest Day Working (${fh(rHrs)} × ${fmt(r125)})</span><span class="b-val">${fmt(gRdw)}</span></div>`;
-      if (sHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Sunday Working (${fh(sHrs)} × ${fmt(r150)})</span><span class="b-val">${fmt(gSunday)}</span></div>`;
-      if (bHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Boxing Day Working (${fh(bHrs)} × ${fmt(r300)})</span><span class="b-val">${fmt(gBoxing)}</span></div>`;
-      if (peer > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Training Days (${peer} day${peer>1?'s':''} × 2h × ${fmt(rate)})</span><span class="b-val">${fmt(gPeer)}</span></div>`;
-      bd += `<div class="bd-row"><span class="b-lbl">London Allowance</span><span class="b-val">${fmt(LONDON)}</span></div>`;
-      if (otherAdj !== 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;
-      if (slSkip && (plan !== 'none' || pgLoan))
-        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan not deducted this period</span><span class="b-val"></span></div>`;
-      if (usingCumulative)
-        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your last payslip</span><span class="b-val"></span></div>`;
-      if (_bpThisPeriod > 0)
-        bd += `<div class="bd-row bd-extra"><span class="b-lbl">Back pay lump sum (pay award${_bpIsEstimate ? ' — estimate' : ''})</span><span class="b-val">+${fmt(_bpThisPeriod)}</span></div>`;
-      if (_hppForPeriod > 0)
-        bd += `<div class="bd-row bd-extra"><span class="b-lbl">Holiday Pay Premium${_hppIsEstimate ? ' (estimated)' : ''}</span><span class="b-val">+${fmt(_hppForPeriod)}</span></div>`;
+      const bd = buildBreakdownRows({
+        nonBhNorm, rate, gBasicNorm, satCapped, r125, gBasicSat, bhCapped, gBankHol,
+        bhOtHrs, gBhOt, oHrs, gOvertime, rHrs, gRdw, sHrs, r150, gSunday, bHrs, r300, gBoxing,
+        peer, gPeer, LONDON, otherAdj, slSkip, plan, pgLoan, usingCumulative,
+        _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate,
+      });
       if (bd !== _lastBdBodyHtml) {
         /** @type {HTMLElement} */ (document.getElementById('bdBody')).innerHTML = bd;
         _lastBdBodyHtml = bd;
@@ -1430,6 +1396,18 @@ export function init() {
     document.getElementsByName('bpMode').forEach(/** @param {any} r */ r =>
       r.addEventListener('change', () => { applyBpMode(); _runCalcBackPay(); }));
     document.getElementById('bpManualAmt')?.addEventListener('input', _runCalcBackPay);
+
+    // HPP amount-source toggle + manual inputs (v18.32): flip the mode → show/hide the matching field
+    // group, persist the choice for the viewed tax year, and recompute (calculate() → calcHPP reads
+    // the mode and writes the resulting figure to hppEstKey, so the January take-home add is unchanged).
+    const _saveHppForViewedYear = () => {
+      const _hp = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+      saveHppState(taxYearForPeriod(_hp));
+    };
+    document.getElementsByName('hppMode').forEach(/** @param {any} r */ r =>
+      r.addEventListener('change', () => { applyHppMode(); _saveHppForViewedYear(); calculate(); }));
+    document.getElementById('hppYtdExtra')?.addEventListener('input', () => { _saveHppForViewedYear(); calculate(); });
+    document.getElementById('hppExactAmt')?.addEventListener('input', () => { _saveHppForViewedYear(); calculate(); });
 
     // Card collapse toggles — shared initCardCollapse (overlay.js) adds keyboard +
     // aria-expanded support. Passing the header id as the chevron id toggles .open
@@ -1811,7 +1789,7 @@ export function init() {
       if (!hdr) return;
       const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
       const p = periodSel ? getPeriods().find(/** @param {any} x */ x => x.num === +periodSel.value) : null;
-      const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const now = fdLong(new Date());
       const label = p ? `Paid ${fd(p.payday)} (P${payslipPeriodNum(p)}) · Printed ${now}` : `MYB Pay Calculator · Printed ${now}`;
       hdr.setAttribute('data-print-line', label);
     }

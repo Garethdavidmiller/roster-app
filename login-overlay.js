@@ -208,12 +208,21 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
 
     // Restore last-used grade so returning users go straight to name → password.
     const savedGrade = lsGet(GRADE_KEY);
-    if (savedGrade && GRADE_ORDER.includes(savedGrade)) {
-        gradeSelect.value = savedGrade;
-        populateNames(savedGrade);
+    const gradeRestored = !!(savedGrade && GRADE_ORDER.includes(savedGrade));
+    if (gradeRestored) {
+        gradeSelect.value = /** @type {string} */ (savedGrade);
+        populateNames(/** @type {string} */ (savedGrade));
     } else {
         populateNames('');
     }
+
+    // Move focus INTO the dialog, onto the first control the user still needs (grade, or name when
+    // grade was restored). Without this, focus stays on <body> behind the opaque overlay: the first
+    // Tab lands on the page controls hidden behind it, and — critically — the `trapFocus` keydown
+    // handler below only engages once focus is already inside the overlay, so it was dead. Sighted
+    // keyboard-only sign-in was effectively broken on all five protected pages (axe can't see focus
+    // movement, so the a11y gate stayed green). v18.28.
+    (gradeRestored ? nameSelect : gradeSelect).focus();
 
     gradeSelect.addEventListener('change', () => {
         errorEl.classList.remove('visible');

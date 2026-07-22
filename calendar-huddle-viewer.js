@@ -87,7 +87,7 @@ export function initHuddleViewer() {
     // _autoOpen is mutable so the hashchange handler below can set it when the
     // page was already open and the SW navigated it to #huddle (vs. a fresh load).
     let _autoOpen = window.location.hash === '#huddle';
-    if (_autoOpen) history.replaceState(null, '', window.location.pathname);
+    if (_autoOpen) history.replaceState(null, '', window.location.pathname + window.location.search);
     let _autoOpened = false;
     // Open-counter arming (v18.22): one count per user open GESTURE (#huddle arrival), consumed by
     // the first _triggerAutoOpen it produces. Counting inside _triggerAutoOpen unconditionally
@@ -221,7 +221,7 @@ export function initHuddleViewer() {
     // data is already loaded, or let the subscription callback catch it.
     window.addEventListener('hashchange', () => {
         if (window.location.hash !== '#huddle') return;
-        history.replaceState(null, '', window.location.pathname);
+        history.replaceState(null, '', window.location.pathname + window.location.search);
         _autoOpen   = true;
         _autoOpened = false;
         _openCountPending = true;   // a fresh user gesture — arm one open count (v18.22)

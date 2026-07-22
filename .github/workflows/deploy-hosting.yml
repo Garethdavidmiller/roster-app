@@ -72,3 +72,38 @@ jobs:
 
       - name: Deploy to Firebase Hosting
         run: npx firebase deploy --only hosting --project myb-roster
+
+      # Post-deploy live-URL health check. The pre-deploy smoke/CSP gates run against a local
+      # server / emulator, NOT the live site with its real CSP header + API-key referrer allowlist,
+      # so a live-only breakage (missing referrer domain, bad firebase.json header, Hosting hiccup)
+      # would otherwise ship green and stay invisible — the app is offline-first, so every already-
+      # installed phone keeps loading from cache while a fresh visitor gets a dead site. This is the
+      # exact outage that once went unnoticed (Firebase stuck on splash + Pages 404). Fetches the
+      # LIVE origin and asserts it serves the just-deployed APP_VERSION, not just any 200.
+      - name: Verify live site (post-deploy health check)
+        run: |
+          set -uo pipefail
+          VERSION=$(grep -oE "APP_VERSION = '[^']+'" roster-data.js | grep -oE "[0-9]+\.[0-9]+")
+          echo "Expecting APP_VERSION $VERSION live on myb-roster.web.app"
+          ok=false
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -sS -o /tmp/root.html -w '%{http_code}' https://myb-roster.web.app/ || echo 000)
+            live=$(curl -sS https://myb-roster.web.app/roster-data.js || true)
+            if [ "$code" = "200" ] && grep -q "Marylebone Roster" /tmp/root.html && printf '%s' "$live" | grep -q "APP_VERSION = '$VERSION'"; then
+              ok=true; break
+            fi
+            echo "Attempt $i: http=$code, v$VERSION not yet live — retrying in 10s"; sleep 10
+          done
+          if [ "$ok" != true ]; then
+            echo "::error::Live health check FAILED — myb-roster.web.app did not serve v$VERSION (root+roster-data.js)."
+            exit 1
+          fi
+          echo "OK: myb-roster.web.app serving v$VERSION"
+          # A deep-link (not just root) must also load — the documented Pages-404 class hit sub-pages.
+          sub=$(curl -sS -o /dev/null -w '%{http_code}' https://myb-roster.web.app/paycalc.html || echo 000)
+          if [ "$sub" != "200" ]; then echo "::error::paycalc.html returned $sub"; exit 1; fi
+          echo "OK: paycalc.html deep-link 200"
+          # GitHub Pages staff mirror: liveness only. It builds independently of this workflow, so its
+          # version can briefly lag a Firebase deploy — a hard version-match would flake. Warn only.
+          mcode=$(curl -sS -o /dev/null -w '%{http_code}' https://garethdavidmiller.github.io/roster-app/ || echo 000)
+          if [ "$mcode" = "200" ]; then echo "OK: Pages mirror live (200)"; else echo "::warning::Pages mirror returned $mcode — check the mirror build"; fi

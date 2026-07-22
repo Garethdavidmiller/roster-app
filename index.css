@@ -1441,7 +1441,7 @@
             #teamInfoClose:hover { color: white; }
         }
         .team-help-title {
-            font-size: 16px;
+            font-size: var(--type-large);   /* unified overlay title (v18.29) */
             font-weight: 700;
             color: white;
             margin-bottom: 14px;

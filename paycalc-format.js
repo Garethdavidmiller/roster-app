@@ -18,6 +18,15 @@ export const fdShort = d => d.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short',
 });
 
+// Full-year variant ("3 Jul 2026") — the payday/joined-on/printed-on long form. Was duplicated
+// inline as `.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })` in
+// paycalc-app / paycalc-backpay / paycalc-periods / paycalc-roster-hint before being written once
+// here (review item 21). Same no-timeZone rationale as fd above.
+/** @param {Date} d */
+export const fdLong = d => d.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+});
+
 /** @param {number} n */
 export const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 

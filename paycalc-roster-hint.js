@@ -17,6 +17,7 @@ import { getRosterSuggestion, getOverridesFetchState } from './paycalc-roster-su
 import { escapeHtml } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { pcPrefix } from './paycalc-migrations.js';
+import { fdLong } from './paycalc-format.js';
 
 // The seven special-rate categories and their hour/minute field ids — the ONE source for the
 // pairing that was hand-duplicated across _restoreRosterSuggested / _applyRosterSuggestion /
@@ -301,7 +302,7 @@ export function updateJoinerNotice(p) {
   const totalDays    = Math.round((+p.cutoff - +p.start) / msPerDay) + 1;
   const proRated     = getEffectiveContr(p);
   const base         = getContr();
-  const startFmt     = member.startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const startFmt     = fdLong(member.startDate);
   el.textContent = `📅 You joined on ${startFmt}. For this period: contracted hours ${proRated} of ${base}, London Allowance and pension contribution scaled to ${daysEmployed} of ${totalDays} days.`;
   el.style.display = '';
 }

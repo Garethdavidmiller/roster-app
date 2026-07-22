@@ -22,7 +22,7 @@ import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } f
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours } from './paycalc-hpp.js';
-import { fd, fdShort, fmt } from './paycalc-format.js';
+import { fd, fdShort, fdLong, fmt } from './paycalc-format.js';
 
 /**
  * The currently OFFERED (but not-yet-confirmed) annual pay award, as a percentage. Pre-fills the
@@ -518,7 +518,7 @@ export function calcBackPay() {
     if (periodWrap) periodWrap.style.display = _periodDisplay;
     noticeEl.style.display = 'block';
     if (bpP) {
-      const payLong = bpP.payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+      const payLong = fdLong(bpP.payday);
       noticeEl.innerHTML = bpP.payday < new Date()
         ? `ℹ️ This lump sum appeared on your <strong>${payLong} payslip</strong> (P${payslipPeriodNum(bpP)}). It was taxed in full in that period.`
         : `⚠️ This lump sum will appear on your <strong>${payLong} payslip</strong> (P${payslipPeriodNum(bpP)}). It is taxed in full in that period.`;
@@ -633,9 +633,7 @@ export function calcBackPay() {
 
     noticeEl.style.display = 'block';
     if (bpP) {
-      const payLong = bpP.payday.toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short', year: 'numeric'
-      });
+      const payLong = fdLong(bpP.payday);
       // A paid-in payday in the past means the lump has already been paid (a settled award being
       // reviewed) — say so in the past tense; "will appear" for a nine-months-ago payslip reads wrong.
       noticeEl.innerHTML = bpP.payday < new Date()

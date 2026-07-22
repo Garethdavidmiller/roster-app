@@ -80,7 +80,15 @@ test('every remote origin the app loads is permitted by the CSP', () => {
     const covered = (host) =>
         csp.includes(`//${host}`) ||                             // verbatim
         csp.includes(`//*.${host.replace(/^[^.]+\./, '')}`);     // *.suffix wildcard
-    const missing = REQUIRED.filter(h => APP_SOURCES.includes(h) && !covered(h));
+    // REQUIRED is, by definition, the set of hosts the app IS known to contact — so every one must
+    // be covered UNCONDITIONALLY. A former `APP_SOURCES.includes(h) &&` guard here was self-neutering
+    // (v18.31 fix): the `*.googleapis.com` hosts (Auth/Firestore/Storage) never appear as literals in
+    // the JS that reaches them — the Firebase SDK builds those URLs internally — they show up in
+    // APP_SOURCES ONLY because each page's mirrored <meta> CSP echoes the header. That made
+    // `APP_SOURCES.includes(h)` ≈ `covered(h)`, so `includes(h) && !covered(h)` could never be true
+    // for precisely the hosts whose omission silently breaks sign-in. Dropping the gate makes this a
+    // real must-cover allowlist: remove a host from BOTH CSPs and the test now fails (as it should).
+    const missing = REQUIRED.filter(h => !covered(h));
     assert.deepEqual(
         missing, [],
         `App contacts these hosts but the CSP does not permit them (sign-ins/loads will silently fail):\n  ${missing.join('\n  ')}`

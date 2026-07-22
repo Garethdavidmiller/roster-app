@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '18.27';
+const APP_VERSION = '18.33';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -128,13 +128,13 @@ const NETWORK_FIRST_FILES = [
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js', 'date-picker.js',
-    'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'storage-utils.js', 'storage-keys.js', 'auth-identity.js', 'client-errors.js',
+    'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'claim-retry.js', 'storage-utils.js', 'storage-keys.js', 'auth-identity.js', 'client-errors.js',
     'shared.css',
     'paycalc.html', 'paycalc-app.js', 'paycalc-boot.js', 'paycalc-calc.js',
     'paycalc-help.js', 'paycalc-migrations.js',
     'paycalc-periods.js', 'paycalc-settings.js',
     'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-backpay.js',
-    'paycalc-format.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-guide.html',
+    'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-guide.html',
     'fip.html', 'guide.html',
     'railcard-guide.html',
     'railcard-guide.js', 'guide-print.js', 'fip.js', 'guide-shell.css',
@@ -199,6 +199,7 @@ const CORE_ASSETS = [
     "./roster-data.js",
     "./roster-cycle-data.js",
     "./firebase-client.js",
+    "./claim-retry.js",
     "./storage-utils.js",
     "./storage-keys.js",
     "./client-errors.js",
@@ -232,6 +233,7 @@ const CORE_ASSETS = [
     "./paycalc-hpp.js",
     "./paycalc-backpay.js",
     "./paycalc-format.js",
+    "./paycalc-breakdown.js",
     "./paycalc-roster-suggestions.js",
     "./paycalc-lightboxes.js",
 ];

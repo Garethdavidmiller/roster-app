@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v18.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v18.30 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -56,6 +56,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Holiday Pay Premium estimator, shared period decode helpers | `paycalc-hpp.js` |
 | Back-pay lump sum calculator | `paycalc-backpay.js` |
 | Shared date/currency formatters (pure) | `paycalc-format.js` |
+| Result-card HTML builders (pure) — summary + breakdown | `paycalc-breakdown.js` |
 | Pay calculator help/tooltip text | `paycalc-help.js` |
 | Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
@@ -498,7 +499,10 @@ Holiday Pay Premium estimator and shared period decode helpers for `paycalc.html
 - `isDataEmpty(d)` — returns true if all hour fields in a persisted period object are zero/falsy; exported for coordinator's `updateSaveStatus` and for `paycalc-backpay.js`
 - `_decodeHours(p, d)` — decodes raw period data into `{satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs}` floats; exported for `paycalc-backpay.js`
 - `_varPayForPeriod(p, d, rate)` — the HPP-accruing variable pay for one period (OT/RDW/Sun/Sat/BH/Boxing premiums). **Excludes contracted basic, peer pay, AND London Allowance** — London is a fixed allowance that does not accrue HPP (removed v17.23; see KNOWN_LIMITATIONS #3). Used by `calcHPP`, `updatePriorHpp`, and `paycalc-backpay.js`
-- `calcHPP()` — renders the HPP estimate card (takes NO args since v16.89: back pay is deliberately not folded into HPP — the whole-year settled-rate pricing already carries the award uplift)
+- `calcHPP()` — renders the HPP estimate card (takes NO args since v16.89: back pay is deliberately not folded into HPP — the whole-year settled-rate pricing already carries the award uplift). **Amount-source aware (v18.32):** `'hours'` (default — the per-payslip estimator), `'ytd'` (a quick "extra pay so far this year" figure × 7.69%), or `'exact'` (a hand-entered figure). Whichever mode, the resulting figure is written to `hppEstKey(ty)`, so the January take-home add + prior-year rollover are unchanged
+- `hppFromYtdExtra(extra)` — PURE: the quick-estimate maths, `extra × 4/52` (clamps negatives/NaN to 0); unit-tested
+- `applyHppMode(mode?)` — reflect a mode into the DOM (tick its radio, show only the matching input group)
+- `saveHppState(ty)` / `restoreHppState(ty)` — persist / restore the card's mode + both manual inputs, PER TAX YEAR (`hppModeKey`), mirroring the back-pay per-year blob; the coordinator restores before `calcHPP` reads the DOM on a period/year change
 - `updatePriorHpp(ty)` — renders the prior-year actual HPP section
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `roster-data.js`, `ls.js`
 
@@ -516,11 +520,18 @@ Back-pay lump sum calculator for `paycalc.html` (v13.81).
 
 ### `paycalc-format.js`
 Pure date/currency formatters + time-input helpers shared by `paycalc-app.js` and `paycalc-backpay.js` (v14.06; time helpers added v17.74 / Section G). No DOM, no Firebase. Tested by `paycalc-format.test.mjs`.
-- `fd(d)` — formats a Date as "1 Apr '26" (day + short month + 2-digit year, Europe/London)
+- `fd(d)` — formats a Date as "1 Apr 26" (day + short month + 2-digit year)
 - `fdShort(d)` — formats a Date as "1 Apr" (day + short month only)
+- `fdLong(d)` — formats a Date as "1 Apr 2026" (day + short month + full year) — the payday / joined-on / printed-on long form; de-duplicated from ~8 inline `toLocaleDateString` copies across `paycalc-app`/`-backpay`/`-periods`/`-roster-hint` (v18.30). Same no-timeZone rationale as `fd`
 - `fmt(n)` — formats a number as a currency string, e.g. "£1,234.56"
 - `clampMinute(n)` — clamp a parsed minutes integer into [0, 59] (pure core of the hrs/mins field's `clampMins` DOM wrapper)
 - `decimalToHM(val)` — split decimal hours → `{h, m}` with a 60→next-hour float guard (e.g. 7.999 → 8h 00m); returns null for negative/non-finite. The single source for the live "= 7h 30m" preview AND the on-blur "7.5 → 7 hrs 30 mins" split (was duplicated inline in `paycalc-app.js`)
+
+### `paycalc-breakdown.js`
+The two PURE HTML builders for the pay-result card, extracted from `calculate()` in `paycalc-app.js` (v18.30, review item 20). `calculate()` used to interleave DOM reads, pay maths, and result-markup string-building; the markup now lives here, written + unit-testable independent of those phases. No DOM, no Firebase — only dependency is `fmt` from `paycalc-format.js`. Output is byte-identical to the old inline templates (a mechanical extraction, not a redesign). Each builder takes a plain params object whose field names match the caller's locals, so `paycalc-app.js`'s call site is a shorthand object literal. Tested by `paycalc-breakdown.test.mjs`.
+- `fmtHrsMins(h)` — decimal hours → "Nh"/"Nh Mm" (the per-row hours label; was the inline `fh` in `calculate()`)
+- `buildSummaryRows(d)` — the `#summary` estimate rows: Regular/Total pay → back pay → HPP → pension → tax → NI → Student Loan (`d.slLines`, pre-rendered) → estimated take-home
+- `buildBreakdownRows(d)` — the `#bdBody` full breakdown: one row per pay component present (Mon–Fri + London always; premiums/OT/RDW/training/adjustment/notes/extras guarded on > 0)
 
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).
@@ -649,7 +660,14 @@ Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by
 - `isResolvedErrorExpired(rec, now, [retentionMs])` — true if a resolved record is past the retention window; records with no `resolvedAt` are never expired
 - `expiredResolvedIds(resolved, now, [retentionMs])` — IDs of resolved records that should be pruned
 - `orderClientErrors(unresolved, resolved, now, [opts])` — ordered list for the Error Log card: all unresolved first (newest-first), then up to `resolvedLimit` (default 30) recent resolved records. Unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) resolved backlogs cannot displace them.
+- `capUnresolvedErrors(fetchedUnresolved, cap)` → `{ shown, truncated }` (v18.28) — the over-fetch→display split extracted from `getClientErrors`: fetch `cap + 1`, show the first `cap`, `truncated` only when the extra row came back (no-silent-caps)
 - Tested by `client-errors.test.mjs` (no mocks, runs in `test:hygiene`)
+
+### `claim-retry.js`
+Pure stale-claim self-heal runner — no DOM, no Firebase. Imported by `firebase-client.js` only (v18.28). Extracted so the security-critical write-retry decision is unit-testable in Node (firebase-client.js can't load in a test — it pulls the gstatic SDK).
+- `isClaimRetryable(err, retryCode, hasUser)` — true iff `err.code === retryCode` AND a user is present
+- `runWithClaimRetry(fn, { retryCode, hasUser, refresh })` — run `fn`; on a retryable stale-claim rejection with a user, force `refresh()` then retry ONCE; a failed refresh re-throws the ORIGINAL error (never masks an auth denial with a connectivity error); at most one retry. `fn` must build a fresh WriteBatch each call. `firebase-client.js`'s `withClaimRetry` (`permission-denied`) and `_uploadBytesWithClaimRetry` (`storage/unauthorized`) inject the Firebase auth deps.
+- Tested by `claim-retry.test.mjs` (no mocks, runs in `test:hygiene`)
 
 ### `nav-panel.js`
 Shared slide-out navigation panel — imported by all six app pages.

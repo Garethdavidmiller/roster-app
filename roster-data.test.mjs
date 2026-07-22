@@ -186,6 +186,12 @@ test('getALEntitlement: CEA on main roster gets 32 days', () => {
     assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main' }), 32);
 });
 
+test('getALEntitlement: a CEA on a FIXED roster (C. Reen) gets 32, not 34 (pins the Jun-2026 correction)', () => {
+    // Guards the header comment in roster-data.js from re-diverging: C. Reen is contractually CEA
+    // (not CEA-BL), so 32 — the same as every other CEA, regardless of the fixed rosterType.
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'fixed' }), 32);
+});
+
 test('getALEntitlement: CES gets 34 days', () => {
     assert.equal(getALEntitlement({ role: 'CES', rosterType: 'ces' }), 34);
 });

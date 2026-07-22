@@ -64,3 +64,18 @@ export function orderClientErrors(unresolved, resolved, now, { retentionMs = CLI
         .slice(0, resolvedLimit);
     return [...u, ...r];
 }
+
+/**
+ * Split the over-fetched unresolved rows into the shown set + a truncation flag (extracted from
+ * getClientErrors, v18.28, so the no-silent-caps logic is unit-tested). getClientErrors deliberately
+ * fetches `cap + 1` rows so a (cap+1)th row PROVES "> cap exist" — a plain `limit(cap)` can't tell
+ * "exactly cap" from "cap+". Returns the first `cap` rows and whether more genuinely exist (so the
+ * card can show a "showing the first N" banner rather than silently hiding the overflow).
+ * @template T
+ * @param {T[]} fetchedUnresolved  rows fetched with `limit(cap + 1)`
+ * @param {number} cap
+ * @returns {{ shown: T[], truncated: boolean }}
+ */
+export function capUnresolvedErrors(fetchedUnresolved, cap) {
+    return { shown: fetchedUnresolved.slice(0, cap), truncated: fetchedUnresolved.length > cap };
+}

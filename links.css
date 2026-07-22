@@ -6,11 +6,17 @@
     --cov-early: #1a7fc1;
     --cov-late:  #e6700a;
     --cov-night: #6b3fa0;
-    /* Shift-cell text colours — dark tints of the early/late/spare/night hues */
-    --shift-early-text: #0a4872;
-    --shift-late-text:  #7a3800;
+    /* Shift-cell colours — MATCH the app's roster language: early = orange, late = blue.
+       (v18.28 — previously inverted: this design tool coloured early blue / late orange, the
+       opposite of the calendar it feeds.) The coverage heat-ramp keeps --cov-early (blue): it's
+       headcount intensity, a separate single-hue scale, NOT shift identity. */
+    --shift-early-fill: #e6700a;   /* orange — app early */
+    --shift-late-fill:  #1a7fc1;   /* blue   — app late  */
+    --shift-early-text: #7a3800;   /* dark orange — app early */
+    --shift-late-text:  #0a4872;   /* dark blue   — app late  */
     --shift-spare-text: #705600;
     --shift-night-text: #3d1a5c;
+    --unfilled-flag:    #7a3800;   /* amber line-number flag for an all-rest (undesigned) row */
 }
 
 body {
@@ -53,8 +59,11 @@ body.auth-ready .container { display: grid; }
 /* ---- Header beta marker ----
    Sits beside the gold "🔗 Links" page badge. Deliberately a gold-OUTLINE chip
    (not solid gold like the page badge) so the two read as primary + secondary
-   tags rather than two identical pills. A slow sheen sweep keeps it lively
-   without drawing the eye away from the workspace; disabled for reduced motion. */
+   tags rather than two identical pills. A slow sheen sweep runs a couple of times
+   on load to catch the eye, then rests — it is NOT a perpetual loop (v18.31: every
+   other `infinite` animation in the app is a transient loader that's removed when its
+   state ends; this was the lone perpetual-motion animation on always-visible chrome).
+   Also disabled entirely for reduced motion. */
 .header-end {
     display: inline-flex;
     align-items: center;
@@ -83,7 +92,7 @@ body.auth-ready .container { display: grid; }
     inset: 0;
     background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.5) 50%, transparent 62%);
     transform: translateX(-130%);
-    animation: beta-sheen 5s var(--ease-standard) infinite;
+    animation: beta-sheen 5s var(--ease-standard) 2;   /* finite: two sweeps on load, then rests (v18.31) */
 }
 @keyframes beta-sheen {
     0%, 55%   { transform: translateX(-130%); }
@@ -318,14 +327,14 @@ body.auth-ready .container { display: grid; }
 /* Cell background by shift type */
 .shift-cell-btn.type-rd    { background: var(--surface-sunken); color: var(--text-light); }
 .shift-cell-btn.type-spare { background: color-mix(in srgb, var(--accent-gold) 22%, transparent); color: var(--shift-spare-text); }
-.shift-cell-btn.type-early { background: color-mix(in srgb, var(--cov-early) 16%, transparent); color: var(--shift-early-text); }
-.shift-cell-btn.type-late  { background: color-mix(in srgb, var(--cov-late) 16%, transparent); color: var(--shift-late-text); }
+.shift-cell-btn.type-early { background: color-mix(in srgb, var(--shift-early-fill) 16%, transparent); color: var(--shift-early-text); }
+.shift-cell-btn.type-late  { background: color-mix(in srgb, var(--shift-late-fill) 16%, transparent); color: var(--shift-late-text); }
 .shift-cell-btn.type-night { background: color-mix(in srgb, var(--cov-night) 18%, transparent); color: var(--shift-night-text); }
 
 /* Unfilled row — a line that is still all rest days needs designing, not
    muting. A faint amber line-number cell flags it without hiding the cells. */
 .links-grid tr.row-unfilled .pos-num {
-    background: var(--shift-late-text);
+    background: var(--unfilled-flag);
     color: white;
 }
 .links-grid tr.row-unfilled .pos-num::after {
@@ -450,8 +459,8 @@ body.auth-ready .container { display: grid; }
 }
 .brush-chip.type-rd    { background: var(--surface); color: var(--text-light); border: 1px solid var(--border-light); }
 .brush-chip.type-spare { background: color-mix(in srgb, var(--accent-gold) 22%, transparent); color: var(--shift-spare-text); }
-.brush-chip.type-early { background: color-mix(in srgb, var(--cov-early) 16%, transparent); color: var(--shift-early-text); }
-.brush-chip.type-late  { background: color-mix(in srgb, var(--cov-late) 16%, transparent); color: var(--shift-late-text); }
+.brush-chip.type-early { background: color-mix(in srgb, var(--shift-early-fill) 16%, transparent); color: var(--shift-early-text); }
+.brush-chip.type-late  { background: color-mix(in srgb, var(--shift-late-fill) 16%, transparent); color: var(--shift-late-text); }
 .brush-chip--custom    { background: var(--surface); color: var(--text-mid); border: 1px dashed var(--border-light); font-style: italic; }
 /* Armed state: solid navy ring */
 .brush-chip--active    { outline-color: var(--primary-blue); outline-width: 2px; }
