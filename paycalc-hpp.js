@@ -253,8 +253,8 @@ function _renderHppManual(ty, mode) {
     if (amountEl) amountEl.textContent = hpp > 0 ? fmt(hpp) : '£–';
     if (basisEl) {
       basisEl.innerHTML = hpp > 0
-        ? `Rough estimate: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay + London) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — the hours option above is more accurate if you fill each payslip in.</span>`
-        : `Your Year to Date Taxable Pay looks lower than the expected basic pay, so there's no premium to estimate from it — try the hours option, or enter the figure yourself.`;
+        ? `Rough estimate: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay + London) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>`
+        : `Your Year to Date Taxable Pay looks lower than the expected basic pay, so there's no premium to estimate from it — fill in your hours on each payslip in the calculator instead, or enter the figure yourself.`;
     }
     return;
   }
