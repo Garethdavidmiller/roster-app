@@ -514,6 +514,20 @@
     <div id="resultRateNotice" class="payslip-note" style="display:none">
       ⚠️ <strong>This year's pay award has been accepted but isn't confirmed on payslips yet.</strong> This estimate still uses the current rate — the app switches to the new rate automatically once the award lands on a payslip.
     </div>
+    <!-- Check against the real payslip (v18.42 — review item 3): the member types the actual
+         take-home printed on this payslip; a calm verdict states how close the estimate is.
+         PAID payslips only (a future one has nothing to compare — calculate() gates visibility).
+         The figure autosaves in this period's data blob (actualNet) like every other field. -->
+    <div class="check-actual" id="checkActualWrap" hidden>
+      <div class="field-eyebrow">Check against your payslip</div>
+      <div class="check-actual-row">
+        <div class="pfx">
+          <span class="pfx-sym">£</span>
+          <input type="text" id="actualNetInput" aria-label="Take-home pay printed on your payslip" placeholder="Take-home on the payslip" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+        </div>
+      </div>
+      <div class="check-actual-verdict" id="actualVerdict" aria-live="polite"></div>
+    </div>
     <button type="button" class="bd-btn" id="bdBtn" aria-expanded="false" aria-controls="bdBody">
       Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>
     </button>

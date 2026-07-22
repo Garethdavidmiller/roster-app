@@ -30,6 +30,20 @@ export const fdLong = d => d.toLocaleDateString('en-GB', {
 /** @param {number} n */
 export const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
+/**
+ * A capped, comma-joined list of payday dates for "these payslips are missing" copy
+ * (v18.42 — review item 2): "5 Jun, 3 Jul, 31 Jul, 28 Aug and 3 more". Capping keeps the line
+ * readable on mobile when many payslips are empty; the overflow count still says HOW MANY, so
+ * nothing is silently hidden (no-silent-caps). Pure.
+ * @param {Date[]} dates @param {number} [cap]
+ * @returns {string}
+ */
+export function fdList(dates, cap = 4) {
+    const names = dates.map(fdShort);
+    if (names.length <= cap) return names.join(', ');
+    return `${names.slice(0, cap).join(', ')} and ${names.length - cap} more`;
+}
+
 // ── Time-input helpers (pure cores of the paycalc hrs/mins fields) ──────────────
 // Extracted from paycalc-app.js (Section G / G1) so the arithmetic is unit-testable and
 // written once. The coordinator keeps the thin DOM wrappers (clampMins/decPreview/

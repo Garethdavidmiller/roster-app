@@ -109,6 +109,7 @@ describe('computeYearSoFar', () => {
         assert.equal(y.paid, 3, 'paydays on/before now: P60–P62');
         assert.equal(y.total, 4);
         assert.equal(y.skipped, 0);
+        assert.deepEqual(y.missing, [P62.payday], 'the paid-but-empty payslip is NAMED (item 2); the future one is not "missing"');
         const m60 = mirror({ oHrs: 4 });
         const m61 = mirror({ sHrs: 6, pension: 100 });
         assert.ok(Math.abs(y.taxable - (m60.sacGross + m61.sacGross)) < 0.01, 'taxable = Σ sacGross');

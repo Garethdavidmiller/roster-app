@@ -6,7 +6,7 @@ import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod, capHours,
   awardFromForYear, isPreAwardPeriod,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
+  computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod, PENSION_STEPS,
 } from './paycalc-calc.js';
 import { MILLER_ACTUALS } from './test-fixtures/miller-actuals.js';
 
@@ -813,6 +813,33 @@ describe('getPensionForPeriod', () => {
 
   test('unknown grade falls back to cea', () => {
     assert.equal(getPensionForPeriod('dispatcher', cutover), 147.36);
+  });
+
+  // ── Historic eras (PENSION_STEPS table, v18.43 — review item 8) ─────────────
+  // Derived from MILLER_ACTUALS (pension ≈ basic + varPay − Taxable Pay): £160.78 to the
+  // 4 Jul 2025 payslip (payslip-confirmed 9 May 2025), a transitional £156.29 on the
+  // 1 Aug 2025 payslip (derived — see PENSION_STEPS), £154.77 from 29 Aug 2025.
+
+  test('early 2025/26 paydays → £160.78 (the payslip-confirmed 9 May 2025 value)', () => {
+    assert.equal(getPensionForPeriod('cea', new Date(2025, 3, 11)), 160.78); // 11 Apr 2025
+    assert.equal(getPensionForPeriod('cea', new Date(2025, 6, 4)),  160.78); // 4 Jul 2025 — last of the era
+  });
+
+  test('the 1 Aug 2025 payslip → the derived transitional £156.29', () => {
+    assert.equal(getPensionForPeriod('cea', new Date(2025, 7, 1)), 156.29);
+    assert.equal(getPensionForPeriod('cea', new Date(2025, 7, 28)), 156.29); // any payday before 29 Aug
+  });
+
+  test('29 Aug 2025 payslip onward → £154.77 until the 8 May 2026 step', () => {
+    assert.equal(getPensionForPeriod('cea', new Date(2025, 7, 29)), 154.77);
+    assert.equal(getPensionForPeriod('cea', new Date(2025, 8, 26)), 154.77);
+  });
+
+  test('PENSION_STEPS is newest-first with a null-from floor (the walk contract)', () => {
+    assert.equal(PENSION_STEPS[PENSION_STEPS.length - 1].from, null, 'last entry is the floor');
+    for (let i = 0; i < PENSION_STEPS.length - 2; i++) {
+      assert.ok(PENSION_STEPS[i].from > PENSION_STEPS[i + 1].from, 'descending from-dates');
+    }
   });
 });
 

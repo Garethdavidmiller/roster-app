@@ -21,8 +21,8 @@ import { getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSe
 import { getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
-import { _decodeHours } from './paycalc-hpp.js';
-import { fd, fdShort, fdLong, fmt } from './paycalc-format.js';
+import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
+import { fd, fdShort, fdLong, fdList, fmt } from './paycalc-format.js';
 
 /**
  * The currently OFFERED (but not-yet-confirmed) annual pay award, as a percentage. Pre-fills the
@@ -616,6 +616,10 @@ export function calcBackPay() {
   // period the user has merely navigated to from adding contracted rate-diff for weeks not yet worked.
   const _capPNum = Math.min(bpPNum ? bpPNum - 1 : Infinity, todaysPeriodNum());
   const _skipped = /** @type {string[]} */ ([]);   // periods whose saved data couldn't be read — surfaced, never dropped silently
+  // Window payslips with NO saved hours (v18.42 — review item 2): they still accrue the contracted
+  // rate-diff (a normal week is owed the rise regardless), but any PREMIUM arrears they carried are
+  // missing — so they're NAMED in the notice instead of the count being silently optimistic.
+  const _basicOnly = /** @type {Date[]} */ ([]);
   periods.forEach(/** @param {any} p */ p => {
     try {
       if (fromPNum && p.num < fromPNum) return;
@@ -637,6 +641,7 @@ export function calcBackPay() {
       if (parsed.error) { _skipped.push(fdShort(p.payday)); console.warn('[PayCalc] Back-pay corrupt period', p.num); return; }
       if (!parsed.data && !fromPNum) return;
       const d = parsed.data || {};
+      if (!parsed.data || isDataEmpty(d)) _basicOnly.push(p.payday);
       // All the money arithmetic lives in the PURE _accrueBackPayPeriod (unit-tested) — this loop
       // only maps storage/settings to numbers. Pro-rating uses the exact factor (not the
       // integer-rounded effContr divided back) to avoid rounding error; hour caps mirror calculate().
@@ -696,7 +701,9 @@ export function calcBackPay() {
     } else {
       noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
     }
-
+    if (_basicOnly.length) {
+      noticeEl.innerHTML += ` No hours are saved for ${fdList(_basicOnly)} — ${_basicOnly.length > 1 ? 'those payslips were' : 'that payslip was'} counted at the basic-rate arrears only, so any overtime or weekend arrears ${_basicOnly.length > 1 ? 'they' : 'it'} carried are missing. Fill ${_basicOnly.length > 1 ? 'them' : 'it'} in on the calculator for the full figure.`;
+    }
 
     rowsEl.innerHTML = rows;
     breakdownBtn.style.display = 'flex';

@@ -325,7 +325,16 @@ band the full £50,270 wide, under-taxing anyone on those codes who crosses into
 changing this means updating tests too. Rare codes at Marylebone; **verify against a
 real payslip from someone on a 0T/K code before changing** — do not fix speculatively.
 
-### Pension default is frozen onto a period once it is touched (defer to the next pension change)
+### ~~Pension default is frozen onto a period once it is touched~~ — CLOSED v18.43
+
+**Closed (v18.43),** with the pension cut-overs this deferral prescribed as its trigger (the historic
+`PENSION_STEPS` table — review item 8): `readFormData` now stores `null` when the pension field still
+equals the period's default (default × pro-rate, 2dp, ±0.005 — mirroring `_hasCustomPension`), so a
+merely-touched period keeps self-healing to default changes while a genuinely custom pension
+persists. Periods frozen BEFORE v18.43 keep their stored value (indistinguishable from a deliberate
+entry — the per-payslip pension design); re-saving them heals them. Original finding below for the record.
+
+**Original finding:** Pension default is frozen onto a period once it is touched (defer to the next pension change)
 `loadPeriodData` writes the period-appropriate pension default into `#pensionAmt` when a period
 has no saved pension (`d.pension == null`), and `readFormData` then persists whatever is in the
 field — so the first edit to that period saves the default as a concrete value, and the period no
