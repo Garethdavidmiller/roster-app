@@ -650,8 +650,10 @@
       </div>
     </div>
     <div class="card-body collapsible-body" id="backPayBody">
-      <p class="card-explainer">When a pay award is backdated, everything owed since <strong>1 April</strong> (Chiltern's pay anniversary) arrives as one lump sum on a single payslip — and it lands on the right payslip here automatically.</p>
-
+      <!-- The STORY leads the card (v18.39): one plain-English strip — which award, paid from which
+           payslip, backdated to which 1 April, and this member's rough £ — written live by
+           calcBackPay (bpStoryHtml). The old generic explainer paragraph folded into it; the
+           controls below are the mechanics, not the message. -->
       <div class="bp-award-scope" id="bpAwardScope"></div>
 
       <div class="backpay-estimate-note" id="bpEstimateNote" style="display:none">ℹ️ This pay award has been accepted but isn't confirmed on a payslip yet — treat the figures below as an estimate until it appears there.</div>

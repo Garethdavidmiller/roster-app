@@ -217,13 +217,10 @@ export function prefillBackPay() {
     if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
     if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
   }
-  // Name the award year on the card so it's clear WHICH annual rise is being calculated. For a
-  // settled award, also show WHEN it was applied — it explains why later periods aren't in the count.
-  const awardScopeEl = document.getElementById('bpAwardScope');
-  const _fromDate    = awardFromForYear(ty.label);
-  if (awardScopeEl) awardScopeEl.innerHTML = _fromDate
-    ? `<strong>The ${ty.label} pay award</strong> — backdated to 1 April, paid from ${fdShort(_fromDate)} (later payslips were already on the new rate).`
-    : `<strong>The ${ty.label} pay award</strong> — backdated to 1 April; not yet paid.`;
+  // (The story strip at the top of the card — #bpAwardScope — is written by calcBackPay, not here:
+  // it includes the computed £, which only calcBackPay knows, and every prefill path ends in
+  // calcBackPay(). v18.39.)
+  const _fromDate = awardFromForYear(ty.label);
   // The award is always backdated to 1 April (Chiltern's pay anniversary) — computed
   // internally by _backdatedFromPNum(); there is no "backdated from" selector to pre-set.
   // Default the "paid in" period: a SETTLED award defaults to the payslip that actually carried
@@ -340,6 +337,47 @@ export function raiseByPercent(oldVal, pct) {
   return oldVal * (1 + pct / 100);
 }
 
+/**
+ * The plain-English STORY for the top of the back-pay card (v18.39 — "lead with the story, not the
+ * controls"): one or two sentences stating the award's shape (which award, paid from which payslip,
+ * backdated to which 1 April) and this member's figure. Rendered into #bpAwardScope by calcBackPay
+ * on every recompute, so the £ tracks the inputs live; the rate boxes/toggles below become the
+ * mechanics, not the message.
+ *
+ * PURE — returns an HTML string. Every input is app-internal (tax-year labels, paydays, computed
+ * amounts); no user-entered text passes through, so no escaping is needed.
+ *
+ * @param {{ label: string, fromDate: Date|null, payday: Date|null, pNum: number, amount: number,
+ *           state: 'computed'|'manual'|'manual-empty'|'no-figures'|'empty-window',
+ *           now?: Date }} o
+ *   state — which sentence-2 to append: 'computed' (rate×hours estimate → "roughly £X"),
+ *   'manual' (figure typed from the payslip → exact), 'manual-empty' (prompt for the figure),
+ *   'no-figures' (compute mode with no rates yet → award facts only), 'empty-window' (no periods
+ *   accrued). `now` is injectable for tests; defaults to the real clock.
+ * @returns {string}
+ */
+export function bpStoryHtml(o) {
+  const apr  = `1 April ${String(o.label).slice(0, 4)}`;
+  const past = !!(o.payday && o.payday < (o.now || new Date()));
+  const slip = o.payday ? `your <strong>${fdLong(o.payday)} payslip</strong> (P${o.pNum})` : 'one payslip';
+  let s1;
+  if (o.fromDate) {
+    s1 = past
+      ? `The <strong>${o.label} pay award</strong> was paid from ${slip} but backdated to <strong>${apr}</strong> — everything owed in between arrived as one lump sum on that payslip.`
+      : `The <strong>${o.label} pay award</strong> is paid from ${slip} but backdated to <strong>${apr}</strong> — everything owed in between arrives as one lump sum on that payslip.`;
+  } else {
+    s1 = `The <strong>${o.label} pay award</strong> hasn't been paid yet — when it lands, it's backdated to <strong>${apr}</strong> and everything owed arrives as one lump sum.`;
+  }
+  let s2 = '';
+  if (o.state === 'computed')          s2 = ` Yours is roughly <span class="bp-story-amt">${fmt(o.amount)}</span>.`;
+  else if (o.state === 'manual')       s2 = past
+    ? ` Yours was <span class="bp-story-amt">${fmt(o.amount)}</span>, from your payslip.`
+    : ` You've entered <span class="bp-story-amt">${fmt(o.amount)}</span> as your figure.`;
+  else if (o.state === 'manual-empty') s2 = ' Enter your figure from that payslip below.';
+  else if (o.state === 'empty-window') s2 = ' Nothing to backdate for you yet.';
+  return s1 + s2;   // 'no-figures' → the award facts alone
+}
+
 // ── BACK PAY CALCULATOR ───────────────────────────────────────────────────────
 
 /**
@@ -418,7 +456,8 @@ export function calcBackPay() {
   // the "which payslip?" selector is hidden and set automatically (v17.87 — owner: "that should be
   // automatic"). The notice below still names the payslip. Only an undecided future award shows the
   // selector. `_periodDisplay` = 'block' when the selector should show, else 'none'.
-  const _awardDecided  = !!awardFromForYear(awardTy?.label);
+  const _awardFromDate = awardFromForYear(awardTy?.label);
+  const _awardDecided  = !!_awardFromDate;
   const _periodDisplay = _awardDecided ? 'none' : 'block';
   // Compute-mode rate boxes, applied HERE (runs after both prefill AND restoreBpState, so a year
   // switch can't leave the previous year's state). For a SETTLED award each box locks ONLY when its
@@ -471,6 +510,17 @@ export function calcBackPay() {
   // ticked. The card still computes and shows the lump either way; the coordinator gates the gross.
   const bpIncluded = !!(/** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked);
 
+  // The story strip at the top of the card — award shape + this member's figure, ahead of the
+  // controls (v18.39). Written on EVERY exit path below so it can never show a stale £.
+  const _storyEl = /** @type {HTMLElement|null} */ (document.getElementById('bpAwardScope'));
+  const _story = /** @param {'computed'|'manual'|'manual-empty'|'no-figures'|'empty-window'} state
+                     @param {number} [amount] */ (state, amount = 0) => {
+    if (_storyEl) _storyEl.innerHTML = bpStoryHtml({
+      label: awardTy?.label || '', fromDate: _awardFromDate, payday: bpP?.payday || null,
+      pNum: bpP ? payslipPeriodNum(bpP) : 0, amount, state,
+    });
+  };
+
   // Persist the raw inputs per member (autosave, like every other paycalc field) so the lump
   // survives a reload — restored by restoreBpState() at init.
   _saveBpState();
@@ -504,6 +554,7 @@ export function calcBackPay() {
     _resetBreakdown(rowsEl, breakdownBtn);
     const manualAmt = parseSmartFloat(/** @type {HTMLInputElement|null} */ (document.getElementById('bpManualAmt'))?.value || '');
     if (!(manualAmt > 0)) {
+      _story('manual-empty');
       totalEl.style.display  = 'none';
       if (periodWrap) periodWrap.style.display = 'none';
       noticeEl.style.display = 'block';
@@ -511,6 +562,7 @@ export function calcBackPay() {
       _surfaceCorruptReset(noticeEl);
       return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded };
     }
+    _story('manual', manualAmt);
     totalEl.style.display  = 'block';
     totalAmtEl.textContent = fmt(manualAmt);
     if (labelEl) labelEl.textContent = bpP ? `💷 Lump sum · Paid ${fdShort(bpP.payday)}` : '💷 Lump sum on one payslip';
@@ -531,6 +583,7 @@ export function calcBackPay() {
   }
 
   if (!hasRate && !hasLondon) {
+    _story('no-figures');
     rowsEl.innerHTML = '';
     _resetBreakdown(rowsEl, breakdownBtn);
     totalEl.style.display      = 'none';
@@ -550,7 +603,7 @@ export function calcBackPay() {
   // it were already paid at the new rate and owe NO arrears — so the accrual must stop there, matching
   // the main calculator's mid-year rate step (getRateForPeriod). null for the pending award (not yet
   // paid) → no such cap, the whole window from April accrues.
-  const _awardFrom = awardFromForYear(awardTy?.label);
+  const _awardFrom = _awardFromDate;
   let rows          = '';
   let grandTotal    = 0;
   let grandVarTotal = 0;
@@ -617,6 +670,7 @@ export function calcBackPay() {
   });
 
   if (grandTotal > 0) {
+    _story('computed', grandTotal);
     totalEl.style.display  = 'block';
     totalAmtEl.textContent = fmt(grandTotal);
     if (labelEl) {
@@ -650,6 +704,7 @@ export function calcBackPay() {
     // taller/shorter than the content the height was measured against).
     if (rowsEl.classList.contains('open')) rowsEl.style.maxHeight = `${rowsEl.scrollHeight}px`;
   } else {
+    _story('empty-window');
     totalEl.style.display = 'none';
     if (periodWrap) periodWrap.style.display = 'none';
     // Explain the empty state in the (visible) notice element. The old message lived inside the

@@ -775,14 +775,17 @@
       content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       font-size: 12px; opacity: .5; pointer-events: none;
     }
-    /* Award context strip at the top of the back-pay card — the card's key fact (which award,
-       backdated from, paid when), styled as a neutral navy info strip rather than a plain hint
-       (mirrors .backpay-notice geometry; navy = informational, gold = warning). (v18.00) */
+    /* The STORY strip leading the back-pay card (v18.00 as the award-context line; promoted to the
+       card's lead narrative v18.39 — which award, paid from which payslip, backdated to which
+       1 April, and this member's rough £, written live by calcBackPay via bpStoryHtml). Navy info
+       voice (mirrors .backpay-notice geometry; navy = informational, gold = warning); one type step
+       up from a hint because it now IS the card's message, not context for it. */
     .bp-award-scope {
-      font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
-      border-left: 3px solid var(--primary-blue); padding: 8px 10px;
-      background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; margin-bottom: 12px;
+      font-size: var(--type-label); color: var(--text-dark); line-height: 1.55;
+      border-left: 3px solid var(--primary-blue); padding: 10px 12px;
+      background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; margin-bottom: 14px;
     }
+    .bp-award-scope .bp-story-amt { color: var(--primary-blue); font-weight: 700; }
     .bp-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 8px 0; border-bottom: 1px solid var(--border-light); font-size: var(--type-label);
