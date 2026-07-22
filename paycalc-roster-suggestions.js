@@ -112,13 +112,15 @@ const _fmtOt = (/** @type {any} */ m) => { const h = Math.floor(m / 60), mm = m 
 export async function fetchOverridesForPeriod(p, memberName) {
   const thisToken = _overrideFetchToken;
   try {
-    // Query by date range only, then filter memberName client-side. This avoids the
-    // composite (memberName + date) index requirement and matches the pattern used by
-    // calendar-app.js fetchOverridesForRange — proven to work across the user base. A 28-day
-    // period returns at most a few hundred docs across the whole team, which is well
-    // within Firestore's per-query limits and adds negligible bandwidth.
+    // Narrowed to THIS member (v18.24): the old date-range-only query downloaded every
+    // member's overrides for the 28-day period on each period change, then filtered to the
+    // logged-in member client-side — the over-broad-read half of the AL-stats slow-load
+    // (calendar-al-lightbox.js v18.23). The (memberName ASC, date ASC) composite index this
+    // shape needs is declared in firestore.indexes.json and deployed by deploy-rules.yml
+    // (added for the AL fix), so the original "avoids the index requirement" rationale is gone.
     const q = query(
       collection(db, COLLECTIONS.overrides),
+      where('memberName', '==', memberName),
       where('date', '>=', formatISO(p.start)),
       where('date', '<=', formatISO(p.cutoff))
     );

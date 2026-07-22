@@ -578,7 +578,7 @@ Pure functions only — no DOM, no Firebase, no localStorage.
 Owns the override cache and the suggestion engine. No DOM access.
 - Private state: `_overridesByDate`, `_overrideFetchToken`, `_overridesFetchState`
 - `resetOverrides(newState)` — called by `onPeriodChange` on every period switch
-- `fetchOverridesForPeriod(p, memberName)` — async Firestore fetch, returns Promise
+- `fetchOverridesForPeriod(p, memberName)` — async Firestore fetch, returns Promise. Member-narrowed query (v18.24 — `where('memberName','==',…)` + the 28-day date range) using the `(memberName ASC, date ASC)` composite index; previously date-range-only + client-side member filter (the over-broad-read anti-pattern the AL-stats fix retired)
 - `getRosterSuggestion(p, member)` — merges base roster + overrides, returns categorised totals; member is passed by caller (no localStorage access)
 - `getOverridesFetchState()` — returns the current async-fetch state (`checking`/`base-only`/`loaded`) for the suggestion UI
 - `bhsForYear(year)` — bank-holiday date set for a year; also imported by `paycalc-periods.js`
