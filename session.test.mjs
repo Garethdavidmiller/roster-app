@@ -70,7 +70,7 @@ const {
 } = await import('./session.js');
 const { nameToEmail, auth } = await import('./firebase-client.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
-const { getAuthSnapshot, _resetAuthState } = await import('./auth-state.js');
+const { getAuthSnapshot, _resetAuthStateForTest } = await import('./auth-state.js');
 const { CONFIG } = await import('./roster-data.js');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -506,7 +506,7 @@ describe('auth-store bridge (Phase 2)', () => {
     beforeEach(() => {
         _existingUser = null; _signInBehavior = 'ok'; _createBehavior = 'ok'; _anonBehavior = 'ok';
         _signOutCalled = false; _createCalled = false; _anonCalled = false; _signInCalls = 0;
-        _resetAuthState();
+        _resetAuthStateForTest();
     });
     afterEach(() => { CONFIG.ENFORCE_NAMED_SESSION = false; });
 

@@ -1182,7 +1182,7 @@
         .team-help-btn:focus-visible {
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+            box-shadow: 0 0 0 4px var(--focus-ring-color);
         }
         .tv-current-badge {
             display: inline-block;
@@ -1234,7 +1234,7 @@
         .tv-today-btn:focus-visible {
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+            box-shadow: 0 0 0 4px var(--focus-ring-color);
         }
         .tv-empty {
             text-align: center;
@@ -1280,7 +1280,7 @@
         .grade-tab:focus-visible {
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+            box-shadow: 0 0 0 4px var(--focus-ring-color);
         }
         .team-week-row {
             display: flex;
@@ -1336,7 +1336,7 @@
         .tv-week-nav:focus-visible {
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+            box-shadow: 0 0 0 4px var(--focus-ring-color);
         }
         .team-table-wrap {
             overflow-x: auto;

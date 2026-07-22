@@ -297,7 +297,7 @@ function renderCalendar() {
         }
 
     } catch (error) {
-        console.error('Error rendering calendar:', error);
+        console.error('[calendar] Error rendering calendar:', error);
         const calendarDisplay = document.getElementById('calendarDisplay');
         if (calendarDisplay) {
             const errDiv = document.createElement('div');
@@ -765,7 +765,7 @@ try {
         });
 
 } catch (error) {
-    console.error('Initialization error:', error);
+    console.error('[calendar] Initialization error:', error);
     // Always hide the splash — an error banner is more useful than an infinite loading screen
     const splashEl = document.getElementById('splash');
     if (splashEl) splashEl.remove();

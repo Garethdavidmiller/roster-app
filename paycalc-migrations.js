@@ -365,7 +365,7 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
                     }
                 }
                 if (changed) lsSet(periodKey(p.num), JSON.stringify(d));
-            } catch(e) { console.warn('paycalc-migrations: pension patch failed for period', p.num, e); }
+            } catch(e) { console.warn('[paycalc-migrations] pension patch failed for period', p.num, e); }
         });
         lsSet('myb_pc_pension_v882_migrated', '1');
     }

@@ -156,7 +156,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
                 calendarDisplay.appendChild(nextPanel);
             }
         } catch (err) {
-            console.error('Failed to pre-build adjacent panels:', err);
+            console.error('[calendar-swipe] Failed to pre-build adjacent panels:', err);
             discardPanels();
         }
     });
@@ -261,7 +261,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
                 current.style.willChange = '';
                 _swipeCooldown = false;
                 _gestureActive = false;
-                console.warn('Swipe commit: incomingPanel was null, aborting without state change');
+                console.warn('[calendar-swipe] Swipe commit: incomingPanel was null, aborting without state change');
                 return;
             }
 

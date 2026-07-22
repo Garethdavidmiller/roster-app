@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '18.25';
+export const APP_VERSION = '18.27';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -423,7 +423,7 @@ const SPECIAL_BANK_HOLIDAYS = [
 /** @param {any} year */
 function calculateBankHolidays(year) {
     if (year < CONFIG.MIN_YEAR || year > CONFIG.MAX_YEAR) {
-        console.warn(`calculateBankHolidays: year ${year} is outside supported range (${CONFIG.MIN_YEAR}–${CONFIG.MAX_YEAR}). Returning empty list.`);
+        console.warn(`[roster-data] calculateBankHolidays: year ${year} is outside supported range (${CONFIG.MIN_YEAR}–${CONFIG.MAX_YEAR}). Returning empty list.`);
         return [];
     }
     const holidays = [];
@@ -565,7 +565,7 @@ export function getPaydaysAndCutoffs(year) {
         while (new Date(currentMs).getFullYear() < year) {
             currentMs += CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
             if (++advanceGuard > 1000) {
-                console.warn('getPaydaysAndCutoffs: exceeded loop guard advancing to year', year, '— check FIRST_PAYDAY in CONFIG.');
+                console.warn('[roster-data] getPaydaysAndCutoffs: exceeded loop guard advancing to year', year, '— check FIRST_PAYDAY in CONFIG.');
                 break;
             }
         }
@@ -573,7 +573,7 @@ export function getPaydaysAndCutoffs(year) {
         let cycleGuard = 0;
         while (new Date(currentMs).getFullYear() === year) {
             if (++cycleGuard > 100) {
-                console.warn('getPaydaysAndCutoffs: exceeded cycle guard for year', year, '— check PAYDAY_INTERVAL_DAYS in CONFIG.');
+                console.warn('[roster-data] getPaydaysAndCutoffs: exceeded cycle guard for year', year, '— check PAYDAY_INTERVAL_DAYS in CONFIG.');
                 break;
             }
             const raw = new Date(currentMs);
@@ -672,10 +672,10 @@ export function validateRosterPatterns() {
             for (const day of DAYS) {
                 const shift = /** @type {Record<string, any>} */ (days)[day];
                 if (shift === undefined) {
-                    console.error(`validateRosterPatterns: ${rosterName} week ${week} is missing day '${day}'`);
+                    console.error(`[roster-data] validateRosterPatterns: ${rosterName} week ${week} is missing day '${day}'`);
                     errors++;
                 } else if (!VALID_KEYWORDS.has(shift) && !SHIFT_RE.test(shift)) {
-                    console.error(`validateRosterPatterns: ${rosterName} week ${week} ${day} has invalid value '${shift}' — expected RD/OFF/SPARE/AL/RDW or HH:MM-HH:MM`);
+                    console.error(`[roster-data] validateRosterPatterns: ${rosterName} week ${week} ${day} has invalid value '${shift}' — expected RD/OFF/SPARE/AL/RDW or HH:MM-HH:MM`);
                     errors++;
                 }
             }
@@ -764,7 +764,7 @@ export function getShiftClass(timeStr) {
     // for every grammar form ('TRG', 'IND RDW', 'ASSESS 08:00-16:00', ...).
     if (isOtherValue(timeStr)) return 'other-day';
     if (!SHIFT_TIME_REGEX.test(timeStr)) {
-        console.warn(`Unknown shift value: "${timeStr}" — rendered as unknown-day`);
+        console.warn(`[roster-data] Unknown shift value: "${timeStr}" — rendered as unknown-day`);
         return 'unknown-day';
     }
     if (isNightShift(timeStr)) return 'night-shift';
@@ -877,7 +877,7 @@ export function getWeekNumberForDate(date, member) {
  */
 export function getRosterForMember(member, date) {
     if (!member) {
-        console.error('getRosterForMember called with null/undefined member');
+        console.error('[roster-data] getRosterForMember called with null/undefined member');
         return { type: 'main', data: weeklyRoster, cycleLength: CONFIG.MAIN_ROSTER_WEEKS, weekPrefix: 'CEA Week' };
     }
     if (date) member = resolveMemberRoster(member, date);

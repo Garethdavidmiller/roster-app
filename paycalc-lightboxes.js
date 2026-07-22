@@ -135,7 +135,7 @@ export function initPaycalcLightboxes() {
           title:   'Enter your Year to Date figures',
           section: 'Pay',
           date:    NOTICE_DATE,
-          body:    'Open ⚙️ Your Settings and copy your Taxable Pay and Tax Paid from the Year to Date box on your most recent payslip, for accurate tax estimates.',
+          body:    'Open the 📊 Year to Date Figures card and copy your Taxable Pay and Tax Paid from the Year to Date box on your most recent payslip, for accurate tax estimates.',
         });
         lsSet(NOTICE_YTD_KEY, '1');
       },

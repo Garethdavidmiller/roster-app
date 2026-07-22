@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * paycalc-format.js — shared date/currency formatters for paycalc modules.
  * Pure: no DOM, no Firebase, no side effects. Imported by paycalc-app.js and paycalc-backpay.js.
