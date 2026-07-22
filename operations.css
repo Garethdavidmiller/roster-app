@@ -901,6 +901,13 @@ select:focus-visible, input:focus-visible {
     color: var(--text-mid);
     margin: 0 0 8px;
 }
+/* Second group ("Documents & guides — opens") — a clear divider so the two bar
+   groups don't read as one continuous list. */
+.usage-section-label--sub {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-light);
+}
 .usage-bars {
     display: flex;
     flex-direction: column;

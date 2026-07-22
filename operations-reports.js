@@ -296,10 +296,11 @@ async function initUsageCard() {
         heading.className = 'usage-section-label';
         const popBody = document.createElement('div');
 
-        /** Build one bar list (page views or opens); each list scales to its own max.
-         * @param {Array<{page:string,count:number}>} items @param {Record<string,{emoji:string,label:string}>} metaMap */
-        const _bars = (items, metaMap) => {
-            const max = items[0].count || 1;
+        /** Build one bar list (page views or opens). Both groups share ONE scale (`max`)
+         * so a document opened once shows a proportional sliver, not a full-width bar as
+         * long as the busiest page — bar length stays honest across the whole card.
+         * @param {Array<{page:string,count:number}>} items @param {Record<string,{emoji:string,label:string}>} metaMap @param {number} max */
+        const _bars = (items, metaMap, max) => {
             const list = document.createElement('div');
             list.className = 'usage-bars';
             items.forEach(({ page, count }) => {
@@ -337,13 +338,15 @@ async function initUsageCard() {
                 popBody.appendChild(none);
                 return;
             }
-            if (counts.length) popBody.appendChild(_bars(counts, PAGE_META));
+            // One shared scale across both groups (busiest count anywhere on the card).
+            const scaleMax = Math.max(counts[0]?.count || 0, opens[0]?.count || 0) || 1;
+            if (counts.length) popBody.appendChild(_bars(counts, PAGE_META, scaleMax));
             if (opens.length) {
                 const openLbl = document.createElement('p');
-                openLbl.className = 'usage-section-label';
+                openLbl.className = 'usage-section-label usage-section-label--sub';
                 openLbl.textContent = 'Documents & guides — opens';
                 popBody.appendChild(openLbl);
-                popBody.appendChild(_bars(opens, OPEN_META));
+                popBody.appendChild(_bars(opens, OPEN_META, scaleMax));
             }
         };
 
