@@ -111,3 +111,35 @@ export function buildBreakdownRows(d) {
         bd += `<div class="bd-row bd-extra"><span class="b-lbl">Holiday Pay Premium${_hppIsEstimate ? ' (estimated)' : ''}</span><span class="b-val">+${fmt(_hppForPeriod)}</span></div>`;
     return bd;
 }
+
+/**
+ * The "check against your payslip" verdict line (v18.42 — review item 3): the member types the
+ * take-home printed on a PAID payslip and this states, calmly, how close the estimate is —
+ * self-serve trust in the maths, and a way to catch their own entry mistakes. Pure; returns ''
+ * with no figure entered (quiet default).
+ *
+ * Bands (|actual − estimated|):
+ *   < 1p   → exact match
+ *   ≤ £2   → within the expected cumulative-PAYE rounding (the payslip-regression tolerance —
+ *            payroll computes tax cumulatively, the estimate per period)
+ *   ≤ £25  → close; usually a tax adjustment — pointing at the Year to Date card
+ *   larger → check hours / absence / back pay / payroll corrections (the documented
+ *            less-accurate cases from the result card's own caveat)
+ *
+ * @param {number} actual    take-home printed on the payslip (0/absent → '')
+ * @param {number} estimated the app's take-home for the same payslip
+ * @returns {string}
+ */
+export function buildActualCheck(actual, estimated) {
+    if (!(actual > 0)) return '';
+    const diff = actual - estimated;
+    const ad   = Math.abs(diff);
+    if (ad < 0.005)
+        return `<div class="check-actual-line check-ok">✓ Matches your payslip exactly.</div>`;
+    if (ad <= 2)
+        return `<div class="check-actual-line check-ok">✓ Matches your payslip to within ${fmt(ad)} — the expected rounding from payroll's cumulative tax method.</div>`;
+    const dir = diff > 0 ? 'more' : 'less';
+    if (ad <= 25)
+        return `<div class="check-actual-line check-near">Close — your payslip pays ${fmt(ad)} ${dir} than this estimate. Small gaps usually come from tax adjustments; entering your Year to Date figures sharpens the next estimate.</div>`;
+    return `<div class="check-actual-line check-near">Your payslip pays ${fmt(ad)} ${dir} than this estimate. Check this payslip's hours are complete, and look for absence, back pay or a payroll correction on it.</div>`;
+}

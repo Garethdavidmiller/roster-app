@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtHrsMins, buildSummaryRows, buildBreakdownRows } from './paycalc-breakdown.js';
+import { fmtHrsMins, buildSummaryRows, buildBreakdownRows, buildActualCheck } from './paycalc-breakdown.js';
 
 test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
     assert.equal(fmtHrsMins(8), '8h');
@@ -128,4 +128,21 @@ test('buildBreakdownRows: SL repaid-in-full note (v18.41) — active plan only, 
         'repaid outranks the one-off skip — one note, not two');
     assert.ok(!buildBreakdownRows({ ...BD_BASE, plan: 'plan1' }).includes('repaid in full'),
         'omitted param defaults to still-repaying');
+});
+
+// "Check against your payslip" verdict (v18.42 — review item 3). Bands are the documented
+// tolerances: ≤£2 = the cumulative-PAYE drift the payslip regression allows; larger gaps point at
+// the known less-accurate cases rather than alarming.
+test('buildActualCheck: quiet when empty; band boundaries; direction named', () => {
+    assert.equal(buildActualCheck(0, 2900), '', 'no figure → nothing rendered');
+    assert.match(buildActualCheck(2900, 2900), /Matches your payslip exactly/);
+    assert.match(buildActualCheck(2901.50, 2900), /within £1\.50/, 'inside the £2 rounding band');
+    assert.match(buildActualCheck(2901.50, 2900), /check-ok/);
+    const near = buildActualCheck(2910, 2900);
+    assert.match(near, /£10\.00 more/, 'direction: payslip pays more');
+    assert.match(near, /Year to Date/, 'points at the sharpening lever');
+    const far = buildActualCheck(2800, 2900);
+    assert.match(far, /£100\.00 less/, 'direction: payslip pays less');
+    assert.match(far, /absence, back pay or a payroll correction/);
+    assert.ok(!/check-ok/.test(far), 'a large gap is not a green line');
 });

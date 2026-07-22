@@ -54,8 +54,8 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
-import { fd, fdShort, fdLong, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
-import { buildSummaryRows, buildBreakdownRows } from './paycalc-breakdown.js';
+import { fd, fdShort, fdLong, fdList, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
+import { buildSummaryRows, buildBreakdownRows, buildActualCheck } from './paycalc-breakdown.js';
 
 /**
  * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
@@ -142,7 +142,7 @@ export function init() {
 
     // Period data schema — all fields that get saved per period
     function emptyPeriodData() {
-      return { satH:0, satM:0, bhH:0, bhM:0, bhOtH:0, bhOtM:0, otH:0, otM:0, rdwH:0, rdwM:0, sunH:0, sunM:0, boxH:0, boxM:0, peer:0, slSkip:false, otherAdj:0 };
+      return { satH:0, satM:0, bhH:0, bhM:0, bhOtH:0, bhOtM:0, otH:0, otM:0, rdwH:0, rdwM:0, sunH:0, sunM:0, boxH:0, boxM:0, peer:0, slSkip:false, otherAdj:0, actualNet:null };
     }
 
     // ── DATE/CURRENCY HELPERS — imported from paycalc-format.js ──────────────────
@@ -594,6 +594,10 @@ export function init() {
         // ~£147. null (empty OR garbage) means "not provided" → the period default is re-applied on
         // load; a genuine typed "0" parses to 0 and is preserved (the deliberate opt-out).
         pension:  (() => { const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt')); return (_el && _el.value.trim() !== '') ? parseSmartFloatOrNull(_el.value) : null; })(),
+        // Real take-home from the payslip (v18.42 — review item 3): null when blank/garbage, like
+        // pension — mid-edit autosaves must not store a phantom £0 "actual". Deliberately NOT in
+        // isDataEmpty: a period with only this figure has no hours to compute from.
+        actualNet: (() => { const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput')); return (_el && _el.value.trim() !== '') ? parseSmartFloatOrNull(_el.value) : null; })(),
       };
     }
 
@@ -618,6 +622,8 @@ export function init() {
       // Loose != null so that pension = 0 (salary sacrifice opted out) is preserved correctly.
       const pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
       if (pa && d.pension != null) pa.value = d.pension;
+      const an = /** @type {HTMLInputElement | null} */ (document.getElementById('actualNetInput'));
+      if (an) an.value = d.actualNet != null ? d.actualNet : '';
     }
 
     function updateAdjSign() {
@@ -1040,6 +1046,19 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('payslipNote')).style.display = 'block';
       /** @type {HTMLElement} */ (document.getElementById('absenceCaveat')).style.display = 'block';
 
+      // Check against the real payslip (v18.42 — review item 3): PAID payslips only (a future one
+      // has nothing to compare), verdict from the pure builder. The input autosaves in this
+      // period's blob (actualNet), so each payslip keeps its own figure.
+      const _caWrap = document.getElementById('checkActualWrap');
+      if (_caWrap) {
+        const _caPaid = _curP.payday <= new Date();
+        _caWrap.hidden = !_caPaid;
+        const _caEl = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput'));
+        const _caActual = _caPaid ? Math.max(0, parseSmartFloat(_caEl?.value ?? '') || 0) : 0;
+        const _caV = document.getElementById('actualVerdict');
+        if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net);
+      }
+
       // Result markup is built by the two pure builders in paycalc-breakdown.js (review item 20) —
       // params are shorthand so field name === local name (see that module). calculate() keeps the
       // DOM read + pay maths; the string-building lives beside its unit tests.
@@ -1201,6 +1220,8 @@ export function init() {
         row('Taxable pay', y.taxable) + row('Tax', y.tax) + row('National Insurance', y.ni) +
         (y.sl > 0 ? row('Student Loan', y.sl) : '') +
         row('Take-home', y.net) +
+        // Paid-but-empty payslips are NAMED (v18.42 — review item 2) so "N of M" is actionable.
+        (y.missing.length ? `<div class="yearso-proj">Not entered yet: ${fdList(y.missing)}.</div>` : '') +
         // The projection is deliberately labelled rough — it assumes the rest of the year looks
         // like the entered payslips (premiums vary period to period).
         `<div class="yearso-proj">If the rest of ${ty.label} looks similar: take-home ≈ <strong>${fmt(y.projectedNet)}</strong> for the year (rough — based on your entered payslips).</div>` +
@@ -1452,6 +1473,9 @@ export function init() {
     ['bhM','bhOtM','otM','rdwM','sunM','boxM'].forEach(/** @param {string} id */ id => {
       /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', () => { clampMins(id); autosave(); });
     });
+    // Payslip self-check figure (v18.42) — persists with the period like every other field;
+    // autosave() recalculates, which re-renders the verdict.
+    document.getElementById('actualNetInput')?.addEventListener('input', autosave);
 
     // Decimal auto-correction — if someone types "7.5" into an hours field, split it
     // into 7h 30m on blur instead of silently truncating to 7. A live "= 7h 30m"

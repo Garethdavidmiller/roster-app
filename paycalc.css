@@ -641,6 +641,24 @@
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
       border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 6px;
     }
+    /* "Check against your payslip" (v18.42 — review item 3): a quiet self-check at the foot of the
+       result card — separated by a hairline, input at 16px (iOS focus-zoom floor), verdict lines in
+       the calm status voices (green = matches; neutral = investigate — never red, a mismatch is
+       information, not an error). */
+    .check-actual {
+      border-top: 1px solid var(--border-light); margin: 12px 16px 0; padding-top: 12px;
+    }
+    .check-actual .pfx { max-width: 240px; margin-top: 6px; }
+    .check-actual input {
+      width: 100%; font-size: var(--type-medium); padding: 8px 10px 8px 26px;
+      border: 1px solid var(--border-mid); border-radius: var(--radius-sm);
+      background-color: var(--field-bg);
+    }
+    .check-actual input:focus-visible { background-color: white; outline: 2px solid var(--primary-blue); outline-offset: 1px; }
+    .check-actual-line {
+      font-size: var(--type-small); line-height: 1.5; margin: 8px 0 12px; color: var(--text-mid);
+    }
+    .check-actual-line.check-ok { color: var(--success-text); font-weight: 600; }
 
     /* First-run banner */
     .setup-banner {

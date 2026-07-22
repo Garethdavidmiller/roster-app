@@ -18,7 +18,7 @@ import { getLoggedMember, getGrade, getEffectiveContr, getPensionDefault, getSto
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
-import { fmt } from './paycalc-format.js';
+import { fmt, fdList } from './paycalc-format.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
 
@@ -295,7 +295,7 @@ function _renderHppManual(ty, mode) {
  *
  * @param {any} ty @param {any[]} allPeriods
  * @returns {{ hpp: number, totalVar: number, pCount: number, usingActuals: boolean,
- *             skipped: number[], total: number }}
+ *             skipped: number[], total: number, missingPaid: Date[] }}
  */
 function _hoursEstimate(ty, allPeriods) {
   const rate    = getStoredRateForYear(ty);
@@ -308,6 +308,10 @@ function _hoursEstimate(ty, allPeriods) {
   let pCount       = 0;
   let usingActuals = false;
   const skipped = /** @type {number[]} */ ([]);   // periods whose saved data couldn't be read — surfaced, never dropped silently
+  // Paid payslips with NO saved hours (v18.42 — review item 2): named on the card so "4 of 13"
+  // becomes actionable. Only PAID paydays — a future payslip isn't "missing", it hasn't happened.
+  const missingPaid = /** @type {Date[]} */ ([]);
+  const _now = new Date();
   // Device-local payslip actuals (G. Miller only; imported once per device, never served).
   // When a period has real figures, its actual varPay is used instead of the entered-hours
   // estimate — read once here, not per period.
@@ -325,11 +329,12 @@ function _hoursEstimate(ty, allPeriods) {
 
       const parsed = readSavedPeriod(p.num);
       if (parsed.error) { skipped.push(p.num); console.warn('[PayCalc] HPP corrupt period', p.num); return; }
-      if (!parsed.data) return;
-      const d = parsed.data;
-      if (isDataEmpty(d)) return;
+      if (!parsed.data || isDataEmpty(parsed.data)) {
+        if (p.payday <= _now) missingPaid.push(p.payday);
+        return;
+      }
       pCount++;
-      totalVar += _varPayForPeriod(p, d, rate);
+      totalVar += _varPayForPeriod(p, parsed.data, rate);
     } catch (e) {
       // A corrupt saved period must not abort the whole estimate, but dropping it silently would
       // under-state the premium — record it (surfaced by calcHPP) and trace it.
@@ -338,7 +343,7 @@ function _hoursEstimate(ty, allPeriods) {
     }
   });
 
-  return { hpp: totalVar * HPP_FRACTION, totalVar, pCount, usingActuals, skipped, total: periods.length };
+  return { hpp: totalVar * HPP_FRACTION, totalVar, pCount, usingActuals, skipped, total: periods.length, missingPaid };
 }
 
 /**
@@ -444,9 +449,13 @@ export function calcHPP() {
         ? `All ${pCount} payslips of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
         : `${pCount} of ${_total} payslip${_total !== 1 ? 's' : ''} entered · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
       // Clean partial (no unreadable periods): nudge the member that the estimate isn't the
-      // full-year figure yet. (When periods were skipped, the "may be too low" warning below covers it.)
+      // full-year figure yet, NAMING the paid payslips still empty so "N of M" is actionable
+      // (v18.42 — review item 2). All paid payslips entered → say so; only future ones remain.
       if (!usingActuals && _skipped.length === 0 && pCount < _total) {
-        basisEl.innerHTML += ` <span class="hpp-partial-hint">For the full-year figure, fill in your hours on each payslip of the year.</span>`;
+        const _miss = hoursRes.missingPaid;
+        basisEl.innerHTML += ` <span class="hpp-partial-hint">${_miss.length
+          ? `Not entered yet: ${fdList(_miss)}. For the full-year figure, fill in your hours on each payslip of the year.`
+          : `You're up to date — later payslips join the estimate as the year goes on.`}</span>`;
       }
     }
     // A corrupt saved period was excluded, so this premium may be too low — surface it rather than

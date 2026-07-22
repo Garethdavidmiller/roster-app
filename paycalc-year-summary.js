@@ -39,10 +39,12 @@ import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
  *   touches no DOM). `slPaidOffFromP` is the loan-repaid cutover (p.num of the first payslip
  *   without a deduction, 0/absent = still repaying — item 9). `now` is injectable for tests.
  * @returns {{ entered: number, paid: number, total: number, taxable: number, tax: number,
- *             ni: number, sl: number, net: number, projectedNet: number, skipped: number }}
+ *             ni: number, sl: number, net: number, projectedNet: number, skipped: number,
+ *             missing: Date[] }}
  *   entered — paid payslips with saved hours; paid — payslips whose payday has passed;
  *   total — the year's payslip count (the projection base); money fields — sums over `entered`;
- *   projectedNet — (net ÷ entered) × total, 0 when nothing is entered; skipped — corrupt periods.
+ *   projectedNet — (net ÷ entered) × total, 0 when nothing is entered; skipped — corrupt periods;
+ *   missing — paydays of PAID payslips with no saved hours (named on the card — item 2).
  */
 export function computeYearSoFar(ty, opts) {
   const now         = opts.now || new Date();
@@ -57,12 +59,13 @@ export function computeYearSoFar(ty, opts) {
   const paidPeriods = yearPeriods.filter(/** @param {any} p */ p => p.payday <= now);
 
   let entered = 0, taxable = 0, tax = 0, ni = 0, sl = 0, net = 0, skipped = 0;
+  const missing = /** @type {Date[]} */ ([]);
 
   for (const p of paidPeriods) {
     try {
       const parsed = readSavedPeriod(p.num);
       if (parsed.error) { skipped++; console.warn('[PayCalc] Year-so-far corrupt period', p.num); continue; }
-      if (!parsed.data || isDataEmpty(parsed.data)) continue;   // not entered — not an error
+      if (!parsed.data || isDataEmpty(parsed.data)) { missing.push(p.payday); continue; }   // not entered — not an error
       const d = parsed.data;
       const h = _decodeHours(p, d);
 
@@ -107,6 +110,6 @@ export function computeYearSoFar(ty, opts) {
     entered, paid: paidPeriods.length, total: yearPeriods.length,
     taxable, tax, ni, sl, net,
     projectedNet: entered > 0 ? (net / entered) * yearPeriods.length : 0,
-    skipped,
+    skipped, missing,
   };
 }

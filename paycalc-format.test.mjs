@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fd, fdShort, fdLong, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
+import { fd, fdShort, fdLong, fdList, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
 
 test('clampMinute clamps into [0, 59]', () => {
     assert.equal(clampMinute(0), 0);
@@ -57,4 +57,14 @@ test('fd / fdShort / fdLong are three distinct en-GB variants', () => {
     assert.equal(fdLong(d),  '3 Jul 2026');   // full year — the payday / joined-on / printed-on form
     assert.equal(fd(d),      '3 Jul 26');     // 2-digit year
     assert.equal(fdShort(d), '3 Jul');        // no year
+});
+
+// Capped payday list for "these payslips are missing" copy (v18.42 — review item 2).
+test('fdList joins paydays, capping with an explicit overflow count', () => {
+    const ds = [new Date(2026, 5, 5), new Date(2026, 6, 3), new Date(2026, 6, 31), new Date(2026, 7, 28), new Date(2026, 8, 25), new Date(2026, 9, 23)];
+    assert.equal(fdList([]), '');
+    assert.equal(fdList(ds.slice(0, 2)), '5 Jun, 3 Jul');
+    assert.equal(fdList(ds.slice(0, 4)), '5 Jun, 3 Jul, 31 Jul, 28 Aug', 'exactly at the cap — no overflow tail');
+    assert.equal(fdList(ds), '5 Jun, 3 Jul, 31 Jul, 28 Aug and 2 more', 'over the cap — count says how many are hidden');
+    assert.equal(fdList(ds, 2), '5 Jun, 3 Jul and 4 more', 'custom cap');
 });
