@@ -237,7 +237,16 @@ function _renderHppManual(ty, mode) {
       if (basisEl)  basisEl.textContent  = 'Fill in the Year to Date Figures card above (Taxable Pay) to use this';
       return;
     }
-    const { nonPremium } = _expectedNonPremiumYtd(ty);
+    const { nonPremium, count } = _expectedNonPremiumYtd(ty);
+    // Zero covered periods (a tax year that hasn't started yet — reachable once next year is added
+    // to TAX_YEARS ahead of April, as each new award year is): nonPremium would be 0 and the WHOLE
+    // Taxable Pay would be presented as premium — wildly overstated. Refuse to estimate instead.
+    if (count === 0) {
+      lsDel(hppEstKey(ty));
+      if (amountEl) amountEl.textContent = '£–';
+      if (basisEl)  basisEl.textContent  = `No ${ty.label} payslips have been paid yet, so there's nothing to estimate from — try again once the year is under way.`;
+      return;
+    }
     const extra = Math.max(0, taxable - nonPremium);
     const hpp   = hppFromYtdTaxable(taxable, nonPremium);
     if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2)); else lsDel(hppEstKey(ty));
