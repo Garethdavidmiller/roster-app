@@ -40,7 +40,7 @@ function _loadPurify() {
 import { subscribeToLatestHuddle, isSafeStorageUrl } from './firebase-client.js';
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus } from './overlay.js';
 import { recordOpen } from './usage-reporter.js';
-import { getCurrentMember } from './calendar-member.js';
+import { getCurrentMember, isFirstRun } from './calendar-member.js';
 
 // Module-level state — set once at startup and survives the page lifetime.
 /** @type {any} */
@@ -89,6 +89,13 @@ export function initHuddleViewer() {
     let _autoOpen = window.location.hash === '#huddle';
     if (_autoOpen) history.replaceState(null, '', window.location.pathname);
     let _autoOpened = false;
+    // Open-counter arming (v18.22): one count per user open GESTURE (#huddle arrival), consumed by
+    // the first _triggerAutoOpen it produces. Counting inside _triggerAutoOpen unconditionally
+    // (v18.20) double-counted the COMMON notification path: the cache-first snapshot renders the
+    // previous huddle (count 1), then the server snapshot delivers the new one and the stale-viewer
+    // refresh branch re-triggers (count 2) — one tap, two increments. It also counted an admin
+    // re-upload landing while a viewer was open (zero user action).
+    let _openCountPending = _autoOpen;
 
     /** @type {any} */
     let _viewerFocusReturn = null;
@@ -187,10 +194,15 @@ export function initHuddleViewer() {
     function _triggerAutoOpen(huddle) {
         _autoOpened = true;
         try {
-            // Anonymous open-counter (v18.20; admin-excluded via the selected member — the
-            // calendar has no session). One count per user open: hashchange resets _autoOpened,
-            // and the subscription only re-triggers while it is false.
-            recordOpen('huddle', getCurrentMember()?.name ?? null);
+            // Anonymous open-counter — consumed once per gesture (see _openCountPending above).
+            // Identity for the admin exclusion: the selected member, EXCEPT on a first-run device
+            // where the selection is only the DEFAULT member (the developer) — excluding on that
+            // would silently drop every fresh visitor's opens (the same trap the recordUsage call
+            // site documents; v18.22 review fix).
+            if (_openCountPending) {
+                _openCountPending = false;
+                recordOpen('huddle', isFirstRun() ? null : getCurrentMember()?.name ?? null);
+            }
             if (huddle.htmlContent) {
                 // DOCX converted to HTML server-side — render inline.
                 showInlineHuddle(huddle);
@@ -212,6 +224,7 @@ export function initHuddleViewer() {
         history.replaceState(null, '', window.location.pathname);
         _autoOpen   = true;
         _autoOpened = false;
+        _openCountPending = true;   // a fresh user gesture — arm one open count (v18.22)
         if (_huddleState === 'ready' && _huddleData) _triggerAutoOpen(_huddleData);
     });
 

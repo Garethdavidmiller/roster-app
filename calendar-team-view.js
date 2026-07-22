@@ -450,7 +450,16 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         // missing notification that stranded an early team-view open on a base-roster grid
         // (this view's own week fetch then found the cache already matching its snapshot and
         // skipped ITS re-render — both notifiers stood down). skipFetch avoids a redundant
-        // query and any fetch↔render loop.
-        refreshFromCache: () => { if (teamViewMode) renderTeamView(currentTeamGrade, { skipFetch: true }); },
+        // query and any fetch↔render loop. Focus preservation (v18.22): same v16.69 pattern as
+        // the week-fetch re-render above — this async repaint can land right after a keyboard
+        // navigation restored focus, and without capture/restore it dropped focus to <body>.
+        refreshFromCache: () => {
+            if (!teamViewMode) return;
+            const _display  = document.getElementById('calendarDisplay');
+            const _activeId = document.activeElement instanceof HTMLElement
+                && _display?.contains(document.activeElement) ? document.activeElement.id : null;
+            renderTeamView(currentTeamGrade, { skipFetch: true });
+            if (_activeId) document.getElementById(_activeId)?.focus({ preventScroll: true });
+        },
     };
 }

@@ -1174,8 +1174,12 @@ export function renderTable() {
     }
     // Header context chip (v18.16): the count at a glance while the card is collapsed. Mirrors the
     // list's current view (member/month filter); empty at zero — the :empty rule hides the chip.
+    // "+" when the load hit the query cap (v18.23 — no-silent-caps, matching the Error Log chip's
+    // '100+'): a capped load means older rows exist beyond ANY current view, so a bare number on a
+    // collapsed card would read as exact.
     const countChip = document.getElementById('overridesCountChip');
-    if (countChip) countChip.textContent = rows.length ? String(rows.length) : '';
+    if (countChip) countChip.textContent = rows.length
+        ? String(rows.length) + (_overridesTruncated ? '+' : '') : '';
 
     if (!rows.length) {
         const who = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';

@@ -133,6 +133,10 @@ async function initErrorLog() {
                     // reset their 90-day retention clock and inflate the count.
                     const succeeded = count - failedItems.length;
                     unresolvedShown = failedItems;
+                    // Chip in step with the pruned snapshot (v18.23 review fix — this path bypassed
+                    // _syncResolveAllBtn because it sets its own "✗ N didn't resolve" button text,
+                    // so the header chip stranded on the pre-resolve count).
+                    _setCountChip();
                     allBtn.disabled = false;
                     allBtn.textContent = `✗ ${failedItems.length} didn't resolve — tap to retry`;
                     errStatus.textContent = `${succeeded} resolved, ${failedItems.length} failed`;
@@ -242,6 +246,11 @@ async function initErrorLog() {
 
     } catch (e) {
         console.error('[ErrorLog]', e);
+        // The count is now UNKNOWN — clear the header chip rather than let a pre-failure count
+        // (possibly just resolved server-side) keep advertising on the collapsed card (v18.23
+        // review fix; re-looked-up because _countChip is scoped inside the try).
+        const _chip = document.getElementById('errorLogCountChip');
+        if (_chip) _chip.textContent = '';
         _cardLoadError(content, 'Couldn\'t load error log — check your connection.', initErrorLog);
     } finally {
         content.removeAttribute('aria-busy');
