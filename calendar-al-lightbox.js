@@ -14,6 +14,7 @@ import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getALEntitlement, isSunday, formatISO, paydayForCutoff } from './roster-data.js';
 import { shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
+import { lsGet, lsSet } from './ls.js';
 
 /**
  * Initialise the Annual Leave lightbox and the day-detail lightbox.
@@ -43,6 +44,31 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     onOpen:   () => loadALStats(),
   });
 
+  // Last-known-good stats memo, per member+year (v18.23 — "AL stats quite slow to load"). A
+  // one-shot getDocs is SERVER-first in the Firestore SDK (the persistent cache is only its
+  // offline fallback), so every open previously sat on '…' for a full network round-trip.
+  // Rendering the previous successful result instantly — then refreshing it from the (now
+  // member-narrowed) server query — is the app's stale-while-revalidate/last-good pattern
+  // (team view keeps its last-good grid the same way). Module-local key: not in storage-keys.js
+  // (that file is only for keys shared across files).
+  /** @param {string} name @param {string|number} year */
+  const _alMemoKey = (name, year) => `myb_al_stats_${name}|${year}`;
+
+  /** Paint the four figures + breakdown. One renderer for the memo and fresh paths so they
+   *  can never drift. @param {{ taken:number, booked:number, entitlement:number, breakdown:string|null }} s */
+  function renderALStats(s) {
+    const remaining = s.entitlement - s.taken - s.booked;
+    entEl.textContent    = String(s.entitlement);
+    takenEl.textContent  = String(s.taken);
+    bookedEl.textContent = String(s.booked);
+    remEl.textContent    = String(remaining);
+    remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
+    if (breakdownEl) {
+      breakdownEl.textContent = s.breakdown ?? '';
+      breakdownEl.hidden = s.breakdown == null;
+    }
+  }
+
   // Generation token: a slow load for member A resolving after the user switched to member B (and
   // reopened) must not overwrite B's figures with A's. Each call takes the next gen; a stale one bails.
   let _alLoadGen = 0;
@@ -52,20 +78,32 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     const year    = getDisplayYear();
     const yearStr = String(year);
 
-    yearEl.textContent   = yearStr;
-    takenEl.textContent  = '…';
-    bookedEl.textContent = '…';
-    remEl.textContent    = '…';
-    remEl.className      = 'al-lb-val';   // reset a prior load's low/empty colour so the '…' placeholder isn't stale-tinted red/amber (v16.22)
+    yearEl.textContent = yearStr;
     if (alErrorEl) alErrorEl.hidden = true;
 
     if (!member) {
       takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
+      remEl.className = 'al-lb-val';
       if (breakdownEl) breakdownEl.hidden = true;
       return;
     }
 
-    entEl.textContent = '…';
+    // Instant paint from the last successful load (if any) while the refresh runs; else the
+    // '…' placeholders as before. A malformed memo falls through to placeholders.
+    /** @type {any} */
+    let memo = null;
+    try { memo = JSON.parse(lsGet(_alMemoKey(/** @type {any} */ (member).name, yearStr)) || 'null'); } catch { /* placeholder path */ }
+    const memoShown = !!(memo && Number.isFinite(memo.taken) && Number.isFinite(memo.booked) && Number.isFinite(memo.entitlement));
+    if (memoShown) {
+      renderALStats(memo);
+    } else {
+      takenEl.textContent  = '…';
+      bookedEl.textContent = '…';
+      remEl.textContent    = '…';
+      remEl.className      = 'al-lb-val';   // reset a prior load's low/empty colour so the '…' placeholder isn't stale-tinted red/amber (v16.22)
+      entEl.textContent    = '…';
+      if (breakdownEl) breakdownEl.hidden = true;
+    }
 
     const todayStr = formatISO(new Date());
     /** @type {ReturnType<typeof setTimeout>|undefined} */
@@ -77,8 +115,13 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       /** @type {any[]} */
       const memberOverrides = [];
       const snap = await Promise.race([
+        // Narrowed to THIS member (v18.23): the old date-range-only query downloaded the whole
+        // year of overrides for EVERY member on each open, then filtered client-side — the main
+        // slow-load cause. The (memberName ASC, date ASC) composite index this shape needs is
+        // declared in firestore.indexes.json and deployed by deploy-rules.yml.
         getDocs(query(
           collection(db, COLLECTIONS.overrides),
+          where('memberName', '==', /** @type {any} */ (member).name),
           where('date', '>=', `${yearStr}-01-01`),
           where('date', '<=', `${yearStr}-12-31`)
         )),
@@ -109,30 +152,26 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         }
       }
       const entitlement = getALEntitlement(member, year, memberOverrides);
-      entEl.textContent  = String(entitlement);
-      const remaining = entitlement - taken - booked;
-      takenEl.textContent  = String(taken);
-      bookedEl.textContent = String(booked);
-      remEl.textContent    = String(remaining);
-      remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
-      if (breakdownEl) {
-        // getALEntitlement returns proRatedAL[year] BEFORE the Dispatcher branch, so a pro-rated
-        // dispatcher's entitlement is NOT 22+lieu — the "22 base + N lieu" split would show a
-        // negative lieu figure (e.g. "22 base + -10 BH lieu"). Hide the breakdown for a pro-rated
-        // joining year; it applies again from their first full year (v16.69 review fix).
-        const _proRated = /** @type {any} */ (member).proRatedAL?.[year] !== undefined;
-        if (/** @type {any} */ (member).role === 'Dispatcher' && !_proRated) {
-          const lieu = entitlement - 22;
-          breakdownEl.textContent = `22 base + ${lieu} BH lieu`;
-          breakdownEl.hidden = false;
-        } else {
-          breakdownEl.hidden = true;
-        }
-      }
+      // getALEntitlement returns proRatedAL[year] BEFORE the Dispatcher branch, so a pro-rated
+      // dispatcher's entitlement is NOT 22+lieu — the "22 base + N lieu" split would show a
+      // negative lieu figure (e.g. "22 base + -10 BH lieu"). Hide the breakdown for a pro-rated
+      // joining year; it applies again from their first full year (v16.69 review fix).
+      const _proRated = /** @type {any} */ (member).proRatedAL?.[year] !== undefined;
+      const breakdown = (/** @type {any} */ (member).role === 'Dispatcher' && !_proRated)
+        ? `22 base + ${entitlement - 22} BH lieu` : null;
+      const fresh = { taken, booked, entitlement, breakdown };
+      renderALStats(fresh);
+      // Persist the last-known-good memo so the NEXT open paints instantly (best-effort).
+      lsSet(_alMemoKey(/** @type {any} */ (member).name, yearStr), JSON.stringify(fresh));
     } catch (e) {
       if (myGen !== _alLoadGen) return;   // a newer load superseded this one — don't clobber its result
+      // Memo already on screen → keep the last-good figures silently (the team-view failure
+      // model: no partial/blank clobber, minimal noise) and log for the developer. No memo →
+      // the original visible error state.
+      if (memoShown) { console.warn('[AL lightbox] Refresh failed — keeping last-good stats:', e); return; }
       console.error('[AL lightbox] Failed:', e);
       takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
+      remEl.className = 'al-lb-val';
       if (breakdownEl) breakdownEl.hidden = true;
       if (alErrorEl) alErrorEl.hidden = false;
     } finally {

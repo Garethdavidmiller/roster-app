@@ -125,7 +125,7 @@ Pointer Events swipe carousel for `index.html` — extracted from `calendar-app.
 ### `calendar-al-lightbox.js`
 AL lightbox and day-detail lightbox for `index.html` — extracted from `calendar-app.js` at v13.86.
 - `initCalendarLightboxes()` — initialises both lightboxes; returns `{ openDayDetail, closeALLightbox }`
-- AL lightbox fetches the current member's `annual_leave` overrides from Firestore on open, computes taken/booked/remaining against `getALEntitlement()`; Dispatcher breakdown shown when applicable
+- AL lightbox fetches the current member's `annual_leave` overrides from Firestore on open (member-narrowed query since v18.23 — uses the deployed `(memberName, date)` composite index; the old date-only query downloaded every member's year and was the slow-load cause), computes taken/booked/remaining against `getALEntitlement()`; Dispatcher breakdown shown when applicable. Last-known-good stats memo per member+year (`myb_al_stats_*`, v18.23): painted instantly on open, refreshed by the fetch, kept silently on a failed refresh (team-view failure model) — getDocs is server-first, so without the memo every open waited a full round-trip on '…'
 - Day-detail lightbox surfaces shift label, extras, and override note on touch devices (mirrors hover tooltip content set by `calendar-renderer.js` as `data-detail-*` attributes)
 - Imports: `overlay.js`, `calendar-member.js`, `calendar-state.js`, `firebase-client.js`, `roster-data.js`
 
