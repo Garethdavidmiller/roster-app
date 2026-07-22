@@ -199,6 +199,24 @@
     }
     .net-period { font-size: var(--type-medium); font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
     .net-hint   { font-size: var(--type-label); color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
+    /* Provenance chips (v18.44 — review item 1): quiet on-navy labels naming what's inside the £
+       (the nav drawer's translucent-white chip language). Gold variant = money ADDED to the total
+       (back pay / HPP — the chips worth noticing); neutral = how it was computed. :empty hides the
+       row entirely, so a normal payslip pays no space cost. */
+    .prov-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
+    .prov-chips:empty { display: none; }
+    .prov-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: var(--type-small); font-weight: 600; line-height: 1.2;
+      color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.16); border-radius: var(--radius-pill);
+      padding: 4px 10px;
+    }
+    .prov-chip--add {
+      color: var(--accent-gold);
+      border-color: color-mix(in srgb, var(--accent-gold) 35%, transparent);
+      background: color-mix(in srgb, var(--accent-gold) 10%, transparent);
+    }
 
     #payBreakBar {
       display: none; margin: 12px 16px 4px; height: 10px;

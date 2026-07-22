@@ -143,3 +143,30 @@ export function buildActualCheck(actual, estimated) {
         return `<div class="check-actual-line check-near">Close — your payslip pays ${fmt(ad)} ${dir} than this estimate. Small gaps usually come from tax adjustments; entering your Year to Date figures sharpens the next estimate.</div>`;
     return `<div class="check-actual-line check-near">Your payslip pays ${fmt(ad)} ${dir} than this estimate. Check this payslip's hours are complete, and look for absence, back pay or a payroll correction on it.</div>`;
 }
+
+/**
+ * The provenance chips under the take-home £ (v18.44 — review item 1): quiet labels naming what
+ * fed THIS number, rendered on the navy hero. A normal payslip renders NOTHING (empty string —
+ * the row costs no space); a chip appears only when something noteworthy is inside the figure:
+ *   - cumulative tax engaged (the YTD card is sharpening this payslip — names the source payslip)
+ *   - the back-pay lump is ticked in (gold — money added)
+ *   - the January HPP add is ticked in (gold — money added)
+ *   - some hours came from the calendar pre-fill rather than typing
+ * Pure; `srcLabel` is app-generated (a formatted payday), no user text.
+ *
+ * @param {{ usingCumulative: boolean, srcLabel?: string, bpAmount?: number, hppAmount?: number,
+ *           hoursFromCalendar?: boolean }} d
+ * @returns {string} innerHTML for #provChips ('' = no chips)
+ */
+export function buildProvChips(d) {
+    let h = '';
+    if (d.usingCumulative)
+        h += `<span class="prov-chip">✓ Cumulative tax${d.srcLabel ? ` · from your ${d.srcLabel} payslip` : ''}</span>`;
+    if (d.bpAmount && d.bpAmount > 0)
+        h += `<span class="prov-chip prov-chip--add">+ ${fmt(d.bpAmount)} back pay</span>`;
+    if (d.hppAmount && d.hppAmount > 0)
+        h += `<span class="prov-chip prov-chip--add">+ ${fmt(d.hppAmount)} Holiday Pay Premium</span>`;
+    if (d.hoursFromCalendar)
+        h += `<span class="prov-chip"><span aria-hidden="true">📅</span> Hours from calendar</span>`;
+    return h;
+}

@@ -162,6 +162,14 @@ coordinator's `_renderYearSoFar` after every `calculate()`; hidden until a paysl
 corrupt periods surface a "may be too low" warning (no-silent-caps). Unit-tested by
 `paycalc-year-summary.test.mjs` (assertions mirror each payslip through the REAL calc engine).
 
+**Provenance chips (v18.44 — review item 1):** `#provChips` on the result hero names what fed THIS
+number — `✓ Cumulative tax · from your ⟨payday⟩ payslip` (neutral), `+ £X back pay` / `+ £X Holiday
+Pay Premium` (gold — money ADDED to the total), `📅 Hours from calendar` (any `.roster-suggested`
+field present). Built by the pure `buildProvChips` (`paycalc-breakdown.js`, tested); written by
+`calculate()` on every recompute; EMPTY (`:empty` hides the row) on a normal payslip — chips only
+appear when noteworthy. The bp/HPP *banners* remain the opt-in OFFER surfaces; a chip is the
+compact receipt once a figure is IN.
+
 **"Check against your payslip" (v18.42 — review item 3):** the result card's foot carries a £ input
 (`#actualNetInput`, PAID payslips only — `calculate()` gates visibility on `payday <= now`) where the
 member types the take-home printed on the real payslip; the pure `buildActualCheck(actual, estimated)`

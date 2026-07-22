@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fmtHrsMins, buildSummaryRows, buildBreakdownRows, buildActualCheck } from './paycalc-breakdown.js';
+import { fmtHrsMins, buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
 
 test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
     assert.equal(fmtHrsMins(8), '8h');
@@ -145,4 +145,21 @@ test('buildActualCheck: quiet when empty; band boundaries; direction named', () 
     assert.match(far, /£100\.00 less/, 'direction: payslip pays less');
     assert.match(far, /absence, back pay or a payroll correction/);
     assert.ok(!/check-ok/.test(far), 'a large gap is not a green line');
+});
+
+// Provenance chips (v18.44 — review item 1): the take-home £ names its sources; a normal payslip
+// renders NOTHING.
+test('buildProvChips: empty on a normal payslip; one chip per active source', () => {
+    assert.equal(buildProvChips({ usingCumulative: false }), '', 'normal payslip → no chips at all');
+    const cum = buildProvChips({ usingCumulative: true, srcLabel: '6 Jun' });
+    assert.match(cum, /✓ Cumulative tax · from your 6 Jun payslip/);
+    assert.ok(!/prov-chip--add/.test(cum), 'method chips are neutral, not gold');
+    assert.match(buildProvChips({ usingCumulative: true }), /✓ Cumulative tax</, 'no source label → no dangling "from your"');
+    const all = buildProvChips({ usingCumulative: true, srcLabel: '18 Dec', bpAmount: 824, hppAmount: 312.5, hoursFromCalendar: true });
+    assert.match(all, /\+ £824\.00 back pay/);
+    assert.match(all, /\+ £312\.50 Holiday Pay Premium/);
+    assert.match(all, /Hours from calendar/);
+    assert.equal((all.match(/prov-chip--add/g) || []).length, 2, 'the two money adds are the gold chips');
+    assert.equal((all.match(/class="prov-chip/g) || []).length, 4, 'four chips when everything is active');
+    assert.equal(buildProvChips({ usingCumulative: false, bpAmount: 0, hppAmount: 0 }), '', 'zero amounts render nothing');
 });
