@@ -148,7 +148,12 @@ last-payslip totals whatever was viewed (quietly skewing tax when stale). Legacy
 recorded source are stamped on load with the app's old standing assumption (the payslip before
 today's, clamped into the year) so a maintained user's next-payslip estimate is unchanged. The
 `#ytdUptoNote` states the position per payslip ("✓ … sharpen this payslip's estimate" / "uses the
-standard method — update from P__"). `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the
+standard method — update from P__") — but is EMPTY (hidden via `:empty`) when no source is
+recorded yet (v18.49): the old copy-and-pick prompt there was the fourth statement of the same
+instruction on one screen (header hint, field labels, and select label all carry it). Same tidy:
+the source select's placeholder is the short "— choose a payslip —" (the long question truncated
+at 390px), the two £ inputs carry example-figure placeholders ("e.g. 21,758.94") instead of the
+zero-like "0.00", and the always-on January-HPP pointer paragraph moved into the card's `?` help. `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the
 year's paid payslips, newest first. **Header status chip (v18.40 — review item 6):** `#ytdStatusChip`
 in the card header shows the in-use state even while the card is collapsed — green "✓ in use" when
 the figures sharpen the viewed payslip, neutral "not in use" otherwise, hidden when there's nothing

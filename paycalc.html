@@ -581,14 +581,14 @@
             <div class="field-eyebrow" id="ytdPayLabel">Taxable Pay — Year to Date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
-              <input type="text" id="ytdPay" aria-labelledby="ytdPayLabel" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+              <input type="text" id="ytdPay" aria-labelledby="ytdPayLabel" placeholder="e.g. 21,758.94" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
           <div class="field-col">
             <div class="field-eyebrow" id="ytdTaxLabel">Tax Paid — Year to Date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
-              <input type="text" id="ytdTax" aria-labelledby="ytdTaxLabel" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+              <input type="text" id="ytdTax" aria-labelledby="ytdTaxLabel" placeholder="e.g. 4,835.60" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
         </div>
@@ -607,8 +607,8 @@
            full-year projection. Rendered by the coordinator after every calculate(); hidden when
            no payslip of the year has hours yet. -->
       <div class="ytd-yearso" id="ytdYearSoFar" hidden></div>
-
-      <div class="field-hint" style="padding-top:4px">January payslip with your Holiday Pay Premium on it? Enter the confirmed figure in the <strong>Holiday Pay Premium</strong> card.</div>
+      <!-- (The January-HPP pointer paragraph moved into this card's ? help — v18.49: one fewer
+           always-on block on a long card; it's guidance for one month of the year.) -->
 
     </div>
   </div>
