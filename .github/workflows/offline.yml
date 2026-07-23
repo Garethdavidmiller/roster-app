@@ -1,0 +1,54 @@
+name: Offline SW check
+
+# Scheduled, NON-BLOCKING offline service-worker check (v18.59, review recommendation).
+#
+# The app is offline-first, and CLAUDE.md warns repeatedly that a broken service worker silently
+# masks a live outage — every already-installed phone keeps loading from cache while a fresh
+# visitor gets a dead site. The smoke suite deliberately BLOCKS service workers (so the Firebase
+# route stub owns the network), so nothing in the deploy/PR gates actually exercises the SW's real
+# runtime promise: precache + serve-from-cache while offline. `npm run test:offline` does exactly
+# that (playwright.offline.mjs allows the real SW, loads the app, goes offline, asserts the shell +
+# precached assets still serve).
+#
+# It is deliberately its OWN workflow on a schedule + manual dispatch — NOT wired into e2e.yml or
+# deploy-hosting.yml — because SW registration/precache timing is environment-sensitive and could
+# flake a CI runner on a different image; making it block merges/deploys would trade a real outage
+# signal for intermittent red builds. Here a failure is a visible weekly signal to investigate,
+# without gating shipping. (Same opt-in rationale as the visual-regression suite.)
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays 06:00 UTC — a quiet weekly heartbeat
+  workflow_dispatch:
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run offline service-worker check
+        run: npm run test:offline
+        env:
+          CI: true
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: offline-playwright-report
+          path: playwright-report/
+          retention-days: 7

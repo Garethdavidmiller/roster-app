@@ -161,9 +161,11 @@ These are the on-navy equivalents of the global `--text-*` / `--border-light` / 
 - `--content-max-width` (1100px) — **every other page** (admin, paycalc, operations, settings,
   links). Keeps forms and prose a comfortable width and stops the app re-laying-out ~300px on
   every desktop hop. Admin joined this group at v15.90 once its week grid became vertical
-  day-cards (it no longer needs a wide table). **Settings** caps narrower still (860px in
-  `settings.css`) — it's two tiny single-field cards, so the full band left them stretched.
-  When adding a page, route its desktop `max-width` through one of these tokens.
+  day-cards (it no longer needs a wide table). **Settings** is a special case: it's two tiny
+  single-field cards, so rather than a wide band it uses **one centred ~600px single column,
+  cards stacked** (v18.59 — the v15.90 860px two-column grid read as sparse/half-empty on
+  desktop, per the review). It does not route through `--content-max-width`. When adding a
+  page, route its desktop `max-width` through one of these tokens (Settings excepted).
 
 **Reading measure:** on desktop, full-width **prose** (card descriptions/`.hint`, disclaimers,
 notes, generator intro) is capped with `max-width: ~64–72ch` at the `min-width: 1024px`
