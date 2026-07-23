@@ -10,7 +10,14 @@
 import { test } from './fixtures.js';
 import { expect } from '@playwright/test';
 
-const CORE_ASSETS = ['./', './paycalc.html', './calendar-app.js', './roster-data.js', './shared.css'];
+// The assets whose OFFLINE FETCH we assert (step 4). Includes bare './' — a root navigation the
+// SW maps to cached index.html at fetch time, the real observable offline-nav guarantee.
+const CORE_ASSETS  = ['./', './paycalc.html', './calendar-app.js', './roster-data.js', './shared.css'];
+// The readiness poll (step 2) checks Cache STORAGE by key, so it must use the key the SW actually
+// stores. The SW precaches 'index.html' and maps root→index at FETCH time (service-worker.js) — it
+// never stores a literal './' entry, so caches.match('./') is always false. Poll './index.html'
+// instead (the real cached key); the './' offline-nav guarantee is still proven by the fetch in step 4.
+const READY_ASSETS = ['./index.html', './paycalc.html', './calendar-app.js', './roster-data.js', './shared.css'];
 
 test('service worker precaches the app and serves it offline', async ({ page, context }) => {
     // 1) Online first visit — module graph loads (gstatic stubbed), SW registers + activates.
@@ -28,7 +35,7 @@ test('service worker precaches the app and serves it offline', async ({ page, co
             if (hits.every(Boolean)) return true;
         }
         return false;
-    }, CORE_ASSETS, { timeout: 30_000 });
+    }, READY_ASSETS, { timeout: 30_000 });
 
     // 3) Drop the network.
     await context.setOffline(true);
