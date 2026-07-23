@@ -57,6 +57,11 @@ export function computeYearSoFar(ty, opts) {
     return o >= ty.first && o <= ty.last;
   });
   const paidPeriods = yearPeriods.filter(/** @param {any} p */ p => p.payday <= now);
+  // Periods the member is actually EMPLOYED for this tax year — the annual projection extrapolates
+  // over these, not all 13. getProRateFactor(p) is 0 only for a fully pre-start period (1 for
+  // long-servers + noProRate returns), so this is a no-op for everyone except a mid-year joiner,
+  // whose full-year take-home was over-projected by multiplying the per-payslip average by 13.
+  const employedPeriods = yearPeriods.filter(/** @param {any} p */ p => getProRateFactor(p) > 0).length;
 
   let entered = 0, taxable = 0, tax = 0, ni = 0, sl = 0, net = 0, skipped = 0;
   const missing = /** @type {Date[]} */ ([]);
@@ -109,7 +114,7 @@ export function computeYearSoFar(ty, opts) {
   return {
     entered, paid: paidPeriods.length, total: yearPeriods.length,
     taxable, tax, ni, sl, net,
-    projectedNet: entered > 0 ? (net / entered) * yearPeriods.length : 0,
+    projectedNet: entered > 0 ? (net / entered) * employedPeriods : 0,
     skipped, missing,
   };
 }

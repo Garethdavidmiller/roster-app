@@ -367,12 +367,17 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                     // only clears the flag (no back()), leaving a dead same-URL entry that swallows
                     // the next Android Back press — the exact leak the brand→About handler fixed (v16.21).
                     newTab.location.href = openUrl;
-                    closePanel();
+                    // ...but ONLY if the drawer is still the open surface. On slow signal the user can
+                    // open another drawer item (App Notices / About) mid-fetch, which reuses the shared
+                    // history entry + scroll-lock; closePanel() would then unlockBodyScroll + history.back()
+                    // on THAT surface, scrolling its background and breaking its Android Back. Mirrors the
+                    // _panelOpen guard on the failure path (_docFailureFallback).
+                    if (_panelOpen) closePanel();
                 } else {
                     // Popup was blocked — THIS tab navigates away, so the pushed entry goes with it;
                     // closePanelForNavigation() (no back()) is correct here.
                     location.href = openUrl;
-                    closePanelForNavigation();
+                    if (_panelOpen) closePanelForNavigation();
                 }
             } else {
                 if (newTab) newTab.close();

@@ -20,6 +20,9 @@ import assert from 'node:assert/strict';
 const _ls = new Map();
 /** @type {any[]} */
 let _periods = [];
+/** Controllable pro-rate factor per period (default 1 = long-server). A joiner test sets 0 for
+ *  its pre-start periods to exercise the annual-projection clamp. @type {(p:any)=>number} */
+let _proRate = () => 1;
 
 mock.module('./paycalc-periods.js', {
     namedExports: {
@@ -38,7 +41,7 @@ mock.module('./paycalc-settings.js', {
         getGrade:             () => 'cea',
         getLoggedMember:      () => null,
         getEffectiveContr:    () => 140,
-        getProRateFactor:     () => 1,
+        getProRateFactor:     /** @param {any} p */ p => _proRate(p),
         getPensionDefault:    () => 147.36,
         getStoredRateForYear: () => 20.74,
     },
@@ -93,6 +96,7 @@ function mirror({ oHrs = 0, sHrs = 0, pension = PENSION, plan = 'none', slSkip =
 function reset() {
     _ls.clear();
     _periods = [P60, P61, P62, P63];
+    _proRate = () => 1;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -117,6 +121,20 @@ describe('computeYearSoFar', () => {
         assert.ok(Math.abs(y.ni  - (m60.ni  + m61.ni )) < 0.01);
         assert.ok(Math.abs(y.net - (m60.net + m61.net)) < 0.01);
         assert.ok(Math.abs(y.projectedNet - (y.net / 2) * 4) < 0.01, 'projection = avg × year total');
+    });
+
+    test('mid-year joiner: annual projection extrapolates over EMPLOYED periods, not the full year', () => {
+        // Joiner employed only from P62 onward — P60/P61 are fully pre-start (factor 0).
+        _proRate = (/** @type {any} */ p) => (p.num >= 62 ? 1 : 0);
+        _ls.set('myb_pc_p62', JSON.stringify({ otH: 4, otM: 0 }));   // one paid payslip with hours
+        const y = computeYearSoFar(TY, OPTS);
+        assert.equal(y.entered, 1, 'only P62 entered');
+        const m62 = mirror({ oHrs: 4 });
+        assert.ok(Math.abs(y.net - m62.net) < 0.01);
+        // Projection base = 2 EMPLOYED periods (P62, P63), NOT the full 4. Multiplying by 4 here
+        // would over-project a joiner's full-year take-home by 2×.
+        assert.ok(Math.abs(y.projectedNet - (y.net / 1) * 2) < 0.01, 'projection = avg × employed periods (2), not year total (4)');
+        assert.notEqual(Math.round(y.projectedNet), Math.round((y.net / 1) * 4), 'must NOT project over all 4 periods');
     });
 
     test('nothing entered → all-zero result with a zero projection', () => {
