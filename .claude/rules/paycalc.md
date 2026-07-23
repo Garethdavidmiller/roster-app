@@ -153,7 +153,7 @@ recorded yet (v18.49): the old copy-and-pick prompt there was the fourth stateme
 instruction on one screen (header hint, field labels, and select label all carry it). Same tidy:
 the source select's placeholder is the short "— choose a payslip —" (the long question truncated
 at 390px), the two £ inputs carry example-figure placeholders ("e.g. 21,758.94") instead of the
-zero-like "0.00", and the always-on January-HPP pointer paragraph moved into the card's `?` help. `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the
+zero-like "0.00", and the always-on January-HPP pointer paragraph moved into the card's `?` help. **The January-HPP pointer then returned PERIOD-GATED (v18.50):** `#ytdJanHppHint` ("This is the January payslip your Holiday Pay Premium lands on — enter the confirmed figure…") is unhidden by `calculate()` ONLY while the viewed payslip is the January one that carries HPP (the same `_hppTy` match that gates the HPP take-home add) — as a permanent paragraph it read wrong on every other payslip. The year-round version stays in the `?` help. `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the
 year's paid payslips, newest first. **Header status chip (v18.40 — review item 6):** `#ytdStatusChip`
 in the card header shows the in-use state even while the card is collapsed — green "✓ in use" when
 the figures sharpen the viewed payslip, neutral "not in use" otherwise, hidden when there's nothing
