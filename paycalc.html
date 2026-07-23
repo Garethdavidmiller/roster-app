@@ -110,6 +110,13 @@
   <!-- PRIVACY NOTE: always visible -->
   <div class="privacy-note-standalone">🔒 Your pay data is saved on this device only — never sent to any server or seen by anyone.</div>
 
+  <!-- DESKTOP WORK COLUMN (columns 1–2): Settings + period band + Hours. `.pc-work` is
+       display:contents on mobile (DOM order unchanged there) and a flex column on desktop
+       sharing ONE grid row with `.pc-side` — so neither column's height can inflate the
+       other's rows (the v18.47 fix for the expanded-sidebar mid-page void; flex `order`
+       puts the period band first on desktop while mobile keeps this DOM order). -->
+  <div class="pc-work">
+
   <!-- SETTINGS (at top so first-time users find it immediately) -->
   <div class="content-card" id="settingsCard">
     <div class="card-header card-header-toggle" id="settingsToggle">
@@ -477,6 +484,8 @@
 
     </div>
   </div>
+
+  </div><!-- /.pc-work -->
 
   <!-- DESKTOP SIDEBAR (column 3): the result + the four occasional cards. `.pc-side` is
        display:contents on mobile (DOM order unchanged there) and a flex column on desktop,
