@@ -43,6 +43,14 @@ function _report(err, src = '') {
         // cosmetic and cannot be acted on.
         if (message.includes('ResizeObserver loop')) return;
 
+        // Browsers emit this from the DECLARATIVE cross-document view transition the app opts
+        // into (`@view-transition { navigation: auto }` in shared.css) whenever they skip a
+        // transition — a reload, an interrupted/ineligible navigation, or an engine quirk (seen
+        // on iOS Safari 26). It is NOT thrown app code (no stack; the app makes no
+        // startViewTransition()/skipTransition() call), the crossfade degrades to an instant cut,
+        // and it cannot be acted on — so it must not pollute the Error Log.
+        if (message.includes('Skipping view transition')) return;
+
         // Chrome emits this as an unhandled rejection when its own background SW-update
         // check fails due to a network blip. Only suppress when accompanied by a recognised
         // network/fetch failure phrase — genuine SW installation failures (e.g. a bad script
