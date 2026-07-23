@@ -8,6 +8,7 @@
 
 import { getALEntitlement, getBaseShift, isSunday, escapeHtml, projectAnnualLeaveOverage, parseISODate } from './roster-data.js';
 import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
+import { isRestShift } from './override-utils.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 
 const esc = escapeHtml;
@@ -78,7 +79,14 @@ export function initALSection({
             const existingALDates = new Set(
                 getAllOverrides()
                     .filter(o => o.memberName === member && o.type === 'annual_leave' &&
-                                 o.date?.startsWith(yearStr) && !isSunday(o.date))
+                                 o.date?.startsWith(yearStr) && !isSunday(o.date) &&
+                                 // Only AL that lands on a genuine WORKING day consumes entitlement.
+                                 // A stray legacy AL doc sitting on a base REST day must not inflate
+                                 // the projected total (it would trip a spurious "over entitlement"
+                                 // confirm bar). Mirrors the new-dates path, which counts only
+                                 // isWorkingDate days — here the day is AL-overridden, so we test the
+                                 // BASE shift underneath it.
+                                 !isRestShift(getBaseShift(memberObj, parseISODate(o.date))))
                     .map(o => o.date)
             );
             const newALDates = workingDates.filter(d => d.startsWith(yearStr));   // isWorkingDate already excluded Sundays

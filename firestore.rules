@@ -397,7 +397,13 @@ service cloud.firestore {
         // the caller's own uid — so a session can only ever claim its own subscription. New
         // clients always write it; that's what lets the per-owner delete rule below protect them.
         (!('owner' in request.resource.data) ||
-          (request.resource.data.owner is string && request.resource.data.owner == request.auth.uid));
+          (request.resource.data.owner is string && request.resource.data.owner == request.auth.uid)) &&
+        // On UPDATE, also re-check the EXISTING doc's owner (mirrors the per-owner delete rule below).
+        // Without this, a session that knew a doc id could OVERWRITE another user's subscription by
+        // re-stamping its own uid as owner — the same "overwrite by re-labelling" gap that was closed
+        // for overrides. `resource` is null on create (nothing to protect); a legacy owner-less doc
+        // stays updatable so VAPID-rotation cleanup can't be locked out.
+        (resource == null || !('owner' in resource.data) || resource.data.owner == request.auth.uid);
       // Delete YOUR OWN subscription (owner == your uid), OR a legacy doc that carries no owner
       // (older clients wrote none) — keeping those deletable so VAPID-rotation cleanup can't be
       // locked out. Orphans left by a uid change are swept server-side by fanOutPush's 410/404

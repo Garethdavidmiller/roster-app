@@ -170,7 +170,14 @@ function _expectedNonPremiumYtd(ty) {
     const factor  = getProRateFactor(p);
     const basic   = getEffectiveContr(p) * getRateForPeriod(p, grade, ty.label, settledRate);
     const london  = getLondonAllowanceForPeriod(p, ty) * factor;
-    const pension = (parseFloat(String(getPensionDefault(p))) || 0) * factor;
+    // Use the member's OWN saved pension for the period when present (mirrors calculate() and
+    // computeYearSoFar) — the typed YTD "Taxable Pay" reflects the actual pension sacrifice, so
+    // subtracting only the default over-subtracts on any period where the member overrode pension,
+    // biasing this rough estimate. Fall back to the period default (pro-rated) when none is saved.
+    const saved   = readSavedPeriod(p.num);
+    const pension = (saved.data && saved.data.pension != null)
+      ? (parseFloat(String(saved.data.pension)) || 0)
+      : (parseFloat(String(getPensionDefault(p))) || 0) * factor;
     nonPremium += basic + london - pension;
   }
   return { nonPremium, count: covered.length };

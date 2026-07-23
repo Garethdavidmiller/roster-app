@@ -64,15 +64,37 @@ test('every root JS module is in BOTH the SW network-first list and a precache l
 test('every root .html and .css file is precached (offline availability, non-JS assets)', () => {
     // The JS test above only covered .js modules — the precache existence check was `.js`-only, so a
     // new HTML page or stylesheet forgotten from the SW lists would silently lose offline availability
-    // with green CI (cross-file review E1 / fragile-lists A-2). HTML+CSS live in NETWORK_FIRST_FILES +
-    // CORE_ASSETS; the guides live in SUPPLEMENTARY_ASSETS. All root html/css are currently precached.
+    // with green CI (cross-file review E1 / fragile-lists A-2). The guides live in SUPPLEMENTARY_ASSETS;
+    // every other html/css lives in CORE_ASSETS. All root html/css are currently precached.
+    //
+    // IMPORTANT: the precache set is CORE_ASSETS + SUPPLEMENTARY_ASSETS ONLY — deliberately NOT
+    // NETWORK_FIRST_FILES. The warm-up (warmCacheAndSweepOld) fetches CORE/SUPPLEMENTARY/FONT/ICON/SDK
+    // but NEVER NETWORK_FIRST_FILES (which is purely the stale-while-revalidate MATCH set). A file
+    // listed only in NETWORK_FIRST_FILES is served-from-cache-if-present but never PRECACHED, so it is
+    // unavailable on a device that installs and goes offline before ever visiting it. Including
+    // NETWORK_FIRST_FILES here (the pre-fix bug) made that regression pass CI. (Mirrors the JS test's
+    // precache set above, which was already correct.)
     const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
     const arrayOf = (name) => { const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`)); return m ? m[1] : ''; };
-    const precache = arrayOf('NETWORK_FIRST_FILES') + arrayOf('CORE_ASSETS') + arrayOf('SUPPLEMENTARY_ASSETS');
+    const precache = arrayOf('CORE_ASSETS') + arrayOf('SUPPLEMENTARY_ASSETS');
     const inList = (f) => precache.includes(`'${f}'`) || precache.includes(`"${f}"`) || precache.includes(`'./${f}'`) || precache.includes(`"./${f}"`);
     const assets  = readdirSync(ROOT).filter(f => (f.endsWith('.html') || f.endsWith('.css')) && !f.includes('.test.'));
     const missing = assets.filter(f => !inList(f));
     assert.deepEqual(missing, [], `Root HTML/CSS files not in a SW precache list (would lose offline availability):\n  ${missing.join('\n  ')}`);
+});
+
+test('purify.es.mjs is network-first AND precached (the .mjs runtime asset the .js/.css tests miss)', () => {
+    // DOMPurify is vendored as purify.es.mjs — a .mjs, so the JS-module test (filters .endsWith('.js'))
+    // and the HTML/CSS test both skip it, and the ghost-entry test only checks listed→exists (not the
+    // reverse). So dropping it from a SW list would pass CI while breaking offline Huddle-DOCX
+    // sanitising. Assert its membership explicitly. (Broadening the .js glob to .mjs is wrong — the
+    // dev-only playwright.*.mjs / generate-sri.mjs are NOT runtime assets and must not be SW-listed.)
+    const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
+    const arrayOf = (name) => { const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`)); return m ? m[1] : ''; };
+    const inList = (list, f) => list.includes(`'${f}'`) || list.includes(`"${f}"`) || list.includes(`'./${f}'`) || list.includes(`"./${f}"`);
+    const F = 'purify.es.mjs';
+    assert.ok(inList(arrayOf('NETWORK_FIRST_FILES'), F), 'purify.es.mjs must be in NETWORK_FIRST_FILES (served stale-while-revalidate)');
+    assert.ok(inList(arrayOf('CORE_ASSETS') + arrayOf('SUPPLEMENTARY_ASSETS'), F), 'purify.es.mjs must be precached (offline DOCX sanitising)');
 });
 
 test('every NOTIFICATION_FEATURES hashPath page is in the SW SAFE_NOTIFICATION_PAGES allowlist', () => {

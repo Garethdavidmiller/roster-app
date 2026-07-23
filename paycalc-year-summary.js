@@ -34,9 +34,15 @@ import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
  * Sum the year's entered payslips into a so-far + projected view.
  *
  * @param {any} ty  Tax year object from CONFIG.TAX_YEARS.
- * @param {{ taxCode: string, plan: string, pgLoan: boolean, slPaidOffFromP?: number, now?: Date }} opts
+ * @param {{ taxCode: string, plan: string, pgLoan: boolean, slPaidOffFromP?: number, now?: Date,
+ *   bpLump?: {pNum: number, amount: number}|null, hppLump?: {amount: number}|null }} opts
  *   The member's CURRENT loan/tax-code settings (read from the DOM by the caller — this module
- *   touches no DOM). `slPaidOffFromP` is the loan-repaid cutover (p.num of the first payslip
+ *   touches no DOM). `bpLump`/`hppLump` are the OPT-IN lumps the caller is adding to the result
+ *   card's take-home (only passed when the include-tick is on): a back-pay lump on payslip
+ *   `bpLump.pNum`, and the Holiday Pay Premium on the tax year's first January payslip. Each is
+ *   GROSS and folded into that payslip's gross before pension/tax/NI/SL — exactly as calculate()
+ *   does — so the two surfaces agree; the projection adds the one-off lumps ONCE (never
+ *   extrapolated across the year). `slPaidOffFromP` is the loan-repaid cutover (p.num of the first payslip
  *   without a deduction, 0/absent = still repaying — item 9). `now` is injectable for tests.
  * @returns {{ entered: number, paid: number, total: number, taxable: number, tax: number,
  *             ni: number, sl: number, net: number, projectedNet: number, skipped: number,
@@ -63,7 +69,17 @@ export function computeYearSoFar(ty, opts) {
   // whose full-year take-home was over-projected by multiplying the per-payslip average by 13.
   const employedPeriods = yearPeriods.filter(/** @param {any} p */ p => getProRateFactor(p) > 0).length;
 
+  // The tax-year's first January payslip carries the Holiday Pay Premium — the same period
+  // calculate() adds it to. Found once here so an opt-in hppLump lands on the right payslip.
+  const hppJanNum = (opts.hppLump && ty.hppPaidJan)
+    ? (yearPeriods.find(/** @param {any} p */ p =>
+        p.payday.getFullYear() === ty.hppPaidJan && p.payday.getMonth() === 0)?.num ?? 0)
+    : 0;
+
   let entered = 0, taxable = 0, tax = 0, ni = 0, sl = 0, net = 0, skipped = 0;
+  // Recurring (hours-only) take-home drives the projection; the one-off lumps are added to it
+  // ONCE below, never extrapolated across the year.
+  let netRecurring = 0, lumpNet = 0;
   const missing = /** @type {Date[]} */ ([]);
 
   for (const p of paidPeriods) {
@@ -88,23 +104,39 @@ export function computeYearSoFar(ty, opts) {
         otherAdj: parseFloat(String(d.otherAdj ?? 0)) || 0,
       });
       const pension  = d.pension != null ? (parseFloat(String(d.pension)) || 0) : getPensionDefault(p) * proRate;
-      const sacGross = g.gross - pension;
 
-      const pTax = computeTax(sacGross, opts.taxCode, T).tax;   // non-cumulative — see header note
-      const pNi  = computeNI(sacGross, T.ni);
-      // Loan legs mirror calculate(): the repaid cutover zeroes both from its payslip onward;
-      // the period's own saved "not deducted" skip applies otherwise.
-      const paidOff = !!(opts.slPaidOffFromP && p.num >= opts.slPaidOffFromP);
-      const pSl = paidOff ? 0
-        : computeSL(sacGross, opts.plan, T.sl, !!d.slSkip)
-        + (opts.pgLoan ? computeSL(sacGross, 'postgrad', T.sl, !!d.slSkip) : 0);
+      // Opt-in lumps the caller is adding to the result card's take-home for this same payslip —
+      // fold into gross BEFORE pension/tax/NI/SL exactly as calculate() does (grossWithBp). At most
+      // one bp payslip + one HPP (January) payslip per year.
+      const lumpGross = ((opts.bpLump && opts.bpLump.pNum === p.num) ? opts.bpLump.amount : 0)
+                      + ((hppJanNum && hppJanNum === p.num && opts.hppLump) ? opts.hppLump.amount : 0);
+
+      /** Net take-home for a given gross-before-pension (mirrors calculate(): pension-sacrifice,
+       *  then non-cumulative tax + NI + SL with the repaid cutover / per-period skip). */
+      const netFor = (/** @type {number} */ grossBeforePension) => {
+        const sacGross = Math.max(0, grossBeforePension - pension);
+        const pTax = computeTax(sacGross, opts.taxCode, T).tax;   // non-cumulative — see header note
+        const pNi  = computeNI(sacGross, T.ni);
+        const paidOff = !!(opts.slPaidOffFromP && p.num >= opts.slPaidOffFromP);
+        const pSl = paidOff ? 0
+          : computeSL(sacGross, opts.plan, T.sl, !!d.slSkip)
+          + (opts.pgLoan ? computeSL(sacGross, 'postgrad', T.sl, !!d.slSkip) : 0);
+        return { sacGross, pTax, pNi, pSl, pNet: sacGross - pTax - pNi - pSl };
+      };
+
+      const base = netFor(g.gross);
+      const full = lumpGross > 0 ? netFor(g.gross + lumpGross) : base;
 
       entered++;
-      taxable += sacGross;
-      tax     += pTax;
-      ni      += pNi;
-      sl      += pSl;
-      net     += sacGross - pTax - pNi - pSl;
+      // The "so far" rows reflect the lump (faithful to the result card); the projection uses the
+      // recurring hours-only net so a one-off lump can't inflate the extrapolated year.
+      taxable += full.sacGross;
+      tax     += full.pTax;
+      ni      += full.pNi;
+      sl      += full.pSl;
+      net     += full.pNet;
+      netRecurring += base.pNet;
+      lumpNet      += full.pNet - base.pNet;
     } catch (e) {
       skipped++;
       console.warn('[PayCalc] Year-so-far skipped period', p.num, e);
@@ -114,7 +146,8 @@ export function computeYearSoFar(ty, opts) {
   return {
     entered, paid: paidPeriods.length, total: yearPeriods.length,
     taxable, tax, ni, sl, net,
-    projectedNet: entered > 0 ? (net / entered) * employedPeriods : 0,
+    // Recurring pay extrapolated over employed periods + the one-off lumps added ONCE.
+    projectedNet: entered > 0 ? (netRecurring / entered) * employedPeriods + lumpNet : 0,
     skipped, missing,
   };
 }

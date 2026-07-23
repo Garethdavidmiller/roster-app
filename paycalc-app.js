@@ -864,9 +864,15 @@ export function init() {
       // Finds the tax year whose hppPaidJan matches this period's payday year.
       // The estimate is pre-computed by calcHPP() and stored in localStorage whenever
       // the user views any period in that tax year — by end of April it is essentially final.
-      const _hppTy = _curP ? CONFIG.TAX_YEARS.find(t =>
-          _curP.payday.getFullYear() === t.hppPaidJan && _curP.payday.getMonth() === 0
-      ) : null;
+      // Guard against a (currently impossible, but not invariant-enforced) grid with TWO paydays in
+      // one January: HPP lands on the FIRST January payslip only, never added twice. Match _hppTy
+      // only when _curP is that earliest January payday of the tax year's hppPaidJan.
+      const _hppTy = _curP ? CONFIG.TAX_YEARS.find(t => {
+          if (!(_curP.payday.getFullYear() === t.hppPaidJan && _curP.payday.getMonth() === 0)) return false;
+          const firstJan = getPeriods().find(/** @param {any} p */ p =>
+              p.payday.getFullYear() === t.hppPaidJan && p.payday.getMonth() === 0);
+          return !firstJan || firstJan.num === _curP.num;
+      }) : null;
       // A CONFIRMED actual (present in storage, even £0) beats the estimate — resolveHppForPeriod
       // is the single source of that rule (a confirmed £0 correctly adds nothing; the pre-v17.26
       // `actual > 0` test kept silently adding the stale estimate to take-home). Shared with the
@@ -982,8 +988,12 @@ export function init() {
       // Plan 5 isn't repayable this year; £0 genuinely under the threshold; or £0 because pay only just
       // exceeds the threshold so the 9%/6% rounds under £1 (v16.84 — "under the threshold" is wrong there).
       const _slPlanLabel = _slSel.selectedOptions[0]?.textContent?.trim() ?? plan;
-      const _slThreshold = (/** @type {Record<string, any>} */ (thresholds.sl))[plan]?.t;
-      const _pgThreshold = (/** @type {Record<string, any>} */ (thresholds.sl)).postgrad?.t;
+      // Penny-floor the periodic threshold for DISPLAY exactly as computeSL does (Math.floor(t*100)/100)
+      // — otherwise fmt() rounds the raw annual÷13 value and the parenthetical threshold in the message
+      // can read 1p above the figure the deduction is actually computed against.
+      const _pennyFloor  = (/** @type {number|undefined} */ t) => t == null ? t : Math.floor(t * 100) / 100;
+      const _slThreshold = _pennyFloor((/** @type {Record<string, any>} */ (thresholds.sl))[plan]?.t);
+      const _pgThreshold = _pennyFloor((/** @type {Record<string, any>} */ (thresholds.sl)).postgrad?.t);
       /** One summary line for a loan: amount>0 → deduction row; else a NAMED £0 reason (or '' if inactive).
        * @param {string} rowLabel @param {number} amount @param {boolean} active @param {string} planLabel
        * @param {number|undefined} threshold @param {string|null} notAvailableMsg */
@@ -1193,7 +1203,15 @@ export function init() {
       const el = document.getElementById('ytdYearSoFar');
       if (!el) return;
       const taxCode = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L');
-      const y = computeYearSoFar(ty, { taxCode, plan, pgLoan, slPaidOffFromP });
+      // Pass the OPT-IN lumps so the year-so-far take-home agrees with the result card, which adds
+      // them to the payslip they land on (bp → _bpPNum; HPP → the year's first January payslip).
+      // Only when their include-tick is on — an un-ticked/estimated lump inflates neither surface.
+      const bpLump = (_bpIncluded && _bpPNum > 0 && _bpAmount > 0) ? { pNum: _bpPNum, amount: _bpAmount } : null;
+      const _ysHppIncluded = lsGet(hppIncKey(ty)) === '1';
+      const _ysHppAmount = _ysHppIncluded
+        ? resolveHppForPeriod(lsGet(hppActualKey(ty)), lsGet(hppEstKey(ty))).amount : 0;
+      const hppLump = (_ysHppIncluded && _ysHppAmount > 0) ? { amount: _ysHppAmount } : null;
+      const y = computeYearSoFar(ty, { taxCode, plan, pgLoan, slPaidOffFromP, bpLump, hppLump });
       if (!y.entered && !y.skipped) { el.hidden = true; el.innerHTML = ''; return; }
       el.hidden = false;
       const row = /** @param {string} lbl @param {number} val */ (lbl, val) =>

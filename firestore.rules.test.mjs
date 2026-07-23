@@ -1052,6 +1052,33 @@ describe('pushSubscriptions', () => {
         await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
         await assertSucceeds(deleteDoc(doc(staffDb('uid_other'), 'pushSubscriptions', id)));
     });
+
+    test('owner can UPDATE their own owner-stamped subscription', async () => {
+        const id = uid();
+        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertSucceeds(
+            setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' })
+        );
+    });
+
+    test('a DIFFERENT identity cannot OVERWRITE an owner-stamped subscription by re-labelling it (update owner re-check)', async () => {
+        // Mirrors the per-owner DELETE rule: update must re-check the EXISTING doc's owner, not just
+        // the incoming value — otherwise a session that knew the doc id could hijack another user's
+        // subscription by stamping its own uid as owner.
+        const id = uid();
+        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertFails(
+            setDoc(doc(staffDb('uid_intruder'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_intruder' })
+        );
+    });
+
+    test('a legacy (no-owner) subscription can still be UPDATED by any authed user (re-subscribe hardening path)', async () => {
+        const id = uid();
+        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
+        await assertSucceeds(
+            setDoc(doc(staffDb('uid_other'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_other' })
+        );
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

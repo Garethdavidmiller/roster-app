@@ -180,31 +180,44 @@ function buildWeekDates(weekEnding) {
  * @throws {SyntaxError} if no JSON object is found or JSON is invalid
  */
 function extractAIJson(text) {
-    const start = text.indexOf('{');
-    if (start === -1) {
+    if (text.indexOf('{') === -1) {
         throw new SyntaxError('No JSON object found in AI response');
     }
-    // Walk from the first '{', tracking brace depth while respecting string
-    // literals (and escapes), and stop at the matching close. This is robust to
-    // prose containing braces before/after the object, or a stray '}' in trailing
-    // text — the old first-'{'-to-last-'}' slice broke on both.
-    let depth = 0, inStr = false, escaped = false;
-    for (let i = start; i < text.length; i++) {
-        const ch = text[i];
-        if (inStr) {
-            if (escaped)            escaped = false;
-            else if (ch === '\\')   escaped = true;
-            else if (ch === '"')    inStr = false;
-        } else if (ch === '"') {
-            inStr = true;
-        } else if (ch === '{') {
-            depth++;
-        } else if (ch === '}') {
-            depth--;
-            if (depth === 0) return JSON.parse(text.slice(start, i + 1));
+    // Walk from each candidate '{', tracking brace depth while respecting string literals (and
+    // escapes), and stop at the matching close. Robust to prose containing braces before/after the
+    // object, or a stray '}' in trailing text (the old first-'{'-to-last-'}' slice broke on both) —
+    // AND to a BALANCED brace pair in the preamble (e.g. a "{curly}" placeholder): if the first
+    // balanced span isn't valid JSON we keep scanning for the next candidate object instead of
+    // throwing on it. (The real response is bare JSON — prompt says "return ONLY valid JSON" — so
+    // this is defence-in-depth for a chatty model.)
+    let firstErr = null;
+    let searchFrom = text.indexOf('{');
+    while (searchFrom !== -1) {
+        let depth = 0, inStr = false, escaped = false, end = -1;
+        for (let i = searchFrom; i < text.length; i++) {
+            const ch = text[i];
+            if (inStr) {
+                if (escaped)            escaped = false;
+                else if (ch === '\\')   escaped = true;
+                else if (ch === '"')    inStr = false;
+            } else if (ch === '"') {
+                inStr = true;
+            } else if (ch === '{') {
+                depth++;
+            } else if (ch === '}') {
+                depth--;
+                if (depth === 0) { end = i; break; }
+            }
+        }
+        if (end === -1) break;   // unbalanced from here to EOF — no complete object beyond this point
+        try {
+            return JSON.parse(text.slice(searchFrom, end + 1));
+        } catch (e) {
+            if (!firstErr) firstErr = e;             // remember the first failure for the message
+            searchFrom = text.indexOf('{', searchFrom + 1);   // this span wasn't JSON — try the next
         }
     }
-    throw new SyntaxError('No complete JSON object found in AI response');
+    throw new SyntaxError('No valid JSON object found in AI response' + (firstErr ? `: ${firstErr.message}` : ''));
 }
 
 // ── Column header → day index mapping ───────────────────────────────────────
@@ -739,7 +752,30 @@ function buildPushPayload({ feature, body, baseUrl, headline, url }) {
     if (!finalHeadline) throw new Error(`No headline for notification feature: ${feature}`);
     const finalUrl = url || (f.hashPath ? `${baseUrl}${f.hashPath}` : undefined);
     if (!finalUrl) throw new Error(`No url for notification feature: ${feature}`);
-    return { title: `${f.emoji} ${finalHeadline}`, body, tag: f.tag, url: finalUrl };
+    // Enforce the notification design language's truncation-safe budgets (.claude/rules/notifications.md:
+    // title ≤ ~40 chars INCLUDING the emoji, body ≤ ~80) so the builder GUARANTEES a clean fit rather
+    // than letting the OS hard-truncate a long caller-supplied headline/body mid-word. All current
+    // callers already fit — this is a guard for future ones. A clean … ellipsis on a word boundary
+    // where one is near the cut.
+    return {
+        title: _clipNotifText(`${f.emoji} ${finalHeadline}`, 40),
+        body:  _clipNotifText(body, 80),
+        tag:   f.tag,
+        url:   finalUrl,
+    };
+}
+
+/**
+ * Clip notification text to a maximum length with a trailing ellipsis, preferring a word boundary
+ * within the last ~12 chars so the cut doesn't land mid-word. Returns the input unchanged when it
+ * already fits.
+ * @param {string} s @param {number} max @returns {string}
+ */
+function _clipNotifText(s, max) {
+    if (typeof s !== 'string' || s.length <= max) return s;
+    const hard = s.slice(0, max - 1);
+    const sp = hard.lastIndexOf(' ');
+    return (sp >= max - 12 ? hard.slice(0, sp) : hard).trimEnd() + '…';
 }
 
 // ── setupRosterAuth — pure decision helpers (B4) ───────────────────────────────

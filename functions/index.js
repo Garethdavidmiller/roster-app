@@ -1550,11 +1550,22 @@ exports.resetMemberPassword = onRequest(
             if (revoke) await admin.auth().revokeRefreshTokens(user.uid);
             // Stamp resetAt so the member is prompted to set a new password. merge preserves any
             // existing passwordSetAt (whose staleness vs this resetAt is what marks them un-migrated).
-            await admin.firestore().collection('passwordStatus').doc(member).set(
-                { resetAt: admin.firestore.FieldValue.serverTimestamp() },
-                { merge: true },
-            );
-            return res.json({ ok: true, member, revoked: revoke });
+            // The password is ALREADY changed + sessions revoked by this point, so a failure of only
+            // this Firestore stamp must NOT report the reset as failed (the old 500 told the admin
+            // "nothing changed" when the account was in fact reset). Surface it as a partial success:
+            // the reset stands, but the "un-migrated" flag couldn't be written, so the member won't be
+            // nudged to re-set until a re-run. A retry heals the stamp (the reset is idempotent).
+            let stamped = true;
+            try {
+                await admin.firestore().collection('passwordStatus').doc(member).set(
+                    { resetAt: admin.firestore.FieldValue.serverTimestamp() },
+                    { merge: true },
+                );
+            } catch (stampErr) {
+                stamped = false;
+                console.error('[resetMemberPassword] resetAt stamp failed (password WAS reset) for', member, stampErr && stampErr.code, stampErr);
+            }
+            return res.json({ ok: true, member, revoked: revoke, stamped });
         } catch (e) {
             if (e && e.code === 'auth/user-not-found') {
                 return res.status(404).json({ error: `No Firebase account for "${member}" — run Set up accounts first` });

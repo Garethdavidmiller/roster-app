@@ -324,6 +324,15 @@ describe('extractAIJson', () => {
         const result = extractAIJson('{"parsed": [{"memberName": "G. Miller", "Mon": "RD"}]}');
         assert.equal(result.parsed[0].memberName, 'G. Miller');
     });
+    test('skips a BALANCED non-JSON brace pair in the preamble and finds the real object', () => {
+        // The pre-fix extractor locked onto the first '{' and threw when its balanced span ({curly})
+        // wasn't valid JSON — even though the real object followed. It now keeps scanning.
+        const result = extractAIJson('use {curly} placeholders in notes\n{"parsed": [{"Mon": "RD"}]}');
+        assert.deepEqual(result, { parsed: [{ Mon: 'RD' }] });
+    });
+    test('still throws when NO candidate span is valid JSON', () => {
+        assert.throws(() => extractAIJson('{nope} and {also nope}'), SyntaxError);
+    });
 });
 
 // ── HEADER_TO_INDEX ───────────────────────────────────────────────────────────
@@ -717,6 +726,24 @@ describe('buildPushPayload', () => {
 
     test('event feature without headline/url throws (no silent bad payload)', () => {
         assert.throws(() => buildPushPayload({ feature: 'pay', body: 'x', baseUrl: BASE }), /No headline/);
+    });
+
+    test('enforces the length budgets: an over-long caller headline/body is clipped with an ellipsis', () => {
+        const longHead = 'Payday Friday and a great many extra words that run well past the forty character title budget';
+        const longBody = 'Open the Pay Calculator to estimate your pay for this period and also read a lot of additional text far beyond the eighty character body budget line';
+        const p = buildPushPayload({
+            feature: 'pay', headline: longHead, body: longBody, url: `${BASE}/paycalc.html`,
+        });
+        assert.ok(p.title.length <= 40, `title clipped to budget (was ${p.title.length})`);
+        assert.ok(p.body.length <= 80, `body clipped to budget (was ${p.body.length})`);
+        assert.ok(p.title.endsWith('…') && p.body.endsWith('…'), 'clipped text ends with an ellipsis');
+        assert.ok(p.title.startsWith('💷'), 'the leading feature emoji is preserved through the clip');
+    });
+
+    test('within-budget headline/body are returned unchanged (no spurious ellipsis)', () => {
+        const p = buildPushPayload({ feature: 'huddle', body: 'Tap to read the latest day plan.', baseUrl: BASE });
+        assert.equal(p.title, '📋 Latest Huddle');
+        assert.equal(p.body, 'Tap to read the latest day plan.');
     });
 
     test('design-language invariants hold for every feature: one leading emoji, no exclamation, title within budget', () => {

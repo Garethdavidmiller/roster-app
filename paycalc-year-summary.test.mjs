@@ -82,11 +82,12 @@ const T25 = getThresholds('2025/26');
 const RATE = 20.74, CONTR = 140, LONDON = 276.16, PENSION = 147.36;
 const OPTS = { taxCode: '1257L', plan: 'none', pgLoan: false, now: NOW };
 
-/** Mirror one payslip through the same real engine, so the totals assert the wiring. */
-function mirror({ oHrs = 0, sHrs = 0, pension = PENSION, plan = 'none', slSkip = false }) {
+/** Mirror one payslip through the same real engine, so the totals assert the wiring. `lump` is a
+ *  gross bp/HPP lump folded into gross BEFORE pension/tax/NI/SL — exactly as calculate() does. */
+function mirror({ oHrs = 0, sHrs = 0, pension = PENSION, plan = 'none', slSkip = false, lump = 0 }) {
     const g = computeGross({ rate: RATE, effContr: CONTR, satHrs: 0, bhHrs: 0, bhOtHrs: 0,
         oHrs, rHrs: 0, sHrs, bHrs: 0, peerDays: 0, london: LONDON, otherAdj: 0 });
-    const sacGross = g.gross - pension;
+    const sacGross = g.gross + lump - pension;
     const tax = computeTax(sacGross, '1257L', T25).tax;
     const ni  = computeNI(sacGross, T25.ni);
     const sl  = computeSL(sacGross, plan, T25.sl, slSkip);
@@ -169,5 +170,33 @@ describe('computeYearSoFar', () => {
         const y = computeYearSoFar(TY, OPTS);
         assert.equal(y.skipped, 1);
         assert.equal(y.entered, 1, 'the readable payslip still counts');
+    });
+
+    test('an INCLUDED back-pay lump is folded into its payslip (taxed) and added to the projection ONCE', () => {
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0 }));
+        _ls.set('myb_pc_p61', JSON.stringify({ otH: 4, otM: 0 }));
+        const base   = computeYearSoFar(TY, OPTS);
+        const withBp = computeYearSoFar(TY, { ...OPTS, bpLump: { pNum: 60, amount: 500 } });
+        const lumpNet = mirror({ oHrs: 4, lump: 500 }).net - mirror({ oHrs: 4 }).net;
+        assert.ok(lumpNet > 0, 'a £500 gross lump nets something after tax/NI');
+        // Take-home so far agrees with the result card (the lump joins P60's take-home).
+        assert.ok(Math.abs(withBp.net - (base.net + lumpNet)) < 0.01, 'so-far net includes the taxed lump');
+        assert.ok(Math.abs(withBp.taxable - (base.taxable + 500)) < 0.01, 'taxable rises by the gross lump');
+        // Projection = recurring hours-only average × employed periods + the one-off lump ONCE
+        // (base.entered = 2, employedPeriods = 4). The lump must NOT be extrapolated across the year.
+        assert.ok(Math.abs(withBp.projectedNet - ((base.net / 2) * 4 + lumpNet)) < 0.01,
+            'lump added once to the projection, not multiplied across periods');
+        assert.notEqual(Math.round(withBp.projectedNet), Math.round((withBp.net / 2) * 4),
+            'must not extrapolate the lump-inflated per-payslip average');
+    });
+
+    test('an INCLUDED HPP lump lands on the tax year’s first January payslip', () => {
+        _ls.set('myb_pc_p62', JSON.stringify({ otH: 4, otM: 0 }));   // P62 = Jan 2026 (paid: now = 1 Feb)
+        const tyJan  = { ...TY, hppPaidJan: 2026 };
+        const base   = computeYearSoFar(tyJan, OPTS);
+        const withHpp = computeYearSoFar(tyJan, { ...OPTS, hppLump: { amount: 800 } });
+        const lumpNet = mirror({ oHrs: 4, lump: 800 }).net - mirror({ oHrs: 4 }).net;
+        assert.equal(base.entered, 1, 'only P62 is paid + entered');
+        assert.ok(Math.abs(withHpp.net - (base.net + lumpNet)) < 0.01, 'HPP joins the January payslip take-home');
     });
 });

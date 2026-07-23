@@ -523,6 +523,25 @@ describe('resolveEffectiveShift — the shared display ladder (single source for
             { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: false, note: 'ot' });
     });
 
+    it('a TIMED worked-type override on a SUNDAY displays as RDW, not a plain shift (legacy-data coercion)', () => {
+        // A worked Sunday is always RDW (Sundays are uncontracted); new creation is blocked at every
+        // write path, but a legacy shift/allocated/overtime/swap doc on a Sunday must still DISPLAY as
+        // RDW — matching the creation invariant and the 1.5× pay routing.
+        for (const type of ['shift', 'allocated', 'overtime', 'swap']) {
+            const r = resolveEffectiveShift({ type, value: '09:00-17:00', note: 'n' }, 'RD', true);
+            assert.deepEqual(r, { shift: 'RDW', rdwTime: '09:00-17:00', derivedRdw: true, note: 'n' },
+                `${type} on a Sunday should resolve to RDW`);
+        }
+    });
+
+    it('the same worked-type override on a NON-Sunday keeps its plain shift value (no coercion off-Sunday)', () => {
+        assert.equal(resolveEffectiveShift({ type: 'shift', value: '09:00-17:00' }, 'RD', false).shift, '09:00-17:00');
+    });
+
+    it('a NON-timed worked-type override on a Sunday is NOT coerced (falls through to its raw value)', () => {
+        assert.equal(resolveEffectiveShift({ type: 'shift', value: 'SPARE' }, 'RD', true).shift, 'SPARE');
+    });
+
     it('annual_leave / correction / spare_shift resolve via their value', () => {
         assert.equal(resolveEffectiveShift({ type: 'annual_leave', value: 'AL' }, '06:00-14:00', false).shift, 'AL');
         assert.equal(resolveEffectiveShift({ type: 'correction', value: 'RD' }, '06:00-14:00', false).shift, 'RD');

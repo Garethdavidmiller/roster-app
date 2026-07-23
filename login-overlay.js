@@ -77,8 +77,11 @@ export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession,
         const code = getAuthError();
         if (code === 'auth/too-many-requests') return { ok: false, kind: 'ratelimit', error: 'Too many attempts — please wait a few minutes and try again.' };
         if (isTransient(code))                 return { ok: false, kind: 'transient', error: 'Couldn’t reach sign-in — check your connection and try again.' };
-        // Definitive credential rejection — the typed password was wrong (or the account isn't set up).
-        return { ok: false, kind: 'credential', error: 'Password incorrect — if you’ve forgotten it, ask the admin to reset it.' };
+        // Definitive credential rejection — covers BOTH a wrong/forgotten password AND an account that
+        // was never provisioned (auth/user-not-found). The remedy for the latter is set-up, not a
+        // reset, so the wording names "the admin" generically (an account matter — house rule) and
+        // doesn't wrongly promise a reset that can't fix an unset-up account.
+        return { ok: false, kind: 'credential', error: 'Password not recognised — if you’ve forgotten it, or your account isn’t set up yet, ask the admin.' };
     }
     // Commit ONLY now that auth has genuinely resolved. If the write is swallowed (storage blocked —
     // iOS Private Browsing), fail cleanly: without the local session every page re-check returns null,

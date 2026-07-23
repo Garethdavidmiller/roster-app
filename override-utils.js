@@ -458,6 +458,9 @@ export function resolveOtherPay(parsed, baseValue) {
 /** A worked-shift "HH:MM-HH:MM" range (the DISPLAY form — 1-or-2-digit hours, no anchoring;
  *  matches the renderer's historical inline regex, deliberately looser than roster-data's TIME_RE). */
 const SHIFT_RANGE_RE = /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/;
+// Worked override types whose TIMED value on a Sunday must display as RDW (never a plain shift) —
+// see resolveEffectiveShift. `rdw` already resolves to RDW; `spare_shift` is a badge, not a time.
+const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift', 'allocated', 'overtime', 'swap']);
 
 /**
  * Resolve a Firestore override onto a base shift into ONE canonical display descriptor.
@@ -490,6 +493,16 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
     const note = override.note || '';
     if (override.type === 'rdw') {
         return { shift: 'RDW', rdwTime: override.value, derivedRdw: false, note };
+    }
+    // A worked Sunday is ALWAYS Rest Day Working, never a plain shift — Sundays are non-contracted
+    // for every grade. New creation is blocked at every write path (the admin Sunday Shift-pill
+    // guard + bulk skip + roster-upload time→rdw promotion, v18.73), but a legacy / hand-written
+    // worked-type doc (shift or the legacy allocated/overtime/swap) sitting on a Sunday must still
+    // DISPLAY as 💼 RDW, not an Early/Late badge — matching the creation invariant and the pay
+    // engine (which already prices any worked Sunday at 1.5× via its own dow===0 branch). A
+    // timed value is treated exactly like an `rdw` override; a non-time value falls through.
+    if (sunday && SUNDAY_RDW_DISPLAY_TYPES.has(override.type) && SHIFT_RANGE_RE.test(override.value || '')) {
+        return { shift: 'RDW', rdwTime: override.value, derivedRdw: true, note };
     }
     const parsedOther = override.type === 'other' ? parseOtherValue(override.value) : null;
     if (parsedOther) {

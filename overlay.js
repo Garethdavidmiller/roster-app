@@ -92,11 +92,6 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler
     el.classList.remove('open');
     if (onKey) document.removeEventListener('keydown', onKey);
     focusReturn?.focus();
-    function finish() { el.classList.remove('visible'); unlockBodyScroll(); afterClose?.(); }
-    // Reduced motion disables the fade transition entirely (shared.css), so
-    // transitionend never fires — finish immediately instead of making those
-    // users wait out the 500 ms fallback with body scroll still locked.
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finish(); return; }
     // Whichever fires first (the transition ending, or the 500 ms fallback when iOS suppresses
     // transitionend on a backgrounded tab) runs finish() exactly once AND removes the listener.
     // Previously the fallback timer left the {once:true} transitionend listener attached, so it
@@ -109,10 +104,20 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler
         _done = true;
         clearTimeout(_t);
         el.removeEventListener('transitionend', finishOnce);
-        finish();
+        el.classList.remove('visible');
+        unlockBodyScroll();
+        afterClose?.();
     };
+    // Reduced motion disables the fade transition entirely (shared.css), so transitionend never
+    // fires — finish immediately (return null: nothing left pending) instead of making those users
+    // wait out the 500 ms fallback with body scroll still locked.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finishOnce(); return null; }
     _t = setTimeout(finishOnce, 500);
     el.addEventListener('transitionend', finishOnce);
+    // Return the idempotent finisher so a caller re-opening DURING the fade can complete this close
+    // synchronously first (removes .visible + unlocks scroll exactly once) and then re-open cleanly,
+    // instead of the re-open being silently dropped by a `.visible`-still-set guard.
+    return finishOnce;
 }
 
 /**
@@ -211,6 +216,11 @@ export function trapFocus(container, e) {
 export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose }) {
     /** @type {Element|null} */
     let _focusReturn = null;
+    // The in-flight close's finisher while the overlay is fading out (null otherwise). Lets a
+    // re-open DURING the fade complete that close synchronously and then re-open, instead of the
+    // re-open being silently dropped.
+    /** @type {(() => void)|null} */
+    let _pendingClose = null;
 
     /** @param {KeyboardEvent} e */
     function onKey(e) {
@@ -219,10 +229,16 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     }
 
     function open(/** @type {any[]} */...args) {
-        // Idempotent: a second open() while already open would push a duplicate lockBodyScroll
-        // (depth counter → the lock never releases on close) and re-run onOpen. Reachable via a
-        // fast double-tap on a trigger during the opener's slide-out (e.g. the nav-drawer logo).
-        if (overlay.classList.contains('visible')) return;
+        // Re-open during the close fade: the overlay is still `.visible` (removed only at
+        // transitionend/fallback) but logically closing. Complete that close NOW (removes .visible +
+        // unlocks scroll exactly once — idempotent finisher) so the fresh open below re-locks and
+        // re-shows cleanly. Without this, a staff member re-tapping the trigger within ~0.2–0.5 s of
+        // closing (e.g. re-checking the About panel) got nothing until a second tap.
+        if (_pendingClose) { _pendingClose(); _pendingClose = null; }
+        // Idempotent: a second open() while already/still open (not closing) would push a duplicate
+        // lockBodyScroll (depth counter → the lock never releases on close) and re-run onOpen.
+        // Reachable via a fast double-tap on a trigger during the opener's slide-in.
+        else if (overlay.classList.contains('visible')) return;
         _focusReturn = document.activeElement;
         onOpen?.(...args);
         lockBodyScroll();
@@ -256,8 +272,15 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         // entry orphaned (a later Android Back would then pop the wrong overlay). Isolate it.
         try { onClose?.(); } catch (e) { console.error('[overlay] onClose threw:', e); }
         // Pass `close` as backHandler so a double-tap on the ✕ (or backdrop) during the fade
-        // drops only THIS lightbox's entry, never the overlay beneath it.
-        dismissOverlay(overlay, { onKey: /** @type {EventListener} */ (onKey), focusReturn: /** @type {HTMLElement|undefined} */ (_focusReturn ?? undefined), backHandler: close });
+        // drops only THIS lightbox's entry, never the overlay beneath it. Capture the finisher so a
+        // re-open during the fade can complete this close first; afterClose clears it once the close
+        // lands naturally (transitionend/fallback).
+        _pendingClose = dismissOverlay(overlay, {
+            onKey: /** @type {EventListener} */ (onKey),
+            focusReturn: /** @type {HTMLElement|undefined} */ (_focusReturn ?? undefined),
+            backHandler: close,
+            afterClose: () => { _pendingClose = null; },
+        });
         _focusReturn = null;
     }
 
