@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v18.50 · Updated every 0.10 version*
+*Last updated: July 2026 — v18.60 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -540,6 +540,16 @@ The two PURE HTML builders for the pay-result card, extracted from `calculate()`
 - `fmtHrsMins(h)` — decimal hours → "Nh"/"Nh Mm" (the per-row hours label; was the inline `fh` in `calculate()`)
 - `buildSummaryRows(d)` — the `#summary` estimate rows: Regular/Total pay → back pay → HPP → pension → tax → NI → Student Loan (`d.slLines`, pre-rendered) → estimated take-home
 - `buildBreakdownRows(d)` — the `#bdBody` full breakdown: one row per pay component present (Mon–Fri + London always; premiums/OT/RDW/training/adjustment/notes/extras guarded on > 0)
+
+### `paycalc-inputs.js`
+The DOM-pure form-field input helpers extracted from `paycalc-app.js`'s `init()` (v18.60, review item 10 — continue focused coordinator extraction). They read/normalise the numbers a member types into the hours & figures fields, and own the live "= 7h 30m" decimal hint. They depend ONLY on `document` plus imported pure helpers (`parseSmartFloat`/`parseSmartFloatOrNull` from `roster-data.js`, `clampMinute`/`decimalToHM` from `paycalc-format.js`) — NO coordinator closure state — so they lift out of `init()` cleanly and are unit-testable in Node against a fake `document`. The event WIRING that USES them (`autoDecimalHours`, `onHhMm`) stays in `paycalc-app.js` because it closes over `calculate()`/`autosave()`/period state; it just calls these primitives. Tested by `paycalc-inputs.test.mjs`.
+- `numVal(id)` — parse a field's value with `parseSmartFloat` (strips iOS smart-hyphens/quotes); missing element / empty → 0
+- `numValOr(id, fallback)` — like `numVal` but returns `fallback` for an unparseable/empty value (NOT 0) — the signed Year-to-Date / pension fields need an explicit floor so a stray "." doesn't cascade £0/£NaN
+- `intVal(id)` — non-negative integer read (`Math.max(0, parseInt || 0)`) for the hour/minute fields
+- `hhmmDec(hId, mId)` — combine an hrs + mins field pair into decimal hours
+- `clampMins(mId)` — clamp an out-of-range minutes field into [0, 59], rewriting ONLY when out of range (preserves a typed "05")
+- `_decHintEl(hId, make)` — find (or lazily create when `make`) the `.hhmm-dec-hint` element under an hours field's `.hhmm-wrap`; null when the markup is absent
+- `decPreview(hId)` — write the live "= Nh Mm" hint while a decimal is being typed, hide it for a whole number
 
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).
