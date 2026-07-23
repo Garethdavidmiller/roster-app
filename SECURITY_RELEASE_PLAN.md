@@ -44,7 +44,9 @@ rule text and gate cases:
 **Open** (in dependency order):
 
 - [ ] **Track C — password release:** C2 email verification → C4 reset path → C3 self-service change →
-  C5 retire surname (irreversible, ≥90% migrated).
+  C5 retire surname (irreversible, ≥90% migrated). **Agreed interim shape (Jul 2026): the
+  "C-lite" plan in `PASSWORD_PLAN.md`** — C4′ (admin reset as the recovery channel) + C3, with C2
+  deferred until an email relay exists; C5 unchanged.
 - [ ] **Track D — App Check:** D1 monitor-first → D2 enforce (Firestore → Storage → Functions) + the
   analytics doc-size key-count cap.
 - [ ] **Track E — full-app auth** (calendar behind login) — **UNDECIDED**; most likely trigger is a
@@ -114,6 +116,12 @@ Three design points that flow from this and still govern any future rule change:
 
 ### Track C — password release (C2 → C4 → C3 → C5)
 - **Goal & detail:** the 5-stage plan in ROADMAP → "Password security improvements".
+- **Agreed interim shape (Jul 2026) — `PASSWORD_PLAN.md` ("C-lite"):** chosen passwords + the admin
+  reset as the recovery channel, deferring C2 (email) until a relay exists. It honours this track's
+  ordering (reset path ships before/with the change flow) and carries the two deep-review-critical
+  design rules: the surname fallback is **gated** on the typed value normalising to the surname, and
+  a definitive credential rejection resolves to `'none'` (never anonymous) **regardless of
+  `ENFORCE_NAMED_SESSION`** — see that doc before building anything password-related.
 - **Ordering within C:** verification (C2) → reset path (C4) → self-service change (C3, needs B0) →
   retire surname (C5, irreversible, ≥90% migrated).
 - **Risk:** locking staff out of the *core roster* is a bigger operational risk than the present
