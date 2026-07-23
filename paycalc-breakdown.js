@@ -56,7 +56,7 @@ export function buildSummaryRows(d) {
 }
 
 /**
- * Build the full pay-breakdown rows (#bdBody): one row per pay component present. Only components
+ * Build the full pay-breakdown rows (written into #bdRows inside #bdBody): one row per pay component present. Only components
  * with hours/amount > 0 render (matching calculate()'s per-line guards).
  * @param {{
  *   nonBhNorm:number, rate:number, gBasicNorm:number, satCapped:number, r125:number,
@@ -67,7 +67,7 @@ export function buildSummaryRows(d) {
  *   pgLoan:boolean, usingCumulative:boolean, _bpThisPeriod:number, _bpIsEstimate:boolean,
  *   _hppForPeriod:number, _hppIsEstimate:boolean
  * }} d
- * @returns {string} innerHTML for #bdBody
+ * @returns {string} innerHTML for #bdRows (the static pension/absence notes are siblings in #bdBody)
  */
 export function buildBreakdownRows(d) {
     const {

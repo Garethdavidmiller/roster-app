@@ -131,3 +131,67 @@ test('paycalc: one-time notices do not stack (data-ownership prompt wins)', asyn
     await expect(page.locator('#welcomeLightbox.visible'), 'welcome suppressed').toHaveCount(0);
 });
 
+
+// A mid-year joiner (startDate this tax year) must NOT be told to fill in payslips from before
+// they were employed. The HPP + back-pay period loops skip periods entirely before startDate
+// (getProRateFactor(p) === 0), fixing the "Not entered yet: 10 Apr…" + inflated "N of 13" denom
+// for a joiner (v18.54 — from the max-effort review). J. Davies started 5 May 2026, so her
+// 2026/27 window's 10 Apr + 8 May payslips predate her employment.
+test('paycalc: a joiner is not asked to fill in pre-employment payslips', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'J. Davies');   // getLoggedMember reads the session, not the calendar member
+    const oneSat = JSON.stringify({ satH:8,satM:0,bhH:0,bhM:0,bhOtH:0,bhOtM:0,otH:0,otM:0,rdwH:0,rdwM:0,sunH:0,sunM:0,boxH:0,boxM:0,peer:0,slSkip:false,otherAdj:0,actualNet:null });
+    await page.addInitScript((seed) => {
+        localStorage.setItem('myb_pc_pay_welcome_shown','1');
+        localStorage.setItem('myb_pc_ns_migrated','1');
+        localStorage.setItem('myb_pc_jdavies_grade','cea');
+        localStorage.setItem('myb_pc_jdavies_setup','1');
+        localStorage.setItem('myb_pc_jdavies_p52', seed);   // p52 = 5 Jun 2026 — after her 5 May start
+    }, oneSat);
+    await page.goto('/paycalc.html');
+    await page.waitForSelector('#netDisplay');
+    await page.waitForTimeout(800);
+    await page.evaluate(() => {
+        for (const id of ['hppCardToggle','backPayCardToggle']) {
+            const t = document.getElementById(id);
+            /** @type {HTMLElement} */ (t.querySelector('.collapse-chevron') || t).click();
+        }
+    });
+    await page.waitForTimeout(400);
+    const { hppBasis, bpNotice } = await page.evaluate(() => ({
+        hppBasis: document.getElementById('hppBasis')?.textContent.trim() || '',
+        bpNotice: document.getElementById('backPayNotice')?.textContent.trim() || '',
+    }));
+    // Pre-start payslips are neither named nor counted in the denominator.
+    expect(hppBasis, 'HPP must not name a pre-employment payslip').not.toContain('10 Apr');
+    expect(hppBasis).not.toContain('8 May');
+    expect(hppBasis, 'HPP denominator excludes the 2 pre-start periods').toContain('of 11');
+    expect(bpNotice, 'back pay must not name a pre-employment payslip').not.toContain('10 Apr');
+    expect(bpNotice).not.toContain('8 May');
+});
+
+// A mid-year joiner's rough "from Year to Date" HPP estimate must not subtract PRE-EMPLOYMENT
+// non-premium pay. _expectedNonPremiumYtd now pro-rates London + pension by the joining factor
+// (v18.55), so pre-start periods (factor 0) contribute £0 instead of a phantom "London − pension".
+// J. Davies (start 5 May 2026, source payslip p52) has a fixed non-premium baseline ~£2924 vs a
+// buggy ~£3179; a Taxable Pay of £3050 sits between them — buggy → £0, fixed → a real figure.
+test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'J. Davies');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_pay_welcome_shown','1');
+        localStorage.setItem('myb_pc_ns_migrated','1');
+        localStorage.setItem('myb_pc_jdavies_grade','cea');
+        localStorage.setItem('myb_pc_jdavies_setup','1');
+        localStorage.setItem('myb_pc_jdavies_ytd_src_2026_27','52');
+    });
+    await page.goto('/paycalc.html');
+    await page.waitForSelector('#netDisplay');
+    await page.waitForTimeout(700);
+    await page.fill('#ytdPay','3050');
+    await page.dispatchEvent('#ytdPay','input');
+    await page.waitForTimeout(400);
+    const ytdAmt = await page.evaluate(() => document.getElementById('hppModeYtdAmt')?.textContent.trim() || '');
+    const num = parseFloat(ytdAmt.replace(/[^0-9.]/g,'')) || 0;
+    expect(num, 'joiner ytd HPP figure must be positive (not zeroed by phantom pre-employment pay)').toBeGreaterThan(0);
+});

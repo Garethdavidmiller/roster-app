@@ -676,7 +676,12 @@ export function calcBackPay() {
       if (parsed.error) { _skipped.push(fdShort(p.payday)); console.warn('[PayCalc] Back-pay corrupt period', p.num); return; }
       if (!parsed.data && !fromPNum) return;
       const d = parsed.data || {};
-      if (!parsed.data || isDataEmpty(d)) _basicOnly.push(p.payday);
+      // Only NAME an empty period in the "no hours saved" notice when it's actually the member's —
+      // getProRateFactor is 0 for a period ENTIRELY before a mid-year joiner's start (v18.54), and
+      // such a period already contributes £0 (effContr 0) so it's never counted in the total either.
+      // Without this guard a joiner was told "fill in 10 Apr, 8 May…" for payslips before they joined.
+      // (Returns 1 for noProRate returns / no-startDate members, so long-servers are unaffected.)
+      if ((!parsed.data || isDataEmpty(d)) && getProRateFactor(p) !== 0) _basicOnly.push(p.payday);
       // All the money arithmetic lives in the PURE _accrueBackPayPeriod (unit-tested) — this loop
       // only maps storage/settings to numbers. Pro-rating uses the exact factor (not the
       // integer-rounded effContr divided back) to avoid rounding error; hour caps mirror calculate().

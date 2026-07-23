@@ -14,7 +14,7 @@ import {
   taxYearForPeriod, capHours, getRateForPeriod, getLondonAllowanceForPeriod,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
-import { getLoggedMember, getGrade, getEffectiveContr, getPensionDefault, getStoredRateForYear } from './paycalc-settings.js';
+import { getLoggedMember, getGrade, getEffectiveContr, getProRateFactor, getPensionDefault, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
@@ -160,9 +160,17 @@ function _expectedNonPremiumYtd(ty) {
   });
   let nonPremium = 0;
   for (const p of covered) {
+    // Pro-rate EVERY non-premium component by the joining factor (v18.55), mirroring calculate()
+    // (London ×_proRateFactor at paycalc-app.js:904, pension ×getProRateFactor via _periodDefaultPension)
+    // and the real payslip. `basic` already carries the factor via getEffectiveContr; London and
+    // pension were left at FULL value — so for a mid-year joiner every pre-start period (factor 0)
+    // added phantom "London − pension" non-premium pay (~£129/period) and the joining period
+    // double-counted, biasing the rough 'ytd' HPP estimate LOW. Factor is 0 for a fully-pre-start
+    // period and 1 for long-servers / noProRate returns, so this never over-reaches.
+    const factor  = getProRateFactor(p);
     const basic   = getEffectiveContr(p) * getRateForPeriod(p, grade, ty.label, settledRate);
-    const london  = getLondonAllowanceForPeriod(p, ty);
-    const pension = parseFloat(String(getPensionDefault(p))) || 0;
+    const london  = getLondonAllowanceForPeriod(p, ty) * factor;
+    const pension = (parseFloat(String(getPensionDefault(p))) || 0) * factor;
     nonPremium += basic + london - pension;
   }
   return { nonPremium, count: covered.length };
@@ -301,7 +309,13 @@ function _hoursEstimate(ty, allPeriods) {
   const rate    = getStoredRateForYear(ty);
   const periods = allPeriods.filter(/** @param {any} p */ p => {
     const o = p.num - 48;
-    return o >= ty.first && o <= ty.last;
+    // Exclude periods ENTIRELY before a mid-year joiner's start (v18.54): getProRateFactor is 0
+    // only when the whole period predates startDate (it returns 1 for noProRate secondment returns
+    // and for members with no startDate, so this never over-reaches). Without this a joiner's
+    // pre-employment payslips landed in `missingPaid` ("Not entered yet: 10 Apr…") and inflated the
+    // "N of 13" denominator — telling them to fill in payslips from before they joined. The HPP £ is
+    // unchanged (those periods contribute £0 of variable pay either way); only the count/list fix.
+    return o >= ty.first && o <= ty.last && getProRateFactor(p) !== 0;
   });
 
   let totalVar     = 0;
