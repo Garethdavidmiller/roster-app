@@ -1731,8 +1731,15 @@
                place (matches operations.css / settings.css). To print your shifts, use
                the Calendar page. (v18.71 — was a full week-grid print layout.) */
             html, body { background: white !important; }
+            /* #unsavedBanner / #stagedBar / #saveToast are body-level siblings of .container
+               (fixed-position action bars shown when edits are pending), so .container's hide
+               below does NOT reach them — list them explicitly or they print over the notice
+               (regression fix: the pre-v18.71 print CSS hid all three). */
             .container,
             .app-header,
+            #unsavedBanner,
+            #stagedBar,
+            #saveToast,
             #loginOverlay,
             .lb-overlay,
             .nav-panel,

@@ -1539,9 +1539,12 @@ exports.resetMemberPassword = onRequest(
             return res.status(404).json({ error: `Unknown member "${member}" — run Set up accounts first` });
         }
 
-        const email    = nameToEmail(member);
-        const password = nameToPassword(member);   // surname default (reuses the parity-guarded helper)
         try {
+            // Derive inside the try: nameToPassword throws for an unusable (e.g. single-token) name,
+            // and outside the try that surfaced as an ungraceful 500 with no JSON body. All current
+            // members are "X. Surname", so this is latent hardening, matching setupRosterAuth.
+            const email    = nameToEmail(member);
+            const password = nameToPassword(member);   // surname default (reuses the parity-guarded helper)
             const user = await admin.auth().getUserByEmail(email);
             await admin.auth().updateUser(user.uid, { password });
             if (revoke) await admin.auth().revokeRefreshTokens(user.uid);
