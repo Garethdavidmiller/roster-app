@@ -836,6 +836,12 @@
       outline: 2px solid var(--primary-blue); outline-offset: 2px;
     }
     .bp-mode-opt input, .hpp-mode-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-blue); }
+    /* Manual entry disabled while the paid-in payslip is still in the future (v18.48) —
+       there is no printed figure to copy until it exists. calcBackPay owns the state. */
+    .bp-mode-opt--disabled { opacity: 0.55; }
+    .bp-mode-opt--disabled, .bp-mode-opt--disabled input { cursor: default; }
+    /* The compact "rates on record" line replacing the locked Old→New boxes (v18.48) */
+    #bpRatesLine { margin: 0 0 14px; line-height: 1.5; }
     /* Per-option figure on the HPP amount-source rows (v18.40 — review item 4): each radio shows
        its CURRENT £ on the right so the choice is informed. "≈" marks the two estimates; the
        member's own figure shows plain. Empty span = that source has nothing to offer (costs no
