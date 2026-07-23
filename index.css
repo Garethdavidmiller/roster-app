@@ -1576,6 +1576,11 @@
                 display: none !important;
             }
 
+            /* Drop the "tap to jump" ▾ affordance on the month heading — it's a
+               screen-only cue and prints as a stray glyph beside the month name. */
+            .month-year { cursor: default !important; }
+            .month-year::after { content: none !important; }
+
             /* Never print an open lightbox over the calendar (e.g. the AL
                balance panel left open when printing) */
             .lb-overlay {

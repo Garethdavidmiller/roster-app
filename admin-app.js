@@ -14,7 +14,7 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, formatISO, isSunday, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY, TIME_RE, projectAnnualLeaveOverage } from './roster-data.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -1531,21 +1531,9 @@ export function init() {
     initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
 
 
-    // ============================================
-    // PRINT HEADER — member name, week, timestamp
-    // ============================================
-    // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
-    // eagerly on load. The beforeprint handler is kept for desktop browsers, where it
-    // fires reliably just before the print dialog opens.
-    function stampAdminPrintHeader() {
-        const member    = fieldMember.value || 'All members';
-        const weekLabel = document.getElementById('weekNavLabel')?.textContent || '';
-        const now       = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
-        const printHeaderEl = document.getElementById('printHeader');
-        if (printHeaderEl) printHeaderEl.innerHTML = `Marylebone Roster — ${escapeHtml(member)}<span class="print-sub">Week: ${escapeHtml(weekLabel)} · Printed: ${escapeHtml(now)}</span>`;
-    }
-    stampAdminPrintHeader();
-    window.addEventListener('beforeprint', stampAdminPrintHeader);
+    // Admin is not a printable page (v18.71) — printing shows a branded "use the
+    // Calendar to print your shifts" notice (admin.css @media print). The old
+    // beforeprint week-grid header stamp was removed with it.
 
     // ---- One-time work email check (shown once per device after login) ----
 

@@ -1014,6 +1014,10 @@
     }
 
     /* ── PRINT STYLES ────────────────────────────────────────────────── */
+    /* Paycalc prints as a keep-able pay estimate (v18.71 print pass): the RESULT (take-home +
+       full breakdown) LEADS, then the hours entered, then the settings context — the input-form
+       chrome, occasional cards and EVERY overlay are stripped, and the navy result hero prints
+       ink-light (navy-on-white) instead of a full ink block. */
     @media print {
       @page { margin: 1.2cm; size: A4 portrait; }
       * {
@@ -1028,12 +1032,29 @@
         margin: 0 !important; overflow: visible !important;
         min-height: auto !important;
       }
+      /* Lead with the result: one column ordered result → hours → settings → disclaimer.
+         The flex container is <main> (it holds .pc-work/.pc-side/.disclaimer — .app is just the
+         outer max-width wrapper). Order the WRAPPERS (not their cards via display:contents, which
+         doesn't reliably honour `order`): .pc-side (result) first, then .pc-work (settings+hours)
+         with hours ahead of settings inside it, then the disclaimer. */
       .app { max-width: 100% !important; display: block !important; }
+      main { display: flex !important; flex-direction: column !important; gap: 10px !important; }
+      .pc-work, .pc-side { display: flex !important; flex-direction: column !important; gap: 10px !important; }
+      .pc-side    { order: 1 !important; }
+      .pc-work    { order: 2 !important; }
+      .disclaimer { order: 3 !important; }
+      #hoursCard    { order: 1 !important; }
+      #settingsCard { order: 2 !important; }
+
+      /* Hide EVERY overlay (an open Welcome / notice / help lightbox must never print over the
+         page — the pre-v18.71 bug) plus all interactive-only chrome and the occasional cards. */
+      .lb-overlay,
       #iconLightbox, #helpLightbox, .setup-banner, .period-controls, .save-row,
-      .bd-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
-      #backPayCard, #backPayCardToggle, .field-hint,
+      #saveSettingsBtn, #actualsImportBtn,
+      .bd-btn, .show-more-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
+      #payslipCard, #hppCard, #backPayCard, #backPayCardToggle, #decimalConverterCard,
+      .field-hint, .net-hint, .check-actual, .prov-chips:empty,
       .privacy-note-standalone, .guide-footer-link,
-      #decimalConverterCard,
       #rosterHintBar, .joiner-notice, #stickyTotal,
       #payBreakBar, #payBreakLegend { display: none !important; }
       .app-header {
@@ -1059,15 +1080,18 @@
         border: 1.5px solid var(--primary-blue) !important;
         border-radius: 8px !important;
         page-break-inside: avoid !important;
-        margin-bottom: 10px !important;
+        margin-bottom: 0 !important;
       }
+      /* Ink-light result hero — navy text on white instead of a full navy ink block */
+      .result-net { background: white !important; }
+      .net-label, .net-amount, .net-period { color: var(--primary-blue) !important; }
       .bd-body { max-height: none !important; overflow: visible !important; }
       .content-card {
         box-shadow: none !important;
         border: 1.5px solid var(--border-light) !important;
         border-radius: 8px !important;
         page-break-inside: avoid !important;
-        margin-bottom: 10px !important;
+        margin-bottom: 0 !important;
       }
       .hhmm-wrap { display: flex !important; }
       .hhmm-field input {

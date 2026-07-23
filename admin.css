@@ -1724,95 +1724,30 @@
         }
 
         @media print {
-            @page { margin: 1cm; size: A4 portrait; }
-
-            * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                box-sizing: border-box !important;
-                orphans: 2;
-                widows: 2;
-            }
-
-            /* Hide interactive chrome */
+            /* Admin is an interactive self-service page (Change a Shift, Record Annual
+               Leave / Absence, Saved Changes) — nothing here is meaningful on paper, and
+               the printable roster lives on the Calendar. Reset the navy body to white,
+               hide every interactive surface, and show one clear branded notice in its
+               place (matches operations.css / settings.css). To print your shifts, use
+               the Calendar page. (v18.71 — was a full week-grid print layout.) */
+            html, body { background: white !important; }
+            .container,
+            .app-header,
             #loginOverlay,
-            #unsavedBanner,
-            #stagedBar,
-            .member-context-bar,
-            .week-nav,
-            .bulk-bar,
-            .btn-bulk-select,
-            .btn-bulk-apply,
-            .btn-save,
-            .save-hint,
-            .btn-delete,
-            .btn-edit,
-            .btn-bulk-delete,
-            .btn-card-tips,
-            .collapse-chevron,
-            .col-check,
-            .al-booked-box,
-
-            .overrides-month-filter,
-            .list-feedback,
-            .al-confirm-bar,
-            #saveToast { display: none !important; }
-
-            /* Reset backgrounds for print */
-            html, body { background: white !important; color: black !important; padding: 0 !important; }
-            .container { display: grid !important; max-width: 100% !important; grid-template-columns: 1fr !important; }
-            .col-main, .col-side { display: contents !important; }
-
-            /* Flatten the screen day-cards back to a plain bordered list for paper (v15.58) —
-               rounded cards + inter-row gaps waste vertical space and read oddly in print. */
-            .week-panel,
-            .week-carousel-panel { gap: 0 !important; }
-            .week-grid-header,
-            .day-row {
-                border: none;
-                border-bottom: 1px solid var(--border-mid);
-                border-radius: 0 !important;
-                break-inside: avoid;
-            }
-            /* State rows carry a 4px accent left border at (0,2,0) that the bare .day-row
-               reset above can't reach — flatten it explicitly so override/selected rows print
-               as a plain list too (row-error uses !important, so match it). */
-            .day-row.selected,
-            .day-row.has-override,
-            .day-row.row-error {
-                border-left: none !important;
-            }
-
-            .day-row { background: white !important; }
-
-            /* Override dark header row for print — navy on screen, readable black on paper */
-            .week-grid-header {
-                background: white !important;
-                color: var(--text-mid) !important;
-                border-bottom: 2px solid var(--primary-blue) !important;
-            }
-
-            /* Type pills — keep colours for quick scanning */
-            .type-pill-btn.active {
-                border: 1px solid currentColor;
-            }
-
-            /* Page title — populated by beforeprint listener */
-            #printHeader {
+            .lb-overlay,
+            .nav-panel,
+            .nav-panel-overlay { display: none !important; }
+            body::before {
+                content: "📝 Admin\A\A This is an interactive page — record annual leave and absence, change shifts and review saved changes. To print your shifts, open the Calendar and print from there.";
+                white-space: pre-line;
                 display: block;
-                font-size: 15px;
-                font-weight: 700;
-                margin-bottom: 16px;
-                color: black;
+                max-width: 16cm;
+                margin: 4cm auto;
+                text-align: center;
+                font-size: 14px;
+                line-height: 1.7;
+                color: var(--text-dark);
             }
-            #printHeader .print-sub {
-                display: block;
-                font-size: 12px;
-                font-weight: 400;
-                margin-top: 3px;
-                color: var(--print-muted);
-            }
-
         }
 
         #iconLightbox .lightbox-badge { background: color-mix(in oklch, var(--accent-gold) 15%, white); border-color: color-mix(in oklch, var(--accent-gold) 35%, white); color: var(--accent-gold); }

@@ -232,3 +232,38 @@ document.addEventListener('click', function (e) {
 });
 
 openHashTarget();   // first load: honour a deep link (defer → the DOM is already parsed)
+
+// ── Print: expand every country ─────────────────────────────────────────────────────────────────
+// The country cards are native <details>. Modern Chromium collapses a closed <details>'s body via
+// the ::details-content pseudo (content-visibility), which the print CSS `.detail-body{display:block}`
+// cannot reach — so a printed FIP guide showed each country as an empty bordered strip. Force every
+// <details> OPEN (and un-hide any card the finder filtered out) for the print run, then restore the
+// on-screen state afterwards, so the printout is the full country reference the fip.css @media print
+// block already intends. beforeprint/afterprint fire for Ctrl+P and the ⤓ PDF button on every browser.
+/** @type {Array<[HTMLDetailsElement, boolean]>} */
+var _fipOpenRestore = [];
+/** @type {Element[]} */
+var _fipHiddenRestore = [];
+function expandAllForPrint() {
+    _fipOpenRestore = [];
+    _fipHiddenRestore = [];
+    document.querySelectorAll('details').forEach(function (d) {
+        var det = /** @type {HTMLDetailsElement} */ (d);
+        _fipOpenRestore.push([det, det.open]);
+        det.open = true;
+    });
+    countryCards.forEach(function (card) {
+        if (/** @type {HTMLElement} */ (card).hidden) {
+            _fipHiddenRestore.push(card);
+            /** @type {HTMLElement} */ (card).hidden = false;
+        }
+    });
+}
+function restoreAfterPrint() {
+    _fipOpenRestore.forEach(function (p) { p[0].open = p[1]; });
+    _fipHiddenRestore.forEach(function (c) { /** @type {HTMLElement} */ (c).hidden = true; });
+    _fipOpenRestore = [];
+    _fipHiddenRestore = [];
+}
+window.addEventListener('beforeprint', expandAllForPrint);
+window.addEventListener('afterprint', restoreAfterPrint);

@@ -13,6 +13,26 @@
 .shift-types th:first-child,
 .shift-types td:first-child { white-space: nowrap; }
 
+/* "Admins only" role tag — marks the one admin-restricted workflow (Weekly Roster Upload, on the
+   admin-only Operations page) so non-admin staff reading this shared guide know it doesn't apply
+   to them. Gold-outline pill, matching the app's beta-chip look. */
+.admins-only {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--navy);
+    background: transparent;
+    border: 1.5px solid var(--gold);
+    border-radius: 999px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 8px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
 /* ── Shift-badge reference grid ──────────────────────── */
 .badge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .badge-item {
