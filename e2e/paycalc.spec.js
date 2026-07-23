@@ -169,3 +169,29 @@ test('paycalc: a joiner is not asked to fill in pre-employment payslips', async 
     expect(bpNotice, 'back pay must not name a pre-employment payslip').not.toContain('10 Apr');
     expect(bpNotice).not.toContain('8 May');
 });
+
+// A mid-year joiner's rough "from Year to Date" HPP estimate must not subtract PRE-EMPLOYMENT
+// non-premium pay. _expectedNonPremiumYtd now pro-rates London + pension by the joining factor
+// (v18.55), so pre-start periods (factor 0) contribute £0 instead of a phantom "London − pension".
+// J. Davies (start 5 May 2026, source payslip p52) has a fixed non-premium baseline ~£2924 vs a
+// buggy ~£3179; a Taxable Pay of £3050 sits between them — buggy → £0, fixed → a real figure.
+test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'J. Davies');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_pay_welcome_shown','1');
+        localStorage.setItem('myb_pc_ns_migrated','1');
+        localStorage.setItem('myb_pc_jdavies_grade','cea');
+        localStorage.setItem('myb_pc_jdavies_setup','1');
+        localStorage.setItem('myb_pc_jdavies_ytd_src_2026_27','52');
+    });
+    await page.goto('/paycalc.html');
+    await page.waitForSelector('#netDisplay');
+    await page.waitForTimeout(700);
+    await page.fill('#ytdPay','3050');
+    await page.dispatchEvent('#ytdPay','input');
+    await page.waitForTimeout(400);
+    const ytdAmt = await page.evaluate(() => document.getElementById('hppModeYtdAmt')?.textContent.trim() || '');
+    const num = parseFloat(ytdAmt.replace(/[^0-9.]/g,'')) || 0;
+    expect(num, 'joiner ytd HPP figure must be positive (not zeroed by phantom pre-employment pay)').toBeGreaterThan(0);
+});
