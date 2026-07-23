@@ -537,17 +537,13 @@ select:focus-visible, input:focus-visible {
     outline-offset: 1px;
     background-color: white;
 }
-.email-count-summary {
-    font-size: var(--type-body);
-    color: var(--text-dark);
-    margin-bottom: 10px;
-}
-.email-count-num {
-    /* Inline emphasis for the two counts in the Account-status summary (e.g. "3/12 have a work
-       email · 5/12 set their own password"). Bold + navy, sized to sit in the sentence — the old
-       22px was for a single headline number and reads oversized doubled-up inline. */
-    font-weight: 700;
-    color: var(--primary-blue);
+/* Green "all done" confirmation line — used by the Error Log empty state ("✓ No errors recorded.")
+   in operations-reports.js. (Kept when the work-email chip CSS was removed at the v18.65 card merge —
+   it looked dead from operations-app.js's side but operations-reports.js still applies it.) */
+.email-count-done {
+    font-size: var(--type-small);
+    color: var(--success-green);
+    font-weight: 600;
 }
 .email-set-btn {
     font-size: var(--type-badge);
@@ -637,24 +633,52 @@ select:focus-visible, input:focus-visible {
 }
 
 /* ---- Account status table (PASSWORD_PLAN.md — one per-member block: work email + password) ---- */
+/* Two count chips above the list — a compact "dashboard" read of coverage. */
+.acct-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.acct-stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 4px 11px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    white-space: nowrap;
+}
+.acct-stat-num {
+    font-size: var(--type-medium);
+    font-weight: 700;
+    color: var(--primary-blue);
+}
 .acct-status-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
-/* One member = a small stacked block: a head line (name · password posture · Reset) over an
+/* One member = a small stacked block: a head line (name · password pill · Reset) over an
    email line (address · Set/Edit/Remove). Stacking keeps both actionable rows readable at 375px. */
 .acct-row {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 8px 10px;
+    gap: 6px;
+    padding: 10px 12px;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
-    border-radius: 8px;
+    border-radius: var(--radius);
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
+    transition: border-color var(--dur-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+    .acct-row:hover { border-color: var(--border-mid); }
 }
 .acct-row-head,
 .acct-row-email {
@@ -664,23 +688,43 @@ select:focus-visible, input:focus-visible {
     width: 100%;
     min-width: 0;
 }
+/* A hairline separates the identity/password head from the email line. */
+.acct-row-email {
+    border-top: 1px solid var(--border-light);
+    padding-top: 7px;
+}
 .acct-name {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: var(--type-small);
+    font-size: var(--type-body);
     font-weight: 600;
     color: var(--text-dark);
 }
+/* Password posture as a scannable status pill — green = own password (done), amber = surname
+   default (the actionable state; draws the admin's eye). The text label carries the meaning, so
+   colour is never the sole signal (WCAG 1.4.1). */
 .acct-pw {
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 9px;
+    border-radius: var(--radius-xl);
     font-size: var(--type-badge);
-    color: var(--success-green);
+    font-weight: 600;
     white-space: nowrap;
+    background: var(--success-green-bg);
+    border: 1px solid var(--success-green-border);
+    color: var(--success-green);
 }
-.acct-pw--warn { color: var(--orange-text); }
+.acct-pw--warn {
+    background: color-mix(in oklch, var(--accent-gold) 16%, white);
+    border-color: color-mix(in oklch, var(--accent-gold) 45%, white);
+    color: var(--orange-text);
+}
 .acct-email {
     flex: 1 1 auto;
     min-width: 0;
