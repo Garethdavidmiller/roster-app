@@ -148,6 +148,40 @@ export function initPaycalcLightboxes() {
     notice.open();
   })();
 
+  // ── PASSWORD SECURITY NOTICE ────────────────────────────────────────────────
+  // One-time nudge (expires 8 Aug 2026 = posted 23 Jul + 16 days) telling staff they can now set
+  // their own password in Settings → Password. Close-only: shown ONCE per device, then the done-key
+  // sticks; expiry silently dismisses it on a device that first visits after 8 Aug. Gated behind the
+  // welcome AND the YTD notice so at most one lightbox opens per load (no stacking).
+  (function () {
+    const NOTICE_DATE = '23 Jul 2026';
+    const NOTICE_KEY  = 'myb_notice_password-2026_done';
+    if (isNoticeExpired(NOTICE_DATE, 16) && !lsGet(NOTICE_KEY)) { lsSet(NOTICE_KEY, '1'); return; }
+    if (!lsGet(WELCOME_KEY) || !lsGet(NOTICE_YTD_KEY) || lsGet(NOTICE_KEY)) return;
+    if (_ownerPending) return;   // data-ownership prompt takes priority this load
+
+    const lb = document.getElementById('noticePwLightbox');
+    if (!lb) return;
+
+    const notice = createLightbox({
+      overlay:  lb,
+      content:  /** @type {Element|undefined} */ (document.getElementById('noticePwContent') ?? undefined),
+      closeBtn: /** @type {Element|undefined} */ (document.getElementById('noticePwClose') ?? undefined),
+      onClose: () => {
+        archiveNotice({
+          id:      'password-2026',
+          title:   'Set your own password',
+          section: 'Pay',
+          date:    NOTICE_DATE,
+          body:    'You can now set your own password in Settings → Password, replacing your surname default with something only you know.',
+        });
+        lsSet(NOTICE_KEY, '1');
+      },
+    });
+
+    notice.open();
+  })();
+
   // ── DECIMAL HOURS CONVERTER ─────────────────────────────────────────────────
   (function () {
     const toggle = document.getElementById('decimalConverterToggle');
