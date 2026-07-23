@@ -178,26 +178,32 @@ export function init() {
     initCardCollapse('newsletterUploadToggleHeader', 'newsletterUploadBody', 'newsletterUploadChevron');
     initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
     initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
-    initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron');
     initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
     initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     initCardCollapse('pageSpeedToggleHeader',   'pageSpeedBody',   'pageSpeedChevron');
 
     // ============================================
-    // WORK EMAIL PROGRESS
+    // ACCOUNT STATUS  (work email + password, per member)
     // ============================================
-    // Account status (PASSWORD_PLAN.md §6) — per-member Email ✓/✗ + Password migrated ✓/✗, with a
-    // per-member "Reset password to surname" break-glass. Joins getAllStaffContacts +
-    // getAllPasswordStatus by member name; both admin-only reads (Firestore rules).
+    // The single per-member account-admin table (v18.65 — merged from the former Work Email Progress
+    // + Account status cards, which duplicated the email column). Joins getAllStaffContacts +
+    // getAllPasswordStatus (both admin-only reads) and renders, per member: the work email (address +
+    // Set/Edit/Remove) and the password posture (own password vs surname default + a break-glass
+    // Reset). Grade filter + two count summaries. PASSWORD_PLAN.md §6.
     async function initAccountStatus() {
         initCardCollapse('accountStatusToggleHeader', 'accountStatusBody', 'accountStatusChevron');
         const contentEl = document.getElementById('accountStatusContent');
         if (!contentEl) return;
         const content = /** @type {HTMLElement} */ (contentEl);
+        // Eligible = active accounts + management (managerOnly: hidden from the calendar but login-capable,
+        // and with no Settings page of their own, so the admin manages their email here). Excludes leavers.
         const eligible = teamMembers.filter(m => !m.hidden || m.managerOnly);
-        /** @type {Map<string, any>} */ let statusMap = new Map();
-        /** @type {Set<string>} */ let emailSet = new Set();
+        /** @type {Map<string, string>} name → work email */
+        let emailMap = new Map();
+        /** @type {Map<string, any>} name → passwordStatus doc */
+        let statusMap = new Map();
 
+        /** Migrated ⇔ passwordSetAt present AND at least as new as any admin resetAt (§6). */
         const migrated = (/** @type {string} */ name) => {
             const s = statusMap.get(name);
             const setAt   = /** @type {any} */ (s?.passwordSetAt)?.toMillis?.() ?? 0;
@@ -205,34 +211,185 @@ export function init() {
             return setAt > 0 && setAt >= resetAt;
         };
 
-        function render() {
-            const done = eligible.filter(m => migrated(m.name)).length;
-            content.innerHTML = '';
-            const summary = document.createElement('p');
-            summary.className = 'email-count-summary';
-            summary.setAttribute('aria-live', 'polite');
-            summary.innerHTML = `<strong class="email-count-num">${done}</strong> of <strong>${eligible.length}</strong> have set their own password`;
-            content.appendChild(summary);
-            const list = document.createElement('div');
-            list.className = 'acct-status-list';
-            eligible.forEach(m => {
-                const row = document.createElement('div');
-                row.className = 'acct-status-row';
-                const nameEl = document.createElement('span'); nameEl.className = 'acct-name'; nameEl.textContent = m.name;
-                const emailEl = document.createElement('span'); emailEl.className = 'acct-flag'; emailEl.title = 'Work email';
-                emailEl.textContent = emailSet.has(m.name) ? '📧 ✓' : '📧 —';
-                const pwEl = document.createElement('span'); pwEl.className = 'acct-flag'; pwEl.title = 'Password';
-                const mig = migrated(m.name);
-                pwEl.textContent = mig ? '🔑 ✓' : '🔑 surname';
-                pwEl.classList.toggle('acct-flag--warn', !mig);
-                const btn = document.createElement('button');
-                btn.type = 'button'; btn.className = 'btn-acct-reset'; btn.textContent = 'Reset';
-                btn.setAttribute('aria-label', `Reset ${m.name}'s password to their surname`);
-                btn.addEventListener('click', () => doReset(m.name, btn));
-                row.append(nameEl, emailEl, pwEl, btn);
-                list.appendChild(row);
+        /** @type {HTMLSelectElement} */ let filterSelect;
+        /** @type {HTMLElement} */ let summaryEl;
+        /** @type {HTMLElement} */ let listEl;
+
+        // Close every open email form and restore each Set/Edit button to its resting label.
+        function closeAllEmailForms() {
+            listEl.querySelectorAll('.email-set-form').forEach(f => f.remove());
+            listEl.querySelectorAll('.acct-row').forEach(r => {
+                const nm = /** @type {HTMLElement} */ (r).dataset.member || '';
+                const b = r.querySelector('.email-set-btn');
+                if (b) b.textContent = emailMap.has(nm) ? 'Edit' : 'Set email';
             });
-            content.appendChild(list);
+        }
+
+        function renderForGrade(/** @type {string} */ grade) {
+            const pool = grade ? eligible.filter(m => m.role === grade) : eligible;
+            const withEmail = pool.filter(m => emailMap.has(m.name)).length;
+            const withPw    = pool.filter(m => migrated(m.name)).length;
+            summaryEl.innerHTML =
+                `<strong class="email-count-num">${withEmail}</strong>/${pool.length} have a work email` +
+                ` · <strong class="email-count-num">${withPw}</strong>/${pool.length} set their own password`;
+            listEl.innerHTML = '';
+            pool.forEach(m => listEl.appendChild(buildRow(m)));
+        }
+
+        function buildRow(/** @type {any} */ m) {
+            const row = document.createElement('div');
+            row.className = 'acct-row';
+            row.dataset.member = m.name;
+
+            // Head line: name · password posture · (migrated only) Reset. A surname-default account has
+            // nothing to reset TO, so Reset is shown only once a member has set their own password.
+            const head = document.createElement('div');
+            head.className = 'acct-row-head';
+            const nameEl = document.createElement('span');
+            nameEl.className = 'acct-name';
+            nameEl.textContent = m.name;
+            const mig = migrated(m.name);
+            const pwEl = document.createElement('span');
+            pwEl.className = 'acct-pw' + (mig ? '' : ' acct-pw--warn');
+            pwEl.textContent = mig ? '🔑 Own password' : '🔑 Surname default';
+            head.append(nameEl, pwEl);
+            if (mig) {
+                const resetBtn = document.createElement('button');
+                resetBtn.type = 'button';
+                resetBtn.className = 'btn-acct-reset';
+                resetBtn.textContent = 'Reset';
+                resetBtn.setAttribute('aria-label', `Reset ${m.name}'s password to their surname default`);
+                resetBtn.addEventListener('click', () => doReset(m.name, resetBtn));
+                head.appendChild(resetBtn);
+            }
+            row.appendChild(head);
+
+            // Email line: 📧 address + Edit/Remove, OR 📧 "No work email" + Set email.
+            const emailLine = document.createElement('div');
+            emailLine.className = 'acct-row-email';
+            const has = emailMap.has(m.name);
+            const emailText = document.createElement('span');
+            emailText.className = 'acct-email' + (has ? '' : ' acct-email--none');
+            emailText.textContent = has ? `📧 ${emailMap.get(m.name)}` : '📧 No work email';
+            emailLine.appendChild(emailText);
+
+            const setBtn = document.createElement('button');
+            setBtn.type = 'button';
+            setBtn.className = 'email-set-btn';
+            setBtn.textContent = has ? 'Edit' : 'Set email';
+            setBtn.setAttribute('aria-label', `${has ? 'Edit' : 'Set'} work email for ${m.name}`);
+            setBtn.addEventListener('click', () => toggleEmailForm(row, emailLine, m, setBtn));
+            emailLine.appendChild(setBtn);
+
+            if (has) {
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'email-set-btn email-set-btn--remove';
+                removeBtn.textContent = 'Remove';
+                removeBtn.setAttribute('aria-label', `Remove email for ${m.name}`);
+                removeBtn.addEventListener('click', () => removeEmail(m, removeBtn));
+                emailLine.appendChild(removeBtn);
+            }
+            row.appendChild(emailLine);
+            return row;
+        }
+
+        // The inline email Set/Edit form — shared by both the "no email" (Set) and "has email" (Edit)
+        // buttons; injected after the email line inside the member's row.
+        function toggleEmailForm(
+            /** @type {HTMLElement} */ row,
+            /** @type {HTMLElement} */ emailLine,
+            /** @type {any} */ m,
+            /** @type {HTMLButtonElement} */ setBtn,
+        ) {
+            const wasOpen = !!row.querySelector('.email-set-form');
+            closeAllEmailForms();
+            if (wasOpen) return;   // toggle: it was open, closeAll shut it — done
+            setBtn.textContent = 'Cancel';
+
+            const form = document.createElement('div');
+            form.className = 'email-set-form';
+            form.setAttribute('role', 'group');
+            form.setAttribute('aria-label', `Work email for ${m.name}`);
+
+            const input = document.createElement('input');
+            input.type = 'email';
+            input.className = 'email-set-input';
+            input.placeholder = 'firstname.surname';
+            input.autocomplete = 'off';
+            input.autocapitalize = 'off';
+            input.spellcheck = false;
+            input.value = emailMap.get(m.name) || '';
+            input.setAttribute('aria-label', `Work email address for ${m.name}`);
+            input.enterKeyHint = 'done';
+            input.addEventListener('blur', () => {
+                const v = input.value.trim();
+                if (v && !v.includes('@')) input.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
+            });
+
+            const saveBtn = document.createElement('button');
+            saveBtn.type = 'button';
+            saveBtn.className = 'email-set-save';
+            saveBtn.textContent = 'Save';
+
+            const errorEl = document.createElement('span');
+            errorEl.className = 'email-set-error';
+            errorEl.setAttribute('role', 'alert');
+            errorEl.setAttribute('aria-live', 'polite');
+
+            form.append(input, saveBtn, errorEl);
+            emailLine.after(form);
+            input.select();
+
+            saveBtn.addEventListener('click', async () => {
+                const rawVal = input.value.trim();
+                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@' + CONFIG.WORK_EMAIL_DOMAIN;
+                const email = input.value.trim();
+                if (!isValidEmail(email)) {
+                    errorEl.textContent = 'Please enter a valid email address'; input.focus(); return;
+                }
+                if (!isChilternWorkEmail(email)) {
+                    errorEl.textContent = `Use a Chiltern work email (@${CONFIG.WORK_EMAIL_DOMAIN})`; input.focus(); return;
+                }
+                saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; errorEl.textContent = '';
+                try {
+                    await saveStaffContact(m.name, email);
+                    emailMap.set(m.name, email);
+                    renderForGrade(filterSelect.value);
+                    filterSelect.focus();
+                } catch (e) {
+                    console.error('[AccountStatus] email save failed', e);
+                    errorEl.textContent = 'Couldn\'t save — check your connection and try again';
+                    saveBtn.disabled = false; saveBtn.textContent = 'Save';
+                }
+            });
+
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+                if (e.key === 'Escape') { form.remove(); setBtn.textContent = emailMap.has(m.name) ? 'Edit' : 'Set email'; }
+            });
+        }
+
+        async function removeEmail(/** @type {any} */ m, /** @type {HTMLButtonElement} */ removeBtn) {
+            // Two-tap confirm (no dialog — keeps the inline row flow); auto-reverts after 3s.
+            if (removeBtn.dataset.confirm !== 'pending') {
+                removeBtn.dataset.confirm = 'pending';
+                removeBtn.textContent = 'Confirm?';
+                setTimeout(() => {
+                    if (removeBtn.dataset.confirm === 'pending') { removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove'; }
+                }, 3000);
+                return;
+            }
+            removeBtn.disabled = true; removeBtn.textContent = 'Removing…';
+            try {
+                await deleteStaffContact(m.name);
+                emailMap.delete(m.name);
+                renderForGrade(filterSelect.value);
+                filterSelect.focus();
+            } catch (e) {
+                console.error('[AccountStatus] email remove failed', e);
+                removeBtn.disabled = false; removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove';
+            }
         }
 
         async function doReset(/** @type {string} */ name, /** @type {HTMLButtonElement} */ btn) {
@@ -258,7 +415,7 @@ export function init() {
             try {
                 const fresh = await withClaimRetry(getAllPasswordStatus);
                 statusMap = new Map(fresh.map(/** @param {any} s */ s => [s.memberName, s]));
-                render();   // rebuilds the row (btn is replaced) — reflects the new "surname" state
+                renderForGrade(filterSelect.value);   // the row re-renders → Reset drops off (now surname)
             } catch (e) {
                 console.warn('[Operations] status refresh after reset failed (reset itself succeeded):', e);
                 btn.textContent = 'Reset ✓'; btn.title = 'Password reset — refresh the page to update the table';
@@ -271,382 +428,39 @@ export function init() {
                 withClaimRetry(getAllStaffContacts),
                 withClaimRetry(getAllPasswordStatus),
             ]);
-            emailSet  = new Set(contacts.filter(/** @param {any} c */ c => c.workEmail).map(/** @param {any} c */ c => c.memberName));
+            emailMap  = new Map(contacts.filter(/** @param {any} c */ c => c.workEmail).map(/** @param {any} c */ c => [c.memberName, c.workEmail]));
             statusMap = new Map(statuses.map(/** @param {any} s */ s => [s.memberName, s]));
             content.removeAttribute('aria-busy');
-            render();
-        } catch {
-            _cardLoadError(content, 'account status', () => initAccountStatus());
-        }
-    }
 
-    async function initWorkEmailStatus() {
-        // All active accounts — excludes leavers (hidden:true without managerOnly).
-        // Management accounts (hidden:true + managerOnly:true) are included: the admin
-        // sets their emails here since they have no Settings page of their own.
-        const eligible = teamMembers.filter(m => !m.hidden || m.managerOnly);
-        const content  = document.getElementById('emailStatusContent');
-        if (!content) return;
-
-        try {
-            // Wait for the Firebase Auth session so Firestore rules pass.
-            await sessionReady;
-            const contacts = await withClaimRetry(getAllStaffContacts);
-
-            // Mutable maps — updated in-place after an admin saves an email.
-            const emailMap   = new Map(contacts.filter(c => c.workEmail).map(c => [c.memberName, c.workEmail]));
-            const savedNames = new Set(emailMap.keys());
-
+            // Build the static chrome once (filter + summary + list), then render rows.
             content.innerHTML = '';
-
-            // Grade filter
             const filterRow = document.createElement('div');
             filterRow.className = 'email-filter-row';
-            const filterSelect = document.createElement('select');
-            filterSelect.id = 'emailGradeFilter';
+            filterSelect = document.createElement('select');
+            filterSelect.id = 'acctGradeFilter';
             filterSelect.className = 'email-filter-select';
             filterSelect.setAttribute('aria-label', 'Filter by grade');
             [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher'], ['Management', 'Management']].forEach(([val, lbl]) => {
-                const opt = document.createElement('option');
-                opt.value = val;
-                opt.textContent = lbl;
-                filterSelect.appendChild(opt);
+                const opt = document.createElement('option'); opt.value = val; opt.textContent = lbl; filterSelect.appendChild(opt);
             });
             filterRow.appendChild(filterSelect);
             content.appendChild(filterRow);
 
-            // Summary and list — re-rendered on grade change
-            const summaryEl = document.createElement('p');
+            summaryEl = document.createElement('p');
             summaryEl.className = 'email-count-summary';
             summaryEl.setAttribute('aria-live', 'polite');
             content.appendChild(summaryEl);
 
-            const listContainer = document.createElement('div');
-            content.appendChild(listContainer);
+            listEl = document.createElement('div');
+            listEl.className = 'acct-status-list';
+            content.appendChild(listEl);
 
-            function renderForGrade(/** @type {string} */ grade) {
-                const pool     = grade ? eligible.filter(m => m.role === grade) : eligible;
-                const total    = pool.length;
-                const added    = pool.filter(m =>  savedNames.has(m.name));
-                const notAdded = pool.filter(m => !savedNames.has(m.name));
-                const gradeLabel = grade || 'staff';
-
-                summaryEl.innerHTML = `<strong class="email-count-num">${added.length}</strong> of <strong>${total}</strong> ${gradeLabel} have added their work email`;
-
-                listContainer.innerHTML = '';
-
-                // Who has added — show name + email for easy verification
-                if (added.length > 0) {
-                    const addedLabel = document.createElement('p');
-                    addedLabel.className = 'email-count-added-label';
-                    addedLabel.textContent = `Added (${added.length}):`;
-                    listContainer.appendChild(addedLabel);
-
-                    const addedList = document.createElement('div');
-                    addedList.className = 'email-count-list email-count-list--added';
-                    added.forEach(m => {
-                        const rowEl = document.createElement('div');
-                        rowEl.className = 'email-added-row';
-
-                        const chip = document.createElement('span');
-                        chip.className = 'email-count-chip email-count-chip--added';
-                        const nameSpan = document.createElement('span');
-                        nameSpan.className = 'email-chip-name';
-                        nameSpan.textContent = m.name;
-                        const emailSpan = document.createElement('span');
-                        emailSpan.className = 'email-chip-email';
-                        emailSpan.textContent = emailMap.get(m.name) || '';
-                        chip.appendChild(nameSpan);
-                        chip.appendChild(emailSpan);
-
-                        const editBtn = document.createElement('button');
-                        editBtn.type = 'button';
-                        editBtn.className = 'email-set-btn';
-                        editBtn.textContent = 'Edit';
-                        editBtn.setAttribute('aria-label', `Edit email for ${m.name}`);
-
-                        const removeBtn = document.createElement('button');
-                        removeBtn.type = 'button';
-                        removeBtn.className = 'email-set-btn email-set-btn--remove';
-                        removeBtn.textContent = 'Remove';
-                        removeBtn.setAttribute('aria-label', `Remove email for ${m.name}`);
-
-                        rowEl.appendChild(chip);
-                        rowEl.appendChild(editBtn);
-                        rowEl.appendChild(removeBtn);
-                        addedList.appendChild(rowEl);
-
-                        editBtn.addEventListener('click', () => {
-                            // Check this row's state BEFORE the close-others loop so the
-                            // loop's reset of editBtn.textContent to 'Edit' doesn't make
-                            // the subsequent check always false (Cancel → Edit → not Cancel → opens form again).
-                            if (editBtn.textContent === 'Cancel') {
-                                editBtn.textContent = 'Edit';
-                                rowEl.nextElementSibling?.classList.contains('email-set-form')
-                                    && rowEl.nextElementSibling.remove();
-                                return;
-                            }
-                            // Close any other open edit form in the list
-                            addedList.querySelectorAll('.email-set-form').forEach(f => {
-                                const prevRow = f.previousElementSibling;
-                                f.remove();
-                                if (prevRow?.querySelector('.email-set-btn')?.textContent === 'Cancel') {
-                                    const setBtn = prevRow.querySelector('.email-set-btn');
-                                    if (setBtn) setBtn.textContent = 'Edit';
-                                }
-                            });
-                            editBtn.textContent = 'Cancel';
-
-                            const form = document.createElement('div');
-                            form.className = 'email-set-form';
-                            form.setAttribute('role', 'group');
-                            form.setAttribute('aria-label', `Edit email for ${m.name}`);
-
-                            const input = document.createElement('input');
-                            input.type = 'email';
-                            input.className = 'email-set-input';
-                            input.placeholder = 'firstname.surname';
-                            input.autocomplete = 'off';
-                            input.autocapitalize = 'off';
-                            input.spellcheck = false;
-                            input.value = emailMap.get(m.name) || '';
-                            input.setAttribute('aria-label', `Work email address for ${m.name}`);
-                            input.enterKeyHint = 'done';
-                            input.addEventListener('blur', () => {
-                                const v = input.value.trim();
-                                if (v && !v.includes('@')) input.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
-                            });
-
-                            const saveBtn = document.createElement('button');
-                            saveBtn.type = 'button';
-                            saveBtn.className = 'email-set-save';
-                            saveBtn.textContent = 'Save';
-
-                            const errorEl = document.createElement('span');
-                            errorEl.className = 'email-set-error';
-                            errorEl.setAttribute('role', 'alert');
-                            errorEl.setAttribute('aria-live', 'polite');
-
-                            form.appendChild(input);
-                            form.appendChild(saveBtn);
-                            form.appendChild(errorEl);
-                            rowEl.after(form);
-                            input.select();
-
-                            saveBtn.addEventListener('click', async () => {
-                                const rawVal = input.value.trim();
-                                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@' + CONFIG.WORK_EMAIL_DOMAIN;
-                                const email = input.value.trim();
-                                if (!isValidEmail(email)) {
-                                    errorEl.textContent = 'Please enter a valid email address';
-                                    input.focus();
-                                    return;
-                                }
-                                if (!isChilternWorkEmail(email)) {
-                                    errorEl.textContent = `Use a Chiltern work email (@${CONFIG.WORK_EMAIL_DOMAIN})`;
-                                    input.focus();
-                                    return;
-                                }
-                                saveBtn.disabled = true;
-                                saveBtn.textContent = 'Saving…';
-                                errorEl.textContent = '';
-                                try {
-                                    await saveStaffContact(m.name, email);
-                                    emailMap.set(m.name, email);
-                                    renderForGrade(filterSelect.value);
-                                    filterSelect.focus();
-                                } catch (e) {
-                                    console.error('[WorkEmailStatus] edit failed', e);
-                                    errorEl.textContent = 'Couldn\'t save — check your connection and try again';
-                                    saveBtn.disabled = false;
-                                    saveBtn.textContent = 'Save';
-                                }
-                            });
-
-                            input.addEventListener('keydown', e => {
-                                if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
-                                if (e.key === 'Escape') { form.remove(); editBtn.textContent = 'Edit'; }
-                            });
-                        });
-
-                        removeBtn.addEventListener('click', async () => {
-                            if (removeBtn.dataset.confirm !== 'pending') {
-                                removeBtn.dataset.confirm = 'pending';
-                                removeBtn.textContent = 'Confirm?';
-                                setTimeout(() => {
-                                    if (removeBtn.dataset.confirm === 'pending') {
-                                        removeBtn.dataset.confirm = '';
-                                        removeBtn.textContent = 'Remove';
-                                    }
-                                }, 3000);
-                                return;
-                            }
-                            removeBtn.disabled = true;
-                            removeBtn.textContent = 'Removing…';
-                            try {
-                                await deleteStaffContact(m.name);
-                                emailMap.delete(m.name);
-                                savedNames.delete(m.name);
-                                renderForGrade(filterSelect.value);
-                                filterSelect.focus();
-                            } catch (e) {
-                                console.error('[WorkEmailStatus] remove failed', e);
-                                removeBtn.disabled = false;
-                                removeBtn.dataset.confirm = '';
-                                removeBtn.textContent = 'Remove';
-                            }
-                        });
-                    });
-                    listContainer.appendChild(addedList);
-                }
-
-                // Who hasn't yet — each row has a "Set email" button for admin entry
-                if (notAdded.length === 0) {
-                    const done = document.createElement('p');
-                    done.className = 'email-count-done';
-                    done.textContent = `✓ All ${gradeLabel} have added their work email${grade ? '' : ' — ready for when self-service password reset is switched on'}.`;
-                    listContainer.appendChild(done);
-                } else {
-                    const missingLabel = document.createElement('p');
-                    missingLabel.className = 'email-count-missing-label';
-                    missingLabel.textContent = `Still to add (${notAdded.length}):`;
-                    listContainer.appendChild(missingLabel);
-
-                    const list = document.createElement('div');
-                    list.className = 'email-count-list email-count-list--missing';
-
-                    notAdded.forEach(m => {
-                        const rowEl = document.createElement('div');
-                        rowEl.className = 'email-missing-row';
-
-                        const nameSpan = document.createElement('span');
-                        nameSpan.className = 'email-count-chip';
-                        nameSpan.textContent = m.name;
-
-                        const setBtn = document.createElement('button');
-                        setBtn.type = 'button';
-                        setBtn.className = 'email-set-btn';
-                        setBtn.textContent = 'Set email';
-                        setBtn.setAttribute('aria-label', `Set work email for ${m.name}`);
-                        setBtn.dataset.member = m.name;
-
-                        rowEl.appendChild(nameSpan);
-                        rowEl.appendChild(setBtn);
-                        list.appendChild(rowEl);
-
-                        setBtn.addEventListener('click', () => {
-                            // Toggle: if this row's form is already open, close it
-                            const existing = rowEl.nextElementSibling?.classList.contains('email-set-form')
-                                ? rowEl.nextElementSibling : null;
-                            if (existing) {
-                                existing.remove();
-                                setBtn.textContent = 'Set email';
-                                return;
-                            }
-
-                            // Close any other open form in the list first
-                            list.querySelectorAll('.email-set-form').forEach(f => {
-                                const prevRow = f.previousElementSibling;
-                                f.remove();
-                                const btn = prevRow?.querySelector('.email-set-btn');
-                                if (btn) btn.textContent = 'Set email';
-                            });
-
-                            setBtn.textContent = 'Cancel';
-
-                            const form = document.createElement('div');
-                            form.className = 'email-set-form';
-                            form.setAttribute('role', 'group');
-                            form.setAttribute('aria-label', `Set email for ${m.name}`);
-
-                            const input = document.createElement('input');
-                            input.type = 'email';
-                            input.className = 'email-set-input';
-                            input.placeholder = 'firstname.surname';
-                            input.autocomplete = 'off';
-                            input.autocapitalize = 'off';
-                            input.spellcheck = false;
-                            input.setAttribute('aria-label', `Work email address for ${m.name}`);
-                            input.enterKeyHint = 'done';
-                            input.addEventListener('blur', () => {
-                                const v = input.value.trim();
-                                if (v && !v.includes('@')) input.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
-                            });
-
-                            const saveBtn = document.createElement('button');
-                            saveBtn.type = 'button';
-                            saveBtn.className = 'email-set-save';
-                            saveBtn.textContent = 'Save';
-
-                            const errorEl = document.createElement('span');
-                            errorEl.className = 'email-set-error';
-                            errorEl.setAttribute('role', 'alert');
-                            errorEl.setAttribute('aria-live', 'polite');
-
-                            form.appendChild(input);
-                            form.appendChild(saveBtn);
-                            form.appendChild(errorEl);
-                            rowEl.after(form);
-                            input.focus();
-
-                            saveBtn.addEventListener('click', async () => {
-                                const rawVal = input.value.trim();
-                                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@' + CONFIG.WORK_EMAIL_DOMAIN;
-                                const email = input.value.trim();
-                                if (!isValidEmail(email)) {
-                                    errorEl.textContent = 'Please enter a valid email address';
-                                    input.focus();
-                                    return;
-                                }
-                                if (!isChilternWorkEmail(email)) {
-                                    errorEl.textContent = `Use a Chiltern work email (@${CONFIG.WORK_EMAIL_DOMAIN})`;
-                                    input.focus();
-                                    return;
-                                }
-                                saveBtn.disabled = true;
-                                saveBtn.textContent = 'Saving…';
-                                errorEl.textContent = '';
-                                try {
-                                    await saveStaffContact(m.name, email);
-                                    emailMap.set(m.name, email);
-                                    savedNames.add(m.name);
-                                    renderForGrade(filterSelect.value);
-                                    // The saved member moved to "Added" chips — no set-email button
-                                    // remains. Return focus to the grade filter so the user can continue.
-                                    filterSelect.focus();
-                                } catch (e) {
-                                    console.error('[WorkEmailStatus] save failed', e);
-                                    errorEl.textContent = 'Couldn\'t save — check your connection and try again';
-                                    saveBtn.disabled = false;
-                                    saveBtn.textContent = 'Save';
-                                }
-                            });
-
-                            input.addEventListener('keydown', e => {
-                                if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
-                                if (e.key === 'Escape') {
-                                    form.remove();
-                                    setBtn.textContent = 'Set email';
-                                }
-                            });
-                        });
-                    });
-
-                    listContainer.appendChild(list);
-                }
-            }
-
-            renderForGrade('');
             filterSelect.addEventListener('change', () => renderForGrade(filterSelect.value));
-
-        } catch (err) {
-            console.error('[WorkEmailStatus]', err);
-            _cardLoadError(content, 'Couldn\'t load email status — check your connection.', initWorkEmailStatus);
-        } finally {
-            content.removeAttribute('aria-busy');   // announce "finished loading" to screen readers
+            renderForGrade('');
+        } catch {
+            _cardLoadError(content, 'account status', () => initAccountStatus());
         }
     }
-    initWorkEmailStatus();
     initAccountStatus();
 
     // Show a banner if Firebase Auth couldn't establish a real admin session.
@@ -780,27 +594,17 @@ export function init() {
                 title: 'Account status',
                 sections: [
                     { heading: 'What it shows', items: [
-                        { icon: '🔑', html: 'Whether each person still signs in with their <strong>surname default</strong> or has <strong>set their own password</strong> in ☰ → Settings → Password' },
-                        { icon: '📧', html: 'A ✓ against the envelope means they\'ve also registered a <strong>work email</strong> (from the Work Email Progress card)' },
+                        { icon: '📧', html: 'Each person\'s <strong>work email</strong> — the address if they\'ve added one, or "No work email" if not. Used for <strong>self-service password reset in a future update</strong>; nothing uses it right now.' },
+                        { icon: '🔑', html: 'Their <strong>password</strong> — either <strong>Own password</strong> (they\'ve set their own in ☰ → Settings → Password) or <strong>Surname default</strong> (still the guessable default).' },
+                        { icon: '🔒', html: 'Each person can only see their <strong>own</strong> email; as admin you see everyone\'s. Use the <strong>All / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
+                    ]},
+                    { heading: 'Work email', items: [
+                        { icon: '⚙️', html: 'CEA, CES, and Dispatcher staff can add their own email in ☰ → <strong>Settings → Work Email</strong> — the easiest way to get them to register.' },
+                        { icon: '📝', html: 'You can enter, edit, or remove an email on anyone\'s behalf with the <strong>Set email</strong> / <strong>Edit</strong> buttons — useful if they\'re having trouble, or for <strong>Management accounts</strong> (which have no Settings page of their own).' },
                     ]},
                     { heading: 'Resetting a password', items: [
-                        { icon: '↩️', html: 'Tap <strong>Reset</strong> next to anyone who\'s forgotten their password — it goes back to their <strong>surname default</strong> and they\'re signed out of their other devices' },
-                        { icon: '🔒', html: 'After a reset they can sign in with their surname and set a new password of their own again' },
-                    ]},
-                ],
-            },
-            'work-email-progress': {
-                title: 'Work Email Progress',
-                sections: [
-                    { heading: 'What it\'s for', items: [
-                        { icon: '🔑', html: 'Staff save their work email so they can <strong>reset a forgotten password</strong> in a future update — nothing uses it right now.' },
-                        { icon: '🔒', html: 'Each person can only see their <strong>own email</strong>. As admin you can see all of them.' },
-                    ]},
-                    { heading: 'How it works', items: [
-                        { icon: '⚙️', html: 'CEA, CES, and Dispatcher staff can add their own email in ☰ → <strong>Settings → Work Email</strong> — the easiest way to get them to register' },
-                        { icon: '📝', html: 'You can enter an email on behalf of any staff member using the <strong>Set email</strong> button next to their name — useful if they\'re having trouble or their phone is unavailable' },
-                        { icon: '🔑', html: '<strong>Management accounts</strong> aren\'t in the Settings sign-in dropdown, so they can\'t sign in directly through Settings — use the <strong>Set email</strong> button on their behalf, or have them sign in via Admin first' },
-                        { icon: '✅', html: 'Green chips at the top show who has registered. Use the <strong>All / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
+                        { icon: '↩️', html: 'The <strong>Reset</strong> button appears only next to someone who has set their own password. Tap it if they\'ve forgotten it — the password goes back to their <strong>surname default</strong> and they\'re signed out of their other devices.' },
+                        { icon: '🔒', html: 'After a reset they sign in with their surname again and can set a new password of their own.' },
                     ]},
                 ],
             },

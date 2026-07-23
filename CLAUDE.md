@@ -136,7 +136,7 @@ See `AI_MAP.md` for full module descriptions and export lists.
 roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service portal: AL booking, absence, override list
-├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Work Email Progress, Account status (password migration + admin reset), Error Log, Usage, App Speed (Project 0 latency), Staff Login Accounts
+├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Account status (per-member work email + password migration/reset — merged the old Work Email Progress card in v18.65), Error Log, Usage, App Speed (Project 0 latency), Staff Login Accounts
 ├── settings.html           ← Notifications, Work Email, Password (set your own)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring
@@ -172,8 +172,8 @@ roster-app/
 ├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache (authoritative range-refresh — rebuild winners from the snapshot, evict deletes; shared by both fetch paths), isBeforeMemberStart, isRestShift, resolveEffectiveShift (shared override→display ladder for renderer/team-view/legend)
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring. Body is an exported `init()` (Phase 4a.2) invoked by admin-boot.js — importing the module no longer auto-runs it (test seam). The in-place-login re-invocation calls the nested `initAuthorised()`, not `init()`.
 ├── admin-boot.js           ← 2-line bootstrap for admin.html: imports `init` from admin-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
-├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup + Work-Email card + Account-status card (password migration table + admin resetMemberPassword break-glass, v18.63). Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw. Delegates the three reporting cards to operations-reports.js
-├── operations-reports.js   ← the three read-only reporting cards on operations.html — Error Log, Usage, App Speed (extracted from operations-app.js v17.46): initErrorLog/initUsageCard/initPageSpeedCard, each awaits sessionReady, reads Firestore, renders into its own card by id (no coordinator state). Exports `_cardLoadError` (the shared card-failure+retry helper) back to operations-app.js for its Work-Email card — one-directional, no import cycle
+├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup + the merged Account-status card (per-member work email set/edit/remove + password migration table + admin resetMemberPassword break-glass; v18.65 folded in the former Work Email Progress card). Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw. Delegates the three reporting cards to operations-reports.js
+├── operations-reports.js   ← the three read-only reporting cards on operations.html — Error Log, Usage, App Speed (extracted from operations-app.js v17.46): initErrorLog/initUsageCard/initPageSpeedCard, each awaits sessionReady, reads Firestore, renders into its own card by id (no coordinator state). Exports `_cardLoadError` (the shared card-failure+retry helper) back to operations-app.js for its Account-status card — one-directional, no import cycle
 ├── operations-boot.js      ← 2-line bootstrap for operations.html: imports `init` from operations-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email, Password card (set-your-own-password, v18.63). Body is an exported `init()` (Phase 4a.2, v17.09) invoked by settings-boot.js — importable without auto-running, for tests
 ├── settings-boot.js        ← 2-line bootstrap for settings.html: imports `init` from settings-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
@@ -582,7 +582,7 @@ updatedAt   Firestore server timestamp
 Read/write restricted: owner can read/write their own doc; admin can read all.
 Write requires the `name` JWT claim (set by setupRosterAuth) — anonymous fallback sessions cannot write.
 Purpose: Stage 1 of password security improvements. Email will enable future account recovery (Stage 4).
-Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js`. `getAllStaffContacts` (reads all docs) called from `operations-app.js` (Work Email Progress card).
+Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js` (own email) and from `operations-app.js`'s merged **Account status** card (`saveStaffContact`/`deleteStaffContact` for admin set/edit/remove on a member's behalf). `getAllStaffContacts` (reads all docs) is also called from `operations-app.js` (Account status card).
 
 **passwordStatus** (v18.63 — PASSWORD_PLAN.md Track C)
 ```
