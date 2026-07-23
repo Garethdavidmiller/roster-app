@@ -14,7 +14,7 @@ import {
   taxYearForPeriod, capHours, getRateForPeriod, getLondonAllowanceForPeriod,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
-import { getLoggedMember, getGrade, getEffectiveContr, getPensionDefault, getStoredRateForYear } from './paycalc-settings.js';
+import { getLoggedMember, getGrade, getEffectiveContr, getProRateFactor, getPensionDefault, getStoredRateForYear } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
@@ -301,7 +301,13 @@ function _hoursEstimate(ty, allPeriods) {
   const rate    = getStoredRateForYear(ty);
   const periods = allPeriods.filter(/** @param {any} p */ p => {
     const o = p.num - 48;
-    return o >= ty.first && o <= ty.last;
+    // Exclude periods ENTIRELY before a mid-year joiner's start (v18.54): getProRateFactor is 0
+    // only when the whole period predates startDate (it returns 1 for noProRate secondment returns
+    // and for members with no startDate, so this never over-reaches). Without this a joiner's
+    // pre-employment payslips landed in `missingPaid` ("Not entered yet: 10 Apr…") and inflated the
+    // "N of 13" denominator — telling them to fill in payslips from before they joined. The HPP £ is
+    // unchanged (those periods contribute £0 of variable pay either way); only the count/list fix.
+    return o >= ty.first && o <= ty.last && getProRateFactor(p) !== 0;
   });
 
   let totalVar     = 0;
