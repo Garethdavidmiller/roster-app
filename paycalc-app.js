@@ -950,6 +950,11 @@ export function init() {
       // is the single source of that rule (a confirmed £0 correctly adds nothing; the pre-v17.26
       // `actual > 0` test kept silently adding the stale estimate to take-home). Shared with the
       // prior-year card display so the two can't diverge.
+      // January-only pointer in the Year to Date card (v18.50): visible ONLY while the viewed
+      // payslip is the January one that carries HPP — as a permanent paragraph it read wrong on
+      // every other payslip (owner, Jul 2026; the year-round version lives in the card's ? help).
+      const _janHint = document.getElementById('ytdJanHppHint');
+      if (_janHint) _janHint.hidden = !_hppTy;
       const _hppRes = _hppTy
           ? resolveHppForPeriod(lsGet(hppActualKey(_hppTy)), lsGet(hppEstKey(_hppTy)))
           : { amount: 0, isEstimate: false, hasActual: false };

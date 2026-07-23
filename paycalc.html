@@ -607,8 +607,11 @@
            full-year projection. Rendered by the coordinator after every calculate(); hidden when
            no payslip of the year has hours yet. -->
       <div class="ytd-yearso" id="ytdYearSoFar" hidden></div>
-      <!-- (The January-HPP pointer paragraph moved into this card's ? help — v18.49: one fewer
-           always-on block on a long card; it's guidance for one month of the year.) -->
+      <!-- January-only HPP pointer (v18.49 moved the old always-on paragraph into the ? help;
+           v18.50 re-adds it PERIOD-GATED): calculate() unhides it only while the viewed payslip
+           is the January one that carries HPP (_hppTy) — as a permanent paragraph it read wrong
+           on every other payslip (owner, Jul 2026). -->
+      <div class="field-hint" id="ytdJanHppHint" hidden style="padding-top:4px">This is the January payslip your <strong>Holiday Pay Premium</strong> lands on — enter the confirmed figure from it in the <strong>Holiday Pay Premium</strong> card.</div>
 
     </div>
   </div>
