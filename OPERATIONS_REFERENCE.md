@@ -51,7 +51,7 @@ uploadedAt   timestamp  Firestore server timestamp
 uploadedBy   string     "power-automate" (Cloud Function) | member name string (manual admin upload)
 htmlContent  string     (optional) DOCX converted to HTML by mammoth.js at upload time.
                         Present for DOCX files only. Missing for PDFs and large DOCX
-                        conversions (> 200 KB / 200,000 chars). Viewer falls back to storageUrl if absent.
+                        conversions (> 200,000 characters — `MAX_HUDDLE_HTML_CHARS`). Viewer falls back to storageUrl if absent.
 ```
 
 ### Cloud Function — `ingestHuddle` request format
@@ -393,7 +393,7 @@ Re-uploading for the same date overwrites the Firestore doc and replaces the Sto
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it self-heals a missing account on page load. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js` (v18.63).
 
-**Chosen passwords (v18.63 — PASSWORD_PLAN.md Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to `surnamePassword(name)` and (by default) revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
+**Chosen passwords (v18.63 — PASSWORD_PLAN.md Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and (by default) revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
 
 The `@myb-roster.local` domain is synthetic — not real email addresses. Firebase Auth accepts them as valid email format.
 

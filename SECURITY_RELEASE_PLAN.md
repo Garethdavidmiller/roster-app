@@ -43,10 +43,11 @@ rule text and gate cases:
 
 **Open** (in dependency order):
 
-- [ ] **Track C — password release:** C2 email verification → C4 reset path → C3 self-service change →
-  C5 retire surname (irreversible, ≥90% migrated). **Agreed interim shape (Jul 2026): the
-  "C-lite" plan in `PASSWORD_PLAN.md`** — C4′ (admin reset as the recovery channel) + C3, with C2
-  deferred until an email relay exists; C5 unchanged.
+- [~] **Track C — password release:** **C3 (self-service change) + C4′ (admin reset) SHIPPED v18.63**
+  (the "C-lite" plan in `PASSWORD_PLAN.md` → Phase 0+1: gated dual-attempt sign-in, Settings Password
+  card, `resetMemberPassword` break-glass, `passwordStatus` migration flags). **Still open:** C2 email
+  verification (deferred until an email relay exists) and C5 retire the surname default (irreversible,
+  ≥90% migrated — track via the `passwordStatus` collection).
 - [ ] **Track D — App Check:** D1 monitor-first → D2 enforce (Firestore → Storage → Functions) + the
   analytics doc-size key-count cap.
 - [ ] **Track E — full-app auth** (calendar behind login) — **UNDECIDED**; most likely trigger is a

@@ -154,7 +154,7 @@ Formalised as a load-bearing comment so it can't be quietly weakened:
 ## The phases (what landed — code cites these by number)
 
 Behaviour-preserving throughout; the suite passed unchanged (665 unit + 173 rules + 68 e2e at the
-Track-1 refactor; ~1,020 unit now). The live modules + tests are the source of truth for detail.
+Track-1 refactor). The live modules + tests are the source of truth for the current counts and detail.
 
 - **Phase 0 — characterisation net (v14.57):** pinned *current intended* behaviour before the refactor
   (not known bugs). `session.test.mjs` (getSession expiry edges incl. the missing-`lastActivity` NaN

@@ -38,9 +38,9 @@ of a single record — *not* a full database restore. Reach for a full restore l
 | Firebase project ID | `myb-roster` |
 | Region | `europe-west2` (London) |
 | Firestore database | `(default)` |
-| Firestore collections | `overrides`, `huddles`, `circulars`, `newsletters`, `staffContact`, `pushSubscriptions`, `clientErrors`, `analytics`, `linkDesigns` |
+| Firestore collections | `overrides`, `huddles`, `circulars`, `newsletters`, `staffContact`, `passwordStatus`, `pushSubscriptions`, `clientErrors`, `analytics`, `linkDesigns` |
 | Storage paths | `huddles/…`, `circulars/…`, `newsletters/…` |
-| Cloud Functions (europe-west2) | `ingestHuddle`, `parseRosterPDF`, `setupRosterAuth` (+ internal push fan-out) |
+| Cloud Functions (europe-west2) | `ingestHuddle`, `parseRosterPDF`, `setupRosterAuth`, `resetMemberPassword` (+ the `onHuddleCreated`/`onCircularCreated`/`onNewsletterCreated`/`sendPayReminderNotification` push triggers) |
 | Live site (primary) | `https://myb-roster.web.app` (Firebase Hosting) |
 | Live site (mirror) | `https://garethdavidmiller.github.io/roster-app/` (GitHub Pages, built from `main`) |
 | Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml` |
