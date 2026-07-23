@@ -543,96 +543,11 @@ select:focus-visible, input:focus-visible {
     margin-bottom: 10px;
 }
 .email-count-num {
-    font-size: 22px;
+    /* Inline emphasis for the two counts in the Account-status summary (e.g. "3/12 have a work
+       email · 5/12 set their own password"). Bold + navy, sized to sit in the sentence — the old
+       22px was for a single headline number and reads oversized doubled-up inline. */
+    font-weight: 700;
     color: var(--primary-blue);
-}
-.email-count-done {
-    font-size: var(--type-small);
-    color: var(--success-green);
-    font-weight: 600;
-}
-.email-count-added-label {
-    font-size: var(--type-small);
-    color: var(--success-green);
-    font-weight: 600;
-    margin-top: 10px;
-    margin-bottom: 8px;
-}
-.email-count-missing-label {
-    font-size: var(--type-small);
-    color: var(--text-mid);
-    margin-top: 12px;
-    margin-bottom: 8px;
-}
-.email-count-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-.email-count-chip {
-    font-size: var(--type-small);
-    background: var(--bg-faint);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-xl);
-    padding: 3px 10px;
-    color: var(--text-mid);
-    white-space: nowrap;
-}
-.email-count-chip--added {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    background: var(--success-green-bg);
-    border-color: var(--success-green-border);
-    color: var(--success-green);
-}
-.email-chip-name {
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.email-chip-email {
-    font-size: 10px;
-    font-weight: 400;
-    opacity: 0.8;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* Admin rows — vertical list for both added and still-to-add.
-   flex-wrap: nowrap overrides the base .email-count-list wrap: in a column-direction
-   flex container, an inherited `wrap` lets rows size to their own content width
-   instead of the container's, so a long email row grew past the card edge (clipping
-   the Remove button under the card's overflow:hidden). */
-.email-count-list--missing,
-.email-count-list--added {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 3px;
-}
-.email-missing-row,
-.email-added-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    /* Constrain the row to the list width and allow it to shrink below its content's
-       intrinsic width — without these, the row (a flex item in the column) sizes to
-       its 388px content and overflows the ~291px list, pushing Edit/Remove off-screen. */
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-}
-/* Let the name/email chip take the remaining width and shrink, so the fixed-width
-   Edit/Remove buttons (flex-shrink: 0) always stay on-screen instead of overflowing
-   the card edge. min-width: 0 lets the long email inside ellipsise rather than forcing
-   the row wider than the viewport. */
-.email-missing-row .email-count-chip,
-.email-added-row .email-count-chip {
-    flex: 1 1 auto;
-    min-width: 0;
 }
 .email-set-btn {
     font-size: var(--type-badge);
@@ -721,23 +636,33 @@ select:focus-visible, input:focus-visible {
     min-height: 1em;
 }
 
-/* ---- Account status table (PASSWORD_PLAN.md — password migration + break-glass reset) ---- */
+/* ---- Account status table (PASSWORD_PLAN.md — one per-member block: work email + password) ---- */
 .acct-status-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
 }
-.acct-status-row {
+/* One member = a small stacked block: a head line (name · password posture · Reset) over an
+   email line (address · Set/Edit/Remove). Stacking keeps both actionable rows readable at 375px. */
+.acct-row {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
     border-radius: 8px;
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
+}
+.acct-row-head,
+.acct-row-email {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
 }
 .acct-name {
     flex: 1 1 auto;
@@ -746,16 +671,26 @@ select:focus-visible, input:focus-visible {
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: var(--type-small);
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-dark);
 }
-.acct-flag {
+.acct-pw {
     flex-shrink: 0;
-    font-size: var(--type-small);
+    font-size: var(--type-badge);
     color: var(--success-green);
     white-space: nowrap;
 }
-.acct-flag--warn { color: var(--orange-text); }
+.acct-pw--warn { color: var(--orange-text); }
+.acct-email {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--type-badge);
+    color: var(--text-mid);
+}
+.acct-email--none { font-style: italic; color: var(--text-faint); }
 .btn-acct-reset {
     flex-shrink: 0;
     font-size: var(--type-badge);
@@ -777,6 +712,8 @@ select:focus-visible, input:focus-visible {
 }
 .btn-acct-reset:active:not(:disabled) { transform: scale(var(--press-scale)); }
 .btn-acct-reset:disabled { opacity: 0.6; cursor: not-allowed; }
+/* The inline email Set/Edit form sits full-width under the email line inside the row. */
+.acct-row .email-set-form { margin: 2px 0 0; }
 
 #opsBadge { background: var(--orange); color: var(--primary-blue); }
 #iconLightbox .lightbox-badge {

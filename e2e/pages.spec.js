@@ -98,7 +98,7 @@ for (const width of [1280, 1440]) {
         // robust to the centred max-width:1100 container + narrow-left/wide-right split.
         // An auto-placement regression (the v14.31 symptom) would break this separation.
         const leftIds  = ['#huddleUploadCard', '#circularUploadCard', '#newsletterUploadCard'];
-        const rightIds = ['#rosterUploadCard', '#workEmailCard', '#errorLogCard', '#usageCard', '#pageSpeedCard', '#authSetupCard'];
+        const rightIds = ['#rosterUploadCard', '#accountStatusCard', '#errorLogCard', '#usageCard', '#pageSpeedCard', '#authSetupCard'];
         const boxesOf = async ids => Promise.all(ids.map(id => page.locator(id).boundingBox()));
         const leftBoxes  = await boxesOf(leftIds);
         const rightBoxes = await boxesOf(rightIds);
@@ -127,40 +127,43 @@ test('operations: App speed card renders both sections + empty-state verdict (no
     await expect(page.locator('#pageSpeedContent')).toContainText('Not enough data yet');       // pages empty state
 });
 
-// Work Email Progress rows must not overflow the card on a narrow phone. The bug
-// (v14.35): each row is a flex item inside the --added flex COLUMN, which inherited
-// flex-wrap:wrap, so a long-email row sized to its content (~388px) and overflowed
-// the ~291px list — the card's overflow:hidden then clipped the Remove button.
-test('operations: Work Email rows keep Edit/Remove on-screen at 375px (long emails ellipsise)', async ({ page }) => {
+// Account-status email rows must not overflow the card on a narrow phone (merged card, v18.65).
+// Regression guard for the original v14.35 bug class: a long-email row must ellipsise so the
+// fixed-width Edit/Remove buttons stay on-screen instead of being clipped by overflow:hidden.
+test('operations: Account-status email rows keep Edit/Remove on-screen at 375px (long emails ellipsise)', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 760 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
     await page.goto('/operations.html');
-    await expect(page.locator('#workEmailCard')).toBeVisible();
+    await expect(page.locator('#accountStatusCard')).toBeVisible();
 
-    // Inject a row with a deliberately long email (Firestore is stubbed empty in e2e),
-    // matching operations-app.js's row markup, into the expanded card.
+    // Inject a member block with a deliberately long email (Firestore is stubbed empty in e2e),
+    // matching the merged initAccountStatus row markup, into the expanded card.
     const res = await page.evaluate(() => {
-        const body = document.getElementById('emailStatusContent');
-        const row = document.createElement('div'); row.className = 'email-added-row';
-        const chip = document.createElement('span'); chip.className = 'email-count-chip email-count-chip--added';
-        const nm = document.createElement('span'); nm.className = 'email-chip-name'; nm.textContent = 'C. Francisco-Charles';
-        const em = document.createElement('span'); em.className = 'email-chip-email'; em.textContent = 'csherrice.francisco-charles@chilternrailways.co.uk';
-        chip.append(nm, em);
+        const body = document.getElementById('accountStatusContent');
+        const list = document.createElement('div'); list.className = 'acct-status-list';
+        const row = document.createElement('div'); row.className = 'acct-row';
+        const head = document.createElement('div'); head.className = 'acct-row-head';
+        const nm = document.createElement('span'); nm.className = 'acct-name'; nm.textContent = 'C. Francisco-Charles';
+        const pw = document.createElement('span'); pw.className = 'acct-pw'; pw.textContent = '🔑 Own password';
+        const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'btn-acct-reset'; reset.textContent = 'Reset';
+        head.append(nm, pw, reset);
+        const emailLine = document.createElement('div'); emailLine.className = 'acct-row-email';
+        const em = document.createElement('span'); em.className = 'acct-email'; em.textContent = '📧 csherrice.francisco-charles@chilternrailways.co.uk';
         const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'email-set-btn'; edit.textContent = 'Edit';
         const rem = document.createElement('button'); rem.type = 'button'; rem.className = 'email-set-btn email-set-btn--remove'; rem.textContent = 'Remove';
-        row.append(chip, edit, rem);
-        const list = document.createElement('div'); list.className = 'email-count-list email-count-list--added';
-        list.appendChild(row); body.innerHTML = ''; body.appendChild(list);
-        document.getElementById('workEmailBody')?.classList.add('open');
-        const cardRight = document.getElementById('workEmailCard').getBoundingClientRect().right;
+        emailLine.append(em, edit, rem);
+        row.append(head, emailLine); list.appendChild(row);
+        body.innerHTML = ''; body.appendChild(list);
+        document.getElementById('accountStatusBody')?.classList.add('open');
+        const cardRight = document.getElementById('accountStatusCard').getBoundingClientRect().right;
         return {
             removeRight: rem.getBoundingClientRect().right,
             cardRight,
             emailEllipsized: em.scrollWidth > em.clientWidth,
         };
     });
-    // The Remove button (rightmost element) must sit within the card, not clipped.
+    // The Remove button (rightmost element of the email line) must sit within the card, not clipped.
     expect(res.removeRight, 'Remove button must be inside the card').toBeLessThanOrEqual(res.cardRight + 1);
     expect(res.emailEllipsized, 'a long email must ellipsise, not force the row wide').toBe(true);
     const overflow = await page.evaluate(
