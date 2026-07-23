@@ -325,6 +325,38 @@ same change — `readFormData` stores `null` when the field still equals the per
 
 ---
 
+### Possible: "Fill this year from calendar" — bulk roster pre-fill (paycalc)
+
+**What:** The last open item (7) of the July 2026 pay-calculator improvement plan (items 1–6, 8, 9,
+11 shipped v18.39–v18.44). One tap runs the roster-assist pre-fill across **every paid-but-empty
+payslip of the viewed tax year** — instead of visiting each period and filling it individually.
+The multiplier for everything shipped around it: the HPP hours estimate, the back-pay accrual, and
+the "This tax year so far" summary all sharpen directly with filled periods, and the v18.42
+"Not entered yet: 10 Apr, 8 May" lines name exactly what one tap would fix.
+
+**Guard rails (already decided):**
+- **Never overwrites** a period the member has entered — only paid-but-empty periods are touched
+  (the same paid/empty test the "Not entered yet" lists use).
+- Fills follow the existing **conservatism policy** (v9.02): premium categories only
+  (Sat/Sun/BH/Boxing/RDW from base roster + overrides) — no inferred ambiguous categories, no
+  standard weekday hours.
+- Filled values are **marked as roster-suggested** (gold), exactly like the single-period pre-fill,
+  so the member can see and correct what was assumed; the result card's 📅 "Hours from calendar"
+  provenance chip (v18.44) then discloses it on each affected payslip.
+
+**Design questions to settle with the owner before building (deliberately not decided):**
+1. **Where the button lives** — leaning: beside the "Not entered yet: …" lines (HPP card and/or
+   the year-so-far block), since they name what it fixes; alternative: the roster-hint bar.
+2. **Confirm or not** — leaning NO confirm (it can't overwrite anything) with a clear receipt
+   afterwards ("Filled 2 payslips from your calendar: 10 Apr, 8 May"); the alternative is a
+   preview-first flow, which fights the one-tap point.
+3. Whether the fill needs Firestore overrides for HISTORIC months (the override cache may not span
+   the whole year client-side — check `fetchOverridesForPeriod` coverage) or base-roster-only is
+   acceptable for old periods.
+
+**Effort:** medium — the per-period suggestion engine (`getRosterSuggestion` /
+`fetchOverridesForPeriod`) already exists; the work is the loop, the receipt UI, and the tests.
+
 ### Dispatcher pay calculator support
 **What:** Add Dispatcher pay rates to the `GRADES` object in `paycalc-calc.js` so Dispatcher staff can use the pay calculator.
 

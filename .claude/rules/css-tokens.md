@@ -184,15 +184,20 @@ was moved OUT of the left column (it used to stack under the tall Change-a-Shift
 stacks under Absence and fills the column (it grows with content / when expanded). Mobile
 order is unchanged (col-side contents still stack after col-main). A smaller residual gap
 remains at the bottom-right when the right-column cards are all collapsed — mirroring paycalc.
-**Paycalc resolved its void** (v16.12→v16.14 rail, replaced at **v16.67**): a three-column
-desktop grid where Hours + Settings span the two wide work columns (wide → short) and a col-3
-**sidebar** (`.pc-side`, `display:contents` on mobile / flex column on desktop) stacks the result
-card + the four occasional cards, so column 3 is FILLED. The v16.14 version put ONLY the result
-(a sticky rail) in col 3, leaving the rest of that column a full-height navy void — the desktop
-"it's a mess" report; owner-approved "fill column 3" fix stacks the occasional cards under the
-(now non-sticky) result, with the `#stickyTotal` bottom bar keeping the £ visible. A modest
-residual gap (left cards inherently taller) sits at the bottom-right. operations has no
-equivalent card to relocate, so its left-column void stands (admin's was mitigated — above).
+**Paycalc resolved its void** (v16.12→v16.14 rail, replaced at **v16.67**; single shared row
+**v18.47**): a three-column desktop grid whose workspace is ONE grid row holding two wrappers —
+`.pc-work` (period band + Hours + Settings, spanning the two wide work columns) and the col-3
+**sidebar** `.pc-side` (result + the four occasional cards). Both are `display:contents` on
+mobile / flex columns on desktop. The v16.14 version put ONLY the result (a sticky rail) in
+col 3, leaving the rest of that column a full-height navy void — the desktop "it's a mess"
+report; the v16.67 fix stacked the occasional cards under the (now non-sticky) result, with the
+`#stickyTotal` bottom bar keeping the £ visible. v18.47 then closed the remaining
+**expanded-sidebar void**: the sidebar used to SPAN the left items' three grid rows, so an
+all-expanded sidebar taller than the left column made grid distribute the excess across the
+spanned tracks — inflating the period-band row into a mid-page navy gap. One shared row means
+neither column can inflate the other; a modest residual gap sits at the shorter column's
+BOTTOM only. operations has no equivalent card to relocate, so its left-column void stands
+(admin's was mitigated — above).
 
 **Empirically re-confirmed (v17.73, Section B / F-VIS-1 review).** The operations void was
 re-examined with rendered desktop screenshots at 1024/1280/1440, and the one zero-mobile-regression

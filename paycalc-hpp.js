@@ -522,7 +522,7 @@ export function updatePriorHpp(ty) {
       // The PRIOR year's settled rate — derived from AWARD_RATES per tax year (v17.87), so last
       // year prices at last year's rate, never the current one. (The second arg is a retained
       // no-op since the localStorage rate store was removed.)
-      const rate = getStoredRateForYear(priorTy, false);
+      const rate = getStoredRateForYear(priorTy);
       let _priorVar = 0;
       _priorPeriods.forEach(/** @param {any} p */ p => {
         try {
