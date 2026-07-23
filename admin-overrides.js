@@ -383,6 +383,17 @@ export function buildWeekGridInto(container, dateStr) {
                 otherPill.title    = 'Other days (training, induction, assessment, team days) cannot be recorded on a Sunday — Sundays are not contracted days';
                 otherPill.setAttribute('aria-label', 'Other — unavailable on Sundays (not a contracted day)');
             }
+            // A worked Sunday is always Rest Day Working (RDW), never a plain shift — Sundays are
+            // uncontracted, so any Sunday work is overtime. Disable the Shift pill and point staff at
+            // RDW (the roster-upload path promotes Sunday shift→rdw for the same reason). Without this,
+            // a Sunday saved as 'shift' rendered as an ordinary worked badge and the pay calculator's
+            // Sunday-overtime pre-fill missed it, under-counting pay.
+            const shiftPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-shift'));
+            if (shiftPill) {
+                shiftPill.disabled = true;
+                shiftPill.title    = 'A worked Sunday is recorded as Rest Day Working (RDW), not a shift — Sundays are not contracted days. Use the RDW pill.';
+                shiftPill.setAttribute('aria-label', 'Shift — unavailable on Sundays; record Sunday work as Rest Day Working (RDW)');
+            }
         }
 
         const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
@@ -908,7 +919,7 @@ function _initBulkBar() {
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox || !checkbox.checked) return;
             ticked++;
-            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick' || _bulkActiveType === 'other') && isSunday(row.dataset.date ?? '')) { sundaySkipped++; return; } // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
+            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick' || _bulkActiveType === 'other' || _bulkActiveType === 'shift') && isSunday(row.dataset.date ?? '')) { sundaySkipped++; return; } // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip). 'shift' too: a worked Sunday is RDW, not a plain shift (record it via the RDW pill individually).
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
