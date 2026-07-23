@@ -497,6 +497,12 @@ body.lb-open #stickyTotal { display: none !important; }
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
 }
+/* The panel receives a `tabindex="-1"` so createLightbox can move focus into the dialog on open
+   (WAI-ARIA) without landing a keyboard-focus ring on the ✕ (see overlay.js). It is never a Tab
+   target, so suppressing its own focus outline can't affect keyboard users — it only stops an
+   aggressive browser (Samsung/Android) drawing a box round the programmatically-focused panel. */
+.lb-content:focus,
+.lb-content:focus-visible { outline: none; }
 /* Promote to its own layer only while the lightbox is open — avoids holding
    a permanent compositor layer for an overlay that's hidden 99% of the time. */
 .lb-overlay.open .lb-content { transform: scale(1); will-change: transform; }
@@ -2177,22 +2183,38 @@ button.nav-panel-link--notices {
     font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-light);
-    margin: 14px 0 6px;
+    letter-spacing: 0.6px;
+    color: var(--text-mid);
+    margin: 18px 0 8px;
 }
+.tips-lb-section:first-child { margin-top: 0; }
 .tips-lb-item {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 11px;
     font-size: var(--type-label);
     color: var(--text-dark);
     line-height: 1.5;
-    padding: 5px 0;
-    border-bottom: 1px solid var(--border-light);
+    padding: 6px 0;
+    /* Per-row hairline dividers dropped (v18.69 light-polish): a divider under every row read as a
+       dense ledger. The icon tint-chip column + row spacing separate the rows more calmly now. */
 }
-.tips-lb-item:last-child { border-bottom: none; }
-.tips-lb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
+/* Each emoji sits in a soft rounded tint chip — anchors the icon column and gives the panel
+   structure, matching the Account-status pills. Neutral container; the emoji carries its own colour. */
+.tips-lb-icon {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    margin-top: 1px;
+}
 #tipsLightboxClose { color: rgba(0,0,0,0.35); }
 @media (hover: hover) and (pointer: fine) {
     #tipsLightboxClose:hover { color: rgba(0,0,0,0.7); }

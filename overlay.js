@@ -223,8 +223,22 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         overlay.classList.add('visible');
         requestAnimationFrame(() => {
             overlay.classList.add('open');
-            const target = typeof initialFocus === 'function' ? initialFocus() : initialFocus;
-            (target ?? closeBtn)?.focus();
+            const explicit = typeof initialFocus === 'function' ? initialFocus() : initialFocus;
+            // Default focus goes to the dialog PANEL (given a `tabindex="-1"`), NOT the ✕ close button.
+            // Moving focus into the dialog on open is the WAI-ARIA pattern, but landing it on the close
+            // BUTTON makes a keyboard-focus ring appear around the ✕ even when the dialog was opened by
+            // tap or AUTO-opened (a notice): Samsung/Android treat the programmatic focus as
+            // focus-visible → a heavy navy outline box round the ✕. A non-interactive panel with
+            // tabindex="-1" is outside the global :focus-visible ring selector (button/[tabindex="0"]),
+            // so screen-reader users still get moved into the dialog with no ring on a control.
+            // Explicit initialFocus callers (login field, confirm/prompt input) are unchanged.
+            let target = explicit;
+            const panel = /** @type {HTMLElement|null} */ (content ?? null);
+            if (!target && panel) {
+                if (!panel.hasAttribute('tabindex')) panel.setAttribute('tabindex', '-1');
+                target = panel;
+            }
+            (target ?? closeBtn)?.focus?.();
         });
         document.addEventListener('keydown', onKey);
     }
