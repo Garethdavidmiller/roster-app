@@ -680,22 +680,29 @@ body.lb-open #stickyTotal { display: none !important; }
     letter-spacing: 0.6px;
 }
 
-/* Bug report link — quiet utility link at the bottom of the about lightbox */
+/* Utility links at the bottom of the About lightbox (View guide / Report a bug).
+   Light-polish (v18.70): each used to carry its OWN full-width top-border, so the stack read as a
+   dense ledger of dividers. They're now soft rounded tappable rows (subtle white tint, brightening
+   on press/hover) separated by spacing — the single divider above the privacy note is the only rule
+   between the identity block and the actions. Matches the Tips-panel and Account-status treatment. */
 .lightbox-bug-link {
     display: block;
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(255,255,255,0.1);
+    box-sizing: border-box;
+    margin-top: 8px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
     width: 100%;
     text-align: center;
     font-size: 12px;
-    color: rgba(255,255,255,0.70); /* raised from 0.35 (3.2:1) — interactive link needs 4.5:1 */
+    color: rgba(255,255,255,0.78); /* interactive link on the dark glass — clears WCAG AA */
     text-decoration: none;
-    transition: color var(--dur-med);
+    transition: background var(--dur-med), color var(--dur-med);
 }
 @media (hover: hover) and (pointer: fine) {
-    .lightbox-bug-link:hover { color: white; }
+    .lightbox-bug-link:hover { background: rgba(255,255,255,0.12); color: white; }
 }
+.lightbox-bug-link:active { background: rgba(255,255,255,0.16); }
 
 /* Privacy note — shown in lightboxes that handle personal data (Pay Calculator etc.)
    Sits below the main content, separated by a faint rule. */
@@ -907,11 +914,11 @@ body.lb-open #stickyTotal { display: none !important; }
     flex-shrink: 0;
 }
 
-/* Print button row inside the about lightbox (index.html only) */
+/* Print button row inside the about lightbox. Divider dropped (v18.70 glass polish) — the print
+   button is already a distinct bordered control, so spacing separates it from the link chips above;
+   this keeps the panel to a single rule (above the privacy note), matching the Tips-panel treatment. */
 .lightbox-print-wrap {
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(255,255,255,0.1);
+    margin-top: 12px;
     width: 100%;
     display: flex;
     flex-direction: column;

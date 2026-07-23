@@ -176,8 +176,15 @@ export function trapFocus(container, e) {
     const els = /** @type {HTMLElement[]} */ ([...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]:not([tabindex="-1"])')]).filter(el => !/** @type {any} */ (el).disabled && el.getAttribute('aria-disabled') !== 'true' && el.offsetParent !== null);
     if (!els.length) { e.preventDefault(); return; }
     const first = els[0], last = els[els.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    const active = document.activeElement;
+    // When focus is on the dialog PANEL itself (its tabindex="-1" — the default open focus since the
+    // WAI-ARIA panel-focus change) it is outside `els`, so neither wrap branch below fires and a
+    // Shift+Tab would walk backwards PAST the overlay into the page behind it. Treat container-held
+    // focus as sitting just before the first element: Shift+Tab wraps to last, Tab goes to first —
+    // keeping the trap closed on the very first keystroke after open.
+    if (active === container) { e.preventDefault(); (e.shiftKey ? last : first).focus(); return; }
+    if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
 }
 
 /**
