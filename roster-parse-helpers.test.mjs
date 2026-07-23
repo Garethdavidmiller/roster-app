@@ -228,6 +228,15 @@ describe('normaliseShift', () => {
         assert.equal(normaliseShift('Union course RDW'), 'UNION RDW');
         assert.equal(normaliseShift('RDW Union course'), 'UNION RDW');
     });
+    test('meeting words → MEET (roster code "MTG"; also "MEETING")', () => {
+        assert.equal(normaliseShift('MTG'), 'MEET');
+        assert.equal(normaliseShift('mtg'), 'MEET');
+        assert.equal(normaliseShift('Meeting'), 'MEET');
+        assert.equal(normaliseShift('MEETING'), 'MEET');
+        assert.equal(normaliseShift('Meetings'), 'MEET');
+        assert.equal(normaliseShift('MTG RDW'), 'MEET RDW');
+        assert.equal(normaliseShift('RDW MTG'), 'MEET RDW');
+    });
     test('training/team rest-day marker preserved, either order → canonical "FLAVOUR RDW"', () => {
         assert.equal(normaliseShift('TRG RDW'), 'TRG RDW');
         assert.equal(normaliseShift('Training RDW'), 'TRG RDW');
@@ -238,7 +247,7 @@ describe('normaliseShift', () => {
         assert.equal(normaliseShift('RDW Team Day'), 'TEAM RDW');
     });
     test('training/team values never become UNKNOWN (they were UNREADABLE before v15.34)', () => {
-        for (const v of ['TRG', 'Training', 'Induction', 'Assessment', 'TRG RDW', 'Team Day', 'TEAM', 'Union course', 'UNION']) {
+        for (const v of ['TRG', 'Training', 'Induction', 'Assessment', 'TRG RDW', 'Team Day', 'TEAM', 'Union course', 'UNION', 'MTG', 'Meeting']) {
             assert.ok(!normaliseShift(v).startsWith('UNKNOWN|'), v);
         }
     });

@@ -351,9 +351,9 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
 // mirrors the roster's own language:
 //
 //   value := FLAVOUR [" RDW"] [" HH:MM-HH:MM"]
-//   FLAVOUR := "TRG" | "IND" | "ASSESS" | "TEAM" | "UNION"
+//   FLAVOUR := "TRG" | "IND" | "ASSESS" | "TEAM" | "UNION" | "MEET"
 //
-// Examples: 'TRG' · 'IND RDW' · 'ASSESS 08:00-16:00' · 'TRG RDW 08:00-16:00' · 'TEAM' · 'UNION'.
+// Examples: 'TRG' · 'IND RDW' · 'ASSESS 08:00-16:00' · 'TRG RDW 08:00-16:00' · 'TEAM' · 'UNION' · 'MEET'.
 // " RDW" marks an Other-family rest-day (explicitly written on the roster as "TRG RDW");
 // the optional time range is the trainer's ACTUAL hours, entered manually by the
 // admin (roster uploads never carry times). This module is the client-side single
@@ -363,13 +363,22 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
 // pattern as normaliseSurname). If the grammar changes, update both.
 
 /** Badge (short) and full display words per Other-family flavour. Badge word shows in the
- *  calendar-cell badge next to 🏷️; full word is used on tap (day detail / tooltip / aria). */
+ *  calendar-cell badge next to 🏷️; full word is used on tap (day detail / tooltip / aria).
+ *  `hideBaseTime` (optional) suppresses the base-shift-time fallback in the hours slot — see below.
+ *  @type {Record<string, { badge: string, full: string, hideBaseTime?: boolean }>} */
 export const OTHER_FLAVOURS = {
     TRG:    { badge: 'Train',  full: 'Training'   },
     IND:    { badge: 'Ind',    full: 'Induction'  },
     ASSESS: { badge: 'Assess', full: 'Assessment' },
     TEAM:   { badge: 'Team',   full: 'Team Day'   },
-    UNION:  { badge: 'Union',  full: 'Union'      },
+    // `hideBaseTime`: Meetings + Union duties are "attend-an-event" days not tied to a rostered
+    // shift time, so their calendar hours slot shows NO time (badge only) unless a time is actually
+    // entered/on the roster. Training/Induction/Assessment/Team days happen DURING your shift, so
+    // they keep showing the base shift time. Pay is unaffected either way — `resolveOtherPay` is
+    // flavour-agnostic (all Other days pay as the day underneath; a rest-day RDW pays the 8h default
+    // unless a time is given). Confirmed by Gareth Jul 2026.
+    UNION:  { badge: 'Union',  full: 'Union',     hideBaseTime: true },
+    MEET:   { badge: 'Meet',   full: 'Meeting',   hideBaseTime: true },
 };
 
 /** Default duration credited to an Other-family REST-DAY (e.g. TRG RDW) when no actual times are
@@ -379,7 +388,7 @@ export const OTHER_RDW_DEFAULT_MINS = 480;
 
 // Anchored full-string grammar. Time range is bounded HH:MM (00-23 / 00-59) so an
 // impossible time can never ride in on an Other-family value.
-const _OTHER_RE = /^(TRG|IND|ASSESS|TEAM|UNION)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/;
+const _OTHER_RE = /^(TRG|IND|ASSESS|TEAM|UNION|MEET)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/;
 
 /**
  * True when a stored override/shift value is an Other-family value (any flavour,
@@ -394,14 +403,14 @@ export function isOtherValue(v) {
 /**
  * Parse an Other-family value into its parts, or null when it isn't one.
  * @param {any} v
- * @returns {{ flavour: 'TRG'|'IND'|'ASSESS'|'TEAM'|'UNION', rdw: boolean, time: string|null } | null}
+ * @returns {{ flavour: 'TRG'|'IND'|'ASSESS'|'TEAM'|'UNION'|'MEET', rdw: boolean, time: string|null } | null}
  */
 export function parseOtherValue(v) {
     if (typeof v !== 'string') return null;
     const m = v.match(_OTHER_RE);
     if (!m) return null;
     return {
-        flavour: /** @type {'TRG'|'IND'|'ASSESS'|'TEAM'|'UNION'} */ (m[1]),
+        flavour: /** @type {'TRG'|'IND'|'ASSESS'|'TEAM'|'UNION'|'MEET'} */ (m[1]),
         rdw:     !!m[2],
         time:    m[3] ? m[3].trim() : null,
     };
@@ -485,10 +494,13 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
     const parsedOther = override.type === 'other' ? parseOtherValue(override.value) : null;
     if (parsedOther) {
         const derivedRdw = parsedOther.rdw || isRestShift(baseShift);
-        // Hours slot: admin-entered actual times → 'RDW' (a rest-day Other, no times) → the base
-        // shift's own time (a rostered-day Other happens during your shift) → '' (badge only).
+        // Hours slot: admin-entered/roster actual times → 'RDW' (a rest-day Other, no times) → the
+        // base shift's own time (a rostered-day Other that happens DURING your shift) → '' (badge
+        // only). Meetings + Union duties (hideBaseTime) skip the base-time fallback — they're
+        // attend-an-event days, so they show the badge alone unless a time was actually entered.
+        const showsBaseTime = !OTHER_FLAVOURS[parsedOther.flavour]?.hideBaseTime;
         const rdwTime = parsedOther.time ?? (derivedRdw ? 'RDW'
-            : (SHIFT_RANGE_RE.test(baseShift) ? baseShift : ''));
+            : (showsBaseTime && SHIFT_RANGE_RE.test(baseShift) ? baseShift : ''));
         return { shift: override.value, rdwTime, derivedRdw, note };
     }
     return { shift: override.value, rdwTime: '', derivedRdw: false, note };

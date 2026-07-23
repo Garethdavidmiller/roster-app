@@ -408,7 +408,7 @@ describe('computePeriodDeleteIds', () => {
 
 describe('isOtherValue / parseOtherValue — value grammar', () => {
     it('accepts every flavour, bare', () => {
-        for (const f of ['TRG', 'IND', 'ASSESS', 'TEAM', 'UNION']) {
+        for (const f of ['TRG', 'IND', 'ASSESS', 'TEAM', 'UNION', 'MEET']) {
             assert.equal(isOtherValue(f), true, f);
             assert.deepEqual(parseOtherValue(f), { flavour: f, rdw: false, time: null });
         }
@@ -553,6 +553,26 @@ describe('resolveEffectiveShift — the shared display ladder (single source for
     it('Other with an UNparseable value falls through to its raw value (no rdwTime)', () => {
         assert.deepEqual(resolveEffectiveShift({ type: 'other', value: 'GIBBERISH' }, 'RD', false),
             { shift: 'GIBBERISH', rdwTime: '', derivedRdw: false, note: '' });
+    });
+
+    // Meetings + Union duties (hideBaseTime): attend-an-event days → NO base-time fallback.
+    it('MEET/UNION on a rostered day, no times → hours slot is empty (badge only, NOT the base time)', () => {
+        for (const f of ['MEET', 'UNION']) {
+            const r = resolveEffectiveShift({ type: 'other', value: f }, '06:00-14:00', false);
+            assert.equal(r.shift, f);
+            assert.equal(r.derivedRdw, false);
+            assert.equal(r.rdwTime, '', `${f} should show no base time`);
+        }
+    });
+
+    it('MEET/UNION with actual times still show them (a roster/manual time always wins)', () => {
+        assert.equal(resolveEffectiveShift({ type: 'other', value: 'MEET 09:00-10:00' }, '06:00-14:00', false).rdwTime, '09:00-10:00');
+        assert.equal(resolveEffectiveShift({ type: 'other', value: 'UNION 13:00-14:00' }, 'RD', false).rdwTime, '13:00-14:00');
+    });
+
+    it('MEET/UNION on a rest-day base or with the RDW flag → still derived-RDW "RDW" (8h default is a pay concern)', () => {
+        assert.equal(resolveEffectiveShift({ type: 'other', value: 'MEET' }, 'RD', false).rdwTime, 'RDW');
+        assert.equal(resolveEffectiveShift({ type: 'other', value: 'UNION RDW' }, '06:00-14:00', false).derivedRdw, true);
     });
 });
 
