@@ -709,6 +709,19 @@ describe('passwordStatus (PASSWORD_PLAN §6)', () => {
     test('admin cannot write ANOTHER member\'s record from the client (resets go via the function)', async () => {
         await assertFails(setDoc(doc(adminDb(), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
     });
+    test('the REAL admin token shape {admin,name} still cannot write another member\'s record', async () => {
+        // Production admins carry BOTH claims ({ admin: true, name: 'G. Miller' }) — setupRosterAuth's
+        // admin tier. The create/update rule keys off `token.name == memberName`, so an admin can only
+        // self-write; another member's doc still fails even WITH the admin claim (the `adminDb()` case
+        // above passes partly because it has no name claim — this proves the constraint on the real token).
+        const adminNamed = testEnv.authenticatedContext('uid_admin', { admin: true, name: 'G. Miller' }).firestore();
+        await assertFails(setDoc(doc(adminNamed, 'passwordStatus', 'S. Silva'), { passwordSetAt: serverTimestamp() }));
+        // …and CAN still stamp their OWN record (an admin is also a member setting their own password).
+        // merge:true so it's an update touching ONLY passwordSetAt — this suite has no clearFirestore,
+        // so G. Miller's doc already carries a resetAt from earlier tests; a non-merge replace would
+        // (correctly) fail the affectedKeys().hasOnly(['passwordSetAt']) rule. Mirrors savePasswordSetAt.
+        await assertSucceeds(setDoc(doc(adminNamed, 'passwordStatus', 'G. Miller'), { passwordSetAt: serverTimestamp() }, { merge: true }));
+    });
     test('no client delete', async () => {
         await assertFails(deleteDoc(doc(namedDb(NAME), 'passwordStatus', NAME)));
     });

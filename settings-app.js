@@ -338,20 +338,29 @@ export function init() {
 
         // Reflect migration status (header chip + nudge banner). Best-effort — a failed read leaves
         // both blank. Migrated ⇔ passwordSetAt exists AND is at least as new as any resetAt (§6).
-        async function refreshStatus() {
+        // `optimisticMigrated` lets the just-completed save flip the UI to migrated WITHOUT waiting on
+        // the serverTimestamp() to resolve (an immediate local-cache read returns passwordSetAt:null
+        // right after the write, which would briefly flash "using surname" under the ✓ message).
+        async function refreshStatus(optimisticMigrated = false) {
             if (!member) return;
-            try {
-                const st = await getPasswordStatus(member);
-                const setAt   = /** @type {any} */ (st?.passwordSetAt)?.toMillis?.() ?? 0;
-                const resetAt = /** @type {any} */ (st?.resetAt)?.toMillis?.() ?? 0;
-                const migrated = setAt > 0 && setAt >= resetAt;
+            const paint = (/** @type {boolean} */ migrated) => {
                 if (chip) chip.textContent = migrated ? '✓ your own password' : 'using surname';
                 if (nudge) {
                     nudge.hidden = migrated;
                     if (!migrated) nudge.textContent =
                         'You’re still using your surname as your password — anyone who knows your name could guess it. Set a password only you know below.';
                 }
-            } catch { /* leave the chip/nudge blank on a read failure */ }
+            };
+            if (optimisticMigrated) paint(true);
+            try {
+                // Gate the owner-only read on the Firebase session (like initContactCard) — a cold-load
+                // read before auth.currentUser exists is rejected by the rules and would blank the chip.
+                await sessionReady;
+                const st = await getPasswordStatus(member);
+                const setAt   = /** @type {any} */ (st?.passwordSetAt)?.toMillis?.() ?? 0;
+                const resetAt = /** @type {any} */ (st?.resetAt)?.toMillis?.() ?? 0;
+                paint((setAt > 0 && setAt >= resetAt) || optimisticMigrated);
+            } catch { /* leave the chip/nudge as-is (optimistic paint, or blank) on a read failure */ }
         }
         refreshStatus();
 
@@ -364,16 +373,24 @@ export function init() {
             if (next.length < 8)  { setFeedback('Your new password must be at least 8 characters.', 'err'); newEl.focus(); return; }
             if (next !== confirm) { setFeedback('The two new passwords don’t match.', 'err'); confEl.focus(); return; }
             // Block choosing the surname back — otherwise "migrated ✓" would be a lie for that member.
-            if (next.toLowerCase().replace(/[^a-z]/g, '') === normaliseSurname(member)) {
+            // Guard the empty-surname case: normaliseSurname('') === '' for a single-word (managerOnly)
+            // display name, which without the `surname &&` guard would reject ANY all-digits/symbols
+            // password (its alpha part is also '') as "your surname".
+            const surname = normaliseSurname(member);
+            if (surname && next.toLowerCase().replace(/[^a-z]/g, '') === surname) {
                 setFeedback('Choose something other than your surname.', 'err'); newEl.focus(); return;
             }
             saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
             try {
                 await reauthenticateWithPassword(member, current);   // proves they know the current one
-                await setOwnPassword(member, next);                  // updatePassword + stamp passwordSetAt
-                setFeedback('✓ Password updated. Use it the next time you sign in.', 'ok');
+                const res = await setOwnPassword(member, next);      // updatePassword (+ best-effort stamp)
+                // The password DID change (setOwnPassword only rejects if reauth/updatePassword failed).
+                // A missing migration stamp is a soft note, never "it failed" — see setOwnPassword.
+                setFeedback(res && res.statusRecorded === false
+                    ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'
+                    : '✓ Password updated. Use it the next time you sign in.', 'ok');
                 curEl.value = newEl.value = confEl.value = '';
-                refreshStatus();
+                refreshStatus(true);   // optimistic: the password changed, so show migrated immediately
             } catch (e) {
                 const code = /** @type {any} */ (e)?.code || '';
                 if (code === 'auth/too-many-requests') setFeedback('Too many attempts — wait a few minutes and try again.', 'err');

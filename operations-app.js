@@ -245,13 +245,23 @@ export function init() {
             btn.disabled = true; btn.textContent = 'Resetting…';
             try {
                 await resetMemberPassword(name, { revoke: true });
+            } catch (e) {
+                // Only a genuine RESET failure gets the Retry affordance.
+                console.warn('[Operations] resetMemberPassword failed:', e);
+                btn.disabled = false; btn.textContent = 'Retry';
+                btn.title = 'Reset failed — try again shortly';
+                return;
+            }
+            // Reset SUCCEEDED (member re-defaulted + signed out). The follow-up status re-read is
+            // best-effort — if it fails, do NOT show "Retry"/"Reset failed" (that would prompt a
+            // redundant second reset). Reflect the done state and let the next load reconcile the table.
+            try {
                 const fresh = await withClaimRetry(getAllPasswordStatus);
                 statusMap = new Map(fresh.map(/** @param {any} s */ s => [s.memberName, s]));
                 render();   // rebuilds the row (btn is replaced) — reflects the new "surname" state
             } catch (e) {
-                console.warn('[Operations] resetMemberPassword failed:', e);
-                btn.disabled = false; btn.textContent = 'Retry';
-                btn.title = 'Reset failed — try again shortly';
+                console.warn('[Operations] status refresh after reset failed (reset itself succeeded):', e);
+                btn.textContent = 'Reset ✓'; btn.title = 'Password reset — refresh the page to update the table';
             }
         }
 

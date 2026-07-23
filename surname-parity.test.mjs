@@ -23,6 +23,11 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const { nameToPassword } = require('./functions/roster-parse-helpers.js');
+// The browser-side PADDED password builder (auth-identity.js is pure ESM — importable here, unlike
+// firebase-client.js which pulls the Firebase CDN). This is the value ensureFirebaseSession actually
+// signs in with, so it must equal the functions-side nameToPassword byte-for-byte or a short-surname
+// member is locked out (client signs in with a different password than setupRosterAuth provisioned).
+const { surnamePassword } = await import('./auth-identity.js');
 
 // The single canonical derivation. BOTH source files must contain this exact
 // expression; if you change it, change it in all three places (here + both files)
@@ -65,6 +70,16 @@ describe('surname derivation — browser ↔ functions parity', () => {
         // "A. Tuck" → "tuck" (4) → padEnd(6,'tuck') → "tucktu"
         assert.equal(nameToPassword('A. Tuck'), 'tucktu');
         assert.ok(nameToPassword('A. Tuck').length >= 6);
+    });
+
+    test('client surnamePassword (the actual login credential) matches functions nameToPassword', () => {
+        // Guards the PADDING drift the source-equivalence check below does NOT cover: it asserts the
+        // core regex, not the `padEnd(6, …)` tail. A divergence here locks out every short-surname
+        // member (client would sign in with a different password than the server provisioned).
+        for (const name of NAMES) {
+            assert.equal(surnamePassword(name), nameToPassword(name),
+                `surnamePassword("${name}") (client) drifted from nameToPassword (functions) — lockout risk`);
+        }
     });
 
     test('a name with no surname throws rather than yielding an empty password', () => {
