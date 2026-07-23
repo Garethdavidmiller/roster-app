@@ -657,13 +657,13 @@
            payslip (default), a quick single "extra pay so far this year" figure × 7.69%, or a figure
            the member enters themselves. Mirrors the back-pay card's compute/enter toggle. -->
       <div class="field" id="hppModeRow">
-        <label>How should we work out this year's estimate?</label>
+        <label>Where should this year's estimate come from?</label>
         <div class="hpp-mode-toggle" role="radiogroup" aria-label="Holiday Pay Premium amount source">
           <!-- Each option shows its CURRENT figure on the right (v18.40 — filled by calcHPP via
                _updateModeAmounts on every recompute) so the choice is informed, not blind. -->
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeHours" value="hours" checked> <span class="hpp-mode-text">From my payslips in the calculator — most accurate</span> <span class="hpp-mode-amt" id="hppModeHoursAmt"></span></label>
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeYtd" value="ytd"> <span class="hpp-mode-text">Rough estimate from my Year to Date pay</span> <span class="hpp-mode-amt" id="hppModeYtdAmt"></span></label>
-          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeExact" value="exact"> <span class="hpp-mode-text">Enter the figure myself</span> <span class="hpp-mode-amt" id="hppModeExactAmt"></span></label>
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeHours" value="hours" checked> <span class="hpp-mode-text">From your payslips in the calculator — most accurate</span> <span class="hpp-mode-amt" id="hppModeHoursAmt"></span></label>
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeYtd" value="ytd"> <span class="hpp-mode-text">Rough estimate from your Year to Date pay</span> <span class="hpp-mode-amt" id="hppModeYtdAmt"></span></label>
+          <label class="hpp-mode-opt"><input type="radio" name="hppMode" id="hppModeExact" value="exact"> <span class="hpp-mode-text">Enter the figure yourself</span> <span class="hpp-mode-amt" id="hppModeExactAmt"></span></label>
         </div>
       </div>
 
@@ -720,10 +720,13 @@
       <!-- Amount source (v17.86): compute the lump from your hours, OR enter the actual figure from
            your payslip (the default for a prior, already-paid year). -->
       <div class="field" id="bpModeRow" style="display:none">
-        <label>How should we get the amount?</label>
+        <label>Where should this figure come from?</label>
         <div class="bp-mode-toggle" role="radiogroup" aria-label="Back pay amount source">
-          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeCompute" value="compute"> Work it out from my hours</label>
-          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeManual" value="manual"> Enter the amount from my payslip</label>
+          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeCompute" value="compute"> Work it out from your hours</label>
+          <!-- The manual option is DISABLED while the paid-in payslip is still in the future
+               (v18.48) — there is no printed figure to copy until it exists; calcBackPay owns the
+               disabled state and falls a restored manual selection back to compute. -->
+          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeManual" value="manual"> Enter the amount from your payslip</label>
         </div>
       </div>
 
@@ -745,7 +748,14 @@
         <div class="field-hint">Optional shortcut — enter the award percentage and the New boxes fill in automatically (old × the rise). You can still edit them by hand.</div>
       </div>
 
-      <div class="field">
+      <!-- For a fully-confirmed award every figure below is on record and locked, so the two
+           Old→New box rows collapse into this ONE read-only line (v18.48) — input-shaped boxes
+           for facts nobody can edit were ~300px of restatement. The boxes stay in the DOM
+           (hidden) as the value store calcBackPay reads; they show only while a figure is NOT
+           on record (e.g. the CES 2025/26 old rate) and genuinely needs typing. -->
+      <div class="field-hint" id="bpRatesLine" style="display:none"></div>
+
+      <div class="field" id="bpRateField">
         <label>Hourly rate</label>
         <div class="field-pair">
           <div class="pfx field-col">
@@ -760,7 +770,7 @@
         </div>
       </div>
 
-      <div class="field">
+      <div class="field" id="bpLondonField">
         <label>London Allowance <span class="note">per period</span></label>
         <div class="field-pair">
           <div class="pfx field-col">

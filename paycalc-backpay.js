@@ -487,6 +487,23 @@ export function calcBackPay() {
   const _pctField = document.getElementById('bpRisePctField');
   if (_pctField) _pctField.style.display = awardTy?.rateUnconfirmed ? '' : 'none';
 
+  // Fully-confirmed award → every box locked: collapse the two input-shaped Old→New rows into ONE
+  // compact read-only line (v18.48 — the owner's screenshot review: ~300px of boxes nobody can
+  // edit, restating figures the hero also carried). The hero basis then shows the period count
+  // only, so the rates are stated ONCE. Any figure NOT on record keeps the editable rows.
+  const _allLocked = Object.values(_auth).every(v => v != null);
+  for (const _fid of ['bpRateField', 'bpLondonField']) {
+    const _f = document.getElementById(_fid);
+    if (_f) _f.style.display = _allLocked ? 'none' : '';
+  }
+  const _ratesLine = document.getElementById('bpRatesLine');
+  if (_ratesLine) {
+    _ratesLine.style.display = _allLocked ? '' : 'none';
+    if (_allLocked) _ratesLine.innerHTML =
+      `🔒 On record — hourly rate <strong>${fmt(/** @type {number} */ (_auth.oldRate))} → ${fmt(/** @type {number} */ (_auth.newRateInput))}</strong> · ` +
+      `London Allowance <strong>${fmt(/** @type {number} */ (_auth.oldLondon))} → ${fmt(/** @type {number} */ (_auth.newLondon))}</strong> per period`;
+  }
+
   const oldRate   = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldRate')).value);
   const newRate   = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('newRateInput')).value);
   const oldLondon = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldLondon')).value);
@@ -509,6 +526,23 @@ export function calcBackPay() {
   // Opt-in tick (OFF by default): the lump is only ADDED to the paid-in payslip's take-home when
   // ticked. The card still computes and shows the lump either way; the coordinator gates the gross.
   const bpIncluded = !!(/** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked);
+
+  // "Enter the amount from your payslip" needs the paid-in payslip to EXIST (v18.48): until that
+  // payday has passed there is no printed figure to copy, so the option is disabled. A restored
+  // manual selection for a still-future payslip falls back to compute (applyBpMode also fixes the
+  // field-group visibility, and _saveBpState below heals the persisted mode).
+  const _payslipExists = !!(bpP && bpP.payday < new Date());
+  const _manualRadio   = /** @type {HTMLInputElement|null} */ (document.getElementById('bpModeManual'));
+  if (_manualRadio) {
+    _manualRadio.disabled = !_payslipExists;
+    const _opt = _manualRadio.closest('.bp-mode-opt');
+    if (_opt) {
+      _opt.classList.toggle('bp-mode-opt--disabled', !_payslipExists);
+      if (_payslipExists) _opt.removeAttribute('title');
+      else _opt.setAttribute('title', 'Available once the payslip carrying the lump sum has been paid');
+    }
+    if (!_payslipExists && _bpMode() === 'manual') applyBpMode('compute');
+  }
 
   // The story strip at the top of the card — award shape + this member's figure, ahead of the
   // controls (v18.39). Written on EVERY exit path below so it can never show a stale £.
@@ -570,10 +604,11 @@ export function calcBackPay() {
     if (periodWrap) periodWrap.style.display = _periodDisplay;
     noticeEl.style.display = 'block';
     if (bpP) {
-      const payLong = fdLong(bpP.payday);
+      // The story strip + hero already name the payslip (date-first + P-number) — the notice
+      // carries only the tax fact, not a third restatement (v18.48, owner's screenshot review).
       noticeEl.innerHTML = bpP.payday < new Date()
-        ? `ℹ️ This lump sum appeared on your <strong>${payLong} payslip</strong> (P${payslipPeriodNum(bpP)}). It was taxed in full in that period.`
-        : `⚠️ This lump sum will appear on your <strong>${payLong} payslip</strong> (P${payslipPeriodNum(bpP)}). It is taxed in full in that period.`;
+        ? 'ℹ️ The lump sum was taxed in full on that payslip.'
+        : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
     } else {
       noticeEl.textContent = '⚠️ Select which payslip carried this lump sum above.';
     }
@@ -683,21 +718,27 @@ export function calcBackPay() {
         ? `💷 Lump sum · Paid ${fdShort(bpP.payday)}`
         : '💷 Lump sum on one payslip';
     }
-    const parts = [];
-    if (hasRate)   parts.push(`rate ${fmt(oldRate)} → ${fmt(newRate)}`);
-    if (hasLondon) parts.push(`London Allowance ${fmt(oldLondon)} → ${fmt(newLondon)}`);
-    totalBasEl.textContent = `${pCount} period${pCount > 1 ? 's' : ''} backdated · ${parts.join(' · ')}`;
+    // When the compact "On record" line above the hero already states the rates (_allLocked), the
+    // basis carries the period count only — otherwise the rates appear twice 100px apart (v18.48).
+    if (_allLocked) {
+      totalBasEl.textContent = `${pCount} period${pCount > 1 ? 's' : ''} backdated at the rates on record`;
+    } else {
+      const parts = [];
+      if (hasRate)   parts.push(`rate ${fmt(oldRate)} → ${fmt(newRate)}`);
+      if (hasLondon) parts.push(`London Allowance ${fmt(oldLondon)} → ${fmt(newLondon)}`);
+      totalBasEl.textContent = `${pCount} period${pCount > 1 ? 's' : ''} backdated · ${parts.join(' · ')}`;
+    }
 
     if (periodWrap) periodWrap.style.display = _periodDisplay;
 
     noticeEl.style.display = 'block';
     if (bpP) {
-      const payLong = fdLong(bpP.payday);
-      // A paid-in payday in the past means the lump has already been paid (a settled award being
-      // reviewed) — say so in the past tense; "will appear" for a nine-months-ago payslip reads wrong.
+      // The story strip + hero already name the payslip (date-first + P-number) — the notice
+      // carries only the tax fact, not a third restatement (v18.48, owner's screenshot review).
+      // Past tense for a payday already gone ("will appear" for a nine-months-ago payslip reads wrong).
       noticeEl.innerHTML = bpP.payday < new Date()
-        ? `ℹ️ This lump sum appeared on your <strong>${payLong} payslip</strong> (P${payslipPeriodNum(bpP)}). It was taxed in full in that period.`
-        : `⚠️ This lump sum will appear on your <strong>P${payslipPeriodNum(bpP)} payslip (paid ${payLong})</strong>. It is taxed in full in that period — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.`;
+        ? 'ℹ️ The lump sum was taxed in full on that payslip.'
+        : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
     } else {
       noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
     }
