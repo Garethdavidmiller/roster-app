@@ -79,6 +79,15 @@ belongs.
 | fip-journey-coupon | fip | FIP cross-border — a coupon per country travelled through (journey-validity rule, distinct from the annual allocation) | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
 | fip-carrier-accept | fip | FIP per-country carrier acceptance (e.g. Eurostar not accepted; OUIGO/Frecciarossa exclusions) — HIGH-CHURN, sampled not certified per-carrier | National | 2026-07 | 2026-10 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
 | fip-contact | fip | Booking-from-UK contacts (Trainseurope 01354 660222; bookmyrst.co.uk) | Contact | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
+| fip-fr | fip | France (SNCF, incl. TGV) — 75% FIP + coupons; compulsory reservation on TGV/long-distance (included on the 75% ticket, small fee on a coupon); OUIGO + Milan–Paris Frecciarossa excluded; domestic booked at station/phone | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
+| fip-be | fip | Belgium (SNCB/NMBS) — 75% FIP + coupons, no reservation; Diabolo airport surcharge; from 1 Jul 2026 buy before boarding (no on-board sales) | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
+| fip-nl | fip | Netherlands (NS) — FIP acceptance; the high-speed Intercity Direct link carries a supplement with a discounted ticket, none on a free coupon | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
+| fip-ie | fip | Ireland (Irish Rail + Translink/NIR) — the Belfast–Dublin Enterprise needs one coupon per operator, handover at Dundalk | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
+| fip-de | fip | Germany (DB) — domestic ICE needs no supplement with a FIP-discounted ticket or a free coupon | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
+| fip-at | fip | Austria (ÖBB, incl. Railjet) — coupons follow the country/territory travelled through, not the train's branding | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
+| fip-it | fip | Italy (Trenitalia) — Freccia/EC/EN/IC/ICN need a compulsory reservation + supplement (included on a 75% FIP ticket, bought separately on a coupon); Italo/Trenord/FSE excluded | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
+| fip-es | fip | Spain (Renfe) — AVE has a mandatory fixed staff supplement + reservation (check the current amount); UK-booking availability qualified | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
+| fip-ch | fip | Switzerland (SBB) — FIP accepted on SBB; cross-border TGV Lyria uses a fixed FIP price and takes no coupons | National | 2026-07 | 2027-01 | https://www.raildeliverygroup.com/rst/europe-and-fip.html |
 | pay-rates | paycalc | CEA/CES hourly rates, contracted hours, pension, London Allowance | Fact | 2026-07 | 2027-04 | internal |
 | pay-income-tax | paycalc | rUK income-tax bands + Personal Allowance (2026/27) — confirmed Jul 2026; the rUK income-tax/PA freeze now runs to Apr 2031 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
 | pay-ni | paycalc | National Insurance primary threshold + employee rates (2026/27) — confirmed Jul 2026 | Fact | 2026-07 | 2027-03 | https://www.gov.uk/guidance/rates-and-thresholds-for-employers-2026-to-2027 |
@@ -88,8 +97,11 @@ belongs.
 ## Not certified
 
 - **Per-country FIP carrier details** (operators, phone numbers, reservation rules, acceptance) are
-  too numerous and time-sensitive to certify carrier-by-carrier here — the `fip-carrier-accept` row
-  covers them as a sampled, high-churn class with a short review horizon. Treat the country cards in
-  `fip.html` as "check before travel", not gospel.
+  time-sensitive. The **nine high-use destinations** — France, Belgium, Netherlands, Ireland,
+  Germany, Austria, Italy, Spain, Switzerland — now each carry their **own** dated row (`fip-fr` …
+  `fip-ch`), anchored to their country card, so each has an individual review record. The remaining
+  (lower-use) country cards stay under the sampled, high-churn `fip-carrier-accept` row. Either way,
+  treat the country cards in `fip.html` as "check before travel", not gospel — each sourced card now
+  shows its own "Checked" date to make that freshness visible.
 - **Pay award rates** (`pay-rates`) are the internal Chiltern figures from the payslip / pay award,
   not public T&Cs; their evidence is the payslip, kept device-local (see ARCHITECTURE_PLAN.md).
