@@ -178,6 +178,10 @@ export function init() {
     initCardCollapse('newsletterUploadToggleHeader', 'newsletterUploadBody', 'newsletterUploadChevron');
     initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
     initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
+    // Account status collapse wired ONCE here (not inside initAccountStatus) — its _cardLoadError
+    // retry re-invokes initAccountStatus, and initCardCollapse has no idempotency guard, so wiring it
+    // there would add a duplicate listener per failed load (an even number of retries → dead toggle).
+    initCardCollapse('accountStatusToggleHeader', 'accountStatusBody', 'accountStatusChevron');
     initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
     initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     initCardCollapse('pageSpeedToggleHeader',   'pageSpeedBody',   'pageSpeedChevron');
@@ -191,7 +195,6 @@ export function init() {
     // Set/Edit/Remove) and the password posture (own password vs surname default + a break-glass
     // Reset). Grade filter + two count summaries. PASSWORD_PLAN.md §6.
     async function initAccountStatus() {
-        initCardCollapse('accountStatusToggleHeader', 'accountStatusBody', 'accountStatusChevron');
         const contentEl = document.getElementById('accountStatusContent');
         if (!contentEl) return;
         const content = /** @type {HTMLElement} */ (contentEl);
@@ -230,8 +233,8 @@ export function init() {
             const withEmail = pool.filter(m => emailMap.has(m.name)).length;
             const withPw    = pool.filter(m => migrated(m.name)).length;
             summaryEl.innerHTML =
-                `<strong class="email-count-num">${withEmail}</strong>/${pool.length} have a work email` +
-                ` · <strong class="email-count-num">${withPw}</strong>/${pool.length} set their own password`;
+                `<span class="acct-stat"><span class="acct-stat-num">${withEmail}</span>/${pool.length} work email</span>` +
+                `<span class="acct-stat"><span class="acct-stat-num">${withPw}</span>/${pool.length} own password</span>`;
             listEl.innerHTML = '';
             pool.forEach(m => listEl.appendChild(buildRow(m)));
         }
@@ -251,7 +254,7 @@ export function init() {
             const mig = migrated(m.name);
             const pwEl = document.createElement('span');
             pwEl.className = 'acct-pw' + (mig ? '' : ' acct-pw--warn');
-            pwEl.textContent = mig ? '🔑 Own password' : '🔑 Surname default';
+            pwEl.textContent = mig ? '✓ Own password' : 'Surname default';
             head.append(nameEl, pwEl);
             if (mig) {
                 const resetBtn = document.createElement('button');
@@ -446,8 +449,8 @@ export function init() {
             filterRow.appendChild(filterSelect);
             content.appendChild(filterRow);
 
-            summaryEl = document.createElement('p');
-            summaryEl.className = 'email-count-summary';
+            summaryEl = document.createElement('div');
+            summaryEl.className = 'acct-summary';
             summaryEl.setAttribute('aria-live', 'polite');
             content.appendChild(summaryEl);
 
@@ -458,6 +461,7 @@ export function init() {
             filterSelect.addEventListener('change', () => renderForGrade(filterSelect.value));
             renderForGrade('');
         } catch {
+            content.removeAttribute('aria-busy');   // announce "finished" even on a failed load (a11y)
             _cardLoadError(content, 'account status', () => initAccountStatus());
         }
     }
