@@ -51,6 +51,19 @@ jobs:
         env:
           CI: true
 
+      # Deployed-CSP proof (added after the v18.55 review's deployment-assurance gap). The smoke
+      # suite above runs against a header-less http-server, so it can NOT catch a Content-Security-
+      # Policy that blocks something the app loads. test:csp serves the app through the Firebase
+      # Hosting EMULATOR (a local `demo-` project — no GCloud auth) so the REAL firebase.json CSP
+      # header is applied + enforced by Chromium, and asserts no page triggers a policy violation.
+      # This gates every deploy — the branch/PR e2e.yml `csp` job ignores pushes to main, so without
+      # this a direct-to-main push or manual dispatch could ship a CSP that the post-deploy curl
+      # health check (which can't see browser CSP blocking) would pass right over.
+      - name: Run deployed-CSP proof
+        run: npm run test:csp
+        env:
+          CI: true
+
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
