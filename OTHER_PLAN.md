@@ -10,8 +10,10 @@ OPERATIONS_REFERENCE.md and .claude/rules/paycalc.md, and the pay/grammar single
 ## Evolution (v15.40) — decisions confirmed by Gareth, Jul 2026
 
 The training family became the **"Other" family**: a home for every non-standard day type.
-Training / Induction / Assessment were its first flavours; **Team Day** joined at v15.51; **Meetings
-and Union duties join later** (roster words TBC from Gareth — Phase B below).
+Training / Induction / Assessment were its first flavours; **Team Day** joined at v15.51; **Union
+course** joined at v18.56 (roster word "Union course"; badge + full word "Union"; pays as the day
+underneath; Sunday-blocked — confirmed by Gareth Jul 2026); **Meetings join later** (roster words TBC
+from Gareth — Phase B below).
 
 | Decision | Answer |
 |---|---|
@@ -33,11 +35,12 @@ WORKED shift is ALLOWED (the admin may know the roster is wrong) but shows a bri
 "Originally rostered {base} this day — RDW pays it as rest-day working instead" (`.other-rdw-warn`,
 synced by `_syncOtherRdwWarn` on tick/activate/prefill). Rest-day rows never warn.
 
-## Phase B — adding Meetings / Union duties (the precise checklist)
+## Phase B — adding a new Other flavour (the precise checklist)
 
-**Blocked on Gareth supplying:** (1) the exact roster words/codes for each; (2) two confirmations —
-do they **pay the same way** (as the day underneath, 8h RDW default — note ASSESS already confirmed
-full-day), and does the **Sunday block** apply to them too?
+**Union course was added this way at v18.56** (roster word "Union course"; badge + full "Union";
+pays as the day underneath; Sunday-blocked). **Meetings** remain to add — still **blocked on Gareth
+supplying:** (1) the exact roster words/codes; (2) two confirmations — do they **pay the same way**
+(as the day underneath, 8h RDW default), and does the **Sunday block** apply?
 
 Per new flavour, the touch-list (kept short by the v15.43 prep — the submenu chips are GENERATED
 from `OTHER_FLAVOURS` and the server uses an explicit alias lookup, so neither needs hand-edited UI):

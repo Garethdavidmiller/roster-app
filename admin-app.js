@@ -803,7 +803,7 @@ export function init() {
                 // type would otherwise have it saved as Training.
                 if (!flavour) {
                     row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment, Team Day or Spare)`);
+                    errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment, Team Day, Union or Spare)`);
                     return;
                 }
                 if (flavour === 'SPARE') {
@@ -1609,7 +1609,7 @@ export function init() {
         applyPermissions();
         // Render bulk-bar type pills from PILL_TYPES (single source of truth with per-row pills).
         // 'other' is excluded here — the deliberate one exception: an "Other" day needs a per-row
-        // flavour (Training/Induction/Assessment/Team Day/Spare) that the bulk bar can't supply, so
+        // flavour (Training/Induction/Assessment/Team Day/Union/Spare) that the bulk bar can't supply, so
         // bulk-applying it staged rows that ALWAYS failed at save with "choose the type of Other day".
         // Other is still applied per-row in the week grid. (If bulk training-weeks ever need first-class
         // support, add a bulk flavour sub-selector rather than re-adding the bare pill.)
