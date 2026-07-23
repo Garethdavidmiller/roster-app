@@ -13,7 +13,7 @@ import {
     DAY_NAMES, MONTH_NAMES,
     isSameDay, isBankHoliday, isChristmasDay, isEasterSunday,
     isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge,
-    getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday, isWorkedShift,
+    getWeekNumberForDate, getRosterForMember, resolveMemberRoster, getBaseShift, formatISO, isSunday, isWorkedShift,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, paydayForCutoff, escapeHtml,
 } from './roster-data.js';
 import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
@@ -124,9 +124,21 @@ export function buildCalendarContainer(month, year, opts = {}) {
     const firstWeekNum = getWeekNumberForDate(firstDay, member);
     const lastWeekNum  = getWeekNumberForDate(lastDay,  member);
 
+    // A rosterChanges transition mid-month puts firstDay and lastDay on DIFFERENT rosters, so
+    // firstWeekNum and lastWeekNum come from two different numbering schemes and a "Weeks X–Y" range
+    // is nonsensical (e.g. "CEA Weeks 6–2", conflating a rotation week with a fixed-pattern id).
+    // Detect it from the resolved roster descriptor at each month end (rosterType OR currentWeek
+    // differs) and suppress the week label for that one month — every day cell is still resolved
+    // per-date and correct. No-op for the vast majority (no rosterChanges → same descriptor).
+    const rFirst = member ? resolveMemberRoster(member, firstDay) : null;
+    const rLast  = member ? resolveMemberRoster(member, lastDay)  : null;
+    const isTransitionMonth = !!(rFirst && rLast)
+        && (rFirst.rosterType !== rLast.rosterType || rFirst.currentWeek !== rLast.currentWeek);
+    const weekPrefix = isTransitionMonth ? '' : roster.weekPrefix;
+
     const header = document.createElement('div');
     header.className = 'calendar-header';
-    header.innerHTML = createCalendarHeader(firstWeekNum, lastWeekNum, roster.weekPrefix, month, year);
+    header.innerHTML = createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year);
     calendarContainer.appendChild(header);
 
     const grid = document.createElement('div');

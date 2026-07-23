@@ -25,6 +25,8 @@ const _realIsSunday = dateStr => new Date(dateStr + 'T12:00:00').getDay() === 0;
 let _mockIsSunday = _realIsSunday;
 
 const FAKE_MEMBER = { name: 'G. Miller', currentWeek: 1, rosterType: 'main' };
+// Swappable so a test can exercise a rosterChanges transition member; getCurrentMember reads it live.
+let _member = FAKE_MEMBER;
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,14 @@ mock.module('./roster-data.js', {
         },
         getWeekNumberForDate: () => 3,
         getRosterForMember:   () => ({ weekPrefix: 'CEA Week' }),
+        // Faithful mini-copy: the latest rosterChanges entry whose `from` ≤ date wins; no changes → unchanged.
+        resolveMemberRoster:  (m, d) => {
+            if (m && m.rosterChanges && d) {
+                const hit = m.rosterChanges.filter(c => d >= c.from).pop();
+                if (hit) return { ...m, rosterType: hit.rosterType, currentWeek: hit.currentWeek };
+            }
+            return m;
+        },
         getBaseShift:         (m, d) => _mockGetBaseShift(m, d),
         formatISO:            d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
         isSunday:             dateStr => _mockIsSunday(dateStr),
@@ -77,7 +87,7 @@ mock.module('./roster-data.js', {
 });
 
 mock.module('./calendar-member.js', {
-    namedExports: { getCurrentMember: () => FAKE_MEMBER },
+    namedExports: { getCurrentMember: () => _member },
 });
 
 mock.module('./calendar-overrides.js', {
@@ -245,6 +255,33 @@ describe('createCalendarHeader', () => {
     test('BL Week prefix pluralises correctly → BL Weeks', () => {
         const html = createCalendarHeader(1, 3, 'BL Week', 0, 2026);
         assert.ok(html.includes('BL Weeks 1–3')); // en-dash range (v18.19)
+    });
+});
+
+// ── buildCalendarContainer — rosterChanges transition month (week label suppressed) ───────────────
+
+describe('buildCalendarContainer — transition-month week label', () => {
+    test('a member crossing a rosterChanges boundary mid-month shows NO week range (not "Weeks 3–3")', () => {
+        // main → fixed from the 15th: firstDay (main) and lastDay (fixed) resolve to different rosters,
+        // so a numeric "Weeks X–Y" range would be nonsensical — the label must be suppressed instead.
+        _member = { name: 'S. Test', currentWeek: 3, rosterType: 'main',
+            rosterChanges: [{ from: new Date(2026, 0, 15), rosterType: 'fixed', currentWeek: 2 }] };
+        try {
+            const container = buildCalendarContainer(0, 2026);   // January 2026
+            const header = /** @type {any} */ (container).querySelectorAll('.calendar-header')[0];
+            const html = header.innerHTML;
+            assert.ok(html.includes('January 2026'), 'month/year still shown');
+            assert.ok(!/Week/.test(html), 'no "Week"/"Weeks" label in a transition month');
+        } finally {
+            _member = FAKE_MEMBER;   // restore for the other buildCalendarContainer tests
+        }
+    });
+
+    test('a normal (non-transition) member still shows the week label', () => {
+        _member = FAKE_MEMBER;
+        const container = buildCalendarContainer(0, 2026);
+        const header = /** @type {any} */ (container).querySelectorAll('.calendar-header')[0];
+        assert.ok(/CEA Week/.test(header.innerHTML), 'week label present for a non-transition month');
     });
 });
 

@@ -768,7 +768,14 @@ export function init() {
             if (row.classList.contains('prefilled-existing')) return;
 
             const date    = row.dataset.date || '';
-            const type    = row.dataset.type || '';
+            let   type    = row.dataset.type || '';
+
+            // A worked Sunday is always RDW, never a plain shift (Sundays are uncontracted). The Shift
+            // pill is disabled on Sunday rows, but promote defensively here too — matching the roster-
+            // upload path — so a legacy or time-edited Sunday shift can never be written as a non-RDW
+            // shift (which renders as an ordinary badge and the pay estimate's Sunday-OT pre-fill
+            // misses). 'shift' and 'rdw' share the same timed value composition, so this flows cleanly.
+            if (type === 'shift' && isSunday(date)) type = 'rdw';
 
             // Sundays are uncontracted — AL and sick cannot be saved on a Sunday regardless of how it was set
             if (type === 'annual_leave' && isSunday(date)) {
