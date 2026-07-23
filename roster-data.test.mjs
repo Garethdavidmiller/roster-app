@@ -347,6 +347,7 @@ test('getShiftBadge: Other-family flavours get 🏷️ + the SHORT word (Train/I
     assert.match(getShiftBadge('TRG'),    />Train</);
     assert.match(getShiftBadge('IND'),    />Ind</);
     assert.match(getShiftBadge('ASSESS'), />Assess</);
+    assert.match(getShiftBadge('MEET'),   />Meet</);   // Meeting flavour (roster "MTG")
     // RDW/timed variants keep the same flavour badge — the detail lives in the hours slot / tap label
     assert.match(getShiftBadge('TRG RDW'),            />Train</);
     assert.match(getShiftBadge('IND 08:00-16:00'),    />Ind</);

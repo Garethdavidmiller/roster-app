@@ -803,7 +803,7 @@ export function init() {
                 // type would otherwise have it saved as Training.
                 if (!flavour) {
                     row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment, Team Day, Union or Spare)`);
+                    errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment, Team Day, Union, Meeting or Spare)`);
                     return;
                 }
                 if (flavour === 'SPARE') {

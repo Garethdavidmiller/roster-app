@@ -76,7 +76,7 @@ function normaliseShift(raw) {
     // before the lookup so OCR double-spacing can't miss the table.
     // Deliberate duplicate of the client grammar in override-utils.js (CommonJS cannot
     // import browser ES modules — same accepted pattern as nameToPassword).
-    const trgMatch = s.match(/^(?:RDW\s+)?(TRG|TRAINING|TRAIN|IND(?:UCTION)?|ASSESS(?:MENTS?)?|TEAM(?:\s+DAYS?)?|UNION(?:\s+COURSE)?)(?:\s+(RDW))?$/);
+    const trgMatch = s.match(/^(?:RDW\s+)?(TRG|TRAINING|TRAIN|IND(?:UCTION)?|ASSESS(?:MENTS?)?|TEAM(?:\s+DAYS?)?|UNION(?:\s+COURSE)?|MTG|MEETINGS?)(?:\s+(RDW))?$/);
     if (trgMatch) {
         // Explicit alias → sentinel table (NOT first-letter dispatch, which would silently map any
         // future alias added to the regex without a table entry onto the wrong flavour).
@@ -86,6 +86,7 @@ function normaliseShift(raw) {
             ASSESS: 'ASSESS', ASSESSMENT: 'ASSESS', ASSESSMENTS: 'ASSESS',
             TEAM: 'TEAM', 'TEAM DAY': 'TEAM', 'TEAM DAYS': 'TEAM',
             UNION: 'UNION', 'UNION COURSE': 'UNION',
+            MTG: 'MEET', MEETING: 'MEET', MEETINGS: 'MEET',
         };
         const flavour = FLAVOUR_LOOKUP[trgMatch[1].replace(/\s+/g, ' ')];
         const rdw = /^RDW\s/.test(s) || !!trgMatch[2];

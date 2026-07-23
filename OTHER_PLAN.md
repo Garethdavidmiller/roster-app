@@ -1,19 +1,22 @@
-# OTHER_PLAN.md — the "Other" day family (Training / Induction / Assessment / Team Day; Meetings / Union duties later)
+# OTHER_PLAN.md — the "Other" day family (Training / Induction / Assessment / Team Day / Union / Meeting)
 
 *Status: **BUILT + SHIPPED** (v15.34–v15.57). The full build spec has been pruned (Jul 2026) now
 that the feature is live — the shipped behaviour is documented in CLAUDE.md, AI_MAP.md,
 OPERATIONS_REFERENCE.md and .claude/rules/paycalc.md, and the pay/grammar single source is
 `override-utils.js`. What remains here: the **design decisions** (still cited from code as
 "OTHER_PLAN.md decision N"), the **Evolution** record of the v15.40 rename, and the forward-looking
-**Phase B** checklist for adding Meetings / Union duties. Not version-stamped; not a runtime asset.*
+**Phase B** checklist for adding a new Other flavour (all currently-planned flavours are now shipped — Union v18.56, Meeting v18.61). Not version-stamped; not a runtime asset.*
 
 ## Evolution (v15.40) — decisions confirmed by Gareth, Jul 2026
 
 The training family became the **"Other" family**: a home for every non-standard day type.
 Training / Induction / Assessment were its first flavours; **Team Day** joined at v15.51; **Union
 course** joined at v18.56 (roster word "Union course"; badge + full word "Union"; pays as the day
-underneath; Sunday-blocked — confirmed by Gareth Jul 2026); **Meetings join later** (roster words TBC
-from Gareth — Phase B below).
+underneath; Sunday-blocked); **Meeting** joined at v18.61 (roster code "MTG", also "MEETING"; badge
+"Meet" / full "Meeting"; pays as the day underneath; Sunday-blocked — confirmed by Gareth Jul 2026).
+**Both Meeting and Union also carry `hideBaseTime`:** their calendar hours slot shows the badge with
+NO time unless a time is actually entered (they are attend-an-event days). Training / Induction /
+Assessment / Team Day still show the base shift time — they run DURING your shift. (Gareth Jul 2026.)
 
 | Decision | Answer |
 |---|---|
@@ -37,10 +40,11 @@ synced by `_syncOtherRdwWarn` on tick/activate/prefill). Rest-day rows never war
 
 ## Phase B — adding a new Other flavour (the precise checklist)
 
-**Union course was added this way at v18.56** (roster word "Union course"; badge + full "Union";
-pays as the day underneath; Sunday-blocked). **Meetings** remain to add — still **blocked on Gareth
-supplying:** (1) the exact roster words/codes; (2) two confirmations — do they **pay the same way**
-(as the day underneath, 8h RDW default), and does the **Sunday block** apply?
+**Union course was added this way at v18.56, and Meeting at v18.61** (roster code "MTG" / "MEETING";
+badge "Meet" / full "Meeting"). **Gareth's Phase B answers (Jul 2026):** pay the same way (as the day
+underneath, 8h RDW default on a rest day) = **yes**; Sunday block = **yes**; and both Meeting + Union
+show **no shift time** unless one is actually entered (the `hideBaseTime` flag — see Evolution).
+**All currently-planned Other flavours are now shipped.**
 
 Per new flavour, the touch-list (kept short by the v15.43 prep — the submenu chips are GENERATED
 from `OTHER_FLAVOURS` and the server uses an explicit alias lookup, so neither needs hand-edited UI):
