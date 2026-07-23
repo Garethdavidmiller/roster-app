@@ -82,13 +82,16 @@ restructure at each site; best done later via one shared `setStatus(el, glyph, t
 
 ## Known pre-existing (not gate-caught, low priority)
 
-- **Stale `aria-expanded` on programmatically-opened cards.** A few coordinators open a collapsible
-  card by adding the `.open` class directly (links-app.js ~774, admin-app.js ~1483 / ~1630) without
-  updating `aria-expanded` — so an auto-opened card reports `aria-expanded="false"` until the first
-  manual toggle self-corrects. This predates the v17.50 collapse change (the attribute was equally
-  un-updated when it lived on the header) — `paycalc-settings.js setSettingsCardOpen` is the one path
-  that does it correctly. The axe gate can't catch it (it scans a settled state). Fix when convenient:
-  route those opens through a shared setter, or set `aria-expanded` on the chevron alongside `.open`.
+- **Stale `aria-expanded` on programmatically-opened cards — ✅ RESOLVED (v18.68).** A few
+  coordinators opened a collapsible card/disclosure by adding the `.open` class directly (the
+  auto-open / deep-link paths) without updating `aria-expanded`, so an auto-opened card reported
+  `aria-expanded="false"` until the first manual toggle self-corrected. All such paths now keep the
+  control's ARIA state in step: `admin-app.js` via its `openCollapsibleCard(body, chevron)` helper,
+  `links-app.js`'s generator auto-expand sets `aria-expanded` alongside `.open`, `paycalc-settings.js
+  setSettingsCardOpen` mirrors `initCardCollapse`, and the paycalc "more options" auto-expand
+  (`loadPeriodData`) now routes through the shared `_setDisclosure(btnId, bodyId, open, …)` (which
+  `_toggleDisclosure` also delegates to) instead of a class-only `.open`. The axe gate can't catch
+  this class (it scans a settled state), so it's guarded by convention, not the gate.
 
 ## Waived rules
 
@@ -104,4 +107,7 @@ entry or a page `exclude` in `axe.spec.js` **with a one-line reason**, and recor
 states (sync-chip, active pills) v17.57; **open-overlay states (H2, v17.75): the login overlay,
 the nav drawer open, and the About lightbox open** — each a full interactive surface (focus trap,
 buttons, headings) the settled scans can't reach. All axe-clean.
-Optional next: add `npm run test:e2e` (or a dedicated `test:a11y`) to a CI workflow gate.
+**CI gate — ✅ in place.** The axe `@a11y` spec runs as part of `npm run test:e2e`, and the `smoke`
+job in `.github/workflows/e2e.yml` runs `npm run test:e2e` on every branch/PR — so a new WCAG A/AA
+violation fails CI, not just the local run. (A dedicated standalone `test:a11y` CI job would only add
+attribution clarity — the gate itself is already blocking through `smoke`.)

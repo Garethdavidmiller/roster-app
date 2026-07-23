@@ -289,6 +289,17 @@ export function init() {
     // (stale session, auth race) the ? buttons had no handler and the click bubbled
     // up to the card header, toggling the card instead of opening the lightbox.
     const CARD_TIPS = {
+            'password': {
+                title: 'Password',
+                sections: [
+                    { items: [
+                        { icon: '🔑', html: 'Replace your <strong>surname default</strong> with a password only you know — anyone who knows your name can guess the default.' },
+                        { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, if you haven\'t changed it yet), then a new one of <strong>at least 8 characters</strong>.' },
+                        { icon: '↩️', html: 'Forgotten it? <strong>Ask the admin</strong> — they can reset it back to your surname, then you set a new one.' },
+                        { icon: '🔒', html: 'Your password is never shown to anyone, not even the admin.' },
+                    ]},
+                ],
+            },
             'work-email': {
                 title: 'Work Email',
                 sections: [
