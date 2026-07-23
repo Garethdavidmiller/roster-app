@@ -259,6 +259,37 @@ describe('trapFocus', () => {
         assert.equal(prevented, true);
     });
 
+    test('Shift+Tab from the CONTAINER itself wraps to last (panel-focus leak guard)', () => {
+        // Default open focus lands on the .lb-content panel (tabindex="-1"), which is outside the
+        // focusable set. Without the container-focus branch, Shift+Tab here fires no wrap and the
+        // browser walks focus out of the modal into the page behind. It must wrap to `last`.
+        const first     = makeBtn();
+        const last      = makeBtn();
+        const container = makeContainer([first, last]);
+        global.document.activeElement = container;
+        let prevented = false;
+        trapFocus(container, {
+            key: 'Tab', shiftKey: true, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(last.wasFocused, true);
+        assert.equal(first.wasFocused, false);
+        assert.equal(prevented, true);
+    });
+
+    test('Tab from the CONTAINER itself moves to first', () => {
+        const first     = makeBtn();
+        const last      = makeBtn();
+        const container = makeContainer([first, last]);
+        global.document.activeElement = container;
+        let prevented = false;
+        trapFocus(container, {
+            key: 'Tab', shiftKey: false, preventDefault: () => { prevented = true; },
+        });
+        assert.equal(first.wasFocused, true);
+        assert.equal(last.wasFocused, false);
+        assert.equal(prevented, true);
+    });
+
     test('aria-disabled="true" element is excluded from the focusable list', () => {
         const first        = makeBtn();
         const ariaDisabled = makeBtn({ ariaDisabled: 'true' });
