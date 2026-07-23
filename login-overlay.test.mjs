@@ -59,13 +59,26 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         assert.equal(calls.clear, 0);
     });
 
-    test('enforce ON + named false → NO save, clears, ok:false with provisioning message', async () => {
+    test('enforce ON + named false → NO save, clears, ok:false, kind:credential + reset message', async () => {
         const { deps, calls } = makeDeps({ ensureNamedSession: async () => false });
         const r = await runNamedSignIn(deps);
         assert.equal(r.ok, false);
-        assert.match(/** @type {string} */ (r.error), /Ask the admin to set up your account/);
+        assert.equal(r.kind, 'credential', 'a definitive failure drives the client lockout');
+        assert.match(/** @type {string} */ (r.error), /Password incorrect.*ask the admin to reset it/);
         assert.equal(calls.save, 0);
         assert.equal(calls.clear, 1);
+    });
+
+    test('enforce ON + named false + too-many-requests → kind:ratelimit, distinct message, NOT credential', async () => {
+        const { deps } = makeDeps({
+            ensureNamedSession: async () => false,
+            getAuthError: () => 'auth/too-many-requests',
+            isTransient: () => true,
+        });
+        const r = await runNamedSignIn(deps);
+        assert.equal(r.ok, false);
+        assert.equal(r.kind, 'ratelimit', 'must NOT count toward the wrong-password lockout');
+        assert.match(/** @type {string} */ (r.error), /Too many attempts/);
     });
 
     test('enforce ON + named false + TRANSIENT error → connection message', async () => {
@@ -76,6 +89,7 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         });
         const r = await runNamedSignIn(deps);
         assert.equal(r.ok, false);
+        assert.equal(r.kind, 'transient');
         assert.match(/** @type {string} */ (r.error), /reach sign-in — check your connection/);
     });
 
@@ -91,6 +105,7 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         const { deps, calls } = makeDeps({ ensureNamedSession: () => new Promise(() => {}), timeoutMs: 30 });
         const r = await runNamedSignIn(deps);
         assert.equal(r.ok, false);
+        assert.equal(r.kind, 'timeout');
         assert.match(/** @type {string} */ (r.error), /complete sign-in — check your connection/);
         assert.equal(calls.save, 0, 'must NOT write a local session on timeout (no half-signed-in state)');
         assert.equal(calls.clear, 1);
@@ -111,6 +126,7 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         const { deps, calls } = makeDeps({ saveSession: () => { calls.save++; return false; } });
         const r = await runNamedSignIn(deps);
         assert.equal(r.ok, false);
+        assert.equal(r.kind, 'storage');
         assert.match(/** @type {string} */ (r.error), /blocking storage/i);
         assert.equal(calls.save, 1, 'save was attempted');
         assert.equal(calls.clear, 1, 'signed back out so no Firebase identity is stranded');

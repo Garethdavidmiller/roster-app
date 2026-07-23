@@ -15,8 +15,23 @@
  */
 
 import { auth, authReady, onAuthStateChanged, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
+import { surnamePassword, credentialCandidatesFor } from './auth-identity.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CONFIG } from './roster-data.js';
+
+/** Auth error codes that mean the credential was DEFINITIVELY rejected — a wrong password, or no
+ *  such account — as opposed to a transient/config failure (network, provider-disabled). On these
+ *  the sign-in must resolve to 'none' + a re-sign-in prompt REGARDLESS of ENFORCE_NAMED_SESSION,
+ *  NEVER an anonymous fallback (PASSWORD_PLAN.md §3.3 — the critical fix: once anyone has a custom
+ *  password, an anonymous fallback here would be silently denied every write by the strict B3 rules,
+ *  reproducing the v10.94 outage class). `invalid-credential` is the modern email-enumeration-safe
+ *  code; `wrong-password`/`invalid-login-credentials`/`user-not-found` cover older SDK phrasings.
+ *  @type {Set<string>} */
+const _CREDENTIAL_REJECTION_CODES = new Set([
+    'auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found',
+]);
+/** @param {string|undefined} code */
+const _isCredentialRejection = (code) => !!code && _CREDENTIAL_REJECTION_CODES.has(code);
 import { dispatchAuth } from './auth-state.js';
 
 /**
@@ -203,9 +218,15 @@ export function primeAuth() {
  * @param {string} name - Member display name (exact teamMembers match)
  * @param {number} [_gen] - Internal: the caller's auth-attempt generation (stale-completion guard).
  *   ensureNamedSession passes its generation; omit on a direct call and a fresh one is taken.
+ * @param {string} [password] - The password the member TYPED at the login field. When present, the
+ *   gated dual-attempt (auth-identity.credentialCandidatesFor) is used: the raw typed value, then
+ *   the derived surname ONLY if the typed value normalises to the surname. When ABSENT (a page-load
+ *   re-establishment with no typed value), only the derived surname is tried — auto-reauth of an
+ *   un-migrated member; a MIGRATED member fails cleanly and the page re-shows the login overlay
+ *   (PASSWORD_PLAN.md §3.4).
  * @returns {Promise<boolean>} true if a Firebase Auth session is active afterwards
  */
-export async function ensureFirebaseSession(name, _gen) {
+export async function ensureFirebaseSession(name, _gen, password) {
     // Generation guard (see `_authGen`). ensureNamedSession passes its generation in; a direct call
     // (e.g. tests) takes a fresh one. A superseded attempt drops its terminal writes via `commit`/
     // `recordError` so a late completion can't clobber a newer attempt's identity/diagnostics.
@@ -262,56 +283,65 @@ export async function ensureFirebaseSession(name, _gen) {
         if (!fresh()) return commit('none', false);
     }
 
-    const pw         = getSurname(name);
-    // Firebase Auth requires ≥6 chars — repeat the derived password string to reach the minimum.
-    // padEnd with an empty fill string is a no-op, so fall back to 'x' when pw is empty
-    // (a single-token name with no surname would otherwise produce an unusable empty password).
-    const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw || 'x');
-    const email      = nameToEmail(name);
-    let   firstError;
+    const email = nameToEmail(name);
+    // The ordered password candidates to try (PASSWORD_PLAN.md §3.2–3.4). WITH a typed password
+    // (login overlay): raw typed → derived surname (gated on the typed value normalising to the
+    // surname). WITHOUT one (page-load re-establishment): the derived surname only (auto-reauth of
+    // an un-migrated member; a migrated member fails cleanly here → 'none' → overlay re-shown).
+    const candidates = password != null
+        ? credentialCandidatesFor(name, password)
+        : (surnamePassword(name) ? [surnamePassword(name)] : []);
+    let   lastError;
+    let   nonCredentialStop = false;   // true → we stopped on a NON-credential error (network etc.)
 
-    try {
-        await signInWithEmailAndPassword(auth, email, fbPassword);
-        return commit('named', true);
-    } catch (e) {
-        const _e = /** @type {any} */ (e);
-        firstError = _e.code;
-        console.warn('[Auth] signIn failed:', _e.code, 'for', email);
-        // Self-heal a missing account by creating it — UNLESS the B1 named-session
-        // requirement is on, in which case accounts must be provisioned server-side
-        // (Operations → Set up accounts) and the client must never mint one itself.
-        if (_e.code === 'auth/user-not-found' && !CONFIG.ENFORCE_NAMED_SESSION) {
-            try {
-                await createUserWithEmailAndPassword(auth, email, fbPassword);
-                console.warn('[Auth] Created Firebase Auth account for', name);
-                return commit('named', true);
-            } catch (createErr) {
-                const _ce = /** @type {any} */ (createErr);
-                console.warn('[Auth] createUser failed:', _ce.code, 'for', email);
-                firstError = _ce.code;
+    for (const candidate of candidates) {
+        if (!fresh()) return commit('none', false);
+        try {
+            await signInWithEmailAndPassword(auth, email, candidate);
+            return commit('named', true);
+        } catch (e) {
+            const _e = /** @type {any} */ (e);
+            lastError = _e.code;
+            console.warn('[Auth] signIn failed:', _e.code, 'for', email);
+            // Self-heal a missing account by creating it — UNLESS the B1 named-session requirement
+            // is on (accounts are provisioned server-side then; dead code under the current
+            // flag=true). Always seeds the CANONICAL surname password, never a typed custom value.
+            if (_e.code === 'auth/user-not-found' && !CONFIG.ENFORCE_NAMED_SESSION) {
+                try {
+                    await createUserWithEmailAndPassword(auth, email, surnamePassword(name));
+                    console.warn('[Auth] Created Firebase Auth account for', name);
+                    return commit('named', true);
+                } catch (createErr) {
+                    const _ce = /** @type {any} */ (createErr);
+                    console.warn('[Auth] createUser failed:', _ce.code, 'for', email);
+                    lastError = _ce.code;
+                }
             }
+            // A definitive credential rejection for THIS candidate → try the next one (if any). A
+            // NON-credential error (network / provider-disabled) → stop; it isn't a password problem.
+            if (!_isCredentialRejection(_e.code)) { nonCredentialStop = true; break; }
         }
-        // auth/invalid-credential means the account exists with a different password —
-        // attempting createUser would fail with auth/email-already-in-use.
-        // Fall through to the fallback below.
     }
 
-    recordError(firstError);   // diagnostics (current attempt only)
+    recordError(lastError);   // diagnostics (current attempt only)
 
-    // B1 (SECURITY_RELEASE_PLAN.md): when the named-session requirement is on, do NOT fall
-    // back to an anonymous session — a write page must carry the member's OWN identity. Return
-    // failure so the page can prompt a re-login instead of silently writing as a nameless guest.
-    // Default (flag off): keep today's anonymous fallback so nothing changes until you flip it on.
-    if (CONFIG.ENFORCE_NAMED_SESSION) {
-        console.warn('[Auth] Named session not established; anonymous fallback disabled (ENFORCE_NAMED_SESSION). Error:', firstError);
+    // Every candidate was DEFINITIVELY rejected (wrong password / no account). Resolve to 'none' +
+    // a re-sign-in prompt — NEVER anonymous, REGARDLESS of ENFORCE_NAMED_SESSION (PASSWORD_PLAN.md
+    // §3.3, the critical fix: a migrated member whose surname no longer works, or a mistyped
+    // password, must not land on a nameless anonymous session the strict rules then silently deny).
+    if (!nonCredentialStop) {
+        console.warn('[Auth] Credential rejected (definitive); no anonymous fallback. Error:', lastError);
         return commit('none', false);
     }
 
-    // Fallback: anonymous sign-in satisfies `request.auth != null`.
-    // Covers: email/password provider disabled (auth/operation-not-allowed),
-    // password mismatch on an existing account (auth/email-already-in-use),
-    // and any other persistent email/password failure.
-    console.warn('[Auth] Falling back to anonymous sign-in. Original error:', firstError);
+    // A NON-credential failure (network blip, auth/operation-not-allowed, …). Under enforce, still
+    // no anonymous fallback — a write page needs the member's identity. Flag off → anonymous keeps
+    // the app working through a transient network problem (today's behaviour, unchanged).
+    if (CONFIG.ENFORCE_NAMED_SESSION) {
+        console.warn('[Auth] Named session not established; anonymous fallback disabled (ENFORCE_NAMED_SESSION). Error:', lastError);
+        return commit('none', false);
+    }
+    console.warn('[Auth] Falling back to anonymous sign-in. Original error:', lastError);
     try {
         await signInAnonymously(auth);
         console.warn('[Auth] Anonymous session established for', name);
@@ -319,7 +349,7 @@ export async function ensureFirebaseSession(name, _gen) {
     } catch (anonErr) {
         const _ae = /** @type {any} */ (anonErr);
         console.error('[Auth] Anonymous sign-in failed:', _ae.code);
-        recordError(`${firstError} + anon:${_ae.code}`);
+        recordError(`${lastError} + anon:${_ae.code}`);
         return commit('none', false);
     }
 }
@@ -346,13 +376,15 @@ export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CO
  *   re-login or routes to admin break-glass.
  *
  * @param {string} name
- * @param {{ retries?: number, delayMs?: number }} [opts]
+ * @param {{ retries?: number, delayMs?: number, password?: string }} [opts] - `password` is the
+ *   member's TYPED login password (login overlay); omit on a page-load re-establishment (the
+ *   derived surname is tried automatically). Threaded to `ensureFirebaseSession`.
  * @returns {Promise<boolean>} true if it is safe to proceed (named session, or flag off)
  */
-export async function ensureNamedSession(name, { retries = 2, delayMs = 300 } = {}) {
+export async function ensureNamedSession(name, { retries = 2, delayMs = 300, password } = {}) {
     const gen = ++_authGen;   // generation guard — a superseded attempt must not publish a stale terminal state
     _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving (observing only — Phase 2)
-    let ok = await ensureFirebaseSession(name, gen);
+    let ok = await ensureFirebaseSession(name, gen, password);
     if (!CONFIG.ENFORCE_NAMED_SESSION) {
         if (gen === _authGen) {   // not superseded by a newer attempt → safe to publish the terminal state
             _syncAuthTerminal(name);
@@ -367,7 +399,7 @@ export async function ensureNamedSession(name, { retries = 2, delayMs = 300 } = 
         attempt++;
         await new Promise(r => setTimeout(r, delayMs * attempt));
         _feedAuth({ type: 'RETRY' });   // store: resolving again
-        ok = await ensureFirebaseSession(name, gen);
+        ok = await ensureFirebaseSession(name, gen, password);
     }
     if (gen !== _authGen) {
         // Superseded by a newer attempt — MUST NOT publish terminal state (the newer attempt owns

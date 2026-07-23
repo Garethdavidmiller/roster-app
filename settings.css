@@ -158,3 +158,15 @@ body {
         color: var(--text-dark);
     }
 }
+
+/* Password card (PASSWORD_PLAN.md) */
+.pw-req { font-weight: 400; color: var(--text-mid); }
+.pw-nudge {
+    background: color-mix(in oklch, var(--accent-gold) 16%, white);
+    border: 1px solid color-mix(in oklch, var(--accent-gold) 45%, white);
+    border-radius: var(--radius-lg);
+    padding: 10px 12px;
+    font-size: var(--type-small);
+    line-height: 1.4;
+    margin-bottom: 12px;
+}

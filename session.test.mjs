@@ -341,14 +341,45 @@ describe('ensureFirebaseSession identity tracking', () => {
         assert.equal(getFirebaseIdentity(), 'named');
     });
 
-    test("falls back to anonymous on invalid-credential → 'anonymous', NOT named", async () => {
-        _signInBehavior = 'auth/invalid-credential';
+    test("falls back to anonymous on a NON-credential failure (provider disabled) → 'anonymous', NOT named", async () => {
+        // §3.3: only NON-credential errors fall back to anonymous when the flag is off. A CREDENTIAL
+        // rejection (invalid-credential) resolves to 'none' — covered by the dedicated test below.
+        _signInBehavior = 'auth/operation-not-allowed';
         _anonBehavior   = 'ok';
         const ok = await ensureFirebaseSession('G. Miller');
         assert.equal(ok, true, 'a session exists…');
         assert.equal(getFirebaseIdentity(), 'anonymous', '…but it is the anonymous fallback');
         assert.equal(firebaseSessionIsNamed(), false);
-        assert.equal(getFirebaseAuthError(), 'auth/invalid-credential');
+        assert.equal(getFirebaseAuthError(), 'auth/operation-not-allowed');
+    });
+
+    test("PASSWORD_PLAN §3.3: a CREDENTIAL rejection does NOT fall back to anonymous even flag-off → 'none'", async () => {
+        _signInBehavior = 'auth/invalid-credential';
+        _anonBehavior   = 'ok';   // available, but must NOT be used
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, false);
+        assert.equal(getFirebaseIdentity(), 'none');
+        assert.equal(_anonCalled, false, 'a wrong password must never become an anonymous session');
+    });
+
+    test('gated dual-attempt: a typed MIXED-CASE surname tries raw then the derived surname → named (2 calls)', async () => {
+        // "Miller" ≠ "miller" (Firebase), so attempt 1 fails; attempt 2 (the gated surname) succeeds.
+        _signInCalls = 0;
+        _signInBehavior = /** @param {number} n */ (n) => (n === 1 ? 'auth/invalid-credential' : 'ok');
+        const ok = await ensureFirebaseSession('G. Miller', undefined, 'Miller');
+        assert.equal(ok, true);
+        assert.equal(getFirebaseIdentity(), 'named');
+        assert.equal(_signInCalls, 2, 'raw typed value, then the gated derived surname');
+    });
+
+    test('gated dual-attempt: a typed CUSTOM password is the ONLY candidate → one call, no surname fallback', async () => {
+        // "Str0ng!pass" does not normalise to the surname, so there is no second attempt.
+        _signInCalls = 0;
+        _signInBehavior = 'auth/invalid-credential';
+        const ok = await ensureFirebaseSession('G. Miller', undefined, 'Str0ng!pass');
+        assert.equal(ok, false);
+        assert.equal(getFirebaseIdentity(), 'none');
+        assert.equal(_signInCalls, 1, 'a non-surname password never triggers the surname attempt');
     });
 
     test("returns false and 'none' when even anonymous sign-in fails", async () => {
@@ -460,7 +491,7 @@ describe('ensureNamedSession', () => {
 
     test('flag OFF: returns ensureFirebaseSession result unchanged (anonymous fallback still counts as ok)', async () => {
         CONFIG.ENFORCE_NAMED_SESSION = false;
-        _signInBehavior = 'auth/invalid-credential';   // named fails → anonymous fallback
+        _signInBehavior = 'auth/operation-not-allowed';   // NON-credential failure → anonymous fallback
         const ok = await ensureNamedSession('G. Miller', { delayMs: 0 });
         assert.equal(ok, true, 'flag off → the anonymous fallback keeps it true, no gating');
         assert.equal(_anonCalled, true);
@@ -527,7 +558,7 @@ describe('auth-store bridge (Phase 2)', () => {
 
     test('flag OFF: the anonymous fallback drives the store to anonymous', async () => {
         CONFIG.ENFORCE_NAMED_SESSION = false;
-        _signInBehavior = 'auth/invalid-credential';   // named fails → anonymous fallback
+        _signInBehavior = 'auth/operation-not-allowed';   // NON-credential failure → anonymous fallback
         const ok = await ensureNamedSession('G. Miller', { delayMs: 0 });
         assert.equal(ok, true, 'flag off → the anonymous fallback keeps the return true');
         assert.equal(getAuthSnapshot().status, 'anonymous');
@@ -536,7 +567,7 @@ describe('auth-store bridge (Phase 2)', () => {
 
     test('total failure (even anonymous fails) drives the store to error', async () => {
         CONFIG.ENFORCE_NAMED_SESSION = false;
-        _signInBehavior = 'auth/invalid-credential';
+        _signInBehavior = 'auth/network-request-failed';   // NON-credential → tries anon, which also fails
         _anonBehavior   = 'auth/operation-not-allowed';
         await ensureNamedSession('G. Miller', { delayMs: 0 });
         assert.equal(getAuthSnapshot().status, 'error');

@@ -8,7 +8,7 @@
  */
 
 import { CONFIG, isValidEmail, isChilternWorkEmail } from './roster-data.js';
-import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
+import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword, normaliseSurname } from './firebase-client.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -131,6 +131,9 @@ export function init() {
 
         // Work Email card
         initContactCard();
+
+        // Password card (PASSWORD_PLAN.md — chosen password + migration status)
+        initPasswordCard();
 
         // Notifications card
         initHuddleNotifications();
@@ -314,6 +317,73 @@ export function init() {
             },
     };
     initTipsLightbox(CARD_TIPS);
+
+    // ── Password card (PASSWORD_PLAN.md — self-service chosen password + migration status) ────────
+    function initPasswordCard() {
+        const curEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('pwCurrent'));
+        const newEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('pwNew'));
+        const confEl  = /** @type {HTMLInputElement|null} */ (document.getElementById('pwConfirm'));
+        const saveBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('pwSaveBtn'));
+        const feedback = document.getElementById('pwFeedback');
+        const chip    = document.getElementById('passwordStatusChip');
+        const nudge   = document.getElementById('passwordNudge');
+        if (!curEl || !newEl || !confEl || !saveBtn || !feedback) return;
+        initCardCollapse('passwordToggleHeader', 'passwordBody', 'passwordChevron');
+
+        const member = currentUser;
+        const setFeedback = (/** @type {string} */ msg, /** @type {string} */ state = '') => {
+            feedback.textContent = msg;
+            feedback.className   = `contact-feedback${state ? ' ' + state : ''}`;
+        };
+
+        // Reflect migration status (header chip + nudge banner). Best-effort — a failed read leaves
+        // both blank. Migrated ⇔ passwordSetAt exists AND is at least as new as any resetAt (§6).
+        async function refreshStatus() {
+            if (!member) return;
+            try {
+                const st = await getPasswordStatus(member);
+                const setAt   = /** @type {any} */ (st?.passwordSetAt)?.toMillis?.() ?? 0;
+                const resetAt = /** @type {any} */ (st?.resetAt)?.toMillis?.() ?? 0;
+                const migrated = setAt > 0 && setAt >= resetAt;
+                if (chip) chip.textContent = migrated ? '✓ your own password' : 'using surname';
+                if (nudge) {
+                    nudge.hidden = migrated;
+                    if (!migrated) nudge.textContent =
+                        'You’re still using your surname as your password — anyone who knows your name could guess it. Set a password only you know below.';
+                }
+            } catch { /* leave the chip/nudge blank on a read failure */ }
+        }
+        refreshStatus();
+
+        saveBtn.addEventListener('click', async () => {
+            if (!member) return;
+            const current = curEl.value;
+            const next    = newEl.value.trim();
+            const confirm = confEl.value.trim();
+            if (!current.trim())  { setFeedback('Enter your current password.', 'err'); curEl.focus(); return; }
+            if (next.length < 8)  { setFeedback('Your new password must be at least 8 characters.', 'err'); newEl.focus(); return; }
+            if (next !== confirm) { setFeedback('The two new passwords don’t match.', 'err'); confEl.focus(); return; }
+            // Block choosing the surname back — otherwise "migrated ✓" would be a lie for that member.
+            if (next.toLowerCase().replace(/[^a-z]/g, '') === normaliseSurname(member)) {
+                setFeedback('Choose something other than your surname.', 'err'); newEl.focus(); return;
+            }
+            saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+            try {
+                await reauthenticateWithPassword(member, current);   // proves they know the current one
+                await setOwnPassword(member, next);                  // updatePassword + stamp passwordSetAt
+                setFeedback('✓ Password updated. Use it the next time you sign in.', 'ok');
+                curEl.value = newEl.value = confEl.value = '';
+                refreshStatus();
+            } catch (e) {
+                const code = /** @type {any} */ (e)?.code || '';
+                if (code === 'auth/too-many-requests') setFeedback('Too many attempts — wait a few minutes and try again.', 'err');
+                else if (code === 'auth/weak-password') setFeedback('That password is too weak — choose a longer one.', 'err');
+                else setFeedback('Current password incorrect — try again, or ask the admin to reset it.', 'err');
+            } finally {
+                saveBtn.disabled = false; saveBtn.textContent = 'Set password';
+            }
+        });
+    }
 
     // ── Icon lightbox ─────────────────────────────────────────────────────────────
     // About panel (version, update status, bug link) is the shared about-lightbox.js.

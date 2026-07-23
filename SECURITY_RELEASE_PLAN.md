@@ -122,6 +122,15 @@ Three design points that flow from this and still govern any future rule change:
   design rules: the surname fallback is **gated** on the typed value normalising to the surname, and
   a definitive credential rejection resolves to `'none'` (never anonymous) **regardless of
   `ENFORCE_NAMED_SESSION`** — see that doc before building anything password-related.
+- **SHIPPED — PASSWORD_PLAN.md Phase 0 + Phase 1 (v18.63):** the capability is live. Sign-in accepts a
+  typed password with the gated surname fallback (`credentialCandidatesFor` / `ensureFirebaseSession`);
+  staff set their own password in **Settings → Password**; the admin resets anyone to their surname
+  default via **Operations → Account status → Reset** (the admin-only `resetMemberPassword` Cloud
+  Function, refresh-token revoke); migration is tracked in the `passwordStatus` collection
+  (`passwordSetAt`/`resetAt`) and surfaced as the Operations Account-status table + a Settings status
+  chip/nudge. Still to come: **Phase 2** (a forced set-your-password overlay to drive migration) and
+  **Phase 3 / C5** (retire the surname default — gated on ≥90% migrated, irreversible). Email
+  self-service reset (C2) remains deferred until a mail relay exists.
 - **Ordering within C:** verification (C2) → reset path (C4) → self-service change (C3, needs B0) →
   retire surname (C5, irreversible, ≥90% migrated).
 - **Risk:** locking staff out of the *core roster* is a bigger operational risk than the present

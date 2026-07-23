@@ -17,6 +17,7 @@
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth` |
+| | `https://europe-west2-myb-roster.cloudfunctions.net/resetMemberPassword` (admin-only break-glass — resets a member's password to their surname default; PASSWORD_PLAN.md Track C) |
 | Development branch convention | `claude/<description>-<sessionId>` — always push to this branch, never directly to `main` |
 
 **GitHub Actions secrets required:**
@@ -135,8 +136,8 @@ See `AI_MAP.md` for full module descriptions and export lists.
 roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service portal: AL booking, absence, override list
-├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Work Email Progress, Error Log, Usage, App Speed (Project 0 latency), Staff Login Accounts
-├── settings.html           ← Notifications, Work Email
+├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Work Email Progress, Account status (password migration + admin reset), Error Log, Usage, App Speed (Project 0 latency), Staff Login Accounts
+├── settings.html           ← Notifications, Work Email, Password (set your own)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring
 ├── calendar-state.js       ← display month/year state for index.html (getters/setters + persistViewedMonth)
@@ -171,10 +172,10 @@ roster-app/
 ├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache (authoritative range-refresh — rebuild winners from the snapshot, evict deletes; shared by both fetch paths), isBeforeMemberStart, isRestShift, resolveEffectiveShift (shared override→display ladder for renderer/team-view/legend)
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring. Body is an exported `init()` (Phase 4a.2) invoked by admin-boot.js — importing the module no longer auto-runs it (test seam). The in-place-login re-invocation calls the nested `initAuthorised()`, not `init()`.
 ├── admin-boot.js           ← 2-line bootstrap for admin.html: imports `init` from admin-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
-├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup + Work-Email card. Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw. Delegates the three reporting cards to operations-reports.js
+├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup + Work-Email card + Account-status card (password migration table + admin resetMemberPassword break-glass, v18.63). Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw. Delegates the three reporting cards to operations-reports.js
 ├── operations-reports.js   ← the three read-only reporting cards on operations.html — Error Log, Usage, App Speed (extracted from operations-app.js v17.46): initErrorLog/initUsageCard/initPageSpeedCard, each awaits sessionReady, reads Firestore, renders into its own card by id (no coordinator state). Exports `_cardLoadError` (the shared card-failure+retry helper) back to operations-app.js for its Work-Email card — one-directional, no import cycle
 ├── operations-boot.js      ← 2-line bootstrap for operations.html: imports `init` from operations-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
-├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email. Body is an exported `init()` (Phase 4a.2, v17.09) invoked by settings-boot.js — importable without auto-running, for tests
+├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email, Password card (set-your-own-password, v18.63). Body is an exported `init()` (Phase 4a.2, v17.09) invoked by settings-boot.js — importable without auto-running, for tests
 ├── settings-boot.js        ← 2-line bootstrap for settings.html: imports `init` from settings-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── huddle.js               ← initHuddleUpload (→ operations) + initHuddleNotifications (→ settings)
 ├── doc-upload.js           ← shared Operations upload-card skeleton (Circular/Newsletter/Huddle): file-pick → validate (type + 20 MB) → optional transform (Huddle DOCX→HTML) → upload → feedback. initDocUploadCard(cfg)
@@ -317,7 +318,7 @@ roster-app/
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
 ├── generate-sri.mjs        ← dev utility: patches Mammoth CDN SRI hash in huddle.js
 └── functions/
-    ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
+    ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth, resetMemberPassword (admin-only password reset → surname default)
     ├── roster-parse-helpers.js   ← pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
     ├── roster-members.json       ← generated from roster-data.js — do NOT hand-edit; run `npm run generate:roster-members`. Holds the AI-parsing name lists (cea/ces/dispatcher) AND the B4 server-owned auth lists (`activeMembers` + `roles.admin`/`manager`/`designer`) that setupRosterAuth trusts instead of the client payload. CI-locked by sw-asset-check.test.mjs
     └── package.json
@@ -418,7 +419,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | `persistentLocalCache()` in `firebase-client.js` | Firestore stores queries in IndexedDB. Do not revert to `getFirestore()` — Huddle viewer and override cache depend on instant load. |
 | `subscribeToLatestHuddle` in `firebase-client.js` | Persistent `onSnapshot` — Huddle viewer updates automatically when a new Huddle arrives. Do not replace with one-time fetch. |
 | `normaliseSurname()` in `auth-identity.js` (v12.04; moved out of `firebase-client.js` v16.50) | Shared surname derivation for Firebase Auth: lowercases and strips non-alpha (the ≥6-char padding for the Firebase *password* is applied separately by the password builders in `session.js` / `functions`, **not** inside `normaliseSurname`). Lives in the pure `auth-identity.js` (so it's unit-testable) and is **re-exported by `firebase-client.js`**; `getSurname()` in `session.js` delegates to it. A deliberate duplicate also exists in `functions/roster-parse-helpers.js` — Cloud Functions are CommonJS and cannot import browser ES modules, so unification requires a build step. If the rule ever changes, update both locations (surname-parity.test.mjs enforces it). |
-| `cors: ADMIN_FUNCTION_ORIGINS` on `parseRosterPDF` and `setupRosterAuth` | Both functions restrict CORS to an explicit origin allowlist (`ADMIN_FUNCTION_ORIGINS` in `functions/index.js`: `garethdavidmiller.github.io`, `myb-roster.web.app`, `myb-roster.firebaseapp.com`) — defence-in-depth on top of the real control, which is Firebase ID token + admin claim. Add any new hosting domain to that array. `ingestHuddle` keeps `cors: false` (server-to-server). |
+| `cors: ADMIN_FUNCTION_ORIGINS` on `parseRosterPDF`, `setupRosterAuth`, and `resetMemberPassword` | All three functions restrict CORS to an explicit origin allowlist (`ADMIN_FUNCTION_ORIGINS` in `functions/index.js`: `garethdavidmiller.github.io`, `myb-roster.web.app`, `myb-roster.firebaseapp.com`) — defence-in-depth on top of the real control, which is Firebase ID token + admin claim. Add any new hosting domain to that array. `ingestHuddle` keeps `cors: false` (server-to-server). |
 | Android Back button overlay pattern | Overlays push `history.pushState({ mybOverlay: true })` when opening, close on `popstate`. `_pushOverlayState(handler)` / `_clearOverlayHistory()` helpers in all six app pages. |
 | Canonical lightbox lifecycle (standardised v11.50, factored into `createLightbox` v12.50) | Every `.lb-overlay` lightbox (About, AL, Team info, Month jump, per-card Tips, paycalc Help/Welcome, links Beta) is built with **`createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` in `overlay.js`** — do NOT hand-write the lifecycle in a page module. It implements focus save/restore, `.visible`→`.open`, `lockBodyScroll`, Android Back (`_pushOverlayState`), Escape, the `trapFocus` Tab trap, and backdrop/closeBtn close — including a **mandatory 500ms `transitionend` fallback** (iOS suppresses `transitionend` on a backgrounded tab; reduced-motion finishes synchronously). Close controls are `<button class="lb-close">` (never `<span>` — not keyboard-focusable). The shared About/Tips panels are `about-lightbox.js` / `tips-lightbox.js`. **Exceptions:** the coming-soon lightbox is owned **only** by `nav-panel.js` (shares the drawer's history entry — never re-wire `#navComingSoonLightbox` or migrate it to `createLightbox`); the huddle viewer (`#huddleViewer`) is a full-bleed panel, so it has no overlay-click-to-close (intentional). Full lifecycle detail: AI_MAP → `overlay.js`. |
 | Nav panel on all 6 pages (v10.57, extended v10.99 + v11.06 + v12.07) | `nav-panel.js` injects overlay + drawer. Burger button `#navMenuBtn` in each page header. `NAV_PAGES` drives the pill row (current page omitted). `NAV_INFORMATION` drives the flat always-open section (Workplace: Daily Huddle, Weekly Retail Circular, Marylebone Newsletter, App Notices). `NAV_GUIDES` (v11.21) drives a separate **expanded-by-default** "Guides" submenu (heading restyled v18.18 to the same caps-eyebrow rank as INFORMATION — no emoji; the gold chevron marks it collapsible) (Staff & Admin Guide, Pay Calculator Guide, Railcard Guide, FIP Travel Guide) — toggled by `#navGuidesToggle`, list is `#navGuidesList` (change to `hidden` and `aria-expanded="false"` if the section becomes too long to show open). Adding a guide = one entry in `NAV_GUIDES`; adding a live doc = one `links` entry in `NAV_INFORMATION`. A `NAV_INFORMATION` entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder instead of navigating. |
@@ -583,6 +584,16 @@ Write requires the `name` JWT claim (set by setupRosterAuth) — anonymous fallb
 Purpose: Stage 1 of password security improvements. Email will enable future account recovery (Stage 4).
 Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js`. `getAllStaffContacts` (reads all docs) called from `operations-app.js` (Work Email Progress card).
 
+**passwordStatus** (v18.63 — PASSWORD_PLAN.md Track C)
+```
+memberName   Must match teamMembers[n].name exactly — used as the document ID
+passwordSetAt  Firestore server timestamp — the LAST time the member set their own password (Settings → Password). Written by the client (owner only).
+resetAt        Firestore server timestamp — the last time an admin RESET this member back to their surname default. Written ONLY by the resetMemberPassword Cloud Function (Admin SDK, bypasses rules).
+```
+"Migrated" (has set their own password) = `passwordSetAt` present AND `passwordSetAt >= resetAt` (a later admin reset re-flags the account as surname-default). No password material is ever stored — only these two timestamps, which drive the Operations **Account status** table and the Settings status chip/nudge.
+Read: owner or admin. Create/update (client): only the owner, only the `passwordSetAt` key, and it must equal `request.time` (so a client can only stamp "I just set my password now" on its own doc). `resetAt` is un-writable by any client (only the Admin SDK sets it). Delete: denied for everyone.
+Written/read by: `savePasswordSetAt` / `getPasswordStatus` (owner) in `firebase-client.js` (called from `settings-app.js` after a successful password change), `getAllPasswordStatus` (admin, reads all) called from `operations-app.js` (Account status card), and the `resetMemberPassword` Cloud Function (writes `resetAt`).
+
 **pushSubscriptions**
 ```
 endpoint     Browser push endpoint URL — also used (hashed) as the document ID
@@ -682,11 +693,11 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 
 ### Authentication
 
-Staff log in with name (dropdown) + surname as password (lowercase, no spaces/special chars). Sessions expire after 30 days (absolute) or 7 days of inactivity, whichever comes first — every successful page load refreshes the idle clock. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access. `CONFIG.LINKS_DESIGNERS = ['G. Miller', 'S. Silva']` — access to the Links design workspace.
+Staff log in with name (dropdown) + password. The **default** password is their surname (lowercase, no spaces/special chars); since v18.63 (PASSWORD_PLAN.md Track C) a member can **set their own password** in Settings → Password, and sign-in accepts either the typed password or — for anyone still on the default — the surname (`credentialCandidatesFor` in `auth-identity.js` builds the ordered candidate list, `ensureFirebaseSession` tries each). If a member forgets a self-set password, the **admin resets it** back to the surname default (Operations → Account status → Reset, backed by the `resetMemberPassword` Cloud Function). Sessions expire after 30 days (absolute) or 7 days of inactivity, whichever comes first — every successful page load refreshes the idle clock. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access. `CONFIG.LINKS_DESIGNERS = ['G. Miller', 'S. Silva']` — access to the Links design workspace.
 
 The login dropdown groups members by grade (CEA · CES · Dispatcher · Management, in that order). `managerOnly: true` members (managers/clerks) appear **only** in the Management group and are hidden from the calendar's member selector — they have login access but no roster of their own. Their grade dropdown filtering lives in `admin-app.js` (`GRADE_ORDER`).
 
-**Password security note:** Passwords are surname-derived and not secrets — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`).
+**Password security note:** The *default* password is surname-derived and not a secret — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`). A member who sets their own password (v18.63) does get a real secret; the surname default remains valid **only until** they do (the sign-in candidate ladder tries the typed value first, then falls back to the surname). An admin reset returns the account to the surname default. Full design + phasing: `PASSWORD_PLAN.md`.
 
 Firebase SDK: currently v12.16.0. Check version before any new Firebase work. **An SDK bump must also update `FIREBASE_SDK_VERSION` in `service-worker.js`** (the SDK offline cache is keyed on it) — `sw-asset-check.test.mjs` fails the build if they diverge.
 
@@ -726,7 +737,7 @@ Applies to **all user-visible copy** (cards, hints, tips, lightboxes, error bann
 - **"Absent" / "record an absence"** — never "sick"/"sickness" in UI copy (the reason is never stored — GDPR). The internal data value `SICK` and ids are fine.
 - **"Year to Date"** — always spelled out, never bare "YTD". The two payslip figures are exactly **"Taxable Pay"** and **"Tax Paid"** (never "Gross Pay" for the YTD figure). See `.claude/rules/paycalc.md` → payslip line names.
 - **"Fill from calendar" / "From your calendar" / "Replace with calendar values"** — the paycalc pre-fill reads the *calendar* function, not the base roster; do not reword to "roster".
-- **"password reset (not available yet)"** — one phrasing for the future feature; never "recovery" or "coming soon".
+- **"self-service password reset (in a future update)"** — the one phrasing for the *email-based* self-service recovery that is still to come (PASSWORD_PLAN.md Stage 4). Never "recovery" or "coming soon". **Note (v18.63):** a password *reset* now exists **today** via the admin (Operations → Account status → Reset) and staff can set their own password (Settings → Password), so do NOT say a password reset is flatly "not available" — only the *email self-service* route is future. Present-day recovery copy is "To reset a password today, contact the admin."
 - **App name "Marylebone Roster"** — the on-screen name everywhere (incl. bug-report `appLabel` as "Marylebone Roster — <Page>"). "MYB …" survives only in the iOS home-screen `apple-mobile-web-app-title` meta and line-2 HTML comments.
 - **Documents:** "Daily Huddle" (proper noun), "Weekly Retail Circular", "Marylebone Newsletter".
 - **Tone:** calm and factual — no exclamation marks, no marketing voice (mirrors `.claude/rules/notifications.md`).

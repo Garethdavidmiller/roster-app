@@ -11,15 +11,16 @@
  *
  * It injects its own markup (like nav-panel.js), so a consuming page needs NO login HTML.
  *
- * Owns: the overlay UI, grade/name dropdowns, the local surname-password check, the client-side
- *   rate-limit, and the Firebase named-session establishment (B1: ensureNamedSession + the
+ * Owns: the overlay UI, grade/name dropdowns, passing the TYPED password to Firebase (the authority
+ *   — no local surname pre-check since PASSWORD_PLAN.md §3.2), the client-side wrong-password
+ *   lockout, and the Firebase named-session establishment (B1: ensureNamedSession + the
  *   enforce-failure messaging).
  * Does NOT own: what happens AFTER a confirmed sign-in — the caller passes onSuccess (typically a
  *   reload, or admin's inline email-check-then-reload).
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
-import { getSurname, saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
+import { saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { lsGet, lsSet } from './ls.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus } from './overlay.js';
 import { markLoginStart, clearLoginStart } from './perf-reporter.js';
@@ -56,7 +57,9 @@ function withTimeout(promise, ms) {
  * @param {() => (string|null|undefined)} deps.getAuthError
  * @param {(code: any) => boolean} deps.isTransient
  * @param {number} [deps.timeoutMs]
- * @returns {Promise<{ ok: boolean, error?: string }>}  ok=true ⇒ local session saved; caller runs onSuccess
+ * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'storage' }>}
+ *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
+ *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
 export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, timeoutMs = 8000 }) {
     let named = false, authResolved = true;
@@ -67,11 +70,15 @@ export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession,
     }
     if (!authResolved || (enforce && !named)) {
         clearSession();         // never leave a stale/legacy session behind a failed sign-in
-        return { ok: false, error: !authResolved
-            ? 'Couldn’t complete sign-in — check your connection and try again.'
-            : isTransient(getAuthError())
-                ? 'Couldn’t reach sign-in — check your connection and try again.'
-                : 'Couldn’t complete sign-in. Ask the admin to set up your account.' };
+        // `kind` lets the caller act on the CAUSE (only a genuine wrong-password drives the client
+        // lockout; a network/rate-limit failure must not). Messages follow PASSWORD_PLAN.md §3.5 +
+        // the house wording rule (an account matter → "the admin").
+        if (!authResolved) return { ok: false, kind: 'timeout', error: 'Couldn’t complete sign-in — check your connection and try again.' };
+        const code = getAuthError();
+        if (code === 'auth/too-many-requests') return { ok: false, kind: 'ratelimit', error: 'Too many attempts — please wait a few minutes and try again.' };
+        if (isTransient(code))                 return { ok: false, kind: 'transient', error: 'Couldn’t reach sign-in — check your connection and try again.' };
+        // Definitive credential rejection — the typed password was wrong (or the account isn't set up).
+        return { ok: false, kind: 'credential', error: 'Password incorrect — if you’ve forgotten it, ask the admin to reset it.' };
     }
     // Commit ONLY now that auth has genuinely resolved. If the write is swallowed (storage blocked —
     // iOS Private Browsing), fail cleanly: without the local session every page re-check returns null,
@@ -79,7 +86,7 @@ export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession,
     // so we don't strand a signed-in Firebase identity with no app session, and tell the user why.
     if (!saveSession()) {
         clearSession();
-        return { ok: false, error: 'This browser is blocking storage. Turn off Private Browsing, or open the installed app, then sign in again.' };
+        return { ok: false, kind: 'storage', error: 'This browser is blocking storage. Turn off Private Browsing, or open the installed app, then sign in again.' };
     }
     return { ok: true };
 }
@@ -121,7 +128,7 @@ function overlayHtml(/** @type {string} */ pageLabel) {
                 <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="loginPwHint">
                 <button type="button" id="loginPwToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
             </div>
-            <div id="loginPwHint" class="login-hint">Initial password: your surname in lowercase, no spaces.</div>
+            <div id="loginPwHint" class="login-hint">Your surname in lowercase — or the password you’ve set yourself.</div>
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button type="button" id="loginSubmit">Sign in →</button>
@@ -271,32 +278,16 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
         _attempting = true;
         try {
             const name = nameSelect.value;
-            // Strip non-alpha and lowercase to match normaliseSurname() in auth-identity.js.
-            const pw   = passwordInput.value.toLowerCase().replace(/[^a-z]/g, '');
+            // The RAW typed password — NOT normalised. A chosen password keeps its case/digits/
+            // symbols; the surname fallback is applied (gated) inside ensureFirebaseSession via
+            // credentialCandidatesFor. Firebase is now the authority — there is no local surname
+            // pre-check (PASSWORD_PLAN.md §3.2). Whitespace-trim only for the empty-field guard.
+            const typedPw = passwordInput.value;
             errorEl.classList.remove('visible');
 
-            if (!gradeSelect.value) { showError('Please select your grade.'); gradeSelect.focus(); return; }
-            if (!name)              { showError('Please select your name.'); return; }
-
-            if (pw !== getSurname(name)) {
-                _failCount++;
-                if (_failCount >= 3) {
-                    _lockedUntil = Date.now() + 30_000;
-                    submitBtn.disabled = true;
-                    submitBtn.textContent = 'Try again in 30s';
-                    setTimeout(() => {
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = 'Sign in →';
-                        _failCount = 0;
-                        _lockedUntil = 0;
-                        _attempting = false;   // release the mutex the inner finally kept latched
-                    }, 30_000);
-                }
-                showError('Incorrect password. Please try again.');
-                passwordInput.value = '';
-                passwordInput.focus();
-                return;
-            }
+            if (!gradeSelect.value)   { showError('Please select your grade.'); gradeSelect.focus(); return; }
+            if (!name)                { showError('Please select your name.'); return; }
+            if (!typedPw.trim())      { showError('Please enter your password.'); passwordInput.focus(); return; }
 
             lsSet(GRADE_KEY, gradeSelect.value);
             // Visible in-progress state — establishing the Firebase session is a network round trip,
@@ -319,7 +310,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             // show the message it returns; on success we hand off to onSuccess (reload/navigate).
             const _result = await runNamedSignIn({
                 enforce:            CONFIG.ENFORCE_NAMED_SESSION,
-                ensureNamedSession: () => ensureNamedSession(name),
+                ensureNamedSession: () => ensureNamedSession(name, { password: typedPw }),
                 saveSession:        () => saveSession(name),
                 clearSession,
                 getAuthError:       getFirebaseAuthError,
@@ -328,11 +319,36 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
+                // Client 3-strikes → 30s lockout — ONLY on a genuine wrong password (`kind:'credential'`),
+                // never on a network/timeout/rate-limit failure (which would punish a connectivity
+                // problem). Firebase does the real rate-limiting; this is a UX brake on hammering.
+                if (_result.kind === 'credential') {
+                    _failCount++;
+                    if (_failCount >= 3) {
+                        _lockedUntil = Date.now() + 30_000;
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'Try again in 30s';
+                        setTimeout(() => {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'Sign in →';
+                            _failCount = 0;
+                            _lockedUntil = 0;
+                            _attempting = false;   // release the mutex the inner finally kept latched
+                        }, 30_000);
+                        showError(/** @type {string} */ (_result.error));
+                        passwordInput.value = '';
+                        passwordInput.focus();
+                        return;
+                    }
+                    passwordInput.value = '';
+                    passwordInput.focus();
+                }
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Sign in →';
                 showError(/** @type {string} */ (_result.error));
                 return;
             }
+            _failCount = 0;   // a successful sign-in clears the wrong-password streak
             // Confirm success before the (usually slow) reload kicks in, so there is no silent
             // "did it work?" gap between the click and the destination page appearing.
             clearStatusProgress();

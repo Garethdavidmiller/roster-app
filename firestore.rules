@@ -261,6 +261,28 @@ service cloud.firestore {
         (request.auth.token.name == memberName || request.auth.token.admin == true);
     }
 
+    // passwordStatus/{memberName} — the per-member password-migration record (PASSWORD_PLAN.md §6).
+    //   resetAt       : written ONLY by the resetMemberPassword Cloud Function (Admin SDK bypasses
+    //                   these rules) — no client path can set or change it.
+    //   passwordSetAt : the member stamps their OWN record after a successful updatePassword.
+    // Migrated ⇔ passwordSetAt newer than any resetAt. Read = owner or admin (the Operations
+    // account-status table). A member may only touch `passwordSetAt`, pinned to the server clock so
+    // a wrong device clock can't fake ordering against the server-written resetAt.
+    match /passwordStatus/{memberName} {
+      allow read: if request.auth != null &&
+        (request.auth.token.name == memberName || request.auth.token.admin == true);
+      allow create: if request.auth != null &&
+        request.auth.token.name == memberName &&
+        request.resource.data.keys().hasOnly(['passwordSetAt']) &&
+        request.resource.data.passwordSetAt == request.time;
+      allow update: if request.auth != null &&
+        request.auth.token.name == memberName &&
+        // ONLY passwordSetAt may change — resetAt (and any other field) is immutable to clients.
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['passwordSetAt']) &&
+        request.resource.data.passwordSetAt == request.time;
+      allow delete: if false;   // migration history is server-managed, never client-deleted
+    }
+
     match /clientErrors/{docId} {
       // Written by error-reporter.js on authenticated pages (request.auth != null).
       // Read, update (resolve), and delete restricted to admins.

@@ -50,3 +50,47 @@ export function nameToEmail(fullName) {
     const surname = normaliseSurname(fullName);
     return `${initial}.${surname}@myb-roster.local`;
 }
+
+/**
+ * The padded surname password — the account's INITIAL / admin-reset credential. Firebase Auth
+ * requires ≥6 chars, so a short surname is repeated to reach the minimum; an empty surname falls
+ * back to a run of 'x' (an unusable password that simply won't match any real account — the client
+ * never throws here, unlike the functions-side `nameToPassword`). This is the SINGLE client source
+ * for the padding (previously inline in session.js); both the sign-in candidate list and the
+ * Settings reauth use it via `credentialCandidatesFor`, so the rule exists exactly once.
+ *   "G. Miller" → "miller"   ·   "A. Tuck" → "tucktu"   ·   "Madonna" (no surname) → "xxxxxx"
+ * @param {string} fullName
+ * @returns {string}
+ */
+export function surnamePassword(fullName) {
+    const s = normaliseSurname(fullName);
+    return s.length >= 6 ? s : s.padEnd(6, s || 'x');
+}
+
+/**
+ * The ordered Firebase Auth password candidates to try for a member who typed `typed` at the login
+ * (or Settings reauth) field. PASSWORD_PLAN.md §3.2:
+ *   1. the RAW typed value (leading/trailing whitespace trimmed, otherwise untouched — a chosen
+ *      password keeps its case / digits / symbols); and
+ *   2. the derived surname password — appended ONLY when the typed value NORMALISES to the member's
+ *      surname. This GATE is load-bearing: an ungated surname fallback would sign an attacker typing
+ *      ANYTHING into an un-migrated account (the surname attempt would succeed regardless of input).
+ *      Gated, it covers exactly what today's local check allows — caps ("Miller") and the <6-char
+ *      padding cases ("bibi" → "bibibi") — and grants an attacker nothing the surname doesn't already.
+ * Deduped when the two would be byte-identical. An empty typed value yields no candidates.
+ * @param {string} fullName
+ * @param {string} typed
+ * @returns {string[]}
+ */
+export function credentialCandidatesFor(fullName, typed) {
+    const raw = (typeof typed === 'string' ? typed : '').trim();
+    /** @type {string[]} */
+    const candidates = [];
+    if (raw) candidates.push(raw);
+    const normTyped = raw.toLowerCase().replace(/[^a-z]/g, '');
+    if (normTyped && normTyped === normaliseSurname(fullName)) {
+        const sp = surnamePassword(fullName);
+        if (sp !== raw) candidates.push(sp);
+    }
+    return candidates;
+}

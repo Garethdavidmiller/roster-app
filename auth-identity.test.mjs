@@ -11,7 +11,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseSurname, nameToEmail } from './auth-identity.js';
+import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor } from './auth-identity.js';
 
 describe('normaliseSurname', () => {
     test('everything after the first word, lowercased, letters only', () => {
@@ -42,5 +42,49 @@ describe('nameToEmail', () => {
     test('two DIFFERENT members must not collapse to the same email (identity collision guard)', () => {
         assert.notEqual(nameToEmail('G. Miller'), nameToEmail('S. Miller'));
         assert.equal(nameToEmail('S. Miller'), 's.miller@myb-roster.local');
+    });
+});
+
+describe('surnamePassword — the padded surname credential', () => {
+    test('surnames ≥6 chars are used verbatim', () => {
+        assert.equal(surnamePassword('G. Miller'), 'miller');
+        assert.equal(surnamePassword('K. Jedlinski'), 'jedlinski');
+    });
+    test('short surnames are repeated to the Firebase 6-char minimum', () => {
+        assert.equal(surnamePassword('A. Tuck'), 'tucktu');       // tuck → tucktu
+        assert.equal(surnamePassword('T. Bibi'), 'bibibi');       // bibi → bibibi
+        assert.ok(surnamePassword('C. Reen').length >= 6);        // reen → reenre
+        assert.equal(surnamePassword('C. Reen'), 'reenre');
+    });
+    test('no surname → an unusable all-x password (never throws, unlike functions)', () => {
+        assert.equal(surnamePassword('Madonna'), 'xxxxxx');
+    });
+});
+
+describe('credentialCandidatesFor — gated dual-attempt (PASSWORD_PLAN §3.2)', () => {
+    test('a custom password is the sole candidate (does NOT normalise to the surname)', () => {
+        assert.deepEqual(credentialCandidatesFor('G. Miller', 'Str0ng!pass'), ['Str0ng!pass']);
+    });
+    test('typing the exact lowercase surname → one candidate (raw == derived, deduped)', () => {
+        assert.deepEqual(credentialCandidatesFor('G. Miller', 'miller'), ['miller']);
+    });
+    test('typing a mixed-case surname → raw first, THEN the derived surname (the gated fallback)', () => {
+        assert.deepEqual(credentialCandidatesFor('G. Miller', 'Miller'), ['Miller', 'miller']);
+        assert.deepEqual(credentialCandidatesFor('G. Miller', 'MILLER'), ['MILLER', 'miller']);
+    });
+    test('a short surname typed → raw then the PADDED derived surname', () => {
+        assert.deepEqual(credentialCandidatesFor('T. Bibi', 'Bibi'), ['Bibi', 'bibibi']);
+        // typing the padded form itself dedupes to one
+        assert.deepEqual(credentialCandidatesFor('T. Bibi', 'bibibi'), ['bibibi']);
+    });
+    test('the fallback is GATED: a non-surname password never yields the surname candidate', () => {
+        // The security-critical case — an attacker typing junk must NOT get the surname attempt.
+        assert.deepEqual(credentialCandidatesFor('G. Miller', 'anything'), ['anything']);
+        assert.deepEqual(credentialCandidatesFor('G. Miller', 'x'), ['x']);
+    });
+    test('leading/trailing whitespace is trimmed (iOS keyboard lockout guard); empty → no candidates', () => {
+        assert.deepEqual(credentialCandidatesFor('G. Miller', '  Str0ng!  '), ['Str0ng!']);
+        assert.deepEqual(credentialCandidatesFor('G. Miller', '   '), []);
+        assert.deepEqual(credentialCandidatesFor('G. Miller', ''), []);
     });
 });
