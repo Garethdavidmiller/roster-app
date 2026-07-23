@@ -638,17 +638,11 @@ export function init() {
         if (pa) pa.value = _periodDefaultPension(_pObj).toFixed(2);
       }
       updateAdjSign();
-      // Auto-expand "more options" if this period has extras saved
-      const hasExtras = d.slSkip || d.otherAdj;
-      const extraBody = /** @type {HTMLElement | null} */ (document.getElementById('hoursExtra'));
-      const extraBtn  = /** @type {HTMLElement | null} */ (document.getElementById('hoursShowMore'));
-      if (hasExtras && extraBody && !extraBody.classList.contains('open')) {
-        extraBody.classList.add('open');
-        if (extraBtn) { extraBtn.classList.add('open'); /** @type {HTMLElement} */ (extraBtn.querySelector('.show-more-arrow')).textContent = '▲'; }
-      } else if (!hasExtras && extraBody && extraBody.classList.contains('open')) {
-        extraBody.classList.remove('open');
-        if (extraBtn) { extraBtn.classList.remove('open'); /** @type {HTMLElement} */ (extraBtn.querySelector('.show-more-arrow')).textContent = '▼'; }
-      }
+      // Auto-expand "more options" if this period has extras saved. Route through _setDisclosure so
+      // the button's aria-expanded + arrow stay in step (a class-only .open left it stale — a screen
+      // reader heard "collapsed" on the expanded disclosure). Idempotent, so no need to pre-check state.
+      const hasExtras = !!(d.slSkip || d.otherAdj);
+      _setDisclosure('hoursShowMore', 'hoursExtra', hasExtras, { arrowSel: '.show-more-arrow' });
       updateSaveStatus(pNum);
       calculate();
       // Refresh the roster hint bar AFTER the new period's field values are written. onPeriodChange
@@ -1315,14 +1309,18 @@ export function init() {
     // max-height) ride the options. The disclaimer's More/Less inline-span toggle keeps its own
     // 3-line shape — it has no panel/arrow, so the helper would fit it worse than it helps.
     /**
-     * @param {string} btnId @param {string} bodyId
+     * Set a disclosure button + body to a SPECIFIC open state, keeping `aria-expanded` + the arrow
+     * glyph in step. Shared by the click toggle AND the programmatic auto-open in loadPeriodData —
+     * the latter used to add `.open` directly, leaving the button's `aria-expanded="false"` stale
+     * (a screen reader heard "collapsed" on an expanded disclosure). Idempotent.
+     * @param {string} btnId @param {string} bodyId @param {boolean} open
      * @param {{ arrowSel?: string, onToggle?: (open: boolean, body: HTMLElement) => void }} [opts]
      */
-    function _toggleDisclosure(btnId, bodyId, opts = {}) {
+    function _setDisclosure(btnId, bodyId, open, opts = {}) {
       const btn  = /** @type {HTMLElement|null} */ (document.getElementById(btnId));
       const body = /** @type {HTMLElement|null} */ (document.getElementById(bodyId));
       if (!btn || !body) return;
-      const open = body.classList.toggle('open');
+      body.classList.toggle('open', open);
       btn.classList.toggle('open', open);
       btn.setAttribute('aria-expanded', String(open));
       if (opts.arrowSel) {
@@ -1330,6 +1328,16 @@ export function init() {
         if (a) a.textContent = open ? '▲' : '▼';
       }
       opts.onToggle?.(open, body);
+    }
+    /**
+     * Toggle a disclosure to the OPPOSITE of its current open state (the click path).
+     * @param {string} btnId @param {string} bodyId
+     * @param {{ arrowSel?: string, onToggle?: (open: boolean, body: HTMLElement) => void }} [opts]
+     */
+    function _toggleDisclosure(btnId, bodyId, opts = {}) {
+      const body = /** @type {HTMLElement|null} */ (document.getElementById(bodyId));
+      if (!body) return;
+      _setDisclosure(btnId, bodyId, !body.classList.contains('open'), opts);
     }
 
     // Hours show-more: label CONSTANT — only the arrow flips (v18.45, sweep item 6).
