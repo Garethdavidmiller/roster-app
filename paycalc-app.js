@@ -361,7 +361,10 @@ export function init() {
       }
       const srcP = srcP0;   // same lookup as above — do not re-find (sweep item 10)
       if (!srcP) {
-        note.innerHTML = `Copy the two figures from your <strong>latest payslip</strong> and pick which payslip they came from — the estimate right after it gets sharper.`;
+        // No source yet → NO note (v18.49): the old copy-and-pick prompt here was the FOURTH
+        // statement of the same instruction on one screen (header hint, field labels, select
+        // label all carry it). Empty → hidden via the .ytd-upto-note:empty CSS rule.
+        note.innerHTML = '';
         return;
       }
       const from = `your <strong>${fdShort(srcP.payday)} payslip</strong> (P${payslipPeriodNum(srcP)})`;
@@ -947,6 +950,11 @@ export function init() {
       // is the single source of that rule (a confirmed £0 correctly adds nothing; the pre-v17.26
       // `actual > 0` test kept silently adding the stale estimate to take-home). Shared with the
       // prior-year card display so the two can't diverge.
+      // January-only pointer in the Year to Date card (v18.50): visible ONLY while the viewed
+      // payslip is the January one that carries HPP — as a permanent paragraph it read wrong on
+      // every other payslip (owner, Jul 2026; the year-round version lives in the card's ? help).
+      const _janHint = document.getElementById('ytdJanHppHint');
+      if (_janHint) _janHint.hidden = !_hppTy;
       const _hppRes = _hppTy
           ? resolveHppForPeriod(lsGet(hppActualKey(_hppTy)), lsGet(hppEstKey(_hppTy)))
           : { amount: 0, isEstimate: false, hasActual: false };

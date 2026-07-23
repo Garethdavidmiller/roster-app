@@ -295,7 +295,7 @@ function _renderHppManual(ty, mode) {
  *
  * @param {any} ty @param {any[]} allPeriods
  * @returns {{ hpp: number, totalVar: number, pCount: number, usingActuals: boolean,
- *             skipped: number[], total: number, missingPaid: Date[] }}
+ *             paidCount: number, skipped: number[], total: number, missingPaid: Date[] }}
  */
 function _hoursEstimate(ty, allPeriods) {
   const rate    = getStoredRateForYear(ty);
@@ -306,6 +306,7 @@ function _hoursEstimate(ty, allPeriods) {
 
   let totalVar     = 0;
   let pCount       = 0;
+  let paidCount    = 0;   // entered periods whose payday has passed (v18.51 — the "N paid + M upcoming" split)
   let usingActuals = false;
   const skipped = /** @type {number[]} */ ([]);   // periods whose saved data couldn't be read — surfaced, never dropped silently
   // Paid payslips with NO saved hours (v18.42 — review item 2): named on the card so "4 of 13"
@@ -323,6 +324,7 @@ function _hoursEstimate(ty, allPeriods) {
       if (_hppActual?.varPay != null) {
         totalVar += _hppActual.varPay;
         pCount++;
+        if (p.payday <= _now) paidCount++;
         usingActuals = true;
         return;
       }
@@ -334,6 +336,7 @@ function _hoursEstimate(ty, allPeriods) {
         return;
       }
       pCount++;
+      if (p.payday <= _now) paidCount++;
       totalVar += _varPayForPeriod(p, parsed.data, rate);
     } catch (e) {
       // A corrupt saved period must not abort the whole estimate, but dropping it silently would
@@ -343,7 +346,7 @@ function _hoursEstimate(ty, allPeriods) {
     }
   });
 
-  return { hpp: totalVar * HPP_FRACTION, totalVar, pCount, usingActuals, skipped, total: periods.length, missingPaid };
+  return { hpp: totalVar * HPP_FRACTION, totalVar, pCount, paidCount, usingActuals, skipped, total: periods.length, missingPaid };
 }
 
 /**
@@ -445,9 +448,16 @@ export function calcHPP() {
       // looks authoritative). One 4-weekly period = one payslip, so "payslips" reads plainer than
       // "periods" for staff.
       const _total = hoursRes.total;
+      // When entered periods include FUTURE payslips (calendar-filled ahead of time), say so —
+      // "11 of 13 entered" hid that 7 of them hadn't been paid yet, which made the count clash
+      // with the Year to Date card's "4 of 4 paid" frame (v18.51 — owner's screenshot review).
+      const _upcoming = pCount - hoursRes.paidCount;
+      const _countPhrase = _upcoming > 0
+        ? `${hoursRes.paidCount} paid + ${_upcoming} upcoming payslips entered`
+        : `${pCount} of ${_total} payslip${_total !== 1 ? 's' : ''} entered`;
       basisEl.textContent = usingActuals
         ? `All ${pCount} payslips of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
-        : `${pCount} of ${_total} payslip${_total !== 1 ? 's' : ''} entered · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
+        : `${_countPhrase} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
       // Clean partial (no unreadable periods): nudge the member that the estimate isn't the
       // full-year figure yet, NAMING the paid payslips still empty so "N of M" is actionable
       // (v18.42 — review item 2). All paid payslips entered → say so; only future ones remain.
@@ -587,9 +597,17 @@ export function updatePriorHpp(ty) {
   }
 
   const input = document.getElementById('priorHppActualInput');
+  // The confirm input is DISABLED until the January payslip carrying the premium EXISTS
+  // (v18.51 — mirrors the back-pay manual-entry gate): there is no printed figure to copy from a
+  // payslip that hasn't been paid. First January payday of the due year = the earliest it can
+  // arrive; a stored actual (shouldn't exist pre-payday) still displays either way.
+  const _janPayday = getPeriods().find(/** @param {any} p */ p =>
+    p.payday.getFullYear() === priorTy.hppPaidJan && p.payday.getMonth() === 0)?.payday;
+  const _janArrived = !!(_janPayday && _janPayday < new Date());
   if (input) {
     const stored = actualRaw || '';
     if (document.activeElement !== input) /** @type {HTMLInputElement} */ (input).value = stored;
+    /** @type {HTMLInputElement} */ (input).disabled = !_janArrived && !hasActual;
   }
   // The entry apparatus must not go stale once a figure is confirmed (v17.99): the "enter when the
   // payslip arrives" note only shows while EMPTY, and the hint flips to how to undo.
@@ -598,7 +616,9 @@ export function updatePriorHpp(ty) {
   const actHint = document.getElementById('priorHppActualHint');
   if (actHint) actHint.innerHTML = hasActual
     ? 'Entered from your January payslip — clear the box to go back to the estimate.'
-    : `Find the <strong>Holiday Pay Premium</strong> line on your January ${priorTy.hppPaidJan} payslip and enter it here — it replaces the estimate above and updates your January take-home.`;
+    : _janArrived
+      ? `Find the <strong>Holiday Pay Premium</strong> line on your January ${priorTy.hppPaidJan} payslip and enter it here — it replaces the estimate above and updates your January take-home.`
+      : `Unlocks when your January ${priorTy.hppPaidJan} payslip arrives — the confirmed <strong>Holiday Pay Premium</strong> figure on it replaces the estimate above.`;
 
   section.classList.remove('hidden');
 }

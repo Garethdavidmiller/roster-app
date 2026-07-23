@@ -581,14 +581,14 @@
             <div class="field-eyebrow" id="ytdPayLabel">Taxable Pay — Year to Date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
-              <input type="text" id="ytdPay" aria-labelledby="ytdPayLabel" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+              <input type="text" id="ytdPay" aria-labelledby="ytdPayLabel" placeholder="e.g. 21,758.94" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
           <div class="field-col">
             <div class="field-eyebrow" id="ytdTaxLabel">Tax Paid — Year to Date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
-              <input type="text" id="ytdTax" aria-labelledby="ytdTaxLabel" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+              <input type="text" id="ytdTax" aria-labelledby="ytdTaxLabel" placeholder="e.g. 4,835.60" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
         </div>
@@ -607,8 +607,11 @@
            full-year projection. Rendered by the coordinator after every calculate(); hidden when
            no payslip of the year has hours yet. -->
       <div class="ytd-yearso" id="ytdYearSoFar" hidden></div>
-
-      <div class="field-hint" style="padding-top:4px">January payslip with your Holiday Pay Premium on it? Enter the confirmed figure in the <strong>Holiday Pay Premium</strong> card.</div>
+      <!-- January-only HPP pointer (v18.49 moved the old always-on paragraph into the ? help;
+           v18.50 re-adds it PERIOD-GATED): calculate() unhides it only while the viewed payslip
+           is the January one that carries HPP (_hppTy) — as a permanent paragraph it read wrong
+           on every other payslip (owner, Jul 2026). -->
+      <div class="field-hint" id="ytdJanHppHint" hidden style="padding-top:4px">This is the January payslip your <strong>Holiday Pay Premium</strong> lands on — enter the confirmed figure from it in the <strong>Holiday Pay Premium</strong> card.</div>
 
     </div>
   </div>
@@ -646,7 +649,7 @@
           <label for="priorHppActualInput">Confirmed amount — January payslip <span class="note note-block" id="priorHppActualNote">enter when the payslip arrives</span></label>
           <div class="pfx">
             <span class="pfx-sym">£</span>
-            <input type="text" id="priorHppActualInput" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="priorHppActualInput" placeholder="e.g. 1,843.01" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
           <div class="field-hint" id="priorHppActualHint">Find the <strong>Holiday Pay Premium</strong> line on your January payslip and enter it here — it replaces the estimate above and updates your January take-home.</div>
         </div>

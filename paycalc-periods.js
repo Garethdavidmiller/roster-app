@@ -293,7 +293,9 @@ export function buildYtdSourceSelect(ty) {
   const paid = visiblePeriods()
     .filter((/** @type {any} */ p) => p.num >= 48 + ty.first && p.num <= 48 + ty.last && p.num < today)
     .reverse();
-  _populatePeriodSelect(sel, paid, { placeholder: '— which payslip did they come from? —' });
+  // Short placeholder (v18.49): the previous "— which payslip did they come from? —" truncated at
+  // 390px; the label + inline note above the select already ask the full question.
+  _populatePeriodSelect(sel, paid, { placeholder: '— choose a payslip —' });
 }
 
 /**

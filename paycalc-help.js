@@ -43,6 +43,7 @@ export const HELP_CONTENT = {
       'Entering <strong>Year to Date figures</strong> gives a more accurate estimate based on everything you\'ve earned so far this tax year — usually much closer to your payslip, especially later in the year.',
       'Find <strong>"Taxable Pay"</strong> and <strong>"Tax Paid"</strong> in the <strong>Year to Date</strong> box on your payslip (usually bottom-right). Update them each time you get a new payslip.',
       'The card records <strong>which payslip</strong> the figures came from (it assumes your latest — correct it if you copied from an older one). They sharpen the estimate for the payslip <strong>right after</strong> that one; other payslips use the standard method, and the note on the card tells you which is in play. Update the figures each time a new payslip arrives.',
+      'January payslip with your <strong>Holiday Pay Premium</strong> on it? Enter the confirmed figure in the Holiday Pay Premium card.',
     ],
   },
   hpp: {
