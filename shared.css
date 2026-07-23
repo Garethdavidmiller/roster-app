@@ -2040,7 +2040,7 @@ button.nav-panel-link--notices {
 
 /* Right-side cluster inside a card header (context chip + help/tips btn + arrow). */
 .card-header-actions {
-    display: flex; align-items: center; gap: 6px;
+    display: flex; align-items: center; gap: 5px;
     flex-shrink: 0; padding-top: 2px;
 }
 
@@ -2050,7 +2050,7 @@ button.nav-panel-link--notices {
     font-size: var(--type-small); font-weight: 700; letter-spacing: .02em;
     color: var(--primary-blue); background: var(--bg-faint);
     border: 1px solid var(--border-light); border-radius: var(--radius-pill);
-    padding: 2px 9px; white-space: nowrap; font-variant-numeric: tabular-nums;
+    padding: 2px 7px; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .card-year-chip:empty { display: none; }
 

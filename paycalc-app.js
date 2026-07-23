@@ -435,11 +435,15 @@ export function init() {
       // Update tax year tab active state
       updateTyTabs();
 
-      // Tax-year chip in the back-pay + HPP card headers — makes clear WHICH year each card is
-      // editing, even when collapsed (both cards follow the viewed period's tax year). (v17.89)
+      // Tax-year chip in the back-pay + HPP + Year-to-Date card headers — makes clear WHICH year
+      // each card is editing, even when collapsed (all follow the viewed period's tax year). (v17.89)
+      // The chip shows the COMPACT tax-year form ("26/27", v18.53) — the full "2026/27" tipped the
+      // longest title ("Holiday Pay Premium (HPP)") into a two-line wrap on narrow phones; the full
+      // year stays on the tabs and in the chip's tooltip. `.slice(2)` = drop the century digits.
+      const _chipYear = /^\d{4}\/\d{2}$/.test(ty.label) ? ty.label.slice(2) : ty.label;
       for (const _cid of ['bpYearChip', 'hppYearChip', 'ytdYearChip']) {
         const _chip = document.getElementById(_cid);
-        if (_chip) _chip.textContent = ty.label;
+        if (_chip) { _chip.textContent = _chipYear; _chip.title = `Tax year ${ty.label}`; }
       }
       // Settings card chip shows the PERIOD/payslip you're on (the rate + pension are period-specific)
       // — the settings summary already carries the tax year. (v17.92)
