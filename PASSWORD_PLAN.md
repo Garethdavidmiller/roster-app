@@ -1,5 +1,14 @@
 # PASSWORD_PLAN.md — chosen passwords + admin reset (Track C-lite)
 
+> **STATUS: Phase 0 + Phase 1 SHIPPED v18.63.** The decisions table (§10) was confirmed and built —
+> gated dual-attempt sign-in (`credentialCandidatesFor` → `ensureFirebaseSession`), the Settings
+> Password card + `savePasswordSetAt`, the `resetMemberPassword` admin break-glass Cloud Function, the
+> `passwordStatus` collection + rules, and the Operations Account-status table are all live. **Still to
+> come:** Phase 2 (an optional forced set-your-own overlay), C2 (email-based self-service reset, needs
+> an email relay), and C5 (retire the surname default once ≥90% have migrated). Sections below that
+> read in future tense describe the design as it was written *before* the build — treat them as the
+> spec, not a to-do list.
+
 *The agreed design for replacing surname-derived passwords with **user-chosen passwords**, with the
 **admin reset button as the recovery channel** — no email, no security questions. This is
 SECURITY_RELEASE_PLAN.md → Track C with the email half deferred: it delivers **C4′** (admin reset as
@@ -256,10 +265,11 @@ narrowed and SECURITY_RELEASE_PLAN's deferred-residual section should be read al
 
 | # | Decision | Status |
 |---|----------|--------|
-| 1 | Phase 1 = **nudge** (banner); force arrives in Phase 2 | Recommended — awaiting owner confirmation |
-| 2 | Password rules: **≥8 chars, surname hard-block, trim whitespace, confirm field** | Recommended — awaiting owner confirmation |
-| 3 | Revoke other devices: **yes on real resets, off for compels** (`revoke` flag) | Recommended — awaiting owner confirmation |
-| 4 | Reset button: **admin-only** (not managers) | Recommended — awaiting owner confirmation |
-| 5 | Go/no-go on building Phase 0+1 | **Awaiting owner** |
+| 1 | Phase 1 = **nudge** (banner); force arrives in Phase 2 | ✅ Confirmed + shipped v18.63 |
+| 2 | Password rules: **≥8 chars, surname hard-block, trim whitespace, confirm field** | ✅ Confirmed + shipped v18.63 |
+| 3 | Revoke other devices: **yes on real resets, off for compels** (`revoke` flag) | ✅ Confirmed + shipped v18.63 |
+| 4 | Reset button: **admin-only** (not managers) | ✅ Confirmed + shipped v18.63 |
+| 5 | Go/no-go on building Phase 0+1 | ✅ Given — Phase 0+1 built v18.63 |
 
-*Do not start Phase 0+1 until the owner has confirmed 1–4 and given 5.*
+*Phase 0+1 shipped v18.63 (decisions 1–5 confirmed). Phase 2 (forced set-your-own overlay) remains a
+future decision; C2 (email reset) + C5 (retire surname) are still open — see SECURITY_RELEASE_PLAN.md → Track C.*

@@ -433,6 +433,8 @@ Do not build speculatively. The PWA works well for the current use case.
 
 The current surname-based password provides minimal security — surnames are semi-public, the pattern is known, and there is no recovery path if a staff member's account is compromised. A five-stage plan to progressively harden this without disrupting the name-dropdown login UX. Each stage is independently shippable; later stages depend on earlier ones.
 
+> **⚠️ Status update (v18.63): the "C-lite" plan in `PASSWORD_PLAN.md` (SECURITY_RELEASE_PLAN → Track C) has since superseded parts of this five-stage sequence — and it did NOT wait on email verification.** Already SHIPPED: **self-service password change** (Stage 3 — Settings → Password card, `savePasswordSetAt`), the **admin break-glass reset** (below — `resetMemberPassword` Cloud Function, Operations → Account status → Reset), and the **`ensureFirebaseSession` rework** that Stage 3 named as a prerequisite (`credentialCandidatesFor` gated dual-attempt sign-in). Migration is now tracked by the **`passwordStatus`** collection (`passwordSetAt`/`resetAt`), not the unbuilt `staffContact.verified`. Still open: Stage 2 (email verification, needs an email relay), the Stage-4 *email-based* self-service reset, and Stage 5 (retire the surname default). Read PASSWORD_PLAN.md for the authoritative current state; the stage text below is the original design.
+
 **Stage 1 — Work email registration ✓ (v12.68)**
 Settings page → Work Email card. Staff enter their Chiltern work email. Saved to the new `staffContact` Firestore collection (owner-only write via `name` JWT claim; admin read-all). This is the data foundation all later stages build on. Work email only — no personal email (the company already holds the work address; no separate GDPR policy required for something Chiltern already processes).
 
@@ -441,10 +443,10 @@ Send a 6-digit time-limited code to the registered work email when the member ta
 
 *Decisions needed before building:* code expiry window (10 minutes is standard); retry/rate-limit policy; whether to allow email correction before verification (or require admin contact if the wrong address was saved).
 
-**Stage 3 — Self-service password change (while logged in)**
-A "Change password" section in the Work Email card in Settings, shown only to members with a verified email (Stage 2 complete). Member enters their current password + new password twice → `reauthenticateWithCredential` + `updatePassword` via Firebase Auth.
+**Stage 3 — Self-service password change (while logged in)** — ✅ SHIPPED v18.63 (Track C, decoupled from Stage 2)
+A dedicated **Password card** in Settings (not gated on email verification — that decoupling is the "C-lite" change). Member enters their current password + new password twice → `reauthenticateWithPassword` + `setOwnPassword` (`updatePassword` + `savePasswordSetAt`) via Firebase Auth.
 
-*Critical prerequisite — `ensureFirebaseSession` rework:* The current implementation assumes `password = normaliseSurname(name)` and silently falls back to an anonymous session on failure. A member who has set a custom password will have `ensureFirebaseSession` try the surname, fail, and land on an anonymous session — they will appear not logged in to Firestore writes even though their localStorage session is valid. **Before Stage 3 ships**, `ensureFirebaseSession` must be updated to detect this case: catch `auth/wrong-password` / `auth/invalid-credential` specifically and surface a "Please sign in again" prompt rather than silently falling back to anonymous.
+*Critical prerequisite — `ensureFirebaseSession` rework:* ✅ DONE v18.63. `credentialCandidatesFor(fullName, typed)` (`auth-identity.js`) builds an ordered candidate list (typed password first, surname fallback only while still on it) and `ensureFirebaseSession` tries each — so a member on a self-set password authenticates without landing on anonymous. *(Original problem, for context:)* The old implementation assumed `password = normaliseSurname(name)` and silently fell back to an anonymous session on failure. A member who has set a custom password will have `ensureFirebaseSession` try the surname, fail, and land on an anonymous session — they will appear not logged in to Firestore writes even though their localStorage session is valid. **Before Stage 3 ships**, `ensureFirebaseSession` must be updated to detect this case: catch `auth/wrong-password` / `auth/invalid-credential` specifically and surface a "Please sign in again" prompt rather than silently falling back to anonymous.
 
 *Ordering:* Stage 4 (reset path) should ship before or alongside Stage 3 so a member who forgets their custom password has a self-service recovery route and does not have to contact admin.
 
@@ -453,7 +455,7 @@ Recovery flow without admin involvement: a "Forgot password?" link on the login 
 
 Code expires after 10 minutes; 3 failed attempts invalidate it (member must request a new code). The reset endpoint must be a Cloud Function — client-side `sendPasswordResetEmail` sends to the synthetic Firebase Auth email (`name@myb-roster.firebaseapp.com`), not the member's real work address.
 
-**Admin break-glass:** Operations page → Staff Login Accounts → reset any member's password to the surname default. Always available regardless of verification status. Use when a member cannot access their work email or is locked out during rollout.
+**Admin break-glass:** ✅ SHIPPED v18.63. Operations page → **Account status** → **Reset** → the `resetMemberPassword` Cloud Function resets a member's password to the surname default (and revokes their refresh tokens by default). Always available regardless of verification status. Use when a member cannot access their work email or is locked out during rollout.
 
 **Stage 5 — Retire the surname password**
 Once Stages 2–4 are live and staff have had adequate time to migrate:
@@ -461,7 +463,7 @@ Once Stages 2–4 are live and staff have had adequate time to migrate:
 2. Remove the surname-password seed from `setupRosterAuth` new-starter setup — new starters receive a temporary code via work email instead.
 3. Remove the surname fallback from `ensureFirebaseSession`.
 
-*This stage is irreversible* — once the surname fallback is removed, staff without a custom password can only recover via Stage 4. Do not ship Stage 5 until ≥90% of active accounts have set a custom password (monitor via `staffContact.verified` count vs active `teamMembers` in Firestore Console).
+*This stage is irreversible* — once the surname fallback is removed, staff without a custom password can only recover via Stage 4 (or the admin break-glass reset). Do not ship Stage 5 until ≥90% of active accounts have set a custom password (monitor via the **`passwordStatus`** collection — a doc with `passwordSetAt >= resetAt` = migrated — vs active `teamMembers`; the Operations Account-status card already renders this count. The old `staffContact.verified` field was never built).
 
 ---
 
@@ -621,11 +623,13 @@ These are interlocking; most remain and should ship together, but the headline g
 
 ### Documentation accuracy fixes ✓ (v14.37–v14.38)
 
-Done: the `pushSubscriptions` delete posture (any authenticated identity that knows the doc id) and
-the bearer-URL read distinction (open Firestore metadata read; Storage object reached via a tokenised
-URL that bypasses Storage rules) are now stated accurately in the docs + rule comments. The remaining
-*rule* tightening is **still open** — B2/B3 shipped without it (considered and kept as-is); it stays
-tracked as an open item in SECURITY_RELEASE_PLAN.md.
+Done: the `pushSubscriptions` delete posture and the bearer-URL read distinction (open Firestore
+metadata read; Storage object reached via a tokenised URL that bypasses Storage rules) are stated
+accurately in the docs + rule comments. **Since tightened (A5 / F-SEC-5, v17.76):** the delete rule is
+now **per-owner** — an authenticated session may delete a subscription only if
+`resource.data.owner == request.auth.uid` (or the legacy doc carries no `owner`), so merely knowing a
+doc id no longer permits deletion. (This superseded the earlier "any authenticated identity that knows
+the doc id" posture described above.)
 
 ---
 
@@ -781,11 +785,13 @@ improvements — staged plan"** above — do not re-number the stages here. In b
 
 - Stage 1 ✓ (v12.68): Work-email registration via `staffContact`.
 - Stage 2: Email verification.
-- Stage 3: Self-service password change (while logged in).
-- Stage 4: Forgotten-password reset (self-service, via verified work email).
+- Stage 3 ✓ (v18.63, Track C): Self-service password change (while logged in) — shipped decoupled from email.
+- Stage 4: Forgotten-password reset — **admin break-glass shipped v18.63**; the *email-based* self-service half remains.
 - Stage 5: Retire the surname-derived password.
 
-Stages 2–5 are parked pending the owner setting up Power Automate (the email-delivery channel).
+Only the **email-based** routes (Stage 2, and Stage 4's self-service half) are parked pending the owner
+setting up Power Automate (the email-delivery channel). The chosen-password core (Stage 3 + admin reset)
+shipped without waiting on it — see the "C-lite" status note under the staged plan above.
 
 **Note:** per-member Firestore write isolation (`request.auth.token.name == memberName`,
 suspended at v10.94, rebuilt permissive at v14.53, now **strict and LIVE as of v16.29**) is a

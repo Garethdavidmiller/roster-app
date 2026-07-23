@@ -30,14 +30,12 @@ case falls back to the original header-as-toggle. Chevron/arrow gained `cursor` 
 ring (shared.css / paycalc.css). Verified: axe reports **0** `nested-interactive`; overlay.test.mjs
 green; e2e green. No visual change to the cards.
 
-### 2. `color-contrast` (SERIOUS) — calendar, paycalc, guides
-
-Muted text / badges whose contrast is below the 4.5:1 AA threshold. Flagged elements include:
-calendar `#alBtn` / `#payBtn` and other-month day numbers; paycalc badges (`#paycalcBadge`,
-`#badge-sat`, `#badge-ot`); guide `.guide-footer`, railcard `.rc-cost` / `.rc-lbl`, shift badges
-(`.sb-early` / `.sb-al`), FIP `.not-fip-name`.
-
 ### 2. `color-contrast` (SERIOUS) — ✅ FIXED (v17.51–52)
+
+*Originally flagged: muted text / badges below 4.5:1 AA — calendar `#alBtn`/`#payBtn` + other-month
+day numbers, paycalc badges (`#paycalcBadge`/`#badge-sat`/`#badge-ot`), guide `.guide-footer`,
+railcard `.rc-cost`/`.rc-lbl`, shift badges (`.sb-early`/`.sb-al`), FIP `.not-fip-name`. All resolved:*
+
 
 - **Guides (v17.51):** darkened the muted grey tokens (`--light` #888 → #6b6b6b / #666, guide footer
   #7c8794 → #5a6472), deepened the legend swatches, and removed the FIP "not-FIP" `opacity: 0.45`

@@ -50,7 +50,7 @@ Per new flavour, the touch-list (kept short by the v15.43 prep — the submenu c
 from `OTHER_FLAVOURS` and the server uses an explicit alias lookup, so neither needs hand-edited UI):
 
 1. `override-utils.js` — one `OTHER_FLAVOURS` entry (`MEET: {badge:'Meet', full:'Meeting'}` /
-   `UNION: {badge:'Union', full:'Union Duties'}`) + add the sentinel to `_OTHER_RE`.
+   `UNION: {badge:'Union', full:'Union'}`) + add the sentinel to `_OTHER_RE`.
 2. `functions/roster-parse-helpers.js` — extend the recognition regex with the roster words + one
    `FLAVOUR_LOOKUP` entry per alias (the deliberate server-side duplicate).
 3. `firestore.rules` — add the sentinel to the training-grammar `matches()` clause (rules deploy —
