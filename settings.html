@@ -73,7 +73,7 @@
         <div class="card-header card-header-toggle" id="contactToggleHeader">
             <div>
                 <h2><span aria-hidden="true">📧</span> Work Email</h2>
-                <span class="hint">Add your work email now — it will be used for password reset (not available yet)</span>
+                <span class="hint">Add your work email now — it will be used for self-service password reset (in a future update)</span>
             </div>
             <div class="card-header-actions">
                 <button type="button" class="btn-card-tips" data-card="work-email" aria-label="Tips for work email" title="Tips for work email">?</button>
@@ -91,6 +91,36 @@
                 <button type="button" class="btn-action btn-primary" id="workEmailSaveBtn">Save email</button>
                 <button type="button" class="btn-contact-remove" id="workEmailRemoveBtn" style="display:none">Remove saved email</button>
                 <div class="contact-feedback" id="contactFeedback" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password (chosen password + admin reset — PASSWORD_PLAN.md) -->
+    <div class="card" id="passwordCard">
+        <div class="card-header card-header-toggle" id="passwordToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🔑</span> Password</h2>
+                <span class="hint">Set a password only you know — replaces your surname default</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="card-year-chip" id="passwordStatusChip"></span>
+                <span class="collapse-chevron open" id="passwordChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body open" id="passwordBody">
+            <div class="card-body">
+                <div class="pw-nudge" id="passwordNudge" hidden></div>
+                <label class="contact-label" for="pwCurrent">Current password</label>
+                <input type="password" id="pwCurrent" class="contact-email-input"
+                       autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+                <label class="contact-label" for="pwNew">New password <span class="pw-req">(at least 8 characters)</span></label>
+                <input type="password" id="pwNew" class="contact-email-input"
+                       autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+                <label class="contact-label" for="pwConfirm">Confirm new password</label>
+                <input type="password" id="pwConfirm" class="contact-email-input"
+                       autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+                <button type="button" class="btn-action btn-primary" id="pwSaveBtn">Set password</button>
+                <div class="contact-feedback" id="pwFeedback" aria-live="polite"></div>
             </div>
         </div>
     </div>

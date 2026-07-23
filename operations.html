@@ -209,7 +209,7 @@
         <div class="card-header card-header-toggle" id="workEmailToggleHeader">
             <div>
                 <h3><span aria-hidden="true">📧</span> Work Email Progress</h3>
-                <span class="hint">Track who has saved their work email, ready for password reset (not available yet)</span>
+                <span class="hint">Track who has saved their work email, ready for self-service password reset (in a future update)</span>
             </div>
             <div class="card-header-actions">
                 <button type="button" class="btn-card-tips" data-card="work-email-progress" aria-label="Tips for Work Email Progress" title="Tips for Work Email Progress">?</button>
@@ -218,6 +218,25 @@
         </div>
         <div class="card-collapsible-body" id="workEmailBody">
             <div class="card-body" id="emailStatusContent" aria-busy="true">
+                <p class="auth-desc">Loading…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ACCOUNT STATUS (password migration) ==================== -->
+    <div class="card" id="accountStatusCard">
+        <div class="card-header card-header-toggle" id="accountStatusToggleHeader">
+            <div>
+                <h3><span aria-hidden="true">🔑</span> Account status</h3>
+                <span class="hint">Who has set their own password — and reset anyone back to their surname default</span>
+            </div>
+            <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="account-status" aria-label="Tips for Account status" title="Tips for Account status">?</button>
+                <span class="collapse-chevron" id="accountStatusChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body" id="accountStatusBody">
+            <div class="card-body" id="accountStatusContent" aria-busy="true">
                 <p class="auth-desc">Loading…</p>
             </div>
         </div>

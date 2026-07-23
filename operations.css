@@ -721,6 +721,63 @@ select:focus-visible, input:focus-visible {
     min-height: 1em;
 }
 
+/* ---- Account status table (PASSWORD_PLAN.md — password migration + break-glass reset) ---- */
+.acct-status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.acct-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+.acct-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--type-small);
+    font-weight: 500;
+    color: var(--text-dark);
+}
+.acct-flag {
+    flex-shrink: 0;
+    font-size: var(--type-small);
+    color: var(--success-green);
+    white-space: nowrap;
+}
+.acct-flag--warn { color: var(--orange-text); }
+.btn-acct-reset {
+    flex-shrink: 0;
+    font-size: var(--type-badge);
+    padding: 3px 10px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius);
+    background: white;
+    color: var(--primary-blue);
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1.4;
+    touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) {
+    .btn-acct-reset:hover {
+        background: var(--bg-faint);
+        border-color: var(--primary-blue);
+    }
+}
+.btn-acct-reset:active:not(:disabled) { transform: scale(var(--press-scale)); }
+.btn-acct-reset:disabled { opacity: 0.6; cursor: not-allowed; }
+
 #opsBadge { background: var(--orange); color: var(--primary-blue); }
 #iconLightbox .lightbox-badge {
     background: color-mix(in oklch, var(--orange) 15%, white);

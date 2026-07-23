@@ -20,7 +20,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // `_transactionalUpload` engine behind huddle/circular/newsletter uploads, v16.38) — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
 import { runWithClaimRetry } from './claim-retry.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys } from './usage-stats.js';
@@ -79,6 +79,7 @@ export const COLLECTIONS = {
     newsletters:       'newsletters',
     pushSubscriptions: 'pushSubscriptions',
     staffContact:      'staffContact',
+    passwordStatus:    'passwordStatus',
     clientErrors:      'clientErrors',
     overrides:         'overrides',
     linkDesigns:       'linkDesigns',
@@ -109,7 +110,7 @@ export const authReady = setPersistence(auth, indexedDBLocalPersistence)
     .catch(/** @param {any} err */ err => { console.warn('[Auth] persistence setup failed:', err); });
 
 // Re-export auth operations so callers import from one place.
-export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged };
+export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider };
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
@@ -177,7 +178,7 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
 // pulls the Firebase SDK from the gstatic CDN). Re-exported so existing importers (session.js) are
 // unaffected. The deliberate functions/roster-parse-helpers.js duplicate + surname-parity.test.mjs
 // source-equivalence check now read auth-identity.js.
-import { normaliseSurname, nameToEmail } from './auth-identity.js';
+import { normaliseSurname, nameToEmail, credentialCandidatesFor } from './auth-identity.js';
 export { normaliseSurname, nameToEmail };
 
 // ---- Firebase Storage ----
@@ -626,6 +627,109 @@ export async function deleteStaffContact(memberName) {
 export async function getAllStaffContacts() {
     const snap = await getDocs(collection(db, COLLECTIONS.staffContact));
     return snap.docs.map(/** @param {any} d */ d => d.data());
+}
+
+// ---- Password migration status (PASSWORD_PLAN.md §6) ----
+// `passwordStatus/{memberName}` (doc id = display name). `resetAt` is written ONLY by the
+// resetMemberPassword Cloud Function (Admin SDK, bypasses rules); `passwordSetAt` is written by the
+// member's own client after a successful updatePassword. Migrated ⇔ passwordSetAt newer than any
+// resetAt. Kept SEPARATE from staffContact so the security-sensitive resetAt never shares a
+// member-writable doc.
+
+/**
+ * Read a member's password-migration record. Owner or admin (Firestore rules).
+ * @param {string} memberName
+ * @returns {Promise<{ resetAt?: any, passwordSetAt?: any } | null>}
+ */
+export async function getPasswordStatus(memberName) {
+    const snap = await getDoc(doc(db, COLLECTIONS.passwordStatus, memberName));
+    return snap.exists() ? snap.data() : null;
+}
+
+/**
+ * The member marks their own account as migrated, right after a successful `updatePassword`. `merge`
+ * preserves any server-written `resetAt`; the rules require ONLY `passwordSetAt` to change and pin it
+ * to the server clock (request.time), so a wrong device clock can't fake ordering against `resetAt`.
+ * Name-gated write → writeWithClaimRetry self-heals a stale claim.
+ * @param {string} memberName
+ * @returns {Promise<void>}
+ */
+export async function savePasswordSetAt(memberName) {
+    await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.passwordStatus, memberName), {
+        passwordSetAt: serverTimestamp(),
+    }, { merge: true }));
+}
+
+/**
+ * Every password-status record (admin-only — Firestore rules enforce). Doc id is the member name.
+ * @returns {Promise<Array<{ memberName: string, resetAt?: any, passwordSetAt?: any }>>}
+ */
+export async function getAllPasswordStatus() {
+    const snap = await getDocs(collection(db, COLLECTIONS.passwordStatus));
+    return snap.docs.map(/** @param {any} d */ d => ({ memberName: d.id, ...d.data() }));
+}
+
+/**
+ * Re-authenticate the currently signed-in member with their typed CURRENT password — required by
+ * Firebase before `updatePassword`. Uses the same GATED candidate list as sign-in (auth-identity), so
+ * an un-migrated member typing their surname (any case / short-surname padding) reauths correctly.
+ * @param {string} memberName
+ * @param {string} typed
+ * @returns {Promise<void>} resolves on success; rejects with the last Firebase error otherwise
+ */
+export async function reauthenticateWithPassword(memberName, typed) {
+    const user = auth.currentUser;
+    if (!user || !user.email) throw new Error('Not signed in');
+    const candidates = credentialCandidatesFor(memberName, typed);
+    if (!candidates.length) throw Object.assign(new Error('empty password'), { code: 'auth/missing-password' });
+    let lastErr;
+    for (const pw of candidates) {
+        try {
+            await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, pw));
+            return;
+        } catch (e) { lastErr = e; }
+    }
+    throw lastErr;
+}
+
+/**
+ * Set the signed-in member's OWN Firebase Auth password to a new value (after a fresh reauth), then
+ * stamp `passwordSetAt`. Standard secure client flow — the server never sees the password.
+ * @param {string} memberName
+ * @param {string} newPassword
+ * @returns {Promise<void>}
+ */
+export async function setOwnPassword(memberName, newPassword) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not signed in');
+    await updatePassword(user, newPassword);
+    await savePasswordSetAt(memberName);   // record migration only AFTER the password actually changed
+}
+
+/** Admin-only Cloud Function that resets a member's Firebase password back to their surname default
+ *  and stamps `passwordStatus.resetAt` (server-side). Mirrors admin-auth.js's setupRosterAuth caller:
+ *  a FRESH admin ID token as a Bearer header on every call. */
+const RESET_PASSWORD_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/resetMemberPassword';
+
+/**
+ * Reset a member's password to the surname default (admin break-glass). Requires the caller's admin
+ * claim (enforced server-side). `revoke` signs the member out of their other devices — true for a
+ * real reset, false for a Phase-2 migration nudge.
+ * @param {string} memberName
+ * @param {{ revoke?: boolean }} [opts]
+ * @returns {Promise<any>} the function's JSON response
+ */
+export async function resetMemberPassword(memberName, { revoke = true } = {}) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not signed in');
+    const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
+    const r = await fetch(RESET_PASSWORD_URL, {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ member: memberName, revoke }),
+    });
+    if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
+    return r.json();
 }
 
 // ---- Client Error Reporting ----

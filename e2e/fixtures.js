@@ -86,6 +86,12 @@ export const setPersistence = () => Promise.resolve();
 export const indexedDBLocalPersistence = marker('idb');
 export const browserLocalPersistence = marker('local');
 export const browserSessionPersistence = marker('session');
+// Chosen-password change flow (settings.html Password card, v18.63). These are imported at module
+// scope by firebase-client.js, so they MUST be exported here or the whole module graph fails to link
+// (a link error would blank every page under the stub). Only exercised when a password change runs.
+export const updatePassword = () => Promise.resolve();
+export const reauthenticateWithCredential = () => Promise.resolve({ user: { uid: 'test' } });
+export const EmailAuthProvider = { credential: (email, password) => marker('cred:' + email + ':' + password) };
 
 // ---- storage (only operations upload uses these; included for completeness) ----
 export const getStorage = () => marker('storage');

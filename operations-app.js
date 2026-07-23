@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError } from './operations-reports.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
@@ -26,7 +26,7 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { initCardCollapse } from './overlay.js';
+import { initCardCollapse, confirmDialog } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -186,6 +186,90 @@ export function init() {
     // ============================================
     // WORK EMAIL PROGRESS
     // ============================================
+    // Account status (PASSWORD_PLAN.md §6) — per-member Email ✓/✗ + Password migrated ✓/✗, with a
+    // per-member "Reset password to surname" break-glass. Joins getAllStaffContacts +
+    // getAllPasswordStatus by member name; both admin-only reads (Firestore rules).
+    async function initAccountStatus() {
+        initCardCollapse('accountStatusToggleHeader', 'accountStatusBody', 'accountStatusChevron');
+        const contentEl = document.getElementById('accountStatusContent');
+        if (!contentEl) return;
+        const content = /** @type {HTMLElement} */ (contentEl);
+        const eligible = teamMembers.filter(m => !m.hidden || m.managerOnly);
+        /** @type {Map<string, any>} */ let statusMap = new Map();
+        /** @type {Set<string>} */ let emailSet = new Set();
+
+        const migrated = (/** @type {string} */ name) => {
+            const s = statusMap.get(name);
+            const setAt   = /** @type {any} */ (s?.passwordSetAt)?.toMillis?.() ?? 0;
+            const resetAt = /** @type {any} */ (s?.resetAt)?.toMillis?.() ?? 0;
+            return setAt > 0 && setAt >= resetAt;
+        };
+
+        function render() {
+            const done = eligible.filter(m => migrated(m.name)).length;
+            content.innerHTML = '';
+            const summary = document.createElement('p');
+            summary.className = 'email-count-summary';
+            summary.setAttribute('aria-live', 'polite');
+            summary.innerHTML = `<strong class="email-count-num">${done}</strong> of <strong>${eligible.length}</strong> have set their own password`;
+            content.appendChild(summary);
+            const list = document.createElement('div');
+            list.className = 'acct-status-list';
+            eligible.forEach(m => {
+                const row = document.createElement('div');
+                row.className = 'acct-status-row';
+                const nameEl = document.createElement('span'); nameEl.className = 'acct-name'; nameEl.textContent = m.name;
+                const emailEl = document.createElement('span'); emailEl.className = 'acct-flag'; emailEl.title = 'Work email';
+                emailEl.textContent = emailSet.has(m.name) ? '📧 ✓' : '📧 —';
+                const pwEl = document.createElement('span'); pwEl.className = 'acct-flag'; pwEl.title = 'Password';
+                const mig = migrated(m.name);
+                pwEl.textContent = mig ? '🔑 ✓' : '🔑 surname';
+                pwEl.classList.toggle('acct-flag--warn', !mig);
+                const btn = document.createElement('button');
+                btn.type = 'button'; btn.className = 'btn-acct-reset'; btn.textContent = 'Reset';
+                btn.setAttribute('aria-label', `Reset ${m.name}'s password to their surname`);
+                btn.addEventListener('click', () => doReset(m.name, btn));
+                row.append(nameEl, emailEl, pwEl, btn);
+                list.appendChild(row);
+            });
+            content.appendChild(list);
+        }
+
+        async function doReset(/** @type {string} */ name, /** @type {HTMLButtonElement} */ btn) {
+            const ok = await confirmDialog({
+                title: 'Reset password?',
+                message: `Reset ${name}'s password back to their surname default? They'll be asked to set a new one, and signed out of their other devices.`,
+                confirmLabel: 'Reset', danger: true,
+            });
+            if (!ok) return;
+            btn.disabled = true; btn.textContent = 'Resetting…';
+            try {
+                await resetMemberPassword(name, { revoke: true });
+                const fresh = await withClaimRetry(getAllPasswordStatus);
+                statusMap = new Map(fresh.map(/** @param {any} s */ s => [s.memberName, s]));
+                render();   // rebuilds the row (btn is replaced) — reflects the new "surname" state
+            } catch (e) {
+                console.warn('[Operations] resetMemberPassword failed:', e);
+                btn.disabled = false; btn.textContent = 'Retry';
+                btn.title = 'Reset failed — try again shortly';
+            }
+        }
+
+        try {
+            await sessionReady;
+            const [contacts, statuses] = await Promise.all([
+                withClaimRetry(getAllStaffContacts),
+                withClaimRetry(getAllPasswordStatus),
+            ]);
+            emailSet  = new Set(contacts.filter(/** @param {any} c */ c => c.workEmail).map(/** @param {any} c */ c => c.memberName));
+            statusMap = new Map(statuses.map(/** @param {any} s */ s => [s.memberName, s]));
+            content.removeAttribute('aria-busy');
+            render();
+        } catch {
+            _cardLoadError(content, 'account status', () => initAccountStatus());
+        }
+    }
+
     async function initWorkEmailStatus() {
         // All active accounts — excludes leavers (hidden:true without managerOnly).
         // Management accounts (hidden:true + managerOnly:true) are included: the admin
@@ -410,7 +494,7 @@ export function init() {
                 if (notAdded.length === 0) {
                     const done = document.createElement('p');
                     done.className = 'email-count-done';
-                    done.textContent = `✓ All ${gradeLabel} have added their work email${grade ? '' : ' — ready for when password reset is switched on'}.`;
+                    done.textContent = `✓ All ${gradeLabel} have added their work email${grade ? '' : ' — ready for when self-service password reset is switched on'}.`;
                     listContainer.appendChild(done);
                 } else {
                     const missingLabel = document.createElement('p');
@@ -553,6 +637,7 @@ export function init() {
         }
     }
     initWorkEmailStatus();
+    initAccountStatus();
 
     // Show a banner if Firebase Auth couldn't establish a real admin session.
     // Anonymous fallback still resolves the Promise so the page renders, but
@@ -680,6 +765,19 @@ export function init() {
                     { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
                     { icon: '🚪', html: 'Tick <strong>"Disable accounts for leavers"</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
                 ]}],
+            },
+            'account-status': {
+                title: 'Account status',
+                sections: [
+                    { heading: 'What it shows', items: [
+                        { icon: '🔑', html: 'Whether each person still signs in with their <strong>surname default</strong> or has <strong>set their own password</strong> in ☰ → Settings → Password' },
+                        { icon: '📧', html: 'A ✓ against the envelope means they\'ve also registered a <strong>work email</strong> (from the Work Email Progress card)' },
+                    ]},
+                    { heading: 'Resetting a password', items: [
+                        { icon: '↩️', html: 'Tap <strong>Reset</strong> next to anyone who\'s forgotten their password — it goes back to their <strong>surname default</strong> and they\'re signed out of their other devices' },
+                        { icon: '🔒', html: 'After a reset they can sign in with their surname and set a new password of their own again' },
+                    ]},
+                ],
             },
             'work-email-progress': {
                 title: 'Work Email Progress',

@@ -5,7 +5,7 @@
  *       (firebase emulators:exec starts the Firestore emulator, runs these tests, stops it)
  *
  * Covers all 9 collections in firestore.rules:
- *   overrides, huddles, linkDesigns, staffContact,
+ *   overrides, huddles, linkDesigns, staffContact, passwordStatus,
  *   clientErrors, circulars, newsletters, pushSubscriptions, analytics
  *
  * Each collection tests: auth boundaries, field validation, enum/format guards.
@@ -669,6 +669,51 @@ describe('staffContact', () => {
         await assertFails(deleteDoc(doc(staffDb(), 'staffContact', member)));
     });
 });
+
+describe('passwordStatus (PASSWORD_PLAN §6)', () => {
+    const NAME = 'G. Miller';
+    test('anon cannot read', async () => {
+        await assertFails(getDoc(doc(anonDb(), 'passwordStatus', NAME)));
+    });
+    test('the owner (name claim) reads their own record; admin reads any', async () => {
+        await assertSucceeds(getDoc(doc(namedDb(NAME), 'passwordStatus', NAME)));
+        await assertSucceeds(getDoc(doc(adminDb(), 'passwordStatus', NAME)));
+    });
+    test("a DIFFERENT named member cannot read someone else's record", async () => {
+        await assertFails(getDoc(doc(namedDb('S. Silva'), 'passwordStatus', NAME)));
+    });
+    test('the owner CREATEs with only passwordSetAt == server time', async () => {
+        await assertSucceeds(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
+    });
+    test('the owner CANNOT create with resetAt (a client can never set the reset flag)', async () => {
+        await assertFails(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp(), resetAt: serverTimestamp() }));
+    });
+    test('a fixed (non-server) passwordSetAt is rejected — must be pinned to request.time', async () => {
+        await assertFails(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: new Date('2020-01-01') }));
+    });
+    test("a non-owner cannot write another member's record", async () => {
+        await assertFails(setDoc(doc(namedDb('S. Silva'), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
+    });
+    test('the owner may UPDATE passwordSetAt without touching a server-written resetAt', async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), 'passwordStatus', NAME), { resetAt: new Date('2026-01-01') });
+        });
+        await assertSucceeds(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }, { merge: true }));
+    });
+    test('the owner CANNOT change the server-written resetAt (immutable to clients)', async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), 'passwordStatus', NAME), { resetAt: new Date('2026-01-01') });
+        });
+        await assertFails(setDoc(doc(namedDb(NAME), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp(), resetAt: serverTimestamp() }, { merge: true }));
+    });
+    test('admin cannot write ANOTHER member\'s record from the client (resets go via the function)', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'passwordStatus', NAME), { passwordSetAt: serverTimestamp() }));
+    });
+    test('no client delete', async () => {
+        await assertFails(deleteDoc(doc(namedDb(NAME), 'passwordStatus', NAME)));
+    });
+});
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // clientErrors

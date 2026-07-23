@@ -63,9 +63,21 @@ unadvertised URL + small known team**, matching the existing surname-password po
 surname-derived and not secrets; protection relies on Firebase Auth rate-limiting + Firestore rules").
 The full staff-wide replacement is the planned **Track C** in SECURITY_RELEASE_PLAN.md.
 
+**Partial remediation SHIPPED (v18.63) — PASSWORD_PLAN.md Phase 0+1.** Every account (admin/manager
+included) can now **set its own real secret** in Settings → Password; sign-in accepts the typed
+password and only falls back to the surname while the account is still on the default. So the specific
+"guessable admin/manager password" exposure is **closable today by the owner simply setting their own
+password** — the targeted admin/manager fix scoped above is effectively subsumed by the general
+capability (no special-case login branch needed). It is **not automatically closed**: the surname
+default stays valid until each account sets a password, and the surname is not *retired* (C5) until the
+≥90%-migrated gate. So treat this as "the fix is now available and one action away", not "resolved for
+all accounts". Migration progress is visible in Operations → Account status.
+
 **Revisit when:** the app URL is advertised more widely, or it becomes official Chiltern
-infrastructure — then build the targeted admin/manager fix (or sequence Track C). Do not treat the
-guessable admin password as fixed; it is an accepted, bounded risk, not a closed one.
+infrastructure — then confirm the admin/manager accounts have set their own passwords (and sequence
+Track C Phase 2/3 for staff-wide migration + surname retirement). Do not treat the guessable admin
+password as fixed until those accounts have actually set a secret; it is an accepted, bounded risk with
+a now-available fix, not an automatically-closed one.
 
 ### Huddle Firestore writes restricted to admin (v11.07)
 `firestore.rules` now requires `request.auth.token.admin == true` for all browser

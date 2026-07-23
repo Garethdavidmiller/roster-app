@@ -1493,3 +1493,71 @@ exports.setupRosterAuth = onRequest(
         });
     }
 );
+
+/**
+ * resetMemberPassword — admin break-glass (PASSWORD_PLAN.md §5). Resets ONE member's Firebase Auth
+ * password back to their surname default and stamps `passwordStatus/{member}.resetAt` (Admin SDK,
+ * bypassing Firestore rules) so the member is forced to set a new password on next sign-in. This is
+ * the ONLY password-write path in the codebase.
+ *
+ * Admin-only — the same guard as setupRosterAuth (verifyIdToken(checkRevoked) + admin claim). Target
+ * must be a SERVER-OWNED provisioned account (roster-members.json), never a raw client name.
+ *
+ * Body: { member: string, revoke?: boolean }. `revoke` (default true) signs the member out of their
+ * OTHER devices — true for a real reset; false for a Phase-2 migration nudge (leave working sessions).
+ */
+exports.resetMemberPassword = onRequest(
+    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+    async (req, res) => {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+        let decodedAuth;
+        try {
+            // checkRevoked=true — a disabled/revoked admin's still-cached token must not reset accounts.
+            decodedAuth = await admin.auth().verifyIdToken(bearer, true);
+        } catch (_) {
+            return res.status(401).json({ error: 'Unauthorised' });
+        }
+        if (decodedAuth.admin !== true) {   // strict — fail closed on any non-true claim
+            return res.status(403).json({ error: 'Forbidden — admin claim required' });
+        }
+
+        // Body (raw-body fallback like setupRosterAuth): member name + optional revoke.
+        let body = req.body;
+        if (!body || typeof body !== 'object') {
+            try { body = JSON.parse((req.rawBody || '').toString() || '{}'); } catch (_) { body = {}; }
+        }
+        const member = typeof body.member === 'string' ? body.member.trim() : '';
+        const revoke = body.revoke !== false;   // default true
+        if (!member) return res.status(400).json({ error: 'Missing member' });
+
+        // Target must be a server-owned provisioned account (B4) — never trust a raw client name.
+        const cfg = resolveRosterAuthConfig(rosterMembers);
+        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid — run `npm run generate:roster-members`' });
+        if (!cfg.processMembers.includes(member)) {
+            return res.status(404).json({ error: `Unknown member "${member}" — run Set up accounts first` });
+        }
+
+        const email    = nameToEmail(member);
+        const password = nameToPassword(member);   // surname default (reuses the parity-guarded helper)
+        try {
+            const user = await admin.auth().getUserByEmail(email);
+            await admin.auth().updateUser(user.uid, { password });
+            if (revoke) await admin.auth().revokeRefreshTokens(user.uid);
+            // Stamp resetAt so the member is prompted to set a new password. merge preserves any
+            // existing passwordSetAt (whose staleness vs this resetAt is what marks them un-migrated).
+            await admin.firestore().collection('passwordStatus').doc(member).set(
+                { resetAt: admin.firestore.FieldValue.serverTimestamp() },
+                { merge: true },
+            );
+            return res.json({ ok: true, member, revoked: revoke });
+        } catch (e) {
+            if (e && e.code === 'auth/user-not-found') {
+                return res.status(404).json({ error: `No Firebase account for "${member}" — run Set up accounts first` });
+            }
+            console.error('[resetMemberPassword] failed for', member, e && e.code, e);
+            return res.status(500).json({ error: 'Reset failed' });
+        }
+    }
+);
