@@ -408,7 +408,7 @@ describe('computePeriodDeleteIds', () => {
 
 describe('isOtherValue / parseOtherValue — value grammar', () => {
     it('accepts every flavour, bare', () => {
-        for (const f of ['TRG', 'IND', 'ASSESS', 'TEAM']) {
+        for (const f of ['TRG', 'IND', 'ASSESS', 'TEAM', 'UNION']) {
             assert.equal(isOtherValue(f), true, f);
             assert.deepEqual(parseOtherValue(f), { flavour: f, rdw: false, time: null });
         }
@@ -418,6 +418,7 @@ describe('isOtherValue / parseOtherValue — value grammar', () => {
         assert.deepEqual(parseOtherValue('TRG RDW'),    { flavour: 'TRG',    rdw: true, time: null });
         assert.deepEqual(parseOtherValue('ASSESS RDW'), { flavour: 'ASSESS', rdw: true, time: null });
         assert.deepEqual(parseOtherValue('TEAM RDW'),   { flavour: 'TEAM',   rdw: true, time: null });
+        assert.deepEqual(parseOtherValue('UNION RDW'),  { flavour: 'UNION',  rdw: true, time: null });
     });
 
     it('accepts actual times, with and without RDW', () => {
@@ -445,6 +446,8 @@ describe('isOtherValue / parseOtherValue — value grammar', () => {
         assert.equal(OTHER_FLAVOURS.ASSESS.full,  'Assessment');
         assert.equal(OTHER_FLAVOURS.TEAM.badge,   'Team');
         assert.equal(OTHER_FLAVOURS.TEAM.full,    'Team Day');
+        assert.equal(OTHER_FLAVOURS.UNION.badge,  'Union');
+        assert.equal(OTHER_FLAVOURS.UNION.full,   'Union');
     });
 });
 
@@ -458,6 +461,8 @@ describe('resolveOtherPay — the pay mapping (single source)', () => {
     it('rostered day, no times → as-base (pays exactly as the base shift, never less)', () => {
         assert.deepEqual(resolveOtherPay(parse('TRG'), '06:00-14:00'), { mode: 'as-base' });
         assert.deepEqual(resolveOtherPay(parse('ASSESS'), '12:00-19:00'), { mode: 'as-base' });
+        // A union course pays exactly like the day underneath, same as every Other flavour.
+        assert.deepEqual(resolveOtherPay(parse('UNION'), '09:00-16:00'), { mode: 'as-base' });
     });
 
     it('rostered day, actual times → timed (engine applies the base-cap + excess→OT split)', () => {

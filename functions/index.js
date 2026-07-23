@@ -1048,6 +1048,7 @@ WHAT THE CODES MEAN:
 - INDUCTION or IND = Induction day. Return "IND" (or "IND RDW" if the cell also says RDW).
 - ASSESS or ASSESSMENT or ASSESSMENTS = Assessment day. Return "ASSESS" (or "ASSESS RDW" if the cell also says RDW).
 - TEAM DAY or TEAM = Team day. Return "TEAM" (or "TEAM RDW" if the cell also says RDW).
+- UNION COURSE or UNION = Union course day. Return "UNION" (or "UNION RDW" if the cell also says RDW).
 - NA or N/A or NS = Not available. Return "RD".
 - GER = Gerrards Cross station. Extract the shift time next to it (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time, return "RD".
 - Blank, dashed, or no entry = "RD".
