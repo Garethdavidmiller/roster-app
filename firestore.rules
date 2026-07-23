@@ -268,6 +268,13 @@ service cloud.firestore {
     // Migrated ⇔ passwordSetAt newer than any resetAt. Read = owner or admin (the Operations
     // account-status table). A member may only touch `passwordSetAt`, pinned to the server clock so
     // a wrong device clock can't fake ordering against the server-written resetAt.
+    // ACCEPTED LIMITATION: `passwordSetAt` is a MONITORING signal, not a security boundary. Firestore
+    // rules cannot attest that a Firebase Auth password was actually changed (an Auth-side fact), so a
+    // member could self-stamp `passwordSetAt` without changing their password and appear "migrated" in
+    // the admin table. This only misleads the admin about that member's OWN posture (no privilege is
+    // gained), the app only ever writes it via setOwnPassword (after a real updatePassword), and the
+    // real control is the surname-default retirement gate (C5), not this flag. Do not treat the
+    // account-status table as a security assertion — it is a migration-progress aid.
     match /passwordStatus/{memberName} {
       allow read: if request.auth != null &&
         (request.auth.token.name == memberName || request.auth.token.admin == true);

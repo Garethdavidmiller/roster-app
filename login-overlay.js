@@ -374,7 +374,18 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             // attempt is serialised end-to-end. The handlers below must NOT also reset `_attempting`:
             // an early-returned (mutex-held) call would otherwise clear the flag mid-flight and let a
             // concurrent attempt start. `_attempting` is owned solely here + in the lockout timer.
-            if (Date.now() >= _lockedUntil) _attempting = false;
+            if (Date.now() >= _lockedUntil) {
+                _attempting = false;
+                // Belt-and-braces: an UNEXPECTED throw after the button was set to "Signing in…"
+                // (line ~298) but before any normal branch restored it would leave it stuck disabled
+                // (a soft-lock). Every intended exit already restores the button — success left the
+                // page, failure/lockout branches reset it — so acting ONLY on the still-"Signing in…"
+                // text touches nothing but the genuinely-stuck case, and never the success/lockout label.
+                if (submitBtn.textContent === 'Signing in…') {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Sign in →';
+                }
+            }
             // Auth is no longer in flight once attempt() settles (the success path has already left
             // the page, so re-enabling Back here is moot for it but correct for every other exit).
             _signingIn = false;

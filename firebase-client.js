@@ -695,15 +695,32 @@ export async function reauthenticateWithPassword(memberName, typed) {
 /**
  * Set the signed-in member's OWN Firebase Auth password to a new value (after a fresh reauth), then
  * stamp `passwordSetAt`. Standard secure client flow — the server never sees the password.
+ *
+ * Ordering matters: the `passwordSetAt` stamp is a SEPARATE Firestore write that can fail
+ * independently of the (already-committed) password change (transient/`unavailable`, a
+ * `permission-denied` surviving the claim retry, an offline queue rejection). If a stamp failure
+ * were allowed to reject this function, the caller would surface "password change failed" — telling
+ * the user to retry with a password that NO LONGER EXISTS and routing a Firestore error into the
+ * "current password incorrect" branch, leaving them stuck. So a stamp failure is swallowed and
+ * reported via `statusRecorded:false` — the password genuinely changed either way; only the
+ * migration record (a monitoring signal, not a security control) is missing and self-heals on the
+ * next successful set.
  * @param {string} memberName
  * @param {string} newPassword
- * @returns {Promise<void>}
+ * @returns {Promise<{ statusRecorded: boolean }>} `statusRecorded` is false when the password
+ *   changed but the migration stamp did not persist.
  */
 export async function setOwnPassword(memberName, newPassword) {
     const user = auth.currentUser;
     if (!user) throw new Error('Not signed in');
-    await updatePassword(user, newPassword);
-    await savePasswordSetAt(memberName);   // record migration only AFTER the password actually changed
+    await updatePassword(user, newPassword);   // (A) the password is now genuinely changed
+    try {
+        await savePasswordSetAt(memberName);   // (B) record migration — best-effort, must not undo (A)
+        return { statusRecorded: true };
+    } catch (e) {
+        console.warn('[Auth] password changed, but passwordSetAt stamp failed:', e);
+        return { statusRecorded: false };
+    }
 }
 
 /** Admin-only Cloud Function that resets a member's Firebase password back to their surname default
