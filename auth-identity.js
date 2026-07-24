@@ -94,3 +94,23 @@ export function credentialCandidatesFor(fullName, typed) {
     }
     return candidates;
 }
+
+/**
+ * Whether a member has MIGRATED to their own chosen password (PASSWORD_PLAN.md §6).
+ *
+ * Migrated ⇔ they have set a password (`passwordSetAt` present) AND it is at least as new as the
+ * most recent admin reset (`resetAt`) — a later admin reset returns the account to the surname
+ * default and re-flags it un-migrated. Reads Firestore Timestamp-like fields by duck-typing
+ * `.toMillis()` (so this stays Firebase-free and unit-testable); a missing/parse-less field is 0.
+ *
+ * Single source for the Operations Account-status table (`operations-app.js`) and the Settings
+ * status chip/nudge (`settings-app.js`) — previously duplicated inline in both, which risked drift.
+ *
+ * @param {{ passwordSetAt?: any, resetAt?: any }|null|undefined} status  the passwordStatus doc
+ * @returns {boolean}
+ */
+export function isPasswordMigrated(status) {
+    const setAt   = status?.passwordSetAt?.toMillis?.() ?? 0;
+    const resetAt = status?.resetAt?.toMillis?.() ?? 0;
+    return setAt > 0 && setAt >= resetAt;
+}
