@@ -11,7 +11,10 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor } from './auth-identity.js';
+import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated } from './auth-identity.js';
+
+/** Firestore Timestamp-like stub: an object exposing toMillis(). */
+const ts = (/** @type {number} */ ms) => ({ toMillis: () => ms });
 
 describe('normaliseSurname', () => {
     test('everything after the first word, lowercased, letters only', () => {
@@ -86,5 +89,35 @@ describe('credentialCandidatesFor — gated dual-attempt (PASSWORD_PLAN §3.2)',
         assert.deepEqual(credentialCandidatesFor('G. Miller', '  Str0ng!  '), ['Str0ng!']);
         assert.deepEqual(credentialCandidatesFor('G. Miller', '   '), []);
         assert.deepEqual(credentialCandidatesFor('G. Miller', ''), []);
+    });
+});
+
+describe('isPasswordMigrated — the Operations/Settings status predicate (PASSWORD_PLAN §6)', () => {
+    test('no status doc / null / undefined → not migrated', () => {
+        assert.equal(isPasswordMigrated(null), false);
+        assert.equal(isPasswordMigrated(undefined), false);
+        assert.equal(isPasswordMigrated({}), false);
+    });
+    test('passwordSetAt present, no resetAt → migrated', () => {
+        assert.equal(isPasswordMigrated({ passwordSetAt: ts(1000) }), true);
+    });
+    test('resetAt present, no passwordSetAt → not migrated (still on surname default)', () => {
+        assert.equal(isPasswordMigrated({ resetAt: ts(1000) }), false);
+    });
+    test('set AFTER the last reset → migrated', () => {
+        assert.equal(isPasswordMigrated({ passwordSetAt: ts(2000), resetAt: ts(1000) }), true);
+    });
+    test('reset AFTER the set → NOT migrated (a later admin reset re-flags surname default)', () => {
+        assert.equal(isPasswordMigrated({ passwordSetAt: ts(1000), resetAt: ts(2000) }), false);
+    });
+    test('set EXACTLY equal to reset → migrated (>=, boundary)', () => {
+        assert.equal(isPasswordMigrated({ passwordSetAt: ts(1500), resetAt: ts(1500) }), true);
+    });
+    test('a zero passwordSetAt is treated as absent (not migrated)', () => {
+        assert.equal(isPasswordMigrated({ passwordSetAt: ts(0) }), false);
+    });
+    test('a field without toMillis() is treated as 0 (no throw)', () => {
+        assert.equal(isPasswordMigrated({ passwordSetAt: {} }), false);
+        assert.equal(isPasswordMigrated({ passwordSetAt: ts(1000), resetAt: {} }), true);
     });
 });

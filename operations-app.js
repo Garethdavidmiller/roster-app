@@ -11,6 +11,7 @@
 
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
+import { isPasswordMigrated } from './auth-identity.js';
 import { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError } from './operations-reports.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
@@ -206,13 +207,9 @@ export function init() {
         /** @type {Map<string, any>} name → passwordStatus doc */
         let statusMap = new Map();
 
-        /** Migrated ⇔ passwordSetAt present AND at least as new as any admin resetAt (§6). */
-        const migrated = (/** @type {string} */ name) => {
-            const s = statusMap.get(name);
-            const setAt   = /** @type {any} */ (s?.passwordSetAt)?.toMillis?.() ?? 0;
-            const resetAt = /** @type {any} */ (s?.resetAt)?.toMillis?.() ?? 0;
-            return setAt > 0 && setAt >= resetAt;
-        };
+        /** Migrated ⇔ passwordSetAt present AND at least as new as any admin resetAt (§6).
+         *  isPasswordMigrated (auth-identity.js) is the single, unit-tested source. */
+        const migrated = (/** @type {string} */ name) => isPasswordMigrated(statusMap.get(name));
 
         /** @type {HTMLSelectElement} */ let filterSelect;
         /** @type {HTMLElement} */ let summaryEl;

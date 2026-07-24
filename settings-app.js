@@ -9,6 +9,7 @@
 
 import { CONFIG, isValidEmail, isChilternWorkEmail } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword, normaliseSurname } from './firebase-client.js';
+import { isPasswordMigrated } from './auth-identity.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -368,9 +369,8 @@ export function init() {
                 // read before auth.currentUser exists is rejected by the rules and would blank the chip.
                 await sessionReady;
                 const st = await getPasswordStatus(member);
-                const setAt   = /** @type {any} */ (st?.passwordSetAt)?.toMillis?.() ?? 0;
-                const resetAt = /** @type {any} */ (st?.resetAt)?.toMillis?.() ?? 0;
-                paint((setAt > 0 && setAt >= resetAt) || optimisticMigrated);
+                // isPasswordMigrated (auth-identity.js) is the single, unit-tested source (§6).
+                paint(isPasswordMigrated(st) || optimisticMigrated);
             } catch { /* leave the chip/nudge as-is (optimistic paint, or blank) on a read failure */ }
         }
         refreshStatus();
