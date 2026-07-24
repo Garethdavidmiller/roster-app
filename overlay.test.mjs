@@ -46,7 +46,7 @@ global.requestAnimationFrame = fn => fn();
 
 const {
     lockBodyScroll, unlockBodyScroll,
-    trapFocus, initCardCollapse,
+    trapFocus, initCardCollapse, createLightbox,
 } = await import('./overlay.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -95,7 +95,10 @@ function makeEl({ tagName = 'DIV', classes = [], attrs = {} } = {}) {
             listeners[type] = listeners[type] || [];
             listeners[type].push(fn);
         },
-        _trigger: (type, evt = {}) => (listeners[type] || []).forEach(fn => fn(evt)),
+        removeEventListener: (type, fn) => {
+            listeners[type] = (listeners[type] || []).filter(f => f !== fn);
+        },
+        _trigger: (type, evt = {}) => (listeners[type] || []).slice().forEach(fn => fn(evt)),
     };
 }
 
@@ -416,5 +419,60 @@ describe('initCardCollapse', () => {
     test('header gets aria-controls pointing to body id', () => {
         initCardCollapse('hdr', 'bdy');
         assert.equal(header.getAttribute('aria-controls'), 'bdy');
+    });
+});
+
+// ── createLightbox — re-open during the close fade (review F1) ─────────────────
+
+describe('createLightbox — re-open during the close fade', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    function build() {
+        const overlay  = makeEl({ classes: [] });
+        const content  = makeEl({});
+        const closeBtn = makeEl({});
+        const lb = createLightbox({ overlay, content, closeBtn });
+        return { overlay, content, lb };
+    }
+
+    test('re-opening while still fading out re-shows the overlay instead of silently no-opping', () => {
+        const { overlay, lb } = build();
+        lb.open();
+        assert.equal(overlay.classList.contains('visible'), true);
+        assert.equal(overlay.classList.contains('open'), true);
+        assert.equal(_bodyClasses.has('lb-open'), true, 'scroll locked while open');
+
+        lb.close();   // matchMedia matches:false → animated close: .open removed, .visible remains, finish pending
+        assert.equal(overlay.classList.contains('open'), false);
+        assert.equal(overlay.classList.contains('visible'), true, 'still visible mid-fade');
+
+        lb.open();    // re-open DURING the fade — must complete the pending close then re-show
+        assert.equal(overlay.classList.contains('open'), true, 're-opened, not dropped');
+        assert.equal(overlay.classList.contains('visible'), true);
+        assert.equal(_bodyClasses.has('lb-open'), true, 'still locked exactly once (balanced)');
+
+        // The ORIGINAL close's pending transitionend must now be an idempotent no-op — it must not
+        // hide the freshly re-opened overlay or double-unlock scroll.
+        overlay._trigger('transitionend');
+        assert.equal(overlay.classList.contains('visible'), true, 'stale finisher does not hide the re-opened overlay');
+        assert.equal(_bodyClasses.has('lb-open'), true, 'stale finisher does not release the lock');
+
+        // A real close now fully tears down and unlocks.
+        lb.close();
+        overlay._trigger('transitionend');
+        assert.equal(overlay.classList.contains('visible'), false, 'closed');
+        assert.equal(_bodyClasses.has('lb-open'), false, 'unlocked after the real close');
+    });
+
+    test('a normal open → transitionend-settled close → re-open still works (scroll balanced)', () => {
+        const { overlay, lb } = build();
+        lb.open();
+        lb.close();
+        overlay._trigger('transitionend');   // close settles normally
+        assert.equal(overlay.classList.contains('visible'), false);
+        assert.equal(_bodyClasses.has('lb-open'), false);
+        lb.open();                            // fresh open after a clean close
+        assert.equal(overlay.classList.contains('open'), true);
+        assert.equal(_bodyClasses.has('lb-open'), true);
     });
 });

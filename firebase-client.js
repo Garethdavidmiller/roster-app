@@ -382,9 +382,14 @@ async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, delete
     await Promise.all(snap.docs
         .filter(/** @param {any} d */ d => d.id !== excludeDate)
         .map(/** @param {any} d */ async d => {
-            // storagePath added at v13.99; fall back to the legacy fixed-path convention
-            // for older documents uploaded before the versioned upload scheme.
-            const storagePath = d.data()?.storagePath ?? `${collectionName}/${d.id}.pdf`;
+            // storagePath added at v13.99; fall back to the legacy fixed-path convention for older
+            // documents uploaded before the versioned upload scheme. Honour the doc's own fileType
+            // in that fallback (default 'pdf') rather than hardcoding '.pdf' — a legacy .docx would
+            // otherwise orphan its Storage object. (Belt-and-braces: DOCX support postdates
+            // storagePath, so no such doc exists today — but this matches _transactionalUpload's
+            // fileType-aware cleanup and removes the latent assumption.)
+            const _docData    = d.data() || {};
+            const storagePath = _docData.storagePath ?? `${collectionName}/${d.id}.${_docData.fileType || 'pdf'}`;
             try {
                 await deleteDoc(doc(db, collectionName, d.id));
                 await deleteObject(refFn(storage, storagePath))

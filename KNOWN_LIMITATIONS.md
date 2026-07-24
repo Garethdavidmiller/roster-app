@@ -275,6 +275,34 @@ push arrived on a real device. The full scheduled path — Cloud Scheduler trigg
 cutoff-date detection → fan-out — now works end to end. All four v11 security tasks are
 now resolved (#1 done, #2 shipped strict v16.29, #3 done, #4 done).
 
+### Deep-review residuals (July 2026) — accepted / inherent, not code-fixable
+
+A max-effort 8-reviewer deep review (July 2026) found **no critical, high, or security defect**; the
+actionable low-severity findings were fixed in the same pass. These few remain **by nature** — they
+are architecture/App-Check territory or inherent platform behaviour, not bugs to patch:
+
+- **Analytics dynamic-map value integrity.** `analytics/activeAccounts` and `analytics/perf_<month>`
+  hold date-keyed maps whose *values* Firestore rules cannot iterate/type-check, so an authenticated
+  (incl. anonymous calendar) session could write junk/forged counts. The rules already validate
+  SHAPE + block key-removal (the destructive wipe); per-value integrity is **App Check territory**
+  (see below) on non-sensitive, admin-only aggregate counts. The `pv_` counts *are* int-checked.
+- **A late-resolving sign-in can briefly strand a privileged Firebase identity.** A
+  `signInWithEmailAndPassword` that resolves *after* an 8 s login timeout / `clearSession` can leave
+  `auth.currentUser` signed in until the next launch — Firebase sign-in is not cancellable mid-flight.
+  Mitigated already: `reconcileExpiredIdentity()` runs on virtually every calendar/protected-page
+  load and tears down a lingering expired identity. Inherent residual, not a logic error.
+- **`passwordSetAt` vs `resetAt` is a two-system stamp, not atomic.** A sub-second interleave of a
+  member's self-set and an admin reset can momentarily misreport the "migrated" chip. It self-heals
+  on the next set/reset and stores no password material — a monitoring signal, not a control.
+- **Concurrent Huddle ingest can leave a stale notification deep-link.** Two Power-Automate runs for
+  the same date: only one push is sent (the transaction closes the check-then-act race), but the
+  second commit can delete the object the first run's already-sent push linked to → that tap 404s
+  (the in-app viewer still works). Rare double-run only.
+- **`style-src 'unsafe-inline'`** stays in the CSP — the app sets inline styles from JS; style
+  injection is far lower-risk than script (which is fully locked down, no `'unsafe-inline'`). And the
+  `connect-src` `firebasestorage.googleapis.com` entry is redundant under the `*.googleapis.com`
+  wildcard but kept for explicit readability (harmless; the hygiene test tolerates it).
+
 ### Firebase App Check — considered and declined (June 2026)
 App Check (register the app's hosting domains so only requests from our own pages can reach
 Firestore/Storage) was considered as a defence-in-depth measure and **declined for now**.

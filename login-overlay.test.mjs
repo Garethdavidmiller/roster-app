@@ -59,12 +59,14 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         assert.equal(calls.clear, 0);
     });
 
-    test('enforce ON + named false → NO save, clears, ok:false, kind:credential + reset message', async () => {
+    test('enforce ON + named false → NO save, clears, ok:false, kind:credential + credential message', async () => {
         const { deps, calls } = makeDeps({ ensureNamedSession: async () => false });
         const r = await runNamedSignIn(deps);
         assert.equal(r.ok, false);
         assert.equal(r.kind, 'credential', 'a definitive failure drives the client lockout');
-        assert.match(/** @type {string} */ (r.error), /Password incorrect.*ask the admin to reset it/);
+        // Covers both a forgotten password AND a never-provisioned account (auth/user-not-found) —
+        // so it points at "the admin" without promising a reset an unset-up account can't use.
+        assert.match(/** @type {string} */ (r.error), /Password not recognised.*ask the admin/);
         assert.equal(calls.save, 0);
         assert.equal(calls.clear, 1);
     });
