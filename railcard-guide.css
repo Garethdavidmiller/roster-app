@@ -21,7 +21,7 @@
 /* Shell chrome (* reset, .page-header, .btn-back, .btn-pdf, print)
    lives in guide-shell.css. Page-specific styles only below. */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-sans);   /* Inter — shared @font-face in guide-shell.css (v18.79) */
     font-size: 14px;
     line-height: 1.5;
     color: var(--text);
@@ -55,8 +55,8 @@ body {
 .weekend-note {
     background: var(--green-bg);
     border-left: 3px solid var(--green);
-    border-radius: 4px;
-    padding: 7px 10px;
+    border-radius: 8px;
+    padding: 8px 11px;
     font-size: 12px;
     color: var(--text);
     line-height: 1.45;
@@ -65,26 +65,39 @@ body {
 .weekend-note strong { color: var(--green); }
 
 /* ── Section heading ─────────────────────── */
+/* Two-tone rule (v18.79): full-width hairline + a short gold bar over its left end — the same
+   eyebrow treatment refined, replacing the heavier full-width gold underline. */
 .section {
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--navy);
-    border-bottom: 2px solid var(--gold);
-    padding-bottom: 4px;
-    margin: 20px 0 8px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 5px;
+    margin: 22px 0 10px;
+    position: relative;
+}
+.section::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 38px;
+    height: 2px;
+    background: var(--gold);
 }
 .section:first-child { margin-top: 0; }
 
 /* ── Railcard card ───────────────────────── */
 .rc {
     background: var(--white);
-    border-radius: 8px;
-    box-shadow: 0 1px 4px rgba(0,30,60,0.08);
+    border-radius: 10px;
+    /* Layered shadow (v18.79) — a tight contact line + soft ambient, matching the app's card depth */
+    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
     border-left: 4px solid var(--green);
-    padding: 9px 11px 8px;
-    margin-bottom: 5px;
+    padding: 11px 13px 10px;
+    margin-bottom: 8px;
 }
 .rc.amber { border-left-color: var(--amber); }
 .rc.red   { border-left-color: var(--red); }
@@ -93,33 +106,37 @@ body {
 .rc-top {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     gap: 10px;
 }
 .rc-name {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
     color: var(--navy);
     letter-spacing: -0.01em;
 }
+/* Cost/format as a quiet pill (v18.79) — was bare grey text that floated unanchored */
 .rc-cost {
-    font-size: 11px;
-    color: var(--light);
-    font-weight: 500;
+    font-size: 10.5px;
+    color: var(--mid);
+    font-weight: 600;
     white-space: nowrap;
     flex-shrink: 0;
+    background: var(--navy-bg);
+    border-radius: 99px;
+    padding: 2px 9px;
 }
 .rc-who {
     font-size: 12px;
     color: var(--mid);
     line-height: 1.45;
-    margin-top: 1px;
+    margin-top: 2px;
 }
 .rc-facts {
-    margin-top: 6px;
+    margin-top: 8px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
 }
 .rc-row { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; }
 .rc-lbl {
@@ -157,9 +174,9 @@ body {
     border-left: 3px solid var(--amber);
     color: var(--text);
     font-size: 11.5px;
-    padding: 6px 9px;
-    border-radius: 4px;
-    margin-top: 7px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    margin-top: 8px;
     line-height: 1.45;
 }
 .rc-chiltern .ct-label { color: var(--amber); font-weight: 700; margin-right: 4px; }
@@ -170,14 +187,18 @@ body {
 .time-explainer {
     background: var(--navy-bg);
     border-left: 3px solid var(--navy);
-    border-radius: 4px;
-    padding: 8px 10px;
+    border-radius: 8px;
+    padding: 9px 11px;
     font-size: 12px;
     color: var(--text);
     line-height: 1.5;
     margin-bottom: 14px;
 }
-.time-explainer strong { color: var(--navy); display: block; margin-bottom: 2px; }
+/* Only the FIRST strong is the box title (block). Later strongs are mid-sentence emphasis —
+   display:block on ALL of them fractured sentences onto their own lines ("Some cards have a /
+   fixed national morning cutoff / — …"), the worst readability defect on the page (v18.79). */
+.time-explainer strong { color: var(--navy); }
+.time-explainer strong:first-child { display: block; margin-bottom: 2px; }
 .tl-tag {
     display: inline-block;
     font-size: 10px;
@@ -225,14 +246,14 @@ body {
 /* ── Gotchas list ────────────────────────── */
 .gotchas {
     background: var(--white);
-    border-radius: 8px;
-    box-shadow: 0 1px 4px rgba(0,30,60,0.08);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
     overflow: hidden;
 }
 .gotcha {
     display: flex;
     gap: 9px;
-    padding: 10px 12px;
+    padding: 11px 13px;
     border-bottom: 1px solid var(--border);
     font-size: 12px;
     line-height: 1.5;
@@ -257,15 +278,15 @@ body {
 /* ── Checklist ───────────────────────────── */
 .check {
     background: var(--white);
-    border-radius: 8px;
-    box-shadow: 0 1px 4px rgba(0,30,60,0.08);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
     overflow: hidden;
 }
 .check-item {
     display: flex;
     align-items: flex-start;
     gap: 9px;
-    padding: 9px 12px;
+    padding: 10px 13px;
     border-bottom: 1px solid var(--border);
     font-size: 12px;
     line-height: 1.45;
@@ -317,9 +338,9 @@ body {
 /* ── Digital railcards info ──────────────── */
 .digital {
     background: var(--white);
-    border-radius: 8px;
-    box-shadow: 0 1px 4px rgba(0,30,60,0.08);
-    padding: 11px 12px;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    padding: 12px 14px;
 }
 .digital p { font-size: 12px; color: var(--mid); line-height: 1.5; }
 .digital p + p { margin-top: 6px; }
@@ -358,5 +379,6 @@ a { color: var(--navy); text-underline-offset: 2px; }
     /* .chip-bar print-hide is in guide-shell.css (shared) */
     .content { max-width: none; padding: 0 6px; }
     .rc, .gotcha, .check-item, .digital, .weekend-note { break-inside: avoid; }
+    .rc, .gotchas, .check, .digital { box-shadow: none; }
     .section { break-after: avoid; }
 }

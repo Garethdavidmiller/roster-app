@@ -47,7 +47,7 @@
    Shell chrome (* reset, .page-header, .btn-back, .btn-pdf) lives in
    guide-shell.css. Page-specific component grids live in the page CSS. */
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-sans);   /* Inter — shared @font-face in guide-shell.css (v18.79) */
     font-size: 13px;
     line-height: 1.55;
     color: var(--text);
