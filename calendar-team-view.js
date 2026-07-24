@@ -12,9 +12,8 @@
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
-import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, reconcileRangeIntoCache, collectOverrideRecords, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -24,7 +23,11 @@ const _unknownShiftWarned = new Set();
  *
  * @param {object} deps
  * @param {Map<any,any>} deps.rosterOverridesCache   Shared override cache keyed "memberName|date"
- * @param {Function} deps.clearShiftTypesCache   Invalidates the month → shift-types legend memo
+ * @param {Function} deps.ensureOverridesCached  Shared month-fetch machinery (calendar-overrides.js):
+ *   ensureOverridesCached(year, month, renderFn) — deduped by fetchedMonths, authoritatively fetches
+ *   a month's overrides into the shared cache (or no-ops if already fetched) and calls renderFn on a
+ *   fresh fetch. The Team view uses THIS (not its own per-week query) so there is ONE authoritative
+ *   fetcher per month — see the eviction-race note on renderTeamView.
  * @param {Function} deps.getSelectedMemberIndex Returns index of logged-in member in teamMembers
  * @param {Function} deps.isFirstRun             True for a brand-new visitor who hasn't picked a name
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
@@ -32,7 +35,7 @@ const _unknownShiftWarned = new Set();
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
  * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any }}
  */
-export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSelectedMemberIndex, isFirstRun, renderCalendar,
+export function initTeamView({ rosterOverridesCache, ensureOverridesCached, getSelectedMemberIndex, isFirstRun, renderCalendar,
                                 _pushOverlayState, _clearOverlayHistory }) {
 
     // ── STATE ─────────────────────────────────────────────────────────────────
@@ -313,57 +316,55 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         }
 
         if (!skipFetch) {
-            fetchTeamWeekOverrides(weekDates[0], weekDates[6], currentTeamWeekStart.getTime());
+            ensureTeamWeekCached(weekDates);
         }
     }
 
     // ── FIRESTORE FETCH ───────────────────────────────────────────────────────
 
-    /** Fetches all overrides for a week in one query and re-renders if new data is found.
-     *  @param {Date}   weekStart  - Sunday of the week
-     *  @param {Date}   weekEnd    - Saturday of the week
-     *  @param {number} fetchToken - currentTeamWeekStart.getTime() at dispatch time;
-     *                               result is discarded if the user has navigated away. */
-    async function fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken) {
-        try {
-            const snap = await getDocs(query(
-                collection(db, COLLECTIONS.overrides),
-                where('date', '>=', formatISO(weekStart)),
-                where('date', '<=', formatISO(weekEnd))
-            ));
-            // Discard if the user navigated to a different week while this was in flight
-            if (!teamViewMode || currentTeamWeekStart.getTime() !== fetchToken) return;
-            // Collect the validated snapshot rows, then RECONCILE authoritatively (v16.96) — the same
-            // shared helper the calendar path uses (reconcileRangeIntoCache). The range query is the
-            // single source of truth for this week, so each date's winner is rebuilt from THIS
-            // snapshot alone: additions/edits propagate, an in-range key the snapshot omits is a real
-            // delete, and a deleted higher-priority manual can no longer survive because a stale
-            // lower-priority import couldn't out-rank the cached copy (Finding #1). The malformed-doc
-            // skip keeps parity with the calendar fetch (both share rosterOverridesCache). `updated`
-            // is the returned display-changed flag — it gates the re-render, exactly as before.
-            // Shared collector (override-utils.collectOverrideRecords) — same required-field validation
-            // as the calendar month fetch, so the two feeders of rosterOverridesCache can't drift.
-            const records = collectOverrideRecords(snap);
-            const wsISO = formatISO(weekStart), weISO = formatISO(weekEnd);
-            const updated = reconcileRangeIntoCache(rosterOverridesCache, records, wsISO, weISO);
-            // This wrote straight into rosterOverridesCache (not via fetchOverridesForRange), so
-            // invalidate the shift-types memo — otherwise the month legend serves a stale type set
-            // after returning to calendar view (e.g. an AL cell shows but its legend item stays hidden).
-            if (updated) {
-                clearShiftTypesCache();
-                // Focus preservation (v16.69 review fix — the same class of bug as the v16.55
-                // calendar fix, which missed team view): this async re-render lands ~300ms after a
-                // keyboard week-navigation restored focus, wiping the grid and dropping focus to
-                // <body>. Capture the focused element's id and restore it on the rebuilt DOM.
-                const _display  = document.getElementById('calendarDisplay');
-                const _activeId = document.activeElement instanceof HTMLElement
-                    && _display?.contains(document.activeElement) ? document.activeElement.id : null;
-                renderTeamView(currentTeamGrade, { skipFetch: true });
-                if (_activeId) document.getElementById(_activeId)?.focus({ preventScroll: true });
-            }
-        } catch (err) {
-            console.warn('[TeamView] Could not fetch week overrides:', err);
+    /**
+     * Ensure the shown week's overrides are cached, via the SHARED month-fetch machinery
+     * (`ensureOverridesCached`) rather than an independent per-week query.
+     *
+     * WHY (the "team view sometimes loses overrides on click-through" bug): the old per-week fetch
+     * called `reconcileRangeIntoCache` directly, which is AUTHORITATIVE for its range — it evicts any
+     * in-range cache key its snapshot omits. That made TWO authoritative reconcilers race on the same
+     * dates: the initial 3-month fetch would load + render this week's overrides, then the team-week
+     * fetch would resolve LATER with a staler/emptier snapshot (Firestore served it from the
+     * not-yet-synced local cache) and EVICT them, wiping the grid back to the base roster.
+     * `ensureOverridesCached` is deduped by `fetchedMonths`, so a month already owned by the calendar
+     * fetch is a no-op here (the cache already holds its data — no re-query, no eviction) and only a
+     * genuinely un-fetched month (e.g. a week navigated outside the 3-month window) triggers one
+     * authoritative fetch. `refreshFromCache` repaints the CURRENT week/grade from cache (focus-
+     * preserving, and a no-op once team view is exited), so a late fetch can never render a stale week
+     * — which also subsumes the old fetch-token guard. A Sun–Sat week can straddle two months, so
+     * ensure each distinct month the week touches.
+     * @param {Date[]} weekDates  the 7 Sun–Sat dates of the shown week
+     */
+    function ensureTeamWeekCached(weekDates) {
+        const seen = new Set();
+        for (const d of weekDates) {
+            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            ensureOverridesCached(d.getFullYear(), d.getMonth(), refreshFromCache);
         }
+    }
+
+    /**
+     * Re-render the grid from the ALREADY-populated shared cache, no re-fetch (v18.21). Called by the
+     * initial 3-month fetch's success path when team view is active, and by `ensureTeamWeekCached`
+     * when a month it needed has just landed. `skipFetch` avoids a redundant query / fetch↔render
+     * loop. Focus preservation (v18.22, same v16.69 pattern): this async repaint can land right after
+     * a keyboard navigation restored focus, and without capture/restore it dropped focus to <body>.
+     */
+    function refreshFromCache() {
+        if (!teamViewMode) return;
+        const _display  = document.getElementById('calendarDisplay');
+        const _activeId = document.activeElement instanceof HTMLElement
+            && _display?.contains(document.activeElement) ? document.activeElement.id : null;
+        renderTeamView(currentTeamGrade, { skipFetch: true });
+        if (_activeId) document.getElementById(_activeId)?.focus({ preventScroll: true });
     }
 
     // ── TOGGLE / CHROME ───────────────────────────────────────────────────────
@@ -445,21 +446,6 @@ export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSe
         isTeamViewMode:  () => teamViewMode,
         restoreTeamView,
         jumpToCurrentWeek,
-        // Re-render the grid from the ALREADY-populated shared cache, no re-fetch (v18.21).
-        // Called by the initial 3-month fetch's success path when team view is active — the
-        // missing notification that stranded an early team-view open on a base-roster grid
-        // (this view's own week fetch then found the cache already matching its snapshot and
-        // skipped ITS re-render — both notifiers stood down). skipFetch avoids a redundant
-        // query and any fetch↔render loop. Focus preservation (v18.22): same v16.69 pattern as
-        // the week-fetch re-render above — this async repaint can land right after a keyboard
-        // navigation restored focus, and without capture/restore it dropped focus to <body>.
-        refreshFromCache: () => {
-            if (!teamViewMode) return;
-            const _display  = document.getElementById('calendarDisplay');
-            const _activeId = document.activeElement instanceof HTMLElement
-                && _display?.contains(document.activeElement) ? document.activeElement.id : null;
-            renderTeamView(currentTeamGrade, { skipFetch: true });
-            if (_activeId) document.getElementById(_activeId)?.focus({ preventScroll: true });
-        },
+        refreshFromCache,
     };
 }
