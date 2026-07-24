@@ -471,7 +471,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 |----|------|-------|-------|--------|--------|-------------------|
 | `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | 6 Apr 2026 | 90 days | One-time; `NOTICE_YTD_KEY` set on close |
 | `links-beta-2026` | `links.html` | Links Workspace | 🔗 Links | 9 Jun 2026 | 28 days | One-time; `myb_links_beta_seen` set on close |
-| `password-2026` | `paycalc.html` | Set your own password | 💷 Pay | 23 Jul 2026 | 16 days (expires 8 Aug 2026) | One-time; `myb_notice_password-2026_done` set on close |
+| `password-2026` | `paycalc.html` + `index.html` (calendar surface added v18.78 for reach) | Set your own password | 💷 Pay / 📅 Calendar | 23 Jul 2026 (paycalc) · 24 Jul 2026 (calendar) | expires 8 Aug 2026 (16/15 days) | One-time across BOTH surfaces; shared `myb_notice_password-2026_done` set on close of either |
 
 **Monthly cleanup:** on the 1st of each month, remove any notice from the table where `(today − Posted) > 180 days` — delete the HTML block, JS IIFE, and bump the version.
 
