@@ -24,6 +24,9 @@ export function collectFatalErrors(page) {
 
 // Seed a valid signed-in session before any page script runs. Shape must match
 // session.js getSession(): { name, ver: SESSION_VER (2), expiry, lastActivity }.
+// Also marks the time-limited password-2026 campaign notice as seen — a seeded device is
+// "a device that has already dismissed it", so the calendar surface (shown to signed-in
+// members ~1.5s after load, v18.78) can never pop mid-test and steal focus/clicks.
 export function seedSession(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
@@ -32,6 +35,7 @@ export function seedSession(page, name = 'G. Miller') {
             expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
             lastActivity: Date.now(),
         }));
+        localStorage.setItem('myb_notice_password-2026_done', '1');
     }, name);
 }
 

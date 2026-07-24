@@ -10,6 +10,7 @@
 import { CONFIG, isValidEmail, isChilternWorkEmail } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword, normaliseSurname } from './firebase-client.js';
 import { isPasswordMigrated, isCredentialRejection } from './auth-identity.js';
+import { lsSet } from './ls.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -407,6 +408,10 @@ export function init() {
                     : '✓ Password updated. Use it the next time you sign in.', 'ok');
                 curEl.value = newEl.value = confEl.value = '';
                 refreshStatus(true);   // optimistic: the password changed, so show migrated immediately
+                // Target-page permanent dismiss (new-notice pattern): setting the password COMPLETES
+                // the password-2026 campaign, so neither notice surface (paycalc/calendar) shows again
+                // on this device — even if the member reached here without ever closing a notice.
+                lsSet('myb_notice_password-2026_done', '1');
             } catch (e) {
                 const code = /** @type {any} */ (e)?.code || '';
                 // Map by CAUSE and by STAGE. Order: the cause-specific codes first, then the stage split.

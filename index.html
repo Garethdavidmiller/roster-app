@@ -250,6 +250,21 @@
         </div>
     </div>
 
+    <!-- Password security notice (one-time; expires 8 Aug 2026) — the CALENDAR surface of the same
+         password-2026 campaign as paycalc's noticePwLightbox: it shares the campaign's dismissal key,
+         so whichever page shows it first wins and nobody sees it twice. Added v18.78 for reach — the
+         calendar is the only page every member opens; the paycalc-only notice reached staff too
+         slowly (2 migrations in the first 24h). -->
+    <div id="noticePwCalLightbox" class="lb-overlay" role="dialog" aria-label="Set your own password" aria-modal="true">
+        <div id="noticePwCalContent" class="lb-content notice-lb-content">
+            <button id="noticePwCalClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="notice-badge notice-badge--calendar">📅 Calendar</div>
+            <div class="lightbox-app-name">Set your own password</div>
+            <div class="notice-date">Posted 24 Jul 2026</div>
+            <p class="notice-body">You can now set a password only you know. Open <strong>☰ Menu → ⚙️ Settings → Password</strong> to replace your surname default with something more secure.</p>
+        </div>
+    </div>
+
     <!-- Circular / Newsletter viewer — a centred lightbox opened from a #circular /
          #newsletter notification deep link (calendar-doc-viewer.js). Shows an "Open"
          button (the Huddle's PDF pattern); a PDF opens directly, a Word doc via the
