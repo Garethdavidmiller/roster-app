@@ -178,7 +178,7 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
 // pulls the Firebase SDK from the gstatic CDN). Re-exported so existing importers (session.js) are
 // unaffected. The deliberate functions/roster-parse-helpers.js duplicate + surname-parity.test.mjs
 // source-equivalence check now read auth-identity.js.
-import { normaliseSurname, nameToEmail, credentialCandidatesFor } from './auth-identity.js';
+import { normaliseSurname, nameToEmail, credentialCandidatesFor, isCredentialRejection } from './auth-identity.js';
 export { normaliseSurname, nameToEmail };
 
 // ---- Firebase Storage ----
@@ -692,7 +692,15 @@ export async function reauthenticateWithPassword(memberName, typed) {
         try {
             await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, pw));
             return;
-        } catch (e) { lastErr = e; }
+        } catch (e) {
+            lastErr = e;
+            // Only fall through to the NEXT candidate on a DEFINITIVE credential rejection (mirrors the
+            // sign-in ladder, session.js). A transient failure — network / rate-limit / provider outage /
+            // requires-recent-login — must stop immediately: retrying the surname candidate would
+            // duplicate traffic, worsen rate-limiting, and return a misleading final error
+            // (PASSWORD_PLAN.md §3.2). The one shared classifier keeps the two ladders in step.
+            if (!isCredentialRejection(/** @type {any} */ (e)?.code)) break;
+        }
     }
     throw lastErr;
 }

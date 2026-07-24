@@ -9,7 +9,7 @@
 
 import { CONFIG, isValidEmail, isChilternWorkEmail } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword, normaliseSurname } from './firebase-client.js';
-import { isPasswordMigrated } from './auth-identity.js';
+import { isPasswordMigrated, isCredentialRejection } from './auth-identity.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -392,8 +392,13 @@ export function init() {
                 setFeedback('Choose something other than your surname.', 'err'); newEl.focus(); return;
             }
             saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+            // Track WHICH stage failed: a failure AFTER reauth succeeded is NOT "current password wrong"
+            // (the old catch mapped every non-rate-limit/weak error to that, so a network blip during the
+            // update told the member their correct password was incorrect → needless retries + admin reset).
+            let reauthed = false;
             try {
                 await reauthenticateWithPassword(member, current);   // proves they know the current one
+                reauthed = true;
                 const res = await setOwnPassword(member, next);      // updatePassword (+ best-effort stamp)
                 // The password DID change (setOwnPassword only rejects if reauth/updatePassword failed).
                 // A missing migration stamp is a soft note, never "it failed" — see setOwnPassword.
@@ -404,9 +409,14 @@ export function init() {
                 refreshStatus(true);   // optimistic: the password changed, so show migrated immediately
             } catch (e) {
                 const code = /** @type {any} */ (e)?.code || '';
+                // Map by CAUSE and by STAGE. Order: the cause-specific codes first, then the stage split.
                 if (code === 'auth/too-many-requests') setFeedback('Too many attempts — wait a few minutes and try again.', 'err');
                 else if (code === 'auth/weak-password') setFeedback('That password is too weak — choose a longer one.', 'err');
-                else setFeedback('Current password incorrect — try again, or ask the admin to reset it.', 'err');
+                else if (code === 'auth/network-request-failed') setFeedback('Couldn’t connect — check your connection and try again.', 'err');
+                else if (code === 'auth/requires-recent-login') setFeedback('For your security, sign out and back in, then change your password.', 'err');
+                else if (!reauthed && isCredentialRejection(code)) setFeedback('Current password incorrect — try again, or ask the admin to reset it.', 'err');
+                else if (!reauthed) setFeedback('Couldn’t verify your current password — try again shortly.', 'err');
+                else setFeedback('Your password wasn’t updated — try again shortly.', 'err');   // reauth OK, update stage failed
             } finally {
                 saveBtn.disabled = false; saveBtn.textContent = 'Set password';
             }

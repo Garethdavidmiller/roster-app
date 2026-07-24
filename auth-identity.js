@@ -114,3 +114,24 @@ export function isPasswordMigrated(status) {
     const resetAt = status?.resetAt?.toMillis?.() ?? 0;
     return setAt > 0 && setAt >= resetAt;
 }
+
+/**
+ * Firebase Auth error codes that mean the supplied credentials are DEFINITIVELY wrong — as opposed to
+ * a transient failure (network / rate-limit / provider outage / requires-recent-login). Only on one of
+ * these should a candidate-ladder try the NEXT password: a non-credential failure must stop
+ * immediately, or the surname fallback would be retried needlessly (duplicate traffic, worse
+ * rate-limiting, a misleading final error). `invalid-credential` is the modern
+ * email-enumeration-safe code; the others cover older SDK phrasings.
+ *
+ * Single source shared by the sign-in candidate ladder (session.js) AND the Settings reauth
+ * (firebase-client.js `reauthenticateWithPassword`) so the two can't drift (PASSWORD_PLAN.md §3.2).
+ * @type {Set<string>}
+ */
+export const CREDENTIAL_REJECTION_CODES = new Set([
+    'auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found',
+]);
+
+/** @param {string|undefined} code @returns {boolean} true iff `code` is a definitive credential rejection */
+export function isCredentialRejection(code) {
+    return !!code && CREDENTIAL_REJECTION_CODES.has(code);
+}

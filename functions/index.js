@@ -1497,8 +1497,10 @@ exports.setupRosterAuth = onRequest(
 /**
  * resetMemberPassword — admin break-glass (PASSWORD_PLAN.md §5). Resets ONE member's Firebase Auth
  * password back to their surname default and stamps `passwordStatus/{member}.resetAt` (Admin SDK,
- * bypassing Firestore rules) so the member is forced to set a new password on next sign-in. This is
- * the ONLY password-write path in the codebase.
+ * bypassing Firestore rules) so the account is flagged as surname-default again (the Settings nudge
+ * then prompts them to choose a new one — there is no forced overlay yet; that is Phase 2). This is
+ * the only ADMIN / server-side password-write path — self-service changes go through the client
+ * `setOwnPassword` (`updatePassword`) in firebase-client.js, which the server never sees.
  *
  * Admin-only — the same guard as setupRosterAuth (verifyIdToken(checkRevoked) + admin claim). Target
  * must be a SERVER-OWNED provisioned account (roster-members.json), never a raw client name.

@@ -395,19 +395,36 @@ export function init() {
         async function doReset(/** @type {string} */ name, /** @type {HTMLButtonElement} */ btn) {
             const ok = await confirmDialog({
                 title: 'Reset password?',
-                message: `Reset ${name}'s password back to their surname default? They'll be asked to set a new one, and signed out of their other devices.`,
+                // Wording matches what actually happens today: there is NO forced set-a-new-password
+                // overlay yet (PASSWORD_PLAN.md Phase 2, not shipped) — the member signs in with their
+                // surname and is nudged in Settings → Password. Don't imply an enforced step.
+                message: `Reset ${name}'s password back to their surname default and sign them out of their other devices? Tell them to sign in with their surname, then open Settings → Password to choose a new one.`,
                 confirmLabel: 'Reset', danger: true,
             });
             if (!ok) return;
             btn.disabled = true; btn.textContent = 'Resetting…';
+            /** @type {any} */ let result;
             try {
-                await resetMemberPassword(name, { revoke: true });
+                result = await resetMemberPassword(name, { revoke: true });
             } catch (e) {
                 // Only a genuine RESET failure gets the Retry affordance.
                 console.warn('[Operations] resetMemberPassword failed:', e);
                 btn.disabled = false; btn.textContent = 'Retry';
                 btn.title = 'Reset failed — try again shortly';
                 return;
+            }
+            // Partial success (Cloud Function contract): the Firebase password WAS reset + sessions
+            // revoked, but writing `resetAt` to Firestore failed (`stamped:false`). Without the stamp the
+            // status re-read below still sees the old passwordSetAt with no newer resetAt → the table
+            // keeps showing "Own password" + a Reset button, so an admin could reset again not knowing it
+            // already worked. Tell them what actually happened (a re-run is safe and heals the stamp).
+            if (result && result.stamped === false) {
+                console.warn('[Operations] resetMemberPassword: password reset but resetAt stamp failed for', name);
+                confirmDialog({
+                    title: 'Password reset — status not updated',
+                    message: `${name}'s password was reset to their surname and their other sessions were signed out. The account-status stamp couldn't be saved, so the table below may still show "Own password". Resetting again later is safe and will fix the status.`,
+                    confirmLabel: 'OK',
+                }).catch(() => {});   // informational; the reset itself already succeeded
             }
             // Reset SUCCEEDED (member re-defaulted + signed out). The follow-up status re-read is
             // best-effort — if it fails, do NOT show "Retry"/"Reset failed" (that would prompt a
