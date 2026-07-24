@@ -111,8 +111,11 @@ session, login screen skipped) — with **no password available**:
 ### 3.5 Error codes + copy
 With Firebase email-enumeration protection, failures arrive as `auth/invalid-credential`
 (indistinguishable from "no account") — one message covers both, using the house wording rule
-(account matters → "the admin"): **"Password incorrect — if you've forgotten it, ask the admin to
-reset it."** `auth/too-many-requests` gets its own message ("Too many attempts — wait a few
+(account matters → "the admin"): **"Password not recognised — if you've forgotten it, or your
+account isn't set up yet, ask the admin."** (Updated v18.74 from the older "Password incorrect …
+ask the admin to reset it" — the remedy for a never-provisioned account is set-up, not a reset, so
+the wording no longer promises a reset that can't help; login-overlay.js is the source of truth.)
+`auth/too-many-requests` gets its own message ("Too many attempts — wait a few
 minutes") and is never retried. The client 3-strikes-30s lockout stays, keyed off returned
 failures instead of the local check. The login hint is **static** (a per-member hint would need a
 Firestore read on the login path — forbidden): *"Your surname in lowercase — or the password
