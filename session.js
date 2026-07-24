@@ -15,7 +15,7 @@
  */
 
 import { auth, authReady, onAuthStateChanged, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
-import { surnamePassword, credentialCandidatesFor } from './auth-identity.js';
+import { surnamePassword, credentialCandidatesFor, isCredentialRejection } from './auth-identity.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CONFIG } from './roster-data.js';
 
@@ -26,12 +26,9 @@ import { CONFIG } from './roster-data.js';
  *  password, an anonymous fallback here would be silently denied every write by the strict B3 rules,
  *  reproducing the v10.94 outage class). `invalid-credential` is the modern email-enumeration-safe
  *  code; `wrong-password`/`invalid-login-credentials`/`user-not-found` cover older SDK phrasings.
- *  @type {Set<string>} */
-const _CREDENTIAL_REJECTION_CODES = new Set([
-    'auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found',
-]);
-/** @param {string|undefined} code */
-const _isCredentialRejection = (code) => !!code && _CREDENTIAL_REJECTION_CODES.has(code);
+ *  The classification is the shared `isCredentialRejection` (auth-identity.js) — the SAME predicate
+ *  the Settings reauth uses, so the two candidate ladders can't drift. */
+const _isCredentialRejection = isCredentialRejection;
 import { dispatchAuth } from './auth-state.js';
 
 /**

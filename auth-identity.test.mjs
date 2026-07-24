@@ -11,7 +11,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated } from './auth-identity.js';
+import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection } from './auth-identity.js';
 
 /** Firestore Timestamp-like stub: an object exposing toMillis(). */
 const ts = (/** @type {number} */ ms) => ({ toMillis: () => ms });
@@ -119,5 +119,25 @@ describe('isPasswordMigrated — the Operations/Settings status predicate (PASSW
     test('a field without toMillis() is treated as 0 (no throw)', () => {
         assert.equal(isPasswordMigrated({ passwordSetAt: {} }), false);
         assert.equal(isPasswordMigrated({ passwordSetAt: ts(1000), resetAt: {} }), true);
+    });
+});
+
+describe('isCredentialRejection — the shared candidate-ladder stop predicate (PASSWORD_PLAN §3.2)', () => {
+    test('definitive credential-rejection codes → true (try the next candidate)', () => {
+        for (const code of ['auth/wrong-password', 'auth/invalid-credential', 'auth/invalid-login-credentials', 'auth/user-not-found']) {
+            assert.equal(isCredentialRejection(code), true, code);
+        }
+    });
+    test('transient / non-credential failures → false (STOP, do not retry the surname candidate)', () => {
+        // These are exactly the codes the sign-in AND Settings-reauth ladders must NOT keep retrying on.
+        for (const code of ['auth/network-request-failed', 'auth/too-many-requests', 'auth/operation-not-allowed',
+                            'auth/requires-recent-login', 'auth/internal-error', 'auth/user-disabled']) {
+            assert.equal(isCredentialRejection(code), false, code);
+        }
+    });
+    test('undefined / empty / unknown code → false (fail safe: stop rather than loop)', () => {
+        assert.equal(isCredentialRejection(undefined), false);
+        assert.equal(isCredentialRejection(''), false);
+        assert.equal(isCredentialRejection('auth/something-new'), false);
     });
 });
