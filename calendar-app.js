@@ -27,7 +27,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
-import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, clearShiftTypesCache, _initialFetchInProgress } from './calendar-overrides.js';
+import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress } from './calendar-overrides.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
@@ -68,7 +68,7 @@ const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPa
 // ============================================
 const teamView = initTeamView({
     rosterOverridesCache,
-    clearShiftTypesCache,
+    ensureOverridesCached,
     getSelectedMemberIndex,
     isFirstRun,
     renderCalendar,
