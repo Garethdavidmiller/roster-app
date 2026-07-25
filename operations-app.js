@@ -241,8 +241,16 @@ export function init() {
             row.className = 'acct-row';
             row.dataset.member = m.name;
 
-            // Head line: name · password posture · (migrated only) Reset. A surname-default account has
-            // nothing to reset TO, so Reset is shown only once a member has set their own password.
+            // Head line: name · password posture · Reset (ALWAYS — v18.84). Reset used to render only
+            // for a MIGRATED member ("a surname-default account has nothing to reset TO"), which quietly
+            // made the migration flag a security control. It isn't one: setOwnPassword deliberately
+            // tolerates the Firestore stamp failing after updatePassword has already succeeded (it
+            // returns statusRecorded:false and its own JSDoc calls the stamp "a monitoring signal, not
+            // a security control"). A member whose stamp was lost therefore holds a REAL password while
+            // this table reads "Surname default" — and with Reset hidden, the only in-app break-glass
+            // path was gone: their surname no longer signs them in and recovery needed the Firebase
+            // console. Resetting a genuinely surname-default account is harmless (it re-applies the same
+            // default) and still usefully signs their other devices out, so always offer it.
             const head = document.createElement('div');
             head.className = 'acct-row-head';
             const nameEl = document.createElement('span');
@@ -253,15 +261,16 @@ export function init() {
             pwEl.className = 'acct-pw' + (mig ? '' : ' acct-pw--warn');
             pwEl.textContent = mig ? '✓ Own password' : 'Surname default';
             head.append(nameEl, pwEl);
-            if (mig) {
-                const resetBtn = document.createElement('button');
-                resetBtn.type = 'button';
-                resetBtn.className = 'btn-acct-reset';
-                resetBtn.textContent = 'Reset';
-                resetBtn.setAttribute('aria-label', `Reset ${m.name}'s password to their surname default`);
-                resetBtn.addEventListener('click', () => doReset(m.name, resetBtn));
-                head.appendChild(resetBtn);
-            }
+            const resetBtn = document.createElement('button');
+            resetBtn.type = 'button';
+            resetBtn.className = 'btn-acct-reset';
+            resetBtn.textContent = 'Reset';
+            resetBtn.setAttribute('aria-label', `Reset ${m.name}'s password to their surname default`);
+            resetBtn.title = mig
+                ? `Reset ${m.name} back to their surname default`
+                : `Re-apply ${m.name}'s surname default and sign out their other devices`;
+            resetBtn.addEventListener('click', () => doReset(m.name, resetBtn));
+            head.appendChild(resetBtn);
             row.appendChild(head);
 
             // Email line: 📧 address + Edit/Remove, OR 📧 "No work email" + Set email.

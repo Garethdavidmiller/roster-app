@@ -398,6 +398,15 @@ export function init() {
             // update told the member their correct password was incorrect → needless retries + admin reset).
             let reauthed = false;
             try {
+                // Wait for the session like every OTHER write on this page does (the contact card's
+                // save/remove and refreshStatus all await it; this handler didn't — v18.84). initApp()
+                // runs while ensureNamedSession is still in flight, so a save fired before it settled
+                // could (a) hit a null auth.currentUser — reauthenticateWithPassword throws a plain
+                // 'Not signed in' with no .code, which fell through to "couldn't verify your current
+                // password" for a CORRECT password — or (b) on a shared device mid-identity-switch,
+                // reauthenticate and updatePassword against the PREVIOUSLY persisted member while
+                // stamping passwordStatus for this one.
+                await sessionReady;
                 await reauthenticateWithPassword(member, current);   // proves they know the current one
                 reauthed = true;
                 const res = await setOwnPassword(member, next);      // updatePassword (+ best-effort stamp)

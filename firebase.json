@@ -35,6 +35,8 @@
       "package-lock.json",
       "playwright.config.mjs",
       "playwright.csp.mjs",
+      "playwright.visual.mjs",
+      "playwright.offline.mjs",
       "e2e/**",
       "test-fixtures/**",
       "playwright-report/**",

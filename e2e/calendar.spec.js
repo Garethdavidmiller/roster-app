@@ -109,5 +109,35 @@ test('calendar: a drawer guide link navigates same-tab (no new tab / Custom Tab)
     await page.waitForURL(/guide\.html/, { timeout: 4000 });     // same tab, after the ~120ms defer
     expect(popupSeen, 'no popup/new tab must open').toBe(false);
     await expect(page.locator('.page-header h1')).toContainText('Staff & Admin Guide');
+    // The guide's ← must come back HERE (v18.84 — guide-back.js reads the ?from= hint). Opened from
+    // the calendar it stays './', but the hint must be present for the pages where it matters.
+    expect(page.url()).toContain('from=');
+    await expect(page.locator('.btn-back')).toHaveAttribute('href', './');
+});
+
+// v18.84: a guide opened from a SUB-page must send you back to that page, not to the calendar. The
+// guides' ← is hardcoded (guide/railcard/fip → './'), which was invisible while guides opened in a
+// new tab but stranded you once v18.81 made them navigate in the same tab.
+test('admin: a drawer guide link comes back to Admin, not the calendar', async ({ page }) => {
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.locator('#navMenuBtn').click();
+    const guide = page.locator('.nav-panel-link--guide', { hasText: 'Railcard Guide' });
+    await expect(guide).toBeVisible();
+    await guide.click();
+    await page.waitForURL(/railcard-guide\.html/, { timeout: 4000 });
+    await expect(page.locator('.btn-back')).toHaveAttribute('href', './admin.html');
+    await expect(page.locator('.btn-back')).toHaveAttribute('aria-label', 'Back to Admin');
+    await page.locator('.btn-back').click();
+    await page.waitForURL(/admin\.html/, { timeout: 4000 });
+});
+
+// A crafted ?from= must never become the back arrow's destination — the guide checks it against an
+// allowlist of the app's own pages and otherwise leaves the authored href alone.
+test('guide: an off-allowlist ?from= leaves the back arrow untouched', async ({ page }) => {
+    await page.goto('/railcard-guide.html?from=https://evil.example/x');
+    await expect(page.locator('.btn-back')).toHaveAttribute('href', './');
+    await page.goto('/railcard-guide.html?from=../../etc/passwd');
+    await expect(page.locator('.btn-back')).toHaveAttribute('href', './');
 });
 

@@ -68,6 +68,16 @@ const NAV_GUIDES = [
     { icon: '🇪🇺', label: 'FIP Travel Guide',     url: './fip.html'            },
 ];
 
+/**
+ * This page's bare filename, for the `?from=` hint appended to a guide link (v18.84) so the guide's
+ * ← comes back HERE instead of its hardcoded default. A directory URL ("/", "/roster-app/") means
+ * the calendar. Guide-side this is checked against an allowlist, so an odd value is simply ignored.
+ * @returns {string}
+ */
+function _currentPageFile() {
+    return window.location.pathname.split('/').pop() || 'index.html';
+}
+
 let _panelOpen      = false;
 // A single shallow history entry, shared by the panel and any lightbox that
 // opens from inside it — so Android Back pops exactly one entry.
@@ -435,9 +445,36 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             const plainGuideClick = e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
             if (plainGuideClick && _historyPushed) {
                 e.preventDefault();
-                closePanelForNavigation();      // clear _historyPushed + visually close (no history.back)
-                const dest = /** @type {HTMLAnchorElement} */ (guideLink).href;
-                setTimeout(() => location.replace(dest), 120);   // overwrite the drawer's same-URL entry
+                // Close visually but KEEP the drawer's claim on its history entry until the
+                // navigation actually fires (v18.84). closePanelForNavigation() cleared
+                // _historyPushed immediately, leaving a ~120ms window where that entry was live but
+                // unclaimed: registerPopInterceptor(() => _historyPushed) returned false, so a Back
+                // press in the window fell through to overlay.js's handler stack and ran an
+                // UNRELATED overlay's close handler (on the calendar it could drop you out of Team
+                // Week View) — and then navigated to the guide anyway. Back now cancels the pending
+                // navigation, which is what Back means. The page-pill branch below needs none of
+                // this: its location.replace is synchronous, so it has no window.
+                _closePanelVisualOnly();
+                unlockBodyScroll();
+                // Tell the guide where we came FROM so its ← returns here (guide-back.js, v18.84).
+                // Each guide's arrow is otherwise hardcoded to the calendar (or the pay calculator),
+                // which was fine while guides opened in a new tab but strands you since v18.81's
+                // same-tab navigation — open the Railcard Guide from Admin and ← dropped you on the
+                // calendar. Only ever the current page's own filename, and the guide checks it
+                // against an allowlist before using it.
+                const dest = new URL(/** @type {HTMLAnchorElement} */ (guideLink).href);
+                dest.searchParams.set('from', _currentPageFile());
+                let _navTimer = 0;
+                const _cancelNav = () => {
+                    clearTimeout(_navTimer);
+                    window.removeEventListener('popstate', _cancelNav);
+                };
+                _navTimer = window.setTimeout(() => {
+                    window.removeEventListener('popstate', _cancelNav);
+                    _historyPushed = false;                  // consumed by the replace below
+                    location.replace(dest.href);             // overwrite the drawer's same-URL entry
+                }, 120);
+                window.addEventListener('popstate', _cancelNav);
                 return;
             }
             // Modifier/middle click (desktop "open in new tab") or no pushed entry: default anchor path.
@@ -847,10 +884,11 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
             }).join('')}
         </ul>`).join('');
 
-    // Guides — expanded by default; the toggle can collapse the list. Open in a NEW TAB (A6):
-    // a guide's own back arrow always goes to the Calendar, so replacing the current page loses
-    // your place (open the Railcard guide from Admin, tap back → Calendar, not Admin). Opening in
-    // a new tab keeps the page you were on — and matches the guide links in the About panel.
+    // Guides — expanded by default; the toggle can collapse the list. They navigate in the SAME TAB
+    // (v18.81 — the old target="_blank" wrapped every guide in Android's Chrome Custom Tab / iOS's
+    // in-app Safari, the "extra header on all the guides" staff report). The click handler above
+    // appends ?from=<this page> so the guide's ← comes back HERE (guide-back.js, v18.84) — which is
+    // what the new-tab open used to buy us, without the extra browser chrome.
     const guideLinks = NAV_GUIDES
         .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide"><span aria-hidden="true">${g.icon}</span> ${g.label}</a></li>`)
         .join('');

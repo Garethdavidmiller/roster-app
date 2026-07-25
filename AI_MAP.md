@@ -72,6 +72,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` + `railcard-guide.css` |
 | Print button for guide.html and paycalc-guide.html | `guide-print.js` |
+| Guide back-arrow retarget (`?from=` → the page you came from, all 4 guides) | `guide-back.js` |
 | Shared guide chrome — header, back/PDF buttons, print banner (all 4 guides) | `guide-shell.css` |
 | Page-specific styles for guide.html | `guide.css` |
 | Page-specific styles for paycalc-guide.html | `paycalc-guide.css` |
@@ -148,7 +149,7 @@ Firestore override cache for `index.html` — extracted from `calendar-app.js` a
 - `fetchOverridesForRange(startStr, endStr)` — Firestore date-range query; populates cache, warns on duplicates, clears `shiftTypesMonthCache`
 - `ensureOverridesCached(year, month, renderFn)` — no-op if already fetched; fires background fetch then calls `renderFn()` on success (coordinator provides callback with teamView + member-change guards)
 - `getShiftTypesInMonth(member, year, month)` — memoised `Set<string>` of shift types appearing in a month; used by `updateLegend()`
-- `clearShiftTypesCache()` — invalidate that memo; callers writing straight into `rosterOverridesCache` (Team Week View's fetch) must call it or the month legend serves a stale type set (v15.22)
+- (`clearShiftTypesCache()` was **removed at v18.84** — Team Week View was its only caller and moved onto the shared month fetch at v18.76, so `fetchOverridesForRange` is now the sole cache writer and clears the memo itself. Any future direct writer must clear `shiftTypesMonthCache` where it writes, or the month legend serves a stale type set.)
 - `monthKey(year, month)` — `"YYYY-MM"` key string for the `fetchedMonths` Set
 - `_initialFetchInProgress` — exported live binding; coordinator reads it to skip competing fetches during the initial 3-month load
 - `setInitialFetchInProgress(v)`, `addFetchedMonths(keys)`, `clearFetchedMonth(key)` — setters called by `calendar-initial-fetch.js` (the initial 3-month fetch module)
@@ -756,6 +757,12 @@ Interactive behaviour for `fip.html` (v16.59 — CSP compliance; plain `defer` s
 Shared print button handler for `guide.html` and `paycalc-guide.html` (extracted v10.84 — CSP compliance).
 - Wires `click → window.print()` on `.btn-print` in whichever guide page loads it
 - No modules; plain script with `defer`
+
+### `guide-back.js`
+Shared back-arrow retarget for all four guide pages (v18.84) — a classic `defer` script, no exports.
+- Reads the `?from=<page>` hint `nav-panel.js` appends when it opens a guide, and rewrites that guide's `.btn-back` `href` + `aria-label` to point at the page you actually came from
+- **Why:** each guide's `←` is a hardcoded destination (`guide`/`railcard`/`fip` → the calendar, `paycalc-guide` → the pay calculator). Harmless while guides opened in a new tab; since v18.81 they navigate in the SAME tab, so opening the Railcard Guide from Admin and tapping `←` landed you on the Calendar. The browser/hardware Back was always right — only the visible arrow was wrong, and in an installed iOS PWA that arrow is the only back control
+- `from` is looked up in a `DESTINATIONS` **allowlist** of the app's own pages (never used as a raw URL), so a crafted value can't turn the arrow into an off-site link; an absent/unknown `from` (direct visit, bookmark, shared link) leaves the authored href untouched
 
 ### `ls.js`
 Safe localStorage wrappers for all app pages (iOS Safari private mode compatibility).
