@@ -265,8 +265,13 @@ export function updateWeekNavLabel(dateStr) {
     saturday.setDate(sunday.getDate() + 6);
     const label = document.getElementById('weekNavLabel');
     if (label) {
-        label.textContent =
-            `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]} – ${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
+        // Same-month ranges collapse to "19–25 Jul 2026" (v18.90). The full form repeats the month
+        // for no information, and at the documented 375px width it overflowed the nav pill — it
+        // ellipsised to "19 Jul – 25 Jul 2026 …", dropping the 📅 tap affordance with it.
+        // formatTeamWeekLabel (calendar-team-view.js) has always collapsed; admin was the outlier.
+        label.textContent = sunday.getMonth() === saturday.getMonth()
+            ? `${sunday.getDate()}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`
+            : `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]} – ${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
         const todaySun = new Date();
         todaySun.setDate(todaySun.getDate() - todaySun.getDay());
         label.classList.toggle('is-current-week', sunday.toDateString() === todaySun.toDateString());

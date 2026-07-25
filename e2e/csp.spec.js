@@ -11,8 +11,8 @@
 // app actually requests (the historical `connect-src` gstatic outage), or a policy typo — invisible
 // to the http-server smoke suite (no headers) and to the static check (config-only).
 //
-// ONE class of violation is EXPECTED and ignored (see IGNORED_BLOCKS): telemetry beacons fired by
-// Firebase Auth's own `apis.google.com` iframe. Blocking those is the policy working as intended —
+// ONE class of violation is EXPECTED and ignored (see IGNORED_BLOCKS + BEACON_DIRECTIVES): telemetry
+// beacons fired by Firebase Auth's own `apis.google.com` iframe. Blocking those is the policy working as intended —
 // they are Google's analytics pings, not something the app needs — so counting them as failures
 // asserted the wrong thing. And because they only fire if the auth iframe reaches that state before
 // the test ends, they made this suite fail intermittently on CI while passing locally every time
@@ -33,17 +33,34 @@ import { test, expect } from '@playwright/test';
  * Both are fire-and-forget telemetry from the `apis.google.com` iframe Firebase Auth loads:
  *   · `www.google.com/images/cleardot.gif` — a 1×1 tracking pixel
  *   · `apis.google.com/js/gen_204`         — Google's logging beacon
- * Neither carries auth data or affects sign-in; `www.google.com` is deliberately absent from
- * `connect-src`, so refusing them is the intended outcome, not a policy that is too tight.
+ * Neither carries auth data nor affects sign-in, so refusing them is the intended outcome rather
+ * than a policy that is too tight. Note the two are refused by DIFFERENT directives: `www.google.com`
+ * appears in no directive at all, while `apis.google.com` IS in `connect-src` (added v17.96) — so the
+ * gen_204 refusal must come from a directive that does not list it, `img-src` being the one that fits
+ * a pixel-style beacon. That inference is from the policy, not from a recorded violation.
  */
 const IGNORED_BLOCKS = [
     'www.google.com/images/cleardot.gif',
     'apis.google.com/js/gen_204',
 ];
 
-/** True when a violation is one of the expected third-party telemetry blocks above. */
-const isIgnorable = (/** @type {{ blocked: string }} */ v) =>
-    IGNORED_BLOCKS.some(u => (v.blocked || '').includes(u));
+/**
+ * Directives a telemetry beacon may legitimately be refused by. Waiving a URL is NOT waiving the
+ * host: if `apis.google.com` is ever refused for a `script-src` or `frame-src` load, that breaks
+ * Firebase Auth for real (it is the v17.82 outage) and must still fail the suite. Only beacon-class
+ * refusals are expected, so only those are ignorable.
+ */
+const BEACON_DIRECTIVES = ['img-src', 'connect-src', 'default-src'];
+
+/** True when a violation is an expected third-party telemetry block AND a beacon-class refusal. */
+const isIgnorable = (/** @type {{ blocked: string, directive: string }} */ v) => {
+    if (!IGNORED_BLOCKS.some(u => (v.blocked || '').includes(u))) return false;
+    const d = v.directive || '';
+    // Console-backstop records carry no directive, so fall back to the message text: a refused
+    // script/frame/style says so in words, and those are never ignorable.
+    if (d === 'console') return !/\b(script|frame|stylesheet|worker)\b/i.test(v.blocked || '');
+    return BEACON_DIRECTIVES.some(x => d.startsWith(x));
+};
 
 const PAGES = [
     '/', '/admin.html', '/paycalc.html', '/operations.html', '/settings.html', '/links.html',

@@ -310,6 +310,12 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, getS
                     const wrapLeft  = tableWrap.getBoundingClientRect().left;
                     const cellLeft  = todayTh.getBoundingClientRect().left;
                     const nameWidth = nameTh.getBoundingClientRect().width;
+                    // NOTE (v18.90): when today is late in the week this lands mid-column, so a
+                    // sliver of the previous day shows beside the sticky name column. Snapping back
+                    // to the nearest column start was tried and REVERTED — it pushed today itself
+                    // off-screen, and showing today is the whole point of this scroll. At maximum
+                    // scroll a partial column somewhere is unavoidable with a sticky first column;
+                    // having it fall on the far side, away from today, is the better trade.
                     tableWrap.scrollLeft = cellLeft - wrapLeft - nameWidth;
                 }
             });

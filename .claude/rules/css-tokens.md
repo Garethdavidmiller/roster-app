@@ -77,10 +77,20 @@ One easing/duration vocabulary in `shared.css :root`:
 
 Use these tokens, not inline `cubic-bezier(...)` or a bare `ease`.
 
-**Two overlay corner families, both named** (v18.87): compact white DIALOGS (month-jump, team info)
-use `--radius-xl` (20px); full navy GLASS SHEETS (About, notices, day detail, AL) use
-`--radius-panel` (24px). The difference is deliberate, but only the dialog side had a name — the six
-glass panels each restated `border-radius: 24px`, so the rule lived nowhere. No pixels moved.
+**Two overlay corner families, both named** (v18.87): compact white DIALOGS (month-jump, team info,
+login, work-email check, Tips, confirm/prompt) use `--radius-xl` (20px); full navy GLASS SHEETS
+(About, notices, day detail, AL) use `--radius-panel` (24px). The difference is deliberate, but only
+the dialog side had a name — the six glass panels each restated `border-radius: 24px`, so the rule
+lived nowhere. No pixels moved.
+
+**An overlay never wears the card radius** (v18.90). The v18.87 pass above described two families
+while the code had three: four white panels (`#loginCard`, `#emailCheckContent`,
+`#tipsLightboxContent`, `.dialog-lb-content`) sat on `--radius-lg`, which is the radius `.card` uses
+on every page. A token hides that in a way a literal wouldn't — `--radius-lg` reads like it belongs
+to a large panel, and `.dialog-lb-content` even carried a comment claiming it matched "the
+modal-picker panel family", though no picker sets it. Sharing a silhouette with the card underneath
+flattens the layering an overlay depends on. All four now sit on `--radius-xl`, so the two-family
+description is true of the code. When adding an overlay, pick a family — never `--radius-lg`.
 
 **Every focusable field carries the 4px ring** `box-shadow: 0 0 0 4px var(--focus-ring-color)`. The
 shared `promptDialog` input was the one exception (`outline: none` and nothing in its place) until

@@ -2142,7 +2142,10 @@
             position: fixed;
             inset: 0;
             background: white;
-            z-index: 8500;
+            /* var(--z-notice), not the literal 8500 it happened to equal (v18.90): the viewer must
+               sit above the lightbox base and below login, which is exactly that band. As a literal
+               it would silently drift out of the scale the moment --z-notice is retuned. */
+            z-index: var(--z-notice);
             flex-direction: column;
             opacity: 0;
             transform: translateY(100%);
