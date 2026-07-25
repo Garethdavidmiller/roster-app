@@ -44,3 +44,17 @@ if (document.fonts && document.fonts.ready) {
 } else {
     requestAnimationFrame(adjustScrollOffsets);
 }
+// Re-sync the sticky stack whenever the header's box changes after the one-shot measurement (late
+// font swap, font-scale change, rotation) — else the chip-bar's sticky `top` goes stale and page
+// content shows through the gap (v18.82; mirrors fip.js).
+if (typeof ResizeObserver === 'function') {
+    var _hdrEl = document.querySelector('.page-header');
+    if (_hdrEl) {
+        var _roScheduled = false;
+        new ResizeObserver(function () {
+            if (_roScheduled) return;
+            _roScheduled = true;
+            requestAnimationFrame(function () { _roScheduled = false; adjustScrollOffsets(); });
+        }).observe(_hdrEl);
+    }
+}

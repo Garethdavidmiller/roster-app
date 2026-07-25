@@ -174,7 +174,24 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
     font-size: 14px;
 }
 .detail-row:last-child { border-bottom: none; }
-.detail-key { color: var(--mid); flex-shrink: 0; min-width: 88px; font-size: 13px; }
+/* FIXED key column (v18.82 — was min-width:88px, which long labels overflowed so every row's
+   value started at a different x: the ragged two-column mess a staff screenshot flagged). */
+.detail-key { color: var(--mid); flex: 0 0 118px; font-size: 13px; }
+/* Phones: stack key OVER value — at narrow widths / large accessibility font sizes no fixed
+   column fits, so the key becomes a small muted eyebrow (mirrors .sub-label) and the value
+   takes the full row. Clean single left edge at every text size. */
+@media (max-width: 640px) {
+    .detail-row { display: block; padding: 8px 0; }
+    .detail-key {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--light);
+        margin-bottom: 2px;
+    }
+}
 
 /* ── Country/ferry collapsibles ──────────── */
 details {
