@@ -98,3 +98,35 @@ test('paycalc desktop @1280×720 (short height): result card renders, no horizon
     expect(overflow, 'no horizontal overflow on a short-height paycalc').toBeLessThanOrEqual(1);
 });
 
+
+// ── ADMIN WEEK LABEL at 375px (v18.91) ────────────────────────────────────
+// The documented primary width, and the one control the whole Change-a-Shift card hangs off. This
+// label regressed twice in two versions without anyone noticing: v18.89 reclaimed 14px from the row
+// (replacing padding with `gap`) so six cross-month weeks began to ellipsise, and v18.90 then
+// collapsed only the SAME-month form — which made today's week look fixed while those six still
+// clipped. What gets cut is the trailing 📅, the date picker's only affordance, so the failure is
+// silent unless you happen to be on one of those weeks.
+//
+// Every prior check here was "does the PAGE overflow", which this never triggered — the label
+// ellipsises inside its own box, so the page stays clean. Measuring scrollWidth vs clientWidth on
+// the element itself is what catches it. 57 weeks covers 13 months, so every cross-month boundary
+// (including the long "30 Aug–5 Sep 2026" shape) is exercised.
+test('admin week label fits at 375px for every week across 13 months', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
+    await page.goto('/admin.html');
+    await expect(page.locator('#weekNavLabel')).toBeVisible();
+
+    const overflowing = [];
+    for (let i = 0; i < 57; i++) {
+        const r = await page.evaluate(() => {
+            const el = document.getElementById('weekNavLabel');
+            return el ? { text: el.textContent, sw: el.scrollWidth, cw: el.clientWidth } : null;
+        });
+        if (r && r.sw > r.cw) overflowing.push(`${r.text} (${r.sw}px into ${r.cw}px)`);
+        await page.locator('#nextWeekBtn').click();
+    }
+    expect(overflowing, `week labels ellipsising at 375px — the 📅 affordance is cut off:\n${overflowing.join('\n')}`)
+        .toEqual([]);
+});

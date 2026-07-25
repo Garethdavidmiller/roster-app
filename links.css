@@ -16,14 +16,20 @@
        colours they claim to mirror — the early orange was 10% darker and 13° off hue, the late
        blue 6% lighter and 11.5° off — because shared.css moved to oklch() and these hex literals
        stayed behind. Forwarding means a brand change reaches this page too; links-colour-parity
-       is asserted by guide-colour-parity.test.mjs. Contrast on the 16% wash is unchanged in kind
-       (early 6.2:1, late 7.3:1 — both clear WCAG AA). */
+       is asserted by guide-colour-parity.test.mjs.
+
+       Contrast on the 16% wash, MEASURED (v18.91 — the figures here previously read "early 6.2:1,
+       late 7.3:1", which matched neither the values before the change nor after it): early #8f3000
+       on #f7e9d3 = 6.77:1, late #0c4689 on #d2e1f2 = 7.01:1. Both clear WCAG AA comfortably, and
+       they are now within 0.24 of each other so the two labels carry the same visual weight — at
+       the 62% mix the late text measured 9.71:1 and read noticeably heavier than early beside it.
+       Re-measure if either token moves; do not adjust these by eye. */
     --shift-early-fill: var(--orange);
     --shift-late-fill:  var(--blue-sky);
     --shift-early-text: var(--orange-text);
     /* No app token exists for dark-blue TEXT (--blue-sky is a fill), so derive one from it rather
        than hardcoding a fourth hex — it then tracks the brand blue automatically. */
-    --shift-late-text:  color-mix(in oklch, var(--blue-sky) 62%, black);
+    --shift-late-text:  color-mix(in oklch, var(--blue-sky) 78%, black);
     --shift-spare-text: #705600;
     --shift-night-text: #3d1a5c;
     --unfilled-flag:    #7a3800;   /* amber line-number flag for an all-rest (undesigned) row */

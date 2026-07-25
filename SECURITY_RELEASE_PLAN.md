@@ -146,13 +146,15 @@ Three design points that flow from this and still govern any future rule change:
 - **RE-PRIORITISED (v18.88) — migrate the 7 PRIVILEGED accounts first, as their own milestone.**
   The plan's only migration gate is "≥90% of everyone", which conflates two different goals: *closing
   risk* and *retiring the surname mechanism*. They are not the same size of job, because **risk is
-  concentrated in 7 of ~42 active accounts**:
+  concentrated in 7 of the 50 active accounts** (counted from `functions/roster-members.json`, the
+  server-owned list — managers carry `hidden: true`, which is why a headcount off the visible
+  dropdown reads lower):
 
   | Tier | Accounts | What a guessed password gets an attacker |
   |------|----------|------------------------------------------|
   | Master admin | 1 | Everything — any member's overrides, uploads, roster import, auth setup |
   | Management | 6 | Any member's AL / absence / shifts, on behalf |
-  | Staff | ~35 | **Only their own** overrides (the B3 isolation rule holds) |
+  | Staff | 43 | **Only their own** overrides (the B3 isolation rule holds) |
 
   So migrating the admin + 6 managers closes the large majority of the exposure, and it needs **no
   code at all** — 7 people opening Settings → Password. The ≥90% gate is about being able to delete

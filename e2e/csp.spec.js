@@ -50,7 +50,7 @@ const IGNORED_BLOCKS = [
  * Firebase Auth for real (it is the v17.82 outage) and must still fail the suite. Only beacon-class
  * refusals are expected, so only those are ignorable.
  */
-const BEACON_DIRECTIVES = ['img-src', 'connect-src', 'default-src'];
+const BEACON_DIRECTIVES = ['img-src', 'connect-src'];
 
 /** True when a violation is an expected third-party telemetry block AND a beacon-class refusal. */
 const isIgnorable = (/** @type {{ blocked: string, directive: string }} */ v) => {

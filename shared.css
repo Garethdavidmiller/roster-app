@@ -736,11 +736,20 @@ body.lb-open #stickyTotal { display: none !important; }
     font-size: var(--type-badge);
     line-height: 1.5;
     color: rgba(255,255,255,0.6);
-    /* Left-aligned for the same reason as .notice-body (v18.89) — this note runs to 3 lines in the
-       paycalc welcome dialog, and centred prose over 3 lines is harder to read than left-aligned. */
-    text-align: left;
+    /* CENTRED by default (v18.91 — v18.89 left-aligned all of them). The class has two consumers and
+       they want different things: in the paycalc ABOUT panel the note is 2 lines among entirely
+       centred siblings (version, status chip, badge, buttons, and the print caption right below it),
+       so left-aligning it alone left "never shared." hanging flush-left in a centred column. The
+       3-line welcome-dialog instance is the one the ~2-line rule actually applies to, and it opts in
+       below. */
+    text-align: center;
     text-wrap: pretty;
 }
+
+/* The welcome dialog's copy runs to 3 lines, past the point where centring works against the reader
+   (every line starts at a different x) — the .notice-body rule. Scoped so the 2-line About note,
+   which sits in a fully centred panel, keeps its alignment. */
+#welcomeLightbox .lightbox-privacy { text-align: left; }
 
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
    Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".

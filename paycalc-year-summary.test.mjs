@@ -6,13 +6,13 @@
  *
  * Mock strategy (mirrors paycalc-hpp.test.mjs):
  *   paycalc-periods.js  — mocked with a controllable getPeriods()
- *   paycalc-settings.js — mocked: cea / 140 contracted / no pro-rate / £147.36 pension / £20.74
+ *   paycalc-settings.js — mocked: cea / 140 contracted / no pro-rate / £147.36 pension / £21.49
  *   ls.js / roster-data.js — mocked (no Firebase transitive deps)
  *   paycalc-calc.js / paycalc-migrations.js / paycalc-hpp.js — REAL (pure), so the per-payslip
  *     figures assert the same engine calculate() uses.
  *
- * Periods are placed AFTER the 2025/26 award date (24 Oct 2025) so the mid-year rate step is not
- * in play and every payslip prices at the settled £20.74.
+ * Periods are placed AFTER the 2026/27 award date (28 Aug 2026) so the mid-year rate step is not
+ * in play and every payslip prices at the settled £21.49.
  */
 import { test, describe, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,7 +43,7 @@ mock.module('./paycalc-settings.js', {
         getEffectiveContr:    () => 140,
         getProRateFactor:     /** @param {any} p */ p => _proRate(p),
         getPensionDefault:    () => 147.36,
-        getStoredRateForYear: () => 20.74,
+        getStoredRateForYear: () => 21.49,
     },
 });
 
@@ -70,16 +70,24 @@ const { computeGross, computeTax, computeNI, computeSL, getThresholds } = await 
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
 
-// A 4-payslip slice of 2025/26, all paydays after the 24 Oct 2025 award date (no rate step).
+// A 4-payslip slice of 2026/27, all paydays after the 28 Aug 2026 award date (no rate step).
 // Offsets (p.num − 48) 12–15 → ty.first 12 / ty.last 15.
-const TY = { label: '2025/26', first: 12, last: 15, londonAllow: 276.16, londonAllowPre: 267.08 };
-const P60 = { num: 60, payday: new Date(2025, 10, 21) };
-const P61 = { num: 61, payday: new Date(2025, 11, 19) };
-const P62 = { num: 62, payday: new Date(2026, 0, 16) };
-const P63 = { num: 63, payday: new Date(2026, 1, 13) };
-const NOW = new Date(2026, 1, 1);   // between P62 and P63 → 3 paid, P63 future
-const T25 = getThresholds('2025/26');
-const RATE = 20.74, CONTR = 140, LONDON = 276.16, PENSION = 147.36;
+//
+// The year matters now (v18.91): computeYearSoFar asks paycalc-hpp-schedule.js which payslip in the
+// window carries a premium, and that module checks the REAL TAX_YEARS — so the fixture's January
+// payday must be one a modelled tax year actually claims. This slice's January is Jan 2027, which
+// 2025/26 claims (hppPaidJan 2027): the genuine production case, a year's window carrying the PRIOR
+// year's premium. The previous slice ran a year earlier, so its January (2026) belonged to 2024/25
+// — a year the table doesn't model — and the test asserted a placement that cannot occur.
+const TY = { label: '2026/27', first: 12, last: 15,
+             londonAllow: 286.10, londonAllowPre: 276.16, londonAllowFrom: new Date(2026, 7, 28) };
+const P60 = { num: 60, payday: new Date(2026, 10, 20) };
+const P61 = { num: 61, payday: new Date(2026, 11, 18) };
+const P62 = { num: 62, payday: new Date(2027, 0, 15) };
+const P63 = { num: 63, payday: new Date(2027, 1, 12) };
+const NOW = new Date(2027, 1, 1);   // between P62 and P63 → 3 paid, P63 future
+const T25 = getThresholds('2026/27');
+const RATE = 21.49, CONTR = 140, LONDON = 286.10, PENSION = 147.36;
 const OPTS = { taxCode: '1257L', plan: 'none', pgLoan: false, now: NOW };
 
 /** Mirror one payslip through the same real engine, so the totals assert the wiring. `lump` is a
@@ -192,16 +200,18 @@ describe('computeYearSoFar', () => {
 
     // REGRESSION (v18.84): this used to pass a synthetic `{ ...TY, hppPaidJan: 2026 }` — the one
     // value that would fall inside the fixture's own period range — so it was green against a
-    // configuration that CANNOT occur. In the real table a year's HPP is paid the January AFTER the
-    // year ends (2025/26 → hppPaidJan 2027, a payday outside 2025/26's periods), so the old
-    // `payday.getFullYear() === ty.hppPaidJan` lookup never matched for ANY real tax year and the
-    // lump was silently dropped from these totals while the result card added it. TY here carries
-    // the REALISTIC out-of-range hppPaidJan, so the old lookup would fail this test.
+    // configuration that CANNOT occur. A year's HPP is paid the January AFTER the year ends, so
+    // that lookup never matched for ANY real tax year and the lump was silently dropped from these
+    // totals while the result card added it.
+    //
+    // Since v18.91 the placement comes from paycalc-hpp-schedule.js against the REAL TAX_YEARS, so
+    // no synthetic hppPaidJan is needed — or wanted. The fixture's own January (Jan 2027, claimed by
+    // 2025/26) IS the production case, and asking the module means this test now fails if the
+    // module and the coordinator ever disagree about which payslip carries the lump.
     test('an INCLUDED HPP lump lands on the tax year’s first January payslip', () => {
-        _ls.set('myb_pc_p62', JSON.stringify({ otH: 4, otM: 0 }));   // P62 = Jan 2026 (paid: now = 1 Feb)
-        const tyReal  = { ...TY, hppPaidJan: 2027 };   // as the real table has it — NOT inside TY's periods
-        const base    = computeYearSoFar(tyReal, OPTS);
-        const withHpp = computeYearSoFar(tyReal, { ...OPTS, hppLump: { amount: 800 } });
+        _ls.set('myb_pc_p62', JSON.stringify({ otH: 4, otM: 0 }));   // P62 = Jan 2027 (paid: now = 1 Feb)
+        const base    = computeYearSoFar(TY, OPTS);
+        const withHpp = computeYearSoFar(TY, { ...OPTS, hppLump: { amount: 800 } });
         const lumpNet = mirror({ oHrs: 4, lump: 800 }).net - mirror({ oHrs: 4 }).net;
         assert.ok(lumpNet > 0, 'an £800 gross lump nets something after tax/NI');
         assert.equal(base.entered, 1, 'only P62 is paid + entered');

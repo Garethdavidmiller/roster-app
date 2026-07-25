@@ -282,7 +282,11 @@
         .week-nav {
             display: flex;
             align-items: center;
-            gap: 6px;
+            /* 4px, not the 6px v18.89 set (v18.91). Three gaps take 3× whatever this is straight out
+               of the flexible date-wrap, and 6px left the longest cross-month labels ~5px short at
+               375px. Measure this row at 375px before raising it — the label is the first thing to
+               lose, and it loses the 📅 affordance first. */
+            gap: 4px;
             min-width: 0; /* allow the flex row to shrink so the date-wrap can ellipsise rather than push the 📍 pin off the card edge */
         }
 

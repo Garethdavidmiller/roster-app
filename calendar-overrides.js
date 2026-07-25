@@ -104,11 +104,17 @@ export async function ensureOverridesCached(year, month, renderFn) {
         const startStr = formatISO(new Date(year, month, 1));
         const endStr   = formatISO(new Date(year, month + 1, 0));
         await fetchOverridesForRange(startStr, endStr);
-        renderFn?.();
     } catch (err) {
         fetchedMonths.delete(key);  // Allow retry on next navigation
         console.error('[Firestore] Failed to fetch overrides for', key, err);
+        return;
     }
+    // The render is deliberately OUTSIDE the try (v18.91). The fetch succeeded by this point and the
+    // cache holds the new data; if the callback then throws mid-DOM-rebuild, treating that as a fetch
+    // failure would log the wrong cause AND un-mark the month, so the next navigation re-queries data
+    // that is already cached. v18.76 raised the stakes by making a full Team-View grid rebuild one of
+    // these callbacks. A render fault is the caller's to handle — it must not corrupt fetch state.
+    renderFn?.();
 }
 
 /**

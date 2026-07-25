@@ -144,7 +144,8 @@ that state before the spec ends — which is why the `csp` job failed on three u
 (#1070/#1078/#1080) while the parallel run of the same commit passed. `IGNORED_BLOCKS` now names those
 two URIs, gated by `BEACON_DIRECTIVES` so the waiver applies **only** to `img-src`/`connect-src`
 refusals: if `apis.google.com` is ever refused for a `script-src` or `frame-src` load — the v17.82
-outage — it still fails. **Do not widen the policy to make a beacon pass;** blocking third-party
+outage — it still fails. (A live Chromium probe under the Hosting emulator confirmed the `gen_204`
+beacon is refused by `img-src`, so the two directives named are the two that can legitimately fire.) **Do not widen the policy to make a beacon pass;** blocking third-party
 telemetry is the intended behaviour.
 
 ### GitHub Pages mirror — CSP via `<meta>`, with two residual header-only gaps (v17.63)

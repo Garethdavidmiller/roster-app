@@ -97,7 +97,11 @@
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
         <div class="lightbox-badge">Admin</div>
-<a href="./guide.html" class="lightbox-bug-link"><span aria-hidden="true">📖</span> View quick guide</a>
+<!-- ?from=admin.html so guide-back.js points the guide's ← back HERE (v18.91). Without it this
+     route still reproduced the bug v18.81/84 set out to fix: the nav drawer appends the hint, but
+     this About-panel link didn't, so ← landed on the calendar. guide.html's own default is the
+     calendar, which is right only for the calendar's own link. -->
+<a href="./guide.html?from=admin.html" class="lightbox-bug-link"><span aria-hidden="true">📖</span> View quick guide</a>
         <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> View staff roster</a>
         <a id="adminBugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     </div>

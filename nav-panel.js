@@ -439,9 +439,15 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             // below gives the write time to reach Firestore's LOCAL persistence queue before this
             // page unloads (persistentLocalCache then syncs it on the next app open); the delay is
             // visually covered by the drawer's close animation.
+            //
+            // Counted at the moment the navigation actually COMMITS, not on the click (v18.91):
+            // the plain-click path below defers ~120ms and Back cancels it, so counting up front
+            // recorded opens that never happened.
             const _href = guideLink.getAttribute('href') || '';
-            if (_href.includes('railcard-guide')) recordOpen('guide-railcard', _usageId);
-            else if (_href.includes('fip.html'))  recordOpen('guide-fip', _usageId);
+            const _countGuideOpen = () => {
+                if (_href.includes('railcard-guide')) recordOpen('guide-railcard', _usageId);
+                else if (_href.includes('fip.html'))  recordOpen('guide-fip', _usageId);
+            };
             const plainGuideClick = e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
             if (plainGuideClick && _historyPushed) {
                 e.preventDefault();
@@ -454,8 +460,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 // Week View) — and then navigated to the guide anyway. Back now cancels the pending
                 // navigation, which is what Back means. The page-pill branch below needs none of
                 // this: its location.replace is synchronous, so it has no window.
-                _closePanelVisualOnly();
-                unlockBodyScroll();
+                _closePanelVisualOnly();   // already unlocks body scroll — do not unlock again here
                 // Tell the guide where we came FROM so its ← returns here (guide-back.js, v18.84).
                 // Each guide's arrow is otherwise hardcoded to the calendar (or the pay calculator),
                 // which was fine while guides opened in a new tab but strands you since v18.81's
@@ -471,6 +476,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 };
                 _navTimer = window.setTimeout(() => {
                     window.removeEventListener('popstate', _cancelNav);
+                    _countGuideOpen();                       // committed — count it now, not on click
                     _historyPushed = false;                  // consumed by the replace below
                     location.replace(dest.href);             // overwrite the drawer's same-URL entry
                 }, 120);
@@ -478,6 +484,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 return;
             }
             // Modifier/middle click (desktop "open in new tab") or no pushed entry: default anchor path.
+            // Nothing is deferred or cancellable here, so the open is committed — count it.
+            _countGuideOpen();
             closePanelForNavigation();
             return;
         }

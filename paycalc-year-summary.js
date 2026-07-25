@@ -21,9 +21,10 @@
 
 import {
   computeGross, computeTax, computeNI, computeSL, getThresholds,
-  getRateForPeriod, getLondonAllowanceForPeriod,
+  getRateForPeriod, getLondonAllowanceForPeriod, TAX_YEARS,
 } from './paycalc-calc.js';
 import { getPeriods } from './paycalc-periods.js';
+import { periodsInTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 import {
   getGrade, getEffectiveContr, getProRateFactor, getStoredRateForYear, getPensionDefault,
 } from './paycalc-settings.js';
@@ -59,10 +60,8 @@ export function computeYearSoFar(ty, opts) {
   const settledRate = getStoredRateForYear(ty);
   const T           = getThresholds(ty.label);
 
-  const yearPeriods = getPeriods().filter(/** @param {any} p */ p => {
-    const o = p.num - 48;
-    return o >= ty.first && o <= ty.last;
-  });
+  const allPeriods  = getPeriods();
+  const yearPeriods = periodsInTaxYear(ty, allPeriods);
   // PAID and EMPLOYED. A period falling entirely before a mid-year joiner's start date contributes
   // £0 and was never theirs to fill in, so counting it in the denominator and NAMING it under "Not
   // entered yet" told a joiner to enter payslips from before they worked here — the same defect
@@ -75,15 +74,17 @@ export function computeYearSoFar(ty, opts) {
   // full-year take-home was over-projected by multiplying the per-payslip average by 13.
   const employedPeriods = yearPeriods.filter(/** @param {any} p */ p => getProRateFactor(p) > 0).length;
 
-  // The Holiday Pay Premium lands on this tax year's FIRST January payslip. Match the PAYSLIP, not
-  // a year label: the premium that payslip carries is the PRIOR year's (a year's HPP is paid the
-  // January AFTER it ends), so the old `p.payday.getFullYear() === ty.hppPaidJan` test compared this
-  // year's paydays against a January beyond its own last period and could NEVER match — for either
-  // tax year — silently dropping every opt-in lump and leaving the year-so-far take-home
-  // contradicting the result card it promises to agree with. The caller resolves WHICH year's
-  // premium this is and passes only the amount. (v18.84)
+  // Which payslip inside this tax year carries an HPP lump. ASK paycalc-hpp-schedule.js — do not
+  // re-derive it here (v18.91). v18.84 fixed this line in place by deleting a broken year test
+  // (`p.payday.getFullYear() === ty.hppPaidJan` compared this year's paydays against a January
+  // beyond its own last period, so it could never match and every opt-in lump was silently dropped),
+  // and v18.85 then extracted the relation into a shared module "so the callers ask it questions"
+  // — but migrated the three sites that were already RIGHT and left this one, the only one that had
+  // ever been wrong, still hand-rolling. The bare `.find(month === 0)` it was left with validates
+  // nothing: it would place a lump on a January payslip that no tax year claims. Only the caller's
+  // guard kept that unreachable. hppPaidInTaxYear returns null in exactly that case.
   const hppJanNum = opts.hppLump
-    ? (yearPeriods.find(/** @param {any} p */ p => p.payday.getMonth() === 0)?.num ?? 0)
+    ? (hppPaidInTaxYear(ty, allPeriods, TAX_YEARS)?.payslip.num ?? 0)
     : 0;
 
   let entered = 0, taxable = 0, tax = 0, ni = 0, sl = 0, net = 0, skipped = 0;
