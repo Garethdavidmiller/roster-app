@@ -66,11 +66,17 @@ body {
    desktop-specific refinements live here. The old 860px two-column grid was replaced because
    two one-field cards side by side read as sparse/half-empty on a wide screen. */
 @media (min-width: 1024px) {
-    /* Prose measure cap for card descriptions on desktop. */
-    .card .hint { max-width: 60ch; }
+    /* Prose measure cap for card descriptions on desktop. 60ch → 68ch (v18.89): the cap sits
+       INSIDE an already-narrow 600px card, so at 60ch it was wrapping the hints earlier than the
+       card required while the documented comfortable band runs to 72ch. */
+    .card .hint { max-width: 68ch; }
 
-    /* Buttons: no reason to span the full column width on desktop */
-    .btn-action { max-width: 280px; }
+    /* The 280px cap is REMOVED (v18.89). Its rationale — "no reason to span the full column" —
+       holds on a 1100px page, but this column is 600px and the field above the button is 536px,
+       so a button pinned to the field's left edge at exactly half its width read as truncated
+       rather than deliberate: every card ended with a 256px gutter. Matching the field is also
+       what the app's own login form already does (#loginSubmit spans its field), and what this
+       page does on mobile — so full width here is the consistent answer, not the novel one. */
 }
 
 /* ---- Work Email card ---- */
