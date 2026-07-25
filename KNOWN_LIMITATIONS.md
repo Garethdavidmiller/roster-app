@@ -73,6 +73,15 @@ default stays valid until each account sets a password, and the surname is not *
 ≥90%-migrated gate. So treat this as "the fix is now available and one action away", not "resolved for
 all accounts". Migration progress is visible in Operations → Account status.
 
+**Status update (25 Jul 2026, owner-reported — not independently verified in-repo).** 2 accounts had
+migrated in the first 24 hours, **one of them the owner's**. So the specific exposure this entry is
+about — a guessable *master admin* password, the highest-value target in the app — **is closed in
+practice**. What remains open is the **6 management accounts**, which can write any member's
+AL/absence/shifts on behalf; a staff account, by contrast, can only write its own overrides (the B3
+isolation rule holds), so its blast radius is one person's roster. Chasing those 6 needs no code —
+it is 7 people total opening Settings → Password, and it closes the large majority of what is left.
+Verify against Operations → Account status rather than taking this paragraph's word for it.
+
 **Revisit when:** the app URL is advertised more widely, or it becomes official Chiltern
 infrastructure — then confirm the admin/manager accounts have set their own passwords (and sequence
 Track C Phase 2/3 for staff-wide migration + surname retirement). Do not treat the guessable admin

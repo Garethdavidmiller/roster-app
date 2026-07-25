@@ -18,8 +18,12 @@ lessons**, everything still **open**, and the sections code points at.*
 rule text and gate cases:
 
 - **Track A (infra, standalone):** A1 — the transitive `uuid` advisories in `functions/` cleared via a
-  scoped **`overrides: { "uuid": "^11.1.1" }`** on the supported firebase-admin **`^13`** (v15.32;
-  `npm audit --omit=dev` → 0). The originally-assumed firebase-admin **v14 bump was neither needed nor
+  scoped **`overrides: { "uuid": "^11.1.1" }`** on the supported firebase-admin **`^13`** (v15.32).
+  **`npm audit --omit=dev` is 0 again as of v18.88** — it had drifted to 2 (low `body-parser`,
+  moderate `protobufjs`, both transitive DoS advisories), cleared by a lockfile-only `npm audit fix`
+  (body-parser 1.20.5→1.20.6, protobufjs 7.6.4→7.6.5; no `package.json` range moved). **Note the
+  weekly `functions-audit.yml` runs `--audit-level=high`, so low/moderate drift like this does NOT
+  fail CI** — it is caught only by looking. Re-check when reading this doc. The originally-assumed firebase-admin **v14 bump was neither needed nor
   safe** — it breaks the `firebase-functions` peer range and the namespaced `admin.*` API `index.js`
   uses. Drop the override once `@google-cloud/storage` ships `uuid >= 11.1.1` upstream. · A2 — Workload
   Identity Federation, keyless OIDC on all 3 deploy workflows; SA JSON key + `FIREBASE_SERVICE_ACCOUNT`
@@ -37,7 +41,10 @@ rule text and gate cases:
 - **Later hardenings:** A5 — `pushSubscriptions` per-owner delete (v17.76): `savePushSubscription`
   stamps `owner = auth.currentUser.uid`; delete requires `resource.data.owner == request.auth.uid` OR
   no `owner` (legacy docs stay deletable so VAPID-rotation cleanup isn't locked out; orphans swept by
-  `fanOutPush`'s 410/404 cleanup). Emulator-tested. A6 — a CSP `*.googleapis.com` narrowing was **tried
+  `fanOutPush`'s 410/404 cleanup). **Extended v18.74:** create/update now also require `owner ==
+  request.auth.uid` when the field is present, AND on update re-check the EXISTING doc's owner — so a
+  session can't take over another device's subscription by re-stamping its own uid (the same
+  overwrite-by-re-labelling gap the delete rule closed). Emulator-tested. A6 — a CSP `*.googleapis.com` narrowing was **tried
   and reverted** (it broke the CI `csp` job — the SDK reaches more `*.googleapis.com` hosts on a real
   network than the four listed; the wildcard stays — KNOWN_LIMITATIONS).
 
@@ -133,12 +140,45 @@ Three design points that flow from this and still govern any future rule change:
   **Phase 3 / C5** (retire the surname default — gated on ≥90% migrated, irreversible). Email
   self-service reset (C2) remains deferred until a mail relay exists.
 - **Ordering within C:** verification (C2) → reset path (C4) → self-service change (C3, needs B0) →
-  retire surname (C5, irreversible, ≥90% migrated).
+  retire surname (C5, irreversible, ≥90% migrated). *(Historic ordering — C3/C4′ shipped first as the
+  "C-lite" reshuffle; C2 is deferred behind a mail relay.)*
+
+- **RE-PRIORITISED (v18.88) — migrate the 7 PRIVILEGED accounts first, as their own milestone.**
+  The plan's only migration gate is "≥90% of everyone", which conflates two different goals: *closing
+  risk* and *retiring the surname mechanism*. They are not the same size of job, because **risk is
+  concentrated in 7 of ~42 active accounts**:
+
+  | Tier | Accounts | What a guessed password gets an attacker |
+  |------|----------|------------------------------------------|
+  | Master admin | 1 | Everything — any member's overrides, uploads, roster import, auth setup |
+  | Management | 6 | Any member's AL / absence / shifts, on behalf |
+  | Staff | ~35 | **Only their own** overrides (the B3 isolation rule holds) |
+
+  So migrating the admin + 6 managers closes the large majority of the exposure, and it needs **no
+  code at all** — 7 people opening Settings → Password. The ≥90% gate is about being able to delete
+  the surname fallback, which is a tidiness/one-way-door goal, not the risk-closing one.
+
+  **Owner-reported (25 Jul 2026, not independently verified here): 2 accounts migrated in the first
+  24 hours, one of them the owner's.** That means the single highest-value target — the master admin —
+  **is already off the guessable surname default**, which is the biggest single risk reduction
+  available in this whole track and it has already happened. It also means voluntary migration among
+  everyone else is running at roughly one account per day, so **the ≥90% (≈38 accounts) gate is
+  unreachable without compulsion** — see Phase 2.
+
+  **Recommended next step:** chase the 6 managers directly (a conversation, not a release), and record
+  "all admin + manager accounts migrated" as an explicit milestone here. Only then decide whether the
+  Phase 2 forced overlay is worth building for the ~35 staff accounts, whose blast radius is one
+  person's own roster.
 - **Risk:** locking staff out of the *core roster* is a bigger operational risk than the present
   surname-password weakness. C5 is one-way.
-- **Mitigation:** admin break-glass always available; C5 gated on `staffContact.verified` count vs
-  active `teamMembers`; all secret-setting server-side only (never trust the client to set
-  `verified`/`password`).
+- **Mitigation:** admin break-glass always available; all secret-setting server-side only (never
+  trust the client to set `password`).
+- **C5 gate — corrected (v18.88).** This previously read "gated on `staffContact.verified` count vs
+  active `teamMembers`". **`staffContact.verified` does not exist and never did** — `firestore.rules`
+  still calls it "a FUTURE server-only `verified`". The mechanism that actually shipped (v18.63) is
+  the **`passwordStatus`** collection: migrated ⇔ `passwordSetAt` present AND `>= resetAt`
+  (`isPasswordMigrated` in `auth-identity.js`, the single tested source), surfaced as the Operations
+  **Account status** table. Read the gate off THAT, not a field that was never built.
 - **Rollback:** C2–C4 are additive (revertible); C5 is **not** — do not ship until the metric gate is met.
 
 ### Track D — App Check (monitor → enforce; AFTER Track B stable)
