@@ -92,3 +92,22 @@ test('calendar: nav drawer opens on burger click', async ({ page }) => {
     await expect(page.locator('#navMenuBtn')).toHaveAttribute('aria-expanded', 'true');
 });
 
+// Guide links navigate in the SAME window (v18.81 — was target="_blank", which from the installed
+// PWA wrapped every guide in Android's Chrome Custom Tab / iOS's in-app Safari chrome: the "extra
+// header at the top of all the guides" staff report). Assert: no popup, the SAME tab lands on the
+// guide (after the drawer-close + open-counter defer), and the guide's ← back returns to the app.
+test('calendar: a drawer guide link navigates same-tab (no new tab / Custom Tab)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#teamMemberSelect option').first()).toBeAttached();
+    await page.locator('#navMenuBtn').click();
+    const guide = page.locator('.nav-panel-link--guide', { hasText: 'Staff & Admin Guide' });
+    await expect(guide).toBeVisible();
+    await expect(guide).not.toHaveAttribute('target', '_blank');
+    let popupSeen = false;
+    page.context().once('page', () => { popupSeen = true; });
+    await guide.click();
+    await page.waitForURL(/guide\.html/, { timeout: 4000 });     // same tab, after the ~120ms defer
+    expect(popupSeen, 'no popup/new tab must open').toBe(false);
+    await expect(page.locator('.page-header h1')).toContainText('Staff & Admin Guide');
+});
+

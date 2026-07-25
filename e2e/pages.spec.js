@@ -252,11 +252,12 @@ test('promptDialog: resolves the typed value on confirm, null on cancel (not nat
     expect(r.cancelled, 'cancel resolves null').toBe(null);
 });
 
-// Regression guard (v17.62): with unsaved changes, a nav-drawer GUIDE link (target="_blank")
-// must still open a new tab and leave the Links page (and its unsaved design) put — NOT get
-// caught by the unsaved-changes guard and navigate the current tab away. The guard is only for
-// same-tab navigation. Reproduces the bug the async-dialog conversion briefly introduced.
-test('links: a guide link (new tab) is not caught by the unsaved-changes guard', async ({ page, context }) => {
+// Guide links are SAME-TAB navigation since v18.81 (target="_blank" wrapped guides in Android's
+// Chrome Custom Tab / iOS's in-app Safari from the installed PWA — the "extra header on every
+// guide" staff report). So with unsaved changes a drawer guide link must now be CAUGHT by the
+// links unsaved-changes guard exactly like a page pill: the leave-confirm appears; cancelling
+// keeps the page and the unsaved design intact.
+test('links: a guide link (same-tab) routes through the unsaved-changes guard', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 800 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
@@ -270,18 +271,20 @@ test('links: a guide link (new tab) is not caught by the unsaved-changes guard',
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     await expect(page.locator('#linksSaveRow')).toBeVisible();              // design now loaded (unsaved)
 
-    // Open the drawer and click a guide link (target="_blank").
+    // Open the drawer and click a guide link (same-tab since v18.81).
     await page.locator('#navMenuBtn').click();
     const guide = page.locator('.nav-panel-link--guide').first();
     await expect(guide).toBeVisible();
-    const popupPromise = context.waitForEvent('page');                     // the new tab
     await guide.click();
-    const popup = await popupPromise;
 
-    // No leave-prompt appeared, and THIS tab stayed on the Links page (unsaved work preserved).
+    // The unsaved-changes leave-confirm appears; cancel → still on Links, unsaved work preserved.
+    const dialog = page.locator('.dialog-overlay');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('unsaved changes');
+    await dialog.locator('.dialog-btn-cancel').click();
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     await expect(page).toHaveURL(/links\.html/);
-    await popup.close();
+    await expect(page.locator('#linksSaveRow')).toBeVisible();
 });
 
 // Regression guard: the auto-generate card holds a wide targets table (one row per shift

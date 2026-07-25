@@ -412,20 +412,37 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             _openNotices();
             return;
         }
-        // Guide links open in a NEW TAB (target="_blank"), so THIS page stays put. Close with a real
-        // history.back() to CONSUME the drawer's pushed entry — closePanelForNavigation() only clears
-        // the flag (no back()), leaving a dead same-URL entry that swallows the next Android Back press
-        // (the same leak the doc-in-new-tab and brand→About paths fix). The anchor's default action
-        // still opens the new tab. (A6)
+        // Guide links navigate IN THE SAME WINDOW (v18.81 — was target="_blank" until then). From the
+        // installed PWA a new-tab open doesn't stay in the standalone window: Android wraps the guide
+        // in a Chrome Custom Tab (the ✕/title/URL bar a staff screenshot reported as "an extra header
+        // on every guide") and iOS shows the in-app Safari sheet. The guides are same-origin,
+        // SW-precached, and carry a ← back to the calendar, so in-place navigation keeps the app
+        // feeling like one app. Same replace-the-drawer-entry dance as the page pills below (the
+        // drawer's pushed history entry must not survive as a dead duplicate). On the links page the
+        // unsaved-changes guard now correctly intercepts these like any same-tab navigation (its
+        // capture-phase handler runs first and swallows the click while dirty).
         const guideLink = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--guide'));
         if (guideLink) {
             // Anonymous open-counter for the two reference guides (v18.20; admin-excluded). The
             // guides are static pages with no Firebase, so the tap here — their only in-app
-            // route — is where the open is counted. Fire-and-forget; the anchor still navigates.
+            // route — is where the open is counted. Fire-and-forget: the ~120ms navigation defer
+            // below gives the write time to reach Firestore's LOCAL persistence queue before this
+            // page unloads (persistentLocalCache then syncs it on the next app open); the delay is
+            // visually covered by the drawer's close animation.
             const _href = guideLink.getAttribute('href') || '';
             if (_href.includes('railcard-guide')) recordOpen('guide-railcard', _usageId);
             else if (_href.includes('fip.html'))  recordOpen('guide-fip', _usageId);
-            closePanel(); return;
+            const plainGuideClick = e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+            if (plainGuideClick && _historyPushed) {
+                e.preventDefault();
+                closePanelForNavigation();      // clear _historyPushed + visually close (no history.back)
+                const dest = /** @type {HTMLAnchorElement} */ (guideLink).href;
+                setTimeout(() => location.replace(dest), 120);   // overwrite the drawer's same-URL entry
+                return;
+            }
+            // Modifier/middle click (desktop "open in new tab") or no pushed entry: default anchor path.
+            closePanelForNavigation();
+            return;
         }
         // Same-tab page navigation (pills, Settings, real info links). The drawer pushed a history
         // entry on open whose URL equals THIS page's; a plain <a> nav stacks the destination ON TOP of
@@ -835,7 +852,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // your place (open the Railcard guide from Admin, tap back → Calendar, not Admin). Opening in
     // a new tab keeps the page you were on — and matches the guide links in the About panel.
     const guideLinks = NAV_GUIDES
-        .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide" target="_blank" rel="noopener"><span aria-hidden="true">${g.icon}</span> ${g.label}</a></li>`)
+        .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide"><span aria-hidden="true">${g.icon}</span> ${g.label}</a></li>`)
         .join('');
 
     // Settings link — always visible except on the settings page itself.
