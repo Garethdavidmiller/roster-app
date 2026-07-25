@@ -75,7 +75,9 @@ html { color-scheme: only light; }
     border-bottom: 3px solid var(--gold);
 }
 .page-header h1   { font-size: 17px; font-weight: 700; }
-.page-header .sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+/* text-wrap: balance (v18.82) — a wrapping subtitle splits evenly instead of stranding a short
+   orphan ("… Chiltern staff / · July 2026") on its own line. No effect when it fits one line. */
+.page-header .sub { font-size: 12px; opacity: 0.65; margin-top: 2px; text-wrap: balance; }
 
 .btn-back {
     color: white;

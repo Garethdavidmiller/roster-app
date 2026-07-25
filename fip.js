@@ -204,6 +204,22 @@ function adjustFipOffsets() {
 }
 if (document.fonts && document.fonts.ready) { document.fonts.ready.then(adjustFipOffsets); }
 else { requestAnimationFrame(adjustFipOffsets); }
+// The header's HEIGHT can change after that one-shot measurement (late font swap re-wrapping the
+// subtitle, a device font-scale change, rotation) — leaving the chip-bar's sticky `top` stale, so a
+// slit of page content scrolled through the gap between header and bar (staff screenshot, v18.82).
+// A ResizeObserver on the header re-syncs the whole sticky stack whenever its box actually changes
+// (RAF-throttled; observing the header itself, so page scrolling never triggers it).
+if (typeof ResizeObserver === 'function') {
+    var _hdrEl = document.querySelector('.page-header');
+    if (_hdrEl) {
+        var _roScheduled = false;
+        new ResizeObserver(function () {
+            if (_roScheduled) return;
+            _roScheduled = true;
+            requestAnimationFrame(function () { _roScheduled = false; adjustFipOffsets(); });
+        }).observe(_hdrEl);
+    }
+}
 
 // ── Open-on-jump ──────────────────────────────────────────────────────────────────────────────
 
