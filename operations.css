@@ -491,7 +491,13 @@ select:focus-visible, input:focus-visible {
         /* 1100px matches paycalc.css and settings.css — keeps all three
            sub-pages a consistent width. */
         max-width: var(--content-max-width);
-        grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+        /* Left column widened 380px → 440px (v18.86). At 380 the three upload cards — the most
+           text-heavy on the page — wrapped their hints to three ragged lines ("…staff open it from
+           ☰ → Marylebone Newsletter") while the right column's one-line hints left ~half its width
+           empty: the narrow column was doing the wordy work. 440 lets those hints settle to two
+           lines and evens the measure, and the right column still lands ~636px — comfortably the
+           wider of the two, which the desktop-columns e2e asserts. */
+        grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
         column-gap: 24px;
         align-items: start;
     }

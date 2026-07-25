@@ -2000,8 +2000,17 @@ button.nav-panel-link--notices {
 }
 /* h2 OR h3 — operations groups its cards under section headings, so its card titles are h3
    (page h1 → group h2 → card h3); admin/settings keep h2. Same look either way. */
-.card-header h2, .card-header h3 { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0; }
+/* Card titles are `h2` on every app page (v18.86). The selector used to accept `h3` too, which is
+   how operations.html came to mark all nine of its cards up as h3 while the other four pages used
+   h2: styled identically, it looked right, so the heading outline silently ran h1 → h3 with no h2
+   at all. Keeping only h2 here means a stray h3 now looks wrong immediately instead of hiding.
+   (axe's heading-order rule is tagged best-practice, not WCAG A/AA, so the a11y gate never saw it.) */
+.card-header h2 { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0; }
 .card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
+/* A "☰ → Daily Huddle" path told to staff is one token, not three words: without this the wrap
+   could land between the burger glyph and the arrow, leaving a line starting "→ Daily Huddle" that
+   reads as broken punctuation rather than a route. (v18.86) */
+.nav-path { white-space: nowrap; }
 .card-body { padding: var(--space-3) var(--space-4); }
 
 /* ── Collapsible card body + chevron ───────────────────────────────
