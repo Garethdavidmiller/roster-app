@@ -112,9 +112,12 @@ export function isBeforeMemberStart(member, date) {
 /**
  * Normalise a raw Firestore override document into the cache record shape that the display
  * layer + `shouldReplaceOverride` consume: the value plus note/type/source/createdAt with the
- * exact same defaults. Single source so the two writers into `rosterOverridesCache`
- * (calendar-overrides.js and calendar-team-view.js) can't drift on a default — a divergence
- * there would produce subtle precedence bugs, since shouldReplaceOverride keys off source/createdAt.
+ * exact same defaults. Single source for every write into `rosterOverridesCache` — a divergence in
+ * these defaults would produce subtle precedence bugs, since shouldReplaceOverride keys off
+ * source/createdAt. (There is now exactly ONE writer, calendar-overrides.js: Team Week View's own
+ * per-week fetch was removed at v18.76 and the clearShiftTypesCache() export at v18.84 depends on
+ * that staying true. These comments still said "two writers" until v18.91 — a reader following them
+ * would reasonably add a second, which is the precise failure both changes exist to prevent.)
  * @param {any} data - a Firestore override doc's `.data()`
  * @returns {{ value: any, note: string, type: string, source: any, createdAt: any }}
  */
@@ -130,10 +133,10 @@ export function toOverrideRecord(data) {
 
 /**
  * Collect validated override records from a Firestore range-query snapshot, ready for
- * `reconcileRangeIntoCache`. The SINGLE source for the required-field validation shared by BOTH
- * feeders of `rosterOverridesCache` (calendar-overrides.js's month fetch + calendar-team-view.js's
- * week fetch) — previously each had its own copy of this loop, so a change to the validation had to
- * be made twice or the two cache feeders would silently diverge. Malformed docs (missing
+ * `reconcileRangeIntoCache`. The SINGLE source for the required-field validation — it was once
+ * copied into both the month fetch and Team View's own week fetch, so a change had to be made twice
+ * or the two would silently diverge. The week fetch is gone (v18.76), leaving calendar-overrides.js
+ * as the only feeder; this stays the one place the validation lives. Malformed docs (missing
  * memberName/date/value) are skipped; only the doc **id** is logged — never the doc body, which can
  * carry a member name / free-text note (the calendar path used to `console.error` the whole doc).
  * @param {{ forEach: (cb: (doc: any) => void) => void }} snapshot - a Firestore QuerySnapshot
@@ -182,7 +185,7 @@ export function buildOverrideWrite(f, createdAt) {
  * Assemble the OPTIMISTIC in-memory cache record for a just-written override (the admin `_allOverrides`
  * mirror that avoids a Firestore round-trip). Same field set as the write MINUS `changedBy`, PLUS the
  * new doc `id`, and with a real `Date` for `createdAt` (so `tsToMillis` ranks a just-saved override
- * correctly — see the v16.23 fix). Single source so the two writers can't drift their mirrors.
+ * correctly — see the v16.23 fix). Single source so no write path can drift its mirror.
  * @param {string} id  the new Firestore doc id
  * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string}} f
  * @param {Date} createdAt  `new Date()` — the optimistic local timestamp
@@ -388,7 +391,17 @@ export const OTHER_RDW_DEFAULT_MINS = 480;
 
 // Anchored full-string grammar. Time range is bounded HH:MM (00-23 / 00-59) so an
 // impossible time can never ride in on an Other-family value.
-const _OTHER_RE = /^(TRG|IND|ASSESS|TEAM|UNION|MEET)( RDW)?( ([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d)?$/;
+//
+// The flavour alternation is DERIVED from OTHER_FLAVOURS, not hand-written (v18.91). It used to be
+// a literal `TRG|IND|ASSESS|TEAM|UNION|MEET` list, which meant the READER's accept-set and the
+// WRITER's (composeOtherValue tests `hasOwnProperty(OTHER_FLAVOURS, …)`) were two lists that had to
+// be kept in step by hand. Adding a flavour the way UNION and MEET were added — one OTHER_FLAVOURS
+// entry, which is also what renders the admin flavour buttons — would have let the composer write a
+// value this regex rejects: unparseable data, permanently, in Firestore. That is the exact drift the
+// v18.85 extraction was meant to end, and it survived it. One source now feeds both halves.
+const _OTHER_RE = new RegExp(
+    `^(${Object.keys(OTHER_FLAVOURS).join('|')})( RDW)?( ([01]\\d|2[0-3]):[0-5]\\d-([01]\\d|2[0-3]):[0-5]\\d)?$`
+);
 
 /**
  * True when a stored override/shift value is an Other-family value (any flavour,

@@ -18,8 +18,23 @@ import {
     periodsInTaxYear, hppPayslipForTaxYear, hppTaxYearForPayslip, hppPaidInTaxYear,
 } from './paycalc-hpp-schedule.js';
 
-// ── The REAL grid + table, rebuilt here (importing paycalc-periods pulls in Firebase) ──────────
-// Mirrors paycalc-periods.js CONFIG: anchor 13 Feb 2026 = num 48, 28-day periods, offsets −11…14.
+// ── The REAL tax-year table, imported ─────────────────────────────────────────────────────────
+// TAX_YEARS is imported for real (v18.91), not mirrored. It used to be a hand-copy, which made the
+// "round trip against the REAL tax-year table" claim untrue and the test blind to the drift that
+// matters most: changing hppPaidJan in paycalc-calc.js left the suite fully green. paycalc-calc.js
+// has no imports of its own, so there is no Firebase transitive dep to avoid here.
+import { TAX_YEARS } from './paycalc-calc.js';
+
+const TY_25 = TAX_YEARS.find(t => t.label === '2025/26');
+const TY_26 = TAX_YEARS.find(t => t.label === '2026/27');
+// Fail loudly rather than silently skipping if the table is re-labelled at the April rollover.
+assert.ok(TY_25 && TY_26, 'TAX_YEARS must still carry 2025/26 and 2026/27 — update this fixture');
+
+// ── The period grid, still mirrored ───────────────────────────────────────────────────────────
+// paycalc-periods.js DOES pull in Firebase transitively, so its grid can't be imported into a plain
+// Node test. Mirrors its CONFIG: anchor 13 Feb 2026 = num 48, 28-day periods, offsets −11…14. This
+// remains a mirror, so a change to the real anchor/offsets is NOT caught here — the properties the
+// tests assert (13 payslips per year, one January each, no overlap) are what pin its shape.
 const ANCHOR = new Date(2026, 1, 13, 12, 0, 0);
 const PERIODS = [];
 for (let offset = -11; offset <= 14; offset++) {
@@ -27,10 +42,6 @@ for (let offset = -11; offset <= 14; offset++) {
     payday.setDate(payday.getDate() + offset * 28);
     PERIODS.push({ num: 48 + offset, payday });
 }
-// Mirrors paycalc-calc.js TAX_YEARS (label/first/last/hppPaidJan — the fields this module reads).
-const TY_25 = { label: '2025/26', first: -11, last: 1,  hppPaidJan: 2027 };
-const TY_26 = { label: '2026/27', first: 2,   last: 14, hppPaidJan: 2028 };
-const TAX_YEARS = [TY_25, TY_26];
 
 describe('periodsInTaxYear', () => {
     test('returns the year’s own 13 payslips, in payday order', () => {

@@ -66,7 +66,7 @@ export function hppPayslipForTaxYear(ty, periods) {
  * @returns {any|null} the tax year object, or null.
  */
 export function hppTaxYearForPayslip(p, periods, taxYears) {
-    if (!p || !Array.isArray(taxYears)) return null;
+    if (!p || !p.payday || !Array.isArray(taxYears)) return null;
     if (p.payday.getMonth() !== 0) return null;                 // only a January payslip carries HPP
     const year = p.payday.getFullYear();
     const ty = taxYears.find(t => t.hppPaidJan === year);

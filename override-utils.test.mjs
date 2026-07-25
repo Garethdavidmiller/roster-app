@@ -662,6 +662,26 @@ describe('composeOtherValue', () => {
         }
     });
 
+    // The guard that binds the two halves of the grammar. Asserting only the composed STRING (above)
+    // left the reader and writer free to drift: the writer accepts any OTHER_FLAVOURS key, so a new
+    // flavour added there alone would compose a value isOtherValue rejects — unparseable data,
+    // permanently, in Firestore. Every flavour the writer accepts, the reader must read back.
+    it('every flavour the writer accepts, the reader parses back — for all four value shapes', () => {
+        for (const f of Object.keys(OTHER_FLAVOURS)) {
+            for (const opts of [
+                { flavour: f },
+                { flavour: f, rdwTicked: true },
+                { flavour: f, start: '09:00', end: '17:00' },
+                { flavour: f, rdwTicked: true, start: '09:00', end: '17:00' },
+            ]) {
+                const { value, error } = composeOtherValue(opts);
+                assert.equal(error, undefined, `${f}: composer rejected its own flavour`);
+                assert.ok(isOtherValue(value), `${f}: composed "${value}" but isOtherValue() says no`);
+                assert.equal(parseOtherValue(value)?.flavour, f, `${f}: parsed back to the wrong flavour`);
+            }
+        }
+    });
+
     it('adds the RDW marker from the tick', () => {
         assert.deepEqual(composeOtherValue({ flavour: 'TRG', rdwTicked: true }), { value: 'TRG RDW' });
     });

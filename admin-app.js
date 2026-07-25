@@ -783,7 +783,13 @@ export function init() {
                 errors.push(`${formatDisplay(date)}: absence cannot be recorded on a Sunday`);
                 return;
             }
-            if (type === 'other' && isSunday(date)) {
+            // Read the flavour BEFORE the Sunday guard (v18.91). Spare sits under the Other pill but
+            // is its own override type and IS legal on a Sunday — the roster import can even create
+            // one. With the guard ahead of the SPARE route below, a Sunday Spare row failed with
+            // 'an "Other" day cannot be recorded on a Sunday' — wrong on its face, and because the
+            // save aborts the whole batch it blocked every other staged change in that week too.
+            const otherFlavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour;
+            if (type === 'other' && isSunday(date) && otherFlavour !== 'SPARE') {
                 row.classList.add('row-error');
                 errors.push(`${formatDisplay(date)}: an "Other" day cannot be recorded on a Sunday`);
                 return;
@@ -799,7 +805,7 @@ export function init() {
                 // FLAVOUR[" RDW"][" HH:MM-HH:MM"]. Times are OPTIONAL — blank means the pay
                 // defaults apply (base shift on a rostered day, 8h RDW on an Other rest-day) —
                 // but a half-filled or malformed pair is still an error.
-                const flavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour;
+                const flavour = otherFlavour;
                 // Force an explicit flavour choice — no silent Training default (owner decision,
                 // v15.56): a manager recording an induction/assessment/team day who didn't tap a
                 // type would otherwise have it saved as Training.

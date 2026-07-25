@@ -942,16 +942,21 @@
          sidebar. 1400px was too wide — descriptions ran unreadably long. */
       .app { max-width: var(--content-max-width); }
 
-      /* Cap the measure on the full-width prose blocks so they don't run to ~150ch on
-         desktop (the rest of the page caps text at the sidebar column). Left-aligned. */
-      .disclaimer, .privacy-note-standalone { max-width: 72ch; }
-      /* The setup banner is prose too, and it was the ONE full-width band never capped (v18.89):
-         it ran the whole 1100px — about 150ch, double the documented ~75ch ceiling — directly
-         above the privacy strip, which IS capped at 72ch. So the band obeying the rule looked
-         narrow beside the band breaking it. Capping the BOX (not just the paragraph) fixes the
-         reading measure and makes the two stacked notes share one left and right edge, instead of
-         one spanning 1100px with 525px of empty card beside its text. */
-      .setup-banner { max-width: 72ch; }
+      /* Cap the measure on the full-width prose blocks so they don't run to ~150ch on desktop (the
+         rest of the page caps text at the sidebar column). Left-aligned.
+
+         ONE EXPLICIT LENGTH, not `72ch` (v18.91). These bands stack directly on top of each other,
+         so the goal is a shared left AND right edge — and `ch` cannot deliver that here, because it
+         resolves against each element's OWN font-size: the same `72ch` gave the 12px notes 576px
+         and the 14px setup banner 648px, leaving exactly the 72px step in the right edge that
+         capping the banner (v18.89) was meant to remove. 576px is the width the notes already had,
+         so only the banner moves. Change these together or they drift apart again. */
+      .disclaimer, .privacy-note-standalone { max-width: 576px; }
+      /* The setup banner is prose too, and was the ONE full-width band never capped (v18.89): it ran
+         the whole 1100px — about 150ch, double the documented ~75ch ceiling — directly above the
+         privacy strip, which IS capped. So the band obeying the rule looked narrow beside the band
+         breaking it. Capping the BOX (not just the paragraph) fixes the reading measure. */
+      .setup-banner { max-width: 576px; }
 
       /* Grid on <main>: the .pc-work wrapper spans the TWO wide work columns (~660px → forms
          wrap far less — the real scroll-reduction lever) beside the col-3 .pc-side sidebar,

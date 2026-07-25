@@ -269,9 +269,15 @@ export function updateWeekNavLabel(dateStr) {
         // for no information, and at the documented 375px width it overflowed the nav pill — it
         // ellipsised to "19 Jul – 25 Jul 2026 …", dropping the 📅 tap affordance with it.
         // formatTeamWeekLabel (calendar-team-view.js) has always collapsed; admin was the outlier.
+        // The CROSS-month form uses the same tight en-dash as the same-month one (v18.91). The
+        // spaced " – " cost ~6px, and at 375px that was the difference between fitting and
+        // ellipsising: v18.89 reclaimed 14px from this row (gap replaced padding) without
+        // re-measuring, which pushed SIX cross-month weeks over the line. v18.90 then collapsed
+        // only the same-month form, so today's week looked fixed while those six still clipped —
+        // and what gets cut is the trailing 📅, the date-picker's only affordance.
         label.textContent = sunday.getMonth() === saturday.getMonth()
             ? `${sunday.getDate()}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`
-            : `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]} – ${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
+            : `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
         const todaySun = new Date();
         todaySun.setDate(todaySun.getDate() - todaySun.getDay());
         label.classList.toggle('is-current-week', sunday.toDateString() === todaySun.toDateString());
