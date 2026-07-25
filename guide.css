@@ -43,6 +43,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--card);
+    box-shadow: 0 1px 3px rgba(0, 30, 60, 0.05);   /* subtle lift (v18.80) */
 }
 .badge-item .sb { flex-shrink: 0; }
 .badge-desc { font-size: 11px; color: var(--mid); line-height: 1.3; }
@@ -73,6 +74,7 @@
     font-size: 11.5px;
     color: var(--mid);
     background: var(--card);
+    box-shadow: 0 1px 3px rgba(0, 30, 60, 0.05);
 }
 .nav-tip-icon { font-size: 15px; flex-shrink: 0; }
 
@@ -83,6 +85,7 @@
     border-radius: 12px;
     padding: 10px 11px;
     background: var(--card);
+    box-shadow: 0 1px 3px rgba(0, 30, 60, 0.05);
 }
 .feature-label {
     display: inline-block;
@@ -101,7 +104,7 @@
 
 /* ── Install grid ────────────────────────────────────── */
 .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.install-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 11px; background: var(--card); }
+.install-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 11px; background: var(--card); box-shadow: 0 1px 3px rgba(0, 30, 60, 0.05); }
 .install-os   { font-size: 11px; font-weight: 800; color: var(--navy); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
 .install-steps { font-size: 11px; color: var(--mid); line-height: 1.6; }
 
@@ -113,6 +116,6 @@
 /* Print: tighten the component grids. */
 @media print {
     .badge-grid, .nav-grid, .feature-row, .install-grid { gap: 4px; }
-    .badge-item, .nav-tip, .feature-card, .install-card { padding: 4px 7px; border-radius: 6px; }
+    .badge-item, .nav-tip, .feature-card, .install-card { padding: 4px 7px; border-radius: 6px; box-shadow: none; }
     .marker { padding: 2px 8px; }
 }
