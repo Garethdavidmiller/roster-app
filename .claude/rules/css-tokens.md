@@ -52,7 +52,15 @@ old `.card-collapsible-header` grid header is **retired** — only the shared `.
 (`.al-left-chip` low/none recolours) and the Saved Changes count; the Error Log unresolved count on
 operations (`.errorlog-count-chip`, red). Chips are added only where a card is often COLLAPSED and
 has one clear datum — not on default-open cards (settings/links analysis got structural migration,
-no chips). **Do not re-create page-local copies of these classes** — that split is exactly how the
+no chips). **Card titles are `h2` on every page, and every card title leads with an emoji** (v18.86). Both are
+enforced by `card-header-parity.test.mjs` — they had each drifted unnoticed: operations.html marked
+all nine of its cards up as `h3` (shared.css styled `h2, h3` identically, so it looked right while
+the page's heading outline ran h1 → h3 with no h2 — axe's heading-order rule is tagged
+best-practice, not WCAG A/AA, so the a11y gate never saw it), and "Change a Shift" was the only
+card header in the app without a leading emoji. The `h3` half of the shared selector was removed so
+a stray `h3` now looks wrong immediately rather than hiding.
+
+**Do not re-create page-local copies of these classes** — that split is exactly how the
 header systems drifted apart pre-v18.16. A11y invariant (v17.50): the focusable collapse toggle is
 the ARROW/CHEVRON, never a header wrapping another button — `initCardCollapse` enforces it, the axe
 gate fails on violations.
@@ -116,7 +124,12 @@ re-add a second face without a fresh discussion.
 
 The hex column is the brand reference (and is what the `<meta name="theme-color">` tags and `guide-shell.css` use, since the guides don't import `shared.css`). The live `:root` definitions in `shared.css` express these in `oklch()` — and `--primary-blue-dark` / `--accent-gold-dark` are now `color-mix(in oklch, …)` expressions derived from their base token, not static hex. When editing tokens, edit the `oklch`/`color-mix` values in `shared.css`, not these hex equivalents.
 
-All colour values must be in CSS variables in `:root` — never hardcode hex.
+All colour values must be in CSS variables in `:root` — never hardcode hex. **And a page-local
+token that mirrors an app colour must FORWARD it (`var(--orange)`), not restate its hex** (v18.86):
+`links.css` carried its own copies of the Early/Late colours labelled "app early"/"app late" which
+had drifted measurably from the tokens they claimed to mirror (early 10% darker and 13° off hue,
+late 6% lighter and 11.5° off) once `shared.css` moved to `oklch()`. `guide-colour-parity.test.mjs`
+now asserts the forwarding for the Links workspace, alongside the guides.
 
 ## The orange family — a deliberate three-token split (v17.55–57)
 

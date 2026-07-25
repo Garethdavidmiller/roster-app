@@ -185,7 +185,11 @@
             line-height: 1;
             color: var(--al);
         }
-        .al-banner-stat .stat-lbl { font-size: 10px; font-weight: 600; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.4px; }
+        /* Weight 600→700 and letter-spacing 0.4→0.5px (v18.86) to match `.field-eyebrow` in
+           shared.css — the app's uppercase micro-label convention, and what `.week-grid-header`
+           a few hundred pixels down this same page already uses. Two micro-labels that close
+           together should not be set differently; the difference here was drift, not intent. */
+        .al-banner-stat .stat-lbl { font-size: 10px; font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; }
         .al-banner-stat .stat-breakdown { font-size: 9px; color: var(--text-mid); opacity: 0.75; white-space: nowrap; }
         .al-banner.al-banner-low .al-banner-stat.stat-remaining .stat-val { color: var(--al-low); }
         .al-banner.al-banner-warning .al-banner-stat.stat-remaining .stat-val { color: var(--al-warning); }

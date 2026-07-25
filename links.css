@@ -9,11 +9,21 @@
     /* Shift-cell colours — MATCH the app's roster language: early = orange, late = blue.
        (v18.28 — previously inverted: this design tool coloured early blue / late orange, the
        opposite of the calendar it feeds.) The coverage heat-ramp keeps --cov-early (blue): it's
-       headcount intensity, a separate single-hue scale, NOT shift identity. */
-    --shift-early-fill: #e6700a;   /* orange — app early */
-    --shift-late-fill:  #1a7fc1;   /* blue   — app late  */
-    --shift-early-text: #7a3800;   /* dark orange — app early */
-    --shift-late-text:  #0a4872;   /* dark blue   — app late  */
+       headcount intensity, a separate single-hue scale, NOT shift identity.
+
+       These now FORWARD the app tokens instead of restating them as hex (v18.86). They were
+       hand-written copies labelled "app early"/"app late" that had drifted measurably from the
+       colours they claim to mirror — the early orange was 10% darker and 13° off hue, the late
+       blue 6% lighter and 11.5° off — because shared.css moved to oklch() and these hex literals
+       stayed behind. Forwarding means a brand change reaches this page too; links-colour-parity
+       is asserted by guide-colour-parity.test.mjs. Contrast on the 16% wash is unchanged in kind
+       (early 6.2:1, late 7.3:1 — both clear WCAG AA). */
+    --shift-early-fill: var(--orange);
+    --shift-late-fill:  var(--blue-sky);
+    --shift-early-text: var(--orange-text);
+    /* No app token exists for dark-blue TEXT (--blue-sky is a fill), so derive one from it rather
+       than hardcoding a fourth hex — it then tracks the brand blue automatically. */
+    --shift-late-text:  color-mix(in oklch, var(--blue-sky) 62%, black);
     --shift-spare-text: #705600;
     --shift-night-text: #3d1a5c;
     --unfilled-flag:    #7a3800;   /* amber line-number flag for an all-rest (undesigned) row */
