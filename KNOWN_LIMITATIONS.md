@@ -303,6 +303,22 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
   `connect-src` `firebasestorage.googleapis.com` entry is redundant under the `*.googleapis.com`
   wildcard but kept for explicit readability (harmless; the hygiene test tolerates it).
 
+### Two card-collapse systems (v18.87 aesthetic pass) — owner decision, not drift-by-accident
+
+paycalc's five cards animate open (`.collapsible-body` + `.card-toggle-arrow`, a `max-height`
+reveal) while admin/operations/settings/links use the shared `.card-collapsible-body` +
+`.collapse-chevron`, which is `display: none/block` — instant. Same interaction, different feel
+depending which page you're on. The v18.16 pass promoted paycalc's card HEADER to `shared.css` as
+the canonical one but left the BODY behaviour per-page, which is how the split survived.
+
+Left as-is because converging it is a design choice, not a bug fix, and both directions cost
+something: making the other five animate inherits the `max-height` reveal's weakness (it eases
+toward a fixed ceiling, so short cards finish early and the easing reads wrong), while making
+paycalc instant removes a nicety staff already have on the page they use most. Worth an explicit
+decision rather than a silent sweep. What WAS fixed at v18.87 is the drift inside paycalc's own
+animation: height ran 0.4s against its own padding at 0.3s, so the last 100ms of every card opening
+was height-only; all three now share `--dur-slower`.
+
 **Two more from the v18.84 sweep — real code paths, deliberately NOT changed** (the fix costs more
 risk than the defect):
 

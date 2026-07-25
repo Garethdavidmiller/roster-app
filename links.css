@@ -708,7 +708,10 @@ body.auth-ready .container { display: grid; }
 .design-chip-rename:active,
 .design-chip-delete:active { opacity: 0.6; }
 .design-chip-rename:focus-visible,
-.design-chip-delete:focus-visible { outline: 2px solid rgba(255,255,255,0.6); outline-offset: 2px; border-radius: 2px; }
+/* 0.6 → 0.85 alpha (v18.87): the app's other white-on-dark focus rings (guide-shell's back/PDF
+   buttons) are 0.85, and this one being dimmer made the weakest ring sit on the darkest surface —
+   the reverse of what contrast wants. */
+.design-chip-delete:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.85); outline-offset: 2px; border-radius: 2px; }
 .design-chip-delete:disabled { opacity: 0.35; cursor: default; }
 
 .btn-design-new,

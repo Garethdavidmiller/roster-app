@@ -71,9 +71,20 @@ One easing/duration vocabulary in `shared.css :root`:
 - `--ease-standard` (general)
 - `--ease-emphasized` (entrances)
 - `--ease-spring` (overshoot)
-- `--dur-fast` / `--dur-base`
+- `--dur-fast` (0.12s) / `--dur-med` (0.15s) / `--dur-base` (0.2s) / `--dur-slow` (0.25s) /
+  `--dur-slower` (0.3s — content reveals; added v18.87 because the scale stopped at 0.25s, so every
+  reveal hardcoded its own longer value and they drifted to 0.3/0.35/0.4s)
 
-Use these tokens, not inline `cubic-bezier(...)`.
+Use these tokens, not inline `cubic-bezier(...)` or a bare `ease`.
+
+**Two overlay corner families, both named** (v18.87): compact white DIALOGS (month-jump, team info)
+use `--radius-xl` (20px); full navy GLASS SHEETS (About, notices, day detail, AL) use
+`--radius-panel` (24px). The difference is deliberate, but only the dialog side had a name — the six
+glass panels each restated `border-radius: 24px`, so the rule lived nowhere. No pixels moved.
+
+**Every focusable field carries the 4px ring** `box-shadow: 0 0 0 4px var(--focus-ring-color)`. The
+shared `promptDialog` input was the one exception (`outline: none` and nothing in its place) until
+v18.87 — the weakest focus indicator in the app, inside a modal, where keyboard users most need it.
 
 **Every primary button** (calendar `.controls button`, paycalc `.btn-primary`/`.nav-pill`/`.ty-tab`, admin `.btn-save`, settings/operations `.btn-action`, shared `#loginSubmit`) shares one tactile press: `:active { transform: scale(var(--press-scale)) }` with `transform` in its `transition`. `--press-scale` is `0.97`, overridden to `1` under a single `@media (prefers-reduced-motion: reduce)` block — so the press becomes a no-op for reduced-motion users **without** a global transition-killer (which would break the lightbox's `transitionend`-driven close).
 
