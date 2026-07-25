@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
-         OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, resolveOtherPay,
+         OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, composeOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
          buildOverrideWrite, buildOverrideCacheRecord, collectOverrideRecords } from './override-utils.js';
 
@@ -647,5 +647,80 @@ describe('buildOverrideCacheRecord', () => {
             note: '', source: 'manual', createdAt: when,
         });
         assert.equal('changedBy' in rec, false, 'the optimistic cache record does not carry changedBy');
+    });
+});
+
+// ── composeOtherValue — the WRITER half of the grammar (v18.85) ────────────────────────────────
+// Extracted from admin-app.js's save handler, where it was inline and untested: the parser was
+// single-sourced and pinned here while the composer that PRODUCES the stored strings was not — the
+// wrong way round for a format persisted to Firestore (a compose bug writes bad data permanently).
+
+describe('composeOtherValue', () => {
+    it('composes a bare flavour when nothing else is set', () => {
+        for (const f of Object.keys(OTHER_FLAVOURS)) {
+            assert.deepEqual(composeOtherValue({ flavour: f }), { value: f });
+        }
+    });
+
+    it('adds the RDW marker from the tick', () => {
+        assert.deepEqual(composeOtherValue({ flavour: 'TRG', rdwTicked: true }), { value: 'TRG RDW' });
+    });
+
+    it('a rest-day base FORCES the RDW marker even when the tick is off', () => {
+        // Both display layers and the pay engine derive RDW-ness from a rest-day base anyway, so a
+        // bare 'TRG' would make the stored value lie about the behaviour the app honours.
+        assert.deepEqual(composeOtherValue({ flavour: 'TEAM', rdwTicked: false, baseIsRd: true }),
+            { value: 'TEAM RDW' });
+    });
+
+    it('appends times when both are given, and trims them', () => {
+        assert.deepEqual(composeOtherValue({ flavour: 'IND', start: '08:00', end: '16:00' }),
+            { value: 'IND 08:00-16:00' });
+        assert.deepEqual(composeOtherValue({ flavour: 'IND', start: ' 08:00 ', end: ' 16:00 ' }),
+            { value: 'IND 08:00-16:00' }, 'whitespace must not reach the stored value');
+        assert.deepEqual(composeOtherValue({ flavour: 'TRG', rdwTicked: true, start: '09:00', end: '17:30' }),
+            { value: 'TRG RDW 09:00-17:30' }, 'marker and times together, in that order');
+    });
+
+    it('rejects a missing or unknown flavour rather than defaulting to Training', () => {
+        for (const bad of [undefined, null, '', 'SPARE', 'NOPE', 'trg']) {
+            const r = composeOtherValue({ flavour: /** @type {any} */ (bad) });
+            assert.equal(r.value, undefined, `${String(bad)} must not compose`);
+            assert.match(r.error, /choose the type of Other day/);
+        }
+    });
+
+    it('rejects a half-filled time pair (never silently drops one)', () => {
+        assert.match(composeOtherValue({ flavour: 'TRG', start: '08:00' }).error, /fill in both times/);
+        assert.match(composeOtherValue({ flavour: 'TRG', end: '16:00' }).error,   /fill in both times/);
+    });
+
+    it('rejects malformed or impossible times', () => {
+        for (const [s, e] of [['8:00', '16:00'], ['08:00', '16:0'], ['24:00', '16:00'], ['08:60', '16:00'], ['abc', 'def']]) {
+            assert.match(composeOtherValue({ flavour: 'TRG', start: s, end: e }).error,
+                /times must be in HH:MM format/, `${s}-${e} must be rejected`);
+        }
+    });
+
+    it('rejects equal start and end (0h by validation, 24h by the pay maths)', () => {
+        assert.match(composeOtherValue({ flavour: 'TRG', start: '08:00', end: '08:00' }).error,
+            /start and end times are the same/);
+    });
+
+    it('every composed value round-trips through the parser', () => {
+        // THE invariant the split risked: writer and reader must agree on the same grammar.
+        const cases = [
+            { flavour: 'TRG' }, { flavour: 'MEET', rdwTicked: true },
+            { flavour: 'ASSESS', start: '06:15', end: '14:45' },
+            { flavour: 'UNION', baseIsRd: true, start: '00:00', end: '23:59' },
+        ];
+        for (const c of cases) {
+            const { value } = composeOtherValue(c);
+            assert.ok(isOtherValue(value), `${value} must be recognised by isOtherValue`);
+            const back = parseOtherValue(value);
+            assert.equal(back.flavour, c.flavour);
+            assert.equal(back.rdw, !!(c.rdwTicked || c.baseIsRd));
+            assert.equal(back.time, c.start ? `${c.start}-${c.end}` : null);
+        }
     });
 });

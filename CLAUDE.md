@@ -194,6 +194,7 @@ roster-app/
 ├── paycalc-settings.js     ← grade/contracted-hours helpers + settings persistence (getGrade, getEffectiveContr, getProRateFactor, saveSettings, loadSettings, …)
 ├── paycalc-roster-hint.js  ← roster-assist hint bar UI (updateRosterHint, fillFromRoster, fillCategoryFromRoster, snapKey, …)
 ├── paycalc-hpp.js          ← Holiday Pay Premium estimator and shared period helpers: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp
+├── paycalc-hpp-schedule.js ← PURE payslip ↔ tax-year relation for HPP (v18.85): periodsInTaxYear, hppPayslipForTaxYear, hppTaxYearForPayslip, hppPaidInTaxYear. A tax year's premium is paid on the FIRST JANUARY PAYSLIP OF THE FOLLOWING YEAR — `ty.hppPaidJan` falls OUTSIDE that year's own window, the clause four hand-rolled copies kept getting wrong (one caused the v18.84 year-summary bug). No DOM/imports — the period grid + tax-year table are passed in, so it is testable with no mocks. Tested by paycalc-hpp-schedule.test.mjs, whose round-trip assertion is the guard that would have caught v18.84
 ├── paycalc-year-summary.js ← "This tax year so far" for the Year to Date card (v18.41): computeYearSoFar — headless per-payslip re-run (computeGross/Tax/NI/SL over saved hours) summing taxable/tax/NI/SL/take-home + a rough full-year projection; rendered by paycalc-app.js after every calculate(). Tested by paycalc-year-summary.test.mjs
 ├── paycalc-backpay.js      ← back-pay lump sum calculator: prefillBackPay, calcBackPay, _bpAwardTaxYear, raiseByPercent, bpStoryHtml (the pure story strip leading the card, v18.39)
 ├── paycalc-format.js       ← shared pure helpers (no DOM): date/currency formatters fd, fdShort, fdLong, fmt + time-input cores clampMinute, decimalToHM (extracted from paycalc-app.js v17.74/Section G — the hrs/mins split, previously inline+duplicated, is now written once and tested). fdLong ("3 Jul 2026" full-year form) was de-duplicated from ~8 inline copies across paycalc-app/backpay/periods/roster-hint (v18.30). Imported by paycalc-app, -backpay, -periods, -roster-hint.
@@ -279,6 +280,7 @@ roster-app/
 ├── calendar-initial-fetch.test.mjs ← tests for initInitialFetch: pre-fetch setup, success/failure paths, sync-chip state machine, retry, visibilitychange (--experimental-test-module-mocks)
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
+├── paycalc-hpp-schedule.test.mjs ← tests for the HPP payslip ↔ tax-year relation, incl. the inverse round-trip against the REAL tax-year table + period grid; no mocks, part of test:hygiene
 ├── paycalc-migrations.test.mjs ← tests for pcPrefix, setPaycalcNamespace, SK rebuild, one-shot namespace migration (--experimental-test-module-mocks)
 ├── paycalc-format.test.mjs ← tests for clampMinute + decimalToHM (hrs/mins split, incl. the 60→next-hour float guard) + fmt currency formatting + fd/fdShort/fdLong variant distinctness; no mocks, part of test:hygiene
 ├── paycalc-breakdown.test.mjs ← tests for buildSummaryRows + buildBreakdownRows + fmtHrsMins (paycalc-breakdown.js): per-line guards, back-pay/HPP branches, estimate labels; no mocks, part of test:hygiene
@@ -339,7 +341,7 @@ npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, claim-retry, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, csp-meta-parity, date-picker, guide-sources, guide-colour-parity, links-analysis, links-compare, paycalc-format, paycalc-breakdown, paycalc-inputs (authoritative list: package.json `test:hygiene`)
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, claim-retry, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, csp-meta-parity, date-picker, guide-sources, guide-colour-parity, links-analysis, links-compare, paycalc-format, paycalc-breakdown, paycalc-inputs, paycalc-hpp-schedule (authoritative list: package.json `test:hygiene`)
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions pure-helper tests (roster-parse-helpers.test.mjs) — not part of npm test

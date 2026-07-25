@@ -46,6 +46,7 @@ import {
 import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
 import { computeYearSoFar } from './paycalc-year-summary.js';
+import { hppTaxYearForPayslip, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -860,19 +861,12 @@ export function init() {
       // (opt-in, OFF by default — the card computes/show the lump either way).
       const _bpThisPeriod = (_bpPNum > 0 && _bpPNum === _pNum && _bpIncluded) ? _bpAmount : 0;
 
-      // Add HPP estimate/actual if this is the January period where HPP is paid.
-      // Finds the tax year whose hppPaidJan matches this period's payday year.
-      // The estimate is pre-computed by calcHPP() and stored in localStorage whenever
-      // the user views any period in that tax year — by end of April it is essentially final.
-      // Guard against a (currently impossible, but not invariant-enforced) grid with TWO paydays in
-      // one January: HPP lands on the FIRST January payslip only, never added twice. Match _hppTy
-      // only when _curP is that earliest January payday of the tax year's hppPaidJan.
-      const _hppTy = _curP ? CONFIG.TAX_YEARS.find(t => {
-          if (!(_curP.payday.getFullYear() === t.hppPaidJan && _curP.payday.getMonth() === 0)) return false;
-          const firstJan = getPeriods().find(/** @param {any} p */ p =>
-              p.payday.getFullYear() === t.hppPaidJan && p.payday.getMonth() === 0);
-          return !firstJan || firstJan.num === _curP.num;
-      }) : null;
+      // Add HPP estimate/actual if this is the January period where HPP is paid — i.e. the tax year
+      // whose premium lands on THIS payslip (the prior year's; see paycalc-hpp-schedule.js, which
+      // owns the payslip ↔ tax-year relation and guards the two-Januaries case). The estimate is
+      // pre-computed by calcHPP() and stored in localStorage whenever the user views any period in
+      // that tax year — by end of April it is essentially final.
+      const _hppTy = hppTaxYearForPayslip(_curP, getPeriods(), CONFIG.TAX_YEARS);
       // A CONFIRMED actual (present in storage, even £0) beats the estimate — resolveHppForPeriod
       // is the single source of that rule (a confirmed £0 correctly adds nothing; the pre-v17.26
       // `actual > 0` test kept silently adding the stale estimate to take-home). Shared with the
@@ -1208,17 +1202,12 @@ export function init() {
       // Only when their include-tick is on — an un-ticked/estimated lump inflates neither surface.
       const bpLump = (_bpIncluded && _bpPNum > 0 && _bpAmount > 0) ? { pNum: _bpPNum, amount: _bpAmount } : null;
       // The HPP landing INSIDE this tax year is the PRIOR year's premium — a year's HPP is paid the
-      // January AFTER it ends — so read the flags for the tax year whose hppPaidJan matches THIS
-      // year's January payslip, the same resolution the result card uses for _hppTy. Reading
+      // January AFTER it ends — so read the flags for THAT year, not the viewed one (v18.84: reading
       // hppIncKey(ty) asked the viewed year, whose own premium isn't paid until a year later, so the
-      // tick was read off the wrong year and the lump never joined these totals. (v18.84)
-      const _ysJan = getPeriods().find(/** @param {any} p */ p => {
-        const o = p.num - 48;
-        return o >= ty.first && o <= ty.last && p.payday.getMonth() === 0;
-      });
-      const _ysHppTy = _ysJan
-        ? CONFIG.TAX_YEARS.find(/** @param {any} t */ t => t.hppPaidJan === _ysJan.payday.getFullYear())
-        : null;
+      // tick came off the wrong year and the lump never joined these totals). Same single source as
+      // the result card's _hppTy above, asked from the other direction.
+      const _ysHpp = hppPaidInTaxYear(ty, getPeriods(), CONFIG.TAX_YEARS);
+      const _ysHppTy = _ysHpp ? _ysHpp.taxYear : null;
       const _ysHppIncluded = !!_ysHppTy && lsGet(hppIncKey(_ysHppTy)) === '1';
       const _ysHppAmount = _ysHppIncluded
         ? resolveHppForPeriod(lsGet(hppActualKey(_ysHppTy)), lsGet(hppEstKey(_ysHppTy))).amount : 0;

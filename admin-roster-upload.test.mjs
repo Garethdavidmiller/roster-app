@@ -68,7 +68,8 @@ mock.module('./firebase-client.js', {
     },
 });
 
-const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates, detectShiftedRow } = await import('./admin-roster-upload.js');
+const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates, detectShiftedRow,
+        shiftDisplay, manualShiftDisplay } = await import('./admin-roster-upload.js');
 const { teamMembers, getBaseShift } = await import('./roster-data.js');
 
 // 2026-06-21 is a Sunday; 2026-06-15 is a Monday.
@@ -355,5 +356,66 @@ describe('detectShiftedRow', () => {
         assert.equal(detectShiftedRow(null, rowOf(1), DATES), null);
         assert.equal(detectShiftedRow(MEMBER, rowOf(1), DATES.slice(0, 5)), null);
         assert.equal(detectShiftedRow(MEMBER, {}, DATES), null);
+    });
+});
+
+// ── shiftDisplay / manualShiftDisplay — the review table's pure formatters (v18.85) ─────────────
+// Both were module-private and reachable only through the DOM-heavy review table, so their
+// branches (unreadable sentinel, RDW re-encoding, Other-family detail, Sunday promotion) went
+// unpinned. They are pure, so they are worth asserting directly.
+
+describe('shiftDisplay', () => {
+    test('an UNREADABLE cell shows the raw text, escaped, and no badge', () => {
+        const html = shiftDisplay('UNKNOWN|<b>7A</b>');
+        assert.match(html, /review-shift-unreadable/);
+        assert.match(html, /couldn't read/);
+        assert.ok(!html.includes('<b>'), 'raw PDF text must be escaped, never injected as markup');
+        assert.match(html, /&lt;b&gt;7A&lt;\/b&gt;/);
+    });
+
+    test('an RDW-encoded value shows the RDW badge plus the plain time', () => {
+        const html = shiftDisplay('RDW|08:00-16:00');
+        assert.match(html, /08:00-16:00/);
+        assert.ok(!html.includes('RDW|'), 'the pipe encoding must never reach the rendered output');
+    });
+
+    test('a worked SUNDAY is displayed as RDW — Sundays are uncontracted, so any work is overtime', () => {
+        const sun = shiftDisplay('08:00-16:00', SUN);
+        const mon = shiftDisplay('08:00-16:00', MON);
+        assert.notEqual(sun, mon, 'the Sunday badge must differ from the weekday one');
+        assert.match(sun, /08:00-16:00/, 'the time is still shown');
+    });
+
+    test('an Other-family value shows its RDW marker and times, not the badge alone', () => {
+        // TRG vs TRG RDW decides between "nothing to pay" and the 8h RDW default, so the review
+        // must surface the difference.
+        assert.match(shiftDisplay('TRG RDW'), /RDW/);
+        assert.match(shiftDisplay('IND 09:00-17:00'), /09:00-17:00/);
+        const bare = shiftDisplay('TRG');
+        assert.ok(!/review-shift-time/.test(bare), 'a bare flavour has no time detail to show');
+    });
+
+    test('a non-time value (RD/AL) renders the badge alone', () => {
+        assert.ok(!/review-shift-time/.test(shiftDisplay('RD')));
+        assert.ok(!/review-shift-time/.test(shiftDisplay('AL')));
+    });
+});
+
+describe('manualShiftDisplay', () => {
+    test('a saved RDW override is re-encoded so it shows the RDW badge, not an ordinary shift', () => {
+        // RDW-ness lives in `type`, not the value — without the re-encode the admin could not tell
+        // a saved RDW from a normal shift when resolving a CONFLICT (v16.19).
+        const asRdw    = manualShiftDisplay({ manualValue: '08:00-16:00', manualType: 'rdw' });
+        const asNormal = manualShiftDisplay({ manualValue: '08:00-16:00', manualType: 'shift' });
+        assert.notEqual(asRdw, asNormal, 'an RDW override must not render identically to a plain shift');
+        assert.equal(asRdw, shiftDisplay('RDW|08:00-16:00'));
+    });
+
+    test('a non-rdw type passes the value straight through', () => {
+        assert.equal(manualShiftDisplay({ manualValue: 'AL', manualType: 'annual_leave' }), shiftDisplay('AL'));
+    });
+
+    test('an rdw type with a non-time value is not re-encoded', () => {
+        assert.equal(manualShiftDisplay({ manualValue: 'RD', manualType: 'rdw' }), shiftDisplay('RD'));
     });
 });

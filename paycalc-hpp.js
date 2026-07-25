@@ -19,6 +19,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
 import { fmt, fdList } from './paycalc-format.js';
+import { hppPayslipForTaxYear } from './paycalc-hpp-schedule.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
 
@@ -578,9 +579,11 @@ export function updatePriorHpp(ty) {
 
   const pNum = currentPeriodNum();
   const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-  const isJanPayday = curP &&
-    curP.payday.getFullYear() === priorTy.hppPaidJan &&
-    curP.payday.getMonth() === 0;
+  // Is the payslip on screen the one that carries LAST year's premium? Asked of the shared
+  // schedule (paycalc-hpp-schedule.js) rather than re-derived here — four hand-rolled copies of
+  // this relation is how the v18.84 year-summary bug happened.
+  const _carrier = hppPayslipForTaxYear(priorTy, getPeriods());
+  const isJanPayday = !!(curP && _carrier && _carrier.num === curP.num);
 
   const priorHppTitleEl    = document.getElementById('priorHppTitle');
   const currentHppTitleEl  = document.getElementById('currentHppTitle');
@@ -622,8 +625,7 @@ export function updatePriorHpp(ty) {
   // (v18.51 — mirrors the back-pay manual-entry gate): there is no printed figure to copy from a
   // payslip that hasn't been paid. First January payday of the due year = the earliest it can
   // arrive; a stored actual (shouldn't exist pre-payday) still displays either way.
-  const _janPayday = getPeriods().find(/** @param {any} p */ p =>
-    p.payday.getFullYear() === priorTy.hppPaidJan && p.payday.getMonth() === 0)?.payday;
+  const _janPayday = _carrier?.payday;
   const _janArrived = !!(_janPayday && _janPayday < new Date());
   if (input) {
     const stored = actualRaw || '';
