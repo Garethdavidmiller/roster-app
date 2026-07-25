@@ -274,10 +274,15 @@
         }
 
         /* ---- Week navigation ---- */
+        /* Spacing is ONE gap (v18.89). It used to be assembled from three different mechanisms —
+           gap:0 on the row, `padding: 0 4px` on the date wrap, and `margin-left: 4px` on the today
+           button — so the four controls sat at uneven distances that no single value governed.
+           (The COLOUR differences are deliberate and stay: navy for the two steppers, gold for
+           jump-to-today, matching the calendar's gold Today button, and a white field between.) */
         .week-nav {
             display: flex;
             align-items: center;
-            gap: 0;
+            gap: 6px;
             min-width: 0; /* allow the flex row to shrink so the date-wrap can ellipsise rather than push the 📍 pin off the card edge */
         }
 
@@ -308,13 +313,11 @@
             background: var(--accent-gold);
             color: var(--primary-blue);
             font-size: 10px;
-            margin-left: 4px;
         }
         @media (hover: hover) and (pointer: fine) { .week-nav-today:hover { background: var(--accent-gold-dark); } }
 
         .week-date-wrap {
             flex: 1;
-            padding: 0 4px;
             position: relative;
             min-width: 0; /* allow flex shrink below min-content so the ● button always has room */
         }
@@ -1689,6 +1692,21 @@
             .btn-save { max-width: 320px; }
 
         }
+        /* Desktop row density (v18.89). The day row is identical at 390px and 1280px — 69px tall,
+           because the day label stacks ("Sun" over "19 Jul") and the padding is sized for a thumb.
+           That is right on a phone and wasteful with a mouse: seven rows put ~480px of largely empty
+           card into the page's primary control, which is also what makes the left column tall enough
+           to open the navy void beside it. On a pointer device put the label on ONE line and trim the
+           padding — the row drops to ~46px, the card loses ~160px, and the void shrinks with it.
+           (The horizontal space is deliberately NOT reclaimed: the badge's right-alignment gives a
+           scannable column, and the width is genuinely used once a row is ticked and its pills +
+           time inputs appear on rows 2 and 3.) */
+        @media (min-width: 1024px) and (pointer: fine) {
+            .day-row { padding-top: 7px; padding-bottom: 7px; }
+            .day-row.active, .day-row.selected { padding-top: 8px; padding-bottom: 8px; }
+            .col-day .day-date { display: inline; margin-left: 6px; }
+        }
+
         /* At 1024–1399px the left column is too narrow for the 5-col template.
            Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
            Pills and time are visible on selected/active rows (hidden on inactive rows). */

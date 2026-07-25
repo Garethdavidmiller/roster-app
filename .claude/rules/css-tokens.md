@@ -260,3 +260,27 @@ than the purity gain.
 hand-rolled `rgba()` shadows exist with varied values; forcing them onto the three presets would
 visibly restyle depth across the app — a redesign, not hygiene. Use the `--shadow-*` tokens for NEW
 shadows; leave existing ones unless intentionally redesigning that surface.
+
+## Density is a POINTER-vs-TOUCH decision, not a width one (v18.89)
+
+Admin's day row was 69px tall at 390px *and* at 1280px — the label stacked ("Sun" over "19 Jul")
+and the padding was sized for a thumb, so seven rows put ~480px of largely empty card into the
+page's primary control. Desktop now gets a one-line label and trimmed padding under
+`@media (min-width: 1024px) and (pointer: fine)`: the row drops to 52px and the card loses 179px.
+**Gate density on `pointer: fine`, not on width alone** — a wide touch screen still needs the
+44px-target spacing. And note the second-order win: shortening the tall column shrinks the
+accepted two-column void, which card *reordering* can only relocate (above). Height is a lever
+the void discussion never considered.
+
+## Prose is left-aligned once it passes ~2 lines (v18.89)
+
+Overlay body copy (`.notice-body`, `.lightbox-privacy`, paycalc's `.welcome-desc`) used to be
+centred. Centred text is fine for a line or two and works against the reader beyond that — every
+line starts at a different x, so the eye has to re-find each one, and these run 3–5 lines. The
+badge/title/date **masthead stays centred**; only the prose is left-aligned, which is the
+arrangement the About panel already used. The `new-notice` skill template carries the same rule so
+future notices inherit it.
+
+**A button under a field matches the field.** Settings capped `.btn-action` at 280px on desktop —
+exactly half the 536px field above it and sharing its left edge, so every card ended with a 256px
+gutter. Full width is what the login overlay and the mobile layout already do.

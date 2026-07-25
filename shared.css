@@ -729,7 +729,10 @@ body.lb-open #stickyTotal { display: none !important; }
     font-size: var(--type-badge);
     line-height: 1.5;
     color: rgba(255,255,255,0.6);
-    text-align: center;
+    /* Left-aligned for the same reason as .notice-body (v18.89) — this note runs to 3 lines in the
+       paycalc welcome dialog, and centred prose over 3 lines is harder to read than left-aligned. */
+    text-align: left;
+    text-wrap: pretty;
 }
 
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
@@ -794,12 +797,17 @@ body.lb-open #stickyTotal { display: none !important; }
     text-align: center;
 }
 
-/* Body copy — centred, soft white */
+/* Body copy — LEFT-ALIGNED, soft white (v18.89). It was centred, which is fine for a line or two
+   and works against the reader beyond that: every line starts at a different x, so the eye has to
+   re-find the beginning of each one. Notice bodies routinely run 3–5 lines. The badge, title and
+   date above stay centred, so the card keeps its centred masthead over left-aligned prose — the
+   same arrangement the About panel already uses (centred "TIPS" heading, left-aligned rows). */
 .notice-body {
     color: rgba(255, 255, 255, 0.75);
     font-size: 13px;
     line-height: 1.5;
-    text-align: center;
+    text-align: left;
+    text-wrap: pretty;
     margin: 0;
 }
 

@@ -140,7 +140,10 @@
     @media (hover: hover) and (pointer: fine) {
       .nav-pill-today:hover { background: var(--accent-gold-dark); }
     }
-    .period-hint   { margin: 4px 0 0; font-size: var(--type-micro); color: var(--text-faint); text-align: center; }
+    /* Left-aligned (v18.89): it was the only centred line in a stack of left-aligned siblings
+       (the date range, "Tax year 2026/27", "No entries saved for this period"), which read as an
+       accident rather than a choice. */
+    .period-hint   { margin: 4px 0 0; font-size: var(--type-micro); color: var(--text-faint); }
     .period-meta   { display: flex; flex-direction: column; gap: 3px; width: 100%; }
     .pm-range      { font-size: var(--type-label); font-weight: 600; color: var(--text-dark); }
     .pm-sub        { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
@@ -942,6 +945,13 @@
       /* Cap the measure on the full-width prose blocks so they don't run to ~150ch on
          desktop (the rest of the page caps text at the sidebar column). Left-aligned. */
       .disclaimer, .privacy-note-standalone { max-width: 72ch; }
+      /* The setup banner is prose too, and it was the ONE full-width band never capped (v18.89):
+         it ran the whole 1100px — about 150ch, double the documented ~75ch ceiling — directly
+         above the privacy strip, which IS capped at 72ch. So the band obeying the rule looked
+         narrow beside the band breaking it. Capping the BOX (not just the paragraph) fixes the
+         reading measure and makes the two stacked notes share one left and right edge, instead of
+         one spanning 1100px with 525px of empty card beside its text. */
+      .setup-banner { max-width: 72ch; }
 
       /* Grid on <main>: the .pc-work wrapper spans the TWO wide work columns (~660px → forms
          wrap far less — the real scroll-reduction lever) beside the col-3 .pc-side sidebar,
@@ -1147,9 +1157,12 @@
       letter-spacing: 0.5px; text-transform: uppercase;
       margin: 2px 0 4px;
     }
+    /* Left-aligned (v18.89) — the container centres everything, which suits the emoji, title and
+       grade badge but not this: the paragraph runs to five lines in a 300px card, and centring it
+       gave every line a different starting x. The masthead above stays centred. */
     .welcome-desc {
       font-size: var(--type-label); color: rgba(255,255,255,0.68); line-height: 1.6;
-      margin: 0;
+      margin: 0; text-align: left; text-wrap: pretty; align-self: stretch;
     }
     .welcome-guide-link {
       display: block; margin-top: 14px; padding-top: 12px;

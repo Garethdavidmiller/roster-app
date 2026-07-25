@@ -31,7 +31,7 @@ Add the notice lightbox in the page's HTML, grouped with the other `.lb-overlay`
 2. `.notice-badge notice-badge--[page]` — section pill coloured to match the page's nav pill (see table below). Do not use `.lightbox-badge` on notices.
 3. `.lightbox-app-name` — notice title (white, 17px bold — scoped smaller than the About lightbox title by `.notice-lb-content .lightbox-app-name` in `shared.css`)
 4. `.notice-date` — `Posted D Mon YYYY` — **hardcoded** to the date the notice was published
-5. `.notice-body` — body copy paragraph (soft white, 13px, centred)
+5. `.notice-body` — body copy paragraph (soft white, 13px, **left-aligned** — v18.89: it was centred, which reads fine for a line or two but works against the reader over the 3–5 lines a notice body usually runs to. The badge/title/date above stay centred, so the card keeps a centred masthead over left-aligned prose)
 6. `.notice-cta` — gold action `<a>` — only if the notice links to another page
 7. `.notice-later` — muted dismiss `<button>` — only when `.notice-cta` is present
 

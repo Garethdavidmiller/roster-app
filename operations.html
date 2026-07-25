@@ -73,6 +73,7 @@
          review table + monitoring/admin cards. On mobile the wrappers are display:contents
          so cards stack in source order. -->
     <section class="ops-left-column">
+    <p class="ops-group-label">Publish</p>
     <!-- ==================== DAILY HUDDLE UPLOAD ==================== -->
     <div class="card" id="huddleUploadCard">
         <div class="card-header card-header-toggle" id="huddleToggleHeader">
@@ -153,6 +154,7 @@
     </section><!-- /ops-left-column -->
 
     <section class="ops-right-column">
+    <p class="ops-group-label">Roster &amp; accounts</p>
     <!-- ==================== ROSTER UPLOAD ==================== -->
     <div class="card" id="rosterUploadCard">
         <div class="card-header card-header-toggle" id="rosterUploadToggleHeader">
@@ -224,6 +226,34 @@
     </div>
 
     <!-- ==================== ERROR LOG ==================== -->
+    <div class="card" id="authSetupCard">
+        <div class="card-header card-header-toggle" id="authSetupToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🔐</span> Staff Login Accounts</h2>
+                <span class="hint">Create or update staff login accounts</span>
+            </div>
+            <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts" title="Tips for Staff Login Accounts">?</button>
+                <span class="collapse-chevron" id="authSetupChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body" id="authSetupBody">
+            <div class="card-body">
+                <p class="auth-desc">
+                    Creates a login account for every active staff member. Safe to run any time — existing accounts are kept as they are, and only new joiners get one added. Run it when someone joins or leaves.
+                </p>
+                <label class="auth-orphans-label">
+                    <input type="checkbox" id="authSetupOrphans">
+                    Disable accounts for anyone no longer on the roster (leavers)
+                </label>
+                <button type="button" class="btn-action btn-primary" id="authSetupBtn">Set up accounts</button>
+                <div id="authSetupResult" role="status" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+
+    <p class="ops-group-label">Monitoring</p>
+
     <div class="card" id="errorLogCard">
         <div class="card-header card-header-toggle" id="errorLogToggleHeader">
             <div>
@@ -282,31 +312,6 @@
     </div>
 
     <!-- ==================== STAFF LOGIN ACCOUNTS ==================== -->
-    <div class="card" id="authSetupCard">
-        <div class="card-header card-header-toggle" id="authSetupToggleHeader">
-            <div>
-                <h2><span aria-hidden="true">🔐</span> Staff Login Accounts</h2>
-                <span class="hint">Create or update staff login accounts</span>
-            </div>
-            <div class="card-header-actions">
-                <button type="button" class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts" title="Tips for Staff Login Accounts">?</button>
-                <span class="collapse-chevron" id="authSetupChevron">▾</span>
-            </div>
-        </div>
-        <div class="card-collapsible-body" id="authSetupBody">
-            <div class="card-body">
-                <p class="auth-desc">
-                    Creates a login account for every active staff member. Safe to run any time — existing accounts are kept as they are, and only new joiners get one added. Run it when someone joins or leaves.
-                </p>
-                <label class="auth-orphans-label">
-                    <input type="checkbox" id="authSetupOrphans">
-                    Disable accounts for anyone no longer on the roster (leavers)
-                </label>
-                <button type="button" class="btn-action btn-primary" id="authSetupBtn">Set up accounts</button>
-                <div id="authSetupResult" role="status" aria-live="polite"></div>
-            </div>
-        </div>
-    </div>
     </section><!-- /ops-right-column -->
 
 </main>

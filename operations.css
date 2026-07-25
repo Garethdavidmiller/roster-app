@@ -486,6 +486,24 @@ select:focus-visible, input:focus-visible {
 .ops-left-column,
 .ops-right-column { display: contents; }
 
+/* Group labels (v18.89). With every card collapsed, Operations was nine near-identical bars with
+   no hierarchy — nothing said which were "publish a document", which were "manage the roster and
+   accounts", and which were read-only reporting. These use the app's existing uppercase micro-label
+   rank (matching .field-eyebrow) so they add structure without adding chrome. Staff Login Accounts
+   moved up beside Account status in the same change — both are account admin, and three monitoring
+   cards used to sit between them. Sits on the navy canvas, so it takes a light colour. */
+.ops-group-label {
+    font-size: var(--type-micro);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.55);
+    margin: 4px 0 -4px 2px;
+}
+/* The first label in each column shouldn't add space above the column's first card. */
+.ops-left-column > .ops-group-label:first-child,
+.ops-right-column > .ops-group-label:first-child { margin-top: 0; }
+
 @media (min-width: 1024px) {
     body.auth-ready .container {
         /* 1100px matches paycalc.css and settings.css — keeps all three
@@ -520,6 +538,9 @@ select:focus-visible, input:focus-visible {
     }
     .ops-left-column  { grid-column: 1; }
     .ops-right-column { grid-column: 2; }
+    /* The flex `gap: 16px` already spaces the label off the card above it; cancel the extra
+       margin so the label sits tight to the card it introduces, not midway between the two. */
+    .ops-group-label { margin: 0 0 -8px 2px; }
 
     /* Full-width upload button looks wrong inside the narrow left column */
     .huddle-upload-btn { max-width: 280px; }
