@@ -28,11 +28,13 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * A worked shift on a Sunday renders as RDW — Sundays are uncontracted, so any
  * Sunday shift is by definition overtime.
  *
+ * Exported for tests (v18.85) — it is pure, so its badge/time/unreadable branches are worth
+ * pinning directly rather than only through the DOM-heavy review table that calls it.
  * @param {string} shiftStr
  * @param {string|null} date       ISO date — detects a Sunday worked shift
  * @returns {string} HTML
  */
-function shiftDisplay(shiftStr, date = null) {
+export function shiftDisplay(shiftStr, date = null) {
     if (isUnknownEncoded(shiftStr)) {
         return `<span class="review-shift-unreadable">⚠ couldn't read “${escapeHtml(stripUnknown(shiftStr))}”</span>`;
     }
@@ -108,10 +110,11 @@ export function detectShiftedRow(member, shifts, dates) {
  * RDW-ness lives in `type`, not the value — so shiftDisplay(value) alone showed an ordinary
  * Early/Late badge, and the admin couldn't tell a saved RDW from a normal shift when resolving a
  * CONFLICT or reviewing a REMOVE_IMPORT. Re-encode as "RDW|<time>" so shiftDisplay picks the badge (v16.19).
+ * Exported for tests (v18.85) — pure, like shiftDisplay which it delegates to.
  * @param {{manualValue: string|null, manualType?: string|null}} s
  * @returns {string} HTML
  */
-function manualShiftDisplay(s) {
+export function manualShiftDisplay(s) {
     const v = s.manualValue;
     if (s.manualType === 'rdw' && v && /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(v)) {
         return shiftDisplay(`${RDW_PREFIX}${v}`);

@@ -416,6 +416,57 @@ export function parseOtherValue(v) {
     };
 }
 
+/** Single HH:MM field, bounded 00-23 / 00-59. Mirrors TIME_RE in roster-data.js; kept local so
+ *  this module stays import-free and unit-testable in plain Node. */
+const _HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * COMPOSE an Other-family value — the writer half of the grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`,
+ * living next to `parseOtherValue` (its reader) so the two can never drift apart (v18.85).
+ *
+ * Until now the parser was single-sourced and unit-tested here while the COMPOSER was written
+ * inline in `admin-app.js`'s 1,700-line save handler with no test of its own — the wrong way round
+ * for a format that gets persisted to Firestore and read back by three display paths and the pay
+ * engine. A parse bug shows the wrong thing; a compose bug writes bad data permanently.
+ *
+ * Returns `{ value }` on success, or `{ error }` with a bare, staff-facing sentence (no date
+ * prefix — the caller adds "Fri 3 Jul: " itself). Times are OPTIONAL: both blank means "use the
+ * default hours", but a half-filled or malformed pair is an error, never a silent drop.
+ *
+ * SPARE is deliberately NOT handled here. It lives under the same Admin pill but is its own
+ * override TYPE (`spare_shift` / 'SPARE'), not a value in this grammar — the caller routes it
+ * before composing.
+ *
+ * @param {{ flavour?: string|null, rdwTicked?: boolean, baseIsRd?: boolean,
+ *           start?: string, end?: string }} f
+ *   `rdwTicked` is the row's RDW checkbox; `baseIsRd` is whether the day's BASE shift is a rest day
+ *   (which FORCES the marker — see the caller's note: both display layers and the pay engine derive
+ *   RDW-ness from a rest-day base anyway, so omitting it would make the stored value lie).
+ * @returns {{ value: string, error?: undefined } | { error: string, value?: undefined }}
+ */
+export function composeOtherValue(f) {
+    const flavour = (f && f.flavour) || '';
+    // Force an explicit choice — no silent Training default (owner decision, v15.56): a manager
+    // recording an induction who didn't tap a type would otherwise have it saved as Training.
+    if (!Object.prototype.hasOwnProperty.call(OTHER_FLAVOURS, flavour)) {
+        return { error: 'choose the type of Other day (Training, Induction, Assessment, Team Day, Union, Meeting or Spare)' };
+    }
+    const rdw = (f.rdwTicked || f.baseIsRd) ? ' RDW' : '';
+
+    const s = (f.start || '').trim();
+    const e = (f.end   || '').trim();
+    let time = '';
+    if (s || e) {
+        if (!s || !e)                             return { error: 'fill in both times, or leave both blank to use the default hours' };
+        if (!_HHMM_RE.test(s) || !_HHMM_RE.test(e)) return { error: 'times must be in HH:MM format (e.g. 07:00)' };
+        // Equal start/end would validate as a 0h shift but PAY as 24h (the overnight wrap in the
+        // duration maths) — reject at the only place these times are authored.
+        if (s === e)                              return { error: 'start and end times are the same' };
+        time = ` ${s}-${e}`;
+    }
+    return { value: `${flavour}${rdw}${time}` };
+}
+
 /**
  * Duration of an HH:MM-HH:MM range in minutes; overnight ranges wrap past midnight.
  * @param {string} time

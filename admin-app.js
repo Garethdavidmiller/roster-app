@@ -31,7 +31,7 @@ import { initCardCollapse } from './overlay.js';
 import { initEmailCheck } from './admin-email-check.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods } from './override-utils.js';
+import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
@@ -820,37 +820,25 @@ export function init() {
                     toSave.push({ memberName, date, type: 'spare_shift', value: 'SPARE', note, existingId: row.dataset.existingId || null });
                     return;
                 }
-                // Rest-day base FORCES the RDW marker regardless of the tick: the pay engine and both
-                // display layers derive RDW-ness from a rest-day base anyway (belt-and-braces — as-base
-                // would pay £0), so storing 'TRG' for such a day would just make the saved value lie
-                // about the behaviour the app honours. The tick still governs worked-base days.
-                const _rdwTicked = (/** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb')))?.checked;
-                const rdw     = (_rdwTicked || row.dataset.baseIsRd === '1') ? ' RDW' : '';
-                const s = (/** @type {HTMLInputElement} */ (row.querySelector('.day-start'))).value.trim();
-                const e = (/** @type {HTMLInputElement} */ (row.querySelector('.day-end'))).value.trim();
-                let time = '';
-                if (s || e) {
-                    const timeRe = TIME_RE;
-                    if (!s || !e) {
-                        row.classList.add('row-error');
-                        errors.push(`${formatDisplay(date)}: fill in both times, or leave both blank to use the default hours`);
-                        return;
-                    }
-                    if (!timeRe.test(s) || !timeRe.test(e)) {
-                        row.classList.add('row-error');
-                        errors.push(`${formatDisplay(date)}: times must be in HH:MM format (e.g. 07:00)`);
-                        return;
-                    }
-                    if (s === e) {
-                        // Equal start/end would validate as a 0h shift but PAY as 24h (the overnight
-                        // wrap in the duration maths) — reject at the only place times are authored.
-                        row.classList.add('row-error');
-                        errors.push(`${formatDisplay(date)}: start and end times are the same`);
-                        return;
-                    }
-                    time = ` ${s}-${e}`;
+                // Compose the value through override-utils' composeOtherValue — the WRITER half of
+                // the grammar, sitting next to parseOtherValue (its reader) so the two can't drift
+                // (v18.85; this was inline + untested here). Rest-day base FORCES the RDW marker
+                // regardless of the tick: the pay engine and both display layers derive RDW-ness
+                // from a rest-day base anyway (as-base would pay £0), so storing a bare 'TRG' for
+                // such a day would make the saved value lie about the behaviour the app honours.
+                const _composed = composeOtherValue({
+                    flavour,
+                    rdwTicked: (/** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb')))?.checked,
+                    baseIsRd:  row.dataset.baseIsRd === '1',
+                    start:     (/** @type {HTMLInputElement} */ (row.querySelector('.day-start'))).value,
+                    end:       (/** @type {HTMLInputElement} */ (row.querySelector('.day-end'))).value,
+                });
+                if (_composed.error) {
+                    row.classList.add('row-error');
+                    errors.push(`${formatDisplay(date)}: ${_composed.error}`);
+                    return;
                 }
-                value = `${flavour}${rdw}${time}`;
+                value = _composed.value;
             } else if (typeMeta && typeMeta.fixed) {
                 value = typeMeta.fixedValue;
             } else {
