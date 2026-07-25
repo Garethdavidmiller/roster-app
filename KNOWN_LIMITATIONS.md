@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: July 2026 — v18.80 · Updated every 0.10 version*
+*Last updated: July 2026 — v18.90 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -132,6 +132,20 @@ began pinging its own telemetry endpoint (`apis.google.com/js/gen_204`) — a `c
 CONNECTS to — check the CI csp job after each layer, not just the first. Applied to the `firebase.json` header AND all ten `<meta>` CSPs
 (csp-meta-parity), with `apis.google.com` added to `csp-hygiene.test.mjs`'s `DYNAMIC_HOSTS` (it's
 requested by the gstatic SDK, not built in our source).
+
+**Third layer — the beacons we deliberately keep blocked (v18.90).** Once the iframe was allowed to
+load and connect, it started firing two fire-and-forget telemetry requests the app does not need:
+`www.google.com/images/cleardot.gif` (a 1×1 tracking pixel) and `apis.google.com/js/gen_204`
+(Google's logging beacon). These are **correctly refused** — `www.google.com` is in no directive, and
+`apis.google.com` is allowed to CONNECT but not to serve images. The problem was the *test*, not the
+policy: `e2e/csp.spec.js` asserted zero violations of any kind, so a deliberately-blocked third-party
+beacon failed the run. Worse, it only failed *sometimes* — the beacons fire only if the iframe reaches
+that state before the spec ends — which is why the `csp` job failed on three unrelated PRs in one day
+(#1070/#1078/#1080) while the parallel run of the same commit passed. `IGNORED_BLOCKS` now names those
+two URIs, gated by `BEACON_DIRECTIVES` so the waiver applies **only** to `img-src`/`connect-src`
+refusals: if `apis.google.com` is ever refused for a `script-src` or `frame-src` load — the v17.82
+outage — it still fails. **Do not widen the policy to make a beacon pass;** blocking third-party
+telemetry is the intended behaviour.
 
 ### GitHub Pages mirror — CSP via `<meta>`, with two residual header-only gaps (v17.63)
 The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which

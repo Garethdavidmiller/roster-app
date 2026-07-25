@@ -292,10 +292,13 @@
     --radius:       12px;   /* the app's common discrete-CARD corner (day-row, override/error/usage rows) — was hardcoded in ~8 places */
     --radius-xl:    20px;   /* large lightbox/panel cards (v17.72 — was a hardcoded 20px in ~20 places) */
     /* The app has TWO overlay families and they carry different corners on purpose: compact white
-       DIALOGS (month-jump, team info) at --radius-xl, and full navy GLASS SHEETS (About, notices,
-       day detail, AL) at 24px. That was fine, but only one side had a name — the six glass panels
-       each restated `border-radius: 24px`, so the rule lived nowhere and the next panel author had
-       nothing to copy. Naming it makes the two-family system explicit; no pixel moves. (v18.87) */
+       DIALOGS (month-jump, team info, login, work-email check, Tips, confirm/prompt) at --radius-xl,
+       and full navy GLASS SHEETS (About, notices, day detail, AL) at 24px. The six glass panels each
+       restated `border-radius: 24px`, so that rule lived nowhere — naming it fixed that (v18.87).
+       CORRECTION (v18.90): that pass documented two families while the code actually had three —
+       four white panels (login/email-check/Tips/dialog) were on --radius-lg, i.e. the CARD radius,
+       which is easy to miss because it reads as a token rather than a literal. They now all sit on
+       --radius-xl, so the two-family description is finally true of the code. */
     --radius-panel: 24px;   /* navy glass overlay sheets */
     --radius-pill:  999px;  /* fully-rounded pills/chips (v17.72) */
 
@@ -554,7 +557,11 @@ body.lb-open #stickyTotal { display: none !important; }
     flex-direction: column;
     gap: 12px;
     background: var(--surface);
-    border-radius: var(--radius-lg);   /* match the modal-picker panel family (date/range picker) */
+    /* --radius-xl, the compact-dialog family (v18.90). This was --radius-lg with a comment claiming
+       it matched "the modal-picker panel family" — but no picker sets that token, and --radius-lg is
+       the CARD radius every page uses for `.card`. So this overlay was wearing card corners, which
+       flattens the layering: an overlay sits ABOVE a card and should not share its silhouette. */
+    border-radius: var(--radius-xl);
     box-shadow: var(--shadow-3);
     padding: 22px 22px 18px;
     width: min(380px, 90vw);
@@ -1828,9 +1835,11 @@ button.nav-panel-link--notices {
 }
 #loginOverlay.visible, #emailCheckOverlay.visible { display: flex; }
 
+/* Overlay, not a card — --radius-xl with the other compact dialogs (v18.90; was --radius-lg, the
+   card radius). */
 #loginCard, #emailCheckContent {
     background: white;
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
     padding: 36px 32px 28px;
     max-width: 340px;
     width: 100%;
@@ -2205,7 +2214,8 @@ button.nav-panel-link--notices {
 #tipsLightbox { padding: 20px; }
 #tipsLightboxContent {
     background: white;
-    border-radius: var(--radius-lg);
+    /* Compact-dialog family, not the card radius (v18.90). */
+    border-radius: var(--radius-xl);
     padding: 28px 28px 24px;
     max-width: 360px;
     width: 100%;

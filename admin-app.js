@@ -349,16 +349,11 @@ export function init() {
     // This preserves the month the staff member was viewing when they tapped Admin.
     const _urlDate = new URLSearchParams(location.search).get('date');
     fieldDate.value = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : formatISO(new Date());
-    (function updateWeekNavLabelFromDate() {
-        const d    = parseISODate(fieldDate.value);
-        const sun  = new Date(d); sun.setDate(d.getDate() - d.getDay());
-        const sat  = new Date(sun); sat.setDate(sun.getDate() + 6);
-        const weekNavLabel   = document.getElementById('weekNavLabel');
-        if (weekNavLabel) {
-            weekNavLabel.textContent = `${sun.getDate()} ${MONTH_ABB[sun.getMonth()]} – ${sat.getDate()} ${MONTH_ABB[sat.getMonth()]} ${sat.getFullYear()}`;
-            weekNavLabel.classList.add('is-current-week'); // init always shows today's week
-        }
-    }());
+    // Delegate to updateWeekNavLabel (admin-overrides.js) rather than rebuilding the same string
+    // here (v18.90). The two copies had to agree on the format and didn't after the same-month
+    // collapse landed — the init one changed, the one that actually runs on every week change did
+    // not, so the label reverted on the first navigation. One writer now owns the format.
+    updateWeekNavLabel(fieldDate.value);
 
     // ============================================
     // UNSAVED CHANGES GUARD
