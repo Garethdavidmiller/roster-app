@@ -216,8 +216,19 @@ dashboard and, later, **the ≥90% metric that gates C5** — measured from day 
 |-------|----------|-------|
 | **0 — enabler** | §3 sign-in rework (gated dual-attempt, flag-independent rejection, page-load path) | Ships **atomically with Phase 1** — alone it is risk without capability |
 | **1 — capability + recovery + visibility** | Settings set-password card · `resetMemberPassword` + Operations reset button · `passwordStatus` + rules · **Operations Account status table** · Settings nudge banner | **This alone delivers the security win.** Migration voluntary |
-| **2 — compel + measure** | Forced set-password overlay · staged compel (run reset with `revoke:false` on batches of **un-migrated** members — for them the password write is a credential no-op, only the flag flips) | Order: owner → managers → staff, driven from the Account status table |
+| **2 — compel + measure** | Forced set-password overlay, gated on `!isPasswordMigrated(status)` | Order: owner → managers → staff, driven from the Account status table. ~~staged compel via `resetMemberPassword(revoke:false)`~~ — **struck v18.88, see below** |
 | **3 — retire the surname (later, optional, C5)** | Stop seeding surname passwords for new starters; delete the surname fallback + padding | **Irreversible.** Gated on ≥90% migrated. Out of scope for this plan; the door is left open |
+
+> **Correction (v18.88) — the "staged compel via reset" step did nothing.** Phase 2 originally
+> proposed running `resetMemberPassword` with `revoke:false` over batches of un-migrated members, on
+> the theory that "the password write is a credential no-op, only the flag flips". Traced against
+> `functions/index.js`: for an un-migrated member that call (a) rewrites the password to the surname
+> it already is, (b) stamps `resetAt`, and (c) with `revoke:false` does not sign them out. Migrated
+> status is `passwordSetAt > 0 && passwordSetAt >= resetAt` — for someone with no `passwordSetAt` it
+> was false before and is false after. **No flag flips and nothing compels them.** The forced overlay
+> is the entire mechanism; it needs no reset call, and it should gate on `!isPasswordMigrated` (the
+> shared tested helper), not on `resetAt` being present. Keep `revoke:true` for its real purpose —
+> genuine break-glass, where signing the member out is the point.
 
 **Rollback story (be honest about the one-way door):** Phase 0+1 is a hosting-revertible commit
 **only until the first member sets a custom password** — reverted code derives the surname and
