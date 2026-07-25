@@ -231,6 +231,7 @@ roster-app/
 ├── railcard-guide.js       ← JS for railcard-guide.html: print, chip-bar navigation
 ├── fip.js                  ← JS for fip.html: (1) the **country finder** (v17.64) — live-filters the 25 country cards + A–Z jump chips by country name OR operator/train text; progressive enhancement (JS off → all visible). (2) opens the target country `<details>` on a jump/deep link. (3) the sticky **section chip-bar** (v17.66) + **scrollspy** (v17.68) — mirrors railcard-guide.js; honours `prefers-reduced-motion`. Full detail: AI_MAP.md.
 ├── guide-print.js          ← shared print button for guide.html and paycalc-guide.html
+├── guide-back.js           ← shared back-arrow retarget for all 4 guide pages (classic script, no exports): reads the `?from=<page>` hint nav-panel.js appends when opening a guide and points that guide's `←` at the page you actually came from, instead of its hardcoded default (calendar / pay calculator). Needed since v18.81 made guides navigate in the SAME tab — before that a new tab preserved the page you left. `from` is checked against an allowlist of the app's own pages, so it can never become an off-site link; no `from` leaves the authored href untouched
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512 · icon-badge.png (monochrome notification badge, 96px)
 ├── fonts/
 │   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)

@@ -817,6 +817,12 @@ registerServiceWorker({
     bfcache: true,
 });
 
+// The hash this page was ENTERED with, captured before any viewer initialises (v18.84). Both
+// initHuddleViewer() and initDocViewer() strip their own deep-link hash SYNCHRONOUSLY via
+// history.replaceState, so anything reading window.location.hash after them sees an empty string —
+// which silently disarmed the password notice's "never cover a notification tap" guard below.
+const _entryHash = window.location.hash;
+
 // ============================================
 // HUDDLE VIEWER — initialised via calendar-huddle-viewer.js
 // ============================================
@@ -843,8 +849,13 @@ initDocViewer();
     if (isNoticeExpired(NOTICE_DATE, 15) && !lsGet(NOTICE_KEY)) { lsSet(NOTICE_KEY, '1'); return; }
     if (lsGet(NOTICE_KEY)) return;             // already seen (either surface) or completed
     if (!getSession()) return;                 // account holders only
-    // A notification tap deep-linking to a document must never be blocked by a notice.
-    if (/^#(huddle|circular|newsletter)/.test(window.location.hash)) return;
+    // A notification tap deep-linking to a document must never be blocked by a notice. Test the
+    // ENTRY hash, not the live one: the viewers above have already stripped it (v18.84). Reading the
+    // live hash made this guard dead, leaving only the 1500ms lb-open check below — which the Huddle
+    // path can lose, because its viewer opens only once the Firestore snapshot arrives (a first
+    // install, evicted IndexedDB or poor signal can exceed 1500ms). The notice then opened first and
+    // the Huddle landed on top of it: two stacked overlays for someone who tapped a notification.
+    if (/^#(huddle|circular|newsletter)/.test(_entryHash)) return;
 
     const lb = document.getElementById('noticePwCalLightbox');
     if (!lb) return;

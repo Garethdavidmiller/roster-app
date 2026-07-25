@@ -1207,9 +1207,21 @@ export function init() {
       // them to the payslip they land on (bp → _bpPNum; HPP → the year's first January payslip).
       // Only when their include-tick is on — an un-ticked/estimated lump inflates neither surface.
       const bpLump = (_bpIncluded && _bpPNum > 0 && _bpAmount > 0) ? { pNum: _bpPNum, amount: _bpAmount } : null;
-      const _ysHppIncluded = lsGet(hppIncKey(ty)) === '1';
+      // The HPP landing INSIDE this tax year is the PRIOR year's premium — a year's HPP is paid the
+      // January AFTER it ends — so read the flags for the tax year whose hppPaidJan matches THIS
+      // year's January payslip, the same resolution the result card uses for _hppTy. Reading
+      // hppIncKey(ty) asked the viewed year, whose own premium isn't paid until a year later, so the
+      // tick was read off the wrong year and the lump never joined these totals. (v18.84)
+      const _ysJan = getPeriods().find(/** @param {any} p */ p => {
+        const o = p.num - 48;
+        return o >= ty.first && o <= ty.last && p.payday.getMonth() === 0;
+      });
+      const _ysHppTy = _ysJan
+        ? CONFIG.TAX_YEARS.find(/** @param {any} t */ t => t.hppPaidJan === _ysJan.payday.getFullYear())
+        : null;
+      const _ysHppIncluded = !!_ysHppTy && lsGet(hppIncKey(_ysHppTy)) === '1';
       const _ysHppAmount = _ysHppIncluded
-        ? resolveHppForPeriod(lsGet(hppActualKey(ty)), lsGet(hppEstKey(ty))).amount : 0;
+        ? resolveHppForPeriod(lsGet(hppActualKey(_ysHppTy)), lsGet(hppEstKey(_ysHppTy))).amount : 0;
       const hppLump = (_ysHppIncluded && _ysHppAmount > 0) ? { amount: _ysHppAmount } : null;
       const y = computeYearSoFar(ty, { taxCode, plan, pgLoan, slPaidOffFromP, bpLump, hppLump });
       if (!y.entered && !y.skipped) { el.hidden = true; el.innerHTML = ''; return; }

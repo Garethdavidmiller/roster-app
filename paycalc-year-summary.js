@@ -47,10 +47,11 @@ import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
  * @returns {{ entered: number, paid: number, total: number, taxable: number, tax: number,
  *             ni: number, sl: number, net: number, projectedNet: number, skipped: number,
  *             missing: Date[] }}
- *   entered — paid payslips with saved hours; paid — payslips whose payday has passed;
- *   total — the year's payslip count (the projection base); money fields — sums over `entered`;
- *   projectedNet — (net ÷ entered) × total, 0 when nothing is entered; skipped — corrupt periods;
- *   missing — paydays of PAID payslips with no saved hours (named on the card — item 2).
+ *   entered — paid payslips with saved hours; paid — payslips whose payday has passed AND that the
+ *   member was employed for (a mid-year joiner's pre-start periods are excluded — v18.84);
+ *   total — the year's payslip count; money fields — sums over `entered`;
+ *   projectedNet — (recurring net ÷ entered) × employed periods + lumps, 0 when nothing is entered;
+ *   skipped — corrupt periods; missing — paydays of PAID payslips with no saved hours (item 2).
  */
 export function computeYearSoFar(ty, opts) {
   const now         = opts.now || new Date();
@@ -62,18 +63,27 @@ export function computeYearSoFar(ty, opts) {
     const o = p.num - 48;
     return o >= ty.first && o <= ty.last;
   });
-  const paidPeriods = yearPeriods.filter(/** @param {any} p */ p => p.payday <= now);
+  // PAID and EMPLOYED. A period falling entirely before a mid-year joiner's start date contributes
+  // £0 and was never theirs to fill in, so counting it in the denominator and NAMING it under "Not
+  // entered yet" told a joiner to enter payslips from before they worked here — the same defect
+  // v18.54 fixed for the HPP and back-pay cards, missed on this one (v18.84). getProRateFactor is 0
+  // ONLY for a fully pre-start period (1 for long-servers and noProRate secondment returns), so this
+  // is a no-op for everyone else; employedPeriods below already applied it, so the two now agree.
+  const paidPeriods = yearPeriods.filter(/** @param {any} p */ p => p.payday <= now && getProRateFactor(p) > 0);
   // Periods the member is actually EMPLOYED for this tax year — the annual projection extrapolates
-  // over these, not all 13. getProRateFactor(p) is 0 only for a fully pre-start period (1 for
-  // long-servers + noProRate returns), so this is a no-op for everyone except a mid-year joiner,
-  // whose full-year take-home was over-projected by multiplying the per-payslip average by 13.
+  // over these, not all 13. Same pre-start test as paidPeriods above: without it a joiner's
+  // full-year take-home was over-projected by multiplying the per-payslip average by 13.
   const employedPeriods = yearPeriods.filter(/** @param {any} p */ p => getProRateFactor(p) > 0).length;
 
-  // The tax-year's first January payslip carries the Holiday Pay Premium — the same period
-  // calculate() adds it to. Found once here so an opt-in hppLump lands on the right payslip.
-  const hppJanNum = (opts.hppLump && ty.hppPaidJan)
-    ? (yearPeriods.find(/** @param {any} p */ p =>
-        p.payday.getFullYear() === ty.hppPaidJan && p.payday.getMonth() === 0)?.num ?? 0)
+  // The Holiday Pay Premium lands on this tax year's FIRST January payslip. Match the PAYSLIP, not
+  // a year label: the premium that payslip carries is the PRIOR year's (a year's HPP is paid the
+  // January AFTER it ends), so the old `p.payday.getFullYear() === ty.hppPaidJan` test compared this
+  // year's paydays against a January beyond its own last period and could NEVER match — for either
+  // tax year — silently dropping every opt-in lump and leaving the year-so-far take-home
+  // contradicting the result card it promises to agree with. The caller resolves WHICH year's
+  // premium this is and passes only the amount. (v18.84)
+  const hppJanNum = opts.hppLump
+    ? (yearPeriods.find(/** @param {any} p */ p => p.payday.getMonth() === 0)?.num ?? 0)
     : 0;
 
   let entered = 0, taxable = 0, tax = 0, ni = 0, sl = 0, net = 0, skipped = 0;

@@ -333,6 +333,23 @@ describe('extractAIJson', () => {
     test('still throws when NO candidate span is valid JSON', () => {
         assert.throws(() => extractAIJson('{nope} and {also nope}'), SyntaxError);
     });
+    // REGRESSION (v18.84): the scan used to stop at the first span that PARSED, so a preamble
+    // containing a valid JSON literal — "{}" is the realistic one — was returned as the payload and
+    // the real roster object discarded. parseRosterPDF then rejected it ("The AI returned an
+    // unexpected format") and the whole upload failed even though the AI had answered correctly.
+    test('skips a VALID-JSON literal in the preamble and finds the roster object', () => {
+        const real = '{"parsed": [{"Mon": "RD"}], "columnHeaders": ["Mon"]}';
+        assert.deepEqual(extractAIJson('Blank cells are {} in this output.\n' + real),
+            { parsed: [{ Mon: 'RD' }], columnHeaders: ['Mon'] });
+        assert.deepEqual(extractAIJson('For example {"a":1} means something.\n' + real),
+            { parsed: [{ Mon: 'RD' }], columnHeaders: ['Mon'] });
+    });
+    test('an object that does not match the roster shape is still returned when nothing better exists', () => {
+        // Shape-matching must never turn a previously-working return into a throw: if no span
+        // carries parsed[]/columnHeaders[], the first parsed object is returned exactly as before.
+        assert.deepEqual(extractAIJson('{"foo": "bar"}'), { foo: 'bar' });
+        assert.deepEqual(extractAIJson('note {} here\n{"foo": "bar"}'), {});
+    });
 });
 
 // ── HEADER_TO_INDEX ───────────────────────────────────────────────────────────

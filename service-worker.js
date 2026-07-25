@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '18.83';
+const APP_VERSION = '18.84';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -137,7 +137,7 @@ const NETWORK_FIRST_FILES = [
     'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-guide.html',
     'fip.html', 'guide.html',
     'railcard-guide.html',
-    'railcard-guide.js', 'guide-print.js', 'fip.js', 'guide-shell.css',
+    'railcard-guide.js', 'guide-print.js', 'guide-back.js', 'fip.js', 'guide-shell.css',
     'guide.css', 'paycalc-guide.css', 'railcard-guide.css', 'fip.css', 'guide-doc.css',
     'purify.es.mjs',
 ];
@@ -249,6 +249,7 @@ const SUPPLEMENTARY_ASSETS = [
     "./railcard-guide.html",
     "./railcard-guide.js",
     "./guide-print.js",
+    "./guide-back.js",
     "./fip.js",
     "./guide-shell.css",
     "./guide.css",

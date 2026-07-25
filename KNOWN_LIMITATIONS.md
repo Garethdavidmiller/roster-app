@@ -303,6 +303,26 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
   `connect-src` `firebasestorage.googleapis.com` entry is redundant under the `*.googleapis.com`
   wildcard but kept for explicit readability (harmless; the hygiene test tolerates it).
 
+**Two more from the v18.84 sweep — real code paths, deliberately NOT changed** (the fix costs more
+risk than the defect):
+
+- **A retry can run a second authoritative reconciler over a month another fetch already owns.**
+  `doRetry` (`calendar-initial-fetch.js`) re-claims all three initial months and reconciles the whole
+  range. Reachable only as: initial fetch fails → its catch releases the months → a render/swipe
+  calls `ensureOverridesCached` for one of them (claiming it, fetch F1) → the user taps the retry
+  chip (fetch F2). Both are authoritative for the overlapping month, so if F1 resolves later with a
+  staler snapshot it can evict an override F2 just loaded — the class of bug removed from Team View
+  at v18.76. Left as-is: the window is one Firestore round-trip inside a three-step failure sequence,
+  the next fetch heals it, and the alternative (routing the retry through `ensureOverridesCached`)
+  would rewrite a delicate chip state machine whose success/failure signalling depends on awaiting a
+  single range fetch. Revisit only if it is ever seen in the wild.
+- **A back-pay lump on an un-entered payslip is excluded from "This tax year so far".** The
+  year-summary skips a paid payslip with no saved hours wholesale (it is listed under "Not entered
+  yet"), so its opt-in lump is skipped with it, while the result card shows the lump. Judged correct
+  rather than broken: including only the lump from a payslip the member hasn't filled in would make
+  the "N of M entered" count and the money disagree. The HPP lump behaves the same way, and
+  `paycalc-year-summary.test.mjs` now pins it.
+
 ### Firebase App Check — considered and declined (June 2026)
 App Check (register the app's hosting domains so only requests from our own pages can reach
 Firestore/Storage) was considered as a defence-in-depth measure and **declined for now**.

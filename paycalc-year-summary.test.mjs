@@ -190,13 +190,42 @@ describe('computeYearSoFar', () => {
             'must not extrapolate the lump-inflated per-payslip average');
     });
 
+    // REGRESSION (v18.84): this used to pass a synthetic `{ ...TY, hppPaidJan: 2026 }` — the one
+    // value that would fall inside the fixture's own period range — so it was green against a
+    // configuration that CANNOT occur. In the real table a year's HPP is paid the January AFTER the
+    // year ends (2025/26 → hppPaidJan 2027, a payday outside 2025/26's periods), so the old
+    // `payday.getFullYear() === ty.hppPaidJan` lookup never matched for ANY real tax year and the
+    // lump was silently dropped from these totals while the result card added it. TY here carries
+    // the REALISTIC out-of-range hppPaidJan, so the old lookup would fail this test.
     test('an INCLUDED HPP lump lands on the tax year’s first January payslip', () => {
         _ls.set('myb_pc_p62', JSON.stringify({ otH: 4, otM: 0 }));   // P62 = Jan 2026 (paid: now = 1 Feb)
-        const tyJan  = { ...TY, hppPaidJan: 2026 };
-        const base   = computeYearSoFar(tyJan, OPTS);
-        const withHpp = computeYearSoFar(tyJan, { ...OPTS, hppLump: { amount: 800 } });
+        const tyReal  = { ...TY, hppPaidJan: 2027 };   // as the real table has it — NOT inside TY's periods
+        const base    = computeYearSoFar(tyReal, OPTS);
+        const withHpp = computeYearSoFar(tyReal, { ...OPTS, hppLump: { amount: 800 } });
         const lumpNet = mirror({ oHrs: 4, lump: 800 }).net - mirror({ oHrs: 4 }).net;
+        assert.ok(lumpNet > 0, 'an £800 gross lump nets something after tax/NI');
         assert.equal(base.entered, 1, 'only P62 is paid + entered');
         assert.ok(Math.abs(withHpp.net - (base.net + lumpNet)) < 0.01, 'HPP joins the January payslip take-home');
+        assert.ok(Math.abs(withHpp.taxable - (base.taxable + 800)) < 0.01, 'taxable rises by the gross lump');
+    });
+
+    test('an HPP lump is NOT added when the January payslip has no saved hours', () => {
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 4, otM: 0 }));   // P62 (January) deliberately empty
+        const base    = computeYearSoFar(TY, OPTS);
+        const withHpp = computeYearSoFar(TY, { ...OPTS, hppLump: { amount: 800 } });
+        assert.ok(Math.abs(withHpp.net - base.net) < 0.01,
+            'an un-entered payslip is excluded wholesale — its lump must not appear on its own');
+    });
+
+    // REGRESSION (v18.84): `paid`/`missing` filtered only on "payday has passed", so a mid-year
+    // joiner was counted against — and told to fill in — payslips from before they worked here.
+    // employedPeriods already applied the pre-start test; the two now agree.
+    test('mid-year joiner: pre-start payslips are neither counted nor named as missing', () => {
+        _proRate = (/** @type {any} */ p) => (p.num >= 62 ? 1 : 0);   // employed from P62
+        const y = computeYearSoFar(TY, OPTS);
+        assert.equal(y.paid, 1, 'only P62 is both paid and employed (P60/P61 pre-start, P63 future)');
+        assert.deepEqual(y.missing, [P62.payday], 'pre-employment paydays are never named as "not entered yet"');
+        assert.ok(!y.missing.some(d => d.getTime() === P60.payday.getTime()), 'P60 predates employment');
+        assert.ok(!y.missing.some(d => d.getTime() === P61.payday.getTime()), 'P61 predates employment');
     });
 });

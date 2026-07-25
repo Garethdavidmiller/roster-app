@@ -190,6 +190,17 @@ function extractAIJson(text) {
     // balanced span isn't valid JSON we keep scanning for the next candidate object instead of
     // throwing on it. (The real response is bare JSON — prompt says "return ONLY valid JSON" — so
     // this is defence-in-depth for a chatty model.)
+    // A span that PARSES is not necessarily the payload. A chatty preamble can contain a perfectly
+    // VALID JSON literal — "blank cells are {} in this output" is the realistic one — and the scan
+    // used to stop at the first span that parsed, returning `{}` and discarding the real roster
+    // object that followed. parseRosterPDF then rejected it with "The AI returned an unexpected
+    // format" and the whole upload failed even though the AI had answered correctly (v18.84). So
+    // recognise the payload by its required shape, keep scanning past a parsed-but-unusable span,
+    // and fall back to the first parsed object only if nothing better turns up (a shape change must
+    // not start throwing where this used to return).
+    const looksLikeRoster = (/** @type {any} */ v) => !!v && typeof v === 'object' && !Array.isArray(v)
+        && Array.isArray(v.parsed) && Array.isArray(v.columnHeaders);
+    let fallback = null, haveFallback = false;
     let firstErr = null;
     let searchFrom = text.indexOf('{');
     while (searchFrom !== -1) {
@@ -211,12 +222,15 @@ function extractAIJson(text) {
         }
         if (end === -1) break;   // unbalanced from here to EOF — no complete object beyond this point
         try {
-            return JSON.parse(text.slice(searchFrom, end + 1));
+            const candidate = JSON.parse(text.slice(searchFrom, end + 1));
+            if (looksLikeRoster(candidate)) return candidate;         // the payload — done
+            if (!haveFallback) { fallback = candidate; haveFallback = true; }   // parsed, but not it
         } catch (e) {
             if (!firstErr) firstErr = e;             // remember the first failure for the message
-            searchFrom = text.indexOf('{', searchFrom + 1);   // this span wasn't JSON — try the next
         }
+        searchFrom = text.indexOf('{', searchFrom + 1);   // not the payload — try the next candidate
     }
+    if (haveFallback) return fallback;   // nothing matched the shape — behave as before
     throw new SyntaxError('No valid JSON object found in AI response' + (firstErr ? `: ${firstErr.message}` : ''));
 }
 
