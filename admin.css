@@ -952,7 +952,9 @@
             font-size: var(--type-small);
             font-weight: 700;
             padding: 10px 20px;
-            border-radius: 24px;
+            /* --radius-pill, not a 24px literal (v18.87): the toast is ~36px tall, so a 24px
+               radius already clamps to a full pill — this is the same pixels with the right name. */
+            border-radius: var(--radius-pill);
             box-shadow: var(--shadow-3);
             z-index: 7500;
             opacity: 0;

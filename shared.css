@@ -291,6 +291,12 @@
     --radius-button: 10px;  /* action/save buttons — between sm and md */
     --radius:       12px;   /* the app's common discrete-CARD corner (day-row, override/error/usage rows) — was hardcoded in ~8 places */
     --radius-xl:    20px;   /* large lightbox/panel cards (v17.72 — was a hardcoded 20px in ~20 places) */
+    /* The app has TWO overlay families and they carry different corners on purpose: compact white
+       DIALOGS (month-jump, team info) at --radius-xl, and full navy GLASS SHEETS (About, notices,
+       day detail, AL) at 24px. That was fine, but only one side had a name — the six glass panels
+       each restated `border-radius: 24px`, so the rule lived nowhere and the next panel author had
+       nothing to copy. Naming it makes the two-family system explicit; no pixel moves. (v18.87) */
+    --radius-panel: 24px;   /* navy glass overlay sheets */
     --radius-pill:  999px;  /* fully-rounded pills/chips (v17.72) */
 
     /* ── Spacing scale (v17.45) ───────────────────────────────────
@@ -349,6 +355,9 @@
     --dur-med:  0.15s;   /* v17.72 — the de-facto third duration (was a hardcoded 0.15s in ~30 places) */
     --dur-base: 0.2s;
     --dur-slow: 0.25s;  /* v18.29 — disclosure-arrow rotations (was a hardcoded 0.25s in ~4 places) */
+    --dur-slower: 0.3s; /* v18.87 — content reveals (paycalc's animated card bodies + boxing banner).
+                           The scale previously stopped at 0.25s, so every reveal on the page had to
+                           hardcode its own longer value and they drifted apart (0.3s / 0.35s / 0.4s). */
 
     /* Stacking order (v17.72). The overlay layer was hand-picked magic numbers; the login overlay
        and the paycalc one-time notices both sat at 9000 (a tie resolved only by source order). */
@@ -579,6 +588,12 @@ body.lb-open #stickyTotal { display: none !important; }
     outline: none;
     background-color: white;
     border-color: var(--primary-blue);
+    /* The 4px ring every other focusable field in the app gets (admin, calendar, operations,
+       paycalc all use exactly this). This one input — the shared promptDialog's — was the only
+       field left with `outline: none` and nothing but a border-colour change in its place, so it
+       had the weakest focus indicator in the app while sitting inside a modal, where keyboard
+       users most need to see where they are. (v18.87) */
+    box-shadow: 0 0 0 4px var(--focus-ring-color);
 }
 .dialog-actions {
     display: flex;
@@ -633,7 +648,7 @@ body.lb-open #stickyTotal { display: none !important; }
     gap: 6px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 24px;
+    border-radius: var(--radius-panel);
     padding: 36px 40px 32px;
     width: min(300px, 85vw);
     text-align: center;
@@ -756,7 +771,7 @@ body.lb-open #stickyTotal { display: none !important; }
     gap: 6px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 24px;
+    border-radius: var(--radius-panel);
     padding: 28px 28px 22px;
     width: min(320px, 86vw);
     text-align: center;
@@ -1542,7 +1557,7 @@ button.nav-panel-link--notices {
     gap: 10px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 24px;
+    border-radius: var(--radius-panel);
     padding: 40px 40px 32px;
     width: min(300px, 85vw);
     text-align: center;
@@ -1564,7 +1579,7 @@ button.nav-panel-link--notices {
     gap: 10px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 24px;
+    border-radius: var(--radius-panel);
     padding: 40px 40px 32px;
     width: min(300px, 85vw);
     max-height: 80vh;
