@@ -396,3 +396,61 @@ the link now hides that footer — the actionable version replaces the passive o
 admin until Phase 2. Email self-service (C2) remains blocked on a relay — note that Firebase's own
 `sendPasswordResetEmail` cannot substitute, because the accounts are synthetic
 `initial.surname@myb-roster.local` addresses that receive no mail.
+
+---
+
+## 13. What the v18.94 review found (and what it did not fix)
+
+A five-reviewer adversarial pass over v18.92+v18.93 found ~20 defects. The fixes are in v18.94; what
+follows is the part worth keeping — the things that are **accepted, not fixed**, and the reasons.
+
+### The one that matters most: a request proves nothing about who sent it
+
+Nothing ties a reset request to the person named in it. A reviewer filed valid requests for **all 50
+members in 406ms** from Node, with no browser, no Origin header, and no JavaScript — a plain
+auto-submitting `<form>` on any site would do it from every visitor's browser. The card then presents
+each row as an outstanding lockout with the remedy "Reset below in Account status", and acting on it
+puts a member who had chosen their own password **back on the guessable surname default and revokes
+their tokens**. That is the downgrade attack §12 says the design forecloses — reached through the admin
+as a proxy. "The human in the loop IS the authentication" authenticates the reset *action*; it does not
+authenticate the *asker*, and the card gave the admin nothing to doubt.
+
+**Mitigated, not solved (v18.94).** The card now says plainly that requests aren't verified and to
+confirm with the member before resetting, and the Tips panel repeats it with the consequence spelled
+out. That is honest but it is a human control. The real fixes, in ascending cost: **App Check** (Track
+D — already planned, and the right answer), or a short-lived server-issued token the login overlay can
+only obtain after a genuine credential failure. Until one lands, treat the queue as a **notification**,
+never as evidence.
+
+`count` is attacker-owned for the same reason, so "asked 3 times" is not evidence either.
+
+### `CONFIG.PASSWORD_RESET_REQUESTS` does not reach the endpoint
+
+It hides the login link. The public endpoint stays live and unauthenticated, so it is **not** a lever
+against any of the above — the real levers are a functions redeploy or deleting the function. Do not
+reach for the flag in an incident expecting it to close the door.
+
+### `maxInstances: 3` bounds cost, not rate — and is itself a lever
+
+With no `concurrency` override the platform default (~80/instance) applies, so ~240 requests can be in
+flight: the cap does not throttle request rate. It genuinely bounds spend, but an unauthenticated
+caller can saturate all three instances and have Cloud Run 429 real requests — taking the only in-app
+recovery route offline. Accepted trade; recorded here so it is not discovered during an incident.
+
+### CORS is not a boundary on this endpoint
+
+`cors: ADMIN_FUNCTION_ORIGINS` sets response headers and calls `next()` regardless of the request's
+Origin, and a non-browser caller sends none. On the other three functions the docstring correctly calls
+CORS "defence-in-depth on top of the real control" — here there is no other control, so the allowlist
+reads far more protective than it is. The name is also misleading on a deliberately public endpoint.
+
+### Smaller accepted items
+
+- **A stale `provisioned: false`** can persist up to the 10-minute throttle window after the admin runs
+  Set up accounts, because a throttled repeat doesn't rewrite the flag.
+- **The compel marker is consumed before the identity is known**, so a member whose session barrier
+  doesn't settle inside 4s loses that compel cycle (up to 30 days). Fixing it means restoring the
+  marker, which re-creates the Fix-4 ambush — the worse of the two. Coverage completes anyway.
+- **The modulepreload guard only walks STATIC imports**, so a dynamic-only import would be invisible to
+  it. Not live (every dynamically-imported module here is also statically imported elsewhere), but the
+  guard is weaker than it looks.

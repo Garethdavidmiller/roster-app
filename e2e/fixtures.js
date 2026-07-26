@@ -51,7 +51,25 @@ export const writeBatch = () => ({ set: noop, update: noop, delete: noop, commit
 // runTransaction(db, fn): run the update fn with a stub tx whose get() returns a non-existent doc,
 // so the links-app.js concurrency transaction (Finding #13) links + executes in the hermetic suite.
 export const runTransaction = (_db, fn) => Promise.resolve(fn({ get: () => Promise.resolve({ exists: () => false, data: () => ({}) }), set: noop }));
-export const getDocs = () => Promise.resolve({ empty: true, size: 0, docs: [], forEach: noop });
+// Collection reads resolve EMPTY unless a test seeds rows via window.__E2E.docs (an array of
+// { id, ...fields }). Any millisecond-number field is exposed as a Firestore-Timestamp-alike so card
+// code calling .toDate()/.toMillis() works unchanged. Added v18.94 because there was no way to render
+// an Operations card WITH DATA — which is how the reset-requests row shipped broken at 375px (its
+// name column collapsed to 18px and text painted over the label).
+// NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
+export const getDocs = () => {
+  const rows = (globalThis.__E2E || {}).docs;
+  if (!rows) return Promise.resolve({ empty: true, size: 0, docs: [], forEach: noop });
+  // Only EPOCH-SCALE numbers become Timestamps (>= 1e12 ms, i.e. after Sep 2001) — the same heuristic
+  // isEmailCheckDue uses for legacy stamps. Converting every number turned a seeded count: 4 into a
+  // Timestamp object, so "asked 4 times" silently vanished from the card.
+  const ts = (v) => (typeof v === 'number' && v >= 1e12 ? { toDate: () => new Date(v), toMillis: () => v } : v);
+  const docs = rows.map(r => ({
+    id: r.id,
+    data: () => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, ts(v)])),
+  }));
+  return Promise.resolve({ empty: false, size: docs.length, docs, forEach: cb => docs.forEach(cb) });
+};
 //   window.__E2E = { failGetDoc: true }  → every single-doc read rejects. Used to prove the forced
 //      set-password overlay FAILS OPEN when it can't read passwordStatus (password-force.js) — the
 //      property that keeps a mandatory overlay from becoming a lockout.

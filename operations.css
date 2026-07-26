@@ -880,13 +880,19 @@ select:focus-visible, input:focus-visible {
         border-radius: var(--radius);
         border-left: 3px solid var(--accent-gold);
     }
-    .rr-main  { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+    /* min-width AND overflow: without the overflow the name/timestamp painted over the remedy label
+       once the row got tight (v18.94 fix — the row was measured at 375px, which v18.93 never was). */
+    .rr-main  { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 100%; overflow: hidden; }
     .rr-main strong { font-size: var(--type-body); color: var(--primary-blue); }
     .rr-when  { font-size: var(--type-small); color: var(--text-faint); }
     .rr-remedy {
         font-size: var(--type-small);
         color: var(--text-mid);
-        white-space: nowrap;
+        /* NOT nowrap (v18.94). A nowrap label with no flex-shrink held its full ~219px and starved the
+           name column to 18px at 375px, breaking names mid-word ("K." / "Jedlinski") and shredding
+           timestamps into one-word columns. Let it wrap and let the row stack instead. */
+        flex: 1 1 auto;
+        min-width: 0;
     }
     /* A missing account needs Set up accounts, not Reset — call that out rather than leaving the admin
        to discover it by trying. */
@@ -902,6 +908,13 @@ select:focus-visible, input:focus-visible {
         cursor: pointer;
         min-height: 32px;
     }
+    /* Below the two-column breakpoint the row is a stack, not a strip: the name gets the full width and
+       the remedy sits with the Clear button beneath it. Above it, the original single strip. */
+    @media (min-width: 1024px) {
+        .rr-main   { flex: 1 1 auto; }
+        .rr-remedy { flex: 0 0 auto; white-space: nowrap; text-align: right; }
+    }
+    .btn-rr-clear { flex: 0 0 auto; margin-left: auto; }
     @media (hover: hover) and (pointer: fine) { .btn-rr-clear:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
     .btn-rr-clear:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
     .btn-rr-clear:disabled { opacity: 0.5; cursor: default; }

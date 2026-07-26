@@ -381,6 +381,11 @@ export function init() {
             } catch { /* leave the chip/nudge as-is (optimistic paint, or blank) on a read failure */ }
         }
         refreshStatus();
+        // The forced overlay (password-force.js) can change the password AFTER this card has already
+        // read passwordStatus, leaving the header chip saying "using surname" until a reload (FIX,
+        // v18.94). It dispatches this when it succeeds; optimistic because the serverTimestamp hasn't
+        // resolved yet.
+        document.addEventListener('myb:password-set', () => refreshStatus(true));
 
         saveBtn.addEventListener('click', async () => {
             if (!member) return;

@@ -9,7 +9,7 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail } from './roster-data.js';
+import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError, _relativeTime } from './operations-reports.js';
@@ -487,7 +487,7 @@ export function init() {
             renderForGrade('');
         } catch {
             content.removeAttribute('aria-busy');   // announce "finished" even on a failed load (a11y)
-            _cardLoadError(content, 'account status', () => initAccountStatus());
+            _cardLoadError(content, 'Couldn’t load the account status — check your connection.', () => initAccountStatus());
         }
     }
     initAccountStatus();
@@ -500,10 +500,15 @@ export function init() {
     // adjacent. Written ONLY by the requestPasswordReset Cloud Function (no client can write the
     // collection — firestore.rules), and the name in each row came from the server-owned activeMembers
     // list, never from the request body, which is what makes it safe to render.
+    let _rrLoading = false;
     async function initResetRequests() {
         const content = document.getElementById('resetRequestsContent');
         const chip    = document.getElementById('resetRequestsCountChip');
         if (!content) return;
+        // Two Clears in quick succession each started their own load; whichever snapshot landed LAST
+        // won, so an older one could repaint a just-deleted row as a ghost (v18.94).
+        if (_rrLoading) return;
+        _rrLoading = true;
         content.setAttribute('aria-busy', 'true');
         try {
             const requests = await getResetRequests();
@@ -525,19 +530,29 @@ export function init() {
                 _chev?.setAttribute('aria-expanded', 'true');
             }
             content.innerHTML = `<div class="rr-list">${requests.map(r => {
+                // escapeHtml even though the writer is server-validated (v18.94). The allowlist IS the
+                // control, but it sits three layers away with no test tying it to this render, and a
+                // crafted name provably broke out of the data-member attribute — retargeting Clear at
+                // another doc id. The two neighbouring cards on this page escape; so does this one now.
+                const safeName = escapeHtml(r.memberName);
                 const when = r.requestedAt?.toDate?.() ? _relativeTime(r.requestedAt.toDate()) : 'recently';
-                const again = (r.count || 1) > 1 ? ` · asked ${r.count} times` : '';
+                const again = (Number(r.count) || 1) > 1 ? ` · asked ${Number(r.count)} times` : '';
                 // provisioned === false means there is no Firebase account at all, so a Reset cannot
                 // help — the remedy is Set up accounts. The login overlay deliberately cannot tell the
                 // member which of the two it is (that would leak which names are provisioned); here it
                 // saves the admin a wasted round trip.
+                // Three states, not two (v18.94): the endpoint now OMITS `provisioned` when its Auth
+                // lookup failed, rather than losing the whole request — so "absent" means unknown, and
+                // saying "Reset below" for it would be a guess presented as fact.
                 const remedy = r.provisioned === false
                     ? '<span class="rr-remedy rr-remedy--setup">No account yet — run Set up accounts</span>'
-                    : '<span class="rr-remedy">Reset below in Account status</span>';
+                    : r.provisioned === true
+                        ? '<span class="rr-remedy">Reset below in Account status</span>'
+                        : '<span class="rr-remedy">Check the account below</span>';
                 return `<div class="rr-row">
-                    <div class="rr-main"><strong>${r.memberName}</strong><span class="rr-when">${when}${again}</span></div>
+                    <div class="rr-main"><strong>${safeName}</strong><span class="rr-when">${escapeHtml(when)}${again}</span></div>
                     ${remedy}
-                    <button type="button" class="btn-rr-clear" data-member="${r.memberName}">Clear</button>
+                    <button type="button" class="btn-rr-clear" data-member="${safeName}">Clear</button>
                 </div>`;
             }).join('')}</div>`;
             content.querySelectorAll('.btn-rr-clear').forEach(btn => {
@@ -550,7 +565,12 @@ export function init() {
             });
         } catch {
             content.removeAttribute('aria-busy');
-            _cardLoadError(content, 'password reset requests', () => initResetRequests());
+            // Clear the chip: leaving the previous count above an error panel told the admin "5
+            // outstanding" while showing no list (v18.94).
+            if (chip) chip.textContent = '';
+            _cardLoadError(content, 'Couldn’t load the password reset requests — check your connection.', () => initResetRequests());
+        } finally {
+            _rrLoading = false;
         }
     }
     initResetRequests();
@@ -682,7 +702,16 @@ export function init() {
                     { icon: '🚪', html: 'Tick <strong>"Disable accounts for leavers"</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
                 ]}],
             },
-            'account-status': {
+            'reset-requests': {
+            title: '🙋 Password Reset Requests',
+            items: [
+                { icon: '🔑', html: 'Staff who tap <strong>“ask the admin to reset your password”</strong> on the sign-in screen appear here. Nothing is reset automatically — <strong>you</strong> do it, from Account status below.' },
+                { icon: '⚠️', html: '<strong>Requests are not verified.</strong> The sign-in screen has no way to prove who is tapping, so anyone could file a request in someone else\'s name. <strong>Confirm with the member before resetting</strong> — a reset puts them back on their surname default and signs them out of their other devices.' },
+                { icon: '🆕', html: 'A row saying <strong>“No account yet”</strong> means there is no Firebase account to reset. Run <strong>Set up accounts</strong> instead.' },
+                { icon: '🧹', html: '<strong>Clear</strong> removes the row once you have dealt with it. If they ask again it comes back, with the count showing how many times.' },
+            ],
+        },
+        'account-status': {
                 title: 'Account status',
                 sections: [
                     { heading: 'What it shows', items: [

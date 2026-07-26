@@ -793,7 +793,11 @@ export async function requestPasswordReset(memberName) {
 export async function getResetRequests() {
     const snap = await getDocs(collection(db, COLLECTIONS.resetRequests));
     return snap.docs
-        .map(/** @param {any} d */ d => ({ memberName: d.id, ...d.data() }))
+        // memberName AFTER the spread (v18.94): the doc ID is the thing the rules and the endpoint
+        // actually bound, so it must win over a field that could in principle differ. With the old
+        // order, Clear deleted `resetRequests/<field>` — a no-op Firestore reports as success, so a
+        // divergent row would silently reappear on every re-render and be unclearable.
+        .map(/** @param {any} d */ d => ({ ...d.data(), memberName: d.id }))
         .sort((/** @type {any} */ a, /** @type {any} */ b) =>
             (b.requestedAt?.toMillis?.() ?? 0) - (a.requestedAt?.toMillis?.() ?? 0));
 }

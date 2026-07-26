@@ -30,6 +30,8 @@ import { markLoginStart, clearLoginStart } from './perf-reporter.js';
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
 const GRADE_ORDER = CONFIG.GRADE_ORDER;   // single source (roster-data CONFIG) — shared with admin-app's selector
 const GRADE_KEY   = 'myb_login_grade';
+/** Canonical label for the reset-request control — restored after every send, success or failure. */
+const RESET_BTN_LABEL = 'Can’t get in? Ask the admin to reset your password';
 
 /** Resolve `promise`, or reject after `ms`, so a hung async step can't strand the login overlay.
  *  Clears the timer on either outcome. (The underlying promise keeps running — that is fine; a late
@@ -175,6 +177,9 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     const submitBtn     = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginSubmit'));
     const errorEl       = /** @type {HTMLElement} */ (overlay.querySelector('#loginError'));
     const resetBtn      = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginResetRequest'));
+    /** The member whose sign-in failed, captured at REVEAL time — never re-read from the dropdown. */
+    /** @type {string|null} */
+    let _resetRequestFor = null;
     const resetStatusEl = /** @type {HTMLElement} */ (overlay.querySelector('#loginResetStatus'));
     const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
     const backLink      = /** @type {HTMLAnchorElement} */ (overlay.querySelector('.login-back'));
@@ -244,6 +249,11 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
 
     gradeSelect.addEventListener('change', () => {
         errorEl.classList.remove('visible');
+        // Retract the reset-request reveal — it was for a DIFFERENT member (FIX, v18.94). Leaving it up
+        // let a request be filed for whoever was selected next, and left the error cleared but the
+        // passive help footer still hidden, so a member who had failed nothing saw an unexplained
+        // "ask the admin to reset your password" link and no advice.
+        hideResetRequest();
         passwordInput.value = '';
         nameSelect.value = '';
         populateNames(gradeSelect.value);
@@ -252,6 +262,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
 
     nameSelect.addEventListener('change', () => {
         errorEl.classList.remove('visible');
+        hideResetRequest();   // see the grade handler — the reveal belongs to one member only
         passwordInput.value = '';
         if (nameSelect.value) passwordInput.focus();
     });
@@ -272,8 +283,18 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     /** Reveal the "ask the admin to reset it" route. Called ONLY for a credential failure — a network
      *  or rate-limit failure is not a forgotten password, and offering a reset for one would send the
      *  admin a request that fixes nothing. */
-    function revealResetRequest() {
+    function revealResetRequest(/** @type {string} */ forMember) {
         if (!CONFIG.PASSWORD_RESET_REQUESTS || !resetBtn) return;
+        // Bind the request to the member whose sign-in ACTUALLY failed (FIX, v18.94). It used to read
+        // nameSelect.value at CLICK time, and nothing un-revealed the button when the dropdown changed
+        // — so failing as one member, switching the dropdown, then tapping the link filed a request for
+        // someone who never asked. Acting on it resets THEM to the surname default, and under v18.92
+        // they are then force-migrated again. The endpoint is public by design, so this was never a
+        // security hole; it was the one surface that decides WHICH member gets reset, getting it wrong.
+        _resetRequestFor = forMember;
+        resetStatusEl.textContent = '';
+        resetBtn.disabled = false;
+        resetBtn.textContent = RESET_BTN_LABEL;
         resetBtn.hidden = false;
         // Retire the static "Trouble signing in? Ask the admin." footer once the ACTIONABLE version of
         // the same advice is on screen. Without this the card states it three times at once — the error
@@ -283,8 +304,19 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
         if (help) /** @type {HTMLElement} */ (help).hidden = true;
     }
 
+    /** Retract the reveal — the reason for it no longer applies (identity changed, or a retry began). */
+    function hideResetRequest() {
+        _resetRequestFor = null;
+        if (resetBtn) { resetBtn.hidden = true; resetBtn.disabled = false; resetBtn.textContent = RESET_BTN_LABEL; }
+        if (resetStatusEl) resetStatusEl.textContent = '';
+        // Restore the passive footer the reveal replaced, or a member who merely changed grade would be
+        // left with neither the link's explanation nor the footer's advice (FIX, v18.94).
+        const help = overlay.querySelector('#loginHelpLine');
+        if (help) /** @type {HTMLElement} */ (help).hidden = false;
+    }
+
     resetBtn?.addEventListener('click', async () => {
-        const name = nameSelect.value;
+        const name = _resetRequestFor;
         if (!name) { resetStatusEl.textContent = 'Choose your name first.'; return; }
         resetBtn.disabled = true;
         const original = resetBtn.textContent;
@@ -299,6 +331,10 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
             resetStatusEl.textContent = 'Couldn’t send the request — check your connection, or contact the admin directly.';
+        } finally {
+            // ALWAYS restore, including on success (FIX, v18.94). The success path used to leave the
+            // button disabled and reading "Sending…" behind `hidden`, so a later credential failure
+            // re-revealed a dead control.
             resetBtn.disabled = false;
             resetBtn.textContent = original;
         }
@@ -369,8 +405,11 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                 // never on a network/timeout/rate-limit failure (which would punish a connectivity
                 // problem). Firebase does the real rate-limiting; this is a UX brake on hammering.
                 if (_result.kind === 'credential') {
-                    revealResetRequest();
                     _failCount++;
+                    // From the SECOND failure (FIX, v18.94). v18.93 revealed on the first, which
+                    // contradicted its own stated rationale — "the remedy for a mistype is to try
+                    // again" — since failure #1 is precisely the mistype case.
+                    if (_failCount >= 2) revealResetRequest(name);
                     if (_failCount >= 3) {
                         _lockedUntil = Date.now() + 30_000;
                         submitBtn.disabled = true;

@@ -21,8 +21,13 @@
  *  3. **It fails open AFTER showing too.** This is the part a "mandatory overlay" gets wrong: once
  *     it is up, a rate-limit or a dropped connection would otherwise leave the member facing a
  *     dialogue they cannot satisfy and cannot dismiss. On any auth-layer failure they can't fix by
- *     typing (`too-many-requests`, network), and after three failed attempts of any other kind, a
- *     "Continue for now" escape appears. It stamps nothing, so they are compelled again next sign-in.
+ *     typing (`too-many-requests`, network, or a TIMEOUT), and after three failed attempts of any
+ *     other kind, a "Continue for now" escape appears. It stamps nothing, so they are compelled again
+ *     next sign-in.
+ *     · v18.92 shipped this covering REJECTIONS only. A promise that never settles is not a rejection:
+ *       it reached neither the catch nor the close, so a dead-air connection left "Saving…" up with the
+ *       escape still hidden — the exact trap. `SAVE_TIMEOUT_MS` converts a hang into a rejection
+ *       (v18.94). When adding any await inside the overlay, time-box it or this property is void.
  *
  * ── WHY IT IS LOGIN-GATED ─────────────────────────────────────────────────────────────────────
  * `login-overlay.js` sets a one-shot `myb_pw_force_pending_<member>` marker on a CONFIRMED sign-in;
@@ -56,6 +61,27 @@ const STATUS_READ_TIMEOUT_MS = 4000;
 
 /** Failed save attempts before the escape hatch appears regardless of the error. */
 const ESCAPE_AFTER_FAILURES = 3;
+
+/** Ceiling on the password WRITE. Mirrors runNamedSignIn's 8s sign-in budget (LOGIN_INCIDENT.md). */
+const SAVE_TIMEOUT_MS = 8000;
+
+/**
+ * Reject `promise` if it hasn't settled in `ms`. Load-bearing here, not defensive padding: a promise
+ * that never settles reaches neither `catch` nor the close path, so without this a dead-air mobile
+ * connection left a MANDATORY overlay showing "Saving…" with the escape hatch still hidden — the
+ * member could neither satisfy it nor dismiss it, which is precisely the trap this feature's design
+ * claims to have closed. It closed it for REJECTIONS; a hang is not a rejection. Every other network
+ * call in the feature was already time-boxed (the ready barrier, the status read, sign-in itself);
+ * this one wasn't.
+ * @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T>}
+ */
+function withTimeout(promise, ms) {
+    /** @type {any} */ let timer;
+    return /** @type {Promise<T>} */ (Promise.race([
+        promise,
+        new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('timed out'), { code: 'myb/timeout' })), ms); }),
+    ]).finally(() => clearTimeout(timer)));
+}
 
 /**
  * PURE gate decision — no DOM, no Firebase, no storage (so it is unit-testable).
@@ -168,6 +194,13 @@ function _show(member) {
             errorEl.classList.toggle('visible', !!msg);
         };
 
+        // The fields carry enterkeyhint="next"/"go", so the Android keyboard shows a Go key — which
+        // did nothing (FIX, v18.94). There is no <form> here (a mandatory overlay must not be
+        // submittable by stray means), so wire the key explicitly, as login-overlay.js does.
+        overlay.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !saveBtn.disabled) { e.preventDefault(); saveBtn.click(); }
+        });
+
         toggle.addEventListener('click', () => {
             const show = newEl.type === 'password';
             newEl.type = confEl.type = show ? 'text' : 'password';
@@ -186,9 +219,13 @@ function _show(member) {
             const invalid = validateNewPassword(member, next, confirm);
             if (invalid) {
                 setError(invalid);
-                // Focus the field the member has to change: the confirm box on a mismatch, otherwise
-                // the new-password box (too short, or the surname block).
-                (next && next !== confirm ? confEl : newEl).focus();
+                // Focus the field the message is about. Derive the MISMATCH condition exactly rather
+                // than inferring it from "the values differ" (FIX, v18.94): a too-short password with
+                // an empty Confirm box also has differing values, so the old test sent the cursor to
+                // Confirm while the error talked about the new password. Same bug reached the shipped
+                // Settings card through the shared validator.
+                const isMismatch = next.length >= MIN_PASSWORD_LENGTH && next !== confirm;
+                (isMismatch ? confEl : newEl).focus();
                 return;
             }
             saveBtn.disabled = true;
@@ -198,11 +235,15 @@ function _show(member) {
                 // refused for staleness, so reauthenticate first. credentialCandidatesFor (inside
                 // reauthenticateWithPassword) handles the un-migrated short-surname padding, exactly
                 // as sign-in does — otherwise "C. Reen" typing "reen" could never complete this.
-                if (!curWrap.hidden) await reauthenticateWithPassword(member, curEl.value);
-                await setOwnPassword(member, next);
+                if (!curWrap.hidden) await withTimeout(reauthenticateWithPassword(member, curEl.value), SAVE_TIMEOUT_MS);
+                await withTimeout(setOwnPassword(member, next), SAVE_TIMEOUT_MS);
                 // The password IS changed at this point. A missing migration stamp is a soft note
                 // (setOwnPassword's own contract), never a failure — do not re-prompt on it.
                 lsSet('myb_notice_password-2026_done', '1');   // this completes that campaign
+                // Let the host page refresh anything showing migration state. On settings.html the
+                // Password card read passwordStatus BEFORE this overlay ran, so without this its
+                // header chip still said "using surname" until a reload (FIX, v18.94).
+                document.dispatchEvent(new CustomEvent('myb:password-set'));
                 close();
             } catch (e) {
                 failures++;
@@ -216,9 +257,17 @@ function _show(member) {
                 } else if (code === 'auth/too-many-requests') {
                     setError('Too many attempts — wait a few minutes and try again.');
                     offerEscape();          // they cannot proceed by typing; must not be trapped
-                } else if (code === 'auth/network-request-failed') {
+                } else if (code === 'auth/network-request-failed' || code === 'myb/timeout') {
+                    // A hang lands here now (FIX, v18.94) and MUST offer the escape — it is
+                    // indistinguishable to the member from being offline.
                     setError('Couldn’t connect — check your connection and try again.');
                     offerEscape();
+                } else if (code === 'auth/missing-password') {
+                    // Empty current-password box. Say so, rather than spending one of the three
+                    // failures on the generic "try again shortly" (auth/missing-password is not in
+                    // CREDENTIAL_REJECTION_CODES, so it used to fall through to it).
+                    setError('Enter your current password.');
+                    curEl.focus();
                 } else if (isCredentialRejection(code)) {
                     setError('Current password incorrect — try again, or ask the admin to reset it.');
                     curEl.focus();
@@ -264,14 +313,14 @@ function _show(member) {
  * Fire-and-forget from a coordinator's authorised path — never awaited on the login critical path.
  *
  * @param {string|null|undefined} member
- * @param {{ ready?: Promise<any> }} [opts]  a barrier that resolves once the Firebase session is
+ * @param {{ ready?: Promise<any>, onShow?: () => void }} [opts]  `ready` is a barrier that resolves once the Firebase session is
  *   settled. The four `sessionReady` pages pass it; paycalc calls this from inside its own post-auth
  *   callback and passes nothing (already settled). Raced with a timeout so a page whose barrier never
  *   resolves degrades to "don't show" instead of hanging.
  * @returns {Promise<boolean>} whether the overlay was shown (callers use this to defer the work-email
  *   check — PASSWORD_PLAN.md §4: password wins when both are due).
  */
-export async function initPasswordForce(member, { ready } = {}) {
+export async function initPasswordForce(member, { ready, onShow } = {}) {
     if (!member) return false;
     const pendingKey = PW_FORCE_PENDING_PREFIX + member;
     if (!lsGet(pendingKey)) return false;      // not a fresh sign-in → never ambush an ordinary load
@@ -313,6 +362,13 @@ export async function initPasswordForce(member, { ready } = {}) {
     })) return false;
 
     try {
+        // Fire BEFORE awaiting the overlay (FIX, v18.94). The returned promise resolves only when the
+        // member CLOSES the overlay, so a caller using it to settle a competing overlay never ran if
+        // they navigated away or backgrounded the app while it was up — which for a modal with no ✕ is
+        // the natural reflex. That stranded the work-email check's one-shot marker, and the email
+        // check then ambushed them on a later ordinary load: the v14.77 "Fix 4" defect, re-created by
+        // the very line meant to prevent it.
+        onShow?.();
         await _show(member);
     } catch (e) {
         console.warn('[Auth] forced password overlay failed to run:', e);
