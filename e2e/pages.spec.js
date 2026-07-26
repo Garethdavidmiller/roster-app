@@ -590,3 +590,64 @@ test('settings password card: the typed value is not hidden under the Show butto
     });
     expect(gap.pr, 'padding-right must clear the Show button').toBeGreaterThanOrEqual(gap.btnW);
 });
+
+// ── OPERATIONS: exact unique-account sign-in counts on the Usage card (v18.96) ──────────────────
+// The counterpart to the device-deduped "active accounts" figure. It comes from a SECOND network
+// call (a Cloud Function, not Firestore) appended to a card that already has its data, so the two
+// things worth pinning are that it renders, and that its failure can never take the card with it.
+for (const width of [375, 1280]) {
+    test(`operations usage: sign-in counts render @${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 1200 });
+        await page.route('**/getSignInStats', route => route.fulfill({
+            contentType: 'application/json',
+            body: JSON.stringify({ total: 48, last7: 19, last30: 31, neverSignedIn: 6 }),
+        }));
+        await page.addInitScript(() => { window.__E2E = { authUser: true }; });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+
+        const section = page.locator('.usage-signin');
+        await expect(section).toContainText('Accounts that have signed in');
+        await expect(section).toContainText('31');
+        await expect(section).toContainText('19');
+        await expect(section).toContainText('6');
+        // "staff accounts", never "active accounts" — this card already uses "active" for the
+        // device-deduped figure above, and two different numbers must not appear to measure one thing.
+        await expect(section).toContainText('48 staff accounts');
+        await expect(section).not.toContainText('48 active accounts');
+
+        // No child may overflow its own box — the failure mode the reset-requests row shipped with,
+        // which the page-level guard cannot see (the overflow is inside a flex child).
+        const overflow = await section.locator('.usage-stat').evaluateAll(
+            els => els.map(el => el.scrollWidth - el.clientWidth));
+        expect(overflow, `.usage-stat overflow at ${width}px`).toEqual([0, 0, 0]);
+        const pageOverflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(pageOverflow).toBeLessThanOrEqual(1);
+    });
+}
+
+test('operations usage: a failed sign-in-stats call leaves the rest of the card intact', async ({ page }) => {
+    // The whole point of appending it detached. A Cloud Function outage must cost the admin this one
+    // section, not the page-popularity data and account trend that loaded perfectly well.
+    await page.route('**/getSignInStats', route => route.abort());
+    await page.addInitScript(() => { window.__E2E = { authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+
+    await expect(page.locator('#usageContent')).toContainText('accounts this month');
+    await expect(page.locator('#usageContent')).toContainText('Page popularity');
+    // The empty wrapper removes itself rather than leaving a stray divider rule.
+    await expect(page.locator('.usage-signin')).toHaveCount(0);
+    // And no "Couldn't load usage" retry state — the card itself did not fail.
+    await expect(page.locator('#usageContent')).not.toContainText('Couldn’t load usage');
+});
+
+test('operations usage: the section is absent (not broken) when there is no Firebase user', async ({ page }) => {
+    // Default stub state — getSignInStats throws "Not signed in" before it ever fetches. Proves the
+    // section degrades the same way whether the call fails or is never made.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#usageContent')).toContainText('Page popularity');
+    await expect(page.locator('.usage-signin')).toHaveCount(0);
+});

@@ -763,6 +763,32 @@ export async function resetMemberPassword(memberName, { revoke = true } = {}) {
     return r.json();
 }
 
+/** Admin-only Cloud Function returning the EXACT unique-account sign-in counts (v18.96). */
+const SIGN_IN_STATS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/getSignInStats';
+
+/**
+ * How many distinct accounts have actually signed in (admin only — enforced server-side).
+ *
+ * The counterpart to `getUsageStats`'s active-account figure, which is deduped on the DEVICE and so
+ * counts a member with a phone and a laptop twice. This one is exact because Firebase Auth already
+ * holds one `lastSignInTime` per account — uniqueness is a property of the data, so no new
+ * per-account record has to be stored to get it. The response is four integers; no identity is
+ * returned. Read-only, hence GET.
+ *
+ * @returns {Promise<{ total: number, last7: number, last30: number, neverSignedIn: number }>}
+ */
+export async function getSignInStats() {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not signed in');
+    const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
+    const r = await fetch(SIGN_IN_STATS_URL, {
+        method:  'GET',
+        headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
+    return r.json();
+}
+
 /** The public `requestPasswordReset` endpoint (PASSWORD_PLAN.md — the request queue). */
 const REQUEST_RESET_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/requestPasswordReset';
 

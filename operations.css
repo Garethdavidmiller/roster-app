@@ -1031,6 +1031,20 @@ select:focus-visible, input:focus-visible {
     padding-top: 14px;
     border-top: 1px solid var(--border-light);
 }
+/* Exact unique-account sign-in counts (v18.96). A divider, not a new visual language: it reuses
+   .usage-stats / .usage-section-label / .usage-note wholesale so it reads as another section of the
+   same card, while the rule makes clear it answers a DIFFERENT question from the trend above it. */
+.usage-signin:not(:empty) {
+    margin-top: 18px;
+    /* Bottom margin as well as top: the Page-popularity toggle follows immediately, and without it
+       this section's closing note sat hard against the buttons. */
+    margin-bottom: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-light);
+}
+.usage-signin .usage-stats { margin-bottom: 8px; }
+.usage-signin .usage-note  { margin-bottom: 0; }
+
 .usage-bars {
     display: flex;
     flex-direction: column;

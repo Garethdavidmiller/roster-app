@@ -49,6 +49,7 @@ const {
     computeOrphanLabels,
     shouldRecordResetRequest,
     buildResetRequestNotice,
+    summariseSignIns,
 } = require('./roster-parse-helpers');
 const rosterMembers = require('./roster-members.json');
 
@@ -1846,6 +1847,82 @@ exports.requestPasswordReset = onRequest(
         } catch (e) {
             console.error('[requestPasswordReset] failed for', member, e && e.code, e);
             return res.status(500).json({ error: 'Could not record the request' });
+        }
+    }
+);
+
+/**
+ * getSignInStats — how many DISTINCT accounts have actually signed in (admin-only, v18.96).
+ *
+ * WHY THIS EXISTS. The Operations Usage card's "active accounts" figure is deduped on the DEVICE
+ * (localStorage flags in usage-reporter.js that never leave the phone), which is what keeps it
+ * anonymous — the server only ever receives `increment(1)` and never learns WHO was active. The
+ * price of that anonymity is that a member using a phone AND a laptop counts twice: it is a usage
+ * TREND, not a headcount. Making it a true unique count would mean giving the server a per-account
+ * handle, i.e. recording who opened the app and when — attendance-adjacent data in a workplace, and
+ * a deliberate reversal of that design.
+ *
+ * This route avoids the trade entirely. **Firebase Auth already stores `lastSignInTime` per
+ * account**, whether we look at it or not, so uniqueness is a property of the data rather than
+ * something we have to enforce — and reading it adds no privacy surface that did not already exist.
+ * Nothing is written, nothing is cached, and **no identity leaves this function**: the response is
+ * four integers.
+ *
+ * WHAT IT DOES NOT MEASURE. Sign-ins, not activity. Sessions last 30 days absolute / 7 days idle
+ * (session.js), so most page opens are session RESTORES, not sign-ins — a member can sign in once
+ * and use the app daily for a month. Two consequences, both stated on the card rather than hidden:
+ *   · Because a live session REQUIRES a sign-in inside 30 days, "signed in within 30 days" is a
+ *     slight OVER-count of active people — it includes anyone who signed in once and stopped.
+ *   · There is no history. `lastSignInTime` is only the LAST one, so month-over-month cannot be
+ *     reconstructed retroactively; this figure is deliberately a snapshot, and it sits ALONGSIDE the
+ *     existing trend rather than replacing it.
+ *
+ * The one genuinely actionable number here is `neverSignedIn`: accounts provisioned by Set up
+ * accounts that have never been used — staff who quite possibly do not know the app exists.
+ *
+ * Auth: a fresh admin ID token as a Bearer header, `checkRevoked` — same shape as
+ * resetMemberPassword. GET (it is a pure read), and CORS-restricted like the other admin functions.
+ */
+exports.getSignInStats = onRequest(
+    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+    async (req, res) => {
+        if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+
+        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+        let decodedAuth;
+        try {
+            decodedAuth = await admin.auth().verifyIdToken(bearer, true);
+        } catch (_) {
+            return res.status(401).json({ error: 'Unauthorised' });
+        }
+        if (decodedAuth.admin !== true) {   // strict — fail closed on any non-true claim
+            return res.status(403).json({ error: 'Forbidden — admin claim required' });
+        }
+
+        // Admin accounts are excluded from the counts, mirroring recordUsage's write-time
+        // CONFIG.ADMIN_NAMES filter — the figures must reflect real staff, not the developer.
+        // Derived from the SERVER-owned roster (roster-members.json), never a client payload.
+        const cfg = resolveRosterAuthConfig(rosterMembers);
+        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
+        const excludeEmails = new Set(cfg.admin.map(n => nameToEmail(n).toLowerCase()));
+
+        try {
+            // Paginate: listUsers caps at 1000 per page. The roster is ~50, so this is one page in
+            // practice — the loop is here so it stays correct if that ever stops being true.
+            const users = [];
+            let pageToken;
+            do {
+                const page = await admin.auth().listUsers(1000, pageToken);
+                users.push(...page.users);
+                pageToken = page.pageToken;
+            } while (pageToken);
+
+            const stats = summariseSignIns(users, Date.now(), excludeEmails);
+            console.log('[getSignInStats]', JSON.stringify(stats));
+            return res.json(stats);
+        } catch (e) {
+            console.error('[getSignInStats] failed', e && e.code, e);
+            return res.status(500).json({ error: 'Could not read sign-in stats' });
         }
     }
 );

@@ -36,7 +36,8 @@ const {
     computeOrphanLabels,
 
     shouldRecordResetRequest,
-    buildResetRequestNotice,} = require('./functions/roster-parse-helpers.js');
+    buildResetRequestNotice,
+    summariseSignIns,} = require('./functions/roster-parse-helpers.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
 
@@ -1316,5 +1317,116 @@ describe('buildResetRequestNotice', () => {
                   'the emoji is added by buildPushPayload, never baked into the text');
         assert.ok(!/urgent|immediately|locked out/i.test(n.headline + n.body),
                   'a request is not proof of urgency — the admin decides (PASSWORD_PLAN §13)');
+    });
+});
+
+// ── summariseSignIns — the exact unique-account count (v18.96) ──────────────────────────────────
+// The Usage card's "active accounts" is device-deduped, so a member on a phone AND a laptop counts
+// twice. This is the exact counterpart, and every judgement that could silently distort a headcount
+// lives in this pure function — so it is asserted rather than eyeballed in a Cloud Function log.
+describe('summariseSignIns', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const NOW = 1_700_000_000_000;
+    const NONE = new Set();
+    /** @param {string} email @param {number|null} agoDays @param {boolean} [disabled] */
+    const user = (email, agoDays, disabled = false) => ({
+        email,
+        disabled,
+        metadata: { lastSignInTime: agoDays === null ? null : new Date(NOW - agoDays * DAY).toUTCString() },
+    });
+
+    test('counts each account once, in every window it qualifies for', () => {
+        const stats = summariseSignIns([
+            user('a.one@myb-roster.local', 1),      // within 7 and 30
+            user('b.two@myb-roster.local', 20),     // within 30 only
+            user('c.three@myb-roster.local', 200),  // neither
+        ], NOW, NONE);
+        assert.deepEqual(stats, { total: 3, last7: 1, last30: 2, neverSignedIn: 0 });
+    });
+
+    // Uniqueness is a property of the DATA here, not something the function enforces — Firebase has
+    // one record per account no matter how many devices signed in on it. That is the whole reason
+    // this route exists, so pin it: many sign-ins on one account is still one account.
+    test('one account is one account however many devices it signed in from', () => {
+        const stats = summariseSignIns([user('a.one@myb-roster.local', 0)], NOW, NONE);
+        assert.equal(stats.total, 1);
+        assert.equal(stats.last30, 1);
+    });
+
+    // The actionable number: provisioned by Set up accounts, never used. Firebase leaves
+    // lastSignInTime empty for those. Treating it as an old sign-in would hide exactly the people
+    // worth chasing.
+    test('an account that has never signed in is counted as such, not as a stale sign-in', () => {
+        const stats = summariseSignIns([
+            user('a.one@myb-roster.local', null),
+            { email: 'b.two@myb-roster.local' },                       // no metadata at all
+            { email: 'c.three@myb-roster.local', metadata: {} },       // metadata, no field
+            { email: 'd.four@myb-roster.local', metadata: { lastSignInTime: 'not a date' } },
+        ], NOW, NONE);
+        assert.deepEqual(stats, { total: 4, last7: 0, last30: 0, neverSignedIn: 4 });
+    });
+
+    // A leaver is not a provisioned account waiting to be used. Counting them in `total` would
+    // permanently depress the "N of M" ratio the card shows.
+    test('disabled (leaver) accounts are ignored entirely, including in the total', () => {
+        const stats = summariseSignIns([
+            user('a.one@myb-roster.local', 1),
+            user('gone@myb-roster.local', 1, /* disabled */ true),
+            user('never@myb-roster.local', null, /* disabled */ true),
+        ], NOW, NONE);
+        assert.deepEqual(stats, { total: 1, last7: 1, last30: 1, neverSignedIn: 0 });
+    });
+
+    // Mirrors recordUsage's write-time CONFIG.ADMIN_NAMES filter — the figures must reflect real
+    // staff, not the developer's own testing, or the two halves of the card would disagree.
+    test('excluded (admin) emails are dropped, case-insensitively', () => {
+        const ex = new Set(['g.miller@myb-roster.local']);
+        const stats = summariseSignIns([
+            user('G.Miller@MYB-Roster.local', 1),
+            user('a.one@myb-roster.local', 1),
+        ], NOW, ex);
+        assert.deepEqual(stats, { total: 1, last7: 1, last30: 1, neverSignedIn: 0 });
+    });
+
+    test('an account with no email is skipped rather than counted as never-signed-in', () => {
+        const stats = summariseSignIns([{ metadata: { lastSignInTime: null } }], NOW, NONE);
+        assert.deepEqual(stats, { total: 0, last7: 0, last30: 0, neverSignedIn: 0 });
+    });
+
+    // Inclusive boundary, same convention as shouldRecordResetRequest.
+    test('the window boundary is inclusive', () => {
+        assert.equal(summariseSignIns([user('a@x', 7)],  NOW, NONE).last7,  1);
+        assert.equal(summariseSignIns([user('a@x', 30)], NOW, NONE).last30, 1);
+        // One second past each boundary both accounts drop out of their OWN window — but the
+        // 7-day one is still comfortably inside 30 days, so it moves down a band rather than away.
+        const justOver = summariseSignIns([user('a@x', 30), user('b@x', 7)], NOW + 1000, NONE);
+        assert.equal(justOver.last7,  0);
+        assert.equal(justOver.last30, 1);
+    });
+
+    // Clock skew must never make a real member vanish from the count.
+    test('a future sign-in timestamp counts as recent, not as an error', () => {
+        const stats = summariseSignIns([user('a@x', -5)], NOW, NONE);
+        assert.deepEqual(stats, { total: 1, last7: 1, last30: 1, neverSignedIn: 0 });
+    });
+
+    test('an empty or junk user list yields zeroes rather than throwing', () => {
+        for (const bad of [[], null, undefined, 'nope', {}]) {
+            assert.deepEqual(summariseSignIns(/** @type {any} */ (bad), NOW, NONE),
+                             { total: 0, last7: 0, last30: 0, neverSignedIn: 0 });
+        }
+        assert.deepEqual(summariseSignIns([null, undefined], NOW, NONE),
+                         { total: 0, last7: 0, last30: 0, neverSignedIn: 0 });
+    });
+
+    // last7 is by construction a subset of last30, and both of last30+never <= total. A future
+    // refactor that broke the nesting would produce a card claiming more recent than total users.
+    test('the counts stay internally consistent', () => {
+        const stats = summariseSignIns([
+            user('a@x', 0), user('b@x', 6), user('c@x', 29), user('d@x', 400), user('e@x', null),
+        ], NOW, NONE);
+        assert.ok(stats.last7 <= stats.last30, 'last7 must be a subset of last30');
+        assert.ok(stats.last30 + stats.neverSignedIn <= stats.total, 'windows cannot exceed the total');
+        assert.deepEqual(stats, { total: 5, last7: 2, last30: 3, neverSignedIn: 1 });
     });
 });
