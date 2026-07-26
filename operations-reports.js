@@ -585,7 +585,9 @@ function _usageMonthLabel(/** @type {string} */ ym) {
     return new Date(y, m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
 }
 
-/** Format a relative time string with the exact time appended, e.g. "3h ago · 22 Jun 14:23". */
+/** Format a relative time string with the exact time appended, e.g. "3h ago · 22 Jun 14:23".
+ *  EXPORTED (v18.93) so the Password Reset Requests card in operations-app.js reads identically to the
+ *  Error Log rows beside it — a second formatter would have drifted. */
 function _relativeTime(/** @type {Date} */ date) {
     const secs = Math.floor((Date.now() - date.getTime()) / 1000);
     const exact = date.toLocaleString('en-GB', {
@@ -623,4 +625,4 @@ function _formatForClaude(/** @type {any} */ err) {
     ].join('\n');
 }
 
-export { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError };
+export { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError, _relativeTime };

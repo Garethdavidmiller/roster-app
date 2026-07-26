@@ -866,6 +866,46 @@ select:focus-visible, input:focus-visible {
     margin-bottom: 6px;
 }
 .error-when    { font-size: var(--type-small); color: var(--text-faint); white-space: nowrap; }
+    /* ── Password Reset Requests ─────────────────────────────────────────────
+       Deliberately reuses the Error Log row vocabulary (same type sizes, same faint timestamp) so the
+       two queues on this page read as one system rather than two designs. */
+    .rr-list { display: flex; flex-direction: column; gap: 8px; }
+    .rr-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px 12px;
+        background: var(--surface-sunken);
+        border-radius: var(--radius);
+        border-left: 3px solid var(--accent-gold);
+    }
+    .rr-main  { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+    .rr-main strong { font-size: var(--type-body); color: var(--primary-blue); }
+    .rr-when  { font-size: var(--type-small); color: var(--text-faint); }
+    .rr-remedy {
+        font-size: var(--type-small);
+        color: var(--text-mid);
+        white-space: nowrap;
+    }
+    /* A missing account needs Set up accounts, not Reset — call that out rather than leaving the admin
+       to discover it by trying. */
+    .rr-remedy--setup { color: var(--orange-text); font-weight: 700; }
+    .btn-rr-clear {
+        background: none;
+        border: 1px solid var(--border-light);
+        border-radius: var(--radius-sm);
+        font-family: inherit;
+        font-size: var(--type-small);
+        color: var(--text-mid);
+        padding: 6px 12px;
+        cursor: pointer;
+        min-height: 32px;
+    }
+    @media (hover: hover) and (pointer: fine) { .btn-rr-clear:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
+    .btn-rr-clear:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    .btn-rr-clear:disabled { opacity: 0.5; cursor: default; }
+
 .error-member  { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); }
 .error-page    { font-size: var(--type-small); color: var(--text-mid); font-family: monospace; }
 .error-version { font-size: var(--type-badge); color: var(--text-faint); font-family: monospace; }

@@ -34,7 +34,8 @@ const {
     resolveRosterAuthConfig,
     claimsForTier,
     computeOrphanLabels,
-} = require('./functions/roster-parse-helpers.js');
+
+    shouldRecordResetRequest,} = require('./functions/roster-parse-helpers.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
 
@@ -1211,5 +1212,45 @@ describe('applyColumnScanCrossCheck coverage stats', () => {
             return [h, col];
         }));
         assert.deepEqual(applyColumnScanCrossCheck(entries, scan, HEADERS, DATES), { checked: 1, total: 2 });
+    });
+});
+
+// ── shouldRecordResetRequest — the throttle on the public reset-request endpoint ────────────────
+// The one piece of judgement in an otherwise mechanical endpoint, so it lives here as a pure
+// function. Note what it is NOT for: the collection cannot grow past the roster (the doc id IS the
+// member name), so this is not the flood defence — it stops repeat taps inflating the `count` the
+// admin reads as "how stuck is this person", and stops each tap being a notification.
+describe('shouldRecordResetRequest', () => {
+    const TEN_MIN = 10 * 60 * 1000;
+    const NOW = 1_700_000_000_000;
+
+    test('records a first-ever request', () => {
+        assert.equal(shouldRecordResetRequest(null, NOW, TEN_MIN), true);
+        assert.equal(shouldRecordResetRequest(undefined, NOW, TEN_MIN), true);
+    });
+
+    test('absorbs a repeat inside the window', () => {
+        assert.equal(shouldRecordResetRequest(NOW - 1000, NOW, TEN_MIN), false);
+        assert.equal(shouldRecordResetRequest(NOW - (TEN_MIN - 1), NOW, TEN_MIN), false);
+    });
+
+    test('records again once the window has passed (boundary is inclusive)', () => {
+        assert.equal(shouldRecordResetRequest(NOW - TEN_MIN, NOW, TEN_MIN), true);
+        assert.equal(shouldRecordResetRequest(NOW - (TEN_MIN + 1), NOW, TEN_MIN), true);
+    });
+
+    // Fail OPEN on junk: a member who cannot sign in must never be blocked from asking because a
+    // stored timestamp was unreadable. Recording a duplicate costs the admin one extra row; refusing
+    // to record leaves them with no way to ask at all.
+    test('treats junk or impossible timestamps as never-asked', () => {
+        for (const bad of [NaN, 'yesterday', {}, 0, -1, null]) {
+            assert.equal(shouldRecordResetRequest(/** @type {any} */ (bad), NOW, TEN_MIN), true,
+                `${String(bad)} should be treated as never-asked`);
+        }
+    });
+
+    // A device clock ahead of the server would make (now - last) negative.
+    test('a future timestamp does not permanently block requests… it absorbs, never throws', () => {
+        assert.equal(shouldRecordResetRequest(NOW + 60_000, NOW, TEN_MIN), false);
     });
 });

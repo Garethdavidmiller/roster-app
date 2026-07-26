@@ -352,3 +352,57 @@ test('forced password overlay: never appears while the kill switch is off', asyn
     await expect(page.locator('#contactCard')).toBeVisible();
     await expect(page.locator('#pwForceOverlay')).toHaveCount(0);
 });
+
+// ── RESET REQUEST LINK (PASSWORD_PLAN.md — the request queue) ─────────────────────────────────
+// The link is the only route a locked-out member has, and it must appear ONLY after a genuine
+// credential failure — offering it up front invites a request from anyone who merely mistyped, and
+// the remedy for a mistype is to try again.
+
+test('reset request link: hidden until a credential failure, then revealed', async ({ page }) => {
+    await enforceNamedSession(page);
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });   // → auth/invalid-credential
+    await page.goto('/settings.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    await expect(page.locator('#loginResetRequest')).toBeHidden();
+
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#loginError')).toBeVisible();
+    await expect(page.locator('#loginResetRequest')).toBeVisible();
+});
+
+test('reset request link: a network/transient failure does NOT offer a reset', async ({ page }) => {
+    // A reset fixes a forgotten password, not a dropped connection — sending the admin a request for
+    // one would waste their time and mislead the member about what is wrong.
+    await enforceNamedSession(page);
+    await page.addInitScript(() => { window.__E2E = { hangSignIn: true }; });   // → timeout, not credential
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#loginError')).toBeVisible();
+    await expect(page.locator('#loginResetRequest')).toBeHidden();
+});
+
+test('reset request link: sending replaces the control with a confirmation', async ({ page }) => {
+    await enforceNamedSession(page);
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
+    // Stub the public endpoint — it is a real cross-origin POST with no auth token.
+    await page.route('**/requestPasswordReset', route =>
+        route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }));
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await page.locator('#loginResetRequest').click();
+    await expect(page.locator('#loginResetStatus')).toContainText('Request sent');
+    // No re-tappable button left: the request is recorded and there is nothing more to do here.
+    await expect(page.locator('#loginResetRequest')).toBeHidden();
+});
+
+test('reset request link: a failed send keeps the button and says so', async ({ page }) => {
+    await enforceNamedSession(page);
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
+    await page.route('**/requestPasswordReset', route => route.abort());
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await page.locator('#loginResetRequest').click();
+    await expect(page.locator('#loginResetStatus')).toContainText('contact the admin directly');
+    await expect(page.locator('#loginResetRequest')).toBeVisible();
+    await expect(page.locator('#loginResetRequest')).toBeEnabled();
+});

@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '18.92';
+export const APP_VERSION = '18.93';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -84,6 +84,11 @@ export const CONFIG = {
     // an expired session forces a real typed login, so coverage completes itself inside 30 days and
     // staggers by each member's own expiry rather than landing on everyone at once.
     FORCE_PASSWORD_SET:               true,
+    // The "ask the admin to reset my password" request queue (PASSWORD_PLAN.md — Phase 1 of the request
+    // work). Kill switch for the LINK only: setting this to `false` hides it on the login overlay and
+    // nobody can file a new request. It does NOT disable the endpoint (that is a functions deploy) or
+    // hide the Operations card, so any requests already filed remain visible and actionable.
+    PASSWORD_RESET_REQUESTS:          true,
     // B3 claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every
     // device to refresh its Firebase ID token ONCE on next app open — picking up newly-set custom
     // claims (e.g. the B2 `manager` claim) immediately instead of waiting for the ~hourly

@@ -787,6 +787,28 @@ body.lb-open #stickyTotal { display: none !important; }
    i.e. the compel had no teeth at all. Caught by the e2e; it is invisible to code reading. */
 .pwf-escape[hidden] { display: none; }
 
+/* Login overlay's "ask the admin to reset your password" route (PASSWORD_PLAN.md request queue).
+   Quiet and secondary — it appears only after a real credential failure, and must never compete with
+   "try again", which is the right move for the far more common case of a mistype. [hidden] out-specifies
+   the display rule for the same reason .pwf-escape does (a UA display:none loses to an author one). */
+.login-reset-request {
+    display: block;
+    width: 100%;
+    margin: -4px 0 10px;
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: var(--type-small);
+    color: var(--text-light);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    padding: 6px;
+}
+.login-reset-request[hidden] { display: none; }
+.login-reset-request:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+.login-reset-request:disabled { opacity: 0.6; cursor: default; }
+
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
    Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".
    Badge uses .notice-badge + page modifier (not .lightbox-badge — which is the About lightbox badge).

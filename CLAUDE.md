@@ -18,6 +18,7 @@
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/resetMemberPassword` (admin-only break-glass — resets a member's password to their surname default; PASSWORD_PLAN.md Track C) |
+| | `https://europe-west2-myb-roster.cloudfunctions.net/requestPasswordReset` (the app's ONLY public unauthenticated endpoint — a locked-out member asks the admin to reset their password; records a request, never resets anything) |
 | Development branch convention | `claude/<description>-<sessionId>` — always push to this branch, never directly to `main` |
 
 **GitHub Actions secrets required:**
@@ -609,6 +610,30 @@ resetAt        Firestore server timestamp — the last time an admin RESET this 
 "Migrated" (has set their own password) = `passwordSetAt` present AND `passwordSetAt >= resetAt` (a later admin reset re-flags the account as surname-default). No password material is ever stored — only these two timestamps, which drive the Operations **Account status** table and the Settings status chip/nudge.
 Read: owner or admin. Create/update (client): only the owner, only the `passwordSetAt` key, and it must equal `request.time` (so a client can only stamp "I just set my password now" on its own doc). `resetAt` is un-writable by any client (only the Admin SDK sets it). Delete: denied for everyone.
 Written/read by: `savePasswordSetAt` / `getPasswordStatus` (owner) in `firebase-client.js` (called from `settings-app.js` after a successful password change), `getAllPasswordStatus` (admin, reads all) called from `operations-app.js` (Account status card), and the `resetMemberPassword` Cloud Function (writes `resetAt`).
+
+**resetRequests** (v18.93 — PASSWORD_PLAN.md, the request queue)
+```
+memberName   Must match teamMembers[n].name exactly — used as the document ID
+requestedAt  Firestore server timestamp — when they last asked
+count        int — asks since the admin last cleared the row (so "asked 3 times" is visible)
+provisioned  boolean — whether a Firebase account exists at all. false ⇒ the remedy is Set up
+             accounts, NOT Reset. The login overlay must never distinguish these two (it would leak
+             which names are provisioned); the admin's own card has no such constraint.
+```
+**Doc ID = the member name, deliberately:** the collection can therefore never exceed the roster size,
+so flooding a public endpoint is impossible BY CONSTRUCTION rather than by rate limiting.
+Read: admin only. **Create/update: DENIED to every client, including the admin** — the only writer is
+the `requestPasswordReset` Cloud Function via the Admin SDK. That is not over-tightening: the member who
+needs this has forgotten their password, so they have no Firebase identity at all (and `signInAnonymously`
+runs only on the calendar), which is exactly why the request goes through a server endpoint instead of a
+client write. Delete: admin only (clearing an actioned row).
+No free text is ever stored — an unauthenticated endpoint writing caller-controlled strings into an admin
+UI is an injection surface for no benefit; and the name comes from the server-owned `activeMembers` list,
+never the request body, which is what makes it safe for the card to render.
+Written by: the `requestPasswordReset` function. Read/cleared by: `getResetRequests` / `clearResetRequest`
+in `firebase-client.js`, called from `operations-app.js`'s **Password Reset Requests** card. The member's
+end is the login overlay's "Can't get in?" link (`requestPasswordReset` in `firebase-client.js` — the one
+caller there that sends NO auth token).
 
 **pushSubscriptions**
 ```

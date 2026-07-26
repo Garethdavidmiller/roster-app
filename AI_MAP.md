@@ -255,6 +255,43 @@ CLASSIC (non-module) launch-recovery script for index.html only (v16.18). Loaded
 - Runtime-only: the whole IIFE is guarded on `typeof document !== 'undefined'`, so importing it in tests (module-parse) is a no-op and schedules no timer.
 - No imports/exports. Registered in service-worker.js NETWORK_FIRST_FILES + CORE_ASSETS like any app asset.
 
+### The reset-request queue (v18.93)
+
+Not a module of its own — three pieces, listed together because the design only makes sense as a whole.
+PASSWORD_PLAN.md, the request work; Phase 1 (queue only, no push).
+
+- **`firebase-client.js`** gains `requestPasswordReset(member)` / `getResetRequests()` /
+  `clearResetRequest(member)`. The FIRST is unlike every other function caller in the file: it sends
+  **no auth token**, because its caller is the login overlay and the person using it is not signed in.
+- **`login-overlay.js`** shows a quiet "Can't get in? Ask the admin to reset your password" button,
+  `hidden` until `revealResetRequest()` runs — which happens ONLY on `kind: 'credential'`. A network or
+  rate-limit failure is not a forgotten password, and a reset would not fix one. Revealing it also hides
+  the static "Trouble signing in? Ask the admin." footer, so the card never states the same advice three
+  times at once (the v18.49 de-duplication principle).
+- **`operations-app.js`** renders the **Password Reset Requests** card directly ABOVE Account status —
+  the queue adjacent to its remedy — with a count chip, `_relativeTime` rows (exported from
+  operations-reports.js so it reads identically to the Error Log beside it), a per-row Clear, and an
+  auto-open when there is anything outstanding.
+
+**Why a Cloud Function and not a Firestore write.** A member who has forgotten their password has no
+Firebase identity: `signInAnonymously` runs only on the calendar, and `ENFORCE_NAMED_SESSION` makes
+session.js's anonymous fallback dead code. So the person who needs this cannot write to Firestore at
+all. The alternatives were a new anonymous session on the protected pages (an explicit
+SECURITY_RELEASE_PLAN anti-goal, and new auth behaviour beside the login path) or a client-writable
+collection. The endpoint wins on both: `resetRequests` denies EVERY client write, and validation is
+server-side.
+
+**It never resets anything.** An unauthenticated caller able to force any member back to the surname
+default would undo v18.92 and, with revocation, boot them off their devices. The admin performs the
+reset; the human in the loop is the authentication. This is a doorbell, not a recovery mechanism.
+
+**Bounding the app's only public endpoint:** doc ID = member name (so the collection cannot exceed the
+roster — flooding is impossible by construction, not by rate limiting) · the name must be in the
+server-owned `activeMembers` list (which also makes it safe to render) · no free text stored at all ·
+`shouldRecordResetRequest` throttles repeats (pure, tested in roster-parse-helpers.test.mjs) ·
+`maxInstances: 3` caps flood cost · no enumeration (roster names are already public in the login
+dropdown). Kill switch for the link: `CONFIG.PASSWORD_RESET_REQUESTS`.
+
 ### `password-force.js`
 
 The MANDATORY "set your own password" overlay — PASSWORD_PLAN.md **Phase 2** (v18.92). Injects its own

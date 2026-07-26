@@ -84,6 +84,7 @@ export const COLLECTIONS = {
     overrides:         'overrides',
     linkDesigns:       'linkDesigns',
     analytics:         'analytics',
+    resetRequests:     'resetRequests',
 };
 
 // isSafeStorageUrl + isDocxUpload live in the pure, import-free storage-utils.js so they can be
@@ -760,6 +761,50 @@ export async function resetMemberPassword(memberName, { revoke = true } = {}) {
     });
     if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
     return r.json();
+}
+
+/** The public `requestPasswordReset` endpoint (PASSWORD_PLAN.md — the request queue). */
+const REQUEST_RESET_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/requestPasswordReset';
+
+/**
+ * Ask the admin to reset a member's password. Called from the LOGIN OVERLAY, by someone who is
+ * therefore NOT signed in — so unlike every other function caller here it sends **no auth token**.
+ * That is the whole reason this route exists as a server endpoint: a locked-out member has no Firebase
+ * identity, so they cannot write to Firestore at all (the `resetRequests` rules deny every client
+ * write). The endpoint validates the name against the server-owned roster and records a request; it
+ * never resets anything.
+ * @param {string} memberName  the name the member picked in the login dropdown (never free-typed)
+ * @returns {Promise<any>}
+ */
+export async function requestPasswordReset(memberName) {
+    const r = await fetch(REQUEST_RESET_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ member: memberName }),
+    });
+    if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
+    return r.json();
+}
+
+/**
+ * All outstanding password-reset requests, newest first (admin only — enforced by the rules).
+ * @returns {Promise<Array<{memberName: string, requestedAt?: any, count?: number, provisioned?: boolean}>>}
+ */
+export async function getResetRequests() {
+    const snap = await getDocs(collection(db, COLLECTIONS.resetRequests));
+    return snap.docs
+        .map(/** @param {any} d */ d => ({ memberName: d.id, ...d.data() }))
+        .sort((/** @type {any} */ a, /** @type {any} */ b) =>
+            (b.requestedAt?.toMillis?.() ?? 0) - (a.requestedAt?.toMillis?.() ?? 0));
+}
+
+/**
+ * Clear one request once the admin has actioned it (admin-only delete per the rules).
+ * @param {string} memberName
+ * @returns {Promise<void>}
+ */
+export async function clearResetRequest(memberName) {
+    await withClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.resetRequests, memberName)));
 }
 
 // ---- Client Error Reporting ----
