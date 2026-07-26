@@ -14,6 +14,7 @@ import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAll
 import { isPasswordMigrated } from './auth-identity.js';
 import { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError } from './operations-reports.js';
 import { initErrorReporter } from './error-reporter.js';
+import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
@@ -697,5 +698,10 @@ export function init() {
     // ============================================
     // registerServiceWorker() moved to the top of init() (runs before the access gate) — v16.21.
     sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations', currentUser); });
+    // Forced set-password overlay (PASSWORD_PLAN.md Phase 2) — fire-and-forget, never on the login
+    // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
+    // sign-in path the module loaded signed-out and the identity is only refreshed inside
+    // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.
+    sessionReady.then(() => initPasswordForce(currentUser));
 
 }

@@ -29,6 +29,7 @@ import { SELECTED_MEMBER, SELECTED_MEMBER_LEGACY, VIEWED_MONTH, VIEWED_YEAR } fr
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { initEmailCheck } from './admin-email-check.js';
+import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
@@ -1637,8 +1638,20 @@ export function init() {
                 ));
             }
         }
-        // One-time email check — fire-and-forget; async Firestore fetch inside.
-        initEmailCheck(currentUser);
+        // Post-login overlays — fire-and-forget; both do async Firestore reads inside, neither is on
+        // the login critical path. SEQUENCED, not parallel: when a member is due both, the forced
+        // password overlay WINS (PASSWORD_PLAN.md §4) and the work-email check waits for their next
+        // sign-in — two mandatory modals stacked on one login is too much.
+        //
+        // The `lsDel` is load-bearing, not tidiness: the email check's marker is consumed on the load
+        // where it SEES it, so simply not calling initEmailCheck would leave the marker set and the
+        // email check would then ambush the member on some later ordinary Admin load — the v14.77
+        // "Fix 4" defect that marker exists to prevent. Deleting it defers the check to the next real
+        // login, which is what "password wins" should mean.
+        initPasswordForce(currentUser, { ready: sessionReady }).then(shown => {
+            if (shown) lsDel(`myb_email_check_pending_${currentUser}`);
+            initEmailCheck(currentUser);
+        });
         // Nav panel — deferred here on the in-place login path so it renders with the signed-in identity
         // (deduped by initNavPanel's navPanelInit guard if already wired on a normal load).
         wireNavPanel();

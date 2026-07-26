@@ -1,11 +1,14 @@
 # PASSWORD_PLAN.md — chosen passwords + admin reset (Track C-lite)
 
-> **STATUS: Phase 0 + Phase 1 SHIPPED v18.63.** The decisions table (§10) was confirmed and built —
+> **STATUS: Phases 0, 1 and 2 SHIPPED (Phase 0+1 v18.63; Phase 2 v18.92).** The decisions table (§10) was confirmed and built —
 > gated dual-attempt sign-in (`credentialCandidatesFor` → `ensureFirebaseSession`), the Settings
 > Password card + `savePasswordSetAt`, the `resetMemberPassword` admin break-glass Cloud Function, the
-> `passwordStatus` collection + rules, and the Operations Account-status table are all live. **Still to
-> come:** Phase 2 (an optional forced set-your-own overlay), C2 (email-based self-service reset, needs
-> an email relay), and C5 (retire the surname default once ≥90% have migrated). Sections below that
+> `passwordStatus` collection + rules, and the Operations Account-status table are all live. **Phase 2 (the forced
+> overlay) is live** as `password-force.js`, gated by the `CONFIG.FORCE_PASSWORD_SET` kill switch: any
+> member still on the surname default is compelled at their NEXT SIGN-IN (owner decision, 25 Jul 2026 —
+> "force everyone, but only on the next log in"; nobody is signed out to accelerate it). **Still to
+> come:** C2 (email-based self-service reset, needs an email relay) and C5 (retire the surname default
+> once ≥90% have migrated). Sections below that
 > read in future tense describe the design as it was written *before* the build — treat them as the
 > spec, not a to-do list.
 
@@ -216,7 +219,7 @@ dashboard and, later, **the ≥90% metric that gates C5** — measured from day 
 |-------|----------|-------|
 | **0 — enabler** | §3 sign-in rework (gated dual-attempt, flag-independent rejection, page-load path) | Ships **atomically with Phase 1** — alone it is risk without capability |
 | **1 — capability + recovery + visibility** | Settings set-password card · `resetMemberPassword` + Operations reset button · `passwordStatus` + rules · **Operations Account status table** · Settings nudge banner | **This alone delivers the security win.** Migration voluntary |
-| **2 — compel + measure** | Forced set-password overlay, gated on `!isPasswordMigrated(status)` | Order: owner → managers → staff, driven from the Account status table. ~~staged compel via `resetMemberPassword(revoke:false)`~~ — **struck v18.88, see below** |
+| **2 — compel + measure** | Forced set-password overlay, gated on `!isPasswordMigrated(status)` | ✅ **SHIPPED v18.92** as `password-force.js` on all five authenticated pages, kill-switched by `CONFIG.FORCE_PASSWORD_SET`. Applied to EVERYONE at once rather than owner → managers → staff (owner, 25 Jul 2026): the session model staggers it anyway, so a tiered rollout would have added releases for no reduction in peak load. ~~staged compel via `resetMemberPassword(revoke:false)`~~ — **struck v18.88, see below** |
 | **3 — retire the surname (later, optional, C5)** | Stop seeding surname passwords for new starters; delete the surname fallback + padding | **Irreversible.** Gated on ≥90% migrated. Out of scope for this plan; the door is left open |
 
 > **Correction (v18.88) — the "staged compel via reset" step did nothing.** Phase 2 originally
@@ -287,3 +290,54 @@ narrowed and SECURITY_RELEASE_PLAN's deferred-residual section should be read al
 
 *Phase 0+1 shipped v18.63 (decisions 1–5 confirmed). Phase 2 (forced set-your-own overlay) remains a
 future decision; C2 (email reset) + C5 (retire surname) are still open — see SECURITY_RELEASE_PLAN.md → Track C.*
+
+---
+
+## 11. Phase 2 as built (v18.92)
+
+Sequenced against the reviewed plan; the deltas are the ones that survived a max-effort review of it.
+
+**Scope:** all five authenticated pages. An earlier draft put it on `admin.html` only, justified by a
+managers-first wave; once the decision became "everyone", admin-only would have missed a member who signs
+in on the pay calculator and never opens Admin.
+
+**No wave selector.** `CONFIG.FORCE_PASSWORD_SET` is a plain kill switch, not a tier control, because the
+30-day/7-day session model already staggers the rollout by each member's own expiry — a tiered flag would
+have added releases without lowering the peak.
+
+**Reach, stated honestly.** This compels anyone who signs in. It does NOT reach a member who only ever
+views the roster: the calendar is `anonymousOk`, so they have no session to expire and no sign-in to
+intercept. That is not fixable on the calendar side either — `passwordStatus` is owner-or-admin read, so
+an anonymous session cannot even tell whether the selected member has migrated, and a device-local flag
+can't distinguish "never signed in" from "migrated elsewhere". Closing it means Track E.
+
+**Four things the review changed, each closing a real failure:**
+
+1. **The gate keys on `authStatus === 'named'`, not "an auth user exists."** On the calendar that user is
+   anonymous; on paycalc a member can be locally signed in with a failed Firebase session. `updatePassword`
+   cannot succeed for either, so the weaker test would have shown a hard block nobody could satisfy.
+2. **It fails open AFTER showing, not only before.** The email-check model this is built on cannot fail
+   once visible; this can (rate limit, dropped connection). A quiet "Continue for now" appears on those,
+   and after three failures of any kind. It stamps nothing, so the member is compelled again next sign-in.
+3. **The e2e harness defaults the flag OFF.** The hermetic Firebase stub resolves every `getDoc` as
+   non-existent, i.e. every member reads as un-migrated — so leaving it on would have put the overlay over
+   every sign-in test in the suite. `forcePasswordSet(page)` opts in. The three flag helpers were also
+   consolidated onto ONE `roster-data.js` route: Playwright runs only the most-recent matching handler, so
+   the previous per-helper routes meant a test calling two of them silently got one.
+4. **Password wins over the work-email check, and admin-app.js deletes that check's marker.** Skipping the
+   call alone would leave the marker set, and the email check would then appear on a later ordinary Admin
+   load — the v14.77 "Fix 4" defect its marker exists to prevent.
+
+**Two defects the rendered overlay caught that code review did not:**
+
+- `.pwf-escape { display: block }` silently beat the `hidden` attribute's UA `display: none`, so the escape
+  hatch was visible from the moment the overlay opened — the compel had no teeth at all.
+- `shared.css` keeps `.login-error` at `display: none` until a `.visible` class is added. Setting
+  `textContent` alone left EVERY error message invisible: a member typing a short password would have seen
+  nothing happen. A test asserting text content passes straight through that, which is why the assertions
+  now check visibility.
+
+**Not verified here (no live Firebase in this environment):** whether a client-side password change signs
+that member's other devices out. The copy is written to be correct either way — "you'll need it the next
+time you sign in on any device" — so nothing depends on the answer, but confirm it before writing anything
+more specific.

@@ -52,7 +52,12 @@ export const writeBatch = () => ({ set: noop, update: noop, delete: noop, commit
 // so the links-app.js concurrency transaction (Finding #13) links + executes in the hermetic suite.
 export const runTransaction = (_db, fn) => Promise.resolve(fn({ get: () => Promise.resolve({ exists: () => false, data: () => ({}) }), set: noop }));
 export const getDocs = () => Promise.resolve({ empty: true, size: 0, docs: [], forEach: noop });
-export const getDoc = () => Promise.resolve({ exists: () => false, data: () => ({}) });
+//   window.__E2E = { failGetDoc: true }  → every single-doc read rejects. Used to prove the forced
+//      set-password overlay FAILS OPEN when it can't read passwordStatus (password-force.js) — the
+//      property that keeps a mandatory overlay from becoming a lockout.
+export const getDoc = () => (globalThis.__E2E || {}).failGetDoc
+    ? Promise.reject(Object.assign(new Error('e2e'), { code: 'unavailable' }))
+    : Promise.resolve({ exists: () => false, data: () => ({}) });
 export const addDoc = () => Promise.resolve(marker('docRef'));
 export const setDoc = () => Promise.resolve();
 export const updateDoc = () => Promise.resolve();
@@ -101,12 +106,54 @@ export const getDownloadURL = () => Promise.resolve('about:blank');
 export const deleteObject = () => Promise.resolve();
 `;
 
+/**
+ * Per-page CONFIG overrides applied to roster-data.js as it is served.
+ *
+ * ONE route handler applies ALL of them (registered in the `page` fixture below), because Playwright
+ * runs only the most-recently-registered matching handler and `route.fetch()` inside it bypasses the
+ * rest — so the previous shape (a `page.route('**\/roster-data.js')` per helper) meant a test calling
+ * two flag helpers silently got only one of them. Nothing did yet, but adding a third flag made that
+ * a matter of when. Helpers now just RECORD an override.
+ *
+ * @type {WeakMap<import('@playwright/test').Page, Record<string, [RegExp, string]>>}
+ */
+const _configOverrides = new WeakMap();
+
+/**
+ * Record a CONFIG rewrite for this page. `key` de-duplicates (a helper called twice wins once).
+ * @param {any} page
+ * @param {string} key
+ * @param {RegExp} pattern   what to find in the served roster-data.js
+ * @param {string} value     what to replace it with
+ */
+function _setConfigOverride(page, key, pattern, value) {
+    const current = _configOverrides.get(page) || {};
+    current[key] = [pattern, value];
+    _configOverrides.set(page, current);
+}
+
 export const test = base.extend({
-    // Auto-apply the route before any test navigates. Registering it inside the
-    // `page` fixture guarantees it is in place before the first page.goto().
+    // Auto-apply the routes before any test navigates. Registering them inside the
+    // `page` fixture guarantees they are in place before the first page.goto().
     page: async ({ page }, use) => {
         await page.route('https://www.gstatic.com/firebasejs/**', route =>
             route.fulfill({ contentType: 'text/javascript', body: FIREBASE_STUB }));
+
+        await page.route('**/roster-data.js', async route => {
+            const res = await route.fetch();
+            let body  = await res.text();
+            // DEFAULT OFF for the whole suite: the forced set-password overlay (PASSWORD_PLAN Phase 2)
+            // fires after any confirmed sign-in for a member the stubbed Firestore reports as
+            // un-migrated — which, since `getDoc` resolves `exists: () => false`, is EVERY member. It
+            // would therefore cover the page in every test that signs in through the overlay and break
+            // assertions that have nothing to do with passwords. Compel tests opt back in with
+            // `forcePasswordSet(page)`.
+            body = body.replace(/FORCE_PASSWORD_SET:\s*(?:true|false)/, 'FORCE_PASSWORD_SET: false');
+            for (const [pattern, value] of Object.values(_configOverrides.get(page) || {})) {
+                body = body.replace(pattern, value);
+            }
+            await route.fulfill({ response: res, body, contentType: 'text/javascript' });
+        });
         await use(page);
     },
 });
@@ -120,11 +167,8 @@ export const test = base.extend({
  * @param {import('@playwright/test').Page} page
  */
 export async function enforceNamedSession(page) {
-    await page.route('**/roster-data.js', async route => {
-        const res  = await route.fetch();
-        const body = (await res.text()).replace(/ENFORCE_NAMED_SESSION:\s*(?:true|false)/, 'ENFORCE_NAMED_SESSION: true');
-        await route.fulfill({ response: res, body, contentType: 'text/javascript' });
-    });
+    _setConfigOverride(page, 'ENFORCE_NAMED_SESSION',
+        /ENFORCE_NAMED_SESSION:\s*(?:true|false)/, 'ENFORCE_NAMED_SESSION: true');
 }
 
 /**
@@ -135,12 +179,19 @@ export async function enforceNamedSession(page) {
  * @param {import('@playwright/test').Page} page
  */
 export async function enableInplaceLogin(page) {
-    await page.route('**/roster-data.js', async route => {
-        const res  = await route.fetch();
-        const body = (await res.text()).replace(/INPLACE_LOGIN:\s*\{[^}]*\}/,
-            'INPLACE_LOGIN: { operations: true, links: true, paycalc: true, admin: true, settings: true }');
-        await route.fulfill({ response: res, body, contentType: 'text/javascript' });
-    });
+    _setConfigOverride(page, 'INPLACE_LOGIN', /INPLACE_LOGIN:\s*\{[^}]*\}/,
+        'INPLACE_LOGIN: { operations: true, links: true, paycalc: true, admin: true, settings: true }');
+}
+
+/**
+ * Turn the forced set-password overlay ON for one test (PASSWORD_PLAN.md Phase 2). The suite-wide
+ * default is OFF — see the `page` fixture — because the stubbed Firestore reports every member as
+ * un-migrated, so leaving it on would put the overlay over every sign-in test. Call BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ */
+export async function forcePasswordSet(page) {
+    _setConfigOverride(page, 'FORCE_PASSWORD_SET',
+        /FORCE_PASSWORD_SET:\s*(?:true|false)/, 'FORCE_PASSWORD_SET: true');
 }
 
 export { expect };

@@ -1,4 +1,4 @@
-import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
+import { test, expect, enforceNamedSession, enableInplaceLogin, forcePasswordSet } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
 
 // ── ADMIN (admin.html) ────────────────────────────────────────────────────
@@ -245,4 +245,110 @@ test('in-place sign-in: settings initialises (work-email card + nav identity) wi
     await expect(page.locator('#navPanelAvatar')).toBeVisible();        // nav wired with identity
     await expect(page).toHaveURL(/settings\.html$/);
     expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
+});
+
+// ── FORCED SET-PASSWORD OVERLAY (PASSWORD_PLAN.md Phase 2, v18.92) ────────────────────────────
+// The compel is a HARD BLOCK, so the tests that matter most are the ones proving it cannot become a
+// lockout: it must not appear unless it can actually be satisfied, and it must not appear at all when
+// the kill switch is off. `forcePasswordSet` opts in — the suite default is OFF (see fixtures.js).
+
+test('forced password overlay: blocks an un-migrated member right after sign-in', async ({ page }) => {
+    await forcePasswordSet(page);
+    await enableInplaceLogin(page);
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    const overlay = page.locator('#pwForceOverlay');
+    await expect(overlay).toBeVisible();
+    // Mandatory: none of the usual dismissal routes exist.
+    await expect(page.locator('#pwForceOverlay .lb-close')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(overlay).toBeVisible();
+    await page.locator('#pwForceOverlay').click({ position: { x: 4, y: 4 } });   // backdrop
+    await expect(overlay).toBeVisible();
+    // The escape hatch stays hidden until a failure the member can't type their way out of.
+    await expect(page.locator('#pwfEscape')).toBeHidden();
+});
+
+test('forced password overlay: rejects a short or mismatched password and stays up', async ({ page }) => {
+    await forcePasswordSet(page);
+    await enableInplaceLogin(page);
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+
+    await page.locator('#pwfNew').fill('short');
+    await page.locator('#pwfConfirm').fill('short');
+    await page.locator('#pwfSave').click();
+    await expect(page.locator('#pwfError')).toBeVisible();          // shared.css hides it without .visible
+    await expect(page.locator('#pwfError')).toContainText('at least');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+
+    await page.locator('#pwfNew').fill('longenough1');
+    await page.locator('#pwfConfirm').fill('longenough2');
+    await page.locator('#pwfSave').click();
+    await expect(page.locator('#pwfError')).toContainText('match');
+    await expect(page.locator('#pwfError')).toBeVisible();
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+
+    // The surname back is blocked too — otherwise "migrated ✓" would be a lie for that member.
+    // 'Miller!!' is >= 8 chars AND normalises to exactly 'miller' — both conditions are needed to
+    // reach the surname check (an earlier attempt used 'millermiller', which normalises to
+    // 'millermiller' and is therefore a perfectly legal password).
+    await page.locator('#pwfNew').fill('Miller!!');
+    await page.locator('#pwfConfirm').fill('Miller!!');
+    await page.locator('#pwfSave').click();
+    await expect(page.locator('#pwfError')).toContainText('surname');
+    await expect(page.locator('#pwfError')).toBeVisible();
+});
+
+// THE OTHER lockout guard. A mandatory overlay that fails to save is a trap unless it eventually
+// offers a way out, so after repeated auth-layer failures an escape appears and genuinely closes it.
+//
+// The hermetic stub makes this easy to drive: `getAuth()` returns `{ currentUser: null }`, so
+// setOwnPassword rejects with 'Not signed in' every time. That is also why the HAPPY path is not
+// asserted here — a successful updatePassword is unreachable under the stub without making
+// auth.currentUser mutable, which would change behaviour for every other spec (reconcileExpiredIdentity
+// and friends all branch on it). The password RULES are unit-tested (auth-identity.test.mjs) and the
+// write path is the same setOwnPassword the shipped Settings card uses.
+test('forced password overlay: offers a way out after repeated save failures', async ({ page }) => {
+    await forcePasswordSet(page);
+    await enableInplaceLogin(page);
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible();
+
+    for (let i = 0; i < 3; i++) {
+        await page.locator('#pwfNew').fill('a-real-password-9');
+        await page.locator('#pwfConfirm').fill('a-real-password-9');
+        await page.locator('#pwfSave').click();
+        await expect(page.locator('#pwfError')).toBeVisible();
+    }
+    const escape = page.locator('#pwfEscape');
+    await expect(escape).toBeVisible();
+    await escape.click();
+    await expect(page.locator('#pwForceOverlay')).toBeHidden();
+    await expect(page.locator('#contactCard')).toBeVisible();   // the page is usable again
+});
+
+test('forced password overlay: FAILS OPEN when the migration status cannot be read', async ({ page }) => {
+    // The safety property. If getPasswordStatus fails we must NOT block — the member could not
+    // complete the flow anyway, and a mandatory overlay they can't satisfy is a lockout. It simply
+    // doesn't appear and tries again at their next sign-in.
+    await forcePasswordSet(page);
+    await enableInplaceLogin(page);
+    await page.addInitScript(() => { window.__E2E = { failGetDoc: true }; });
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#contactCard')).toBeVisible();      // the page is usable
+    await expect(page.locator('#pwForceOverlay')).toHaveCount(0);
+});
+
+test('forced password overlay: never appears while the kill switch is off', async ({ page }) => {
+    // No forcePasswordSet() call → the suite default (FORCE_PASSWORD_SET: false). This is also what
+    // keeps the rest of the suite unaffected by the feature.
+    await enableInplaceLogin(page);
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#contactCard')).toBeVisible();
+    await expect(page.locator('#pwForceOverlay')).toHaveCount(0);
 });

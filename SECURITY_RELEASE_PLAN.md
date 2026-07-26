@@ -130,6 +130,14 @@ Three design points that flow from this and still govern any future rule change:
   design rules: the surname fallback is **gated** on the typed value normalising to the surname, and
   a definitive credential rejection resolves to `'none'` (never anonymous) **regardless of
   `ENFORCE_NAMED_SESSION`** — see that doc before building anything password-related.
+- **SHIPPED — PASSWORD_PLAN.md Phase 2 (v18.92):** `password-force.js` compels any member still on the
+  surname default to set their own password at their NEXT SIGN-IN, on all five authenticated pages,
+  behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. No forced sign-out — sessions cap at 30 days
+  absolute / 7 days idle and an expired session forces a real typed login, so coverage completes itself
+  inside 30 days and staggers naturally. Shows only for a `named` identity, and fails open on any
+  failure it cannot recover from: a mandatory overlay that cannot be satisfied is a lockout, not a
+  control. Pure roster-viewers who never sign in anywhere are NOT reached — that needs Track E. This
+  makes the C5 ≥90% gate reachable for the first time.
 - **SHIPPED — PASSWORD_PLAN.md Phase 0 + Phase 1 (v18.63):** the capability is live. Sign-in accepts a
   typed password with the gated surname fallback (`credentialCandidatesFor` / `ensureFirebaseSession`);
   staff set their own password in **Settings → Password**; the admin resets anyone to their surname
@@ -156,6 +164,12 @@ Three design points that flow from this and still govern any future rule change:
   | Management | 6 | Any member's AL / absence / shifts, on behalf |
   | Staff | 43 | **Only their own** overrides (the B3 isolation rule holds) |
 
+  **SUPERSEDED as the ROLLOUT plan (v18.92).** The owner chose to compel EVERYONE at their next sign-in
+  rather than run privileged-first waves — the 30-day/7-day session model staggers it by each member's
+  own expiry anyway, so a tiered flag would have added releases without lowering the peak. The tier
+  table above still stands as the RISK analysis (it is why the 7 mattered most, and why chasing them by
+  conversation was worth doing first); it is no longer the sequencing.
+
   So migrating the admin + 6 managers closes the large majority of the exposure, and it needs **no
   code at all** — 7 people opening Settings → Password. The ≥90% gate is about being able to delete
   the surname fallback, which is a tidiness/one-way-door goal, not the risk-closing one.
@@ -165,7 +179,7 @@ Three design points that flow from this and still govern any future rule change:
   **is already off the guessable surname default**, which is the biggest single risk reduction
   available in this whole track and it has already happened. It also means voluntary migration among
   everyone else is running at roughly one account per day, so **the ≥90% (≈38 accounts) gate is
-  unreachable without compulsion** — see Phase 2.
+  unreachable without compulsion** — which is exactly why Phase 2 shipped at v18.92.
 
   **Recommended next step:** chase the 6 managers directly (a conversation, not a release), and record
   "all admin + manager accounts migrated" as an explicit milestone here. Only then decide whether the

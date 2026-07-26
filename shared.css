@@ -751,6 +751,42 @@ body.lb-open #stickyTotal { display: none !important; }
    which sits in a fully centred panel, keeps its alignment. */
 #welcomeLightbox .lightbox-privacy { text-align: left; }
 
+/* Forced set-password overlay (password-force.js, PASSWORD_PLAN.md Phase 2). It reuses the whole
+   login/email-check visual family above — only two elements are its own. */
+/* This overlay's subtitle is four lines of PROSE, not the login overlay's one-line "Settings · Sign
+   in" — so it follows the v18.89 rule and left-aligns. The title above it stays centred (masthead). */
+#pwForceContent .login-subtitle { text-align: left; text-wrap: pretty; }
+
+.pwf-req {
+    font-weight: 500;
+    color: var(--text-light);
+    text-transform: none;
+    letter-spacing: 0;
+}
+/* The escape hatch. Deliberately QUIET and hidden until a failure the member cannot type their way
+   out of reveals it (rate-limit / offline / three failures) — it must never read as an equal choice
+   to setting a password, but it must exist, or a mandatory overlay becomes a lockout. */
+.pwf-escape {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: var(--type-small);
+    color: var(--text-light);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    padding: 6px;
+}
+.pwf-escape:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+/* MUST out-specify the `display: block` above (v18.92). The HTML `hidden` attribute works through a
+   UA `display: none`, which any author display rule silently beats — so without this the escape hatch
+   rendered from the moment the overlay opened and the "mandatory" overlay was dismissible on sight,
+   i.e. the compel had no teeth at all. Caught by the e2e; it is invisible to code reading. */
+.pwf-escape[hidden] { display: none; }
+
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
    Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".
    Badge uses .notice-badge + page modifier (not .lightbox-badge — which is the About lightbox badge).
@@ -1830,7 +1866,7 @@ button.nav-panel-link--notices {
 /* ═══════════════════════════════════════════════════════════════
    LOGIN OVERLAY — shared by admin.html and settings.html
    ═══════════════════════════════════════════════════════════════ */
-#loginOverlay, #emailCheckOverlay {
+#loginOverlay, #emailCheckOverlay, #pwForceOverlay {
     display: none;
     position: fixed;
     inset: 0;
@@ -1842,11 +1878,11 @@ button.nav-panel-link--notices {
     -webkit-overflow-scrolling: touch;
     padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
 }
-#loginOverlay.visible, #emailCheckOverlay.visible { display: flex; }
+#loginOverlay.visible, #emailCheckOverlay.visible, #pwForceOverlay.visible { display: flex; }
 
 /* Overlay, not a card — --radius-xl with the other compact dialogs (v18.90; was --radius-lg, the
    card radius). */
-#loginCard, #emailCheckContent {
+#loginCard, #emailCheckContent, #pwForceContent {
     background: white;
     border-radius: var(--radius-xl);
     padding: 36px 32px 28px;
@@ -1856,7 +1892,7 @@ button.nav-panel-link--notices {
     text-align: center;
     box-shadow: var(--shadow-3);
 }
-#loginCard img, #emailCheckContent img {
+#loginCard img, #emailCheckContent img, #pwForceContent img {
     width: 72px;
     height: 72px;
     border-radius: 16px;
@@ -1966,7 +2002,7 @@ button.nav-panel-link--notices {
     line-height: 1.4;
 }
 .login-error.visible { display: block; }
-#loginSubmit, #emailCheckYesBtn, #emailCheckSaveBtn {
+#loginSubmit, #emailCheckYesBtn, #emailCheckSaveBtn, #pwfSave {
     width: 100%;
     padding: 13px;
     background: var(--primary-blue);
@@ -1982,9 +2018,9 @@ button.nav-panel-link--notices {
     margin-bottom: 16px;
 }
 @media (hover: hover) and (pointer: fine) {
-    #loginSubmit:hover, #emailCheckYesBtn:hover, #emailCheckSaveBtn:hover { background: var(--primary-blue-dark); }
+    #loginSubmit:hover, #emailCheckYesBtn:hover, #emailCheckSaveBtn:hover, #pwfSave:hover { background: var(--primary-blue-dark); }
 }
-#loginSubmit:active, #emailCheckYesBtn:active, #emailCheckSaveBtn:active { transform: scale(var(--press-scale)); }
+#loginSubmit:active, #emailCheckYesBtn:active, #emailCheckSaveBtn:active, #pwfSave:active { transform: scale(var(--press-scale)); }
 #loginName:disabled {
     background: white;
     color: var(--text-light);

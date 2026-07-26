@@ -27,3 +27,11 @@ export const SELECTED_MEMBER_LEGACY = 'adminLastMember';
  *  month + full year, stored as separate keys. */
 export const VIEWED_MONTH = 'myb_roster_month';
 export const VIEWED_YEAR  = 'myb_roster_year';
+
+/** Prefix (+ member name) of the one-shot "a real sign-in just happened" marker that triggers the
+ *  forced set-password overlay — PASSWORD_PLAN.md Phase 2. WRITTEN by login-overlay.js (the single
+ *  point every protected page's sign-in passes through) and CONSUMED by password-force.js, so it is
+ *  genuinely cross-file and belongs here rather than in either module. The marker is what keeps the
+ *  overlay to real sign-ins only: without it the compel would ambush a member on an ordinary page
+ *  load, which is the v14.77 "Fix 4" defect the work-email check's identical marker exists to stop. */
+export const PW_FORCE_PENDING_PREFIX = 'myb_pw_force_pending_';

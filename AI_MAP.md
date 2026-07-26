@@ -255,6 +255,44 @@ CLASSIC (non-module) launch-recovery script for index.html only (v16.18). Loaded
 - Runtime-only: the whole IIFE is guarded on `typeof document !== 'undefined'`, so importing it in tests (module-parse) is a no-op and schedules no timer.
 - No imports/exports. Registered in service-worker.js NETWORK_FIRST_FILES + CORE_ASSETS like any app asset.
 
+### `password-force.js`
+
+The MANDATORY "set your own password" overlay — PASSWORD_PLAN.md **Phase 2** (v18.92). Injects its own
+markup (the `login-overlay.js` / `nav-panel.js` pattern), so none of the five authenticated pages carry
+any HTML for it.
+
+- `initPasswordForce(member, { ready? })` → `Promise<boolean>` (did it show?). Fire-and-forget from a
+  coordinator's authorised path — never awaited on the login critical path. `ready` is the session
+  barrier: the four `sessionReady` pages pass it, paycalc calls this from inside its own post-auth
+  callback and passes nothing. Raced with a 4s timeout, so a page whose barrier never resolves degrades
+  to "don't show" instead of hanging.
+- `shouldForcePasswordSet({ flagOn, hasMarker, authStatus, migrated })` — the PURE gate, exported and
+  unit-tested (`password-force.test.mjs`, which extracts it from source so the test can't drift into
+  asserting a copy).
+
+**The `authStatus === 'named'` condition is the lockout guard.** Not "an auth user exists": on the
+calendar that user is ANONYMOUS and on paycalc (`soft` policy) a member can be locally signed in with a
+FAILED Firebase session. In both cases `updatePassword` cannot succeed, so a hard block would be
+unsatisfiable. The test asserts every other `AUTH_STATUSES` value is skipped, so a new status added to
+the state machine defaults to not-compelling.
+
+**Fails open twice.** BEFORE showing: a failed/slow `getPasswordStatus`, a non-named identity, or no
+login marker → it simply doesn't appear and retries at the next sign-in. AFTER showing: `too-many-requests`
+or a network failure (immediately), or three failures of any kind, reveal a quiet "Continue for now" that
+stamps nothing. Without the second half, "mandatory" would mean "trapped" for anyone who hit a rate limit.
+
+**Login-gated by a one-shot marker** (`PW_FORCE_PENDING_PREFIX`, storage-keys.js) written by
+`login-overlay.js` on a confirmed sign-in — the single point all five pages' sign-ins pass through. Two
+jobs: a fresh sign-in is what makes `updatePassword` legal without the old password (Firebase's
+recent-login requirement; the `requires-recent-login` path asks for it if that fails), and it stops the
+overlay ambushing a member on an ordinary page load (the v14.77 "Fix 4" defect). The marker is consumed
+even when the module then declines to show — leaving it set would re-create Fix 4.
+
+- Password rules come from `validateNewPassword` (auth-identity.js), SHARED with the Settings card so the
+  two surfaces cannot disagree about what a valid password is.
+- Kill switch: `CONFIG.FORCE_PASSWORD_SET`. Checked AFTER the marker is consumed, deliberately: checking
+  first would let markers pile up while the flag is off and ambush everyone at once when it's switched on.
+
 ### `session.js`
 Shared auth/session module — canonical source for session logic (v11.40).
 - Constants: `AUTH_KEY`, `SESSION_MS` (30 days absolute), `IDLE_MS` (7 days inactivity), `SESSION_VER`
