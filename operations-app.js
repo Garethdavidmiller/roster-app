@@ -10,9 +10,9 @@
  */
 
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
-import { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError } from './operations-reports.js';
+import { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError, _relativeTime } from './operations-reports.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
@@ -184,6 +184,7 @@ export function init() {
     // retry re-invokes initAccountStatus, and initCardCollapse has no idempotency guard, so wiring it
     // there would add a duplicate listener per failed load (an even number of retries → dead toggle).
     initCardCollapse('accountStatusToggleHeader', 'accountStatusBody', 'accountStatusChevron');
+    initCardCollapse('resetRequestsToggleHeader', 'resetRequestsBody', 'resetRequestsChevron');
     initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
     initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     initCardCollapse('pageSpeedToggleHeader',   'pageSpeedBody',   'pageSpeedChevron');
@@ -490,6 +491,69 @@ export function init() {
         }
     }
     initAccountStatus();
+
+    // ============================================
+    // PASSWORD RESET REQUESTS
+    // ============================================
+    // The queue behind the login overlay's "ask the admin to reset your password" link. Read-only here
+    // plus a Clear; the actual reset is the Account status card's button directly below, so the two sit
+    // adjacent. Written ONLY by the requestPasswordReset Cloud Function (no client can write the
+    // collection — firestore.rules), and the name in each row came from the server-owned activeMembers
+    // list, never from the request body, which is what makes it safe to render.
+    async function initResetRequests() {
+        const content = document.getElementById('resetRequestsContent');
+        const chip    = document.getElementById('resetRequestsCountChip');
+        if (!content) return;
+        content.setAttribute('aria-busy', 'true');
+        try {
+            const requests = await getResetRequests();
+            content.removeAttribute('aria-busy');
+            if (chip) chip.textContent = requests.length ? String(requests.length) : '';
+            if (!requests.length) {
+                content.innerHTML = '<p class="auth-desc">No outstanding requests.</p>';
+                return;
+            }
+            // Auto-open when there IS something to action — an outstanding request is time-sensitive
+            // (someone is locked out right now) and this card is collapsed by default. aria-expanded is
+            // updated alongside the class: opening a card by class alone leaves the control reporting
+            // "collapsed" to a screen reader until the first manual toggle (A11Y_FINDINGS.md, v18.68).
+            const _body = document.getElementById('resetRequestsBody');
+            const _chev = document.getElementById('resetRequestsChevron');
+            if (_body && !_body.classList.contains('open')) {
+                _body.classList.add('open');
+                _chev?.classList.add('open');
+                _chev?.setAttribute('aria-expanded', 'true');
+            }
+            content.innerHTML = `<div class="rr-list">${requests.map(r => {
+                const when = r.requestedAt?.toDate?.() ? _relativeTime(r.requestedAt.toDate()) : 'recently';
+                const again = (r.count || 1) > 1 ? ` · asked ${r.count} times` : '';
+                // provisioned === false means there is no Firebase account at all, so a Reset cannot
+                // help — the remedy is Set up accounts. The login overlay deliberately cannot tell the
+                // member which of the two it is (that would leak which names are provisioned); here it
+                // saves the admin a wasted round trip.
+                const remedy = r.provisioned === false
+                    ? '<span class="rr-remedy rr-remedy--setup">No account yet — run Set up accounts</span>'
+                    : '<span class="rr-remedy">Reset below in Account status</span>';
+                return `<div class="rr-row">
+                    <div class="rr-main"><strong>${r.memberName}</strong><span class="rr-when">${when}${again}</span></div>
+                    ${remedy}
+                    <button type="button" class="btn-rr-clear" data-member="${r.memberName}">Clear</button>
+                </div>`;
+            }).join('')}</div>`;
+            content.querySelectorAll('.btn-rr-clear').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const name = /** @type {HTMLElement} */ (btn).dataset.member || '';
+                    /** @type {HTMLButtonElement} */ (btn).disabled = true;
+                    try { await clearResetRequest(name); initResetRequests(); }
+                    catch { /** @type {HTMLButtonElement} */ (btn).disabled = false; }
+                });
+            });
+        } catch {
+            content.removeAttribute('aria-busy');
+            _cardLoadError(content, 'password reset requests', () => initResetRequests());
+        }
+    }
+    initResetRequests();
 
     // Show a banner if Firebase Auth couldn't establish a real admin session.
     // Anonymous fallback still resolves the Promise so the page renders, but

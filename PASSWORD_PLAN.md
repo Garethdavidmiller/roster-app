@@ -341,3 +341,58 @@ can't distinguish "never signed in" from "migrated elsewhere". Closing it means 
 that member's other devices out. The copy is written to be correct either way — "you'll need it the next
 time you sign in on any device" — so nothing depends on the answer, but confirm it before writing anything
 more specific.
+
+---
+
+## 12. The reset-request queue (v18.93) — Phase 1
+
+§1 put recovery entirely out-of-band: "tell the admin → admin resets". v18.92 then made migration
+compulsory, which raises the volume of exactly those conversations — and the admin had **no way to know
+a request existed** until someone messaged them. This closes that, and only that.
+
+**Scope deliberately small.** A member taps a link, the admin sees a queue. There is no email, no code,
+no self-service reset, and no notification yet (that is Phase 2 — a targeted push, kept separate because
+it carries the only fiddly part: filtering `pushSubscriptions` by `owner` uid, failing closed when a
+legacy doc has no `owner`, and never falling back to the all-devices fan-out).
+
+**Why it is a Cloud Function.** Verified rather than assumed: `signInAnonymously` runs ONLY in
+calendar-app.js, and with `ENFORCE_NAMED_SESSION` on, session.js's anonymous fallback is dead code. So a
+member on a protected page's login overlay has NO Firebase identity — the person who needs this feature
+is precisely the person who cannot write to Firestore. The alternatives were to establish a new anonymous
+session on the protected pages (an explicit anti-goal in SECURITY_RELEASE_PLAN.md, and new auth behaviour
+next to the login path — this app's worst outage area) or to open a client-writable collection. The
+endpoint beats both: `resetRequests` denies every client write, and all validation is server-side.
+
+**It never resets a password, by design.** An unauthenticated caller who could force any member back to
+the surname default would undo v18.92 and, with token revocation, boot them off their devices — a
+downgrade-plus-nuisance attack available to anyone with the URL. The admin performs the reset. The human
+in the loop IS the authentication; this is a doorbell, not a recovery mechanism.
+
+**Bounding the app's first public unauthenticated endpoint** — the one new exposure this creates:
+
+| Control | Why |
+|---------|-----|
+| **Doc ID = member name** | The collection can never exceed the roster. Flooding is impossible BY CONSTRUCTION, not by rate limiting — worst case is one stale row per member. |
+| Name ∈ server-owned `activeMembers` | Rejects junk, AND makes the name safe for the admin card to render (it came from our list, never the request body). |
+| **No free text stored** | An unauthenticated endpoint writing caller-controlled strings into an admin UI is an injection surface for no benefit. |
+| `shouldRecordResetRequest` throttle | Repeat taps must not inflate the `count` the admin reads as "how stuck is this person", nor generate repeat notifications later. Pure + unit-tested; fails OPEN on a junk timestamp (never block someone from asking). |
+| `maxInstances: 3` | Caps the cost of a flood. No other function in the codebase sets this; a public one needs it. App Check (Track D) is the eventual real control. |
+| No enumeration | Same answer for any roster name whether provisioned or not — and the roster is already public in the login dropdown, so nothing new is revealed. |
+
+**`provisioned` earns its place.** The login overlay deliberately cannot distinguish "forgotten password"
+from "never set up" (that would leak which names are provisioned). The admin's card has no such
+constraint, so the function records whether a Firebase account exists — the difference between **Reset**
+and **run Set up accounts**, which otherwise costs a wasted round trip to discover.
+
+**Where the link appears:** only after a `kind: 'credential'` failure. Always-visible would invite a
+request from anyone who merely mistyped, and the remedy for a mistype is to try again. A network or
+rate-limit failure gets no link either — a reset does not fix a dropped connection.
+
+**One thing the render caught:** with the link shown, the card stated the same advice three times at
+once (the error text, the link, and the static "Trouble signing in? Ask the admin." footer). Revealing
+the link now hides that footer — the actionable version replaces the passive one.
+
+**Still true after this:** a member who never signs in anywhere is unreachable, and nothing notifies the
+admin until Phase 2. Email self-service (C2) remains blocked on a relay — note that Firebase's own
+`sendPasswordResetEmail` cannot substitute, because the accounts are synthetic
+`initial.surname@myb-roster.local` addresses that receive no mail.

@@ -290,6 +290,23 @@ service cloud.firestore {
       allow delete: if false;   // migration history is server-managed, never client-deleted
     }
 
+    // resetRequests — a locked-out member's "please reset my password" request.
+    //
+    // NO CLIENT MAY WRITE, AT ALL. The only writer is the `requestPasswordReset` Cloud Function via the
+    // Admin SDK (which bypasses rules), because the member who needs this has no Firebase identity to
+    // authenticate with — they cannot sign in, and no anonymous session exists on a protected page. So
+    // rather than open a collection to unauthenticated writes, the endpoint validates server-side and
+    // this stays completely closed. That is the whole reason the feature is a function and not a write.
+    //
+    // Doc ID is the member name, so this collection can never exceed the roster size.
+    match /resetRequests/{memberName} {
+      allow read:   if request.auth != null && request.auth.token.admin == true;
+      allow create: if false;   // Admin SDK only (requestPasswordReset)
+      allow update: if false;   // Admin SDK only
+      // The admin clears a row once they have actioned it.
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
     match /clientErrors/{docId} {
       // Written by error-reporter.js on authenticated pages (request.auth != null).
       // Read, update (resolve), and delete restricted to admins.

@@ -206,6 +206,29 @@
         </div>
     </div>
 
+    <!-- ==================== PASSWORD RESET REQUESTS ==================== -->
+    <!-- Sits directly ABOVE Account status because that is where the remedy is (its Reset button), so
+         the queue and the action are adjacent. Written only by the requestPasswordReset Cloud Function;
+         no client can write this collection at all (firestore.rules). -->
+    <div class="card" id="resetRequestsCard">
+        <div class="card-header card-header-toggle" id="resetRequestsToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🙋</span> Password Reset Requests</h2>
+                <span class="hint">Staff who tapped “ask the admin to reset my password” on the sign-in screen</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="card-year-chip errorlog-count-chip" id="resetRequestsCountChip" title="Outstanding requests"></span>
+                <button type="button" class="btn-card-tips" data-card="reset-requests" aria-label="Tips for Password Reset Requests" title="Tips for Password Reset Requests">?</button>
+                <span class="collapse-chevron" id="resetRequestsChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body" id="resetRequestsBody">
+            <div class="card-body" id="resetRequestsContent" aria-busy="true">
+                <p class="auth-desc">Loading…</p>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== ACCOUNT STATUS (work email + password, per member) ==================== -->
     <div class="card" id="accountStatusCard">
         <div class="card-header card-header-toggle" id="accountStatusToggleHeader">

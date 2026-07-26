@@ -670,6 +670,49 @@ describe('staffContact', () => {
     });
 });
 
+// ── resetRequests — the reset-request queue (PASSWORD_PLAN.md, the request work) ─────────────────
+// This collection is written ONLY by the requestPasswordReset Cloud Function via the Admin SDK, which
+// bypasses rules — so the interesting assertions are that EVERY client write fails, including the
+// admin's. The reason is worth restating here because it looks over-tight: the member who needs this
+// has forgotten their password, so they have no Firebase identity at all and cannot be the writer.
+// Rather than open the collection to unauthenticated writes, the endpoint owns writing entirely.
+describe('resetRequests (the reset-request queue)', () => {
+    const NAME = 'G. Miller';
+
+    test('anon and ordinary members cannot read the queue', async () => {
+        await assertFails(getDoc(doc(anonDb(), 'resetRequests', NAME)));
+        await assertFails(getDoc(doc(namedDb(NAME), 'resetRequests', NAME)));
+    });
+
+    test('admin can read', async () => {
+        await assertSucceeds(getDoc(doc(adminDb(), 'resetRequests', NAME)));
+    });
+
+    test('NO client may create — not anon, not the member, not even the admin', async () => {
+        const payload = { memberName: NAME, requestedAt: new Date(), count: 1, provisioned: true };
+        await assertFails(setDoc(doc(anonDb(), 'resetRequests', NAME), payload));
+        await assertFails(setDoc(doc(namedDb(NAME), 'resetRequests', NAME), payload));
+        await assertFails(setDoc(doc(adminDb(), 'resetRequests', NAME), payload));
+    });
+
+    test('NO client may update an existing row', async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'resetRequests', NAME), { memberName: NAME, count: 1 });
+        });
+        await assertFails(updateDoc(doc(anonDb(), 'resetRequests', NAME), { count: 99 }));
+        await assertFails(updateDoc(doc(namedDb(NAME), 'resetRequests', NAME), { count: 99 }));
+        await assertFails(updateDoc(doc(adminDb(), 'resetRequests', NAME), { count: 99 }));
+    });
+
+    test('the admin CAN delete — clearing a row they have actioned is the one client write', async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'resetRequests', NAME), { memberName: NAME, count: 1 });
+        });
+        await assertFails(deleteDoc(doc(namedDb(NAME), 'resetRequests', NAME)));
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'resetRequests', NAME)));
+    });
+});
+
 describe('passwordStatus (PASSWORD_PLAN §6)', () => {
     const NAME = 'G. Miller';
     test('anon cannot read', async () => {

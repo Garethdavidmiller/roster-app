@@ -47,6 +47,7 @@ const {
     resolveRosterAuthConfig,
     claimsForTier,
     computeOrphanLabels,
+    shouldRecordResetRequest,
 } = require('./roster-parse-helpers');
 const rosterMembers = require('./roster-members.json');
 
@@ -1574,6 +1575,101 @@ exports.resetMemberPassword = onRequest(
             }
             console.error('[resetMemberPassword] failed for', member, e && e.code, e);
             return res.status(500).json({ error: 'Reset failed' });
+        }
+    }
+);
+
+/**
+ * requestPasswordReset — a locked-out member asks the admin to reset their password.
+ *
+ * THE APP'S ONLY PUBLIC UNAUTHENTICATED ENDPOINT, and deliberately so. A member who has forgotten
+ * their password cannot sign in, so they have no Firebase identity — and `signInAnonymously` runs only
+ * on the calendar (calendar-app.js), never on a protected page's login overlay. So a direct Firestore
+ * write is impossible for exactly the person who needs this. The alternatives were to establish a new
+ * anonymous session on the protected pages (an explicit anti-goal in SECURITY_RELEASE_PLAN.md, and new
+ * auth behaviour beside the login path — the area with this app's worst outage history) or to open a
+ * client-writable collection. A server endpoint beats both: Firestore rules stay fully CLOSED to
+ * clients (`allow write: if false` on resetRequests — only this function's Admin SDK writes), and every
+ * validation is server-side and unbypassable.
+ *
+ * It records a request and NOTHING ELSE. It never resets a password: an unauthenticated caller who
+ * could force any member back to the guessable surname default would undo exactly what v18.92 shipped,
+ * and with token revocation would also boot them off their devices. The admin performs the reset from
+ * Operations → Account status. The human in the loop IS the authentication — this is a doorbell, not a
+ * recovery mechanism.
+ *
+ * How the abuse surface is bounded:
+ *  · **The doc ID is the member name**, so the collection can never exceed the roster. Flooding is
+ *    impossible BY CONSTRUCTION, not by rate limiting — the worst case is one stale row per member.
+ *  · **The name must be in the server-owned `activeMembers` list** (roster-members.json, B4). That also
+ *    makes the name safe for the admin card to render: it came from OUR list, never the request body.
+ *  · **No free text of any kind is stored.** An unauthenticated endpoint writing caller-controlled
+ *    strings into an admin UI is an injection surface for no benefit.
+ *  · **Throttled** per member (shouldRecordResetRequest) so repeat taps don't inflate the count.
+ *  · **maxInstances** caps the cost of a flood. (The eventual real control is App Check — Track D.)
+ *  · **No enumeration**: it answers the same way for any roster name whether or not an account exists,
+ *    and the roster names are already public in the login dropdown, so nothing new is revealed.
+ *
+ * Body: { member: string }. Always 200 for a valid roster name.
+ */
+const RESET_REQUEST_THROTTLE_MS = 10 * 60 * 1000;   // 10 minutes
+
+exports.requestPasswordReset = onRequest(
+    { region: 'europe-west2', timeoutSeconds: 30, cors: ADMIN_FUNCTION_ORIGINS, maxInstances: 3 },
+    async (req, res) => {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+        let body = req.body;
+        if (!body || typeof body !== 'object') {
+            try { body = JSON.parse((req.rawBody || '').toString() || '{}'); } catch (_) { body = {}; }
+        }
+        const member = typeof body.member === 'string' ? body.member.trim() : '';
+        if (!member) return res.status(400).json({ error: 'Missing member' });
+
+        const cfg = resolveRosterAuthConfig(rosterMembers);
+        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
+        // Unknown name → 404 with a generic message. The roster IS public (login dropdown), so this
+        // reveals nothing; it just stops junk names creating rows.
+        if (!cfg.processMembers.includes(member)) {
+            return res.status(404).json({ error: 'Unknown member' });
+        }
+
+        try {
+            const docRef = admin.firestore().collection('resetRequests').doc(member);
+            const snap   = await docRef.get();
+            const lastMs = snap.exists && snap.data().requestedAt && snap.data().requestedAt.toMillis
+                ? snap.data().requestedAt.toMillis()
+                : null;
+            if (!shouldRecordResetRequest(lastMs, Date.now(), RESET_REQUEST_THROTTLE_MS)) {
+                // Already asked moments ago. Answer as success — the member's request IS pending, and a
+                // different answer would tell a caller how recently this member last asked.
+                return res.json({ ok: true, throttled: true });
+            }
+
+            // Whether a Firebase account exists at all decides which remedy the admin needs: Reset, or
+            // run Set up accounts first. The login overlay must not distinguish these (it would leak
+            // which names are provisioned); the admin's own card has no such constraint, and guessing
+            // wrong costs a round trip.
+            let provisioned = true;
+            try {
+                await admin.auth().getUserByEmail(nameToEmail(member));
+            } catch (e) {
+                if (e && e.code === 'auth/user-not-found') provisioned = false;
+                else throw e;
+            }
+
+            await docRef.set({
+                memberName:  member,
+                requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+                count:       admin.firestore.FieldValue.increment(1),
+                provisioned,
+            }, { merge: true });
+
+            console.log('[requestPasswordReset] recorded for', member, 'provisioned:', provisioned);
+            return res.json({ ok: true });
+        } catch (e) {
+            console.error('[requestPasswordReset] failed for', member, e && e.code, e);
+            return res.status(500).json({ error: 'Could not record the request' });
         }
     }
 );

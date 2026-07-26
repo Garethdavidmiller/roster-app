@@ -135,10 +135,15 @@ function overlayHtml(/** @type {string} */ pageLabel) {
             <div id="loginPwHint" class="login-hint">Your surname in lowercase — or the password you’ve set yourself.</div>
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
+        <!-- Reset request (PASSWORD_PLAN.md — the request queue). HIDDEN until a genuine credential
+             failure reveals it: always-visible would invite a request from anyone who merely mistyped,
+             and the remedy for a mistype is to try again. -->
+        <button type="button" id="loginResetRequest" class="login-reset-request" hidden>Can’t get in? Ask the admin to reset your password</button>
+        <div id="loginResetStatus" class="login-hint" aria-live="polite"></div>
         <button type="button" id="loginSubmit">Sign in →</button>
         <div id="loginStatus" class="login-status" aria-live="polite"></div>
         <a href="./" class="login-back">← Back to roster</a>
-        <p class="login-help">Trouble signing in? Ask the admin.</p>
+        <p class="login-help" id="loginHelpLine">Trouble signing in? Ask the admin.</p>
     </div>`;
 }
 
@@ -169,6 +174,8 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     const pwToggle      = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginPwToggle'));
     const submitBtn     = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginSubmit'));
     const errorEl       = /** @type {HTMLElement} */ (overlay.querySelector('#loginError'));
+    const resetBtn      = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginResetRequest'));
+    const resetStatusEl = /** @type {HTMLElement} */ (overlay.querySelector('#loginResetStatus'));
     const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
     const backLink      = /** @type {HTMLAnchorElement} */ (overlay.querySelector('.login-back'));
 
@@ -262,6 +269,41 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
         errorEl.classList.add('visible');
     }
 
+    /** Reveal the "ask the admin to reset it" route. Called ONLY for a credential failure — a network
+     *  or rate-limit failure is not a forgotten password, and offering a reset for one would send the
+     *  admin a request that fixes nothing. */
+    function revealResetRequest() {
+        if (!CONFIG.PASSWORD_RESET_REQUESTS || !resetBtn) return;
+        resetBtn.hidden = false;
+        // Retire the static "Trouble signing in? Ask the admin." footer once the ACTIONABLE version of
+        // the same advice is on screen. Without this the card states it three times at once — the error
+        // text, this link, and that footer — which is the duplication the v18.49 paycalc pass removed
+        // elsewhere. The footer stays for every other failure kind, where there is no link to replace it.
+        const help = overlay.querySelector('#loginHelpLine');
+        if (help) /** @type {HTMLElement} */ (help).hidden = true;
+    }
+
+    resetBtn?.addEventListener('click', async () => {
+        const name = nameSelect.value;
+        if (!name) { resetStatusEl.textContent = 'Choose your name first.'; return; }
+        resetBtn.disabled = true;
+        const original = resetBtn.textContent;
+        resetBtn.textContent = 'Sending…';
+        try {
+            const { requestPasswordReset } = await import('./firebase-client.js');
+            await requestPasswordReset(name);
+            // Replace the control rather than leaving a re-tappable button: the request is recorded
+            // (the endpoint throttles repeats anyway) and there is nothing more for them to do here.
+            resetBtn.hidden = true;
+            resetStatusEl.textContent = 'Request sent. The admin will reset your password and let you know.';
+        } catch (e) {
+            console.warn('[Login] reset request failed:', e);
+            resetStatusEl.textContent = 'Couldn’t send the request — check your connection, or contact the admin directly.';
+            resetBtn.disabled = false;
+            resetBtn.textContent = original;
+        }
+    });
+
     // Staged "still working" reassurance under the button while auth is in flight. The button itself
     // stays "Signing in…"; this line escalates so a multi-second wait (app update / weak signal)
     // reads as progress, not a freeze. Cleared the moment the attempt settles. Kept calm and
@@ -327,6 +369,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                 // never on a network/timeout/rate-limit failure (which would punish a connectivity
                 // problem). Firebase does the real rate-limiting; this is a UX brake on hammering.
                 if (_result.kind === 'credential') {
+                    revealResetRequest();
                     _failCount++;
                     if (_failCount >= 3) {
                         _lockedUntil = Date.now() + 30_000;

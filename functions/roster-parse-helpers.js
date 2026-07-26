@@ -896,6 +896,33 @@ function shouldDeleteSubscription(statusCode) {
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 
+
+/**
+ * Throttle decision for a password-reset REQUEST (PASSWORD_PLAN.md — the request queue).
+ *
+ * PURE so the one piece of judgement in an otherwise mechanical public endpoint is unit-testable.
+ * Returns true when the request should be RECORDED (write the doc + count it), false when it should be
+ * silently absorbed as a duplicate.
+ *
+ * Why throttle at all when the collection can't grow (doc id = member name, so at most one row per
+ * member — see the endpoint)? Two reasons: a member tapping the link repeatedly should not inflate the
+ * `count` the admin reads as "how badly are they stuck", and every recorded request is a potential
+ * notification. The endpoint returns success either way, so a throttled request is indistinguishable
+ * from a recorded one to the caller — nothing is leaked by the difference.
+ *
+ * A missing/unparseable previous timestamp means "never asked" → record.
+ *
+ * @param {number|null|undefined} lastRequestedAtMs  previous requestedAt in ms, or null
+ * @param {number} nowMs
+ * @param {number} throttleMs
+ * @returns {boolean}
+ */
+function shouldRecordResetRequest(lastRequestedAtMs, nowMs, throttleMs) {
+    const last = Number(lastRequestedAtMs);
+    if (!Number.isFinite(last) || last <= 0) return true;   // never asked (or junk) → record
+    return (nowMs - last) >= throttleMs;
+}
+
 module.exports = {
     shouldDeleteSubscription,
     normaliseShift,
@@ -919,4 +946,5 @@ module.exports = {
     resolveRosterAuthConfig,
     claimsForTier,
     computeOrphanLabels,
+    shouldRecordResetRequest,
 };
