@@ -68,3 +68,36 @@ describe('shouldForcePasswordSet', () => {
         }
     });
 });
+
+// ── withTimeout — the guard that turns a HANG into a recoverable failure ────────────────────────
+// Extracted the same way (source read + eval) so these assertions run against the real code. This
+// helper is why a dead-air connection no longer strands the mandatory overlay on "Saving…", and
+// since v18.95 the Settings Password card depends on it too, so it is worth pinning down.
+const twMatch = /export function withTimeout\(([\s\S]*?)\n}/.exec(SRC);
+assert.ok(twMatch, 'withTimeout not found in password-force.js — has it been renamed?');
+const withTimeout = new Function(`return function withTimeout(${twMatch[1]}\n}`)();
+
+describe('withTimeout', () => {
+    test('passes a value through when the promise settles in time', async () => {
+        assert.equal(await withTimeout(Promise.resolve('ok'), 1000), 'ok');
+    });
+
+    test('preserves the original rejection rather than masking it as a timeout', async () => {
+        const original = Object.assign(new Error('nope'), { code: 'auth/invalid-credential' });
+        await assert.rejects(withTimeout(Promise.reject(original), 1000),
+                             (/** @type {any} */ e) => e === original);
+    });
+
+    // THE point of the helper: a promise that never settles must become a rejection, because the
+    // caller's catch/finally are the only things that re-enable the button and reveal the escape.
+    test('rejects a never-settling promise with the myb/timeout code', async () => {
+        await assert.rejects(withTimeout(new Promise(() => {}), 20),
+                             (/** @type {any} */ e) => e.code === 'myb/timeout');
+    });
+
+    // Without the clearTimeout, a fast success still leaves a pending timer holding the event loop
+    // open — which in a browser is a leak per attempt, and here would hang the test runner.
+    test('clears its timer on success so nothing is left pending', async () => {
+        await withTimeout(Promise.resolve(1), 60_000);   // would stall exit if the timer survived
+    });
+});

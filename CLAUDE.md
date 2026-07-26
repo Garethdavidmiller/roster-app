@@ -18,7 +18,7 @@
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/resetMemberPassword` (admin-only break-glass — resets a member's password to their surname default; PASSWORD_PLAN.md Track C) |
-| | `https://europe-west2-myb-roster.cloudfunctions.net/requestPasswordReset` (the app's ONLY public unauthenticated endpoint — a locked-out member asks the admin to reset their password; records a request, never resets anything) |
+| | `https://europe-west2-myb-roster.cloudfunctions.net/requestPasswordReset` (the app's ONLY public unauthenticated endpoint — a locked-out member asks the admin to reset their password; records a request, never resets anything. Since v18.95 it also pushes the request to the **admin's devices only** via `sendTargetedPush` — never `fanOutPush`) |
 | Development branch convention | `claude/<description>-<sessionId>` — always push to this branch, never directly to `main` |
 
 **GitHub Actions secrets required:**
@@ -158,7 +158,7 @@ roster-app/
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
 ├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
 ├── login-overlay.js        ← shared in-place sign-in overlay for all 5 protected pages: initLoginOverlay({ pageLabel, onSuccess }); grade/name dropdowns, surname-password check, client rate-limit. The sign-in core `runNamedSignIn` commits the local session ONLY after auth resolves — never before (the v14.75 half-signed-in/freeze fix; LOGIN_INCIDENT.md). Full detail + exports: AI_MAP.md.
-├── password-force.js       ← the MANDATORY "set your own password" overlay (PASSWORD_PLAN.md Phase 2, v18.92): `initPasswordForce(member, {ready})` + the pure `shouldForcePasswordSet` gate. Injects its own markup (no page HTML). Shown ONCE right after a confirmed sign-in (the one-shot `myb_pw_force_pending_<member>` marker written by login-overlay.js, key in storage-keys.js) for a `named` identity that `passwordStatus` still reports as on the surname default. No ✕/Escape/backdrop — and it FAILS OPEN both BEFORE showing (failed read / non-named identity) and AFTER (rate-limit / network / 3 failures reveal a quiet "Continue for now"), because a mandatory overlay that cannot be satisfied is a lockout. Kill switch: `CONFIG.FORCE_PASSWORD_SET`. Called from all five authenticated coordinators
+├── password-force.js       ← the MANDATORY "set your own password" overlay (PASSWORD_PLAN.md Phase 2, v18.92): `initPasswordForce(member, {ready, onShow})` + the pure `shouldForcePasswordSet` gate + `withTimeout` (exported v18.95 — the Settings Password card reuses it rather than growing a second copy of the hang guard). Injects its own markup (no page HTML). Shown ONCE right after a confirmed sign-in (the one-shot `myb_pw_force_pending_<member>` marker written by login-overlay.js, key in storage-keys.js) for a `named` identity that `passwordStatus` still reports as on the surname default. No ✕/Escape/backdrop — and it FAILS OPEN both BEFORE showing (failed read / non-named identity) and AFTER (rate-limit / network / 3 failures reveal a quiet "Continue for now"), because a mandatory overlay that cannot be satisfied is a lockout. Kill switch: `CONFIG.FORCE_PASSWORD_SET`. Called from all five authenticated coordinators
 ├── session.js              ← shared auth/session: ensureFirebaseSession/ensureNamedSession, primeAuth (v14.80 pre-warm), get/save/clearSession, and the B0 named-vs-anonymous identity signals. Full exports: AI_MAP.md.
 ├── auth-state-core.js      ← PURE identity state machine (ARCHITECTURE_PLAN.md Track 1, Phase 1): reduceAuthState(state, event)→state + INITIAL_STATE. No DOM/Firebase/localStorage. Tested by auth-state-core.test.mjs.
 ├── auth-state.js           ← auth STORE (Phase 2): getAuthSnapshot/subscribeAuth/dispatchAuth over the reducer. Imports ONLY auth-state-core.js (acyclic); session.js FEEDS it (observing only; sessionReady untouched). Full detail: AI_MAP/ARCHITECTURE_PLAN.
@@ -309,14 +309,14 @@ roster-app/
 │   ├── responsive.spec.js  ← desktop-geometry checks: calendar/team-view/admin at 1024–1440px + short-height laptop cases (no horizontal overflow)
 │   ├── axe.spec.js         ← accessibility gate (axe-core, WCAG A/AA) — scans one rendered state per page. Tagged `@a11y`; GREEN + BLOCKING (part of `npm run test:e2e`) since v17.52; `npm run test:a11y` runs it standalone. One documented exclusion (calendar `.other-month` faint aria-hidden dates). Baseline in A11Y_FINDINGS.md. Imports test/expect from fixtures.js for the hermetic Firebase stub
 │   ├── csp.spec.js         ← deployed-CSP proof (v17.62; telemetry allowance v18.89 — `IGNORED_BLOCKS` drops the two beacons Firebase Auth's `apis.google.com` iframe fires (`cleardot.gif`, `gen_204`), because refusing those IS the policy working and counting them as failures made the suite flake intermittently on CI while passing locally; teeth-verified — an injected real violation still fails): runs ONLY via `npm run test:csp` under `playwright.csp.mjs` (serves the app from the Firebase Hosting emulator so the real firebase.json CSP header is applied + enforced by Chromium). Per page: collects every `securitypolicyviolation`, asserts none — the RUNTIME counterpart to the static csp-hygiene.test.mjs. Excluded from the http-server smoke run. Teeth-verified
-│   ├── visual.spec.js      ← visual-regression baselines (Section B / F-VIS, v17.73): runs ONLY via `npm run test:visual` under `playwright.visual.mjs`. Clock-pinned + Firebase-stubbed + fixed-member → deterministic fixed-viewport screenshots vs committed baselines in `e2e/visual-baselines/` (10: the app surfaces incl. the accepted desktop voids + the 4 static guides). Catches composition drift from a CSS/token/layout change — but only WHEN RUN: it is **opt-in and deliberately NOT a CI gate** (pixel diffs are environment-sensitive — the baselines were generated in this dev-container's headless Chromium, so a CI runner on a different image would flake). So a CSS/layout change can still ship un-screenshotted; run `npm run test:visual` (and re-baseline intended changes) before merging one. EXCLUDED from the smoke run. **Mobile calendar @390px deliberately NOT baselined** (its fractional 7-col grid flakes pixel diffing). Regenerate: `npm run test:visual -- --update-snapshots`
+│   ├── visual.spec.js      ← visual-regression baselines (Section B / F-VIS, v17.73): runs ONLY via `npm run test:visual` under `playwright.visual.mjs`. Clock-pinned + Firebase-stubbed + fixed-member → deterministic fixed-viewport screenshots vs committed baselines in `e2e/visual-baselines/` (10: the app surfaces incl. the accepted desktop voids + the 4 static guides). Catches composition drift from a CSS/token/layout change — but only WHEN RUN: it is **opt-in and deliberately NOT a CI gate** (pixel diffs are environment-sensitive — the baselines were generated in this dev-container's headless Chromium, so a CI runner on a different image would flake). So a CSS/layout change can still ship un-screenshotted; run `npm run test:visual` (and re-baseline intended changes) before merging one. EXCLUDED from the smoke run. **Mobile calendar @390px deliberately NOT baselined** (its fractional 7-col grid flakes pixel diffing). Regenerate: `npm run test:visual -- --update-snapshots=all` (`=all` is load-bearing — a bare `--update-snapshots` only rewrites baselines whose comparison FAILED, so a baseline that drifted inside the tolerance could never be refreshed)
 │   ├── offline.spec.js     ← offline-behaviour proof: runs ONLY via `npm run test:offline` under `playwright.offline.mjs`. Verifies the SW/offline-first paths (calendar opens from cache with the network cut). EXCLUDED from the http-server smoke run
 │   ├── visual-baselines/   ← committed baseline PNGs for visual.spec.js (10, generated in the dev-container headless Chromium). Regenerate wholesale if the rendering environment (browser/OS/font stack) changes
 │   ├── helpers.js          ← shared spec helpers (collectFatalErrors, seedSession/seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay) — imported by the smoke specs
 │   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports. `enforceNamedSession(page)` rewrites roster-data.js to flip `ENFORCE_NAMED_SESSION` on, and `window.__E2E.failSignIn` forces sign-in to fail — for the B1 enforcement tests
 ├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own. `testIgnore: csp.spec.js` (that spec needs the Hosting emulator's headers)
 ├── playwright.csp.mjs      ← Playwright config for the deployed-CSP proof (e2e/csp.spec.js): baseURL → the Firebase Hosting emulator (127.0.0.1:5000), NO webServer (started by `npm run test:csp` = firebase emulators:exec --only hosting). Same chromium + mobile-chrome projects
-├── playwright.visual.mjs   ← Playwright config for the visual-regression baselines (e2e/visual.spec.js, `npm run test:visual`): one desktop project, http-server webServer, tolerant-but-teethed `toHaveScreenshot` defaults (threshold 0.15, maxDiffPixelRatio 0.003), flat baseline dir `e2e/visual-baselines/`. Opt-in (NOT in `npm test`/CI) because pixel diffs are environment-sensitive
+├── playwright.visual.mjs   ← Playwright config for the visual-regression baselines (e2e/visual.spec.js, `npm run test:visual`): one desktop project, http-server webServer, tolerant-but-teethed `toHaveScreenshot` defaults (threshold 0.15, maxDiffPixelRatio 0.001), flat baseline dir `e2e/visual-baselines/`. Opt-in (NOT in `npm test`/CI) because pixel diffs are environment-sensitive
 ├── playwright.offline.mjs  ← Playwright config for the offline-behaviour proof (e2e/offline.spec.js, `npm run test:offline`). Opt-in (NOT in `npm test`/CI)
 ├── package.json            ← dev dependencies only
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
@@ -330,7 +330,7 @@ roster-app/
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
 ├── generate-sri.mjs        ← dev utility: patches Mammoth CDN SRI hash in huddle.js
 └── functions/
-    ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth, resetMemberPassword (admin-only password reset → surname default)
+    ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth, resetMemberPassword (admin-only password reset → surname default), requestPasswordReset (the one public endpoint). Two push senders: `fanOutPush` (everyone — documents, pay) and `sendTargetedPush` (v18.95 — owner-uid-filtered, fails closed, for the admin-only reset-request notice; never falls back to a broadcast)
     ├── roster-parse-helpers.js   ← pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
     ├── roster-members.json       ← generated from roster-data.js — do NOT hand-edit; run `npm run generate:roster-members`. Holds the AI-parsing name lists (cea/ces/dispatcher) AND the B4 server-owned auth lists (`activeMembers` + `roles.admin`/`manager`/`designer`) that setupRosterAuth trusts instead of the client payload. CI-locked by sw-asset-check.test.mjs
     └── package.json
@@ -366,7 +366,7 @@ npm run test:csp
 # Visual-regression baselines (Section B / F-VIS) — clock-pinned, Firebase-stubbed, fixed-member
 # screenshots of every key surface compared against committed PNGs in e2e/visual-baselines/.
 # Locks page composition (incl. the accepted desktop voids) against silent CSS/layout drift.
-# Opt-in, env-sensitive, NOT in npm test/CI. Regenerate: `npm run test:visual -- --update-snapshots`:
+# Opt-in, env-sensitive, NOT in npm test/CI. Regenerate: `npm run test:visual -- --update-snapshots=all` (`=all` is load-bearing — a bare `--update-snapshots` only rewrites baselines whose comparison FAILED, so a baseline that drifted inside the tolerance could never be refreshed):
 npm run test:visual
 
 # Offline-behaviour proof (e2e/offline.spec.js under playwright.offline.mjs) — SW/offline-first paths
@@ -634,6 +634,15 @@ Written by: the `requestPasswordReset` function. Read/cleared by: `getResetReque
 in `firebase-client.js`, called from `operations-app.js`'s **Password Reset Requests** card. The member's
 end is the login overlay's "Can't get in?" link (`requestPasswordReset` in `firebase-client.js` — the one
 caller there that sends NO auth token).
+**Admin notification (Phase 2, v18.95):** a genuinely-RECORDED request (never a throttled repeat — the
+throttle is the notification's rate limit too) pushes `🙋 Reset requests — N waiting` to the admin, deep
+-linking to `operations.html#reset-requests`. It goes through `sendTargetedPush`, **not** `fanOutPush`:
+"N. Surname is locked out" broadcast to all ~50 staff would be a leak, so the send is filtered by the
+`owner` uid and fails closed at every step (no target uids → nothing; a subscription doc with no `owner`
+→ skipped, never assumed; no matches → log and stop). There is deliberately **no fall-back-to-everyone
+branch**. Accepted cost: an admin device that subscribed before v17.76 (when `owner` was first stamped)
+gets no push until the bell is toggled off and on. The push can never fail the request — the row in
+Firestore is the doorbell, the push is a courtesy on top.
 
 **pushSubscriptions**
 ```

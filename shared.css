@@ -804,6 +804,10 @@ body.lb-open #stickyTotal { display: none !important; }
     text-underline-offset: 2px;
     cursor: pointer;
     padding: 6px;
+    /* The label runs to two lines in the 340px card, and centred+underlined it left a single orphaned
+       word on line 2 (v18.95). Balance evens the two lines instead of shortening the wording — the
+       sentence has to stay explicit about what tapping it does, because it messages a real person. */
+    text-wrap: balance;
 }
 .login-reset-request[hidden] { display: none; }
 .login-reset-request:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }

@@ -107,6 +107,18 @@ body {
     /* Brighten to white when active — matches the field focus ring on admin/operations */
     background-color: white;
 }
+/* Password reveal toggle (v18.95). `.login-pw-wrap`/`.login-pw-toggle` in shared.css are unscoped, so
+   the button itself needs nothing here — but shared.css reserves the button's room via
+   `.login-field .login-pw-wrap input`, and this card's fields are `.contact-email-input`, not login
+   fields. Without this the typed password would run underneath "Show". The wrapper also has to carry
+   the field's own bottom margin, since the input inside it no longer sits in the card's flow.
+   SCOPED TO #passwordBody, and that matters: `.login-pw-wrap` is ALSO the login overlay's own password
+   wrapper (login-overlay.js injects it on every page), so the unscoped first cut of this rule pushed
+   14px into the sign-in card — on settings.html only, making one page's login taller than the other
+   five. Caught by the cross-page login-geometry test in e2e/auth.spec.js, which now guards it. */
+#passwordBody .login-pw-wrap { margin-bottom: 14px; }
+#passwordBody .login-pw-wrap .contact-email-input { padding-right: 62px; margin-bottom: 0; }
+
 .btn-contact-remove {
     display: block;
     background: none;

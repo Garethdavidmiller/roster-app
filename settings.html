@@ -115,8 +115,15 @@
                 <input type="password" id="pwCurrent" class="contact-email-input"
                        autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
                 <label class="contact-label" for="pwNew">New password <span class="pw-req">(at least 8 characters)</span></label>
-                <input type="password" id="pwNew" class="contact-email-input"
-                       autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+                <!-- Reveal toggle (v18.95). The login overlay and the forced overlay both offer one;
+                     this card asked for an 8+ character password TWICE with no way to see either, which
+                     is where a mistyped password most often comes from. Toggles New and Confirm
+                     together — checking them against each other is the point. -->
+                <div class="login-pw-wrap">
+                    <input type="password" id="pwNew" class="contact-email-input"
+                           autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+                    <button type="button" id="pwNewToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
+                </div>
                 <label class="contact-label" for="pwConfirm">Confirm new password</label>
                 <input type="password" id="pwConfirm" class="contact-email-input"
                        autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">

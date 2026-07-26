@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '18.94';
+const APP_VERSION = '18.95';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -850,7 +850,12 @@ const APP_SCOPE = self.registration.scope;
 // or path. This was the cause of the "notification opens a 404" bug: the old allowlist used
 // bare-root routes (/index.html#huddle), so the real /roster-app/#huddle never matched and
 // it fell back to the bare origin (a 404). Re-basing fixes it for any origin/sub-path.
-const SAFE_NOTIFICATION_PAGES = ['', 'index.html', 'paycalc.html'];
+// operations.html (v18.95) is the admin-only reset-request queue's landing page. Listing it here is
+// not an access grant — this allowlist only decides which in-scope page a payload may navigate to;
+// the page itself still runs its own admin gate, and a non-admin who somehow received the payload
+// would land on that gate. It is on the list because the notification is only ever SENT to the
+// admin's own owner-stamped devices (sendTargetedPush in functions/index.js).
+const SAFE_NOTIFICATION_PAGES = ['', 'index.html', 'paycalc.html', 'operations.html'];
 
 self.addEventListener("notificationclick", event => {
     event.notification.close();

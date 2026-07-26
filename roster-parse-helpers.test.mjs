@@ -8,7 +8,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'module';
-import { isCutoffDate } from './roster-data.js';
+import { isCutoffDate, teamMembers } from './roster-data.js';
 
 const require = createRequire(import.meta.url);
 const {
@@ -35,7 +35,8 @@ const {
     claimsForTier,
     computeOrphanLabels,
 
-    shouldRecordResetRequest,} = require('./functions/roster-parse-helpers.js');
+    shouldRecordResetRequest,
+    buildResetRequestNotice,} = require('./functions/roster-parse-helpers.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
 
@@ -1252,5 +1253,68 @@ describe('shouldRecordResetRequest', () => {
     // A device clock ahead of the server would make (now - last) negative.
     test('a future timestamp does not permanently block requests… it absorbs, never throws', () => {
         assert.equal(shouldRecordResetRequest(NOW + 60_000, NOW, TEN_MIN), false);
+    });
+});
+
+// ── buildResetRequestNotice — the admin's push wording (Phase 2) ────────────────────────────────
+// The notification IS the product of this feature, so its text is asserted rather than eyeballed.
+// It is also the only place the queue depth is user-visible outside the Operations card, and the
+// two must agree — the endpoint feeds both from the same resetRequests count.
+describe('buildResetRequestNotice', () => {
+    test('a single waiting request names the member and does not mention others', () => {
+        const n = buildResetRequestNotice('S. Silva', 1);
+        assert.equal(n.headline, 'Reset requests — 1 waiting');
+        assert.equal(n.body, 'S. Silva asked for a password reset.');
+        assert.ok(!/other/.test(n.body));
+    });
+
+    test('the headline carries the queue depth, because the tag makes each push REPLACE the last', () => {
+        assert.equal(buildResetRequestNotice('S. Silva', 3).headline, 'Reset requests — 3 waiting');
+        assert.equal(buildResetRequestNotice('S. Silva', 12).headline, 'Reset requests — 12 waiting');
+    });
+
+    test('names the member who just asked, and counts the OTHERS (not the total) in the body', () => {
+        assert.equal(buildResetRequestNotice('S. Silva', 2).body,
+                     'S. Silva asked for a reset. 1 other waiting.');
+        assert.equal(buildResetRequestNotice('S. Silva', 4).body,
+                     'S. Silva asked for a reset. 3 others waiting.');
+    });
+
+    // Fail SAFE, never throw: this runs inside the public endpoint's success path, and the caller
+    // already degrades a failed count read to 1. A junk value must produce a sane notification, not
+    // "NaN waiting" — and certainly not an exception that loses the notification.
+    test('coerces junk, zero and negative counts to a single waiting request', () => {
+        for (const bad of [0, -5, NaN, null, undefined, 'lots', {}]) {
+            const n = buildResetRequestNotice('S. Silva', /** @type {any} */ (bad));
+            assert.equal(n.headline, 'Reset requests — 1 waiting', `${String(bad)} → 1`);
+            assert.ok(!/NaN|undefined|null/.test(n.headline + n.body));
+        }
+    });
+
+    test('a fractional count is floored rather than rendered with a decimal point', () => {
+        assert.equal(buildResetRequestNotice('S. Silva', 2.7).headline, 'Reset requests — 2 waiting');
+    });
+
+    // The design language's truncation budgets (.claude/rules/notifications.md): title <= ~40 chars
+    // INCLUDING the leading emoji, body <= ~80. buildPushPayload clips past those, so anything that
+    // trips this test would reach a real phone silently ellipsised.
+    test('stays inside the design language budgets for the longest realistic inputs', () => {
+        const longest = teamMembers.reduce((a, m) => (m.name.length > a.length ? m.name : a), '');
+        for (const pending of [1, 2, 10, 99]) {
+            const n = buildResetRequestNotice(longest, pending);
+            assert.ok(`🙋 ${n.headline}`.length <= 40, `title too long: ${n.headline}`);
+            assert.ok(n.body.length <= 80, `body too long: ${n.body}`);
+        }
+    });
+
+    // Tone rules, asserted rather than trusted: calm and factual, no exclamation, exactly one emoji
+    // and it leads the TITLE (never the body).
+    test('follows the notification tone rules', () => {
+        const n = buildResetRequestNotice('S. Silva', 2);
+        assert.ok(!/!/.test(n.headline + n.body), 'no exclamation marks');
+        assert.ok(!/\p{Extended_Pictographic}/u.test(n.headline + n.body),
+                  'the emoji is added by buildPushPayload, never baked into the text');
+        assert.ok(!/urgent|immediately|locked out/i.test(n.headline + n.body),
+                  'a request is not proof of urgency — the admin decides (PASSWORD_PLAN §13)');
     });
 });

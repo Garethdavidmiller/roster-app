@@ -73,9 +73,13 @@ const SAVE_TIMEOUT_MS = 8000;
  * claims to have closed. It closed it for REJECTIONS; a hang is not a rejection. Every other network
  * call in the feature was already time-boxed (the ready barrier, the status read, sign-in itself);
  * this one wasn't.
+ * EXPORTED (v18.95) so the Settings Password card can reuse it rather than grow a second copy — it
+ * makes the same `setOwnPassword` call and had the same gap. Its consequence is milder (a stuck card,
+ * not a trap, because Settings is dismissible) but identical in kind: `finally` never runs on a
+ * promise that never settles, so the button stayed disabled on "Saving…" until a reload.
  * @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T>}
  */
-function withTimeout(promise, ms) {
+export function withTimeout(promise, ms) {
     /** @type {any} */ let timer;
     return /** @type {Promise<T>} */ (Promise.race([
         promise,

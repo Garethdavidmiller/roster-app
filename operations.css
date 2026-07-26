@@ -891,7 +891,12 @@ select:focus-visible, input:focus-visible {
         /* NOT nowrap (v18.94). A nowrap label with no flex-shrink held its full ~219px and starved the
            name column to 18px at 375px, breaking names mid-word ("K." / "Jedlinski") and shredding
            timestamps into one-word columns. Let it wrap and let the row stack instead. */
-        flex: 1 1 auto;
+        /* basis 0, not auto (v18.95). With `auto` the label's max-content width is its hypothetical
+           size, so the LONGEST remedy ("No account yet — run Set up accounts", bold) overflowed the
+           second line and pushed Clear onto a THIRD — one row in four silently taller and its button
+           out of column with the rest. Flexing from zero makes the label take the leftover space and
+           wrap inside it, so Clear stays on the remedy's line at every width. */
+        flex: 1 1 0;
         min-width: 0;
     }
     /* A missing account needs Set up accounts, not Reset — call that out rather than leaving the admin

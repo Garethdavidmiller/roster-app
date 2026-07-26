@@ -745,6 +745,12 @@ const NOTIFICATION_FEATURES = {
     newsletter: { emoji: '🗞️', tag: 'newsletter',   defaultHeadline: 'Latest Marylebone Newsletter',  hashPath: '/#newsletter' },
     // Event reminder — title "<emoji> <Event> — <urgency>"; caller passes headline + url.
     pay:        { emoji: '💷',  tag: 'pay-reminder' },
+    // Admin-only (v18.95). 🙋 is the Operations "Password Reset Requests" card's own emoji.
+    // The ONE stable tag is load-bearing here rather than merely conventional: a second request
+    // REPLACES the first in the Notification Centre, so the headline carries the queue DEPTH
+    // ("2 waiting") and each new request refreshes it. Stacking would leave the admin counting
+    // notifications to learn what one glance now tells them.
+    resetRequest: { emoji: '🙋', tag: 'reset-request' },
 };
 
 /**
@@ -923,6 +929,45 @@ function shouldRecordResetRequest(lastRequestedAtMs, nowMs, throttleMs) {
     return (nowMs - last) >= throttleMs;
 }
 
+/**
+ * The headline + body for the admin's "someone asked for a password reset" push
+ * (PASSWORD_PLAN.md — the request queue, Phase 2).
+ *
+ * PURE so the wording — the whole user-visible product of this feature — is unit-testable without a
+ * push service, and so the design language's truncation budgets are verifiable rather than assumed.
+ *
+ * The headline carries the QUEUE DEPTH, not just "someone asked", because the feature shares ONE
+ * notification tag: request #2 replaces request #1 on the lock screen. Depth-in-the-headline turns
+ * that replacement from lossy into useful — the newest notification always states the current total.
+ * The body names the member who just asked (safe to render: the name came from the server-owned
+ * activeMembers list, never the request body) and, when others are also waiting, says so rather than
+ * implying this one request is the whole queue.
+ *
+ * `pending` is the number of UNCLEARED rows in `resetRequests`, which is exactly the number on the
+ * Operations card's count chip — so the notification and the card can never disagree.
+ *
+ * Tone follows .claude/rules/notifications.md: calm, factual, no exclamation. Deliberately NOT
+ * "urgent"/"locked out" — the admin decides urgency, and a request is not proof of one (§13).
+ *
+ * @param {string} member    display name, from the server-owned roster
+ * @param {number} pending   uncleared rows in resetRequests (>= 1 — this request is one of them)
+ * @returns {{ headline: string, body: string }}
+ */
+function buildResetRequestNotice(member, pending) {
+    const n = Number.isFinite(Number(pending)) && Number(pending) >= 1 ? Math.floor(Number(pending)) : 1;
+    const others = n - 1;
+    return {
+        // "Reset requests", not "Password reset": a COLLAPSED notification shows the title alone, and
+        // "Password reset — 1 waiting" on your own lock screen reads first as something about YOUR
+        // password. This also matches the card the notification opens ("Password Reset Requests"), and
+        // the body supplies the word "password" for anyone reading the expanded form.
+        headline: `Reset requests — ${n} waiting`,
+        body: others > 0
+            ? `${member} asked for a reset. ${others} other${others === 1 ? '' : 's'} waiting.`
+            : `${member} asked for a password reset.`,
+    };
+}
+
 module.exports = {
     shouldDeleteSubscription,
     normaliseShift,
@@ -947,4 +992,5 @@ module.exports = {
     claimsForTier,
     computeOrphanLabels,
     shouldRecordResetRequest,
+    buildResetRequestNotice,
 };

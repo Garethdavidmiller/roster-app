@@ -189,6 +189,50 @@ export function init() {
     initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     initCardCollapse('pageSpeedToggleHeader',   'pageSpeedBody',   'pageSpeedChevron');
 
+    // Deep link from the reset-request push (v18.95). The notification lands the admin on this page,
+    // which has nine collapsed cards — without this they would arrive and still have to go find the
+    // one the notification was about. Opens that card and scrolls it into view.
+    //
+    // Driven by the hash rather than a query so it costs nothing to add another later; the map is the
+    // allowlist, so an arbitrary hash can never expand an unrelated card. Runs on load AND on
+    // hashchange, because tapping the notification while Operations is already open re-navigates an
+    // existing client (see the SW's notificationclick) and fires only hashchange.
+    /** @type {Record<string, [string, string, string]>} hash → [bodyId, chevronId, cardId] */
+    const DEEP_LINK_CARDS = { '#reset-requests': ['resetRequestsBody', 'resetRequestsChevron', 'resetRequestsCard'] };
+    function openDeepLinkedCard() {
+        const target = DEEP_LINK_CARDS[location.hash];
+        if (!target) return;
+        const [bodyId, chevronId, cardId] = target;
+        // Only ever OPENS. Re-running on a repeat tap must not toggle a card the admin just closed.
+        openCard(bodyId, chevronId);
+        document.getElementById(cardId)?.scrollIntoView({
+            block: 'start',
+            // The app honours prefers-reduced-motion everywhere else; a notification tap is no place
+            // to start an exception.
+            behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        });
+    }
+    openDeepLinkedCard();
+    window.addEventListener('hashchange', openDeepLinkedCard);
+
+    /**
+     * Expand a collapsible card programmatically — idempotent, and never a toggle.
+     *
+     * `aria-expanded` is set alongside the class because opening a card by class ALONE leaves the
+     * chevron reporting "collapsed" to a screen reader until the first manual toggle
+     * (A11Y_FINDINGS.md, v18.68) — the failure this helper exists to make unrepeatable.
+     *
+     * @param {string} bodyId @param {string} chevronId @returns {void}
+     */
+    function openCard(bodyId, chevronId) {
+        const body = document.getElementById(bodyId);
+        if (!body || body.classList.contains('open')) return;
+        body.classList.add('open');
+        const chev = document.getElementById(chevronId);
+        chev?.classList.add('open');
+        chev?.setAttribute('aria-expanded', 'true');
+    }
+
     // ============================================
     // ACCOUNT STATUS  (work email + password, per member)
     // ============================================
@@ -519,16 +563,8 @@ export function init() {
                 return;
             }
             // Auto-open when there IS something to action — an outstanding request is time-sensitive
-            // (someone is locked out right now) and this card is collapsed by default. aria-expanded is
-            // updated alongside the class: opening a card by class alone leaves the control reporting
-            // "collapsed" to a screen reader until the first manual toggle (A11Y_FINDINGS.md, v18.68).
-            const _body = document.getElementById('resetRequestsBody');
-            const _chev = document.getElementById('resetRequestsChevron');
-            if (_body && !_body.classList.contains('open')) {
-                _body.classList.add('open');
-                _chev?.classList.add('open');
-                _chev?.setAttribute('aria-expanded', 'true');
-            }
+            // (someone is locked out right now) and this card is collapsed by default.
+            openCard('resetRequestsBody', 'resetRequestsChevron');
             content.innerHTML = `<div class="rr-list">${requests.map(r => {
                 // escapeHtml even though the writer is server-validated (v18.94). The allowlist IS the
                 // control, but it sits three layers away with no test tying it to this render, and a
