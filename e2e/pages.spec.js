@@ -466,3 +466,42 @@ test('fip: a "popular" shortcut opens its country, clearing an active filter fir
     await expect(page.locator('#country-fr')).toHaveAttribute('open', '');
     await expect(page.locator('#countrySearch')).toHaveValue('');
 });
+
+// ── OPERATIONS: Password Reset Requests card WITH ROWS (v18.94) ────────────────────────────────
+// This card shipped at v18.93 rendered only at 1280px, and its row collapsed at 375px — the name
+// column squeezed to 18px, names broke mid-word and the text painted over the remedy label. Nothing
+// caught it: the page-level overflow guards stay clean (the overflow is inside a flex child), and
+// there was no way to render an Operations card with DATA. Hence both: the seeding hook in
+// fixtures.js, and this test at the documented primary width.
+for (const width of [375, 1280]) {
+    test(`operations reset-requests card renders correctly @${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.addInitScript(() => {
+            window.__E2E = { docs: [
+                { id: 'A. Hared',       requestedAt: Date.now() - 4 * 60_000,    count: 1, provisioned: true },
+                { id: 'N. Bedingfield', requestedAt: Date.now() - 26 * 3600_000, count: 1, provisioned: false },
+                { id: 'K. Jedlinski',   requestedAt: Date.now() - 90 * 60_000,   count: 4, provisioned: true },
+            ] };
+        });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+
+        const rows = page.locator('.rr-row');
+        await expect(rows).toHaveCount(3);
+        // The card auto-opens when there is anything to action, and the chip counts it.
+        await expect(page.locator('#resetRequestsCountChip')).toHaveText('3');
+        await expect(page.locator('.rr-row').first()).toBeVisible();
+        // An unprovisioned account needs Set up accounts, not Reset — different remedy, stated.
+        await expect(page.locator('.rr-remedy--setup')).toHaveText(/Set up accounts/);
+        await expect(page.locator('.rr-row', { hasText: 'K. Jedlinski' })).toContainText('asked 4 times');
+
+        // No row may overflow its own box — the failure mode that shipped. Checked per flex child,
+        // because the PAGE reports no overflow when a flex item overflows internally.
+        const overflow = await page.locator('.rr-main').evaluateAll(
+            els => els.map(el => el.scrollWidth - el.clientWidth));
+        expect(overflow, `.rr-main overflow at ${width}px`).toEqual([0, 0, 0]);
+        const pageOverflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(pageOverflow).toBeLessThanOrEqual(1);
+    });
+}

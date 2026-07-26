@@ -358,7 +358,7 @@ test('forced password overlay: never appears while the kill switch is off', asyn
 // credential failure — offering it up front invites a request from anyone who merely mistyped, and
 // the remedy for a mistype is to try again.
 
-test('reset request link: hidden until a credential failure, then revealed', async ({ page }) => {
+test('reset request link: hidden until the SECOND credential failure, then revealed', async ({ page }) => {
     await enforceNamedSession(page);
     await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });   // → auth/invalid-credential
     await page.goto('/settings.html');
@@ -367,7 +367,15 @@ test('reset request link: hidden until a credential failure, then revealed', asy
 
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#loginError')).toBeVisible();
+    // Failure #1 IS the mistype case, and the remedy for a mistype is to try again — so no link yet.
+    await expect(page.locator('#loginResetRequest')).toBeHidden();
+    await expect(page.locator('#loginHelpLine')).toBeVisible();
+
+    await page.locator('#loginPassword').fill('wrongagain');
+    await page.locator('#loginSubmit').click();
     await expect(page.locator('#loginResetRequest')).toBeVisible();
+    // The actionable route replaces the passive footer rather than joining it.
+    await expect(page.locator('#loginHelpLine')).toBeHidden();
 });
 
 test('reset request link: a network/transient failure does NOT offer a reset', async ({ page }) => {
@@ -381,18 +389,66 @@ test('reset request link: a network/transient failure does NOT offer a reset', a
     await expect(page.locator('#loginResetRequest')).toBeHidden();
 });
 
-test('reset request link: sending replaces the control with a confirmation', async ({ page }) => {
+/** Fail sign-in twice for `name`, so the reset-request link is revealed. */
+async function failTwice(page, name) {
+    await signInThroughOverlay(page, name);
+    await expect(page.locator('#loginError')).toBeVisible();
+    await page.locator('#loginPassword').fill('wrongagain');
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#loginResetRequest')).toBeVisible();
+}
+
+test('reset request link: files the request for the member who actually failed', async ({ page }) => {
+    // THE correctness property. It used to read the dropdown at CLICK time with nothing un-revealing the
+    // link, so failing as one member then switching the dropdown filed a request for someone who never
+    // asked — and acting on it resets THEM to the surname default.
     await enforceNamedSession(page);
     await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
-    // Stub the public endpoint — it is a real cross-origin POST with no auth token.
+    /** @type {any[]} */
+    const posted = [];
+    await page.route('**/requestPasswordReset', route => {
+        posted.push(JSON.parse(route.request().postData() || '{}'));
+        return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+    await page.goto('/settings.html');
+    await failTwice(page, 'G. Miller');
+
+    // Switching the dropdown must RETRACT the reveal — it belonged to G. Miller alone.
+    await page.locator('#loginName').selectOption('L. Springer');
+    await expect(page.locator('#loginResetRequest')).toBeHidden();
+    await expect(page.locator('#loginHelpLine')).toBeVisible();   // the passive advice comes back
+
+    // Fail as the new member, then send: the request must name THEM. ONE failure suffices here — the
+    // 3-strikes counter is per-OVERLAY, not per-member, so it is already at 2 and this is strike 3
+    // (which reveals the link before it applies the 30s brake to the submit button).
+    await page.locator('#loginPassword').fill('nope');
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#loginResetRequest')).toBeVisible();
+    await page.locator('#loginResetRequest').click();
+    await expect(page.locator('#loginResetStatus')).toContainText('Request sent');
+    expect(posted).toEqual([{ member: 'L. Springer' }]);
+});
+
+test('reset request link: after a send, a later reveal is a usable control (not a dead "Sending…")', async ({ page }) => {
+    await enforceNamedSession(page);
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
     await page.route('**/requestPasswordReset', route =>
         route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }));
     await page.goto('/settings.html');
-    await signInThroughOverlay(page, 'G. Miller');
+    await failTwice(page, 'G. Miller');
     await page.locator('#loginResetRequest').click();
     await expect(page.locator('#loginResetStatus')).toContainText('Request sent');
-    // No re-tappable button left: the request is recorded and there is nothing more to do here.
     await expect(page.locator('#loginResetRequest')).toBeHidden();
+
+    // Retrying and failing again is the EXPECTED behaviour of someone who still can't get in. The
+    // success path used to leave the button disabled and reading "Sending…" behind `hidden`.
+    await page.locator('#loginPassword').fill('stillwrong');
+    await page.locator('#loginSubmit').click();
+    const btn = page.locator('#loginResetRequest');
+    await expect(btn).toBeVisible();
+    await expect(btn).toBeEnabled();
+    await expect(btn).toContainText('Ask the admin');
+    await expect(page.locator('#loginResetStatus')).toBeEmpty();   // no stale "Request sent"
 });
 
 test('reset request link: a failed send keeps the button and says so', async ({ page }) => {
@@ -400,9 +456,10 @@ test('reset request link: a failed send keeps the button and says so', async ({ 
     await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
     await page.route('**/requestPasswordReset', route => route.abort());
     await page.goto('/settings.html');
-    await signInThroughOverlay(page, 'G. Miller');
+    await failTwice(page, 'G. Miller');
     await page.locator('#loginResetRequest').click();
     await expect(page.locator('#loginResetStatus')).toContainText('contact the admin directly');
     await expect(page.locator('#loginResetRequest')).toBeVisible();
     await expect(page.locator('#loginResetRequest')).toBeEnabled();
+    await expect(page.locator('#loginResetRequest')).toContainText('Ask the admin');
 });

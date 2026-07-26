@@ -1636,36 +1636,56 @@ exports.requestPasswordReset = onRequest(
 
         try {
             const docRef = admin.firestore().collection('resetRequests').doc(member);
-            const snap   = await docRef.get();
-            const lastMs = snap.exists && snap.data().requestedAt && snap.data().requestedAt.toMillis
-                ? snap.data().requestedAt.toMillis()
-                : null;
-            if (!shouldRecordResetRequest(lastMs, Date.now(), RESET_REQUEST_THROTTLE_MS)) {
-                // Already asked moments ago. Answer as success — the member's request IS pending, and a
-                // different answer would tell a caller how recently this member last asked.
-                return res.json({ ok: true, throttled: true });
-            }
 
             // Whether a Firebase account exists at all decides which remedy the admin needs: Reset, or
             // run Set up accounts first. The login overlay must not distinguish these (it would leak
             // which names are provisioned); the admin's own card has no such constraint, and guessing
             // wrong costs a round trip.
+            //
+            // A FAILURE HERE MUST NOT LOSE THE REQUEST (fix, v18.94). This used to rethrow anything that
+            // wasn't `user-not-found`, so a transient Auth blip returned 500 and wrote nothing — trading
+            // the whole doorbell for a nicety, at the one moment recovery matters. `provisioned` is now
+            // left UNSET when it can't be determined, and the card treats unknown as "check yourself".
+            /** @type {boolean|null} */
             let provisioned = true;
             try {
                 await admin.auth().getUserByEmail(nameToEmail(member));
             } catch (e) {
                 if (e && e.code === 'auth/user-not-found') provisioned = false;
-                else throw e;
+                else {
+                    provisioned = null;
+                    console.warn('[requestPasswordReset] provisioned lookup failed for', member, e && e.code);
+                }
             }
 
-            await docRef.set({
-                memberName:  member,
-                requestedAt: admin.firestore.FieldValue.serverTimestamp(),
-                count:       admin.firestore.FieldValue.increment(1),
-                provisioned,
-            }, { merge: true });
+            // TRANSACTION, not read-then-write (fix, v18.94). The old sequential get→set let every
+            // request already in flight read a stale timestamp and write: 40 concurrent taps recorded 40
+            // and drove `count` to 40 inside the window the throttle exists to collapse to 1 — which
+            // also means N writes/second to ONE document, past Firestore's ~1/s sustained guidance. The
+            // count is what the admin reads as "how stuck is this person", so it has to mean something.
+            const recorded = await admin.firestore().runTransaction(async tx => {
+                const snap   = await tx.get(docRef);
+                const stamp  = snap.exists ? snap.data().requestedAt : null;
+                const lastMs = stamp && typeof stamp.toMillis === 'function' ? stamp.toMillis() : null;
+                if (!shouldRecordResetRequest(lastMs, Date.now(), RESET_REQUEST_THROTTLE_MS)) return false;
+                /** @type {any} */
+                const data = {
+                    memberName:  member,
+                    requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    count:       admin.firestore.FieldValue.increment(1),
+                };
+                if (provisioned !== null) data.provisioned = provisioned;
+                tx.set(docRef, data, { merge: true });
+                return true;
+            });
 
-            console.log('[requestPasswordReset] recorded for', member, 'provisioned:', provisioned);
+            console.log('[requestPasswordReset]', recorded ? 'recorded' : 'throttled', 'for', member,
+                        'provisioned:', provisioned);
+            // IDENTICAL body either way (fix, v18.94). Returning `throttled: true` was the exact oracle
+            // the comment beside it warned against: anyone could poll the 50 public names and learn who
+            // is locked out RIGHT NOW — a ready-made pretext for a "hi, it's IT about your password
+            // reset" call, aimed at the people most likely to fall for it. The distinction stays in the
+            // log line, where only the admin can see it.
             return res.json({ ok: true });
         } catch (e) {
             console.error('[requestPasswordReset] failed for', member, e && e.code, e);

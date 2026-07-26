@@ -1648,10 +1648,15 @@ export function init() {
         // email check would then ambush the member on some later ordinary Admin load — the v14.77
         // "Fix 4" defect that marker exists to prevent. Deleting it defers the check to the next real
         // login, which is what "password wins" should mean.
-        initPasswordForce(currentUser, { ready: sessionReady }).then(shown => {
-            if (shown) lsDel(`myb_email_check_pending_${currentUser}`);
-            initEmailCheck(currentUser);
-        });
+        // `onShow` fires SYNCHRONOUSLY as the overlay opens, not when it closes (FIX, v18.94). The
+        // returned promise settles only on close, so deleting the marker there never ran if the member
+        // navigated away or backgrounded the app while a modal with no ✕ was up — the natural reflex.
+        // The marker then survived and the email check ambushed them on a later ordinary load: the
+        // v14.77 "Fix 4" defect, re-created by the line written to prevent it.
+        initPasswordForce(currentUser, {
+            ready:  sessionReady,
+            onShow: () => lsDel(`myb_email_check_pending_${currentUser}`),
+        }).then(() => initEmailCheck(currentUser));
         // Nav panel — deferred here on the in-place login path so it renders with the signed-in identity
         // (deduped by initNavPanel's navPanelInit guard if already wired on a normal load).
         wireNavPanel();
