@@ -99,7 +99,16 @@ const _e2eAuth = (code) => () => {
     if (e2e.failSignIn) return Promise.reject(Object.assign(new Error('e2e'), { code }));
     return Promise.resolve({ user: { uid: 'test' } });
 };
-export const getAuth = () => ({ currentUser: null });
+// currentUser is null by default — the stub never really signs anyone in, and a great many tests
+// depend on that. A test that needs a signed-in Firebase user (e.g. to reach an admin Cloud Function
+// caller, which bails with "Not signed in" before it ever fetches) opts in with
+// window.__E2E = { authUser: true }; everything else is unchanged.
+// NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
+export const getAuth = () => ({
+    currentUser: (globalThis.__E2E || {}).authUser
+        ? { uid: 'test', getIdTokenResult: () => Promise.resolve({ token: 'e2e-token', claims: { admin: true } }) }
+        : null,
+});
 export const onAuthStateChanged = (_auth, cb) => { Promise.resolve().then(() => cb && cb(null)); return noop; };
 export const signInWithEmailAndPassword = _e2eAuth('auth/invalid-credential');
 export const createUserWithEmailAndPassword = _e2eAuth('auth/operation-not-allowed');

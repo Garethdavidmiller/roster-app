@@ -864,6 +864,56 @@ function claimsForTier(name, { adminSet, managerSet, designerSet }) {
 }
 
 /**
+ * Count how many DISTINCT accounts have signed in inside each window (v18.96).
+ *
+ * The point of this metric: the Usage card's existing "active accounts" figure is deduped on the
+ * DEVICE (localStorage flags that never leave the phone), so one member on a phone and a laptop
+ * counts twice — a usage trend, not a headcount. This is the exact counterpart, and it is exact for
+ * free: Firebase Auth already records `lastSignInTime` per account, so uniqueness is a property of
+ * the data rather than something we have to enforce. **No identity is stored, transmitted or
+ * returned** — only counts — so it adds no privacy surface over what Firebase already holds.
+ *
+ * PURE, because the handler around it uses the Admin SDK and can't run in the test sandbox. Every
+ * judgement worth getting wrong lives here:
+ *
+ *  · **Disabled accounts are ignored entirely**, including in the total. A leaver is not a
+ *    provisioned account waiting to be used; counting them would permanently depress the ratio.
+ *  · **Admin accounts are excluded**, matching recordUsage's write-time CONFIG.ADMIN_NAMES filter —
+ *    the figures must reflect real staff, not the developer's own testing.
+ *  · **A missing/unparseable `lastSignInTime` means never signed in**, never "signed in long ago".
+ *    Firebase leaves it empty for an account created but never used, which is precisely the
+ *    `neverSignedIn` population — the actionable one (provisioned staff who may not know the app
+ *    exists). Treating a junk value as a sign-in would hide them.
+ *  · **A FUTURE timestamp counts as recent**, not as an error. A clock skew must not make a real
+ *    member vanish from the count.
+ *
+ * Windows are inclusive at the boundary (exactly 30 days ago counts as within 30 days) — the same
+ * convention as shouldRecordResetRequest.
+ *
+ * @param {Array<{ email?: string, disabled?: boolean, metadata?: { lastSignInTime?: string|null } }>} users
+ * @param {number} nowMs
+ * @param {Set<string>} excludeEmails  lowercase emails to omit (admins)
+ * @returns {{ total: number, last7: number, last30: number, neverSignedIn: number }}
+ */
+function summariseSignIns(users, nowMs, excludeEmails) {
+    const DAY = 24 * 60 * 60 * 1000;
+    const out = { total: 0, last7: 0, last30: 0, neverSignedIn: 0 };
+    for (const u of Array.isArray(users) ? users : []) {
+        if (!u || u.disabled) continue;                       // leavers are not provisioned accounts
+        const email = typeof u.email === 'string' ? u.email.toLowerCase() : '';
+        if (!email || (excludeEmails && excludeEmails.has(email))) continue;
+        out.total++;
+        const raw = u.metadata && u.metadata.lastSignInTime;
+        const ms  = raw ? Date.parse(raw) : NaN;
+        if (!Number.isFinite(ms)) { out.neverSignedIn++; continue; }
+        const age = nowMs - ms;                                // negative (future clock) → counts as recent
+        if (age <= 30 * DAY) out.last30++;
+        if (age <= 7  * DAY) out.last7++;
+    }
+    return out;
+}
+
+/**
  * Which Firebase Auth accounts are leaver ORPHANS: a `@myb-roster.local` account not in the active
  * set and not already disabled. Pure detection — the handler decides whether to preview (dry-run) or
  * disable+revoke them. Skips accounts with no email and never returns an already-disabled account.
@@ -993,4 +1043,5 @@ module.exports = {
     computeOrphanLabels,
     shouldRecordResetRequest,
     buildResetRequestNotice,
+    summariseSignIns,
 };

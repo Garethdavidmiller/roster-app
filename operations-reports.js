@@ -8,7 +8,7 @@
  * by operations-app.js — a one-directional dependency, no import cycle.
  */
 import { sessionReady } from './session.js';
-import { withClaimRetry, getClientErrors, resolveClientError, getUsageStats, getPerfStats } from './firebase-client.js';
+import { withClaimRetry, getClientErrors, resolveClientError, getUsageStats, getPerfStats, getSignInStats } from './firebase-client.js';
 import { SPEED_GROUPS, perfVerdict } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 
@@ -276,7 +276,9 @@ async function initUsageCard() {
         const stats = await withClaimRetry(getUsageStats);
         content.innerHTML = '';
 
-        // Active-account headline numbers.
+        // Active-account headline numbers. These are the DEVICE-deduped trend: a member using a
+        // phone and a laptop counts twice, which is the price of the server never learning who was
+        // active. The exact unique count is the separate section below.
         const accounts = document.createElement('div');
         accounts.className = 'usage-stats';
         accounts.innerHTML =
@@ -285,6 +287,17 @@ async function initUsageCard() {
             `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsLast30}</span>` +
             `<span class="usage-stat-lbl"><span aria-hidden="true">📅</span> active in last 30 days</span></div>`;
         content.appendChild(accounts);
+        const trendNote = document.createElement('p');
+        trendNote.className = 'usage-note';
+        trendNote.textContent = 'Counted per account-device, so anyone using two devices counts twice — a trend, not a headcount.';
+        content.appendChild(trendNote);
+
+        // Exact unique accounts, from Firebase Auth's own lastSignInTime (v18.96). Rendered as its
+        // own section, NOT merged into the numbers above, because it measures something different:
+        // sign-ins rather than activity. Appended asynchronously and independently — it is a second
+        // network call to a Cloud Function, and it must never delay or break the card that already
+        // has its data.
+        _appendSignInSection(content);
 
         // Page popularity — This month / Last month toggle (trend; stable early in a month).
         let popActive = 'this';
@@ -385,6 +398,68 @@ async function initUsageCard() {
     } finally {
         content.removeAttribute('aria-busy');
     }
+}
+
+/**
+ * Append the EXACT unique-account sign-in figures (v18.96) to the Usage card.
+ *
+ * Deliberately its own section rather than more numbers in the row above, because it answers a
+ * different question. The figures above count ACTIVITY, deduped per device; these count distinct
+ * accounts that have SIGNED IN, which Firebase Auth already tracks exactly. Both are true and
+ * neither replaces the other, so the card says which is which rather than picking one.
+ *
+ * Runs detached and swallows its own failure: it is a second network call (a Cloud Function, not
+ * Firestore) hanging off a card that already has everything else it needs. A slow or failed call
+ * must degrade to "this section is absent", never to a failed Usage card — so this is intentionally
+ * NOT awaited by initUsageCard and never calls _cardLoadError.
+ *
+ * @param {HTMLElement} content
+ * @returns {void}
+ */
+function _appendSignInSection(content) {
+    const wrap = document.createElement('div');
+    wrap.className = 'usage-signin';
+    content.appendChild(wrap);
+
+    getSignInStats().then(s => {
+        // Guard against a re-render finishing first (retry, or a second initUsageCard): if this
+        // wrapper is no longer in the document, its card has been replaced — drop the result.
+        if (!wrap.isConnected) return;
+        const label = document.createElement('p');
+        label.className = 'usage-section-label';
+        label.textContent = 'Accounts that have signed in';
+        const nums = document.createElement('div');
+        nums.className = 'usage-stats';
+        // Labels are terse ("last 30 days", not "in the last 30 days") because three stats share the
+        // row: at 375px the longer form wrapped to three lines and left the boxes cramped. The
+        // section heading above already supplies the verb. 💤 for never-signed-in reads as dormant
+        // and stays legible at 12px — 🕳️ was tried first and renders as an illegible dark smudge.
+        nums.innerHTML =
+            `<div class="usage-stat"><span class="usage-stat-num">${s.last30}</span>` +
+            `<span class="usage-stat-lbl"><span aria-hidden="true">🔑</span> last 30 days</span></div>` +
+            `<div class="usage-stat"><span class="usage-stat-num">${s.last7}</span>` +
+            `<span class="usage-stat-lbl"><span aria-hidden="true">📆</span> last 7 days</span></div>` +
+            `<div class="usage-stat"><span class="usage-stat-num">${s.neverSignedIn}</span>` +
+            `<span class="usage-stat-lbl"><span aria-hidden="true">💤</span> never signed in</span></div>`;
+        const note = document.createElement('p');
+        note.className = 'usage-note';
+        // State the two caveats rather than let the number be read as "active staff". Sessions last
+        // 30 days absolute / 7 idle, so a live session REQUIRES a sign-in inside 30 days — which
+        // makes this a slight over-count of active people (it includes anyone who signed in once and
+        // stopped). And `neverSignedIn` is the actionable one: provisioned staff who may not know
+        // the app exists.
+        // "staff accounts", never "active accounts": THIS CARD already uses "active" for the
+        // device-deduped activity figure directly above, so reusing the word here would make two
+        // different numbers appear to measure the same thing.
+        note.textContent =
+            `Exact count across ${s.total} staff accounts — one per person, however many devices they use. ` +
+            'Counts sign-ins, not opens: a session lasts up to 30 days, so someone can sign in once and use the app daily.';
+        wrap.append(label, nums, note);
+    }).catch(e => {
+        // Silent by design — see the docstring. Logged for the developer only.
+        console.error('[Usage] sign-in stats', e);
+        wrap.remove();
+    });
 }
 // ── App speed card (Project 0 latency, surfaced in plain language) ──────────────
 async function initPageSpeedCard() {
