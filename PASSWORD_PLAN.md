@@ -6,7 +6,9 @@
 > `passwordStatus` collection + rules, and the Operations Account-status table are all live. **Phase 2 (the forced
 > overlay) is live** as `password-force.js`, gated by the `CONFIG.FORCE_PASSWORD_SET` kill switch: any
 > member still on the surname default is compelled at their NEXT SIGN-IN (owner decision, 25 Jul 2026 —
-> "force everyone, but only on the next log in"; nobody is signed out to accelerate it). **Still to
+> "force everyone, but only on the next log in"; nobody is signed out to accelerate it). The
+> **reset-request queue** (§12, v18.93) and its **admin notification** (§14, v18.95) are also live —
+> that is the queue's own two-step phasing, unrelated to the plan's Phase numbers. **Still to
 > come:** C2 (email-based self-service reset, needs an email relay) and C5 (retire the surname default
 > once ≥90% have migrated). Sections below that
 > read in future tense describe the design as it was written *before* the build — treat them as the
@@ -350,10 +352,11 @@ more specific.
 compulsory, which raises the volume of exactly those conversations — and the admin had **no way to know
 a request existed** until someone messaged them. This closes that, and only that.
 
-**Scope deliberately small.** A member taps a link, the admin sees a queue. There is no email, no code,
-no self-service reset, and no notification yet (that is Phase 2 — a targeted push, kept separate because
-it carries the only fiddly part: filtering `pushSubscriptions` by `owner` uid, failing closed when a
-legacy doc has no `owner`, and never falling back to the all-devices fan-out).
+**Scope deliberately small.** A member taps a link, the admin sees a queue. There is no email, no code
+and no self-service reset. The notification was held back as this queue's own
+phase 2 (§14, shipped v18.95 — not to be confused with the *plan's* Phase 2 in §11) because it carries
+the only fiddly part: filtering `pushSubscriptions` by `owner` uid, failing closed when a legacy doc has
+no `owner`, and never falling back to the all-devices fan-out.
 
 **Why it is a Cloud Function.** Verified rather than assumed: `signInAnonymously` runs ONLY in
 calendar-app.js, and with `ENFORCE_NAMED_SESSION` on, session.js's anonymous fallback is dead code. So a
@@ -392,10 +395,9 @@ rate-limit failure gets no link either — a reset does not fix a dropped connec
 once (the error text, the link, and the static "Trouble signing in? Ask the admin." footer). Revealing
 the link now hides that footer — the actionable version replaces the passive one.
 
-**Still true after this:** a member who never signs in anywhere is unreachable, and nothing notifies the
-admin until Phase 2. Email self-service (C2) remains blocked on a relay — note that Firebase's own
-`sendPasswordResetEmail` cannot substitute, because the accounts are synthetic
-`initial.surname@myb-roster.local` addresses that receive no mail.
+**Still true after this:** a member who never signs in anywhere is unreachable. Email self-service (C2)
+remains blocked on a relay — note that Firebase's own `sendPasswordResetEmail` cannot substitute, because
+the accounts are synthetic `initial.surname@myb-roster.local` addresses that receive no mail.
 
 ---
 
@@ -454,3 +456,101 @@ reads far more protective than it is. The name is also misleading on a deliberat
 - **The modulepreload guard only walks STATIC imports**, so a dynamic-only import would be invisible to
   it. Not live (every dynamically-imported module here is also statically imported elsewhere), but the
   guard is weaker than it looks.
+
+---
+
+## 14. The reset-request queue, phase 2 — the admin notification (v18.95)
+
+> **Two different "phase 2"s live in this document.** §11 is *the plan's* Phase 2 (the forced-set
+> overlay, v18.92). This is *the request queue's* phase 2 — a separate, much smaller phasing internal
+> to §12. They are unrelated; only the queue's is described here.
+
+§12 shipped the queue; the admin still had to *look* at Operations to discover it. This closes that,
+and only that: a genuinely-recorded request pushes a notice to the admin's phone.
+
+**It is the app's first non-broadcast notification, and the whole design follows from that.** Every
+other push (Huddle, Circular, Newsletter, Pay) goes to every subscribed device. "N. Surname asked for a
+password reset" sent to ~50 staff is a leak — and worse, it tells the whole team who is locked out,
+which is the same social-engineering fuel §13 objects to in the `throttled` oracle. So the send goes
+through a new **`sendTargetedPush`**, never `fanOutPush`.
+
+**Fails closed in three places**, because every failure mode here has the same consequence:
+
+| Situation | Behaviour | Why not the alternative |
+|-----------|-----------|-------------------------|
+| No target uids resolved | Send nothing | There is deliberately **no "no targets → fall back to everyone"** branch. That fallback is the bug the function is shaped to make unwritable. |
+| A subscription doc has no `owner` | Skip it | Those are legacy docs from before v17.76 stamped the uid. Guessing an identity from an unowned record is exactly the mistake that leaks. |
+| No owner-stamped matches | Log, return | A notification that cannot be delivered privately is not delivered. |
+
+**Accepted cost:** an admin device that subscribed before v17.76 gets no push until the bell is toggled
+off and on (which rewrites the doc *with* an owner). Silence is the right failure here, and the queue
+card is unaffected either way.
+
+**The push can never fail the request.** It is wrapped and swallowed. The row in Firestore is the
+doorbell; the push is a courtesy. A push outage that became a 500 would lose the request itself and send
+a locked-out member away thinking nobody heard them — the precise defect v18.94 fixed on the line above,
+and it must not reappear by another route.
+
+**Only on a RECORDED request, never a throttled repeat.** Otherwise anyone with the URL could ring the
+admin's phone at will; the existing 10-minute throttle is the notification's rate limit too.
+
+**Why the queue depth is in the headline.** The design language gives each feature one stable `tag`, so
+request #2 *replaces* request #1 on the lock screen. Rather than let that lose information, the headline
+states the current total (`Reset requests — 2 waiting`) and the body names whoever just asked. The newest
+notification is therefore always an accurate summary of the whole queue, and it counts the same rows as
+the card's chip, so the two can never disagree. Wording is the pure, tested `buildResetRequestNotice`.
+
+**Deep link.** `operations.html#reset-requests` — added to the SW's `SAFE_NOTIFICATION_PAGES` (listing a
+page there is not an access grant; it only decides which in-scope page a payload may open, and the page
+keeps its own admin gate). `DEEP_LINK_CARDS` in `operations-app.js` opens and scrolls to the card;
+Operations has nine collapsed cards, so landing on the page alone would still leave the admin hunting.
+It only ever *opens* — a repeat tap must not toggle shut the card it sent them to.
+
+**§13 is unchanged by this.** A notification makes the admin aware of a request faster; it does nothing
+to establish that the request is genuine. The verification gap, App Check (Track D), and the rest of §13
+all stand exactly as written.
+
+---
+
+## 15. What the second review round found (v18.95)
+
+Everything shipped today was re-reviewed after §14. Five defects, four of them introduced by the
+polish pass itself — worth recording because three were invisible to every existing gate.
+
+**A page-local CSS rule reached into the shared login overlay.** The Settings Password card's new
+reveal toggle needed `.login-pw-wrap { margin-bottom }` — but `.login-pw-wrap` is *also* the class
+`login-overlay.js` injects on every page, so settings.html's sign-in card silently grew 14px taller
+than the other five. Page stylesheets load per page, so no single-page test could see it. Fixed by
+scoping to `#passwordBody`, and there is now a permanent cross-page login-geometry test
+(`e2e/auth.spec.js`) that measures the card, the password wrap, the input and the submit button on
+all five pages and requires them equal. Teeth-verified against the unscoped rule.
+
+**The endpoint's new notification was inside the request's own 30s budget.** The try/catch around it
+only survives a rejection; the notify path makes up to four network calls and none is guaranteed to
+settle. A hung push would have let Cloud Run kill the request — returning an error to a member whose
+request WAS recorded, telling them nobody heard them. Now raced against a 10s budget. This is the
+never-settles-is-not-a-rejection class from §13 reappearing by a different route, one release later.
+
+**The Settings Password card had that same missing timeout.** v18.94 time-boxed `setOwnPassword` in
+the forced overlay and stopped there; the Settings card makes the identical call and was left with a
+button that stays disabled on "Saving…" forever if the promise never settles. `withTimeout` is now
+exported from `password-force.js` and shared, so there is one implementation, and it is unit-tested.
+
+**The reveal was never re-masked after a successful save.** Clearing the field values left the inputs
+in whatever reveal state the member chose, so the next password typed into that card — possibly by
+someone else on a shared device — would appear in the clear.
+
+**The notification headline was ambiguous alone.** A collapsed notification shows only the title, and
+"Password reset — 1 waiting" on your own lock screen reads first as something about *your* password.
+Now "Reset requests — N waiting", which also matches the card it opens.
+
+### Not a defect, but the gate that let three of them exist
+
+Re-baselining the visual suite revealed that **three committed baselines had drifted from what the app
+actually renders** — the admin week label, a railcard sub-heading reflow, and a calendar change — each
+sitting under the 0.3% `maxDiffPixelRatio` and so passing. Worse, the documented refresh command could
+not fix them: a bare `--update-snapshots` defaults to `changed`, which rewrites only baselines whose
+comparison FAILED, so a drifted-but-passing baseline was unreachable by the documented procedure.
+Both fixed: the command is now `--update-snapshots=all` everywhere it is documented, and the tolerance
+is tightened to 0.1% on the evidence that re-rendering twice in this environment produces
+byte-identical PNGs — the noise floor here is zero, not 0.3%.

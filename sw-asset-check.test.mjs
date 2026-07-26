@@ -115,6 +115,20 @@ test('every NOTIFICATION_FEATURES hashPath page is in the SW SAFE_NOTIFICATION_P
     assert.deepEqual(missing.map(x => `${x.hp} → page '${x.page}'`), [],
         'NOTIFICATION_FEATURES hashPaths whose page is not in SW SAFE_NOTIFICATION_PAGES');
     assert.ok(safe.includes('paycalc.html'), 'the pay reminder deep-links to paycalc.html — must stay in SAFE_NOTIFICATION_PAGES');
+
+    // The hashPath scan above only covers features that DECLARE a default path. An event feature
+    // passes its `url` at CALL time instead (pay, reset request), so its landing page was invisible
+    // to this check — 'paycalc.html' was pinned by a hand-written line that had to be remembered for
+    // each new feature, and a forgotten one fails SILENTLY (the SW drops an unlisted page and opens
+    // the app root, so the notification appears to work). Scan the call sites too. (v18.95)
+    const fns = readFileSync(join(ROOT, 'functions', 'index.js'), 'utf8');
+    const callSiteUrls = [...fns.matchAll(/url:\s*`\$\{STAFF_SITE_URL\}\/([^`]*)`/g)].map(m => m[1]);
+    assert.ok(callSiteUrls.length > 0, 'expected at least one ${STAFF_SITE_URL} notification url in functions/index.js');
+    const missingCallSites = callSiteUrls
+        .map(u => ({ u, page: u.split('#')[0].split('?')[0] }))
+        .filter(({ page }) => !safe.includes(page));
+    assert.deepEqual(missingCallSites.map(x => `${x.u} → page '${x.page}'`), [],
+        'notification deep-link urls in functions/index.js whose page is not in SW SAFE_NOTIFICATION_PAGES');
 });
 
 test('firestore.rules staffContact work-email domain matches CONFIG.WORK_EMAIL_DOMAIN', () => {

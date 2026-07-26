@@ -22,7 +22,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
-import { initPasswordForce } from './password-force.js';
+import { initPasswordForce, withTimeout } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 
@@ -338,6 +338,9 @@ export function init() {
     initTipsLightbox(CARD_TIPS);
 
     // ── Password card (PASSWORD_PLAN.md — self-service chosen password + migration status) ────────
+    /** Ceiling on each password network call. Same 8s budget as sign-in and the forced overlay. */
+    const SAVE_TIMEOUT_MS = 8000;
+
     function initPasswordCard() {
         const curEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('pwCurrent'));
         const newEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('pwNew'));
@@ -348,6 +351,23 @@ export function init() {
         const nudge   = document.getElementById('passwordNudge');
         if (!curEl || !newEl || !confEl || !saveBtn || !feedback) return;
         initCardCollapse('passwordToggleHeader', 'passwordBody', 'passwordChevron');
+
+        // Reveal toggle — same behaviour as the login and forced overlays (v18.95): flips New AND
+        // Confirm together, because reading them against each other is the whole reason to reveal.
+        // Optional in the DOM, so a missing button is a no-op rather than a dead card.
+        const pwToggle = /** @type {HTMLButtonElement|null} */ (document.getElementById('pwNewToggle'));
+        /** @param {boolean} reveal */
+        const setRevealed = (reveal) => {
+            newEl.type = confEl.type = reveal ? 'text' : 'password';
+            if (!pwToggle) return;
+            pwToggle.textContent = reveal ? 'Hide' : 'Show';
+            pwToggle.setAttribute('aria-pressed', String(reveal));
+            pwToggle.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+        };
+        pwToggle?.addEventListener('click', () => {
+            setRevealed(newEl.type === 'password');
+            newEl.focus();
+        });
 
         const member = currentUser;
         const setFeedback = (/** @type {string} */ msg, /** @type {string} */ state = '') => {
@@ -418,15 +438,23 @@ export function init() {
                 // reauthenticate and updatePassword against the PREVIOUSLY persisted member while
                 // stamping passwordStatus for this one.
                 await sessionReady;
-                await reauthenticateWithPassword(member, current);   // proves they know the current one
+                // Both calls TIME-BOXED (v18.95, shared with password-force.js). Without it a promise
+                // that never settles — dead-air mobile data, not an error — skips both `catch` and
+                // `finally`, leaving the button disabled on "Saving…" with no message, for good. The
+                // forced overlay got this at v18.94; this card makes the same call and was missed.
+                await withTimeout(reauthenticateWithPassword(member, current), SAVE_TIMEOUT_MS);
                 reauthed = true;
-                const res = await setOwnPassword(member, next);      // updatePassword (+ best-effort stamp)
+                const res = await withTimeout(setOwnPassword(member, next), SAVE_TIMEOUT_MS);
                 // The password DID change (setOwnPassword only rejects if reauth/updatePassword failed).
                 // A missing migration stamp is a soft note, never "it failed" — see setOwnPassword.
                 setFeedback(res && res.statusRecorded === false
                     ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'
                     : '✓ Password updated. Use it the next time you sign in.', 'ok');
                 curEl.value = newEl.value = confEl.value = '';
+                // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
+                // reveal state the member chose, so the NEXT password typed into this card — possibly
+                // by someone else on a shared device — would appear in the clear with no warning.
+                setRevealed(false);
                 refreshStatus(true);   // optimistic: the password changed, so show migrated immediately
                 // Target-page permanent dismiss (new-notice pattern): setting the password COMPLETES
                 // the password-2026 campaign, so neither notice surface (paycalc/calendar) shows again
@@ -437,7 +465,7 @@ export function init() {
                 // Map by CAUSE and by STAGE. Order: the cause-specific codes first, then the stage split.
                 if (code === 'auth/too-many-requests') setFeedback('Too many attempts — wait a few minutes and try again.', 'err');
                 else if (code === 'auth/weak-password') setFeedback('That password is too weak — choose a longer one.', 'err');
-                else if (code === 'auth/network-request-failed') setFeedback('Couldn’t connect — check your connection and try again.', 'err');
+                else if (code === 'auth/network-request-failed' || code === 'myb/timeout') setFeedback('Couldn’t connect — check your connection and try again.', 'err');
                 else if (code === 'auth/requires-recent-login') setFeedback('For your security, sign out and back in, then change your password.', 'err');
                 else if (!reauthed && isCredentialRejection(code)) setFeedback('Current password incorrect — try again, or ask the admin to reset it.', 'err');
                 else if (!reauthed) setFeedback('Couldn’t verify your current password — try again shortly.', 'err');

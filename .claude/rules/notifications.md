@@ -19,6 +19,7 @@ identity); the **emoji carries feature identity**.
 | Weekly Retail Circular | 📰 | Operations card + nav "Weekly Retail Circular" | `circular` | document |
 | Marylebone Newsletter | 🗞️ | Operations card + nav "Marylebone Newsletter" | `newsletter` | document |
 | Pay reminder | 💷 | Pay nav pill / paycalc | `pay-reminder` | event |
+| Password reset request | 🙋 | Operations "Password Reset Requests" card | `reset-request` | event |
 
 When the app gains a new notifying feature, add ONE row here and ONE entry to the
 `NOTIFICATION_FEATURES` map — never hand-write a payload.
@@ -48,6 +49,21 @@ Because a document is republished regularly and the Huddle in particular is sent
 | | Title | Body |
 |---|-------|------|
 | Pay | `💷 Payday Friday — hours cutoff today` | `Open the Pay Calculator to estimate your 28 March pay.` |
+| Reset request | `🙋 Reset requests — 2 waiting` | `S. Silva asked for a reset. 1 other waiting.` |
+
+**The one notification that is NOT a broadcast.** Every other feature here goes to all subscribed
+staff; the reset request goes to the **admin's devices only** — "N. Surname is locked out" sent to
+50 people is a leak, not a notification. It is sent by `sendTargetedPush` (not `fanOutPush`), which
+filters `pushSubscriptions` by the `owner` uid and **fails closed at every step**: no target uids →
+send nothing; a subscription doc with no `owner` (written before v17.76) → skipped, never assumed;
+no matches → log and stop. There is deliberately **no "no targets → fall back to everyone" branch**.
+If you add another addressed-to-one-person notification, use `sendTargetedPush` and keep that shape.
+
+**Why the queue depth is in the title.** One stable tag per feature means a second request *replaces*
+the first on the lock screen. Rather than let that lose information, the headline states the current
+total (`2 waiting`) and the body names whoever just asked — so the newest notification is always an
+accurate summary of the whole queue. Wording is built by the pure `buildResetRequestNotice`
+(`functions/roster-parse-helpers.js`, tested in `roster-parse-helpers.test.mjs`), never inline.
 
 ## Voice & tone
 
@@ -87,6 +103,9 @@ adding the feature. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notifica
 - Pay → `paycalc.html?payday=YYYY-MM-DD` (calculator opens on the right period).
 - Circular / Newsletter → `#circular` / `#newsletter` (opens the in-app document viewer,
   `calendar-doc-viewer.js`, used on notification taps).
+- Reset request → `operations.html#reset-requests` (opens the queue card and scrolls to it —
+  `DEEP_LINK_CARDS` in `operations-app.js`; Operations has nine collapsed cards, so landing on the
+  page alone would still leave the admin hunting for the one the notification was about).
 
 ## The builder (single source of truth)
 
@@ -103,5 +122,9 @@ scope-relative URL.
    (emoji = the in-app icon for that feature; a stable `tag`; default headline; default path).
 2. Choose the sub-type (document vs event) and write the title/body to that grammar.
 3. If it deep-links to a new page/hash, add it to `SAFE_NOTIFICATION_PAGES` in the SW.
-4. Fan out via `buildPushPayload` + `fanOutPush` — never a raw literal.
-5. Confirm against the length budgets and the no-exclamation tone rule.
+4. Build the payload with `buildPushPayload` — never a raw literal — and pick the right sender:
+   **`fanOutPush`** if every member should see it, **`sendTargetedPush`** if it names or concerns one
+   person. Ask "would I be happy for all 50 staff to read this?" — if not, it is targeted.
+5. Confirm against the length budgets and the no-exclamation tone rule. `sw-asset-check.test.mjs`
+   checks the deep link's page is allowlisted, for both `hashPath` features and `url:`-at-call-time
+   ones — but only when the url is written as a `${STAFF_SITE_URL}/…` template literal.

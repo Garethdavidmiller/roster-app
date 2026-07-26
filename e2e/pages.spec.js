@@ -505,3 +505,88 @@ for (const width of [375, 1280]) {
         expect(pageOverflow).toBeLessThanOrEqual(1);
     });
 }
+
+// ── OPERATIONS: the reset-request push deep link (v18.95) ──────────────────────────────────────
+// The admin's notification opens operations.html#reset-requests. Operations has nine collapsed
+// cards, so landing on the page alone would still leave them hunting for the one it was about.
+test('operations #reset-requests deep link opens and scrolls to the queue card', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    // Deliberately seeded EMPTY: with rows the card auto-opens anyway, so an empty queue is the only
+    // state that actually proves the deep link — not the auto-open — did the work. (A cleared queue
+    // is a real arrival state: the admin taps a notification after already handling it elsewhere.)
+    await page.addInitScript(() => { window.__E2E = { docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#reset-requests');
+
+    const body = page.locator('#resetRequestsBody');
+    await expect(body).toHaveClass(/\bopen\b/);
+    // The chevron must AGREE with the class — opening by class alone leaves a screen reader told the
+    // card is still collapsed (A11Y_FINDINGS.md v18.68).
+    await expect(page.locator('#resetRequestsChevron')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#resetRequestsCard')).toBeInViewport();
+});
+
+test('operations deep link only ever opens — a repeat tap does not close the card', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => { window.__E2E = { docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#reset-requests');
+    await expect(page.locator('#resetRequestsBody')).toHaveClass(/\bopen\b/);
+
+    // Tapping the notification while Operations is ALREADY open re-navigates the existing client, so
+    // only hashchange fires. A toggle here would close the card the admin was sent to look at.
+    await page.evaluate(() => {
+        location.hash = '';
+        location.hash = '#reset-requests';
+    });
+    await expect(page.locator('#resetRequestsBody')).toHaveClass(/\bopen\b/);
+});
+
+test('operations without the hash leaves the queue card collapsed', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => { window.__E2E = { docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#resetRequestsContent')).toContainText('No outstanding requests');
+    await expect(page.locator('#resetRequestsBody')).not.toHaveClass(/\bopen\b/);
+});
+
+// ── SETTINGS: Password card reveal toggle (v18.95) ─────────────────────────────────────────────
+// The login overlay and the forced overlay both offer a reveal; this card asked for an 8+ character
+// password TWICE with no way to see either, which is where a mistyped password comes from.
+test('settings password card: Show reveals BOTH new and confirm, and toggles back', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+
+    const toggle  = page.locator('#pwNewToggle');
+    const newEl   = page.locator('#pwNew');
+    const confirm = page.locator('#pwConfirm');
+    await expect(newEl).toHaveAttribute('type', 'password');
+    await expect(confirm).toHaveAttribute('type', 'password');
+
+    await toggle.click();
+    // Confirm flips too — checking the two against each other is the whole reason to reveal.
+    await expect(newEl).toHaveAttribute('type', 'text');
+    await expect(confirm).toHaveAttribute('type', 'text');
+    await expect(toggle).toHaveText('Hide');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    await toggle.click();
+    await expect(newEl).toHaveAttribute('type', 'password');
+    await expect(confirm).toHaveAttribute('type', 'password');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('settings password card: the typed value is not hidden under the Show button', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    // shared.css reserves the button's room via a `.login-field` selector this card does not match,
+    // so without settings.css's own padding rule the text would run underneath "Show".
+    const gap = await page.evaluate(() => {
+        const input  = /** @type {HTMLElement} */ (document.getElementById('pwNew'));
+        const button = /** @type {HTMLElement} */ (document.getElementById('pwNewToggle'));
+        const pr = parseFloat(getComputedStyle(input).paddingRight);
+        return { pr, btnW: button.getBoundingClientRect().width };
+    });
+    expect(gap.pr, 'padding-right must clear the Show button').toBeGreaterThanOrEqual(gap.btnW);
+});

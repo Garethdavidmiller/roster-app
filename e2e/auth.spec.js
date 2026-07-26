@@ -463,3 +463,42 @@ test('reset request link: a failed send keeps the button and says so', async ({ 
     await expect(page.locator('#loginResetRequest')).toBeEnabled();
     await expect(page.locator('#loginResetRequest')).toContainText('Ask the admin');
 });
+
+// ── The login overlay must look the SAME on every page (v18.95) ────────────────────────────
+// login-overlay.js injects one card and shared.css styles it, so all five protected pages should
+// render an identical sign-in. Nothing asserted that, and it broke immediately: a page-local
+// `.login-pw-wrap { margin-bottom }` added for the Settings Password card also matched the login
+// overlay's OWN password wrapper (same class, injected on every page), so settings.html's sign-in
+// card silently grew 14px taller than the other five. Page CSS files are loaded per page, so this
+// class of leak is invisible to any single-page test.
+test('login overlay geometry is identical across every page that shows it', async ({ page }) => {
+    const PAGES = ['/admin.html', '/settings.html', '/operations.html', '/links.html', '/paycalc.html'];
+    /** Measure the parts a page stylesheet could plausibly reach into. */
+    const measure = async (/** @type {string} */ url) => {
+        await page.goto(url);
+        await page.locator('#loginOverlay.visible').waitFor();
+        return page.evaluate(() => {
+            const pick = (/** @type {string} */ sel) => {
+                const el = document.querySelector('#loginOverlay ' + sel);
+                if (!el) return null;
+                const cs = getComputedStyle(el);
+                const r = el.getBoundingClientRect();
+                return { w: Math.round(r.width), h: Math.round(r.height),
+                         mb: cs.marginBottom, mt: cs.marginTop, pad: cs.padding };
+            };
+            return {
+                card:    pick('#loginCard'),
+                pwWrap:  pick('.login-pw-wrap'),
+                pwInput: pick('#loginPassword'),
+                submit:  pick('#loginSubmit'),
+            };
+        });
+    };
+
+    await page.setViewportSize({ width: 390, height: 900 });
+    const baseline = await measure(PAGES[0]);
+    expect(baseline.card, 'the login card should render on admin.html').toBeTruthy();
+    for (const url of PAGES.slice(1)) {
+        expect(await measure(url), `login overlay on ${url} differs from ${PAGES[0]}`).toEqual(baseline);
+    }
+});

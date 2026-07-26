@@ -258,7 +258,7 @@ CLASSIC (non-module) launch-recovery script for index.html only (v16.18). Loaded
 ### The reset-request queue (v18.93)
 
 Not a module of its own — three pieces, listed together because the design only makes sense as a whole.
-PASSWORD_PLAN.md, the request work; Phase 1 (queue only, no push).
+PASSWORD_PLAN.md §12 (the queue) + §14 (the admin push, v18.95).
 
 - **`firebase-client.js`** gains `requestPasswordReset(member)` / `getResetRequests()` /
   `clearResetRequest(member)`. The FIRST is unlike every other function caller in the file: it sends
@@ -271,7 +271,20 @@ PASSWORD_PLAN.md, the request work; Phase 1 (queue only, no push).
 - **`operations-app.js`** renders the **Password Reset Requests** card directly ABOVE Account status —
   the queue adjacent to its remedy — with a count chip, `_relativeTime` rows (exported from
   operations-reports.js so it reads identically to the Error Log beside it), a per-row Clear, and an
-  auto-open when there is anything outstanding.
+  auto-open when there is anything outstanding. It also owns `DEEP_LINK_CARDS` (v18.95) — the hash
+  allowlist the reset-request notification lands on (`#reset-requests`), which opens and scrolls to the
+  card. It only ever OPENS: a repeat notification tap must not toggle shut the card it sent them to.
+  Both it and the auto-open go through one `openCard(bodyId, chevronId)` helper, so `aria-expanded` can
+  never be left disagreeing with the class (the A11Y_FINDINGS.md v18.68 failure).
+- **`functions/index.js`** gains `sendTargetedPush` (v18.95) — the app's ONLY non-broadcast push.
+  "N. Surname asked for a password reset" sent to all ~50 staff would leak who is locked out, so the
+  send is filtered by the `owner` uid and fails closed three ways: no target uids → nothing; a
+  subscription doc with no `owner` (pre-v17.76) → skipped, never assumed; no matches → log and stop.
+  There is deliberately **no fall-back-to-everyone branch**. Fired only on a genuinely RECORDED request
+  (the throttle is the notification's rate limit too) and wrapped so a push failure can never fail the
+  request — the Firestore row is the doorbell, the push is a courtesy. Wording comes from the pure
+  `buildResetRequestNotice`; the headline carries the queue DEPTH because the one stable notification
+  tag makes each push replace the last.
 
 **Why a Cloud Function and not a Firestore write.** A member who has forgotten their password has no
 Firebase identity: `signInAnonymously` runs only on the calendar, and `ENFORCE_NAMED_SESSION` makes
@@ -306,6 +319,12 @@ any HTML for it.
 - `shouldForcePasswordSet({ flagOn, hasMarker, authStatus, migrated })` — the PURE gate, exported and
   unit-tested (`password-force.test.mjs`, which extracts it from source so the test can't drift into
   asserting a copy).
+- `withTimeout(promise, ms)` — exported at v18.95 for the Settings Password card, which makes the same
+  `setOwnPassword` call and had the same gap: a promise that never SETTLES reaches neither `catch` nor
+  `finally`, so a dead-air connection left that card's button disabled on "Saving…" for good. Milder
+  than the overlay's version of the bug (Settings is dismissible, so it is a stuck card rather than a
+  trap) but identical in kind, which is why there is now one implementation rather than two. Also
+  covered by `password-force.test.mjs` (same source-extraction technique).
 
 **The `authStatus === 'named'` condition is the lockout guard.** Not "an auth user exists": on the
 calendar that user is ANONYMOUS and on paycalc (`soft` policy) a member can be locally signed in with a

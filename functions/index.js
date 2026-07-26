@@ -48,6 +48,7 @@ const {
     claimsForTier,
     computeOrphanLabels,
     shouldRecordResetRequest,
+    buildResetRequestNotice,
 } = require('./roster-parse-helpers');
 const rosterMembers = require('./roster-members.json');
 
@@ -588,6 +589,72 @@ function setupWebPush(vapidPrivate) {
  * @param {object} payload   Object that will be JSON.stringify'd — must include title, body, url, tag
  * @param {string} logTag    Short string for console log lines, e.g. '[push]'
  */
+/**
+ * Send a Web Push payload to the devices of SPECIFIC identities only, never to everyone.
+ *
+ * This is the targeted counterpart to fanOutPush, and it exists because one notification in this app
+ * is not a broadcast: "N. Surname asked for a password reset" is addressed to the admin, and sending
+ * it to all ~50 staff would leak who is locked out to the entire team.
+ *
+ * **It FAILS CLOSED, on purpose, in three separate places**, because every failure mode here has the
+ * same consequence — telling 50 people something meant for one:
+ *   1. An empty/absent `ownerUids` sends NOTHING. There is deliberately no "no targets → fall back to
+ *      everyone" branch; that fallback is the exact bug this function is shaped to make unwritable.
+ *   2. A subscription doc with NO `owner` field is SKIPPED, never assumed to be the target's. Those
+ *      are legacy docs written before v17.76 stamped the uid. The cost is real and accepted: an admin
+ *      whose device subscribed before v17.76 gets no push until they toggle the bell off and on
+ *      (which re-writes the doc WITH an owner). Silence is the right failure — the alternative is
+ *      guessing an identity from an unowned record.
+ *   3. Zero matches logs and returns. A notification that cannot be delivered privately is not
+ *      delivered at all.
+ *
+ * Dead-subscription cleanup matches fanOutPush exactly (410/404 delete, 401 log-only — see
+ * shouldDeleteSubscription).
+ *
+ * @param {object} payload            JSON-stringified for the push body — title, body, url, tag
+ * @param {string[]} ownerUids        Firebase Auth uids allowed to receive this
+ * @param {string} logTag             Short string for console log lines
+ * @returns {Promise<number>}         How many sends were attempted
+ */
+async function sendTargetedPush(payload, ownerUids, logTag) {
+    const uids = Array.from(new Set((ownerUids || []).filter(u => typeof u === 'string' && u)));
+    if (uids.length === 0) {
+        console.warn(`${logTag} No target uids — sending nothing (never fans out)`);
+        return 0;
+    }
+
+    // One equality query per uid rather than a single `in` query: the target list is the admin roster
+    // (one or two names), `in` caps at 30 values, and per-uid queries keep the failure of one lookup
+    // from taking the others down with it.
+    const results = await Promise.all(uids.map(uid =>
+        admin.firestore().collection('pushSubscriptions').where('owner', '==', uid).get()));
+    const docs = results.flatMap(snap => snap.docs);
+    if (docs.length === 0) {
+        // Worth a warning, not a silent return: on a fresh project this means the admin has never
+        // subscribed, but it ALSO means their subscription predates the owner stamp (see #2 above) —
+        // and both look identical from here. Either way the queue still shows on the card.
+        console.warn(`${logTag} No owner-stamped subscriptions for ${uids.length} target(s) — nothing sent`);
+        return 0;
+    }
+
+    const payloadStr = JSON.stringify(payload);
+    await Promise.allSettled(docs.map(async docSnap => {
+        const { endpoint, keys } = docSnap.data();
+        try {
+            await getWebPush().sendNotification({ endpoint, keys }, payloadStr);
+        } catch (err) {
+            if (shouldDeleteSubscription(err.statusCode)) {
+                await docSnap.ref.delete();
+                console.log(`${logTag} Removed dead subscription ${docSnap.id}`);
+            } else {
+                console.warn(`${logTag} Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
+            }
+        }
+    }));
+    console.log(`${logTag} Targeted send complete — attempted ${docs.length} subscription(s)`);
+    return docs.length;
+}
+
 async function fanOutPush(payload, logTag) {
     const snapshot = await admin.firestore().collection('pushSubscriptions').get();
     if (snapshot.empty) {
@@ -1613,9 +1680,70 @@ exports.resetMemberPassword = onRequest(
  * Body: { member: string }. Always 200 for a valid roster name.
  */
 const RESET_REQUEST_THROTTLE_MS = 10 * 60 * 1000;   // 10 minutes
+// How long the admin notification may take before the endpoint gives up on it and answers the member
+// anyway. Well inside the function's 30s timeout, leaving room for the record itself — the request is
+// the product, the push is a courtesy, and the courtesy must never cost the product.
+const ADMIN_NOTIFY_BUDGET_MS = 10_000;
+
+/**
+ * Push the "someone asked for a password reset" notice to the ADMIN's devices only (Phase 2).
+ *
+ * Two lookups, both of which fail closed rather than widening the audience:
+ *  · admin name → Firebase Auth uid (`getUserByEmail` on the synthetic account address). A name that
+ *    can't be resolved is simply dropped from the target list — an unresolvable admin must not become
+ *    "send to everyone".
+ *  · uid → their own push subscriptions (sendTargetedPush).
+ *
+ * The headline states the queue DEPTH, so read `resetRequests` AFTER the write. `.select()` fetches
+ * document ids with no field data — the collection is bounded by the roster (doc id = member name), so
+ * this is a ~50-doc metadata read, not a scan. If the count read fails, fall back to 1: a notification
+ * naming the member with a possibly-low count still does its job, where no notification does not.
+ *
+ * @param {string} member                  who asked (from the server-owned roster)
+ * @param {string[]} adminNames            roster-members.json roles.admin
+ * @param {import('firebase-functions/params').SecretParam} vapidPrivate
+ * @returns {Promise<void>}
+ */
+async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
+    const uids = [];
+    for (const name of adminNames || []) {
+        try {
+            const user = await admin.auth().getUserByEmail(nameToEmail(name));
+            if (user && user.uid) uids.push(user.uid);
+        } catch (e) {
+            console.warn('[requestPasswordReset] could not resolve admin uid for', name, e && e.code);
+        }
+    }
+    if (uids.length === 0) return;   // sendTargetedPush would refuse anyway; skip the VAPID setup
+
+    let pending = 1;
+    try {
+        pending = (await admin.firestore().collection('resetRequests').select().get()).size || 1;
+    } catch (e) {
+        console.warn('[requestPasswordReset] pending count failed — notifying with 1', e && e.code);
+    }
+
+    setupWebPush(vapidPrivate);
+    const { headline, body } = buildResetRequestNotice(member, pending);
+    await sendTargetedPush(
+        buildPushPayload({
+            feature: 'resetRequest',
+            headline,
+            body,
+            url: `${STAFF_SITE_URL}/operations.html#reset-requests`,
+        }),
+        uids,
+        '[reset-request]',
+    );
+}
 
 exports.requestPasswordReset = onRequest(
-    { region: 'europe-west2', timeoutSeconds: 30, cors: ADMIN_FUNCTION_ORIGINS, maxInstances: 3 },
+    {
+        region: 'europe-west2', timeoutSeconds: 30, cors: ADMIN_FUNCTION_ORIGINS, maxInstances: 3,
+        // Needed for the admin notification (Phase 2). Recording the request does not depend on it —
+        // a missing/rotated key degrades to "the row is there, the phone stays quiet".
+        secrets: [VAPID_PRIVATE_KEY],
+    },
     async (req, res) => {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -1681,6 +1809,34 @@ exports.requestPasswordReset = onRequest(
 
             console.log('[requestPasswordReset]', recorded ? 'recorded' : 'throttled', 'for', member,
                         'provisioned:', provisioned);
+
+            // Tell the admin (Phase 2). ONLY on a genuinely-recorded request: a throttled repeat tap is
+            // the same person asking twice, and re-notifying would let anyone with the URL ring the
+            // admin's phone at will — the throttle is the rate limit for the notification too.
+            //
+            // Wrapped so it can NEVER fail the request. The doorbell is the row in Firestore; the push
+            // is a courtesy on top. A push outage that turned into a 500 here would lose the request
+            // itself and send the member away thinking nobody heard them — the precise failure v18.94
+            // fixed one line above, and it must not reappear via a different route.
+            //
+            // TIME-BOXED, and that is the load-bearing part. The try/catch below only survives a
+            // REJECTION; the notify path makes up to four network calls (admin uid lookup, count
+            // read, then the pushes) and none of them is guaranteed to settle. Without a bound, a
+            // hung push service eats the function's 30s budget and Cloud Run kills the request —
+            // returning an error to a member whose request WAS successfully recorded, telling them
+            // nobody heard them when the doorbell had already rung. Exactly the never-settles-is-
+            // not-a-rejection class v18.94 fixed in the forced overlay; it must not come back here.
+            if (recorded) {
+                try {
+                    await Promise.race([
+                        notifyAdminOfResetRequest(member, cfg.admin, VAPID_PRIVATE_KEY),
+                        new Promise((_, rej) =>
+                            setTimeout(() => rej(new Error('notify timed out')), ADMIN_NOTIFY_BUDGET_MS)),
+                    ]);
+                } catch (e) {
+                    console.warn('[requestPasswordReset] admin notify failed for', member, e && e.message);
+                }
+            }
             // IDENTICAL body either way (fix, v18.94). Returning `throttled: true` was the exact oracle
             // the comment beside it warned against: anyone could poll the 50 public names and learn who
             // is locked out RIGHT NOW — a ready-made pretext for a "hi, it's IT about your password
