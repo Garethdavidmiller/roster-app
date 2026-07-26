@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '18.91';
+export const APP_VERSION = '18.92';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -69,6 +69,21 @@ export const CONFIG = {
     //   in session.js, so no no-name session ever reaches an override write. If you flip this back to
     //   `false`, anonymous-fallback sessions would be silently DENIED override writes by the strict rule.
     ENFORCE_NAMED_SESSION:            true,
+    // Phase 2 of PASSWORD_PLAN.md — compel un-migrated members to set their own password at their
+    // NEXT SIGN-IN (password-force.js). This is the KILL SWITCH: set to `false` to stop compelling
+    // instantly, with no other change. Everything else the feature needs (the Settings card, the
+    // admin reset, `passwordStatus`) shipped at v18.63 and is unaffected by this flag.
+    //
+    // Why compelling is safe to switch on: the overlay only appears right after a confirmed sign-in,
+    // only for a `named` identity, and only when `passwordStatus` says the member is still on the
+    // surname default — and the calendar is NOT behind it, so a member who can't get past it can
+    // still see their roster. It fails open both before showing (read failure / wrong identity) and
+    // after (rate-limit / network → a "Continue for now" escape). See password-force.js's header.
+    //
+    // No forced sign-out is needed to drive this: sessions cap at 30 days absolute / 7 days idle, and
+    // an expired session forces a real typed login, so coverage completes itself inside 30 days and
+    // staggers by each member's own expiry rather than landing on everyone at once.
+    FORCE_PASSWORD_SET:               true,
     // B3 claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every
     // device to refresh its Firebase ID token ONCE on next app open — picking up newly-set custom
     // claims (e.g. the B2 `manager` claim) immediately instead of waiting for the ~hourly

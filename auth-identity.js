@@ -115,6 +115,41 @@ export function isPasswordMigrated(status) {
     return setAt > 0 && setAt >= resetAt;
 }
 
+/** The minimum length of a chosen password (PASSWORD_PLAN.md §4 — Firebase's own floor is 6). */
+export const MIN_PASSWORD_LENGTH = 8;
+
+/**
+ * Validate a member's CHOSEN password. Returns a staff-facing error sentence, or `null` when valid.
+ *
+ * The SINGLE source for the rules in PASSWORD_PLAN.md §4, shared by the Settings Password card and the
+ * forced overlay (`password-force.js`, v18.92). It was inline in settings-app.js until the overlay
+ * needed the same rules — and two copies of a validation rule is how the Other-day grammar drifted
+ * (v18.91). If these two ever disagreed, a member could set a password through one surface that the
+ * other would reject, or worse set their surname back through the overlay and be flagged "migrated ✓"
+ * while still on a guessable credential.
+ *
+ * Rule order is preserved from the Settings card so the message a member sees is unchanged: length,
+ * then mismatch, then the surname block.
+ *
+ * @param {string} fullName  the member's display name, for the surname check
+ * @param {string} next      the new password (trimmed by the caller or here)
+ * @param {string} confirm   the confirmation field
+ * @returns {string|null} the error to show, or null when the password is acceptable
+ */
+export function validateNewPassword(fullName, next, confirm) {
+    const n = (typeof next === 'string' ? next : '').trim();
+    const c = (typeof confirm === 'string' ? confirm : '').trim();
+    if (n.length < MIN_PASSWORD_LENGTH) return `Your new password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+    if (n !== c) return 'The two new passwords don’t match.';
+    // Block choosing the surname back — otherwise "migrated ✓" is a lie for that member. The
+    // `surname &&` guard matters: normaliseSurname('') === '' for a single-word display name, and
+    // without it ANY all-digits/symbols password (whose alpha part is also '') would be rejected as
+    // "your surname".
+    const surname = normaliseSurname(fullName || '');
+    if (surname && n.toLowerCase().replace(/[^a-z]/g, '') === surname) return 'Choose something other than your surname.';
+    return null;
+}
+
 /**
  * Firebase Auth error codes that mean the supplied credentials are DEFINITIVELY wrong — as opposed to
  * a transient failure (network / rate-limit / provider outage / requires-recent-login). Only on one of

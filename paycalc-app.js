@@ -51,6 +51,7 @@ import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
+import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
@@ -1895,7 +1896,15 @@ export function init() {
     // outcome so synchronous init errors are still captured locally.
     (function _initErrorReporting() {
       const name = getSession()?.name;
-      const afterAuth = () => { initErrorReporter(); recordUsage('paycalc', name ?? null); recordPageLatency('paycalc', name ?? null); };
+      const afterAuth = () => {
+        initErrorReporter(); recordUsage('paycalc', name ?? null); recordPageLatency('paycalc', name ?? null);
+        // Forced set-password overlay (PASSWORD_PLAN.md Phase 2). No `ready` barrier is passed: this
+        // callback ALREADY runs after ensureNamedSession has settled, so getAuthSnapshot() reflects the
+        // terminal identity. That matters most here — paycalc is the one `soft` page, so a member can
+        // reach this line locally signed in with a FAILED Firebase session, and the overlay's
+        // `named`-only gate is what stops it showing a block they could never satisfy.
+        initPasswordForce(name, {});
+      };
       // SOFT enforcement (B1.2), now decided via the policy (ARCHITECTURE_PLAN.md Phase 7): the pay
       // calculator is localStorage-based and writes no isolated data, so a degraded/anonymous session
       // must NEVER block it. requirePage('paycalc') honours that — being `soft`, it returns ONLY 'allow'

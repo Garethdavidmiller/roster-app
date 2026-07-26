@@ -157,6 +157,7 @@ roster-app/
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
 ├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
 ├── login-overlay.js        ← shared in-place sign-in overlay for all 5 protected pages: initLoginOverlay({ pageLabel, onSuccess }); grade/name dropdowns, surname-password check, client rate-limit. The sign-in core `runNamedSignIn` commits the local session ONLY after auth resolves — never before (the v14.75 half-signed-in/freeze fix; LOGIN_INCIDENT.md). Full detail + exports: AI_MAP.md.
+├── password-force.js       ← the MANDATORY "set your own password" overlay (PASSWORD_PLAN.md Phase 2, v18.92): `initPasswordForce(member, {ready})` + the pure `shouldForcePasswordSet` gate. Injects its own markup (no page HTML). Shown ONCE right after a confirmed sign-in (the one-shot `myb_pw_force_pending_<member>` marker written by login-overlay.js, key in storage-keys.js) for a `named` identity that `passwordStatus` still reports as on the surname default. No ✕/Escape/backdrop — and it FAILS OPEN both BEFORE showing (failed read / non-named identity) and AFTER (rate-limit / network / 3 failures reveal a quiet "Continue for now"), because a mandatory overlay that cannot be satisfied is a lockout. Kill switch: `CONFIG.FORCE_PASSWORD_SET`. Called from all five authenticated coordinators
 ├── session.js              ← shared auth/session: ensureFirebaseSession/ensureNamedSession, primeAuth (v14.80 pre-warm), get/save/clearSession, and the B0 named-vs-anonymous identity signals. Full exports: AI_MAP.md.
 ├── auth-state-core.js      ← PURE identity state machine (ARCHITECTURE_PLAN.md Track 1, Phase 1): reduceAuthState(state, event)→state + INITIAL_STATE. No DOM/Firebase/localStorage. Tested by auth-state-core.test.mjs.
 ├── auth-state.js           ← auth STORE (Phase 2): getAuthSnapshot/subscribeAuth/dispatchAuth over the reducer. Imports ONLY auth-state-core.js (acyclic); session.js FEEDS it (observing only; sessionReady untouched). Full detail: AI_MAP/ARCHITECTURE_PLAN.
@@ -711,6 +712,19 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 Staff log in with name (dropdown) + password. The **default** password is their surname (lowercase, no spaces/special chars); since v18.63 (PASSWORD_PLAN.md Track C) a member can **set their own password** in Settings → Password, and sign-in accepts either the typed password or — for anyone still on the default — the surname (`credentialCandidatesFor` in `auth-identity.js` builds the ordered candidate list, `ensureFirebaseSession` tries each). If a member forgets a self-set password, the **admin resets it** back to the surname default (Operations → Account status → Reset, backed by the `resetMemberPassword` Cloud Function). Sessions expire after 30 days (absolute) or 7 days of inactivity, whichever comes first — every successful page load refreshes the idle clock. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access. `CONFIG.LINKS_DESIGNERS = ['G. Miller', 'S. Silva']` — access to the Links design workspace.
 
 The login dropdown groups members by grade (CEA · CES · Dispatcher · Management, in that order). `managerOnly: true` members (managers/clerks) appear **only** in the Management group and are hidden from the calendar's member selector — they have login access but no roster of their own. Their grade dropdown filtering lives in `admin-app.js` (`GRADE_ORDER`).
+
+**Forced migration (v18.92 — PASSWORD_PLAN.md Phase 2).** `CONFIG.FORCE_PASSWORD_SET` (a kill switch,
+currently `true`) makes `password-force.js` compel any member still on the surname default to choose
+their own password **at their next sign-in** — nobody is signed out to accelerate it. No forced sign-out
+is needed: sessions cap at 30 days absolute / 7 days idle and an expired session forces a real typed
+login, so coverage completes itself inside 30 days and staggers by each member's own expiry rather than
+landing on everyone at once. It shows only for a `named` identity — never the calendar's anonymous
+session nor a soft-failed paycalc one, where `updatePassword` cannot succeed and the block would be
+unsatisfiable — and fails open on any failure it cannot recover from. A member who only ever views the
+roster never signs in anywhere and is therefore never compelled: accepted (reaching them means Track E).
+**Overlay precedence:** when a member is due both this and the work-email check on one login, password
+WINS and admin-app.js deletes the email check's pending marker, so that check defers to the next login
+instead of resurfacing on a later ordinary load (the v14.77 "Fix 4" class).
 
 **Password security note:** The *default* password is surname-derived and not a secret — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`). A member who sets their own password (v18.63) does get a real secret; the surname default remains valid **only until** they do (the sign-in candidate ladder tries the typed value first, then falls back to the surname). An admin reset returns the account to the surname default. Full design + phasing: `PASSWORD_PLAN.md`.
 

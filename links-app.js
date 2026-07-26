@@ -21,6 +21,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
+import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { lsGet, lsSet } from './ls.js';
@@ -1508,6 +1509,11 @@ export function init() {
     // ============================================
     // registerServiceWorker moved to the top of init() (before the access gate) — v16.23.
     sessionReady.then(() => { initErrorReporter(); recordUsage('links', currentUser); recordPageLatency('links', currentUser); });
+    // Forced set-password overlay (PASSWORD_PLAN.md Phase 2) — fire-and-forget, never on the login
+    // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
+    // sign-in path the module loaded signed-out and the identity is only refreshed inside
+    // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.
+    sessionReady.then(() => initPasswordForce(currentUser));
 
     // ============================================
     // BOOT

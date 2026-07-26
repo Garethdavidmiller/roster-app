@@ -22,6 +22,7 @@
 import { CONFIG, getMembersForGrade } from './roster-data.js';
 import { saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { lsGet, lsSet } from './ls.js';
+import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus } from './overlay.js';
 import { markLoginStart, clearLoginStart } from './perf-reporter.js';
 
@@ -352,6 +353,13 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                 return;
             }
             _failCount = 0;   // a successful sign-in clears the wrong-password streak
+            // One-shot "a real sign-in just happened" marker for the forced set-password overlay
+            // (password-force.js, PASSWORD_PLAN.md Phase 2). Written HERE — the one place every
+            // protected page's sign-in passes through — rather than in each coordinator's onSuccess,
+            // so the five pages can't drift on it. Consumed by initPasswordForce on the authorised
+            // path (both the reload and the in-place branch run it). Deliberately set BEFORE
+            // onSuccess, which on the reload path never returns.
+            lsSet(PW_FORCE_PENDING_PREFIX + name, '1');
             // Confirm success before the (usually slow) reload kicks in, so there is no silent
             // "did it work?" gap between the click and the destination page appearing.
             clearStatusProgress();

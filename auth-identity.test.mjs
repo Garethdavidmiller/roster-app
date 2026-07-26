@@ -11,7 +11,8 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection } from './auth-identity.js';
+import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection,
+         validateNewPassword, MIN_PASSWORD_LENGTH } from './auth-identity.js';
 
 /** Firestore Timestamp-like stub: an object exposing toMillis(). */
 const ts = (/** @type {number} */ ms) => ({ toMillis: () => ms });
@@ -139,5 +140,54 @@ describe('isCredentialRejection — the shared candidate-ladder stop predicate (
         assert.equal(isCredentialRejection(undefined), false);
         assert.equal(isCredentialRejection(''), false);
         assert.equal(isCredentialRejection('auth/something-new'), false);
+    });
+});
+
+// ── validateNewPassword — the SHARED chosen-password rules (PASSWORD_PLAN §4) ──────────────────
+// Shared by the Settings card and the forced overlay (password-force.js). It exists BECAUSE two
+// copies of a validation rule is how the Other-day grammar drifted (v18.91): if these surfaces
+// disagreed, a member could set a password through one that the other rejects — or set their surname
+// back through the overlay and be flagged "migrated ✓" while still on a guessable credential.
+describe('validateNewPassword', () => {
+    test('accepts a sound password', () => {
+        assert.equal(validateNewPassword('G. Miller', 'correct horse 9', 'correct horse 9'), null);
+    });
+
+    test('rejects anything under the minimum length, and names the number', () => {
+        const err = validateNewPassword('G. Miller', 'a'.repeat(MIN_PASSWORD_LENGTH - 1), 'a'.repeat(MIN_PASSWORD_LENGTH - 1));
+        assert.match(String(err), new RegExp(String(MIN_PASSWORD_LENGTH)));
+        assert.equal(validateNewPassword('G. Miller', 'a'.repeat(MIN_PASSWORD_LENGTH), 'a'.repeat(MIN_PASSWORD_LENGTH)), null);
+    });
+
+    test('rejects a mismatch', () => {
+        assert.match(String(validateNewPassword('G. Miller', 'longenough1', 'longenough2')), /don’t match/);
+    });
+
+    // The rule that keeps the migration flag honest.
+    test('blocks the surname back, however it is cased or punctuated', () => {
+        assert.match(String(validateNewPassword('G. Miller', 'Miller!!', 'Miller!!')), /other than your surname/);
+        assert.match(String(validateNewPassword('G. Miller', 'm i l l e r', 'm i l l e r')), /other than your surname/);
+    });
+
+    test('a surname-CONTAINING password is fine — only an exact match is blocked', () => {
+        assert.equal(validateNewPassword('G. Miller', 'miller-and-more', 'miller-and-more'), null);
+    });
+
+    // The guard that stops the surname rule swallowing unrelated passwords. normaliseSurname('') is
+    // '' for a single-word display name, and an all-digits password also normalises to '' — without
+    // the `surname &&` guard the two would compare equal and EVERY numeric password would be
+    // rejected as "your surname".
+    test('an all-digits password is not mistaken for a single-word member’s empty surname', () => {
+        assert.equal(validateNewPassword('Reception', '48159263', '48159263'), null);
+        assert.equal(validateNewPassword('', '48159263', '48159263'), null);
+    });
+
+    test('trims surrounding whitespace before judging (iOS keyboards add it)', () => {
+        assert.equal(validateNewPassword('G. Miller', '  longenough1  ', 'longenough1'), null);
+        assert.match(String(validateNewPassword('G. Miller', '  short  ', 'short')), /at least/);
+    });
+
+    test('tolerates junk input without throwing', () => {
+        assert.match(String(validateNewPassword('G. Miller', /** @type {any} */ (undefined), /** @type {any} */ (null))), /at least/);
     });
 });

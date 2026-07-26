@@ -8,8 +8,8 @@
  */
 
 import { CONFIG, isValidEmail, isChilternWorkEmail } from './roster-data.js';
-import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword, normaliseSurname } from './firebase-client.js';
-import { isPasswordMigrated, isCredentialRejection } from './auth-identity.js';
+import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword } from './firebase-client.js';
+import { isPasswordMigrated, isCredentialRejection, validateNewPassword } from './auth-identity.js';
 import { lsSet } from './ls.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
@@ -22,6 +22,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
+import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 
@@ -93,6 +94,11 @@ export function init() {
     }
     registerServiceWorker();
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
+    // Forced set-password overlay (PASSWORD_PLAN.md Phase 2) — fire-and-forget, never on the login
+    // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
+    // sign-in path the module loaded signed-out and the identity is only refreshed inside
+    // initAuthorised(), so passing it eagerly here would pass null and silently never compel anyone.
+    sessionReady.then(() => initPasswordForce(currentUser));
 
     /**
      * The authorised (signed-in) init body. Called directly on a normal already-signed-in load, or from
@@ -382,15 +388,15 @@ export function init() {
             const next    = newEl.value.trim();
             const confirm = confEl.value.trim();
             if (!current.trim())  { setFeedback('Enter your current password.', 'err'); curEl.focus(); return; }
-            if (next.length < 8)  { setFeedback('Your new password must be at least 8 characters.', 'err'); newEl.focus(); return; }
-            if (next !== confirm) { setFeedback('The two new passwords don’t match.', 'err'); confEl.focus(); return; }
-            // Block choosing the surname back — otherwise "migrated ✓" would be a lie for that member.
-            // Guard the empty-surname case: normaliseSurname('') === '' for a single-word (managerOnly)
-            // display name, which without the `surname &&` guard would reject ANY all-digits/symbols
-            // password (its alpha part is also '') as "your surname".
-            const surname = normaliseSurname(member);
-            if (surname && next.toLowerCase().replace(/[^a-z]/g, '') === surname) {
-                setFeedback('Choose something other than your surname.', 'err'); newEl.focus(); return;
+            // Length / match / surname-block now come from the SHARED validator (auth-identity.js,
+            // v18.92) so this card and the forced overlay can never disagree about what a valid
+            // password is — two copies of a rule is how the Other-day grammar drifted (v18.91). The
+            // messages and their order are unchanged.
+            const invalid = validateNewPassword(member, next, confirm);
+            if (invalid) {
+                setFeedback(invalid, 'err');
+                (next && next !== confirm ? confEl : newEl).focus();
+                return;
             }
             saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
             // Track WHICH stage failed: a failure AFTER reauth succeeded is NOT "current password wrong"
