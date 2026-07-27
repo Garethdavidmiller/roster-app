@@ -651,3 +651,36 @@ test('operations usage: the section is absent (not broken) when there is no Fire
     await expect(page.locator('#usageContent')).toContainText('Page popularity');
     await expect(page.locator('.usage-signin')).toHaveCount(0);
 });
+
+// ── Reset requests: a Clear during an in-flight load must not leave a ghost (v18.97) ────────────
+// v18.94 stopped two Clears racing by DROPPING a refresh requested mid-load. That fixed the ordering
+// but left a subtler ghost (external review): clear A → refresh A starts → clear B → refresh B is
+// discarded → A's snapshot, taken before B was deleted, repaints B, and nothing is queued to correct
+// it. The fixture delays reads so the interleaving is reproducible rather than a matter of luck, and
+// deleteDoc now really removes the row so a ghost and a correctly-cleared row look different.
+test('operations reset requests: clearing two rows quickly leaves neither behind', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = {
+            docsDelayMs: 400,        // hold every read open long enough to overlap the second Clear
+            docs: [
+                { id: 'A. Hared',     requestedAt: Date.now() - 60_000, count: 1, provisioned: true },
+                { id: 'K. Jedlinski', requestedAt: Date.now() - 90_000, count: 1, provisioned: true },
+            ],
+        };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('.rr-row')).toHaveCount(2);
+
+    // Two Clears in quick succession — the second lands while the first's refresh is still open.
+    const clears = page.locator('.btn-rr-clear');
+    await clears.nth(0).click();
+    await clears.nth(1).click();
+
+    // Both deletes happened, so the card must end up empty. With the dropped-refresh behaviour the
+    // second row survives as a ghost with no pending load to remove it.
+    await expect(page.locator('#resetRequestsContent')).toContainText('No outstanding requests', { timeout: 10_000 });
+    await expect(page.locator('.rr-row')).toHaveCount(0);
+    // The chip must agree — a stale count over an empty list is the v18.94 lesson.
+    await expect(page.locator('#resetRequestsCountChip')).toHaveText('');
+});

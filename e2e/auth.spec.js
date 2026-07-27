@@ -502,3 +502,78 @@ test('login overlay geometry is identical across every page that shows it', asyn
         expect(await measure(url), `login overlay on ${url} differs from ${PAGES[0]}`).toEqual(baseline);
     }
 });
+
+// ── The INDETERMINATE password write (v18.97, external review) ─────────────────────────────────
+// The defect: Promise.race stops WAITING but does not CANCEL, so a slow updatePassword could land a
+// second after the overlay had said "Couldn't connect". The member then believes their old password
+// still works — during a COMPULSORY migration, which is a lockout. The unit tests cover
+// settleOrTimeout's shape; these cover what the member actually SEES, which is where the v18.92
+// escape-hatch bug hid (a CSS rule made it visible from the start, invisible to code reading).
+//
+// SAVE_TIMEOUT_MS is 8s, so these deliberately wait it out rather than mock the clock — the point is
+// the real path.
+test('forced overlay: a write that outlives its deadline is reported as UNCONFIRMED, not failed', async ({ page }) => {
+    test.setTimeout(45_000);
+    await forcePasswordSet(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, hangPasswordWrite: true }; });
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await page.locator('#pwForceOverlay.visible').waitFor({ timeout: 8000 });
+
+    await page.locator('#pwfNew').fill('a-real-password-1');
+    await page.locator('#pwfConfirm').fill('a-real-password-1');
+    await page.locator('#pwfSave').click();
+
+    const err = page.locator('#pwfError');
+    await expect(err).toContainText('couldn’t confirm', { timeout: 15_000 });
+    // The exact instruction that makes this safe under BOTH outcomes.
+    await expect(err).toContainText('Keep the password you just entered');
+    await expect(err).toBeVisible();
+    // It must NOT claim failure — that is the whole defect.
+    await expect(err).not.toContainText('Couldn’t connect');
+    // No racing second write: a retry would re-authenticate with a password the late write may have
+    // already replaced.
+    await expect(page.locator('#pwfSave')).toBeDisabled();
+    await expect(page.locator('#pwfSave')).toHaveText('Still saving…');
+    // And a compulsory overlay must never hold someone on an outcome nobody can resolve.
+    await expect(page.locator('#pwfEscape')).toBeVisible();
+});
+
+test('forced overlay: a LATE SUCCESS finishes the flow instead of stranding the member', async ({ page }) => {
+    test.setTimeout(45_000);
+    await forcePasswordSet(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, hangPasswordWrite: true }; });
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await page.locator('#pwForceOverlay.visible').waitFor({ timeout: 8000 });
+
+    await page.locator('#pwfNew').fill('a-real-password-1');
+    await page.locator('#pwfConfirm').fill('a-real-password-1');
+    await page.locator('#pwfSave').click();
+    await expect(page.locator('#pwfError')).toContainText('couldn’t confirm', { timeout: 15_000 });
+
+    // The write lands after all. The overlay must close — the compel IS satisfied — rather than
+    // leaving a member staring at an unresolved state for a password that now works.
+    await page.evaluate(() => window.__E2E_releasePasswordWrite(true));
+    await expect(page.locator('#pwForceOverlay')).toBeHidden({ timeout: 10_000 });
+});
+
+test('forced overlay: a LATE FAILURE re-enables retry with the real error', async ({ page }) => {
+    test.setTimeout(45_000);
+    await forcePasswordSet(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, hangPasswordWrite: true }; });
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    await page.locator('#pwForceOverlay.visible').waitFor({ timeout: 8000 });
+
+    await page.locator('#pwfNew').fill('a-real-password-1');
+    await page.locator('#pwfConfirm').fill('a-real-password-1');
+    await page.locator('#pwfSave').click();
+    await expect(page.locator('#pwfError')).toContainText('couldn’t confirm', { timeout: 15_000 });
+
+    // It genuinely failed. NOW a retry is safe, so the button must come back.
+    await page.evaluate(() => window.__E2E_releasePasswordWrite(false));
+    await expect(page.locator('#pwfError')).toContainText('wasn’t updated', { timeout: 10_000 });
+    await expect(page.locator('#pwfSave')).toBeEnabled();
+    await expect(page.locator('#pwfSave')).toHaveText('Set password →');
+});

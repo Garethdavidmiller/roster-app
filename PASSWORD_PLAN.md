@@ -610,3 +610,28 @@ depend on a read the incident might be affecting.
 §13 stands in full. A request still proves nothing about who sent it; coalescing bounds the *noise*
 of a forged burst, not the forgery. App Check (Track D) remains the real control, and the public
 absence data remains a deliberate, documented trade.
+
+### Test gaps the same review listed, closed at v18.98
+
+§16 fixed the behaviour; it did not pin all of it. The review's own "most valuable additions" list had
+five items and only two were done, which is the pattern that lets a fix regress silently. Three are
+now closed and each was **teeth-verified against the pre-fix code**:
+
+- **A browser test for the indeterminate state.** The unit tests proved `settleOrTimeout` returns the
+  right shape; nothing proved the OVERLAY behaves accordingly — and the v18.92 `.pwf-escape` bug is the
+  standing proof that a CSS/DOM-level defect here is invisible to code reading and to unit tests.
+  Three e2e cases now cover it: the deadline passing reports "couldn't confirm" (and explicitly NOT
+  "Couldn't connect") with the Save button disabled and the escape offered; a LATE SUCCESS closes the
+  overlay; a LATE FAILURE re-enables retry with the real error.
+- **A coalesced reset-request refresh test.** Two rapid Clears, with reads deliberately delayed so the
+  interleaving is reproducible rather than lucky, must leave neither row behind.
+- **A sign-in stat test with an enabled orphan** (already added in §16's release).
+
+Two fixture capabilities were needed and are worth knowing about: `deleteDoc` now really removes the
+seeded row (so a ghost row and a cleared row look different), and `__E2E.docsDelayMs` / 
+`__E2E.hangPasswordWrite` make the two races reproducible instead of timing-dependent.
+
+**Still open from the review, by choice not oversight:** App Check (Track D — an owner decision, and
+the reason it was declined in June 2026 still stands on its own terms); moving absence data behind
+authentication (Track E, undecided); and the remaining FIP country source URLs, which need one
+verified per-country link each rather than a guessed pattern.
