@@ -123,6 +123,35 @@ be argued for rather than merely typed.
 
 Nav-drawer pills/links keep their opacity-based press (the flat-drawer aesthetic) — do not scale them.
 
+## Overlay sizing — three sizes, one cap, one idiom (v19.04)
+
+The seven centred overlays in `shared.css` had drifted to **five widths (300/320/340/360/380), three
+viewport caps (85 / 86 / 90vw), two different width idioms** (`width: min(Npx, Xvw)` vs
+`max-width: Npx; width: 100%`) **and six paddings** — none of the variation meaning anything. 86vw
+against 85vw is not a decision.
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `--modal-compact` | 300px | short panels with no form — About, coming-soon, App Notices |
+| `--modal-standard` | 340px | a form or a list to read — login, one-time notices, Tips |
+| `--modal-wide` | 380px | confirm/prompt dialogs, whose message needs the measure |
+| `--modal-cap` | 90vw | the single viewport cap |
+
+Always `width: min(var(--modal-*), var(--modal-cap))`. **Pick a size; do not invent a sixth width.**
+
+**Why 90vw and not 85vw:** it leaves the WIDEST overlay (the dialog) unchanged, so unifying the cap
+moves nothing on the surface where a clipped message would matter most.
+
+**What moved, and how it was verified.** Only two overlays changed width — one-time notices 320→340
+and Tips 360→340. Everything else kept its pixels, including the login card, whose idiom changed but
+whose rendered width is **340px at 390px viewport both before and after** (measured, not assumed).
+Overlay visual baselines were added FIRST, on the old values, so the change is a reviewable diff:
+13 baselines passed untouched and only the Tips one moved.
+
+**Out of scope, deliberately:** the nav drawer (`min(260px, 72vw)` — a side panel, not a centred
+modal) and the calendar's page-local glass sheets in `index.css` (day detail, AL, team info, doc
+viewer), which are the separate full-bleed/glass family described above.
+
 ## Spacing — `--space-*` is a card rhythm, NOT a general scale (measured v19.03)
 
 `shared.css :root` defines `--space-2/3/4/5` (8/12/16/24px). They name exactly two things — the

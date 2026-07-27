@@ -197,3 +197,16 @@ test('overlay — login card (admin, signed out, desktop 1280)', async ({ page }
     await settle(page, '#loginCard');
     await expect(page).toHaveScreenshot('overlay-login-desktop-1280.png');
 });
+
+// Tips is one of the two overlays the v19.04 size consolidation MOVES (360px -> 340px), so it is
+// baselined here on the OLD value first: the next run's expected/actual/diff PNGs are the
+// before/after evidence for that change rather than a claim about it.
+test('overlay — Tips panel (settings, desktop 1280)', async ({ page }) => {
+    await prep(page, { width: 1280, height: 900 });
+    await page.goto('/settings.html');
+    await settle(page, '.card');
+    await page.locator('.btn-card-tips').first().click();
+    await expect(page.locator('#tipsLightbox')).toBeVisible();
+    await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
+    await expect(page).toHaveScreenshot('overlay-tips-desktop-1280.png');
+});

@@ -342,6 +342,23 @@
     --shadow-1: 0 1px 2px rgba(0,22,48,0.08), 0 2px 8px rgba(0,22,48,0.10);   /* resting / small chips */
     --shadow-2: 0 1px 2px rgba(0,22,48,0.14), 0 6px 20px rgba(0,22,48,0.16);  /* cards, sticky bar, today */
     --shadow-3: 0 2px 6px rgba(0,22,48,0.16), 0 16px 40px rgba(0,22,48,0.22); /* floating: lightboxes, drawer */
+    /* ── Overlay sizing (v19.04) ──────────────────────────────────
+       THREE sizes, ONE viewport cap, ONE idiom. Before this the seven overlays carried five widths
+       (300/320/340/360/380), three caps (85 / 86 / 90vw — 86 against 85 cannot be a decision), two
+       different width idioms (`width: min(Npx, Xvw)` vs `max-width: Npx; width: 100%`) and six
+       paddings, none of the variation meaning anything. Pick a size when adding an overlay; do not
+       invent a sixth width.
+         --modal-compact   short panels with no form: About, coming-soon, App Notices
+         --modal-standard  a form or a list to read: login, one-time notices, Tips
+         --modal-wide      confirm/prompt dialogs, whose message needs the measure
+       --modal-cap is the single viewport cap. 90vw was chosen over 85vw because it leaves the WIDEST
+       overlay (the dialog) unchanged, so the cap unification moves nothing on the surface where a
+       clipped message would matter most. */
+    --modal-compact:  300px;
+    --modal-standard: 340px;
+    --modal-wide:     380px;
+    --modal-cap:      90vw;
+
     /* ── Focus indicators (v18.99) ────────────────────────────────
        One vocabulary for the whole app's focus treatment. The four recipes below were
        hand-written literals in ~80 places across the seven app stylesheets, so retuning the
@@ -579,7 +596,7 @@ body.lb-open #stickyTotal { display: none !important; }
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-3);
     padding: 22px 22px 18px;
-    width: min(380px, 90vw);
+    width: min(var(--modal-wide), var(--modal-cap));
     text-align: left;
 }
 .dialog-title {
@@ -672,7 +689,7 @@ body.lb-open #stickyTotal { display: none !important; }
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: var(--radius-panel);
     padding: 36px 40px 32px;
-    width: min(300px, 85vw);
+    width: min(var(--modal-compact), var(--modal-cap));
     text-align: center;
     max-height: 80vh;
     max-height: 80dvh;
@@ -869,7 +886,7 @@ body.lb-open #stickyTotal { display: none !important; }
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: var(--radius-panel);
     padding: 28px 28px 22px;
-    width: min(320px, 86vw);
+    width: min(var(--modal-standard), var(--modal-cap));
     text-align: center;
     max-height: 80vh;
     max-height: 80dvh;
@@ -1660,7 +1677,7 @@ button.nav-panel-link--notices {
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: var(--radius-panel);
     padding: 40px 40px 32px;
-    width: min(300px, 85vw);
+    width: min(var(--modal-compact), var(--modal-cap));
     text-align: center;
     transform: scale(0.85);
 }
@@ -1682,7 +1699,7 @@ button.nav-panel-link--notices {
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: var(--radius-panel);
     padding: 40px 40px 32px;
-    width: min(300px, 85vw);
+    width: min(var(--modal-compact), var(--modal-cap));
     max-height: 80vh;
     max-height: 80dvh;
     /* The inner list scrolls (not the whole card) so the ✕ and heading stay
@@ -1927,8 +1944,7 @@ button.nav-panel-link--notices {
     background: white;
     border-radius: var(--radius-xl);
     padding: 36px 32px 28px;
-    max-width: 340px;
-    width: 100%;
+    width: min(var(--modal-standard), var(--modal-cap));
     margin: auto;
     text-align: center;
     box-shadow: var(--shadow-3);
@@ -2303,8 +2319,7 @@ button.nav-panel-link--notices {
     /* Compact-dialog family, not the card radius (v18.90). */
     border-radius: var(--radius-xl);
     padding: 28px 28px 24px;
-    max-width: 360px;
-    width: 100%;
+    width: min(var(--modal-standard), var(--modal-cap));
     max-height: 85vh;
     box-shadow: var(--shadow-3);
 }
