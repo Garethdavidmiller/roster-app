@@ -876,10 +876,15 @@ function claimsForTier(name, { adminSet, managerSet, designerSet }) {
  * PURE, because the handler around it uses the Admin SDK and can't run in the test sandbox. Every
  * judgement worth getting wrong lives here:
  *
+ *  · **Only accounts on the CURRENT server-owned roster are counted** (`allowedEmails`, v18.97 —
+ *    external review). Filtering merely on "not disabled" counted any enabled `@myb-roster.local`
+ *    account still sitting in the project: a leaver whose orphan sweep hasn't been run or failed, or
+ *    anything else created there. Those inflated `total` AND `neverSignedIn`, so a card headed "exact
+ *    count" could quietly disagree with the roster. The allowlist makes the denominator mean what the
+ *    card says it means. Admins are excluded simply by being left out of the list by the caller,
+ *    matching recordUsage's write-time CONFIG.ADMIN_NAMES filter.
  *  · **Disabled accounts are ignored entirely**, including in the total. A leaver is not a
  *    provisioned account waiting to be used; counting them would permanently depress the ratio.
- *  · **Admin accounts are excluded**, matching recordUsage's write-time CONFIG.ADMIN_NAMES filter —
- *    the figures must reflect real staff, not the developer's own testing.
  *  · **A missing/unparseable `lastSignInTime` means never signed in**, never "signed in long ago".
  *    Firebase leaves it empty for an account created but never used, which is precisely the
  *    `neverSignedIn` population — the actionable one (provisioned staff who may not know the app
@@ -892,16 +897,18 @@ function claimsForTier(name, { adminSet, managerSet, designerSet }) {
  *
  * @param {Array<{ email?: string, disabled?: boolean, metadata?: { lastSignInTime?: string|null } }>} users
  * @param {number} nowMs
- * @param {Set<string>} excludeEmails  lowercase emails to omit (admins)
+ * @param {Set<string>} allowedEmails  lowercase emails of the CURRENT roster, admins already removed
  * @returns {{ total: number, last7: number, last30: number, neverSignedIn: number }}
  */
-function summariseSignIns(users, nowMs, excludeEmails) {
+function summariseSignIns(users, nowMs, allowedEmails) {
     const DAY = 24 * 60 * 60 * 1000;
     const out = { total: 0, last7: 0, last30: 0, neverSignedIn: 0 };
+    // An empty/absent allowlist counts NOTHING rather than everything: this is a reporting figure, and
+    // a zero that is visibly wrong is safer than a plausible number built from an unknown population.
     for (const u of Array.isArray(users) ? users : []) {
         if (!u || u.disabled) continue;                       // leavers are not provisioned accounts
         const email = typeof u.email === 'string' ? u.email.toLowerCase() : '';
-        if (!email || (excludeEmails && excludeEmails.has(email))) continue;
+        if (!email || !allowedEmails || !allowedEmails.has(email)) continue;
         out.total++;
         const raw = u.metadata && u.metadata.lastSignInTime;
         const ms  = raw ? Date.parse(raw) : NaN;
@@ -980,6 +987,42 @@ function shouldRecordResetRequest(lastRequestedAtMs, nowMs, throttleMs) {
 }
 
 /**
+ * Should this recorded request actually PUSH, or has the admin already been told recently?
+ *
+ * The per-member throttle bounds how often ONE person can ring the phone; it does nothing about a
+ * caller walking the roster, which is public, and filing one request per name. Fifty valid requests
+ * produced fifty targeted pushes (external review, v18.97). The row-level record is fine — the
+ * collection is bounded by construction — but the notifications are not, and a phone buzzing fifty
+ * times is both the annoyance and the reason a real request would then be ignored.
+ *
+ * So: push only when no OTHER request was recorded inside the coalescing window. During a burst the
+ * admin gets ONE notification, and because the feature shares a single notification tag carrying the
+ * queue depth, that one is a live summary of the whole queue rather than a fragment of it. A genuine
+ * second request later in the day is well outside the window and still pushes.
+ *
+ * Deliberately derived from data we ALREADY hold (the other rows' timestamps) rather than a new
+ * "last notified" document: no extra collection, no extra rules surface, and nothing a client could
+ * write to suppress the admin's notifications.
+ *
+ * Fails OPEN — an unreadable timestamp notifies rather than stays silent, because a missed doorbell
+ * is worse than a duplicate one.
+ *
+ * @param {Array<number|null|undefined>} otherRequestedAtMs  requestedAt of every OTHER pending row
+ * @param {number} nowMs
+ * @param {number} windowMs
+ * @returns {boolean} true → send the push
+ */
+function shouldNotifyAdmin(otherRequestedAtMs, nowMs, windowMs) {
+    for (const raw of Array.isArray(otherRequestedAtMs) ? otherRequestedAtMs : []) {
+        const t = Number(raw);
+        if (!Number.isFinite(t) || t <= 0) continue;          // unreadable → not evidence of a recent push
+        if (t > nowMs) continue;                              // clock skew → ignore, never suppress
+        if (nowMs - t < windowMs) return false;               // someone else just triggered one
+    }
+    return true;
+}
+
+/**
  * The headline + body for the admin's "someone asked for a password reset" push
  * (PASSWORD_PLAN.md — the request queue, Phase 2).
  *
@@ -1043,5 +1086,6 @@ module.exports = {
     computeOrphanLabels,
     shouldRecordResetRequest,
     buildResetRequestNotice,
+    shouldNotifyAdmin,
     summariseSignIns,
 };

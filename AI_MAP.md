@@ -321,10 +321,19 @@ any HTML for it.
   asserting a copy).
 - `withTimeout(promise, ms)` — exported at v18.95 for the Settings Password card, which makes the same
   `setOwnPassword` call and had the same gap: a promise that never SETTLES reaches neither `catch` nor
-  `finally`, so a dead-air connection left that card's button disabled on "Saving…" for good. Milder
-  than the overlay's version of the bug (Settings is dismissible, so it is a stuck card rather than a
-  trap) but identical in kind, which is why there is now one implementation rather than two. Also
-  covered by `password-force.test.mjs` (same source-extraction technique).
+  `finally`, so a dead-air connection left that card's button disabled on "Saving…" for good. **Use it
+  only for calls that change NOTHING** (a read, the idempotent re-auth) — it reports a timeout as a
+  rejection, and every caller reads a rejection as "it did not happen".
+- `settleOrTimeout(promise, ms)` (v18.97, external review) — the version for STATE-CHANGING calls.
+  `Promise.race` stops *waiting*; it does not *cancel*, so `updatePassword` could land a second after
+  the UI announced failure, leaving a member convinced their old password still worked — during a
+  compulsory migration, i.e. the lockout the timeout existed to prevent. It reports THREE outcomes
+  (`ok` / `failed` / `pending`) and hands back a handle on the original work, so a late success
+  finishes the flow and a late failure re-enables retry with the real error. The tracked promise
+  absorbs its own rejection at creation, so a late failure nobody awaits can never surface as an
+  unhandled rejection. Both password surfaces keep the Save button DISABLED while `pending` — a second
+  write racing a first that may still land is the worst version of the bug. Covered by
+  `password-force.test.mjs`, including the late-success and late-failure cases the v18.95 tests missed.
 
 **The `authStatus === 'named'` condition is the lockout guard.** Not "an auth user exists": on the
 calendar that user is ANONYMOUS and on paycalc (`soft` policy) a member can be locally signed in with a

@@ -22,7 +22,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
-import { initPasswordForce, withTimeout } from './password-force.js';
+import { initPasswordForce, withTimeout, settleOrTimeout } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 
@@ -407,6 +407,49 @@ export function init() {
         // resolved yet.
         document.addEventListener('myb:password-set', () => refreshStatus(true));
 
+        /** True while a password write has passed its deadline but may still be in flight. */
+        let _pwIndeterminate = false;
+
+        /** The write completed. Shared by the in-time and the LATE success paths.
+         *  @param {any} res the setOwnPassword result ({ statusRecorded }) */
+        const onWriteConfirmed = (res) => {
+            setFeedback(res && res.statusRecorded === false
+                ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'
+                : '✓ Password updated. Use it the next time you sign in.', 'ok');
+            curEl.value = newEl.value = confEl.value = '';
+            // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
+            // reveal state the member chose, so the NEXT password typed into this card — possibly
+            // by someone else on a shared device — would appear in the clear with no warning.
+            setRevealed(false);
+            refreshStatus(true);   // optimistic: the password changed, so show migrated immediately
+            // Target-page permanent dismiss (new-notice pattern): setting the password COMPLETES
+            // the password-2026 campaign, so neither notice surface (paycalc/calendar) shows again
+            // on this device — even if the member reached here without ever closing a notice.
+            lsSet('myb_notice_password-2026_done', '1');
+        };
+
+        /**
+         * The write passed its deadline and is still running. Say exactly that — the one thing we must
+         * NOT say is that it failed, because it may be about to succeed, and the member would then be
+         * signing in with a password that no longer exists (external review, v18.97).
+         *
+         * The fields are deliberately left FILLED: if the write did land, what they typed is now their
+         * password, and clearing it would destroy the only copy on screen.
+         * @param {Promise<{status:string, value?:any}>} settled
+         */
+        const onIndeterminate = (settled) => {
+            _pwIndeterminate = true;
+            saveBtn.disabled = true;                  // no racing second write
+            saveBtn.textContent = 'Still saving…';
+            setFeedback('We couldn’t confirm whether your password was updated. Keep the password you just entered and try it first next time you sign in.', 'err');
+            settled.then(late => {
+                _pwIndeterminate = false;
+                saveBtn.disabled = false; saveBtn.textContent = 'Set password';
+                if (late.status === 'ok') onWriteConfirmed(late.value);   // it landed after all
+                else setFeedback('Your password wasn’t updated — try again.', 'err');
+            });
+        };
+
         saveBtn.addEventListener('click', async () => {
             if (!member) return;
             const current = curEl.value;
@@ -442,24 +485,19 @@ export function init() {
                 // that never settles — dead-air mobile data, not an error — skips both `catch` and
                 // `finally`, leaving the button disabled on "Saving…" with no message, for good. The
                 // forced overlay got this at v18.94; this card makes the same call and was missed.
+                // Re-auth may time out as a plain failure — it changes nothing, so "it did not happen"
+                // is a true statement about it and retrying is free.
                 await withTimeout(reauthenticateWithPassword(member, current), SAVE_TIMEOUT_MS);
                 reauthed = true;
-                const res = await withTimeout(setOwnPassword(member, next), SAVE_TIMEOUT_MS);
+                // The WRITE may NOT (v18.97, external review). Promise.race stops WAITING; it does not
+                // CANCEL — so a slow updatePassword can land after we would have reported failure, and
+                // the member would then sign in with an old password that no longer works.
+                const outcome = await settleOrTimeout(setOwnPassword(member, next), SAVE_TIMEOUT_MS);
+                if (outcome.status === 'pending') { onIndeterminate(outcome.settled); return; }
+                if (outcome.status === 'failed')  throw outcome.error;
                 // The password DID change (setOwnPassword only rejects if reauth/updatePassword failed).
                 // A missing migration stamp is a soft note, never "it failed" — see setOwnPassword.
-                setFeedback(res && res.statusRecorded === false
-                    ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'
-                    : '✓ Password updated. Use it the next time you sign in.', 'ok');
-                curEl.value = newEl.value = confEl.value = '';
-                // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
-                // reveal state the member chose, so the NEXT password typed into this card — possibly
-                // by someone else on a shared device — would appear in the clear with no warning.
-                setRevealed(false);
-                refreshStatus(true);   // optimistic: the password changed, so show migrated immediately
-                // Target-page permanent dismiss (new-notice pattern): setting the password COMPLETES
-                // the password-2026 campaign, so neither notice surface (paycalc/calendar) shows again
-                // on this device — even if the member reached here without ever closing a notice.
-                lsSet('myb_notice_password-2026_done', '1');
+                onWriteConfirmed(outcome.value);
             } catch (e) {
                 const code = /** @type {any} */ (e)?.code || '';
                 // Map by CAUSE and by STAGE. Order: the cause-specific codes first, then the stage split.
@@ -471,7 +509,9 @@ export function init() {
                 else if (!reauthed) setFeedback('Couldn’t verify your current password — try again shortly.', 'err');
                 else setFeedback('Your password wasn’t updated — try again shortly.', 'err');   // reauth OK, update stage failed
             } finally {
-                saveBtn.disabled = false; saveBtn.textContent = 'Set password';
+                // Not re-enabled while a write may still be in flight — onIndeterminate owns the
+                // button until the real outcome arrives, so a second save can't race the first.
+                if (!_pwIndeterminate) { saveBtn.disabled = false; saveBtn.textContent = 'Set password'; }
             }
         });
     }

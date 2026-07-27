@@ -545,13 +545,20 @@ export function init() {
     // collection — firestore.rules), and the name in each row came from the server-owned activeMembers
     // list, never from the request body, which is what makes it safe to render.
     let _rrLoading = false;
+    let _rrReloadPending = false;
     async function initResetRequests() {
         const content = document.getElementById('resetRequestsContent');
         const chip    = document.getElementById('resetRequestsCountChip');
         if (!content) return;
         // Two Clears in quick succession each started their own load; whichever snapshot landed LAST
         // won, so an older one could repaint a just-deleted row as a ghost (v18.94).
-        if (_rrLoading) return;
+        //
+        // The v18.94 guard DROPPED the second refresh, which fixed the ordering but left a subtler
+        // ghost (external review, v18.96): clear A → its refresh starts → clear B → B's refresh is
+        // discarded → A's in-flight snapshot (taken before B was deleted) renders B back, and nothing
+        // is queued to correct it. QUEUE the request instead of dropping it, so the last word always
+        // belongs to a load started AFTER the last delete.
+        if (_rrLoading) { _rrReloadPending = true; return; }
         _rrLoading = true;
         content.setAttribute('aria-busy', 'true');
         try {
@@ -607,6 +614,9 @@ export function init() {
             _cardLoadError(content, 'Couldn’t load the password reset requests — check your connection.', () => initResetRequests());
         } finally {
             _rrLoading = false;
+            // Run the refresh that arrived mid-load, so a delete during a load is never the one whose
+            // result is missing. Not awaited — this IS the tail of the load it was queued behind.
+            if (_rrReloadPending) { _rrReloadPending = false; initResetRequests(); }
         }
     }
     initResetRequests();

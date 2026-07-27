@@ -554,3 +554,59 @@ comparison FAILED, so a drifted-but-passing baseline was unreachable by the docu
 Both fixed: the command is now `--update-snapshots=all` everywhere it is documented, and the tolerance
 is tightened to 0.1% on the evidence that re-rendering twice in this environment produces
 byte-identical PNGs — the noise floor here is zero, not 0.3%.
+
+---
+
+## 16. What the external review found (v18.97)
+
+An external review of v18.96 rated it 9.0/10 and raised one urgent defect, which was real and was
+mine: the guard I added to stop a hang had turned a *slow* password write into a *reported failure*.
+
+**A timed-out password write is INDETERMINATE, not failed.** `Promise.race` stops waiting; it does
+not cancel. So `updatePassword` could land a second after the UI had said "Couldn't connect", leaving
+the member believing their old password still worked — during a COMPULSORY migration, which makes it
+a route into the exact lockout the timeout was added to prevent. The v18.94/95 tests proved a *hang*
+becomes `myb/timeout`; none covered a promise settling *after* the deadline.
+
+`settleOrTimeout` now reports three outcomes rather than two — `ok` / `failed` / `pending` — and
+hands back a handle on the original work. On `pending` both surfaces now:
+- say plainly that the result could not be confirmed, and to **keep the new password and try it
+  first** (the safe instruction under either outcome);
+- keep the Save button **disabled**, because a second write racing a first that may still land is the
+  worst version of this bug — the retry re-authenticates with a password the late write may already
+  have replaced;
+- keep watching: a late success finishes the flow normally, a late failure re-enables retry with the
+  real error;
+- still offer "Continue for now", so a compulsory overlay never holds someone on an outcome nobody
+  can resolve.
+
+`withTimeout` is kept for calls that change nothing (reads, the idempotent re-auth) and its docstring
+now says so. **The rule: a state-changing call may never use a timeout that reports failure.**
+
+**Sign-in statistics counted accounts that are not on the roster.** `summariseSignIns` filtered on
+"not disabled", so an enabled `@myb-roster.local` account for a leaver — the orphan sweep is a manual
+admin action — inflated both `total` and `neverSignedIn` on a card headed "exact". It now takes an
+ALLOWLIST built from the server-owned roster, and fails closed: an empty allowlist counts nothing,
+because a visibly-wrong zero beats a plausible number drawn from an unknown population.
+
+**Two quick Clears could still leave a ghost row.** The v18.94 guard *dropped* a refresh requested
+during an active load, so: clear A → refresh A starts → clear B → refresh B discarded → A's older
+snapshot repaints B, with nothing queued to correct it. Refreshes are now queued, not dropped.
+
+**A roster walk produced one push per name.** The per-member throttle bounds one person; it does
+nothing about a caller walking the public roster. `shouldNotifyAdmin` now coalesces globally: one
+push per 5-minute window, and because the feature shares one notification tag carrying the queue
+depth, that one push is an accurate summary of the whole queue rather than a fragment of it. Derived
+from the timestamps already on the rows — no new document, no new rules surface, and nothing a client
+could write to suppress the admin's notifications.
+
+**The kill switch didn't reach the endpoint.** `CONFIG.PASSWORD_RESET_REQUESTS` hides the client
+link; the public function stayed callable. `RESET_REQUESTS_ENABLED` in `functions/index.js` now
+closes it with a 503. Deliberately a constant, not a Firestore flag: an incident switch must not
+depend on a read the incident might be affecting.
+
+### Still accepted, unchanged
+
+§13 stands in full. A request still proves nothing about who sent it; coalescing bounds the *noise*
+of a forged burst, not the forgery. App Check (Track D) remains the real control, and the public
+absence data remains a deliberate, documented trade.

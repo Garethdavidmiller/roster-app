@@ -101,3 +101,84 @@ describe('withTimeout', () => {
         await withTimeout(Promise.resolve(1), 60_000);   // would stall exit if the timer survived
     });
 });
+
+// ── settleOrTimeout — a slow write is NOT a failed write ────────────────────────────────────────
+// The defect this closes (external review, v18.96): Promise.race stops WAITING but does not CANCEL,
+// so `updatePassword` could land a second after the UI had announced failure. The member then
+// believes their old password still works — during a COMPULSORY migration, which is a lockout.
+// The old withTimeout tests proved a hang becomes myb/timeout; none covered a promise that settles
+// AFTER the deadline, which is precisely the dangerous case.
+const soMatch = /export function settleOrTimeout\(([\s\S]*?)\n}/.exec(SRC);
+assert.ok(soMatch, 'settleOrTimeout not found in password-force.js — has it been renamed?');
+const settleOrTimeout = new Function(`return function settleOrTimeout(${soMatch[1]}\n}`)();
+
+/** A promise that settles when we say so. */
+function deferred() {
+    /** @type {any} */ let resolve; /** @type {any} */ let reject;
+    const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+}
+
+describe('settleOrTimeout', () => {
+    test('reports success when the operation finishes in time', async () => {
+        const r = await settleOrTimeout(Promise.resolve('done'), 1000);
+        assert.deepEqual(r, { status: 'ok', value: 'done' });
+    });
+
+    test('reports a definite failure, preserving the original error', async () => {
+        const original = Object.assign(new Error('nope'), { code: 'auth/weak-password' });
+        const r = await settleOrTimeout(Promise.reject(original), 1000);
+        assert.equal(r.status, 'failed');
+        assert.equal(r.error, original);
+    });
+
+    // The distinction the whole fix rests on: 'pending' is NOT 'failed'.
+    test('reports PENDING — never failed — when the deadline passes first', async () => {
+        const d = deferred();
+        const r = await settleOrTimeout(d.promise, 10);
+        assert.equal(r.status, 'pending');
+        assert.notEqual(r.status, 'failed');
+        assert.ok(typeof r.settled?.then === 'function', 'must hand back a handle on the real outcome');
+        d.resolve('late');   // tidy up
+    });
+
+    test('a LATE SUCCESS is observable through the returned handle', async () => {
+        const d = deferred();
+        const r = await settleOrTimeout(d.promise, 10);
+        assert.equal(r.status, 'pending');
+        d.resolve({ statusRecorded: true });
+        assert.deepEqual(await r.settled, { status: 'ok', value: { statusRecorded: true } });
+    });
+
+    test('a LATE FAILURE is observable, with the real error, so a retry can be offered', async () => {
+        const d = deferred();
+        const r = await settleOrTimeout(d.promise, 10);
+        const original = Object.assign(new Error('server said no'), { code: 'auth/network-request-failed' });
+        d.reject(original);
+        const late = await r.settled;
+        assert.equal(late.status, 'failed');
+        assert.equal(late.error, original);
+    });
+
+    // A late rejection nobody is listening for must not become an unhandled rejection and take the
+    // page down — the tracked promise absorbs it at creation, before the race is even run.
+    test('a late rejection the caller ignores does not become an unhandled rejection', async () => {
+        const seen = [];
+        const onUnhandled = (/** @type {any} */ e) => seen.push(e);
+        process.on('unhandledRejection', onUnhandled);
+        try {
+            const d = deferred();
+            const r = await settleOrTimeout(d.promise, 10);
+            assert.equal(r.status, 'pending');
+            d.reject(new Error('ignored'));           // caller never awaits r.settled
+            await new Promise(res => setTimeout(res, 50));
+            assert.deepEqual(seen, [], 'a late rejection must be absorbed, not thrown globally');
+        } finally {
+            process.off('unhandledRejection', onUnhandled);
+        }
+    });
+
+    test('clears its timer on a fast settle so nothing is left pending', async () => {
+        await settleOrTimeout(Promise.resolve(1), 60_000);   // would stall exit if the timer survived
+    });
+});

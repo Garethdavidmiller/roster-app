@@ -37,6 +37,7 @@ const {
 
     shouldRecordResetRequest,
     buildResetRequestNotice,
+    shouldNotifyAdmin,
     summariseSignIns,} = require('./functions/roster-parse-helpers.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
@@ -1327,7 +1328,10 @@ describe('buildResetRequestNotice', () => {
 describe('summariseSignIns', () => {
     const DAY = 24 * 60 * 60 * 1000;
     const NOW = 1_700_000_000_000;
-    const NONE = new Set();
+    /** The roster allowlist most tests use. */
+    const ROSTER = new Set(['a.one@myb-roster.local', 'b.two@myb-roster.local',
+                            'c.three@myb-roster.local', 'd.four@myb-roster.local',
+                            'e.five@myb-roster.local']);
     /** @param {string} email @param {number|null} agoDays @param {boolean} [disabled] */
     const user = (email, agoDays, disabled = false) => ({
         email,
@@ -1340,7 +1344,7 @@ describe('summariseSignIns', () => {
             user('a.one@myb-roster.local', 1),      // within 7 and 30
             user('b.two@myb-roster.local', 20),     // within 30 only
             user('c.three@myb-roster.local', 200),  // neither
-        ], NOW, NONE);
+        ], NOW, ROSTER);
         assert.deepEqual(stats, { total: 3, last7: 1, last30: 2, neverSignedIn: 0 });
     });
 
@@ -1348,7 +1352,7 @@ describe('summariseSignIns', () => {
     // one record per account no matter how many devices signed in on it. That is the whole reason
     // this route exists, so pin it: many sign-ins on one account is still one account.
     test('one account is one account however many devices it signed in from', () => {
-        const stats = summariseSignIns([user('a.one@myb-roster.local', 0)], NOW, NONE);
+        const stats = summariseSignIns([user('a.one@myb-roster.local', 0)], NOW, ROSTER);
         assert.equal(stats.total, 1);
         assert.equal(stats.last30, 1);
     });
@@ -1362,7 +1366,7 @@ describe('summariseSignIns', () => {
             { email: 'b.two@myb-roster.local' },                       // no metadata at all
             { email: 'c.three@myb-roster.local', metadata: {} },       // metadata, no field
             { email: 'd.four@myb-roster.local', metadata: { lastSignInTime: 'not a date' } },
-        ], NOW, NONE);
+        ], NOW, ROSTER);
         assert.deepEqual(stats, { total: 4, last7: 0, last30: 0, neverSignedIn: 4 });
     });
 
@@ -1371,62 +1375,151 @@ describe('summariseSignIns', () => {
     test('disabled (leaver) accounts are ignored entirely, including in the total', () => {
         const stats = summariseSignIns([
             user('a.one@myb-roster.local', 1),
-            user('gone@myb-roster.local', 1, /* disabled */ true),
-            user('never@myb-roster.local', null, /* disabled */ true),
-        ], NOW, NONE);
+            user('b.two@myb-roster.local', 1, /* disabled */ true),
+            user('c.three@myb-roster.local', null, /* disabled */ true),
+        ], NOW, ROSTER);
+        assert.deepEqual(stats, { total: 1, last7: 1, last30: 1, neverSignedIn: 0 });
+    });
+
+    // THE v18.97 FIX (external review). Disabling leavers is a MANUAL admin action ("Set up accounts
+    // → Disable accounts for leavers"); until it is run — or if it failed on one account — an ENABLED
+    // account exists for someone no longer on the roster. Filtering on "not disabled" counted them,
+    // inflating both the total and the never-signed-in figure on a card that says "exact".
+    test('an ENABLED account that is no longer on the roster is excluded', () => {
+        const stats = summariseSignIns([
+            user('a.one@myb-roster.local', 1),
+            user('gone.leaver@myb-roster.local', 400),      // enabled orphan, sweep not yet run
+            user('never.leaver@myb-roster.local', null),    // enabled orphan, never used
+        ], NOW, ROSTER);
+        assert.deepEqual(stats, { total: 1, last7: 1, last30: 1, neverSignedIn: 0 });
+    });
+
+    test('a non-roster account of any kind in the project is excluded', () => {
+        const stats = summariseSignIns([
+            user('a.one@myb-roster.local', 1),
+            user('someone@gmail.com', 1),
+            user('service-account@example.com', null),
+        ], NOW, ROSTER);
         assert.deepEqual(stats, { total: 1, last7: 1, last30: 1, neverSignedIn: 0 });
     });
 
     // Mirrors recordUsage's write-time CONFIG.ADMIN_NAMES filter — the figures must reflect real
-    // staff, not the developer's own testing, or the two halves of the card would disagree.
-    test('excluded (admin) emails are dropped, case-insensitively', () => {
-        const ex = new Set(['g.miller@myb-roster.local']);
+    // staff, not the developer's own testing, or the two halves of the card would disagree. The
+    // caller omits admins from the allowlist rather than passing a separate denylist.
+    test('admins are excluded by absence from the allowlist, case-insensitively', () => {
         const stats = summariseSignIns([
-            user('G.Miller@MYB-Roster.local', 1),
-            user('a.one@myb-roster.local', 1),
-        ], NOW, ex);
+            user('G.Miller@MYB-Roster.local', 1),   // admin: not in ROSTER
+            user('A.One@MYB-Roster.local', 1),      // roster member, mixed case
+        ], NOW, ROSTER);
         assert.deepEqual(stats, { total: 1, last7: 1, last30: 1, neverSignedIn: 0 });
     });
 
     test('an account with no email is skipped rather than counted as never-signed-in', () => {
-        const stats = summariseSignIns([{ metadata: { lastSignInTime: null } }], NOW, NONE);
+        const stats = summariseSignIns([{ metadata: { lastSignInTime: null } }], NOW, ROSTER);
         assert.deepEqual(stats, { total: 0, last7: 0, last30: 0, neverSignedIn: 0 });
     });
 
     // Inclusive boundary, same convention as shouldRecordResetRequest.
     test('the window boundary is inclusive', () => {
-        assert.equal(summariseSignIns([user('a@x', 7)],  NOW, NONE).last7,  1);
-        assert.equal(summariseSignIns([user('a@x', 30)], NOW, NONE).last30, 1);
+        assert.equal(summariseSignIns([user('a.one@myb-roster.local', 7)],  NOW, ROSTER).last7,  1);
+        assert.equal(summariseSignIns([user('a.one@myb-roster.local', 30)], NOW, ROSTER).last30, 1);
         // One second past each boundary both accounts drop out of their OWN window — but the
         // 7-day one is still comfortably inside 30 days, so it moves down a band rather than away.
-        const justOver = summariseSignIns([user('a@x', 30), user('b@x', 7)], NOW + 1000, NONE);
+        const justOver = summariseSignIns(
+            [user('a.one@myb-roster.local', 30), user('b.two@myb-roster.local', 7)], NOW + 1000, ROSTER);
         assert.equal(justOver.last7,  0);
         assert.equal(justOver.last30, 1);
     });
 
     // Clock skew must never make a real member vanish from the count.
     test('a future sign-in timestamp counts as recent, not as an error', () => {
-        const stats = summariseSignIns([user('a@x', -5)], NOW, NONE);
+        const stats = summariseSignIns([user('a.one@myb-roster.local', -5)], NOW, ROSTER);
         assert.deepEqual(stats, { total: 1, last7: 1, last30: 1, neverSignedIn: 0 });
     });
 
     test('an empty or junk user list yields zeroes rather than throwing', () => {
         for (const bad of [[], null, undefined, 'nope', {}]) {
-            assert.deepEqual(summariseSignIns(/** @type {any} */ (bad), NOW, NONE),
+            assert.deepEqual(summariseSignIns(/** @type {any} */ (bad), NOW, ROSTER),
                              { total: 0, last7: 0, last30: 0, neverSignedIn: 0 });
         }
-        assert.deepEqual(summariseSignIns([null, undefined], NOW, NONE),
+        assert.deepEqual(summariseSignIns([null, undefined], NOW, ROSTER),
                          { total: 0, last7: 0, last30: 0, neverSignedIn: 0 });
+    });
+
+    // Fail CLOSED on a missing allowlist: a visibly-wrong zero beats a plausible number counted from
+    // an unknown population on a card whose whole claim is exactness.
+    test('a missing or empty allowlist counts nothing rather than everything', () => {
+        const users = [user('a.one@myb-roster.local', 1), user('b.two@myb-roster.local', null)];
+        for (const list of [new Set(), null, undefined]) {
+            assert.deepEqual(summariseSignIns(users, NOW, /** @type {any} */ (list)),
+                             { total: 0, last7: 0, last30: 0, neverSignedIn: 0 });
+        }
     });
 
     // last7 is by construction a subset of last30, and both of last30+never <= total. A future
     // refactor that broke the nesting would produce a card claiming more recent than total users.
     test('the counts stay internally consistent', () => {
         const stats = summariseSignIns([
-            user('a@x', 0), user('b@x', 6), user('c@x', 29), user('d@x', 400), user('e@x', null),
-        ], NOW, NONE);
+            user('a.one@myb-roster.local', 0), user('b.two@myb-roster.local', 6),
+            user('c.three@myb-roster.local', 29), user('d.four@myb-roster.local', 400),
+            user('e.five@myb-roster.local', null),
+        ], NOW, ROSTER);
         assert.ok(stats.last7 <= stats.last30, 'last7 must be a subset of last30');
         assert.ok(stats.last30 + stats.neverSignedIn <= stats.total, 'windows cannot exceed the total');
         assert.deepEqual(stats, { total: 5, last7: 2, last30: 3, neverSignedIn: 1 });
+    });
+});
+
+// ── shouldNotifyAdmin — one push per burst, not one per name (v18.97) ───────────────────────────
+// The per-member throttle bounds how often ONE person can ring the admin's phone. It does nothing
+// about a caller walking the PUBLIC roster and filing one request per name, which produced one
+// targeted push each (external review). Fifty buzzes is both the nuisance and the reason a genuine
+// request would then be ignored.
+describe('shouldNotifyAdmin', () => {
+    const FIVE_MIN = 5 * 60 * 1000;
+    const NOW = 1_700_000_000_000;
+
+    test('notifies when this is the only request', () => {
+        assert.equal(shouldNotifyAdmin([], NOW, FIVE_MIN), true);
+    });
+
+    test('notifies when every other request is older than the window', () => {
+        assert.equal(shouldNotifyAdmin([NOW - FIVE_MIN, NOW - 86_400_000], NOW, FIVE_MIN), true);
+    });
+
+    // The burst case: the roster is public, so fifty valid names can be filed in seconds. The first
+    // rings; the rest ride on it — and because the feature shares one notification tag carrying the
+    // queue depth, that first push stays an accurate summary of the whole queue.
+    test('stays silent when another request landed inside the window', () => {
+        assert.equal(shouldNotifyAdmin([NOW - 1000], NOW, FIVE_MIN), false);
+        assert.equal(shouldNotifyAdmin([NOW - (FIVE_MIN - 1)], NOW, FIVE_MIN), false);
+    });
+
+    test('one recent request among many old ones is enough to coalesce', () => {
+        assert.equal(shouldNotifyAdmin([NOW - 86_400_000, NOW - 2000, NOW - 90_000_000], NOW, FIVE_MIN), false);
+    });
+
+    // Fail OPEN throughout: a missed doorbell is worse than a duplicate one, and this must never be
+    // the reason a locked-out member goes unnoticed.
+    test('unreadable timestamps are not treated as evidence of a recent push', () => {
+        for (const bad of [null, undefined, NaN, 0, -1, 'soon', {}]) {
+            assert.equal(shouldNotifyAdmin([/** @type {any} */ (bad)], NOW, FIVE_MIN), true,
+                `${String(bad)} should not suppress the notification`);
+        }
+    });
+
+    test('a junk list yields a notification rather than throwing', () => {
+        for (const bad of [null, undefined, 'nope', {}, 42]) {
+            assert.equal(shouldNotifyAdmin(/** @type {any} */ (bad), NOW, FIVE_MIN), true);
+        }
+    });
+
+    // A device clock ahead of the server must not silence the admin indefinitely.
+    test('a future timestamp never suppresses the notification', () => {
+        assert.equal(shouldNotifyAdmin([NOW + 600_000], NOW, FIVE_MIN), true);
+    });
+
+    test('the window boundary is exclusive — exactly one window old notifies again', () => {
+        assert.equal(shouldNotifyAdmin([NOW - FIVE_MIN], NOW, FIVE_MIN), true);
     });
 });
