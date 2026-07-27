@@ -238,7 +238,7 @@ calendar require a session too, closing the external review's **"public absence/
 
 | | Rule shape | Who it lets in | What it blocks | UX cost |
 |---|-----------|----------------|----------------|---------|
-| **Level 1** — auth-required read | `allow read: if request.auth != null;` | any session **incl. the calendar's existing anonymous one** | a raw REST/`curl` scrape with **no** Firebase session; search-engine indexing; casual URL sharing | **≈ zero** — the calendar already signs in anonymously, so this is already satisfied. No front-door change. |
+| **Level 1** — auth-required read | `allow read: if request.auth != null;` | any session **incl. the calendar's existing anonymous one** | a raw REST/`curl` scrape with **no** Firebase session; casual URL sharing | **Small, not zero** — see E1 below. No front-door change. |
 | **Level 2** — named-only read | `allow read: if request.auth.token.name != null;` | only a **named** staff session | anonymous sessions too — anyone not signed in as staff | **Real** — the calendar must show a login before it renders. The true "behind login". |
 
 **Be honest about what each buys.** The project config is in the client JS, so a *determined* scraper
@@ -250,10 +250,22 @@ lets any staff member view any colleague's roster/AL by design — Track E does 
 **The rules tightening is the actual control** (a client gate over open rules is theatre, bypassable via
 REST). Staged:
 
-- **E1 (cheap, do-anytime): tighten reads to Level 1** (`request.auth != null`, anonymous OK) on
-  `overrides` + the three document collections. **Verify** the notification-tap fresh-visit path
-  establishes the anonymous session *before* the first read (else `#huddle` auto-open breaks), then ship.
-  Keep the Anonymous auth provider **enabled**.
+- **E0 (free, no decision needed) — ✓ SHIPPED v19.00.** Search engines excluded: `X-Robots-Tag:
+  noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in all ten served pages
+  (the GitHub Pages mirror gets no headers, and a `robots.txt` cannot reach it — only honoured at an
+  origin root). `robots.txt` deliberately **permits** crawling: a crawler blocked from fetching can
+  never read the noindex, so `Disallow: /` would hide the signal, not the page. Guarded by
+  `sw-asset-check.test.mjs`. Closes the *casual* half of the exposure, independent of everything below.
+- **E1 (prep, behaviour-preserving): make the calendar's reads await auth.** Do this as its OWN
+  release, before any rules change. `calendarAuthReady` currently gates only WRITES — the earlier
+  "≈ zero cost, already satisfied" claim here was **wrong**, and KNOWN_LIMITATIONS ("read strictly
+  after its session resolves") was right. Four paths read with whatever auth exists:
+  `calendar-initial-fetch.js`, `calendar-huddle-viewer.js`, `calendar-doc-viewer.js`, and
+  `nav-panel.js`'s Circular/Newsletter open. Ships green under today's open rules, so it soaks alone.
+- **E2 (was E1): tighten reads to Level 1** (`request.auth != null`, anonymous OK) on `overrides` +
+  the three document collections — only after E1 has soaked. ~6 of the 199 rules tests flip. Verify the
+  notification-tap fresh-visit path from a **fresh private window** with a cold cache. Keep the
+  Anonymous auth provider **enabled**.
 - **E2 (soft): require named on the calendar behind the existing kill-switch.** Flip
   `PAGE_POLICIES.calendar` to require named, wire the shared `login-overlay.js`, gate on
   `ENFORCE_NAMED_SESSION` in a **soft** posture first — measure how many launches hit the wall.
@@ -261,6 +273,15 @@ REST). Staged:
   Only after E2 soaks. At this point `signInAnonymously` is dead and the **Anonymous provider can be
   disabled project-wide** — which settles the "retire the anonymous fallback" residual below (decide
   them together).
+
+- **E6 (independent of all the above): put the document FILES behind auth.** E1–E5 tighten Firestore
+  *reads*; the Huddle/Circular/Newsletter files themselves ride permanent tokenised bearer URLs that
+  bypass `storage.rules` entirely, so **no rules change in this track touches them** (see
+  KNOWN_LIMITATIONS → "The document FILES are protected by a bearer URL, not by auth"). Needs a
+  delivery-model change — authenticated `getBlob`, or short-lived signed URLs minted per request —
+  plus **rotating the existing tokens** (old URLs stay live until the objects are rewritten). Can start
+  any time; does not depend on the calendar decision. Note the asymmetry when prioritising: the track's
+  headline change protects the personal data, and only E6 protects the company-confidential documents.
 
 **Why it's not much code but is a big decision.** Mechanically a pattern-copy + a rules change + a policy
 flag (~a day). But the calendar is the app's **front door**, and four real consequences hang off its

@@ -145,6 +145,25 @@ test('firestore.rules staffContact work-email domain matches CONFIG.WORK_EMAIL_D
         `firestore.rules staffContact workEmail validation must match CONFIG.WORK_EMAIL_DOMAIN ('${domain}') — the two drifted.`);
 });
 
+test('every served page carries the noindex meta, matching the X-Robots-Tag header', () => {
+    // Same contract as the mirrored CSP (csp-meta-parity.test.mjs), applied to a second header: the
+    // X-Robots-Tag in firebase.json only reaches Firebase Hosting, so the GitHub Pages staff mirror —
+    // which cannot serve headers — would keep every page indexable if the meta were ever dropped or a
+    // NEW page shipped without it. robots.txt cannot cover the mirror either (it is only honoured at an
+    // ORIGIN root, and the mirror lives under /roster-app/), so this meta is that origin's ONLY signal.
+    const header = readFileSync(join(ROOT, 'firebase.json'), 'utf8').match(
+        /"key":\s*"X-Robots-Tag",\s*"value":\s*"([^"]+)"/);
+    assert.ok(header, 'X-Robots-Tag header missing from firebase.json — the Firebase Hosting half of the contract');
+    assert.match(header[1], /\bnoindex\b/, 'X-Robots-Tag must assert noindex');
+
+    const pages   = readdirSync(ROOT).filter(f => f.endsWith('.html')).sort();
+    assert.ok(pages.length >= 10, `expected the six app pages + four guides, found ${pages.length}`);
+    const missing = pages.filter(f => !/<meta\s+name="robots"\s+content="[^"]*\bnoindex\b/
+        .test(readFileSync(join(ROOT, f), 'utf8')));
+    assert.deepEqual(missing, [],
+        'served pages with no noindex meta — these stay indexable on the GitHub Pages mirror, which gets no headers');
+});
+
 test('every SW-listed asset actually exists on disk (no ghost entries)', () => {
     // The membership check above is one-directional: it proves every module is LISTED, but not
     // that every LISTED path exists. A file rename that leaves a stale entry makes the warm-up

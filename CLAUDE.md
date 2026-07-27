@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v18.90 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.00 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `18.90` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `19.00` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -252,6 +252,7 @@ roster-app/
 │   └── miller-actuals.js   ← MILLER_ACTUALS payslip fixture (13 real 2025/26 payslips) — imported by paycalc.test.mjs; NOT served (excluded from Hosting; privacy — see ARCHITECTURE_PLAN.md)
 ├── githooks/
 │   └── pre-commit          ← the enforced pre-commit hook (module/export doc rules, AI_MAP 0.10 stamp, staged-JS ESLint, single-SDK-version check — see "Same-commit rule")
+├── robots.txt              ← staff-only app: nothing here has a public audience. Deliberately ALLOWS crawling — the de-index control is `noindex` (the `X-Robots-Tag` header in firebase.json + a `<meta name="robots">` in all ten pages, which is the only signal the headerless GitHub Pages mirror gets). `Disallow: /` would be counterproductive: a crawler that may not FETCH a page can never READ its noindex, so a URL found by another route could still be listed URL-only. Do not change it to Disallow. (v19.00, SECURITY_RELEASE_PLAN "E0")
 ├── .nojekyll               ← empty marker — makes GitHub Pages skip its Jekyll build (do NOT delete; see Workflows note above)
 ├── override-utils.test.mjs            ← tests for override-utils.js
 ├── roster-data.test.mjs    ← tests for roster-data.js
@@ -295,7 +296,7 @@ roster-app/
 ├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 10 collections incl. analytics + passwordStatus); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); gates every branch/PR (e2e.yml `rules` job) AND deploy-rules.yml before any rules ship
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── storage-rules-static.test.mjs ← static (no-emulator) hygiene guard: asserts the 20 MB `request.resource.size` cap is present in all 3 upload blocks (the emulator suite can't practically test the size cap); part of `npm test` (test:hygiene)
-├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists (incl. non-JS HTML/CSS precache + no ghost entries), APP_VERSION sync, roster-members.json sync, admin/operations/settings/links have zero modulepreloads, NOTIFICATION_FEATURES hashPaths ⊆ SW SAFE_NOTIFICATION_PAGES, firestore.rules work-email domain = CONFIG.WORK_EMAIL_DOMAIN, all 5 doc "Last updated" stamps current to latest 0.10 milestone
+├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists (incl. non-JS HTML/CSS precache + no ghost entries), APP_VERSION sync, roster-members.json sync, admin/operations/settings/links have zero modulepreloads, NOTIFICATION_FEATURES hashPaths ⊆ SW SAFE_NOTIFICATION_PAGES, firestore.rules work-email domain = CONFIG.WORK_EMAIL_DOMAIN, every served page carries the `noindex` meta matching the `X-Robots-Tag` header (the mirror gets no headers — same contract as csp-meta-parity), all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── csp-hygiene.test.mjs    ← static (no-emulator) CSP guard: asserts firebase.json's Content-Security-Policy stays in step with what the app actually loads — every contacted host is permitted AND no stale origin lingers. Part of test:hygiene. (Its REQUIRED host list is itself hand-maintained — add a newly-contacted host there.)
 ├── csp-meta-parity.test.mjs ← static guard that every served HTML page's `<meta http-equiv="Content-Security-Policy">` stays in lockstep with the firebase.json header CSP (minus the directives a meta CSP can't express — `frame-ancestors`/report/sandbox). The meta exists so the GitHub Pages staff mirror — which CANNOT serve HTTP headers — gets the SAME policy (and the CSP travels with the HTML through the SW cache on both origins). Part of test:hygiene. Teeth-verified
 ├── guide-sources.test.mjs  ← structural guard for GUIDE_SOURCES.md: parses the source register and fails the build if a high-risk row loses its source, review dates (Next after Reviewed), or National/Local/Tip/Fact class. Structural only, not a date tripwire. Part of test:hygiene

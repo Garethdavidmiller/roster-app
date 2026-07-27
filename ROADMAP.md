@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: July 2026 — v18.90 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.00 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -434,6 +434,8 @@ Do not build speculatively. The PWA works well for the current use case.
 The current surname-based password provides minimal security — surnames are semi-public, the pattern is known, and there is no recovery path if a staff member's account is compromised. A five-stage plan to progressively harden this without disrupting the name-dropdown login UX. Each stage is independently shippable; later stages depend on earlier ones.
 
 > **⚠️ Status update (v18.63): the "C-lite" plan in `PASSWORD_PLAN.md` (SECURITY_RELEASE_PLAN → Track C) has since superseded parts of this five-stage sequence — and it did NOT wait on email verification.** Already SHIPPED: **self-service password change** (Stage 3 — Settings → Password card, `savePasswordSetAt`), the **admin break-glass reset** (below — `resetMemberPassword` Cloud Function, Operations → Account status → Reset), and the **`ensureFirebaseSession` rework** that Stage 3 named as a prerequisite (`credentialCandidatesFor` gated dual-attempt sign-in). Migration is now tracked by the **`passwordStatus`** collection (`passwordSetAt`/`resetAt`), not the unbuilt `staffContact.verified`. Still open: Stage 2 (email verification, needs an email relay), the Stage-4 *email-based* self-service reset, and Stage 5 (retire the surname default). Read PASSWORD_PLAN.md for the authoritative current state; the stage text below is the original design.
+>
+> **Further since (v18.92–96).** **Forced migration** — `CONFIG.FORCE_PASSWORD_SET` + `password-force.js` compel any member still on the surname default to choose their own at their next sign-in; nobody is signed out to accelerate it, so coverage completes itself inside the 30-day session cap and staggers naturally. **A request-based reset route now exists** (Stage 4's *non-email* half): the locked-out member asks via the login overlay's "Can't get in?", the admin sees and actions a queue (OPERATIONS_REFERENCE → "Locked-out member → reset request queue"). **Stage 5 has a hard dependency nothing else records:** the ≥90% migration metric cannot converge while pure roster-viewers exist, because they never sign in anywhere and so are never compelled — reaching them requires SECURITY_RELEASE_PLAN → **Track E** (named session on the calendar). Retiring the surname default is therefore gated on a decision in a different track.
 
 **Stage 1 — Work email registration ✓ (v12.68)**
 Settings page → Work Email card. Staff enter their Chiltern work email. Saved to the new `staffContact` Firestore collection (owner-only write via `name` JWT claim; admin read-all). This is the data foundation all later stages build on. Work email only — no personal email (the company already holds the work address; no separate GDPR policy required for something Chiltern already processes).
