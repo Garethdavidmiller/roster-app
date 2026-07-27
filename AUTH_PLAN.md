@@ -15,7 +15,8 @@ that reads uniformly confident invites someone to start at the wrong end:
 
 | | Confidence |
 |---|---|
-| §1 framing, §2 current exposure, E0, E1, E2 | **Verified against code.** Safe to act on. |
+| §1 framing, §2 current exposure, E0, E2 | **Verified against code.** Safe to act on. |
+| E1 | **Designed and ready to build** — call sites walked, shape settled, guards identified. |
 | E3, the decision gate, §6 measurement | **Sound, unverified.** Design is right; numbers are missing. |
 | §4 offline (E4) | Designed, but rests on **one unvalidated assumption** — see the warning there. |
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
@@ -83,7 +84,7 @@ crawling — a crawler blocked from fetching can never read the noindex, so `Dis
 signal rather than the page. Guarded by `sw-asset-check.test.mjs`. Needed no decision and depends on
 nothing below.
 
-### E1 — make the calendar's reads await auth (prep, behaviour-preserving)
+### E1 — make the calendar's reads auth-aware (prep, behaviour-preserving)
 **Ship as its own release, before any rules change.** `calendarAuthReady` (`calendar-app.js`) gates only
 *writes* — error reporter, usage counter, push renewal. Four paths read with whatever auth state happens
 to exist:
@@ -99,6 +100,68 @@ Harmless under `allow read;`. The moment reads need a session, all four race `si
 cold start — an empty calendar, or a notification tap that opens nothing. This ships green under today's
 rules, so it soaks alone and turns E2 from "a rules edit that might break notification taps" into "a
 rules edit".
+
+#### The design (settled after a pass over the four call sites)
+
+**The four paths are not one problem — they split two ways, and only one is delicate.**
+
+| | Paths | Why |
+|---|---|---|
+| **User-initiated** | huddle subscribe · doc viewer · nav-panel doc open | The user just tapped something and all three already show a pending state. A plain `await` is correct: waiting is what the user expects, and offline these cannot succeed anyway. |
+| **Render path** | the 3-month `overrides` fetch | The only one on the critical path to seeing your roster, and the only one that must work offline. A plain `await` here is the offline-first regression. |
+
+So the risky work is **one** path, not four.
+
+**A bare `await` on the render path is wrong.** `signInAnonymously` is a live round-trip with no client
+timeout. Today `fetchOverridesForRange` fires immediately and Firestore serves from its persistent cache
+on bad signal; gate it on auth and a returning device with flaky signal waits on the network for data it
+already has. The obvious patch — bound the wait, then read anyway — is also wrong: under E2's rules the
+unauthenticated read is denied, so a slow first visit shows a spurious "⚠ Couldn't update". That trades an
+offline-first regression for a flakiness one, and needs a timeout constant with no basis to pick it.
+
+**Instead: paint from cache immediately, refresh authoritatively once auth lands.**
+
+1. **`reconcileRangeIntoCache` gains an `authoritative` flag.** Its eviction sweep (step 2 — drop in-range
+   keys the snapshot omits) is already a separable loop. A **cache** snapshot is by definition a possibly
+   stale subset, so it must merge additively and evict nothing. Skipping eviction is the whole change.
+   **This is the load-bearing detail:** two authoritative reconcilers racing on one range is exactly the
+   v18.76 Team View bug, where the staler snapshot wiped the grid back to base roster.
+2. **A cache-only sibling to `fetchOverridesForRange`** using `getDocsFromCache` (available in the SDK,
+   not currently imported into `firebase-client.js`). It never sets the error chip — a cache miss is
+   normal, not a failure.
+3. **`initInitialFetch` becomes two-phase:** fire the cache read immediately and paint; then
+   `await calendarAuthReady` and run the existing authoritative server read.
+4. **Generation guard** — reuse the existing `_fetchGen` supersession pattern so a slow cache read can
+   never clobber a server read that already landed.
+5. **The sync chip keeps tracking the server phase only.** The 800ms "↻ Updating your shifts…" still means
+   "fetching fresh", which is still true.
+
+**Two properties worth noting.** It needs **no timeout constant anywhere** — the objection that killed the
+bounded-wait shape. And a cache-first paint is exactly what E4's grace mode needs, so that phase gets
+part of its work done here.
+
+**The three user-initiated paths, concretely:**
+
+- **Huddle** — `await calendarAuthReady` before `startHuddleSubscription()`, and move the 8s safety
+  timeout to *cover* the auth wait (start it on invocation, not on attach) so time-to-error is unchanged.
+  Gating the attach also fixes a real E2/E5 hazard: an `onSnapshot` that hits `permission-denied` is
+  **terminated**, not retried, and today only recovers on the next `visibilitychange` — useless to
+  someone staring at a notification tap.
+- **Doc viewer** — `await` inside `openDoc()` before the fetch; the existing loading state covers it.
+- **nav-panel** — add `authReady` to the `initNavPanel({…})` options bag (default `Promise.resolve()`),
+  each page passing its own: `calendarAuthReady` on the calendar, `sessionReady` on the five authenticated
+  pages. Follows the existing per-page injection precedent (`isAdmin`, `onLogoClick`, `usageIdentity`).
+
+**Write the guards first, then the change:**
+
+- `calendar-initial-fetch.test.mjs` — inject an auth promise that **never resolves**; assert the cache
+  read still goes out and paints. Teeth-verify by implementing the naive `await` and watching it fail.
+- `override-utils.test.mjs` — additive mode evicts nothing; authoritative mode still does.
+
+Both land in `npm test`, so CI gates them — unlike `e2e/offline.spec.js`, which is opt-in and stubs
+Firebase at the network layer, so it could neither gate this nor observe real cache behaviour.
+
+**Behaviour under today's rules is unchanged** — both reads succeed; the cache paint just arrives sooner.
 
 ### E2 — Level 1 rules: `request.auth != null`
 On `overrides` + the three document collections, only after E1 has soaked. Blocks unauthenticated REST
