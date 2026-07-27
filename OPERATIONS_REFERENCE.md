@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: July 2026 — v18.90 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.00 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -394,6 +394,43 @@ Re-uploading for the same date overwrites the Firestore doc and replaces the Sto
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it self-heals a missing account on page load. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js` (v18.63).
 
 **Chosen passwords (v18.63 — PASSWORD_PLAN.md Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and (by default) revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
+
+### Locked-out member → reset request queue (v18.93–95)
+
+The one flow that starts with **no identity at all**: a member who has forgotten a self-set password
+has no Firebase session, so they cannot write anything — which is why this runs through the app's only
+public unauthenticated endpoint rather than a client write.
+
+1. **Member** taps "Can't get in?" on the login overlay → `requestPasswordReset` in
+   `firebase-client.js` (the one caller there that sends **no** auth token) → the
+   `requestPasswordReset` Cloud Function.
+2. **Function** (Admin SDK) upserts `resetRequests/{memberName}` — `requestedAt`, `count`, and
+   `provisioned` (false ⇒ the remedy is **Set up accounts**, not Reset). The doc ID is the member
+   name *deliberately*: the collection can never exceed the roster size, so flooding it is impossible
+   by construction rather than by rate limiting. The name comes from the server-owned `activeMembers`
+   list, never the request body, and **no free text is ever stored** — an unauthenticated endpoint
+   writing caller-controlled strings into an admin UI would be an injection surface for no benefit.
+3. **Admin push** — a genuinely-recorded request (never a throttled repeat) sends
+   `🙋 Reset requests — N waiting` via `sendTargetedPush`, **not** `fanOutPush`: "N. Surname is locked
+   out" broadcast to ~50 staff would be a leak. Owner-uid filtered, fails closed at every step, no
+   fall-back-to-everyone branch. Deep-links to `operations.html#reset-requests`, which opens and
+   scrolls to that card (`DEEP_LINK_CARDS`). The push is a courtesy — the Firestore row is the doorbell.
+4. **Admin** actions it in Operations → Password Reset Requests (Reset, or Set up accounts if
+   `provisioned` is false), then clears the row (`clearResetRequest`). Create/update is denied to every
+   client **including the admin**; only the function writes.
+
+**Accepted cost:** an admin device that subscribed to push before v17.76 (when `owner` was first
+stamped on subscriptions) gets no notification until the bell is toggled off and on.
+
+### Sign-in statistics (v18.96)
+
+The Operations → Usage card shows an **exact** unique-account count beside the anonymous trend. It
+comes from `getSignInStats` (admin-only), which reads Firebase Auth's own `lastSignInTime` — so
+uniqueness is a property of the data rather than something the app has to enforce, and nothing new is
+stored. Filtered to an allowlist of the current server-owned roster so an un-swept leaver cannot
+inflate it; returns four integers, no identity. It measures **sign-ins, not activity** (sessions last
+30 days absolute / 7 idle, so most page opens are session *restores*), and there is no history — only
+the last sign-in is stored. `neverSignedIn` is the actionable figure.
 
 The `@myb-roster.local` domain is synthetic — not real email addresses. Firebase Auth accepts them as valid email format.
 

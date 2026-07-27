@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: July 2026 — v18.90 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.00 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -29,6 +29,12 @@ Firebase Auth session established at app startup. This was reverted at v12.05 be
 
 **Current mitigations:** The URL is not publicly advertised; the team is small and
 known; writes still require a named Firebase Auth session (`request.auth != null`).
+**Search engines are now excluded (v19.00, SECURITY_RELEASE_PLAN "E0")** — `X-Robots-Tag:
+noindex, nofollow` on Firebase Hosting plus a mirrored `<meta name="robots">` in all ten
+served pages (the mirror gets no headers), with a `robots.txt` that deliberately *permits*
+crawling so the noindex can actually be read. That closes the **casual** half of this exposure
+(a page turning up in a search result); it does nothing about a deliberate reader, which is
+still what the paragraphs above are about.
 
 **If this becomes a concern:** Gate the calendar on a named session, remove the
 anonymous read from `firestore.rules`, and remove the anonymous auth block from
@@ -44,6 +50,30 @@ determined reader — and it carries real breakage risk (every override reader a
 paycalc / team-view / day-detail must read strictly after its session resolves, incl. cold/offline
 cases). The only *real* fix is the named-session gate, which the owner has declined for daily-UX
 reasons. Do not re-propose the anon-gate as a "quick win"; it is not one.
+
+**The "read strictly after its session resolves" risk, made concrete (verified v19.00).** The
+paragraph above is right and `SECURITY_RELEASE_PLAN.md` → Track E was wrong to call the anon-gate
+"≈ zero cost — already satisfied" (that text is now corrected). `calendarAuthReady`
+(`calendar-app.js`) gates only *writes* — error reporter, usage counter, push renewal. **No read
+path awaits it:** `calendar-initial-fetch.js` (the 3-month override fetch), `calendar-huddle-viewer.js`,
+`calendar-doc-viewer.js`, and `nav-panel.js`'s Circular/Newsletter open all read whatever auth state
+happens to exist. Harmless under `allow read;`, but the moment reads require a session those four
+race `signInAnonymously` on a cold start — an empty calendar, or a notification tap that opens
+nothing. Any future tightening must land that await FIRST, as its own soaked release.
+
+### The document FILES are protected by a bearer URL, not by auth
+`storage.rules` gates direct Storage SDK reads, but staff never read Huddles/Circulars/Newsletters
+that way — they open the permanent tokenised `storageUrl` saved in the Firestore doc, which carries
+its own access token and **bypasses the rules entirely** (documented in `storage.rules` itself:
+"Don't store confidential files here unless that delivery model changes").
+
+Consequence, stated plainly because no other doc says it: **tightening the Firestore read rules would
+not put these documents behind authentication.** It would change who can *discover* a URL; anyone who
+has ever held one — a forwarded link, browser history, a synced bookmark — keeps access indefinitely,
+and revocation requires rewriting the object, not editing a rule. So the internal operational
+documents are the app's least-protected content, and the change everyone reaches for first (a login
+on the calendar) does not touch them. Closing this is a delivery-model change — authenticated
+`getBlob`, or short-lived signed URLs minted per request — tracked as Track E "E6".
 
 ### Admin/manager password is surname-derived (F-SEC-1) — scoped July 2026, owner chose leave-as-is
 
@@ -166,6 +196,13 @@ the mirror the meta is the only CSP, but it covers **all resource-loading direct
 2. **`Cache-Control: no-cache` isn't applied** on the mirror; GitHub Pages uses its own caching.
    Freshness is still carried by the service-worker version-bump lifecycle, so this is cosmetic.
 Both close automatically if/when the GitHub Pages mirror is retired (the stated long-term direction).
+
+**A second header now travels the same way (v19.00).** `X-Robots-Tag: noindex, nofollow` is mirrored
+into every page as `<meta name="robots">` for exactly this reason — and here the meta is not merely
+the best available option, it is the *only* one: a `robots.txt` is honoured only at an ORIGIN root,
+and the mirror lives under `/roster-app/` while `garethdavidmiller.github.io` itself is a different
+repo. Enforced by `sw-asset-check.test.mjs` ("every served page carries the noindex meta"). Adding a
+new page means adding both metas; both guards will tell you which one you forgot.
 
 ### localStorage session can be forged for UI access (#14)
 The `myb_admin_session` localStorage session can be modified via DevTools to

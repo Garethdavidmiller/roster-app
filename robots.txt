@@ -1,0 +1,18 @@
+# Marylebone Roster — a staff-only application. No page here has a public
+# audience, so none of it should appear in search results.
+#
+# The CONTROL for that is `noindex`, served two ways:
+#   * X-Robots-Tag on Firebase Hosting (the `**` header block in firebase.json)
+#   * <meta name="robots"> in every served page — the ONLY signal that reaches
+#     the GitHub Pages staff mirror. Pages cannot serve headers, and a robots.txt
+#     is only honoured at an ORIGIN root: the mirror lives under /roster-app/,
+#     and garethdavidmiller.github.io itself is a different repo. Same reason the
+#     CSP is mirrored into every page's <meta> (see csp-meta-parity.test.mjs).
+#
+# Crawling is therefore deliberately ALLOWED, and this file must not be changed
+# to `Disallow: /`. Blocking a crawler here would be counterproductive: a crawler
+# that may not FETCH a page can never READ that page's noindex, so a URL found by
+# any other route (a shared link, a toolbar, a referrer) could still be listed
+# URL-only, with no way to remove it. Disallow hides the noindex, not the page.
+User-agent: *
+Allow: /
