@@ -77,6 +77,10 @@ const SAVE_TIMEOUT_MS = 8000;
  * makes the same `setOwnPassword` call and had the same gap. Its consequence is milder (a stuck card,
  * not a trap, because Settings is dismissible) but identical in kind: `finally` never runs on a
  * promise that never settles, so the button stayed disabled on "Saving…" until a reload.
+ *
+ * **Use this only for operations that change NOTHING** — a read, or an idempotent re-auth. For a
+ * STATE-CHANGING call, use `settleOrTimeout` below: this one reports a timeout as a rejection, and a
+ * rejection means "it did not happen", which for a password write is a claim we cannot make.
  * @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T>}
  */
 export function withTimeout(promise, ms) {
@@ -85,6 +89,41 @@ export function withTimeout(promise, ms) {
         promise,
         new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('timed out'), { code: 'myb/timeout' })), ms); }),
     ]).finally(() => clearTimeout(timer)));
+}
+
+/**
+ * Race a promise against a deadline WITHOUT claiming that a slow operation failed.
+ *
+ * `withTimeout` above turns a deadline into a rejection, and every caller treats a rejection as "it
+ * did not happen". For a password WRITE that is false, and dangerously so: `Promise.race` stops
+ * *waiting*, it does not *cancel* — Firebase's `updatePassword` keeps going and can succeed a second
+ * after we have told the member it failed. They then believe their old password still works, retry
+ * against a credential that has already changed, or walk away from a compulsory overlay mis-informed.
+ * With FORCE_PASSWORD_SET live that is a route into a genuine lockout, caused by the very guard added
+ * to prevent one (external review, v18.96).
+ *
+ * So this reports THREE outcomes rather than two, and hands back a handle on the original work:
+ *   { status: 'ok', value }       — settled in time
+ *   { status: 'failed', error }   — genuinely rejected in time
+ *   { status: 'pending', settled }— deadline passed, STILL RUNNING; await `settled` for the real
+ *                                   outcome (it resolves to an 'ok' or 'failed' record, never rejects)
+ *
+ * The tracked promise absorbs its own rejection immediately, so a late failure can never surface as
+ * an unhandled rejection even if the caller stops caring.
+ *
+ * @template T @param {Promise<T>} promise @param {number} ms
+ * @returns {Promise<{status:'ok',value:T}|{status:'failed',error:any}|{status:'pending',settled:Promise<{status:'ok',value:T}|{status:'failed',error:any}>}>}
+ */
+export function settleOrTimeout(promise, ms) {
+    /** @type {any} */ let timer;
+    const settled = promise.then(
+        value => /** @type {any} */ ({ status: 'ok', value }),
+        error => /** @type {any} */ ({ status: 'failed', error }),
+    );
+    const deadline = new Promise(resolve => {
+        timer = setTimeout(() => resolve(/** @type {any} */ ({ status: 'pending', settled })), ms);
+    });
+    return /** @type {any} */ (Promise.race([settled, deadline]).finally(() => clearTimeout(timer)));
 }
 
 /**
@@ -173,6 +212,8 @@ function _show(member) {
 
     return /** @type {Promise<void>} */ (new Promise(resolve => {
         let failures = 0;
+        /** True while a password write has passed its deadline but may still be in flight. */
+        let _indeterminate = false;
         let closed   = false;
 
         function close() {
@@ -239,16 +280,17 @@ function _show(member) {
                 // refused for staleness, so reauthenticate first. credentialCandidatesFor (inside
                 // reauthenticateWithPassword) handles the un-migrated short-surname padding, exactly
                 // as sign-in does — otherwise "C. Reen" typing "reen" could never complete this.
+                // Re-auth is safe to time out as a plain failure: it changes nothing, so retrying is
+                // free and "it did not happen" is a true statement about it.
                 if (!curWrap.hidden) await withTimeout(reauthenticateWithPassword(member, curEl.value), SAVE_TIMEOUT_MS);
-                await withTimeout(setOwnPassword(member, next), SAVE_TIMEOUT_MS);
+                // The WRITE is different — see settleOrTimeout. A deadline here means "we don't know",
+                // never "it failed".
+                const res = await settleOrTimeout(setOwnPassword(member, next), SAVE_TIMEOUT_MS);
+                if (res.status === 'pending') { onIndeterminate(res.settled); return; }
+                if (res.status === 'failed')  throw res.error;
                 // The password IS changed at this point. A missing migration stamp is a soft note
                 // (setOwnPassword's own contract), never a failure — do not re-prompt on it.
-                lsSet('myb_notice_password-2026_done', '1');   // this completes that campaign
-                // Let the host page refresh anything showing migration state. On settings.html the
-                // Password card read passwordStatus BEFORE this overlay ran, so without this its
-                // header chip still said "using surname" until a reload (FIX, v18.94).
-                document.dispatchEvent(new CustomEvent('myb:password-set'));
-                close();
+                onWriteConfirmed();
             } catch (e) {
                 failures++;
                 const code = /** @type {any} */ (e)?.code || '';
@@ -283,10 +325,58 @@ function _show(member) {
                 }
                 if (failures >= ESCAPE_AFTER_FAILURES) offerEscape();
             } finally {
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Set password →';
+                // NOT re-enabled after an indeterminate write — onIndeterminate owns the button from
+                // that point, because a second save racing a first that may still land is the worst
+                // version of this bug (the retry re-authenticates with a password the late write may
+                // already have replaced).
+                if (!_indeterminate) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Set password →';
+                }
             }
         });
+
+        /** The write completed: finish the flow. Shared by the in-time and the LATE success paths. */
+        function onWriteConfirmed() {
+            lsSet('myb_notice_password-2026_done', '1');   // this completes that campaign
+            // Let the host page refresh anything showing migration state. On settings.html the
+            // Password card read passwordStatus BEFORE this overlay ran, so without this its
+            // header chip still said "using surname" until a reload (FIX, v18.94).
+            document.dispatchEvent(new CustomEvent('myb:password-set'));
+            close();
+        }
+
+        /**
+         * The write passed its deadline but is STILL RUNNING. Tell the truth — we do not know whether
+         * it worked — and keep watching, rather than reporting a failure that may be about to become a
+         * success (external review, v18.96).
+         *
+         * The member is told to KEEP the new password and try it first, because that is the safe
+         * instruction under both outcomes: if the write landed it is now their password, and if it
+         * didn't, trying it once and falling back costs them one attempt. The escape is offered
+         * immediately — a compulsory overlay must never hold someone on an outcome nobody can resolve.
+         * @param {Promise<{status:string, error?:any}>} settled
+         */
+        function onIndeterminate(settled) {
+            _indeterminate = true;
+            saveBtn.disabled = true;                 // no racing second write
+            saveBtn.textContent = 'Still saving…';
+            setError('We couldn’t confirm whether your password was updated. Keep the password you just entered and try it first next time you sign in.');
+            offerEscape();
+            settled.then(late => {
+                if (!overlay.isConnected) return;    // they left; nothing to update
+                if (late.status === 'ok') {
+                    _indeterminate = false;
+                    onWriteConfirmed();              // it landed after all — finish normally
+                    return;
+                }
+                // It genuinely failed. NOW a retry is safe, and they get the real reason.
+                _indeterminate = false;
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Set password →';
+                setError('Your password wasn’t updated — try again.');
+            });
+        }
 
         // Focus trap. Mirrors the work-email check rather than overlay.js's trapFocus, because the
         // focusable set CHANGES at runtime here (the current-password field and the escape button

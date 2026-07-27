@@ -49,6 +49,7 @@ const {
     computeOrphanLabels,
     shouldRecordResetRequest,
     buildResetRequestNotice,
+    shouldNotifyAdmin,
     summariseSignIns,
 } = require('./roster-parse-helpers');
 const rosterMembers = require('./roster-members.json');
@@ -1685,6 +1686,18 @@ const RESET_REQUEST_THROTTLE_MS = 10 * 60 * 1000;   // 10 minutes
 // anyway. Well inside the function's 30s timeout, leaving room for the record itself — the request is
 // the product, the push is a courtesy, and the courtesy must never cost the product.
 const ADMIN_NOTIFY_BUDGET_MS = 10_000;
+// One admin push per this window, however many DIFFERENT members file a request inside it. The
+// per-member throttle above cannot bound a walk of the public roster; this can. Chosen to be long
+// enough to absorb a scripted burst and short enough that a genuine second request later in a shift
+// still rings. See shouldNotifyAdmin.
+const ADMIN_NOTIFY_COALESCE_MS = 5 * 60 * 1000;   // 5 minutes
+
+// SERVER-SIDE kill switch (v18.97, external review). CONFIG.PASSWORD_RESET_REQUESTS hides the client
+// LINK; it does nothing to the endpoint, which is public and callable directly — so during an
+// incident there was no way to actually close this door short of deleting the function. Flip to false
+// and deploy functions to reject every caller. Kept a constant rather than a Firestore flag on
+// purpose: an incident switch must not depend on a read that the incident might be affecting.
+const RESET_REQUESTS_ENABLED = true;
 
 /**
  * Push the "someone asked for a password reset" notice to the ADMIN's devices only (Phase 2).
@@ -1717,11 +1730,31 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
     }
     if (uids.length === 0) return;   // sendTargetedPush would refuse anyway; skip the VAPID setup
 
+    // One read serves both the queue depth AND the coalescing decision. `requestedAt` is the only
+    // field fetched — still a metadata-scale read over a collection bounded by the roster.
     let pending = 1;
+    /** @type {Array<number|null>} requestedAt of every row EXCEPT this member's */
+    let otherStamps = [];
     try {
-        pending = (await admin.firestore().collection('resetRequests').select().get()).size || 1;
+        const snap = await admin.firestore().collection('resetRequests').select('requestedAt').get();
+        pending = snap.size || 1;
+        otherStamps = snap.docs
+            .filter(d => d.id !== member)
+            .map(d => {
+                const t = d.data().requestedAt;
+                return t && typeof t.toMillis === 'function' ? t.toMillis() : null;
+            });
     } catch (e) {
         console.warn('[requestPasswordReset] pending count failed — notifying with 1', e && e.code);
+    }
+
+    // GLOBAL coalescing (v18.97, external review). The per-member throttle bounds one person; it does
+    // nothing about a caller walking the public roster and filing one request per name, which used to
+    // produce one push each. Fifty buzzes is both the nuisance and the reason a real request would
+    // then be ignored. One push per window, carrying the queue depth, says more with less.
+    if (!shouldNotifyAdmin(otherStamps, Date.now(), ADMIN_NOTIFY_COALESCE_MS)) {
+        console.log('[requestPasswordReset] notification coalesced — admin alerted recently; pending:', pending);
+        return;
     }
 
     setupWebPush(vapidPrivate);
@@ -1747,6 +1780,10 @@ exports.requestPasswordReset = onRequest(
     },
     async (req, res) => {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+        // The kill switch, server-side (v18.97). 503 rather than 404: it is honest about the endpoint
+        // existing but being closed, and it does not change what an outsider can learn about the
+        // roster. The client link is hidden separately by CONFIG.PASSWORD_RESET_REQUESTS.
+        if (!RESET_REQUESTS_ENABLED) return res.status(503).json({ error: 'Reset requests are temporarily unavailable' });
 
         let body = req.body;
         if (!body || typeof body !== 'object') {
@@ -1899,12 +1936,17 @@ exports.getSignInStats = onRequest(
             return res.status(403).json({ error: 'Forbidden — admin claim required' });
         }
 
-        // Admin accounts are excluded from the counts, mirroring recordUsage's write-time
-        // CONFIG.ADMIN_NAMES filter — the figures must reflect real staff, not the developer.
+        // An ALLOWLIST of the current roster, not a denylist of admins (v18.97, external review).
+        // Excluding only admins counted every other enabled account in the project — a leaver whose
+        // orphan sweep hasn't run, or one it failed on — inflating both the total and the
+        // never-signed-in figure on a card that calls itself exact. Admins are excluded by being left
+        // out here, mirroring recordUsage's write-time CONFIG.ADMIN_NAMES filter.
         // Derived from the SERVER-owned roster (roster-members.json), never a client payload.
         const cfg = resolveRosterAuthConfig(rosterMembers);
         if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
-        const excludeEmails = new Set(cfg.admin.map(n => nameToEmail(n).toLowerCase()));
+        const adminSet = new Set(cfg.admin);
+        const allowedEmails = new Set(
+            cfg.processMembers.filter(n => !adminSet.has(n)).map(n => nameToEmail(n).toLowerCase()));
 
         try {
             // Paginate: listUsers caps at 1000 per page. The roster is ~50, so this is one page in
@@ -1917,7 +1959,7 @@ exports.getSignInStats = onRequest(
                 pageToken = page.pageToken;
             } while (pageToken);
 
-            const stats = summariseSignIns(users, Date.now(), excludeEmails);
+            const stats = summariseSignIns(users, Date.now(), allowedEmails);
             console.log('[getSignInStats]', JSON.stringify(stats));
             return res.json(stats);
         } catch (e) {
