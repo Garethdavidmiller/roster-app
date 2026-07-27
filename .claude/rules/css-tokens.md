@@ -145,6 +145,19 @@ The four sub-pages (admin, paycalc, operations, settings) use **identical sizes 
 
 Genuinely distinct components (nav drawer pills, dense roster-review rows, badges, lightbox text) keep their own sizes — they are not "the same element rendered differently", so do not force them onto the shared values. When adding a card/field/button to any sub-page, reuse these sizes rather than inventing new ones.
 
+**The scale is now enforced (v19.02).** It was documented from v11.77 but never applied outside paycalc:
+the app CSS had **278 literal px font-sizes against 295 token uses** (`index.css` alone 98 vs 26). That
+was an unfinished migration rather than drift. The 214 literals whose value EXACTLY equalled a token were
+migrated — a value-preserving change, proven by the visual baselines passing untouched — and
+`type-scale-parity.test.mjs` now fails on any literal that duplicates a token value.
+
+**"Keep their own sizes" means keep their own VALUES, not avoid tokens.** Once a value has a name, use
+the name. The precedent is `--type-badge: 11px` (v17.72), minted precisely *because* 11px was the
+most-repeated off-scale size — there are now zero 11px literals. So a repeated off-scale value is a
+candidate for its OWN token, never for being forced onto an existing one. Genuinely off-scale sizes
+(9px, 20px, 22px …) remain legal and unguarded; the current repeat counts are 9px ×16, 20px ×9, 22px ×6,
+which are the next token candidates if anyone wants them named.
+
 ## Self-hosted Inter typeface (v11.53)
 
 `fonts/inter-latin.woff2` is served from origin, NOT Google Fonts CDN. CSP is `font-src 'self'` — a CDN would mean loosening it, and self-hosting keeps the app offline-first (SW precaches the file) with no third-party request. One variable woff2 (latin, wght 100–900) covers every weight.

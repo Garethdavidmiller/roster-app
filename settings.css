@@ -171,7 +171,7 @@ body {
         max-width: 16cm;
         margin: 4cm auto;
         text-align: center;
-        font-size: 14px;
+        font-size: var(--type-body);
         line-height: 1.7;
         color: var(--text-dark);
     }

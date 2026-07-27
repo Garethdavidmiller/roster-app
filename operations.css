@@ -74,7 +74,7 @@ body.auth-ready .container { display: grid; }
     min-height: 44px;
     border: 1.5px solid var(--border-light);
     border-radius: var(--radius-sm);
-    font-size: 14px;
+    font-size: var(--type-body);
     font-weight: 600;
     color: var(--primary-blue);
     background: var(--bg-light);
@@ -105,7 +105,7 @@ body.auth-ready .container { display: grid; }
 }
 .huddle-filename {
     display: none;
-    font-size: 13px;
+    font-size: var(--type-label);
     color: var(--text-mid);
     margin-bottom: 10px;
     word-break: break-all;
@@ -130,7 +130,7 @@ body.auth-ready .container { display: grid; }
 .huddle-upload-btn:active:not(:disabled) { transform: scale(var(--press-scale)); }
 .huddle-upload-btn:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
 .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.huddle-feedback { margin-top: 10px; font-size: 13px; }
+.huddle-feedback { margin-top: 10px; font-size: var(--type-label); }
 .huddle-feedback--ok  { color: var(--success-green); }
 .huddle-feedback--err { color: var(--error-red); }
 /* Working spinner beside the roster-parse status text (B1) — a 15–90s parse with only static
@@ -157,7 +157,7 @@ body.auth-ready .container { display: grid; }
     padding: 8px 10px;
     border: 2px solid var(--border-mid);
     border-radius: var(--radius-sm);
-    font-size: 16px;
+    font-size: var(--type-medium);
     font-weight: 600;
     background-color: var(--field-bg);
     color: var(--text-dark);
@@ -168,7 +168,7 @@ body.auth-ready .container { display: grid; }
     outline: var(--focus-outline);
     outline-offset: 1px;
 }
-.roster-review-label { font-size: 13px; font-weight: 700; color: var(--primary-blue); margin: 0 0 10px; }
+.roster-review-label { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0 0 10px; }
 #rosterChangeList { margin-bottom: 14px; }
 
 /* Plain-language outcome summary — "what Save will do", shown above the list. */
@@ -182,7 +182,7 @@ body.auth-ready .container { display: grid; }
 .roster-outcome[hidden] { display: none; }
 .ro-h { margin: 0 0 8px; font-size: var(--type-badge); font-weight: 700; letter-spacing: 0.05em;
         text-transform: uppercase; color: var(--text-mid); }
-.ro-line { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; padding: 3px 0; color: var(--text-dark); }
+.ro-line { display: flex; align-items: flex-start; gap: 9px; font-size: var(--type-label); padding: 3px 0; color: var(--text-dark); }
 .ro-k { flex: 0 0 auto; width: 16px; text-align: center; font-weight: 800; line-height: 1.4; }
 .ro-up     .ro-k { color: var(--success-green); }
 .ro-clear  .ro-k { color: var(--primary-blue); }
@@ -205,9 +205,9 @@ body.auth-ready .container { display: grid; }
     background: var(--bg-light);
     border-radius: 10px;
 }
-.roster-person-name { font-size: 13px; font-weight: 700; color: var(--primary-blue); flex: 1; }
+.roster-person-name { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); flex: 1; }
 .roster-change-badge {
-    font-size: 10px; font-weight: 700;
+    font-size: var(--type-micro); font-weight: 700;
     background: var(--primary-blue); color: white;
     border-radius: var(--radius-xl); padding: 2px 7px;
 }
@@ -263,23 +263,23 @@ body.auth-ready .container { display: grid; }
     border-left: 4px solid var(--conflict-strong);
 }
 .roster-chg-day { display: flex; flex-direction: column; align-items: flex-start; min-width: 44px; }
-.roster-day-abbr { font-size: 12px; font-weight: 700; color: var(--text-dark); }
+.roster-day-abbr { font-size: var(--type-small); font-weight: 700; color: var(--text-dark); }
 .roster-day-date { font-size: var(--type-badge); color: var(--text-light); }
 .roster-chg-vals {
     display: flex; align-items: center; gap: 6px;
-    flex: 1; flex-wrap: wrap; font-size: 12px;
+    flex: 1; flex-wrap: wrap; font-size: var(--type-small);
 }
 .roster-from-val { opacity: 0.5; font-size: var(--type-badge); }
-.roster-from-val .shift-badge { font-size: 10px; padding: 1px 5px; }
+.roster-from-val .shift-badge { font-size: var(--type-micro); padding: 1px 5px; }
 .roster-arrow { color: var(--text-light); font-size: var(--type-badge); }
-.roster-to-val { font-size: 12px; }
+.roster-to-val { font-size: var(--type-small); }
 .review-shift-time { font-size: var(--type-badge); font-weight: 600; color: var(--text-mid); margin-left: 4px; }
 /* Tick control — "this row will save". Ticked = green box; tap to skip (empties it + dims the row). */
 .roster-tick {
     flex: 0 0 auto; width: 24px; height: 24px; padding: 0;
     border-radius: 6px; border: 2px solid var(--success-green);
     background: var(--success-green); color: white;
-    font-size: 14px; font-weight: 900; line-height: 1;
+    font-size: var(--type-body); font-weight: 900; line-height: 1;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; transition: background var(--dur-med), border-color var(--dur-med);
 }
@@ -305,7 +305,7 @@ body.auth-ready .container { display: grid; }
 .roster-cb-opt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .roster-cb-lab { flex: 0 0 66px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
                  text-transform: uppercase; color: var(--conflict-text); }
-.roster-cv-manual, .roster-cv-pdf { font-size: 12px; font-weight: 600; }
+.roster-cv-manual, .roster-cv-pdf { font-size: var(--type-small); font-weight: 600; }
 .cv-dim { opacity: 0.5; text-decoration: line-through; }
 /* Full-width choice row (v15.66): the two buttons share the row 50/50 and wrap to stacked
    full-width if the card is too narrow — they no longer overflow the card's right edge. */
@@ -327,7 +327,7 @@ body.auth-ready .container { display: grid; }
 .section-skipped .roster-skip-all-btn { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 .roster-no-changes {
     padding: 18px; text-align: center;
-    font-size: 13px; font-weight: 600;
+    font-size: var(--type-label); font-weight: 600;
     color: var(--success-green);
     background: var(--roster-success-bg);
     border-radius: var(--radius-md);
@@ -337,14 +337,14 @@ body.auth-ready .container { display: grid; }
 /* UNREADABLE — a PDF cell normaliseShift couldn't parse (UNKNOWN|). Skip-only: surfaced so a
    garbled real shift isn't silently dropped, but never written. Amber (a warning), not red. */
 .roster-change-row.roster-change-unreadable { background: color-mix(in oklch, var(--warning-amber) 10%, white); }
-.review-shift-unreadable { font-size: 12px; font-weight: 600; color: var(--warning-amber); }
+.review-shift-unreadable { font-size: var(--type-small); font-weight: 600; color: var(--warning-amber); }
 /* REMOVE_IMPORT — a stale PDF import whose day now matches base; approving deletes it (no write). */
 .roster-remove-note { font-size: var(--type-badge); color: var(--text-light); font-style: italic; }
 .roster-cancel-btn {
     display: block; width: 100%;
     background: none; border: 1.5px solid var(--border-light);
     color: var(--text-mid); padding: 11px; border-radius: 10px;
-    font-size: 15px; font-weight: 600; cursor: pointer;
+    font-size: var(--type-button); font-weight: 600; cursor: pointer;
     margin-top: 10px; font-family: inherit;
     transition: border-color var(--dur-med), color var(--dur-med);
 }
@@ -358,7 +358,7 @@ select, input[type="text"], input[type="date"] {
     padding: 8px 10px;
     border: 2px solid var(--border-mid);
     border-radius: var(--radius-sm);
-    font-size: 16px;
+    font-size: var(--type-medium);
     color: var(--text-dark);
     background-color: var(--field-bg);
     -webkit-appearance: none;
@@ -402,14 +402,14 @@ select:focus-visible, input:focus-visible {
     /* 14px matches the sibling "Choose file" label — a button, so the 16px iOS-focus-zoom rule
        for text inputs doesn't apply. nowrap keeps the date on one line so the box height matches
        the file button instead of wrapping to two lines (v17.39). */
-    font-size: 14px;
+    font-size: var(--type-body);
     white-space: nowrap;
     text-align: left;
     cursor: pointer;
     box-sizing: border-box;
     transition: border-color 0.12s, background-color 0.12s;
 }
-.date-trigger::after { content: "📅"; font-size: 15px; line-height: 1; flex: 0 0 auto; }
+.date-trigger::after { content: "📅"; font-size: var(--type-button); line-height: 1; flex: 0 0 auto; }
 .date-trigger--empty { color: var(--text-light); }
 @media (hover: hover) and (pointer: fine) { .date-trigger:hover { border-color: var(--primary-blue); } }
 .date-trigger:focus-visible {
@@ -432,7 +432,7 @@ select:focus-visible, input:focus-visible {
 }
 .dp-close { color: var(--text-light); }
 @media (hover: hover) and (pointer: fine) { .dp-close:hover { color: var(--text-dark); } }
-.dp-title { font-size: 16px; font-weight: 700; color: var(--primary-blue); text-align: center; margin: 2px 24px 12px; }
+.dp-title { font-size: var(--type-medium); font-weight: 700; color: var(--primary-blue); text-align: center; margin: 2px 24px 12px; }
 /* Day grid mirrors the admin range picker (.rp-*) so both calendars read as one component:
    flat borderless cells, a navy CIRCLE for the selected day, today = navy bold + a small gold
    dot, and borderless navy month-nav glyphs. */
@@ -447,14 +447,14 @@ select:focus-visible, input:focus-visible {
 }
 @media (hover: hover) and (pointer: fine) { .dp-nav-btn:hover { background: var(--bg-light); } }
 .dp-nav-btn:focus-visible { outline: var(--focus-outline-gold); outline-offset: -2px; }
-.dp-month { font-size: 14px; font-weight: 700; color: var(--text-dark); }
+.dp-month { font-size: var(--type-body); font-weight: 700; color: var(--text-dark); }
 .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 8px; }
 .dp-dow { height: 28px; display: flex; align-items: center; justify-content: center; font-size: var(--type-badge); font-weight: 600; color: var(--text-light); }
 .dp-filler { min-height: 44px; cursor: default; pointer-events: none; }
 .dp-day {
     height: 44px; min-height: 44px;
     display: flex; align-items: center; justify-content: center;
-    border: none; background: none; font-family: inherit; font-size: 13px;
+    border: none; background: none; font-family: inherit; font-size: var(--type-label);
     color: var(--text-dark); cursor: pointer; position: relative;
     user-select: none; -webkit-tap-highlight-color: transparent;
 }
@@ -794,17 +794,17 @@ select:focus-visible, input:focus-visible {
 }
 
 /* ---- Auth setup card ---- */
-.auth-desc { font-size: 13px; color: var(--text-mid); margin-bottom: 12px; }
+.auth-desc { font-size: var(--type-label); color: var(--text-mid); margin-bottom: 12px; }
 .auth-orphans-label {
     display: flex;
     align-items: center;
     gap: 10px;
     margin-bottom: 16px;
-    font-size: 13px;
+    font-size: var(--type-label);
     cursor: pointer;
 }
 #authSetupOrphans { width: 16px; height: 16px; accent-color: var(--primary-blue); }
-#authSetupResult          { display: none; margin-top: 14px; font-size: 13px; }
+#authSetupResult          { display: none; margin-top: 14px; font-size: var(--type-label); }
 #authSetupResult.visible  { display: block; }
 .auth-result-line  { margin: 0 0 6px; }
 .auth-result-info  { color: var(--primary-blue); }
@@ -817,7 +817,7 @@ select:focus-visible, input:focus-visible {
     background: var(--error-bg);
     border-left: 4px solid var(--error-banner);
     border-radius: 6px;
-    font-size: 14px;
+    font-size: var(--type-body);
     color: var(--text-dark);
 }
 
@@ -927,7 +927,7 @@ select:focus-visible, input:focus-visible {
 .error-member  { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); }
 .error-page    { font-size: var(--type-small); color: var(--text-mid); font-family: monospace; }
 .error-version { font-size: var(--type-badge); color: var(--text-faint); font-family: monospace; }
-.error-msg     { font-size: 12px; color: var(--error-red); flex: 1 1 100%; word-break: break-word; margin-top: 2px; }
+.error-msg     { font-size: var(--type-small); color: var(--error-red); flex: 1 1 100%; word-break: break-word; margin-top: 2px; }
 
 .error-stack-details { margin-bottom: 6px; }
 .error-stack-details summary {
@@ -952,7 +952,7 @@ select:focus-visible, input:focus-visible {
 
 .error-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .error-copy-btn,
-.error-resolve-btn { font-size: 12px; padding: 4px 10px; }
+.error-resolve-btn { font-size: var(--type-small); padding: 4px 10px; }
 /* Resolve-all toolbar above the error list (B3) — one action to clear a post-release spike. */
 .error-log-toolbar { margin: 2px 0 12px; }
 /* Error Log header count chip (v18.17): red text on the shared .card-year-chip base — an error
@@ -980,7 +980,7 @@ select:focus-visible, input:focus-visible {
         max-width: 16cm;
         margin: 4cm auto;
         text-align: center;
-        font-size: 14px;
+        font-size: var(--type-body);
         line-height: 1.7;
         color: var(--text-dark);
     }

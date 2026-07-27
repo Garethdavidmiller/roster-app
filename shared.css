@@ -698,7 +698,7 @@ body.lb-open #stickyTotal { display: none !important; }
 
 .lightbox-version {
     color: rgba(255,255,255,0.65); /* raised from 0.45 — was ~4.45:1, now clears WCAG AA */
-    font-size: 12px;
+    font-size: var(--type-small);
     font-weight: 500;
     letter-spacing: 0.3px;
 }
@@ -731,7 +731,7 @@ body.lb-open #stickyTotal { display: none !important; }
     background: rgba(255,255,255,0.05);
     width: 100%;
     text-align: center;
-    font-size: 12px;
+    font-size: var(--type-small);
     color: rgba(255,255,255,0.78); /* interactive link on the dark glass — clears WCAG AA */
     text-decoration: none;
     transition: background var(--dur-med), color var(--dur-med);
@@ -897,7 +897,7 @@ body.lb-open #stickyTotal { display: none !important; }
    same arrangement the About panel already uses (centred "TIPS" heading, left-aligned rows). */
 .notice-body {
     color: rgba(255, 255, 255, 0.75);
-    font-size: 13px;
+    font-size: var(--type-label);
     line-height: 1.5;
     text-align: left;
     text-wrap: pretty;
@@ -909,7 +909,7 @@ body.lb-open #stickyTotal { display: none !important; }
     display: block;
     background-color: var(--accent-gold);
     color: var(--primary-blue);
-    font-size: 15px;
+    font-size: var(--type-button);
     font-weight: 700;
     text-decoration: none;
     text-align: center;
@@ -962,7 +962,7 @@ body.lb-open #stickyTotal { display: none !important; }
 
 /* Update status pill */
 .lightbox-status {
-    font-size: 12px;
+    font-size: var(--type-small);
     font-weight: 600;
     margin-top: 8px;
     padding: 4px 12px;
@@ -999,7 +999,7 @@ body.lb-open #stickyTotal { display: none !important; }
     justify-content: center;
     gap: 12px;
     padding: 4px 0;
-    font-size: 12px;
+    font-size: var(--type-small);
     color: rgba(255,255,255,0.65); /* raised from 0.55 to match .lightbox-tips-title and clear WCAG AA */
 }
 
@@ -1047,7 +1047,7 @@ body.lb-open #stickyTotal { display: none !important; }
     border: 1px solid rgba(255,255,255,0.2);
     border-radius: var(--radius-xl);
     font-family: inherit;
-    font-size: 13px;
+    font-size: var(--type-label);
     font-weight: 600;
     padding: 8px 20px;
     cursor: pointer;
@@ -1102,7 +1102,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .app-header h1 {
-    font-size: 18px;
+    font-size: var(--type-large);
     font-weight: 800;
     color: white;
     margin: 0;
@@ -1159,11 +1159,11 @@ body.lb-open #stickyTotal { display: none !important; }
     }
     .app-header-brand { gap: 6px; }
     .app-header h1 {
-        font-size: 14px;
+        font-size: var(--type-body);
     }
     .badge-page {
         padding: 4px 7px;
-        font-size: 10px;
+        font-size: var(--type-micro);
     }
 }
 
@@ -1194,7 +1194,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .help-btn {
     width: 24px; height: 24px; border-radius: 50%;
     background: var(--bg-faint); border: 1.5px solid var(--border-mid);
-    color: var(--text-light); font-size: 12px; font-weight: 700;
+    color: var(--text-light); font-size: var(--type-small); font-weight: 700;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; flex-shrink: 0; touch-action: manipulation;
     font-family: inherit; line-height: 1;
@@ -1401,7 +1401,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .nav-panel-title {
-    font-size: 14px;
+    font-size: var(--type-body);
     font-weight: 700;
     letter-spacing: -0.2px;
     line-height: 1.2;
@@ -1422,7 +1422,7 @@ body.lb-open #stickyTotal { display: none !important; }
     background: none;
     border: none;
     color: white;
-    font-size: 18px;
+    font-size: var(--type-large);
     cursor: pointer;
     padding: 4px 8px;
     opacity: 0.75;
@@ -1469,7 +1469,7 @@ body.lb-open #stickyTotal { display: none !important; }
     border-radius: 22px;
     background: var(--nav-raised);
     color: var(--nav-text);
-    font-size: 14px;
+    font-size: var(--type-body);
     font-weight: 600;
     text-decoration: none;
     touch-action: manipulation;
@@ -1541,7 +1541,7 @@ body.lb-open #stickyTotal { display: none !important; }
 
 /* Information section — flat, always open */
 .nav-panel-section-heading {
-    font-size: 10px;
+    font-size: var(--type-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -1550,7 +1550,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .nav-panel-group-heading {
-    font-size: 12px;
+    font-size: var(--type-small);
     font-weight: 600;
     color: var(--nav-text-muted);
     margin: 14px 0 2px;
@@ -1580,14 +1580,14 @@ body.lb-open #stickyTotal { display: none !important; }
    drawer's one "two generations" note. One eyebrow rank for both; the gold chevron still marks
    this one as collapsible, and the button keeps its full tap target. */
 .nav-panel-guides-heading {
-    font-size: 10px;
+    font-size: var(--type-micro);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--nav-text-faint);
 }
 .nav-panel-guides-arrow {
-    font-size: 14px;
+    font-size: var(--type-body);
     color: var(--accent-gold-dark);
     transition: transform 0.2s;
     line-height: 1;
@@ -1613,7 +1613,7 @@ body.lb-open #stickyTotal { display: none !important; }
     border-radius: var(--radius-sm);
     text-decoration: none;
     color: var(--nav-text);
-    font-size: 14px;
+    font-size: var(--type-body);
     transition: background 0.1s;
 }
 /* Fixed-width icon slot (v18.18): emojis have varying natural widths, so without this the label
@@ -1666,7 +1666,7 @@ button.nav-panel-link--notices {
 }
 .nav-cs-icon  { font-size: 52px; line-height: 1; }
 .nav-cs-title { color: white; font-size: var(--type-large); font-weight: 700; letter-spacing: -0.3px; }
-.nav-cs-body  { color: rgba(255, 255, 255, 0.7); font-size: 14px; }
+.nav-cs-body  { color: rgba(255, 255, 255, 0.7); font-size: var(--type-body); }
 #navComingSoonClose { color: rgba(255, 255, 255, 0.5); }
 @media (hover: hover) and (pointer: fine) {
     #navComingSoonClose:hover { color: white; }
@@ -1697,7 +1697,7 @@ button.nav-panel-link--notices {
 }
 .nav-notices-empty {
     color: rgba(255, 255, 255, 0.5);
-    font-size: 13px;
+    font-size: var(--type-label);
     text-align: center;
     padding: 8px 0 4px;
 }
@@ -1747,13 +1747,13 @@ button.nav-panel-link--notices {
     white-space: nowrap;
 }
 .notices-item-title {
-    font-size: 13px;
+    font-size: var(--type-label);
     font-weight: 600;
     color: white;
     line-height: 1.3;
 }
 .notices-item-body {
-    font-size: 12px;
+    font-size: var(--type-small);
     color: rgba(255, 255, 255, 0.6);
     line-height: 1.5;
 }
@@ -1807,7 +1807,7 @@ button.nav-panel-link--notices {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 18px;
+    font-size: var(--type-large);
     line-height: 1;
     touch-action: manipulation;
     font-family: inherit;
@@ -1848,7 +1848,7 @@ button.nav-panel-link--notices {
 }
 
 .nav-panel-member {
-    font-size: 13px;
+    font-size: var(--type-label);
     color: var(--nav-text-muted);
     font-weight: 500;
     overflow: hidden;
@@ -1861,7 +1861,7 @@ button.nav-panel-link--notices {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 13px;
+    font-size: var(--type-label);
     font-weight: 600;
     /* Lifted toward white: raw --error-red is ~4:1 on navy (borderline);
        mixing in white lands it comfortably above AA while still reading red. */
@@ -1948,7 +1948,7 @@ button.nav-panel-link--notices {
     margin-bottom: 2px;
 }
 .login-subtitle {
-    font-size: 13px;
+    font-size: var(--type-label);
     color: var(--text-light);
     margin-bottom: 24px;
 }
@@ -2007,7 +2007,7 @@ button.nav-panel-link--notices {
     padding: 8px 10px;
     border: 2px solid var(--border-mid);
     border-radius: var(--radius-sm);
-    font-size: 16px;               /* 16px stops iOS Safari zooming the page on focus */
+    font-size: var(--type-medium);               /* 16px stops iOS Safari zooming the page on focus */
     color: var(--text-dark);
     background-color: var(--field-bg);
     -webkit-appearance: none;
@@ -2032,7 +2032,7 @@ button.nav-panel-link--notices {
     background-color: white;       /* brighten to white on focus — matches the app's fields */
 }
 .login-error {
-    font-size: 13px;
+    font-size: var(--type-label);
     color: var(--error-red);
     background: var(--error-bg);
     border-radius: var(--radius-sm);
@@ -2050,7 +2050,7 @@ button.nav-panel-link--notices {
     color: white;
     border: none;
     border-radius: var(--radius-button);
-    font-size: 15px;
+    font-size: var(--type-button);
     font-weight: 800;
     cursor: pointer;
     touch-action: manipulation;
@@ -2070,7 +2070,7 @@ button.nav-panel-link--notices {
     opacity: 1;
 }
 .login-back {
-    font-size: 13px;
+    font-size: var(--type-label);
     color: var(--text-light);
     text-decoration: none;
     display: inline-block;
@@ -2084,7 +2084,7 @@ button.nav-panel-link--notices {
 /* Staged "still working" reassurance under the Sign in button (display:none until it has text). */
 .login-status {
     display: none;
-    font-size: 12px;
+    font-size: var(--type-small);
     color: var(--text-light);
     margin: 10px 0 2px;
     line-height: 1.35;
@@ -2139,7 +2139,7 @@ button.nav-panel-link--notices {
 .card-collapsible-body.open     { display: block; }
 .collapse-chevron {
     margin-left: auto;
-    font-size: 12px;
+    font-size: var(--type-small);
     color: var(--text-light);
     transition: transform var(--dur-base) var(--ease-standard);
     flex-shrink: 0;
@@ -2343,7 +2343,7 @@ button.nav-panel-link--notices {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: var(--type-body);
     line-height: 1;
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
