@@ -36,7 +36,11 @@ const DOCS = {
 };
 
 /** Wire up the document viewer and open it if the page loaded on a #circular/#newsletter deep link. */
-export function initDocViewer() {
+/**
+ * @param {{ authReady?: Promise<any> }} [deps] authReady — resolves once a Firebase session exists.
+ *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
+ */
+export function initDocViewer({ authReady = Promise.resolve() } = {}) {
     const overlay  = /** @type {HTMLElement|null} */ (document.getElementById('docViewer'));
     const content  = /** @type {HTMLElement|null} */ (document.getElementById('docViewerContent'));
     if (!overlay || !content) return;
@@ -71,6 +75,11 @@ export function initDocViewer() {
         showMessage('Loading…', 'doc-viewer-loading');
         lb.open();
         try {
+            // A session must exist before the read (AUTH_PLAN.md → E1). Plain await: the viewer is
+            // already showing "Loading…", and this path only runs on a notification tap, so the user
+            // is expecting a fetch. Never on the render path.
+            await authReady;
+            if (seq !== _openSeq) return;
             const doc = await d.fetch();
             if (seq !== _openSeq) return;   // a newer tap superseded this one — don't clobber its content
             if (doc && isSafeStorageUrl(doc.storageUrl)) {

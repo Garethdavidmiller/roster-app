@@ -57,6 +57,8 @@ export function init() {
     // Admin rather than being stranded. onSignOut is null when not authenticated, which hides the footer.
     function wireNavPanel() {
         initNavPanel({
+        // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
+        authReady: sessionReady,
             currentPage: 'settings',
             memberName:  currentUser,
             isAdmin:         currentUser ? CONFIG.ADMIN_NAMES.includes(currentUser) : false,

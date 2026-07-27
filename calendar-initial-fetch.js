@@ -8,13 +8,25 @@
  * Edit here for: sync chip appearance, retry behaviour, initial fetch range.
  */
 
-import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange } from './calendar-overrides.js';
+import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache } from './calendar-overrides.js';
 import { formatISO } from './roster-data.js';
 
 /**
  * Kick off the initial 3-month Firestore fetch and wire the sync chip + visibility handler.
  *
- * @param {{ isTeamViewMode: () => boolean, renderCalendar: () => void, renderTeamView?: () => void }} deps
+ * TWO-PHASE since v19.01 (AUTH_PLAN.md → E1). Phase 1 paints from the local Firestore cache
+ * immediately — no network, no auth, so a returning device shows its roster at once. Phase 2 awaits
+ * `authReady` and then runs the authoritative server read. The phases are ordered this way so that
+ * requiring a session for reads (Track E, E2/E5) can never put a `signInAnonymously` round-trip in
+ * front of data the device already holds — the failure mode that would break offline-first on the
+ * app's primary surface. Under today's open rules both phases succeed and the only visible change is
+ * that the cached roster paints sooner.
+ *
+ * @param {{ isTeamViewMode: () => boolean, renderCalendar: () => void, renderTeamView?: () => void,
+ *           authReady?: Promise<any> }} deps
+ *   authReady — resolves once a usable Firebase Auth session exists (the calendar passes
+ *   `calendarAuthReady`). Defaults to already-resolved, so callers and tests that don't care are
+ *   unaffected. Phase 2 waits on it; phase 1 deliberately does NOT.
  *   renderTeamView — re-renders the Team Week View grid from the (now-populated) cache
  *   WITHOUT re-fetching (v18.21). Without it, a user in team view when this fetch resolved
  *   was stranded on a base-roster grid: this success path rendered nothing in team view,
@@ -24,7 +36,7 @@ import { formatISO } from './roster-data.js';
  *   IndexedDB persistence makes this 3-month read reliably beat the week query — which is
  *   why a refresh never recovered.
  */
-export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamView = () => {} }) {
+export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamView = () => {}, authReady = Promise.resolve() }) {
   const now  = new Date();
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -135,6 +147,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
 
     try {
+      // A retry is user-initiated with a visible "Retrying…" state, so a plain await is correct
+      // here — unlike phase 1 above, nothing is waiting to paint behind it.
+      await authReady;
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
       _dataLoaded  = true;
@@ -177,6 +192,18 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
       const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
 
+      // ── Phase 1: paint from the local cache (no network, no auth) ──────────────────────────
+      // Deliberately NOT gated on authReady — that is the whole point of the split. It never
+      // touches syncResolved/_dataLoaded: those mean "the authoritative read settled", and the chip
+      // must still say "Updating…" while phase 2 runs. A cache miss returns false and paints nothing.
+      const _painted = await fetchOverridesForRangeFromCache(startStr, endStr);
+      // Skip the paint if a retry has already superseded this load (same guard as the catch below).
+      if (_painted && _origGen === _fetchGen && !syncResolved) {
+        if (isTeamViewMode()) renderTeamView(); else renderCalendar();
+      }
+
+      // ── Phase 2: the authoritative server read, once a session exists ─────────────────────
+      await authReady;
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
       _dataLoaded  = true;

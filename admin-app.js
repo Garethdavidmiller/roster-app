@@ -1677,6 +1677,8 @@ export function init() {
     // ── Navigation panel ─────────────────────────────────────────────────────────
     function wireNavPanel() {
         initNavPanel({
+        // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
+        authReady: sessionReady,
             currentPage: 'admin',
             memberName:  currentUser,
             isAdmin:         currentIsAdmin,

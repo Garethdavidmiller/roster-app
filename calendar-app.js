@@ -36,6 +36,24 @@ import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
+// Resolves once a usable Firebase Auth user exists: a named account if one is already
+// signed in (e.g. Admin/Paycalc opened first — an existing user already has a token, so
+// signInAnonymously would race or replace them), otherwise a fresh anonymous session.
+// EVERY Firestore write on the calendar — error reporter, usage counter, AND the push-
+// subscription renewal — awaits this so none runs before request.auth is set. Without it,
+// an already-installed PWA re-saved its push subscription with no auth user → the write was
+// rejected by the `request.auth != null` rule → the bell stuck "off-lapsed" with no retry.
+// See ROADMAP → "Deferred security/reliability backlog" (the v14.23–28 push-subscription auth race fix).
+// reconcileExpiredIdentity() FIRST (Finding #9): if a NAMED Firebase identity was restored from
+// IndexedDB but the local app session has expired, sign it out here — the coordinated teardown the
+// getSession() note prescribes (the calendar is the PWA start_url, so this runs on nearly every
+// launch). The anon bootstrap then re-establishes an anonymous session in its place, so the calendar's
+// best-effort writes still satisfy `request.auth != null` without carrying stale named privileges.
+const calendarAuthReady = authReady
+    .then(() => reconcileExpiredIdentity())
+    .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
+    .catch(() => {});
+
 // ============================================
 // CEA ROSTER CALENDAR
 // ============================================
@@ -563,6 +581,9 @@ try {
             // (v18.21 — without this an early/boot-time team view stayed base-roster-only: see
             // initInitialFetch's JSDoc for the two-sided stand-down).
             renderTeamView: () => teamView.refreshFromCache(),
+            // Phase 2 (the authoritative server read) waits for this; phase 1 (the local-cache
+            // paint) deliberately does not — see AUTH_PLAN.md → E1.
+            authReady: calendarAuthReady,
         });
 
         // Restore team view if the user was in it before the last refresh; else render the
@@ -826,12 +847,12 @@ const _entryHash = window.location.hash;
 // ============================================
 // HUDDLE VIEWER — initialised via calendar-huddle-viewer.js
 // ============================================
-initHuddleViewer();
+initHuddleViewer({ authReady: calendarAuthReady });
 
 // ============================================
 // CIRCULAR / NEWSLETTER VIEWER — opened from a #circular/#newsletter notification deep link
 // ============================================
-initDocViewer();
+initDocViewer({ authReady: calendarAuthReady });
 
 // ============================================
 // ONE-TIME NOTICE — "Set your own password" (calendar surface of the password-2026 campaign)
@@ -882,23 +903,10 @@ initDocViewer();
 })();
 
 
-// Resolves once a usable Firebase Auth user exists: a named account if one is already
-// signed in (e.g. Admin/Paycalc opened first — an existing user already has a token, so
-// signInAnonymously would race or replace them), otherwise a fresh anonymous session.
-// EVERY Firestore write on the calendar — error reporter, usage counter, AND the push-
-// subscription renewal — awaits this so none runs before request.auth is set. Without it,
-// an already-installed PWA re-saved its push subscription with no auth user → the write was
-// rejected by the `request.auth != null` rule → the bell stuck "off-lapsed" with no retry.
-// See ROADMAP → "Deferred security/reliability backlog" (the v14.23–28 push-subscription auth race fix).
-// reconcileExpiredIdentity() FIRST (Finding #9): if a NAMED Firebase identity was restored from
-// IndexedDB but the local app session has expired, sign it out here — the coordinated teardown the
-// getSession() note prescribes (the calendar is the PWA start_url, so this runs on nearly every
-// launch). The anon bootstrap then re-establishes an anonymous session in its place, so the calendar's
-// best-effort writes still satisfy `request.auth != null` without carrying stale named privileges.
-const calendarAuthReady = authReady
-    .then(() => reconcileExpiredIdentity())
-    .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
-    .catch(() => {});
+// calendarAuthReady is declared at the top of the module (just below the imports) — it is consumed
+// by initInitialFetch and both document viewers, all of which run ABOVE this point (v19.01). Moving
+// the declaration up was required to avoid a temporal-dead-zone ReferenceError; the promise chain
+// itself is unchanged, it simply starts a few statements earlier.
 
 
 // ============================================
@@ -979,6 +987,7 @@ calendarAuthReady.finally(() => {
 
 const _calendarSession = getSession();
 initNavPanel({
+    authReady: calendarAuthReady,
     currentPage: 'calendar',
     memberName:  _calendarSession?.name || null,
     // Open-counter exclusion identity: the session name, else the SELECTED member — but null on

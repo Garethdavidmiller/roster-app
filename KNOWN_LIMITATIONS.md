@@ -76,6 +76,13 @@ on the calendar) does not touch them. Closing this is a delivery-model change �
 `getBlob`, or short-lived signed URLs minted per request — tracked as **`AUTH_PLAN.md` → E6** (§5),
 which is independent of the calendar-login decision and can start at any time.
 
+**And there is a second reader nobody authorised.** Word circulars/newsletters open via
+`officeViewerUrl`, which passes the storage URL to **Microsoft's Office Online viewer** — Microsoft
+fetches the document **server-side**. So (a) these documents already reach a third party today, which is
+worth knowing independently of any auth work, and (b) authenticated download would break `.docx`
+viewing outright, because Microsoft cannot fetch an auth-gated URL. Any fix has to replace the Word
+rendering path at the same time.
+
 ### Admin/manager password is surname-derived (F-SEC-1) — scoped July 2026, owner chose leave-as-is
 
 Every account's Firebase Auth password is the member's surname (lowercased, non-alpha stripped,
