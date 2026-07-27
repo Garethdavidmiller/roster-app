@@ -151,3 +151,49 @@ test('guide — paycalc-guide desktop 900', async ({ page }) => {
     await guideSettle(page, '.content, main, .guide-header');
     await expect(page).toHaveScreenshot('paycalc-guide-desktop-900.png');
 });
+
+// ── Overlays (v19.03) ─────────────────────────────────────────────────────────
+//
+// WHY THESE EXIST. Until now the suite baselined ten PAGE surfaces and not one overlay — so the
+// login card, About, App Notices, Tips, the dialogs and the password-force block had NO pixel
+// coverage at all. That is a large fraction of the app's surface area, and it is precisely where the
+// v19.04 audit found real drift: five widths, three viewport caps (85 / 86 / 90vw), two different
+// width idioms and six paddings across seven overlays, with no evident reason for any of it.
+//
+// Any fix to that moves pixels, and nothing would have caught a mistake. So these land FIRST, on the
+// CURRENT values, deliberately baselining the drift — that is what makes any consolidation a
+// reviewable diff rather than a leap.
+//
+// Captured at a fixed 900px-tall desktop viewport: the overlay is centred and the page behind it is
+// already locked by the surface baselines above, so the frame is stable.
+
+test('overlay — About lightbox (calendar, desktop 1280)', async ({ page }) => {
+    await prep(page, { width: 1280, height: 900 });
+    await page.goto('/');
+    await settle(page, '.calendar-day');
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toBeVisible();
+    // The open transition finishes before capture (createLightbox's .visible -> .open).
+    await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
+    await expect(page).toHaveScreenshot('overlay-about-desktop-1280.png');
+});
+
+test('overlay — App Notices (calendar, desktop 1280)', async ({ page }) => {
+    await prep(page, { width: 1280, height: 900 });
+    await page.goto('/');
+    await settle(page, '.calendar-day');
+    await page.locator('#navMenuBtn').click();
+    await page.locator('.nav-panel-link--notices').first().click();
+    await expect(page.locator('#navNoticesLightbox')).toBeVisible();
+    await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
+    await expect(page).toHaveScreenshot('overlay-notices-desktop-1280.png');
+});
+
+test('overlay — login card (admin, signed out, desktop 1280)', async ({ page }) => {
+    await page.clock.setFixedTime(FIXED_TIME);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await dismissOneTimeOverlays(page);   // NO seedSession — we want the signed-out overlay
+    await page.goto('/admin.html');
+    await settle(page, '#loginCard');
+    await expect(page).toHaveScreenshot('overlay-login-desktop-1280.png');
+});
