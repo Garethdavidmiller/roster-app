@@ -123,6 +123,40 @@ be argued for rather than merely typed.
 
 Nav-drawer pills/links keep their opacity-based press (the flat-drawer aesthetic) — do not scale them.
 
+## Spacing — `--space-*` is a card rhythm, NOT a general scale (measured v19.03)
+
+`shared.css :root` defines `--space-2/3/4/5` (8/12/16/24px). They name exactly two things — the
+card-body padding and the nav-drawer gaps — and are used in **seven places, all inside `shared.css`**.
+That is their whole job. Do not read them as an app-wide spacing scale, because the app does not have
+one.
+
+**A general spacing migration is a WON'T-DO, and the numbers are why** (measured across the seven app
+stylesheets, counting only `padding`/`margin`/`gap` declarations):
+
+| | |
+|---|---|
+| spacing px literals | **1352** |
+| covered by an existing token value (8/12/16/24) | **433 — 32%** |
+| not covered | **919** |
+| most-used value of all | **10px, 211 uses — has no token** |
+
+Then the long tail: 6px ×113, 4px ×105, 14px ×75, 2px ×69, 5px ×53, 20px ×49, 3px ×46, 7px ×40. This
+is not a scale with drift in it; it is per-component spacing that never followed a grid.
+
+So both available moves are bad:
+
+- **Migrate only exact matches** (the safe, value-preserving move that worked for typography at
+  v19.02) tokenises 32% and leaves 919 literals — *including the single most-used value*. A reader
+  seeing `var(--space-2)` beside a bare `10px` would reasonably conclude the tokens are arbitrary.
+  That is a worse signal than today.
+- **Impose a 4/8/12/16/24/32 grid** moves 919 values, so pixels change on every page. Any proposal
+  claiming this "would not noticeably alter the design" is mistaken — that claim is exactly what made
+  the typography migration safe, and it does not transfer here.
+
+**If you want to improve spacing, do it per component with screenshots** — not as a token sweep. And
+if a repeated off-scale value ever deserves a name, mint its own token (the `--type-badge` precedent),
+rather than bending it onto `--space-*`.
+
 ## Typography scale — shared `--type-*` tokens (standardised v11.77–v11.79)
 
 One type scale in `shared.css :root`:
