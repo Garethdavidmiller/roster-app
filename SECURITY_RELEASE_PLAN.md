@@ -284,10 +284,13 @@ REST). Staged:
   *reads*; the Huddle/Circular/Newsletter files themselves ride permanent tokenised bearer URLs that
   bypass `storage.rules` entirely, so **no rules change in this track touches them** (see
   KNOWN_LIMITATIONS → "The document FILES are protected by a bearer URL, not by auth"). Needs a
-  delivery-model change — authenticated `getBlob`, or short-lived signed URLs minted per request —
-  plus **rotating the existing tokens** (old URLs stay live until the objects are rewritten). Can start
-  any time; does not depend on the calendar decision. Note the asymmetry when prioritising: the track's
-  headline change protects the personal data, and only E6 protects the company-confidential documents.
+  delivery-model change plus **rotating the existing tokens** (old URLs stay live until the objects are
+  rewritten). Can start any time; does not depend on the calendar decision. Note the asymmetry when
+  prioritising: the track's headline change protects the personal data, and only E6 protects the
+  company-confidential documents. **Not yet costed — `AUTH_PLAN.md` §5 explains why:** Word documents
+  open through Microsoft's Office Online viewer, which fetches them **server-side**, so authenticated
+  download (the obvious route) would break `.docx` viewing, and no rules change can make "the documents
+  are behind auth" true while that path exists.
 
 **Why it's not much code but is a big decision.** Mechanically a pattern-copy + a rules change + a policy
 flag (~a day). But the calendar is the app's **front door**, and four real consequences hang off its
