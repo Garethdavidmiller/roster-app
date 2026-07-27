@@ -15,7 +15,7 @@
 // @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported via `_getStorageSdk()` (used by the shared
 // `_transactionalUpload` engine behind huddle/circular/newsletter uploads, v16.38) — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
@@ -65,7 +65,10 @@ export {
     // queries
     collection, query, where, orderBy, limit,
     // reads
-    getDocs, getDoc, onSnapshot,
+    // getDocsFromCache reads ONLY the persistent local cache: no network, and — because
+    // Firestore rules are evaluated server-side — no rule evaluation either. That is what lets the
+    // calendar paint before an auth session exists (AUTH_PLAN.md → E1). It REJECTS on a cache miss.
+    getDocs, getDocsFromCache, getDoc, onSnapshot,
     // writes
     addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction,
 };

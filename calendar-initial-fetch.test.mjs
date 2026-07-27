@@ -20,6 +20,7 @@ let _progressHistory  = [];   // calls to setInitialFetchInProgress
 let _addMonthsHistory = [];   // calls to addFetchedMonths
 let _clearMonthsHistory = []; // calls to clearFetchedMonth
 let _fakeFetchInProgress = false;
+let _cacheFetchImpl   = () => Promise.resolve(false);   // phase 1: local-cache paint
 
 mock.module('./calendar-overrides.js', {
     namedExports: {
@@ -29,6 +30,7 @@ mock.module('./calendar-overrides.js', {
         clearFetchedMonth(key)       { _clearMonthsHistory.push(key); },
         monthKey:                    (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`,
         fetchOverridesForRange:      (...args) => _fetchImpl(...args),
+        fetchOverridesForRangeFromCache: (...args) => _cacheFetchImpl(...args),
     },
 });
 
@@ -111,6 +113,7 @@ beforeEach(() => {
     _clearMonthsHistory  = [];
     _fakeFetchInProgress = false;
     _fetchImpl           = () => Promise.resolve();
+    _cacheFetchImpl      = () => Promise.resolve(false);
     setupDOM();
 });
 
@@ -351,6 +354,10 @@ describe('sync-chip state machine', () => {
         _fetchImpl = () => new Promise(res => { resolveIt = res; });
 
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        // Let phase 1 (cache paint) + authReady settle so the SERVER fetch is actually in flight and
+        // `resolveIt` is assigned — since v19.01 the authoritative read starts a few microtasks after
+        // init, not synchronously (AUTH_PLAN.md → E1 two-phase load).
+        await flushAsync();
         t.mock.timers.tick(800);
 
         const chip = getSyncChip();
@@ -438,6 +445,10 @@ describe('retry', () => {
         _fetchImpl = () => new Promise((res, rej) => { resolveOrig = res; rejectOrig = rej; });
 
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        // Let phase 1 (cache paint) + authReady settle so the SERVER fetch is actually in flight and
+        // `rejectOrig` is assigned — since v19.01 the authoritative read starts a few microtasks after
+        // init, not synchronously (AUTH_PLAN.md → E1 two-phase load).
+        await flushAsync();
         t.mock.timers.tick(800);
         t.mock.timers.tick(9200);
 
@@ -445,7 +456,7 @@ describe('retry', () => {
         const chip = getSyncChip();
         _fetchImpl = () => Promise.resolve();
         chip._fire('click');
-        await flushAsync(); // retry resolves → chip removed
+        await flushAsync(5); // retry awaits authReady then resolves → chip removed
 
         assert.equal(chip._removed, true, 'chip should be removed after retry succeeds');
 
@@ -478,5 +489,70 @@ describe('visibilitychange', () => {
         global.document.hidden = true;
         _docListeners['visibilitychange']?.[0]?.();
         assert.equal(rendered, false);
+    });
+});
+
+// ── E1: the render path must never be gated on auth (AUTH_PLAN.md → E1) ───────
+//
+// THE INVARIANT THIS FILE EXISTS TO PIN. Track E will require a session to READ overrides. The
+// tempting implementation — await the auth promise, then fetch — puts a live signInAnonymously
+// round-trip in front of data the device already has in its Firestore cache, so a returning phone on
+// flaky signal waits on the network to see a roster it could paint instantly. That breaks the app's
+// central promise ("offline first — Firestore is an enhancement") on its primary surface, and it does
+// so invisibly: no unit test would notice, and e2e/offline.spec.js is opt-in AND stubs Firebase at
+// the network layer, so it can observe neither.
+//
+// So: phase 1 (local cache) must go out and paint with auth UNRESOLVED. Phase 2 (the authoritative
+// server read) is the only part allowed to wait.
+
+describe('E1 — auth must not gate the cache paint', () => {
+    test('the cache read still paints when authReady never resolves', async () => {
+        let cacheCalled = false;
+        let serverCalled = false;
+        _cacheFetchImpl = () => { cacheCalled = true; return Promise.resolve(true); };
+        _fetchImpl      = () => { serverCalled = true; return Promise.resolve(); };
+        const renderCalendar = mock.fn();
+
+        initInitialFetch({
+            isTeamViewMode: () => false,
+            renderCalendar,
+            authReady: new Promise(() => {}),   // never resolves — a hung sign-in
+        });
+        await flushAsync(6);
+
+        assert.equal(cacheCalled, true, 'phase 1 must not wait for auth');
+        assert.equal(renderCalendar.mock.callCount() >= 1, true,
+            'the cached roster must be painted even though auth never arrived');
+        assert.equal(serverCalled, false, 'phase 2 correctly still waiting on auth');
+    });
+
+    test('an empty cache paints nothing (no spurious render) but still does not block', async () => {
+        _cacheFetchImpl = () => Promise.resolve(false);   // first visit / evicted IndexedDB
+        const renderCalendar = mock.fn();
+
+        initInitialFetch({
+            isTeamViewMode: () => false,
+            renderCalendar,
+            authReady: new Promise(() => {}),
+        });
+        await flushAsync(6);
+
+        assert.equal(renderCalendar.mock.callCount(), 0,
+            'nothing cached → nothing to paint; the server phase owns the first render');
+    });
+
+    test('phase 2 runs the authoritative read once auth resolves', async () => {
+        let serverCalled = false;
+        _cacheFetchImpl = () => Promise.resolve(true);
+        _fetchImpl      = () => { serverCalled = true; return Promise.resolve(); };
+
+        initInitialFetch({
+            isTeamViewMode: () => false,
+            renderCalendar: mock.fn(),
+            authReady: Promise.resolve(),
+        });
+        await flushAsync(8);
+
+        assert.equal(serverCalled, true, 'the server read must still happen — the cache is not the truth');
     });
 });

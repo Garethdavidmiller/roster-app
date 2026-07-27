@@ -162,6 +162,40 @@ describe('reconcileRangeIntoCache', () => {
         assert.equal(changed, true, 'the visible shift changed');
     });
 
+    // ── authoritative:false — the E1 cache-phase contract (AUTH_PLAN.md → E1) ──
+    // A local-cache read returns a possibly-stale SUBSET, so it must merge but never evict. If it
+    // evicted, it would be a second authoritative reconciler racing the server read on the same
+    // range — the v18.76 Team View bug, where the staler snapshot wiped the grid to base roster.
+
+    it('authoritative:false does NOT evict an in-range key the snapshot omits', () => {
+        const live = rec('06:00-14:00', '', 100);
+        const cache = new Map([
+            ['G. Miller|2026-08-10', live],                            // omitted by the snapshot
+            ['S. Silva|2026-08-11',  rec('07:00-15:00', '', 100)],     // also omitted
+        ]);
+        const changed = reconcileRangeIntoCache(cache, [], '2026-08-10', '2026-08-16',
+            { authoritative: false });
+        assert.equal(cache.get('G. Miller|2026-08-10'), live, 'a stale cache subset must not delete live data');
+        assert.equal(cache.size, 2, 'nothing evicted');
+        assert.equal(changed, false, 'no display change to report');
+    });
+
+    it('authoritative:false still MERGES what the snapshot does carry', () => {
+        const cache = new Map();
+        const r = rec('06:00-14:00', '', 100);
+        const changed = reconcileRangeIntoCache(cache, [row('G. Miller', '2026-08-10', r)],
+            '2026-08-10', '2026-08-16', { authoritative: false });
+        assert.equal(cache.get('G. Miller|2026-08-10'), r, 'the additive half still applies');
+        assert.equal(changed, true);
+    });
+
+    it('the default is authoritative — omitting opts still evicts (the server-read contract)', () => {
+        const cache = new Map([['G. Miller|2026-08-10', rec('06:00-14:00', '', 100)]]);
+        const changed = reconcileRangeIntoCache(cache, [], '2026-08-10', '2026-08-16');
+        assert.equal(cache.size, 0, 'a server snapshot omitting a key IS a delete');
+        assert.equal(changed, true);
+    });
+
     it('a cached NEWER import gone, snapshot has only an OLDER import → the older import wins', () => {
         const cache = new Map([['G. Miller|2026-08-11', rec('07:00-15:00', 'roster_import', 500)]]);
         const older = rec('08:00-16:00', 'roster_import', 100);

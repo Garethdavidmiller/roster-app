@@ -248,11 +248,22 @@ export function shouldReplaceOverride(existing, incoming) {
  *
  * @param {Map<string, any>} cache     the shared rosterOverridesCache (mutated in place)
  * @param {Array<{ memberName: string, date: string, record: any }>} records  validated snapshot rows
+ * **`authoritative: false` (v19.01)** — merge the snapshot in but evict NOTHING. Required for a read
+ * whose snapshot is not the truth for the range: a LOCAL-CACHE read (`getDocsFromCache`) returns a
+ * possibly-stale SUBSET, so treating an absent key as a delete would wipe live overrides. Only a server
+ * range query may evict. Getting this wrong is not theoretical — two authoritative reconcilers racing on
+ * one range is exactly the v18.76 Team View bug, where the later-resolving staler snapshot evicted
+ * overrides the other fetch had just loaded and the grid fell back to the base roster.
+ *
+ * @param {Map<string, any>} cache     the shared rosterOverridesCache (mutated in place)
+ * @param {Array<{ memberName: string, date: string, record: any }>} records  validated snapshot rows
  * @param {string} startStr  'YYYY-MM-DD' inclusive range start
  * @param {string} endStr    'YYYY-MM-DD' inclusive range end
+ * @param {{ authoritative?: boolean }} [opts]  authoritative:false → additive merge, no eviction
  * @returns {boolean} true if any in-range cache slot's display changed
  */
-export function reconcileRangeIntoCache(cache, records, startStr, endStr) {
+export function reconcileRangeIntoCache(cache, records, startStr, endStr, opts = {}) {
+    const authoritative = opts.authoritative !== false;   // default true — the server-read behaviour
     // 1. Fresh authoritative winners for this range, from the snapshot alone.
     const winners = new Map();
     for (const { memberName, date, record } of records) {
@@ -261,7 +272,8 @@ export function reconcileRangeIntoCache(cache, records, startStr, endStr) {
     }
     let displayChanged = false;
     // 2. Evict in-range cache keys the snapshot no longer covers (deleted in Firestore).
-    for (const key of [...cache.keys()]) {
+    //    Skipped for a non-authoritative (cache) snapshot — see the note above.
+    for (const key of authoritative ? [...cache.keys()] : []) {
         const dateStr = key.slice(key.indexOf('|') + 1);
         if (dateStr >= startStr && dateStr <= endStr && !winners.has(key)) {
             cache.delete(key);

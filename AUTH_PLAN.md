@@ -16,7 +16,7 @@ that reads uniformly confident invites someone to start at the wrong end:
 | | Confidence |
 |---|---|
 | §1 framing, §2 current exposure, E0, E2 | **Verified against code.** Safe to act on. |
-| E1 | **Designed and ready to build** — call sites walked, shape settled, guards identified. |
+| E1 | **✓ SHIPPED v19.01.** |
 | E3, the decision gate, §6 measurement | **Sound, unverified.** Design is right; numbers are missing. |
 | §4 offline (E4) | Designed, but rests on **one unvalidated assumption** — see the warning there. |
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
@@ -84,7 +84,7 @@ crawling — a crawler blocked from fetching can never read the noindex, so `Dis
 signal rather than the page. Guarded by `sw-asset-check.test.mjs`. Needed no decision and depends on
 nothing below.
 
-### E1 — make the calendar's reads auth-aware (prep, behaviour-preserving)
+### E1 — make the calendar's reads auth-aware ✓ SHIPPED v19.01
 **Ship as its own release, before any rules change.** `calendarAuthReady` (`calendar-app.js`) gates only
 *writes* — error reporter, usage counter, push renewal. Four paths read with whatever auth state happens
 to exist:
@@ -152,7 +152,7 @@ part of its work done here.
   each page passing its own: `calendarAuthReady` on the calendar, `sessionReady` on the five authenticated
   pages. Follows the existing per-page injection precedent (`isAdmin`, `onLogoClick`, `usageIdentity`).
 
-**Write the guards first, then the change:**
+**The guards (written first, both teeth-verified):**
 
 - `calendar-initial-fetch.test.mjs` — inject an auth promise that **never resolves**; assert the cache
   read still goes out and paints. Teeth-verify by implementing the naive `await` and watching it fail.

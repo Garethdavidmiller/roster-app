@@ -14,6 +14,9 @@ let _mockDocs = [];
 let _getBaseShiftFn = () => 'RD';
 // When true, getDocs rejects — lets the failure-path tests simulate a Firestore fetch error.
 let _getDocsThrows = false;
+// Phase-1 (local cache) mock state — see getDocsFromCache below.
+let _mockCacheDocs = [];
+let _cacheThrows   = false;
 
 /** Build a fake Firestore document. */
 function makeDoc(id, data) {
@@ -29,6 +32,13 @@ mock.module('./firebase-client.js', {
         getDocs:    async () => {
             if (_getDocsThrows) throw new Error('simulated Firestore fetch failure');
             return { size: _mockDocs.length, forEach: cb => _mockDocs.forEach(cb) };
+        },
+        // Phase 1 of the two-phase load (AUTH_PLAN.md → E1). Defaults to an EMPTY cache so every
+        // existing test keeps exercising the server path unchanged; the cache tests set _mockCacheDocs.
+        getDocsFromCache: async () => {
+            if (_cacheThrows) throw new Error('simulated cache miss');
+            return { size: _mockCacheDocs.length, empty: _mockCacheDocs.length === 0,
+                     forEach: cb => _mockCacheDocs.forEach(cb) };
         },
         COLLECTIONS: { overrides: 'overrides', linkDesigns: 'linkDesigns' },
     },
@@ -46,7 +56,7 @@ mock.module('./roster-data.js', {
 const {
     rosterOverridesCache, _initialFetchInProgress,
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
-    monthKey, fetchOverridesForRange,
+    monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache,
     ensureOverridesCached, getShiftTypesInMonth,
 } = await import('./calendar-overrides.js');
 
@@ -99,6 +109,8 @@ describe('addFetchedMonths / clearFetchedMonth', () => {
 
 describe('fetchOverridesForRange duplicate resolution', () => {
     beforeEach(() => {
+    _mockCacheDocs = [];
+    _cacheThrows   = false;
         rosterOverridesCache.clear();
         _mockDocs = [];
     });
@@ -306,5 +318,46 @@ describe('ensureOverridesCached fetch failure', () => {
     test('fetchOverridesForRange rejects (does not swallow) so callers control the failure path', async () => {
         _getDocsThrows = true;
         await assert.rejects(fetchOverridesForRange('2099-05-01', '2099-05-31'));
+    });
+});
+
+// ── fetchOverridesForRangeFromCache — phase 1 of the two-phase load (AUTH_PLAN.md → E1) ──
+//
+// The contract that matters: it MERGES but never EVICTS. A local-cache snapshot is a possibly-stale
+// subset, so treating an absent key as a delete would make it a second authoritative reconciler
+// racing the server read — the v18.76 Team View bug. And it must never throw: a cache miss is the
+// normal first-visit state, not a failure, and must not reach the sync chip's error path.
+
+describe('fetchOverridesForRangeFromCache', () => {
+    const _cacheDoc = (id, member, date, type, value) => makeDoc(id, {
+        memberName: member, date, value, type, source: 'manual', note: '', createdAt: { seconds: 1000 },
+    });
+
+    test('merges cached docs into the shared cache', async () => {
+        _mockCacheDocs = [_cacheDoc('c1', 'G. Miller', '2026-08-10', 'annual_leave', 'AL')];
+        const changed = await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31');
+        assert.equal(changed, true);
+        assert.equal(rosterOverridesCache.get('G. Miller|2026-08-10')?.type, 'annual_leave');
+    });
+
+    test('does NOT evict an in-range key the cache snapshot omits', async () => {
+        _mockCacheDocs = [_cacheDoc('c1', 'G. Miller', '2026-08-10', 'annual_leave', 'AL')];
+        await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31');
+        // A second, staler cache read no longer carrying that date must leave it alone.
+        _mockCacheDocs = [_cacheDoc('c2', 'S. Silva', '2026-08-12', 'sick', 'SICK')];
+        await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31');
+        assert.ok(rosterOverridesCache.get('G. Miller|2026-08-10'),
+            'a cache subset must never delete live data — only the server read may evict');
+    });
+
+    test('an empty cache reports no change and paints nothing', async () => {
+        _mockCacheDocs = [];
+        assert.equal(await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31'), false);
+    });
+
+    test('never throws — a cache miss resolves false instead of reaching the error path', async () => {
+        _cacheThrows = true;
+        assert.equal(await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31'), false);
+        _cacheThrows = false;
     });
 });

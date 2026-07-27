@@ -1894,6 +1894,12 @@ export function init() {
     // and are silently dropped — exactly when we most want the report. Mirrors the
     // admin/settings/operations pages. Error reporter starts regardless of the
     // outcome so synchronous init errors are still captured locally.
+    // Captured so the nav drawer's Circular/Newsletter read can wait for the session, like every
+    // other page (AUTH_PLAN.md → E1). paycalc has no `sessionReady` — it is the one `soft` page and
+    // owns its auth chain locally — so the settle promise is hoisted here instead. It always
+    // RESOLVES (the .catch below swallows a failed sign-in), which is correct for a soft page: the
+    // drawer read proceeds either way rather than hanging on an identity paycalc never requires.
+    let _paycalcAuthSettled = Promise.resolve();
     (function _initErrorReporting() {
       const name = getSession()?.name;
       const afterAuth = () => {
@@ -1913,7 +1919,7 @@ export function init() {
       // wasn't confirmed) — equivalent to the old `!named`. The store is fed by the Phase-2 bridge inside
       // ensureNamedSession, so getAuthSnapshot() reflects the terminal identity here. (ROSTER_CONFIG is
       // roster-data's CONFIG, imported as ROSTER_CONFIG to avoid the paycalc-periods CONFIG clash.)
-      if (name) ensureNamedSession(name)
+      if (name) _paycalcAuthSettled = ensureNamedSession(name)
           .then(() => { if (ROSTER_CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'paycalc').decision === 'soft-allow') console.warn('[Auth] paycalc running without a named session — error reporting may not record.'); })
           .catch(() => {/* reporter still starts below */})
           .finally(afterAuth);
@@ -1938,6 +1944,8 @@ export function init() {
 
     const _paycalcMember = getLoggedMember();
     initNavPanel({
+        // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
+        authReady: _paycalcAuthSettled,
         currentPage: 'paycalc',
         memberName:  _paycalcMember?.name || null,
         isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name ?? ''),

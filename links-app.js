@@ -141,6 +141,8 @@ export function init() {
     /** @type {any} */ let openAboutLightbox = null;
 
     initNavPanel({
+        // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
+        authReady: sessionReady,
         currentPage:     'links',
         memberName:      currentUser,
         isAdmin,

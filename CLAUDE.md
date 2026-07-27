@@ -145,9 +145,9 @@ roster-app/
 ├── calendar-state.js       ← display month/year state for index.html (getters/setters + persistViewedMonth)
 ├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown
 ├── calendar-al-lightbox.js ← AL lightbox + day-detail lightbox for index.html: initCalendarLightboxes() → { openDayDetail, closeALLightbox }
-├── calendar-initial-fetch.js ← initial 3-month Firestore fetch and sync-chip UI for index.html: initInitialFetch({ isTeamViewMode, renderCalendar })
+├── calendar-initial-fetch.js ← initial 3-month Firestore fetch and sync-chip UI for index.html: initInitialFetch({ isTeamViewMode, renderCalendar, authReady }). **TWO-PHASE since v19.01** (AUTH_PLAN.md → E1): phase 1 paints from the local Firestore cache with NO network and NO auth, phase 2 awaits `authReady` then runs the authoritative server read — so requiring a session for reads can never put a `signInAnonymously` round-trip in front of data the device already holds
 ├── calendar-keyboard.js    ← keyboard navigation + hover tooltip for index.html: initCalendarTooltip(), initCalendarKeyboard({ navigateToPaycalc, openDayDetail })
-├── calendar-overrides.js   ← Firestore override cache for index.html (fetch/ensure range, getShiftTypesInMonth)
+├── calendar-overrides.js   ← Firestore override cache for index.html (fetch/ensure range, getShiftTypesInMonth) + `fetchOverridesForRangeFromCache` (v19.01 — the local-cache, no-network, no-auth read that phase 1 of the calendar's two-phase load paints from; merges ADDITIVELY, never evicts)
 ├── calendar-member.js      ← team member selection for index.html (dropdown, current member, stale-name handling)
 ├── calendar-renderer.js    ← calendar cell/grid building for index.html
 ├── calendar-huddle-viewer.js    ← Huddle viewer overlay: initHuddleViewer, _triggerAutoOpen, hashchange

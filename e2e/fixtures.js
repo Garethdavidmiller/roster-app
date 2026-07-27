@@ -79,6 +79,16 @@ export const getDocs = () => {
 //   window.__E2E = { failGetDoc: true }  → every single-doc read rejects. Used to prove the forced
 //      set-password overlay FAILS OPEN when it can't read passwordStatus (password-force.js) — the
 //      property that keeps a mandatory overlay from becoming a lockout.
+// Phase 1 of the calendar's two-phase load (AUTH_PLAN.md -> E1) reads the LOCAL cache. For a QUERY the
+// real SDK resolves with an EMPTY snapshot when nothing is cached (it is getDocFromCache, the
+// single-doc form, that rejects) — so an empty resolve is the accurate default here. Either shape is
+// safe: calendar-overrides.js treats empty and thrown identically. Seed via window.__E2E.cacheDocs.
+export const getDocsFromCache = () => {
+  const rows = (globalThis.__E2E || {}).cacheDocs;
+  if (!rows) return Promise.resolve({ empty: true, size: 0, docs: [], forEach: noop });
+  const docs = rows.map(r => ({ id: r.id, data: () => r }));
+  return Promise.resolve({ empty: false, size: docs.length, docs, forEach: cb => docs.forEach(cb) });
+};
 export const getDoc = () => (globalThis.__E2E || {}).failGetDoc
     ? Promise.reject(Object.assign(new Error('e2e'), { code: 'unavailable' }))
     : Promise.resolve({ exists: () => false, data: () => ({}) });

@@ -77,7 +77,11 @@ async function sanitiseHtml(html) {
 }
 
 /** Wire up the Huddle viewer overlay and start the Firestore subscription. Call once on page load. */
-export function initHuddleViewer() {
+/**
+ * @param {{ authReady?: Promise<any> }} [deps] authReady — resolves once a Firebase session exists.
+ *   Awaited before the snapshot listener attaches (AUTH_PLAN.md → E1). Defaults to already-resolved.
+ */
+export function initHuddleViewer({ authReady = Promise.resolve() } = {}) {
     const viewer = /** @type {HTMLElement} */ (document.getElementById('huddleViewer'));
     const body   = /** @type {HTMLElement} */ (document.getElementById('huddleViewerBody'));
     const close  = document.getElementById('huddleViewerClose');
@@ -233,8 +237,28 @@ export function initHuddleViewer() {
     // so staff don't need to refresh the page.
     /** @type {any} */
     let _unsubHuddle = null;
-    function startHuddleSubscription() {
-        if (_unsubHuddle) _unsubHuddle();
+    // startHuddleSubscription became async at v19.01 (it awaits a session before attaching), so both
+    // fire-and-forget call sites need this wrapper: without it a synchronous throw from
+    // subscribeToLatestHuddle would surface as an UNHANDLED REJECTION rather than the viewer's own
+    // error state, which is both less visible and noisier (error-reporter would log it as uncaught).
+    function _startHuddleSubscriptionSafe() {
+        startHuddleSubscription().catch(err => {
+            _huddleState = 'error';
+            console.warn('[Huddle] Could not start the huddle subscription:', err);
+        });
+    }
+    let _subGen = 0;
+    async function startHuddleSubscription() {
+        const _gen = ++_subGen;
+        if (_unsubHuddle) { _unsubHuddle(); _unsubHuddle = null; }
+        // Attach only once a session exists (AUTH_PLAN.md → E1). Attaching too early is worse than
+        // attaching late: an onSnapshot that hits permission-denied is TERMINATED, not retried, and
+        // today only recovers on the next visibilitychange — useless to someone who just tapped a
+        // notification. A plain await is safe because the 8s safety timeout below is registered at
+        // init, so it already bounds this wait; and the generation guard stops the visibilitychange
+        // re-subscribe from stacking two listeners when two calls await concurrently.
+        await authReady;
+        if (_gen !== _subGen) return;
         _unsubHuddle = subscribeToLatestHuddle(
             /** @param {any} huddle */ (huddle) => {
                 const prevUrl = _huddleData?.storageUrl;
@@ -260,7 +284,7 @@ export function initHuddleViewer() {
             }
         );
     }
-    startHuddleSubscription();
+    _startHuddleSubscriptionSafe();
 
     // If the tab was discarded while still loading — OR the subscription errored (an onSnapshot
     // error terminates the listener; the 8s timeout also flips 'loading'→'error') — re-subscribe on
@@ -268,7 +292,7 @@ export function initHuddleViewer() {
     // unsubscribes any prior listener first, so this can't stack listeners (v16.19).
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden && (_huddleState === 'loading' || _huddleState === 'error')) {
-            startHuddleSubscription();
+            _startHuddleSubscriptionSafe();
         }
     });
 

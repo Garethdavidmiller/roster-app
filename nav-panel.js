@@ -211,12 +211,15 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any> }} opts
+ *   authReady — resolves once a Firebase session exists; awaited before the Circular/Newsletter
+ *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the five
+ *   authenticated pages: `sessionReady`). Defaults to already-resolved.
  *   onLogoClick — opens the page's existing About/version lightbox when the
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, onLogoClick = null, usageIdentity = null } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve() } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion (v18.20): the signed-in name by
     // default; the calendar passes its SELECTED member (its session is optional — same precedent
     // as recordUsage's identity there). Never stored — only compared against CONFIG.ADMIN_NAMES.
@@ -361,7 +364,21 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // orphaning the blank tab. On timeout the .catch closes the tab and shows the fallback (v16.19).
         const timed = new Promise((_res, reject) =>
             setTimeout(() => reject(new Error('doc-fetch-timeout')), 8000));
-        Promise.race([fetchFn(), timed]).then(/** @param {any} data */ data => {
+        // Wait for a Firebase session before reading (AUTH_PLAN.md → E1): the three document
+        // collections are open today, but Track E requires a session, and a read fired before
+        // signInAnonymously lands would return nothing. A plain await is right here — the user
+        // just tapped, the loading state above is showing, and the 8s race still bounds the whole
+        // thing, so a hung sign-in cannot strand _docFetching. Each page passes its own promise
+        // (the calendar `calendarAuthReady`; the five authenticated pages `sessionReady`).
+        //
+        // ACCEPTED TRADE-OFF: on operations/links the in-place-login path deliberately leaves
+        // `sessionReady` UNRESOLVED until the user signs in (see those coordinators — resolving it
+        // early poisons the one-shot). So a SIGNED-OUT user who opens the drawer there and taps a
+        // document now waits out the 8s race and gets the existing failure fallback, where before it
+        // opened. That is the correct destination — once reads require a session the fetch genuinely
+        // cannot succeed signed-out — and the failure is graceful (spinner cleared, blank tab closed,
+        // fallback shown) rather than a stuck state. Revisit if the 8s wait proves annoying.
+        Promise.race([authReady.then(() => fetchFn()), timed]).then(/** @param {any} data */ data => {
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {

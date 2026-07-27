@@ -10,7 +10,7 @@
  * Edit here for: Firestore override query, cache invalidation, duplicate resolution.
  */
 
-import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
+import { db, collection, query, where, getDocs, getDocsFromCache, COLLECTIONS } from './firebase-client.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
 import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue, resolveEffectiveShift } from './override-utils.js';
 
@@ -85,6 +85,43 @@ export async function fetchOverridesForRange(startStr, endStr) {
     reconcileRangeIntoCache(rosterOverridesCache, records, startStr, endStr);
     // New override data may change which shift types appear in a month.
     shiftTypesMonthCache.clear();
+}
+
+/**
+ * Paint from the LOCAL Firestore cache only — no network, no auth, no rule evaluation (rules are
+ * evaluated server-side, so a cache hit is never gated). This is phase 1 of the calendar's two-phase
+ * initial load (AUTH_PLAN.md → E1): it lets the roster appear instantly on a returning device, and
+ * keeps appearing once reads require a session, WITHOUT putting a `signInAnonymously` round-trip in
+ * front of data the device already holds.
+ *
+ * **Merged additively — never authoritative.** A cache snapshot is a possibly-stale SUBSET, so an
+ * absent key is not a delete. Only the server read (`fetchOverridesForRange`) may evict. See the
+ * `authoritative` note on `reconcileRangeIntoCache`.
+ *
+ * Never throws: a cache miss (first visit, evicted IndexedDB) is the normal empty state, not a
+ * failure, and must never reach the sync chip's error path.
+ *
+ * @param {string} startStr - 'YYYY-MM-DD' inclusive start
+ * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
+ * @returns {Promise<boolean>} true if the cache produced anything that changed the display
+ */
+export async function fetchOverridesForRangeFromCache(startStr, endStr) {
+    try {
+        const q = query(
+            collection(db, COLLECTIONS.overrides),
+            where('date', '>=', startStr),
+            where('date', '<=', endStr)
+        );
+        const snapshot = await getDocsFromCache(q);
+        if (snapshot.empty) return false;
+        const records = collectOverrideRecords(snapshot);
+        const changed = reconcileRangeIntoCache(rosterOverridesCache, records, startStr, endStr,
+            { authoritative: false });
+        if (changed) shiftTypesMonthCache.clear();
+        return changed;
+    } catch {
+        return false;   // no cache yet / storage unavailable — phase 2 does the real work
+    }
 }
 
 /**
