@@ -109,7 +109,7 @@
       cursor: pointer; touch-action: manipulation;
       transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
-    #periodSelect:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color); background-color: white; }
+    #periodSelect:focus-visible { border-color: var(--primary-blue); box-shadow: var(--focus-ring); background-color: white; }
     .period-nav { display: flex; gap: 8px; width: 100%; }
     .nav-pill {
       flex: 1;
@@ -169,7 +169,7 @@
       text-decoration: underline; text-underline-offset: 2px;
     }
     .clear-btn:active       { color: var(--error-red); }
-    .clear-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    .clear-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
     /* Desktop column wrappers. display:contents by DEFAULT so on mobile both wrappers are
        invisible to layout and their children stack in DOM order exactly as before. The ≥1024px
@@ -297,7 +297,7 @@
       text-decoration: underline; text-underline-offset: 2px;
       cursor: pointer; touch-action: manipulation;
     }
-    .banner-link:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    .banner-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     /* Accuracy / confirm-your-payslip note line; hidden when its text is empty. */
     .bp-banner-note { margin-top: 4px; font-weight: 400; }
     .bp-banner-note:empty { display: none; }
@@ -318,7 +318,7 @@
       cursor: pointer; touch-action: manipulation; transition: background var(--dur-med);
     }
     .bd-btn:active { background: var(--border-light); }
-    .bd-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; }
+    .bd-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
     .bd-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
     .bd-btn.open .bd-arrow { transform: rotate(180deg); }
     .bd-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
@@ -423,7 +423,7 @@
     @media (hover: hover) and (pointer: fine) {
       .show-more-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
     }
-    .show-more-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    .show-more-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .show-more-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); }
     .show-more-btn.open .show-more-arrow { transform: rotate(180deg); }
     .hours-extra { display: none; }
@@ -484,7 +484,7 @@
     }
     .hhmm-field input::-webkit-inner-spin-button,
     .hhmm-field input::-webkit-outer-spin-button { -webkit-appearance: none; }
-    .hhmm-field input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color); background-color: white; }
+    .hhmm-field input:focus-visible { border-color: var(--primary-blue); box-shadow: var(--focus-ring); background-color: white; }
     .hhmm-field .hhmm-lbl { font-size: var(--type-micro); color: var(--text-light); font-weight: 600; letter-spacing: 0.5px; }
     .hhmm-sep { font-size: 20px; font-weight: 300; color: var(--text-light); padding-bottom: 14px; flex-shrink: 0; }
 
@@ -520,7 +520,7 @@
       touch-action: manipulation; transition: background-color var(--dur-med); flex-shrink: 0;
     }
     .stepper button:active { background: var(--primary-blue); color: white; }
-    .stepper button:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    .stepper button:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     @media (hover: hover) and (pointer: fine) {
       .stepper button:hover { background: var(--primary-blue-dark); color: white; }
     }
@@ -575,7 +575,7 @@
     }
     /* Brighten to white when active — the field 'fills in' on focus */
     .field input:focus-visible, .field select:focus-visible {
-      border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color);
+      border-color: var(--primary-blue); box-shadow: var(--focus-ring);
       background-color: white;
     }
     .field select {
@@ -603,6 +603,8 @@
       background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
       cursor: default; border-color: var(--border-light); padding-right: 32px;
     }
+    /* Safe to suppress entirely: the one .pfx--readonly field (#hourlyRate) carries tabindex="-1",
+       so it is not a Tab stop — unlike .bp-rate-locked below, which is. */
     .pfx--readonly input:focus { outline: none; box-shadow: none; }
     /* ONE lock treatment everywhere (v18.07): same glyph size/offset/opacity as the back-pay
        locked boxes below — the two had drifted in all four values. */
@@ -623,7 +625,7 @@
     .adj-sign-btn.negative {
       background: var(--error-bg); border-color: var(--error-red); color: var(--error-red);
     }
-    .adj-sign-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    .adj-sign-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .field-hint { font-size: var(--type-small); color: var(--text-light); margin-top: 5px; line-height: 1.45; }
     /* "Up to which payslip" pointer at the top of the Year to Date card — a subtle gold-accented
        note so it reads as guidance about WHICH payslip to copy from, not just another hint. */
@@ -680,7 +682,7 @@
       transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
     .check-actual input:focus-visible {
-      border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color);
+      border-color: var(--primary-blue); box-shadow: var(--focus-ring);
       background-color: white; outline: none;
     }
     .check-actual-line {
@@ -724,7 +726,7 @@
       touch-action: manipulation; margin-top: 2px;
     }
     .hpp-toggle-btn:active { color: var(--text-mid); }
-    .hpp-toggle-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; }
+    .hpp-toggle-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
     .hpp-toggle-arrow { font-size: var(--type-micro); transition: transform var(--dur-slow); display: inline-block; }
     .hpp-toggle-btn.open .hpp-toggle-arrow { transform: rotate(180deg); }
     .hpp-note-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
@@ -746,7 +748,7 @@
       touch-action: manipulation;
     }
     .disclaimer-toggle:active       { color: var(--text-mid); }
-    .disclaimer-toggle:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+    .disclaimer-toggle:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .disclaimer-extra { display: none; }
     .disclaimer-extra.open { display: inline; }
 
@@ -836,7 +838,7 @@
       .bp-mode-opt:has(input:checked):hover, .hpp-mode-opt:has(input:checked):hover { border-color: var(--primary-blue); }
     }
     .bp-mode-opt:has(input:focus-visible), .hpp-mode-opt:has(input:focus-visible) {
-      outline: 2px solid var(--primary-blue); outline-offset: 2px;
+      outline: var(--focus-outline); outline-offset: 2px;
     }
     .bp-mode-opt input, .hpp-mode-opt input { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--primary-blue); }
     /* Manual entry disabled while the paid-in payslip is still in the future (v18.48) —
@@ -858,7 +860,12 @@
        rate treatment (solid faint fill, bold, small 🔒; unified v17.93 / lock added v18.00). */
     input.bp-rate-locked { background: var(--bg-faint); color: var(--text-dark); font-weight: 700;
       border-color: var(--border-light); cursor: default; padding-right: 32px; }
-    input.bp-rate-locked:focus { outline: none; box-shadow: none; }
+    /* Locked boxes suppress the "active field" glow — they are not editable, so brightening them
+       would lie. But they stay in the Tab order (the JS sets `readOnly`, not `disabled`), so they
+       must still show WHERE you are: `outline: none` here left four reachable inputs with no focus
+       indicator at all, which no axe rule and no screenshot baseline can see. (v18.99) */
+    input.bp-rate-locked:focus { box-shadow: none; }
+    input.bp-rate-locked:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .pfx:has(> input.bp-rate-locked)::after {
       content: "🔒"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       font-size: 12px; opacity: .5; pointer-events: none;
@@ -1234,7 +1241,7 @@
     background-color: var(--field-bg); color: var(--text-dark);
     transition: border-color var(--dur-med), background-color var(--dur-med);
   }
-  .decimal-hrs-input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color); background-color: white; }
+  .decimal-hrs-input:focus-visible { border-color: var(--primary-blue); box-shadow: var(--focus-ring); background-color: white; }
   /* Both columns now carry an eyebrow label, so the boxes align naturally — the old +20px
      padding/margin compensation hacks are gone; the = centres on the box row instead. (v18.02) */
   .decimal-conv-equals {
@@ -1251,7 +1258,7 @@
   /* .card-header-toggle / .card-toggle-arrow — PROMOTED to shared.css (v18.16, canonical
      header system for all pages). The arrow is the focusable collapse toggle (v17.50). */
   .card-toggle-arrow { cursor: pointer; }
-  .card-toggle-arrow:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; border-radius: 3px; }
+  .card-toggle-arrow:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 3px; }
   .collapsible-body {
     max-height: 0; overflow: hidden;
     /* One duration for the whole reveal (v18.87). Height ran 0.4s while its own padding ran 0.3s,
@@ -1404,7 +1411,7 @@
   @media (hover: hover) and (pointer: fine) {
     .roster-row:hover { background: var(--bg-faint); }
   }
-  .roster-row:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: var(--radius); }
+  .roster-row:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: var(--radius); }
   .roster-row--matched { background: var(--row-matched-bg); }
   .roster-row--differs { background: var(--row-differs-bg); }
   .roster-cat-match { font-size: var(--type-small); font-weight: 700; color: var(--row-matched-text); flex-shrink: 0; }
@@ -1432,9 +1439,9 @@
     .fill-roster-btn:hover { background: var(--primary-blue-dark); }
   }
   .fill-roster-btn:focus-visible {
-    outline: 2px solid var(--primary-blue);
+    outline: var(--focus-outline);
     outline-offset: 2px;
-    box-shadow: 0 0 0 4px var(--focus-ring-color);
+    box-shadow: var(--focus-ring);
   }
   .roster-days-toggle {
     background: none; border: none; padding: 0;
@@ -1443,7 +1450,7 @@
     text-decoration: underline; text-underline-offset: 2px;
   }
   .roster-days-toggle:focus-visible {
-    outline: 2px solid var(--primary-blue);
+    outline: var(--focus-outline);
     outline-offset: 3px;
     border-radius: 2px;
   }
