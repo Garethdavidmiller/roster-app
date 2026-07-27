@@ -59,7 +59,7 @@ path awaits it:** `calendar-initial-fetch.js` (the 3-month override fetch), `cal
 `calendar-doc-viewer.js`, and `nav-panel.js`'s Circular/Newsletter open all read whatever auth state
 happens to exist. Harmless under `allow read;`, but the moment reads require a session those four
 race `signInAnonymously` on a cold start — an empty calendar, or a notification tap that opens
-nothing. Any future tightening must land that await FIRST, as its own soaked release.
+nothing. Any future tightening must land that await FIRST, as its own soaked release (`AUTH_PLAN.md` → E1).
 
 ### The document FILES are protected by a bearer URL, not by auth
 `storage.rules` gates direct Storage SDK reads, but staff never read Huddles/Circulars/Newsletters
@@ -73,7 +73,8 @@ has ever held one — a forwarded link, browser history, a synced bookmark — k
 and revocation requires rewriting the object, not editing a rule. So the internal operational
 documents are the app's least-protected content, and the change everyone reaches for first (a login
 on the calendar) does not touch them. Closing this is a delivery-model change — authenticated
-`getBlob`, or short-lived signed URLs minted per request — tracked as Track E "E6".
+`getBlob`, or short-lived signed URLs minted per request — tracked as **`AUTH_PLAN.md` → E6** (§5),
+which is independent of the calendar-login decision and can start at any time.
 
 ### Admin/manager password is surname-derived (F-SEC-1) — scoped July 2026, owner chose leave-as-is
 

@@ -221,7 +221,13 @@ Three design points that flow from this and still govern any future rule change:
   un-attested write path entirely. **If tightened before App Check:** add a key-count cap to the
   `activeAccounts` + `perf_` create/update conditions and a matching `assertFails`. (v17.43 audit.)
 
-### Track E — full-app authentication (put the calendar behind login) — IDEA CAPTURED, NOT DECIDED
+### Track E — full-app authentication (put the calendar behind login) — E0 SHIPPED, REST UNDECIDED
+
+> **📄 `AUTH_PLAN.md` is the authoritative DESIGN doc for this track** (what "behind authentication" can
+> and cannot mean here, the per-phase build detail, the offline grace-mode answer, what to measure, the
+> owner decisions). This section stays authoritative for **sequencing and risk**, consistent with how
+> `PASSWORD_PLAN.md` relates to Track C. Keep each to its half — the v19.00 sweep found these two files
+> already contradicting each other once (the "≈ zero cost" claim below, since corrected).
 
 > **Status: undecided — may or may not ever be built.** Recorded as a *considered option*, not a
 > committed plan. The most likely trigger is **external**: if the app becomes (or is being assessed as)
