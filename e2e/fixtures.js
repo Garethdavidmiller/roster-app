@@ -45,7 +45,9 @@ export const query = () => marker('query');
 export const where = () => marker('where');
 export const orderBy = () => marker('orderBy');
 export const limit = () => marker('limit');
-export const doc = () => marker('doc');
+// doc(db, collection, id) captures its PATH (v18.97) so deleteDoc below can tell which row was
+// removed. Still an opaque object to every consumer; only the delete stub reads .path.
+export const doc = (...a) => ({ __stub: 'doc', path: a.slice(1).map(String).join('/') });
 export const serverTimestamp = () => marker('ts');
 export const writeBatch = () => ({ set: noop, update: noop, delete: noop, commit: () => Promise.resolve() });
 // runTransaction(db, fn): run the update fn with a stub tx whose get() returns a non-existent doc,
@@ -57,9 +59,13 @@ export const runTransaction = (_db, fn) => Promise.resolve(fn({ get: () => Promi
 // an Operations card WITH DATA — which is how the reset-requests row shipped broken at 375px (its
 // name column collapsed to 18px and text painted over the label).
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
+// window.__E2E.docsDelayMs holds every collection read open for N ms — the lever that makes a
+// read/delete INTERLEAVING reproducible rather than a matter of luck.
 export const getDocs = () => {
-  const rows = (globalThis.__E2E || {}).docs;
-  if (!rows) return Promise.resolve({ empty: true, size: 0, docs: [], forEach: noop });
+  const e2e = globalThis.__E2E || {};
+  const rows = e2e.docs;
+  const wrap = (v) => (e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));
+  if (!rows) return wrap({ empty: true, size: 0, docs: [], forEach: noop });
   // Only EPOCH-SCALE numbers become Timestamps (>= 1e12 ms, i.e. after Sep 2001) — the same heuristic
   // isEmailCheckDue uses for legacy stamps. Converting every number turned a seeded count: 4 into a
   // Timestamp object, so "asked 4 times" silently vanished from the card.
@@ -68,7 +74,7 @@ export const getDocs = () => {
     id: r.id,
     data: () => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, ts(v)])),
   }));
-  return Promise.resolve({ empty: false, size: docs.length, docs, forEach: cb => docs.forEach(cb) });
+  return wrap({ empty: false, size: docs.length, docs, forEach: cb => docs.forEach(cb) });
 };
 //   window.__E2E = { failGetDoc: true }  → every single-doc read rejects. Used to prove the forced
 //      set-password overlay FAILS OPEN when it can't read passwordStatus (password-force.js) — the
@@ -79,7 +85,16 @@ export const getDoc = () => (globalThis.__E2E || {}).failGetDoc
 export const addDoc = () => Promise.resolve(marker('docRef'));
 export const setDoc = () => Promise.resolve();
 export const updateDoc = () => Promise.resolve();
-export const deleteDoc = () => Promise.resolve();
+// deleteDoc REMOVES the row from the seeded set (v18.97) instead of no-opping, so a card that
+// deletes and then re-reads sees the delete. Without this there was no way to test the
+// reset-requests refresh race: every reload returned the original rows, so a ghost row and a
+// correctly-cleared one looked identical.
+export const deleteDoc = (ref) => {
+  const e2e = globalThis.__E2E || {};
+  const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
+  if (id && Array.isArray(e2e.docs)) e2e.docs = e2e.docs.filter(r => r.id !== id);
+  return Promise.resolve();
+};
 export const increment = () => marker('increment');   // FieldValue sentinel (usage counters)
 export const deleteField = () => marker('deleteField'); // FieldValue sentinel (usage prune)
 export class FieldPath {}                               // literal field path (usage daily-bucket prune)
@@ -121,7 +136,19 @@ export const browserSessionPersistence = marker('session');
 // Chosen-password change flow (settings.html Password card, v18.63). These are imported at module
 // scope by firebase-client.js, so they MUST be exported here or the whole module graph fails to link
 // (a link error would blank every page under the stub). Only exercised when a password change runs.
-export const updatePassword = () => Promise.resolve();
+// window.__E2E.hangPasswordWrite makes the password WRITE hang until the test releases it with
+// window.__E2E_releasePasswordWrite(ok) (v18.97). This is the only way to reach the INDETERMINATE
+// state in a browser: the deadline passes, the UI must say it could not confirm, and then the
+// original call settles late — the case that used to be reported as a flat failure.
+// NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
+export const updatePassword = () => {
+  if (!(globalThis.__E2E || {}).hangPasswordWrite) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    globalThis.__E2E_releasePasswordWrite = (ok) => (ok === false
+      ? reject(Object.assign(new Error('e2e late failure'), { code: 'auth/network-request-failed' }))
+      : resolve());
+  });
+};
 export const reauthenticateWithCredential = () => Promise.resolve({ user: { uid: 'test' } });
 export const EmailAuthProvider = { credential: (email, password) => marker('cred:' + email + ':' + password) };
 
