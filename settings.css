@@ -101,9 +101,9 @@ body {
 }
 .contact-email-input:focus-visible {
     border-color: var(--primary-blue);
-    outline: 2px solid var(--primary-blue);
+    outline: var(--focus-outline);
     outline-offset: 2px;
-    box-shadow: 0 0 0 4px var(--focus-ring-color);
+    box-shadow: var(--focus-ring);
     /* Brighten to white when active — matches the field focus ring on admin/operations */
     background-color: white;
 }

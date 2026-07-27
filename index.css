@@ -310,7 +310,7 @@
             min-height: 44px;
         }
         .notif-prompt-enable:focus-visible {
-            outline: 2px solid var(--accent-gold);
+            outline: var(--focus-outline-gold);
             outline-offset: 2px;
         }
         .notif-prompt-dismiss {
@@ -320,7 +320,7 @@
             min-height: 44px;
         }
         .notif-prompt-dismiss:focus-visible {
-            outline: 2px solid var(--primary-blue);
+            outline: var(--focus-outline);
             outline-offset: 2px;
         }
 
@@ -339,9 +339,9 @@
         }
 
         .controls select:focus-visible, .controls button:focus-visible {
-            outline: 2px solid var(--primary-blue);
+            outline: var(--focus-outline);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px var(--focus-ring-color);
+            box-shadow: var(--focus-ring);
         }
         /* Brighten the field to white when active (selects only — buttons keep their fill) */
         .controls select:focus-visible { background-color: white; }
@@ -461,7 +461,7 @@
             }
         }
         .calendar-day:focus-visible {
-            outline: 2px solid var(--accent-gold);
+            outline: var(--focus-outline-gold);
             outline-offset: -2px;
             z-index: 3;
         }
@@ -1180,9 +1180,9 @@
         }
         .team-help-btn:active { opacity: 0.75; transform: scale(var(--press-scale)); }
         .team-help-btn:focus-visible {
-            outline: 2px solid var(--primary-blue);
+            outline: var(--focus-outline);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px var(--focus-ring-color);
+            box-shadow: var(--focus-ring);
         }
         .tv-current-badge {
             display: inline-block;
@@ -1232,9 +1232,9 @@
         }
         .tv-today-btn:active { opacity: 0.75; transform: scale(var(--press-scale)); }
         .tv-today-btn:focus-visible {
-            outline: 2px solid var(--primary-blue);
+            outline: var(--focus-outline);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px var(--focus-ring-color);
+            box-shadow: var(--focus-ring);
         }
         .tv-empty {
             text-align: center;
@@ -1278,9 +1278,9 @@
         }
         .grade-tab:active { opacity: 0.75; transform: scale(var(--press-scale)); }
         .grade-tab:focus-visible {
-            outline: 2px solid var(--primary-blue);
+            outline: var(--focus-outline);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px var(--focus-ring-color);
+            box-shadow: var(--focus-ring);
         }
         .team-week-row {
             display: flex;
@@ -1334,9 +1334,9 @@
             box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
         }
         .tv-week-nav:focus-visible {
-            outline: 2px solid var(--primary-blue);
+            outline: var(--focus-outline);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px var(--focus-ring-color);
+            box-shadow: var(--focus-ring);
         }
         .team-table-wrap {
             overflow-x: auto;

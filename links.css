@@ -380,7 +380,7 @@ body.auth-ready .container { display: grid; }
     position: relative;
 }
 .shift-cell-select:focus-visible {
-    outline: 2px solid var(--accent-gold);
+    outline: var(--focus-outline-gold);
     outline-offset: -2px;
 }
 
@@ -438,7 +438,7 @@ body.auth-ready .container { display: grid; }
     .btn-text-link:hover { color: var(--text-dark); }
 }
 .btn-text-link:active { opacity: 0.6; }
-.btn-text-link:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; border-radius: 2px; }
+.btn-text-link:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
 
 /* ---- Paint-mode brush bar ---- */
 .brush-bar {
@@ -580,7 +580,7 @@ body.auth-ready .container { display: grid; }
     .gen-remove-btn:hover { color: var(--error-red); }
 }
 .gen-remove-btn:active { opacity: 0.6; }
-.gen-remove-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; border-radius: 2px; }
+.gen-remove-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
 .gen-spare-row td { background: color-mix(in srgb, var(--accent-gold) 10%, transparent); }
 .gen-total-row td {
     background: var(--surface-sunken);
@@ -602,7 +602,7 @@ body.auth-ready .container { display: grid; }
 .gen-input  { width: 58px; text-align: center; }
 .gen-select { width: 100%; min-width: 122px; }
 .gen-input:focus-visible, .gen-select:focus-visible {
-    outline: 2px solid var(--primary-blue);
+    outline: var(--focus-outline);
     outline-offset: 1px;
     background-color: white;
 }
@@ -717,7 +717,7 @@ body.auth-ready .container { display: grid; }
 /* 0.6 → 0.85 alpha (v18.87): the app's other white-on-dark focus rings (guide-shell's back/PDF
    buttons) are 0.85, and this one being dimmer made the weakest ring sit on the darkest surface —
    the reverse of what contrast wants. */
-.design-chip-delete:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.85); outline-offset: 2px; border-radius: 2px; }
+.design-chip-delete:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; border-radius: 2px; }
 .design-chip-delete:disabled { opacity: 0.35; cursor: default; }
 
 .btn-design-new,
@@ -739,7 +739,7 @@ body.auth-ready .container { display: grid; }
     .btn-design-dup:hover { background: var(--surface-sunken); color: var(--text-dark); }
 }
 .btn-design-new:focus-visible,
-.btn-design-dup:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+.btn-design-dup:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .btn-design-dup:disabled { opacity: 0.4; cursor: default; }
 
 .btn-design-compare {
@@ -760,7 +760,7 @@ body.auth-ready .container { display: grid; }
 @media (hover: hover) and (pointer: fine) {
     .btn-design-compare:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-dark); }
 }
-.btn-design-compare:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+.btn-design-compare:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .btn-design-compare.compare-active {
     background: var(--primary-blue);
     color: white;
@@ -856,7 +856,7 @@ body.auth-ready .container { display: grid; }
 
 /* Diff highlight — a gold outline on cells where the two designs differ */
 .cell-diff .shift-cell-btn {
-    outline: 2px solid var(--accent-gold);
+    outline: var(--focus-outline-gold);
     outline-offset: -2px;
     position: relative;
     z-index: 1;

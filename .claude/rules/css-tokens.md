@@ -92,9 +92,32 @@ modal-picker panel family", though no picker sets it. Sharing a silhouette with 
 flattens the layering an overlay depends on. All four now sit on `--radius-xl`, so the two-family
 description is true of the code. When adding an overlay, pick a family — never `--radius-lg`.
 
-**Every focusable field carries the 4px ring** `box-shadow: 0 0 0 4px var(--focus-ring-color)`. The
-shared `promptDialog` input was the one exception (`outline: none` and nothing in its place) until
-v18.87 — the weakest focus indicator in the app, inside a modal, where keyboard users most need it.
+## Focus indicators — four tokens, one invisible system (v18.99)
+
+Focus is the app's only design system you cannot see in a screenshot: a ring is drawn solely while a
+keyboard user is on the element. So the visual baselines can't catch drift in it, and axe has no rule
+for indicator quality either. Predictably, the recipes had become ~80 hand-written literals across
+the seven app stylesheets. They now live in `shared.css :root` and **must be used, never restated**:
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `--focus-outline` | `2px solid var(--primary-blue)` | The default — light surfaces (cards, prose, fields) |
+| `--focus-outline-gold` | `2px solid var(--accent-gold)` | The navy drawer and other dark surfaces only |
+| `--focus-outline-light` | `2px solid rgba(255,255,255,.85)` | The darkest fills (burger, guide header, design chips) |
+| `--focus-ring` | `0 0 0 4px var(--focus-ring-color)` | The 4px glow a FIELD adds beneath its outline |
+
+Which outline is a **contrast** decision, not a taste one: gold on a light surface is ~1.5:1 and
+fails the 3:1 focus-indicator floor — never use it there. **Every focusable field carries
+`--focus-ring`**; the shared `promptDialog` input was the one exception (`outline: none` and nothing
+in its place) until v18.87 — the weakest indicator in the app, inside a modal, where keyboard users
+most need it.
+
+**Never leave a Tab stop with no indicator.** `outline: none` in a focus rule is legitimate only when
+a `box-shadow` ring replaces it, or the element genuinely is not tabbable (`#hourlyRate` carries
+`tabindex="-1"`). The back-pay locked rate boxes failed this until v18.99 — the JS sets `readOnly`,
+not `disabled`, so four reachable inputs showed nothing at all on focus. Both halves are enforced by
+`focus-ring-parity.test.mjs`, which keeps the exemptions in a named list so a new suppression has to
+be argued for rather than merely typed.
 
 **Every primary button** (calendar `.controls button`, paycalc `.btn-primary`/`.nav-pill`/`.ty-tab`, admin `.btn-save`, settings/operations `.btn-action`, shared `#loginSubmit`) shares one tactile press: `:active { transform: scale(var(--press-scale)) }` with `transform` in its `transition`. `--press-scale` is `0.97`, overridden to `1` under a single `@media (prefers-reduced-motion: reduce)` block — so the press becomes a no-op for reduced-motion users **without** a global transition-killer (which would break the lightbox's `transitionend`-driven close).
 

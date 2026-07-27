@@ -342,8 +342,23 @@
     --shadow-1: 0 1px 2px rgba(0,22,48,0.08), 0 2px 8px rgba(0,22,48,0.10);   /* resting / small chips */
     --shadow-2: 0 1px 2px rgba(0,22,48,0.14), 0 6px 20px rgba(0,22,48,0.16);  /* cards, sticky bar, today */
     --shadow-3: 0 2px 6px rgba(0,22,48,0.16), 0 16px 40px rgba(0,22,48,0.22); /* floating: lightboxes, drawer */
-    /* Focus ring glow — used in every page's field :focus-visible box-shadow */
+    /* ── Focus indicators (v18.99) ────────────────────────────────
+       One vocabulary for the whole app's focus treatment. The four recipes below were
+       hand-written literals in ~80 places across the seven app stylesheets, so retuning the
+       app's focus look meant an 80-site sweep — and a site missed in that sweep drifts
+       SILENTLY, because a focus ring only appears during keyboard navigation, which no
+       screenshot baseline and no axe rule can see. Same pattern (and the same reason) as
+       --dur-med / --dur-slow below. Which outline to use is a CONTRAST decision:
+         --focus-outline        navy  — the default, on light surfaces (cards, prose, fields)
+         --focus-outline-gold   gold  — on the navy drawer and other dark surfaces, where navy vanishes
+         --focus-outline-light  white — on the darkest fills (burger, guide header, design chips)
+       Gold on a LIGHT surface is ~1.5:1 and fails the 3:1 focus-indicator floor — never use it there.
+       --focus-ring is the 4px glow a FIELD adds beneath its outline (the "fills in" cue). */
     --focus-ring-color: color-mix(in oklch, var(--primary-blue) 18%, transparent);
+    --focus-ring: 0 0 0 4px var(--focus-ring-color);
+    --focus-outline: 2px solid var(--primary-blue);
+    --focus-outline-gold: 2px solid var(--accent-gold);
+    --focus-outline-light: 2px solid rgba(255, 255, 255, 0.85);
 
     /* ── Motion (v11.56) ──────────────────────────────────────────
        One vocabulary for the whole app instead of cubic-beziers
@@ -432,7 +447,7 @@ p { text-wrap: pretty; }
        (~1.5:1 on white) falls below the 3:1 focus-indicator floor. Navy-drawer elements have
        their own gold rules (they win over this zero-specificity :where), so gold stays where
        it's high-contrast (on navy) and light surfaces get a visible navy ring. */
-    outline: 2px solid var(--primary-blue);
+    outline: var(--focus-outline);
     outline-offset: 2px;
 }
 
@@ -600,7 +615,7 @@ body.lb-open #stickyTotal { display: none !important; }
        field left with `outline: none` and nothing but a border-colour change in its place, so it
        had the weakest focus indicator in the app while sitting inside a modal, where keyboard
        users most need to see where they are. (v18.87) */
-    box-shadow: 0 0 0 4px var(--focus-ring-color);
+    box-shadow: var(--focus-ring);
 }
 .dialog-actions {
     display: flex;
@@ -780,7 +795,7 @@ body.lb-open #stickyTotal { display: none !important; }
     cursor: pointer;
     padding: 6px;
 }
-.pwf-escape:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+.pwf-escape:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 /* MUST out-specify the `display: block` above (v18.92). The HTML `hidden` attribute works through a
    UA `display: none`, which any author display rule silently beats — so without this the escape hatch
    rendered from the moment the overlay opened and the "mandatory" overlay was dismissible on sight,
@@ -810,7 +825,7 @@ body.lb-open #stickyTotal { display: none !important; }
     text-wrap: balance;
 }
 .login-reset-request[hidden] { display: none; }
-.login-reset-request:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+.login-reset-request:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .login-reset-request:disabled { opacity: 0.6; cursor: default; }
 
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
@@ -1192,7 +1207,7 @@ body.lb-open #stickyTotal { display: none !important; }
     inset: -12px;
 }
 .help-btn:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-.help-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary-blue) 25%, transparent); } /* navy ring — the ? button sits on light card headers, where gold (~1.5:1) was near-invisible */
+.help-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary-blue) 25%, transparent); } /* navy ring — the ? button sits on light card headers, where gold (~1.5:1) was near-invisible */
 @media (hover: hover) and (pointer: fine) {
     .help-btn:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 }
@@ -1261,7 +1276,7 @@ body.lb-open #stickyTotal { display: none !important; }
 
 .btn-burger:active { opacity: 0.5; }
 .btn-burger:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline: var(--focus-outline-light);
     outline-offset: 2px;
 }
 
@@ -1885,7 +1900,7 @@ button.nav-panel-link--notices {
 .nav-panel-bell:focus-visible,
 .nav-panel-signout:focus-visible,
 .nav-panel-guides-toggle:focus-visible {
-    outline: 2px solid var(--accent-gold);
+    outline: var(--focus-outline-gold);
     outline-offset: 2px;
 }
 
@@ -2012,7 +2027,7 @@ button.nav-panel-link--notices {
 .login-field select:focus-visible,
 .login-field input:focus-visible {
     border-color: var(--primary-blue);
-    outline: 2px solid var(--primary-blue);
+    outline: var(--focus-outline);
     outline-offset: 2px;
     background-color: white;       /* brighten to white on focus — matches the app's fields */
 }
@@ -2192,7 +2207,7 @@ button.nav-panel-link--notices {
    so it can't nest the Tips button). It needs its own pointer + a visible keyboard focus ring. */
 .collapse-chevron { cursor: pointer; }
 .collapse-chevron:focus-visible {
-    outline: 2px solid var(--primary-blue);
+    outline: var(--focus-outline);
     outline-offset: 2px;
     border-radius: 3px;
 }
