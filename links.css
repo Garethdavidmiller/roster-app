@@ -93,7 +93,7 @@ body.auth-ready .container { display: grid; }
     align-items: center;
     flex-shrink: 0;
     padding: 3px 9px;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     font-size: 9px;
     font-weight: 800;
     letter-spacing: 0.9px;
@@ -660,7 +660,7 @@ body.auth-ready .container { display: grid; }
 .design-chip {
     display: inline-flex;
     align-items: center;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     border: 1px solid var(--border-light);
     background: var(--surface-sunken);
     color: var(--text-mid);
@@ -670,7 +670,7 @@ body.auth-ready .container { display: grid; }
 .design-chip-name {
     background: none;
     border: none;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     padding: 4px 10px;
     font-size: var(--type-small);
     font-weight: 600;

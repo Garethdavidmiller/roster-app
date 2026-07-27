@@ -726,7 +726,7 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 5px 14px;
     background: color-mix(in oklch, var(--accent-gold) 15%, white);
     border: 1px solid color-mix(in oklch, var(--accent-gold) 35%, white);
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     color: var(--accent-gold);
     font-size: var(--type-badge);
     font-weight: 800;
@@ -983,7 +983,7 @@ body.lb-open #stickyTotal { display: none !important; }
     font-weight: 600;
     margin-top: 8px;
     padding: 4px 12px;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     min-height: 24px;
 }
 .lightbox-status.up-to-date {
@@ -1140,7 +1140,7 @@ body.lb-open #stickyTotal { display: none !important; }
     font-size: var(--type-badge);
     font-weight: 800;
     padding: 4px 10px;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     text-transform: uppercase;
     letter-spacing: 0.6px;
     flex-shrink: 0;
@@ -1235,7 +1235,7 @@ body.lb-open #stickyTotal { display: none !important; }
     align-items: center;
     gap: 3px;
     padding: 3px 8px;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-pill);
     font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;

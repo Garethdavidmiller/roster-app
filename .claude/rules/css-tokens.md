@@ -123,6 +123,38 @@ be argued for rather than merely typed.
 
 Nav-drawer pills/links keep their opacity-based press (the flat-drawer aesthetic) — do not scale them.
 
+## Chips — pill radius, and the weight tiers nobody had written down (v19.06)
+
+**A chip never wears `--radius-xl`.** That token is 20px, for "large lightbox/panel cards";
+`--radius-pill` (999px) is for chips. Twelve chip rules were using the panel token and nothing
+noticed, because on a short element the two are **indistinguishable**: when corner radii exceed the
+box height CSS scales them proportionally, so on a 20px-tall chip both resolve to the same 10px fully
+rounded corner. They diverge only above ~40px tall, which no chip is. Fixed at v19.06 with **zero
+pixel change** (all 14 visual baselines passed untouched) and guarded by `chip-radius-parity.test.mjs`,
+which also asserts the overlay family still uses `--radius-xl` so a future sweep can't overreach.
+
+This is the same defect as v18.90's "an overlay never wears the card radius", running the other way —
+and it hid for longer, for the same reason recorded there: *a token hides that in a way a literal
+wouldn't.*
+
+**The three weight tiers are real — do not flatten them.** Chip `font-weight` splits 700 ×18 /
+600 ×9 / 800 ×6, which reads like drift until you sort it:
+
+| Weight | Tier | Examples |
+|--------|------|----------|
+| 800 | **identity** — the badge that names the page/period/figure | `.badge-page`, `.period-badge`, `.actual-badge`, `.lightbox-badge`, `.welcome-grade-badge` |
+| 700 | **standard** — most labelled chips | `.shift-badge`, `.notice-badge`, `.card-year-chip`, `.rate-badge`, `.type-pill-btn` |
+| 600 | **quiet status** — a receipt or state, not a label to scan | `.sync-chip`, `.prov-chip`, `.roster-state-badge`, `.conf-badge` |
+
+That is an emphasis system that emerged without ever being written down. Unifying the weights would
+destroy the information; this table names it instead. Match the tier when adding a chip.
+
+**Padding is deliberately NOT unified** (measured v19.06): 14+ distinct values, most load-bearing — a
+calendar-cell shift badge must be tiny, a nav pill must clear a 44px touch target. Same conclusion,
+and the same reasoning, as the spacing scale above. **Squarer chips stay squarer too:** `.conf-badge`
+(3px), `.legacy-pill` / `.source-pill` (8px) and `.list-type-pill` (`--radius`) read as "data tag,
+not pill". Rounding them would change meaning, not tidy it.
+
 ## Overlay sizing — three sizes, one cap, one idiom (v19.04)
 
 The seven centred overlays in `shared.css` had drifted to **five widths (300/320/340/360/380), three

@@ -634,7 +634,7 @@
             justify-content: center;
             gap: 4px;
             padding: 6px 14px;
-            border-radius: var(--radius-xl);
+            border-radius: var(--radius-pill);
             font-size: var(--type-badge);
             font-weight: 700;
             margin-bottom: 8px;
@@ -2450,7 +2450,7 @@
             color: var(--blue-sky);
             background: color-mix(in srgb, var(--blue-sky) 12%, transparent);
             border: 1px solid color-mix(in srgb, var(--blue-sky) 30%, transparent);
-            border-radius: var(--radius-xl);
+            border-radius: var(--radius-pill);
             padding: 3px 9px;
             animation: sync-pulse 1.2s ease-in-out infinite;
         }
