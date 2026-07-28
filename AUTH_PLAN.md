@@ -78,6 +78,14 @@ anonymous session against our project". Only Level 2 (named) means "must be staf
 
 ## 3. The phases
 
+**Rollout discipline:** migrate, don't cut over — **E0 → E1 → E2 → decision gate → E3 + E4 → E5**.
+Never make the calendar's front door and named-only read rules a single flip. E6 is independent and
+can start at any point. The two soaking phases are E1 (client preparation, no rule change) and E2
+(the first real boundary); everything after the gate is undecided. This exact sequence is pinned in
+both Track E documents by `auth-plan-parity.test.mjs` — the phase headings below were already
+guarded, but the prose that tells a maintainer what ORDER to work in was not, so a superseded
+three-stage shorthand survived the v19.08 renumbering in the sequencing doc as a result.
+
 ### E0 — exclude search engines ✓ SHIPPED v19.00
 `X-Robots-Tag: noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in all ten
 served pages, because GitHub Pages serves no headers and a `robots.txt` cannot reach the mirror (only
