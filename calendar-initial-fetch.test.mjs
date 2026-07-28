@@ -128,6 +128,16 @@ function renderHeaderIntoDOM() {
     _observers.filter(o => o._live).forEach(o => o._cb([], o));
 }
 
+/**
+ * Model a calendar RE-render: `buildCalendarContainer` rebuilds `.calendar-header` from scratch on
+ * every swipe and month navigation, so anything inside it — including the sync chip — is destroyed.
+ */
+function rebuildHeader() {
+    _header._children.forEach(c => { c._removed = true; });
+    _header._children.length = 0;
+    renderHeaderIntoDOM();
+}
+
 beforeEach(() => {
     _progressHistory     = [];
     _addMonthsHistory    = [];
@@ -813,6 +823,55 @@ describe('the owed retry survives having nowhere to show it', () => {
         await flushAsync();
         const visible = _header._children.filter(c => c._classes.has('sync-chip') && !c._removed);
         assert.deepEqual(visible, [], 'no stale error chip may reappear after a successful retry');
+    });
+});
+
+// ── The chip must survive the calendar re-rendering (v19.11) ─────────────────
+//
+// Found by the post-v19.10 regression sweep. v19.10 moved the owed-retry state out of the DOM so a
+// failure with NO header could still be shown later — but it then STOPPED watching the moment the
+// chip attached. `buildCalendarContainer` rebuilds `.calendar-header` on every swipe and month
+// navigation, so the first swipe after a failed sync destroyed the chip and nothing put it back:
+// the state was held precisely so it could be re-rendered, and wasn't. Swiping is the calendar's
+// primary interaction, so this was the COMMON case, not the exotic one — v19.10 fixed the rare half
+// of its own finding.
+
+describe('the retry survives a calendar re-render', () => {
+    test('a header rebuild does not take the owed retry away', async () => {
+        _fetchImpl = () => Promise.reject(new Error('offline'));
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync(6);
+        assert.ok(getSyncChip(), 'precondition: the error chip is showing');
+
+        rebuildHeader();          // the user swipes to the next month
+        await flushAsync();
+
+        const chip = getSyncChip();
+        assert.ok(chip, 'the retry is still owed, so it must still be reachable after a swipe');
+        assert.equal(chip.textContent, "⚠ Couldn't update — tap to retry");
+        assert.equal(typeof chip.onclick, 'function', 'and still wired, not a decoration');
+    });
+
+    test('a re-render DURING a retry repaints "Retrying…", not the stale error underneath', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        let calls = 0;
+        _fetchImpl = () => { calls++; return Promise.reject(new Error('offline')); };
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync(6);
+
+        _fetchImpl = () => { calls++; return new Promise(() => {}); };   // the retry hangs
+        getSyncChip()._fire('click');
+        await flushAsync();
+
+        rebuildHeader();          // a swipe lands while the retry is still in flight
+        await flushAsync();
+
+        const chip = getSyncChip();
+        assert.ok(chip, 'a chip must still be present mid-retry');
+        assert.equal(chip.textContent, '↻ Retrying…',
+            'the recorded state is what gets repainted — telling the user it had failed while it ' +
+            'was still running would be worse than showing nothing');
+        assert.equal(chip.disabled, true, 'and it stays disabled while the retry runs');
     });
 });
 

@@ -147,13 +147,13 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   // So the state lives here instead, and the DOM becomes a VIEW of it: record first, render if we
   // can, and if we cannot, watch for a header and render then. A user who picks their name, or
   // toggles out of Team View, now gets the retry chip at that moment rather than never.
-  /** @type {{text: string, className: string, announce: string}|null} */
+  /** @type {{text: string, className: string, announce: string, disabled?: boolean}|null} */
   let _chipState = null;
   /** @type {any} */
   let _headerWatcher = null;
 
   /** Record the chip state and render it if a header exists; otherwise wait for one. */
-  function setChipState(/** @type {{text: string, className: string, announce: string}|null} */ state) {
+  function setChipState(/** @type {{text: string, className: string, announce: string, disabled?: boolean}|null} */ state) {
     _chipState = state;
     if (!state) { stopWatchingForHeader(); return; }
     renderChipState();
@@ -162,12 +162,17 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   function renderChipState() {
     if (!_chipState) return;
     const chip = ensureChipAttached();
-    if (!chip) { watchForHeader(); return; }   // chip-less state — try again when a header lands
-    stopWatchingForHeader();
+    // Keep watching whether or not we could render. With no header we are waiting for one to
+    // appear; WITH one we are waiting for the next re-render to destroy the chip — and that is the
+    // common case, not the exotic one: `buildCalendarContainer` rebuilds `.calendar-header` on
+    // every swipe and month navigation, so the very first swipe after a failed sync used to take
+    // the retry away permanently (v19.11). Stop only when the state itself is cleared.
+    watchForHeader();
+    if (!chip) return;
     syncChip = chip;
     chip.textContent = _chipState.text;
     chip.className   = _chipState.className;
-    chip.disabled    = false;
+    chip.disabled    = !!_chipState.disabled;
     chip.onclick     = doRetry;   // assignment is idempotent — never accumulates handlers
     announceSync(_chipState.announce);
   }
@@ -182,6 +187,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     if (_headerWatcher || typeof MutationObserver !== 'function' || !document.body) return;
     _headerWatcher = new MutationObserver(() => {
       if (!_chipState) { stopWatchingForHeader(); return; }
+      if (syncChip && syncChip.isConnected) return;   // still on screen — nothing owed
       if (document.querySelector('.calendar-header')) renderChipState();
     });
     _headerWatcher.observe(document.body, { childList: true, subtree: true });
@@ -215,10 +221,10 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   async function doRetry() {
     if (!syncChip) return;
     const _retryGen = ++_fetchGen; // supersede any older pending request
-    syncChip.textContent = '↻ Retrying…';
-    syncChip.className = 'sync-chip';
-    syncChip.disabled = true;
-    announceSync('Retrying');
+    // Through setChipState, NOT a direct write: _chipState must stay the single source, or a
+    // re-render landing mid-retry would repaint the error state still recorded underneath and tell
+    // the user the sync had failed while it was in fact still running (v19.11).
+    setChipState({ text: '↻ Retrying…', className: 'sync-chip', announce: 'Retrying', disabled: true });
 
     addFetchedMonths(_initialMonthKeys);
 
