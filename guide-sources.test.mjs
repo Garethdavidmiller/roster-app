@@ -109,6 +109,36 @@ test('every Source is a URL, a code: ref, or internal', () => {
     }
 });
 
+// A per-country FIP row must cite THAT COUNTRY'S page, not the Europe landing page.
+//
+// This is the difference between a source register and a bibliography. Every one of these rows makes
+// a specific, money-and-travel-relevant claim — a supplement in euros, which operators refuse FIP,
+// whether a coupon covers a neighbouring territory. Cited to the landing page, a claim cannot be
+// re-checked without re-deriving it from scratch, which is precisely the work the register exists to
+// save. `fip-at` sat that way for a while: the facts were right and corroborated, but nobody could
+// confirm them from the citation, and it was invisible because the generic "Source is a URL" check
+// above passes a landing-page URL happily.
+//
+// Only ids of the form `fip-<cc>` are policed. The cross-cutting rows (`fip-eligibility`,
+// `fip-journey-coupon`, `fip-carrier-accept`, `fip-contact`) describe the scheme rather than a
+// country, and the landing page is genuinely their best source.
+test('every per-country FIP row cites that country\'s own RDG page, not the landing page', () => {
+    const countryRows = rows.filter(r => /^fip-[a-z]{2}$/.test(r.ID));
+    assert.ok(countryRows.length >= 9,
+        `expected the FIP guide's per-country rows to still be present, found ${countryRows.length}`);
+
+    const offenders = countryRows
+        .filter(r => !r.Source.includes('/europe-and-fip/countries/'))
+        .map(r => `${r.ID} → ${r.Source}`);
+
+    assert.deepEqual(offenders, [],
+        'these per-country rows cite something other than their own country page:\n  ' +
+        offenders.join('\n  ') +
+        '\nFind the country page from https://www.raildeliverygroup.com/rst/europe-and-fip.html and ' +
+        'cite it. Do NOT guess the numeric id — an unopened id reads as verified and can point at the ' +
+        'wrong country. (The ids ascend alphabetically, so a browser check is two or three links.)');
+});
+
 test('the railcard time-rule cards flagged in the audit are present and classified National', () => {
     // These are the exact rows whose wrong/over-absolute wording drove the v17.45 guide score down;
     // keep them in the register so a future edit can't drop their provenance.
