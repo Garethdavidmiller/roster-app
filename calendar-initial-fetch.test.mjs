@@ -87,7 +87,7 @@ function makeEl(tag) {
     return el;
 }
 
-let _header, _calGrid, _docListeners;
+let _header, _calGrid, _docListeners, _headerPresent, _observers;
 
 /**
  * @param {{ header?: boolean }} [opts] header:false models FIRST RUN and TEAM VIEW — the two states
@@ -99,17 +99,33 @@ function setupDOM(opts = {}) {
     _header.className = 'calendar-header';
     _calGrid = makeEl('div');
     _docListeners = {};
+    _headerPresent = withHeader;
+    _observers = [];
     global.document = {
         createElement: tag => makeEl(tag),
         getElementById: id  => id === 'calendarDisplay' ? _calGrid : null,
-        querySelector:  sel => (withHeader && sel === '.calendar-header') ? _header : null,
+        querySelector:  sel => (_headerPresent && sel === '.calendar-header') ? _header : null,
         addEventListener(evt, fn) {
             if (!_docListeners[evt]) _docListeners[evt] = [];
             _docListeners[evt].push(fn);
         },
         removeEventListener() {},
         hidden: false,
+        body: makeEl('body'),
     };
+    // Minimal MutationObserver: records live observers so a test can model "the calendar re-rendered
+    // and a header now exists" by flipping _headerPresent and firing them.
+    global.MutationObserver = class {
+        constructor(cb) { this._cb = cb; this._live = false; }
+        observe() { this._live = true; _observers.push(this); }
+        disconnect() { this._live = false; }
+    };
+}
+
+/** Model a calendar render that creates `.calendar-header`, and notify any observer. */
+function renderHeaderIntoDOM() {
+    _headerPresent = true;
+    _observers.filter(o => o._live).forEach(o => o._cb([], o));
 }
 
 beforeEach(() => {
@@ -692,6 +708,111 @@ describe('recovery without a sync chip (first run · team view)', () => {
             'Team View has no chip either — the release is its whole recovery story');
         assert.equal(teamRendered, false, 'nothing new to paint on failure; keep the last-good grid');
         assert.equal(calRendered,  false);
+    });
+});
+
+// ── The failed-sync state must outlive the absence of a chip (v19.10) ─────────
+//
+// The review's P3: "preserve pending sync state independently of the Calendar header DOM, and
+// attach the chip the next time a Calendar header is rendered."
+//
+// v19.08 fixed the CORRUPTION half of that finding — the months and the in-progress flag now
+// release at the deadline instead of leaking (tested above). This is the RECOVERY half. Before it,
+// "a retry is owed" was represented ONLY by an error chip existing, so in first-run and Team View —
+// the two states with no `.calendar-header` — the failure was recorded nowhere and re-checked never.
+// The user was shown nothing and given nothing to press, for the life of the page.
+
+describe('the owed retry survives having nowhere to show it', () => {
+    beforeEach(() => setupDOM({ header: false }));
+
+    test('a failure with no header shows the retry chip once a header is rendered', async () => {
+        _fetchImpl = () => Promise.reject(new Error('offline'));
+        initInitialFetch({ isTeamViewMode: () => true, renderCalendar: () => {}, renderTeamView: () => {} });
+        await flushAsync(6);
+
+        assert.equal(getSyncChip(), null, 'no header yet, so nothing can be shown — as before');
+
+        // The user picks their name, or toggles out of Team View: a calendar header now exists.
+        renderHeaderIntoDOM();
+        await flushAsync();
+
+        const chip = getSyncChip();
+        assert.ok(chip, 'the owed retry must appear now that there is somewhere to put it');
+        assert.equal(chip.textContent, "⚠ Couldn't update — tap to retry");
+        assert.equal(chip.disabled, false, 'and it must be usable, not a decoration');
+        assert.equal(typeof chip.onclick, 'function', 'with the retry actually wired');
+    });
+
+    test('the late chip really retries — it is a control, not a label', async () => {
+        let calls = 0;
+        _fetchImpl = () => { calls++; return Promise.reject(new Error('offline')); };
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync(6);
+        const before = calls;
+
+        renderHeaderIntoDOM();
+        await flushAsync();
+
+        getSyncChip()._fire('click');
+        await flushAsync(6);
+
+        assert.equal(calls > before, true,
+            'clicking the recovered chip must issue a real retry — otherwise it is worse than nothing');
+    });
+
+    // The state must be CLEARED on success, not merely never set. Reaching that needs a sync that
+    // owes a retry and then succeeds anyway: the 10s deadline declares failure and (headerless) arms
+    // the watcher, then the slow fetch lands. Without the clear, the watcher is still live holding an
+    // error state, so the next render paints "Couldn't update — tap to retry" over a sync that WORKED.
+    // A plain success cannot test this: nothing was ever owed, so removing the clear is undetectable.
+    test('a success AFTER the failure deadline clears the owed state — no stale error on the next render', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        let resolveIt;
+        _fetchImpl = () => new Promise(res => { resolveIt = res; });
+
+        initInitialFetch({ isTeamViewMode: () => true, renderCalendar: () => {}, renderTeamView: () => {} });
+        await flushAsync(6);
+
+        t.mock.timers.tick(800);
+        t.mock.timers.tick(9200);        // deadline: a retry is now owed, with nowhere to show it
+        await flushAsync();
+
+        resolveIt();                     // …and then the slow read actually succeeds
+        await flushAsync(8);
+
+        renderHeaderIntoDOM();
+        await flushAsync();
+
+        assert.equal(getSyncChip(), null,
+            'the sync succeeded in the end — a header appearing later must not paint a retry chip ' +
+            'over working data');
+    });
+
+    test('a retry that succeeds clears the owed state too', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        let calls = 0;
+        _fetchImpl = () => { calls++; return Promise.reject(new Error('offline')); };
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync(6);
+
+        renderHeaderIntoDOM();
+        await flushAsync();
+        const chip = getSyncChip();
+        assert.ok(chip, 'error chip recovered');
+
+        _fetchImpl = () => { calls++; return Promise.resolve(); };
+        chip._fire('click');
+        await flushAsync();
+        t.mock.timers.tick(2000);
+        await flushAsync(6);
+
+        assert.equal(chip._removed, true, 'the chip goes away on a successful retry');
+
+        // And the state behind it is cleared: a subsequent re-render must not bring it back.
+        renderHeaderIntoDOM();
+        await flushAsync();
+        const visible = _header._children.filter(c => c._classes.has('sync-chip') && !c._removed);
+        assert.deepEqual(visible, [], 'no stale error chip may reappear after a successful retry');
     });
 });
 

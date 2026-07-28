@@ -135,17 +135,80 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     return chip;
   }
 
+  // ── The failed-sync state, held OUTSIDE the chip DOM (v19.10) ───────────────────────────────
+  //
+  // Until now "the sync failed and can be retried" was represented ONLY by the existence of an
+  // error chip. That is fine while `.calendar-header` exists — and it does not exist in FIRST RUN
+  // or TEAM VIEW, the two states this module already documents as chip-less. There the failure was
+  // simply dropped: ensureChipAttached() returned null, nothing recorded that a retry was owed, and
+  // nothing looked again. Releasing the pre-claimed months (below) meant a later navigation could
+  // silently re-fetch, but the user was never told anything had gone wrong and had nothing to press.
+  //
+  // So the state lives here instead, and the DOM becomes a VIEW of it: record first, render if we
+  // can, and if we cannot, watch for a header and render then. A user who picks their name, or
+  // toggles out of Team View, now gets the retry chip at that moment rather than never.
+  /** @type {{text: string, className: string, announce: string}|null} */
+  let _chipState = null;
+  /** @type {any} */
+  let _headerWatcher = null;
+
+  /** Record the chip state and render it if a header exists; otherwise wait for one. */
+  function setChipState(/** @type {{text: string, className: string, announce: string}|null} */ state) {
+    _chipState = state;
+    if (!state) { stopWatchingForHeader(); return; }
+    renderChipState();
+  }
+
+  function renderChipState() {
+    if (!_chipState) return;
+    const chip = ensureChipAttached();
+    if (!chip) { watchForHeader(); return; }   // chip-less state — try again when a header lands
+    stopWatchingForHeader();
+    syncChip = chip;
+    chip.textContent = _chipState.text;
+    chip.className   = _chipState.className;
+    chip.disabled    = false;
+    chip.onclick     = doRetry;   // assignment is idempotent — never accumulates handlers
+    announceSync(_chipState.announce);
+  }
+
+  // Watch for a `.calendar-header` appearing. Deliberately a MutationObserver rather than a hook on
+  // the injected renderCalendar: the header is rebuilt by buildCalendarContainer on EVERY calendar
+  // render, and most of those (swipe, month navigation, member change, first-run name selection) do
+  // not pass through this module's callbacks — so a callback hook would miss exactly the transitions
+  // that matter. The observer only exists while a chip is owed AND no header exists, and disconnects
+  // the moment either changes, so the common path costs nothing.
+  function watchForHeader() {
+    if (_headerWatcher || typeof MutationObserver !== 'function' || !document.body) return;
+    _headerWatcher = new MutationObserver(() => {
+      if (!_chipState) { stopWatchingForHeader(); return; }
+      if (document.querySelector('.calendar-header')) renderChipState();
+    });
+    _headerWatcher.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function stopWatchingForHeader() {
+    if (!_headerWatcher) return;
+    _headerWatcher.disconnect();
+    _headerWatcher = null;
+  }
+
+  // `syncChip` is now assigned inside renderChipState(), which the type checker's control-flow
+  // analysis cannot see across the function boundary — so at the `finally` below it wrongly narrows
+  // to `never` (it only observes the `= null` on the success path). Reading through an accessor with
+  // a declared return type restores the real type. Preferred over a cast, which would ASSERT
+  // non-null and hide exactly the case the guard is there to handle.
+  /** @returns {HTMLButtonElement|null} */
+  function currentChip() { return syncChip; }
+
   // If Firestore takes more than 10 s, show an error state with a retry link.
   const timeoutTimer = setTimeout(() => {
     if (syncResolved) return;
-    syncChip = ensureChipAttached();
-    if (syncChip) {
-      syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
-      syncChip.className = 'sync-chip sync-chip-error';
-      syncChip.disabled = false;
-      syncChip.onclick = doRetry;   // assignment is idempotent — never accumulates handlers
-      announceSync('Couldn\'t update your shifts. Activate to retry.');
-    }
+    setChipState({
+      text: '⚠ Couldn\'t update — tap to retry',
+      className: 'sync-chip sync-chip-error',
+      announce: 'Couldn\'t update your shifts. Activate to retry.',
+    });
     if (calGrid) calGrid.classList.remove('calendar-fetching');
   }, SYNC_TIMEOUT_MS);
 
@@ -182,6 +245,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // the render's ensureOverridesCached must be able to top up an out-of-window display month.
       // Reachable here when the ORIGINAL fetch is still hung (its finally hasn't run) (v16.23).
       setInitialFetchInProgress(false);
+      // Clear the RECORDED state, not just the node — otherwise a header appearing later would
+      // faithfully re-render an error that no longer applies (v19.10).
+      setChipState(null);
       if (syncChip) { syncChip.remove(); syncChip = null; }
       // A user-initiated retry succeeded — confirm it to screen readers, then clear.
       // (The initial silent fetch below stays silent so it isn't announced on every load.)
@@ -200,15 +266,14 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // render/navigation can re-fetch them — otherwise a failed retry re-strands all three
       // for the session (the chip is a recovery path only while the calendar header exists).
       _initialMonthKeys.forEach(clearFetchedMonth);
-      syncChip = ensureChipAttached();
-      if (syncChip) {
-        syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
-        syncChip.className = 'sync-chip sync-chip-error';
-        syncChip.disabled = false;
-        syncChip.onclick = doRetry;   // assignment is idempotent — never accumulates handlers
-        syncChip.focus();
-        announceSync('Still couldn\'t update your shifts. Activate to retry.');
-      }
+      setChipState({
+        text: '⚠ Couldn\'t update — tap to retry',
+        className: 'sync-chip sync-chip-error',
+        announce: 'Still couldn\'t update your shifts. Activate to retry.',
+      });
+      // Only a RETRY moves focus: the user pressed something, so the result belongs under their
+      // cursor. The initial fetch's failure is unsolicited and must not steal focus.
+      if (syncChip && syncChip.isConnected) syncChip.focus();
     }
   }
 
@@ -244,6 +309,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       setInitialFetchInProgress(false);
       if (isTeamViewMode()) renderTeamView(); else renderCalendar();
 
+      setChipState(null);   // see the retry path — a stale error must not be re-rendered later
       if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
       announceSync('');
     } catch (err) {
@@ -257,22 +323,22 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // load for the session — and the retry chip below only exists inside `.calendar-header`, which
       // is absent in team-view and first-run, leaving those states with NO recovery path at all.
       _initialMonthKeys.forEach(clearFetchedMonth);
-      // A renderCalendar() call between the fetch start and the catch (e.g. from
-      // visibilitychange) rebuilds the calendar header, detaching the chip — re-create it.
-      syncChip = ensureChipAttached();
-      if (syncChip) {
-        syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
-        syncChip.className = 'sync-chip sync-chip-error';
-        syncChip.disabled = false;
-        syncChip.onclick = doRetry;   // assignment is idempotent — never accumulates handlers
-        announceSync('Couldn\'t update your shifts. Activate to retry.');
-      }
+      // A renderCalendar() call between the fetch start and the catch (e.g. from visibilitychange)
+      // rebuilds the calendar header, detaching the chip — setChipState re-creates it. When there
+      // is NO header at all (first run, Team View) the state is still recorded and rendered the
+      // moment one appears, instead of the failure being silently dropped.
+      setChipState({
+        text: '⚠ Couldn\'t update — tap to retry',
+        className: 'sync-chip sync-chip-error',
+        announce: 'Couldn\'t update your shifts. Activate to retry.',
+      });
     } finally {
       setInitialFetchInProgress(false);
       clearTimeout(loadingTimer);
       clearTimeout(timeoutTimer);
-      if (syncChip && syncResolved && !syncChip.className.includes('sync-chip-error')) {
-        syncChip.remove();
+      const _chip = currentChip();
+      if (_chip && syncResolved && !_chip.className.includes('sync-chip-error')) {
+        _chip.remove();
       }
       if (calGrid) calGrid.classList.remove('calendar-fetching');
     }

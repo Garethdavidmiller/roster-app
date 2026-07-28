@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: July 2026 — v19.00 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.10 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -51,15 +51,30 @@ paycalc / team-view / day-detail must read strictly after its session resolves, 
 cases). The only *real* fix is the named-session gate, which the owner has declined for daily-UX
 reasons. Do not re-propose the anon-gate as a "quick win"; it is not one.
 
-**The "read strictly after its session resolves" risk, made concrete (verified v19.00).** The
+**The "read strictly after its session resolves" risk — found v19.00, ADDRESSED v19.01–19.10 (E1).** The
 paragraph above is right and `SECURITY_RELEASE_PLAN.md` → Track E was wrong to call the anon-gate
 "≈ zero cost — already satisfied" (that text is now corrected). `calendarAuthReady`
-(`calendar-app.js`) gates only *writes* — error reporter, usage counter, push renewal. **No read
-path awaits it:** `calendar-initial-fetch.js` (the 3-month override fetch), `calendar-huddle-viewer.js`,
-`calendar-doc-viewer.js`, and `nav-panel.js`'s Circular/Newsletter open all read whatever auth state
-happens to exist. Harmless under `allow read;`, but the moment reads require a session those four
-race `signInAnonymously` on a cold start — an empty calendar, or a notification tap that opens
-nothing. Any future tightening must land that await FIRST, as its own soaked release (`AUTH_PLAN.md` → E1).
+(`calendar-app.js`) gated only *writes* — error reporter, usage counter, push renewal — while four read
+paths took whatever auth state happened to exist: `calendar-initial-fetch.js` (the 3-month override
+fetch), `calendar-huddle-viewer.js`, `calendar-doc-viewer.js`, and `nav-panel.js`'s Circular/Newsletter
+open. Harmless under `allow read;`, but the moment reads require a session all four would race
+`signInAnonymously` on a cold start — an empty calendar, or a notification tap that opens nothing.
+
+**E1 shipped that preparation (v19.01), and the shape it settled on matters more than the fix.** The
+calendar's load became **two-phase** — paint from the local Firestore cache with no network and no
+auth, THEN the authoritative server read once a session exists — so requiring auth for reads can never
+put a sign-in round-trip in front of data the device already holds. The three tap paths wait for auth
+**with a deadline**. That last part was learned the hard way: v19.01 used a plain `await authReady` on
+all of them, and v19.07/v19.08 had to bound every one after a review found the notification document
+viewer could spin on "Loading…" indefinitely. The rule that came out of it, now recorded in
+`AUTH_PLAN.md` → E1: **no user-facing path may await auth without a deadline, and every failure state
+needs a control rather than only text — while the render path must not wait at all.** v19.10 completed
+it by moving the failed-sync state out of the chip DOM, so first-run and Team View (which have no
+`.calendar-header`) get a retry offered the moment one appears instead of never.
+
+**What E1 did NOT do: it is not a security boundary.** It changes no rule and does not stop a direct
+Firestore REST read. The first phase that is a boundary at all is **E2** (`request.auth != null`),
+which remains undecided — see `AUTH_PLAN.md`.
 
 ### The document FILES are protected by a bearer URL, not by auth
 `storage.rules` gates direct Storage SDK reads, but staff never read Huddles/Circulars/Newsletters
