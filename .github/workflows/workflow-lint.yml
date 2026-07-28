@@ -13,6 +13,12 @@ name: Workflow Lint
 # workflow file changes, and validates every workflow file. It uses the runner's
 # pre-installed Python (PyYAML) rather than a third-party action or a `curl | bash`
 # installer, keeping to this repo's "pin/self-contained, no remote scripts" rule.
+#
+# It also enforces `timeout-minutes` on every job (added Jul 2026). No job had one, so each
+# inherited GitHub's 6-HOUR default — a hung runner would have blocked the branch for
+# the rest of the day, and on a required check nothing else could merge either. The
+# rule lives HERE rather than in the nine workflow files because the failure mode is
+# a job someone ADDS later without one; a hand-edit fixes today, a lint fixes always.
 
 on:
   push:
@@ -29,6 +35,7 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -60,6 +67,23 @@ jobs:
                   errors.append('missing `on:` trigger block')
               if 'jobs' not in doc or not isinstance(doc.get('jobs'), dict) or not doc['jobs']:
                   errors.append('missing or empty `jobs:` block')
+
+              # Every job must declare `timeout-minutes`. Without one a job inherits GitHub's
+              # 6-hour default, so a hung runner blocks the branch for the rest of the day
+              # instead of failing fast — and on a required check that means nothing else can
+              # merge either. These are "this is stuck" thresholds (~3-13x observed runtime),
+              # NOT performance budgets: raise the number if a job legitimately grows, don't
+              # delete the key.
+              for job_name, job in (doc.get('jobs') or {}).items():
+                  if not isinstance(job, dict):
+                      continue
+                  if 'uses' in job:      # a reusable-workflow call sets its timeout downstream
+                      continue
+                  t = job.get('timeout-minutes')
+                  if t is None:
+                      errors.append(f'job `{job_name}` has no `timeout-minutes:`')
+                  elif not isinstance(t, int) or t <= 0:
+                      errors.append(f'job `{job_name}` has a non-positive `timeout-minutes: {t!r}`')
 
               if errors:
                   any_failed = True
