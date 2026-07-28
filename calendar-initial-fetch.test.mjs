@@ -541,6 +541,38 @@ describe('E1 — auth must not gate the cache paint', () => {
             'nothing cached → nothing to paint; the server phase owns the first render');
     });
 
+    // v19.07 — the regression check on v19.01 found this. doRetry awaited authReady PLAINLY, so a
+    // hung sign-in stranded the chip on "Retrying…", disabled, with no handler: a dead end worse
+    // than the failure it was recovering from. The retry chip only appears after the 10s timeout,
+    // so auth has already had 10s+ to settle by the time anyone can tap it.
+    test('a retry still completes when authReady never resolves (no dead-end chip)', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        let serverCalls = 0;
+        _fetchImpl = () => { serverCalls++; return new Promise(() => {}); };  // original hangs
+
+        initInitialFetch({
+            isTeamViewMode: () => false,
+            renderCalendar: () => {},
+            authReady: new Promise(() => {}),   // sign-in never settles
+        });
+        await flushAsync();
+        t.mock.timers.tick(800);
+        t.mock.timers.tick(9200);               // error chip appears
+
+        const chip = getSyncChip();
+        assert.ok(chip, 'the error chip should be present');
+        _fetchImpl = () => { serverCalls++; return Promise.resolve(); };   // retry would succeed
+        chip._fire('click');
+        await flushAsync();
+        t.mock.timers.tick(2000);               // the bounded auth wait elapses
+        await flushAsync(6);
+
+        // Exactly ONE read: phase 2 never fired (auth never resolved, which is the whole premise),
+        // so the only call is the retry's — which is precisely what must still get through.
+        assert.equal(serverCalls, 1,
+            'the retry must reach the read even though auth never settled — otherwise the chip is a dead end');
+    });
+
     test('phase 2 runs the authoritative read once auth resolves', async () => {
         let serverCalled = false;
         _cacheFetchImpl = () => Promise.resolve(true);

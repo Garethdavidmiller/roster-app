@@ -183,6 +183,58 @@ test('every railcard/fip register row is referenced by at least one guide block 
     }
 });
 
+// ── The rendered "Checked" date must match the register (v19.05) ─────────────
+//
+// The two-way ref contract above proves each claim is ANCHORED to a row. It does not check the one
+// thing staff actually read: the date. Nine FIP country cards render "✓ Checked Jul 2026 — carrier
+// rules change; reconfirm with RDG before you travel", hand-copied from the row's `Reviewed` column
+// with nothing tying the two together.
+//
+// That is the highest-stakes drift in the guide system, and it fails in both directions. Re-review a
+// country and bump only the register → the page understates its freshness. Edit the page text without
+// the register → the page OVER-claims, and a staff member trusts travel information on the strength
+// of a date that no review stands behind. Everywhere else in this codebase a hand-copied cross-file
+// value gets a parity guard; this one is user-facing accuracy, so it earns one more than most.
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed date', () => {
+    const reviewedOf = new Map(rows.map(r => [r.ID, r.Reviewed]));
+    let checked = 0;
+    for (const file of Object.values(GUIDE_FILES)) {
+        const html = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+        // Each <details> block that names a register row AND renders a Checked date.
+        for (const m of html.matchAll(/data-guide-source="([^"]+)"([\s\S]*?)<\/details>/g)) {
+            const dm = m[2].match(/Checked\s+([A-Z][a-z]{2})\s+(\d{4})/);
+            if (!dm) continue;
+            const id = m[1].trim().split(/\s+/)[0];
+            const mi = MONTHS.indexOf(dm[1]);
+            assert.ok(mi >= 0, `${file}: "${dm[1]}" is not a recognised month abbreviation`);
+            const shown = `${dm[2]}-${String(mi + 1).padStart(2, '0')}`;
+            assert.equal(shown, reviewedOf.get(id),
+                `${file}: the card for "${id}" shows "Checked ${dm[1]} ${dm[2]}" (${shown}) but its ` +
+                `register row says Reviewed ${reviewedOf.get(id)} — a freshness date staff rely on must ` +
+                `never be older or newer than the review that backs it`);
+            checked++;
+        }
+    }
+    assert.ok(checked >= 9, `expected the nine sourced FIP country cards to show a date, found ${checked}`);
+});
+
+// The FIP country finder also states a GUIDE-LEVEL review date, because the 16 lower-use country
+// cards carry no date of their own (they sit under the sampled `fip-carrier-accept` row). Same
+// hazard, same guard: it must equal the newest Reviewed date across the fip rows, so it can never
+// claim the guide is fresher than any review behind it.
+test('the FIP country-finder note states a review date backed by the register', () => {
+    const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
+    const m = html.match(/country cards were last reviewed ([A-Z][a-z]{2}) (\d{4})/);
+    assert.ok(m, 'the cf-note guide-level review date is missing from fip.html');
+    const shown = `${m[2]}-${String(MONTHS.indexOf(m[1]) + 1).padStart(2, '0')}`;
+    const newest = rows.filter(r => r.Guide === 'fip').map(r => r.Reviewed).sort().pop();
+    assert.equal(shown, newest,
+        `fip.html says the country cards were reviewed ${shown}, but the newest fip register row is ` +
+        `${newest} — the guide-level date must never outrun the reviews behind it`);
+});
+
 // Non-failing diagnostic: surface rows whose manual review is overdue. Deliberately NOT an
 // assertion — a today-driven failure would break unrelated commits (the same reason the whole
 // file is a structural guard, not a date tripwire). It just prints a reminder so the manual

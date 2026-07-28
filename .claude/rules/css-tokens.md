@@ -123,6 +123,101 @@ be argued for rather than merely typed.
 
 Nav-drawer pills/links keep their opacity-based press (the flat-drawer aesthetic) — do not scale them.
 
+## Chips — pill radius, and the weight tiers nobody had written down (v19.06)
+
+**A chip never wears `--radius-xl`.** That token is 20px, for "large lightbox/panel cards";
+`--radius-pill` (999px) is for chips. Twelve chip rules were using the panel token and nothing
+noticed, because on a short element the two are **indistinguishable**: when corner radii exceed the
+box height CSS scales them proportionally, so on a 20px-tall chip both resolve to the same 10px fully
+rounded corner. They diverge only above ~40px tall, which no chip is. Fixed at v19.06 with **zero
+pixel change** (all 14 visual baselines passed untouched) and guarded by `chip-radius-parity.test.mjs`,
+which also asserts the overlay family still uses `--radius-xl` so a future sweep can't overreach.
+
+This is the same defect as v18.90's "an overlay never wears the card radius", running the other way —
+and it hid for longer, for the same reason recorded there: *a token hides that in a way a literal
+wouldn't.*
+
+**The three weight tiers are real — do not flatten them.** Chip `font-weight` splits 700 ×18 /
+600 ×9 / 800 ×6, which reads like drift until you sort it:
+
+| Weight | Tier | Examples |
+|--------|------|----------|
+| 800 | **identity** — the badge that names the page/period/figure | `.badge-page`, `.period-badge`, `.actual-badge`, `.lightbox-badge`, `.welcome-grade-badge` |
+| 700 | **standard** — most labelled chips | `.shift-badge`, `.notice-badge`, `.card-year-chip`, `.rate-badge`, `.type-pill-btn` |
+| 600 | **quiet status** — a receipt or state, not a label to scan | `.sync-chip`, `.prov-chip`, `.roster-state-badge`, `.conf-badge` |
+
+That is an emphasis system that emerged without ever being written down. Unifying the weights would
+destroy the information; this table names it instead. Match the tier when adding a chip.
+
+**Padding is deliberately NOT unified** (measured v19.06): 14+ distinct values, most load-bearing — a
+calendar-cell shift badge must be tiny, a nav pill must clear a 44px touch target. Same conclusion,
+and the same reasoning, as the spacing scale above. **Squarer chips stay squarer too:** `.conf-badge`
+(3px), `.legacy-pill` / `.source-pill` (8px) and `.list-type-pill` (`--radius`) read as "data tag,
+not pill". Rounding them would change meaning, not tidy it.
+
+## Overlay sizing — three sizes, one cap, one idiom (v19.04)
+
+The seven centred overlays in `shared.css` had drifted to **five widths (300/320/340/360/380), three
+viewport caps (85 / 86 / 90vw), two different width idioms** (`width: min(Npx, Xvw)` vs
+`max-width: Npx; width: 100%`) **and six paddings** — none of the variation meaning anything. 86vw
+against 85vw is not a decision.
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `--modal-compact` | 300px | short panels with no form — About, coming-soon, App Notices |
+| `--modal-standard` | 340px | a form or a list to read — login, one-time notices, Tips |
+| `--modal-wide` | 380px | confirm/prompt dialogs, whose message needs the measure |
+| `--modal-cap` | 90vw | the single viewport cap |
+
+Always `width: min(var(--modal-*), var(--modal-cap))`. **Pick a size; do not invent a sixth width.**
+
+**Why 90vw and not 85vw:** it leaves the WIDEST overlay (the dialog) unchanged, so unifying the cap
+moves nothing on the surface where a clipped message would matter most.
+
+**What moved, and how it was verified.** Only two overlays changed width — one-time notices 320→340
+and Tips 360→340. Everything else kept its pixels, including the login card, whose idiom changed but
+whose rendered width is **340px at 390px viewport both before and after** (measured, not assumed).
+Overlay visual baselines were added FIRST, on the old values, so the change is a reviewable diff:
+13 baselines passed untouched and only the Tips one moved.
+
+**Out of scope, deliberately:** the nav drawer (`min(260px, 72vw)` — a side panel, not a centred
+modal) and the calendar's page-local glass sheets in `index.css` (day detail, AL, team info, doc
+viewer), which are the separate full-bleed/glass family described above.
+
+## Spacing — `--space-*` is a card rhythm, NOT a general scale (measured v19.03)
+
+`shared.css :root` defines `--space-2/3/4/5` (8/12/16/24px). They name exactly two things — the
+card-body padding and the nav-drawer gaps — and are used in **seven places, all inside `shared.css`**.
+That is their whole job. Do not read them as an app-wide spacing scale, because the app does not have
+one.
+
+**A general spacing migration is a WON'T-DO, and the numbers are why** (measured across the seven app
+stylesheets, counting only `padding`/`margin`/`gap` declarations):
+
+| | |
+|---|---|
+| spacing px literals | **1352** |
+| covered by an existing token value (8/12/16/24) | **433 — 32%** |
+| not covered | **919** |
+| most-used value of all | **10px, 211 uses — has no token** |
+
+Then the long tail: 6px ×113, 4px ×105, 14px ×75, 2px ×69, 5px ×53, 20px ×49, 3px ×46, 7px ×40. This
+is not a scale with drift in it; it is per-component spacing that never followed a grid.
+
+So both available moves are bad:
+
+- **Migrate only exact matches** (the safe, value-preserving move that worked for typography at
+  v19.02) tokenises 32% and leaves 919 literals — *including the single most-used value*. A reader
+  seeing `var(--space-2)` beside a bare `10px` would reasonably conclude the tokens are arbitrary.
+  That is a worse signal than today.
+- **Impose a 4/8/12/16/24/32 grid** moves 919 values, so pixels change on every page. Any proposal
+  claiming this "would not noticeably alter the design" is mistaken — that claim is exactly what made
+  the typography migration safe, and it does not transfer here.
+
+**If you want to improve spacing, do it per component with screenshots** — not as a token sweep. And
+if a repeated off-scale value ever deserves a name, mint its own token (the `--type-badge` precedent),
+rather than bending it onto `--space-*`.
+
 ## Typography scale — shared `--type-*` tokens (standardised v11.77–v11.79)
 
 One type scale in `shared.css :root`:
@@ -144,6 +239,19 @@ The four sub-pages (admin, paycalc, operations, settings) use **identical sizes 
 - primary action buttons (`.btn-action`/`.btn-primary`/`.btn-save`) → `--type-button` (15px)
 
 Genuinely distinct components (nav drawer pills, dense roster-review rows, badges, lightbox text) keep their own sizes — they are not "the same element rendered differently", so do not force them onto the shared values. When adding a card/field/button to any sub-page, reuse these sizes rather than inventing new ones.
+
+**The scale is now enforced (v19.02).** It was documented from v11.77 but never applied outside paycalc:
+the app CSS had **278 literal px font-sizes against 295 token uses** (`index.css` alone 98 vs 26). That
+was an unfinished migration rather than drift. The 214 literals whose value EXACTLY equalled a token were
+migrated — a value-preserving change, proven by the visual baselines passing untouched — and
+`type-scale-parity.test.mjs` now fails on any literal that duplicates a token value.
+
+**"Keep their own sizes" means keep their own VALUES, not avoid tokens.** Once a value has a name, use
+the name. The precedent is `--type-badge: 11px` (v17.72), minted precisely *because* 11px was the
+most-repeated off-scale size — there are now zero 11px literals. So a repeated off-scale value is a
+candidate for its OWN token, never for being forced onto an existing one. Genuinely off-scale sizes
+(9px, 20px, 22px …) remain legal and unguarded; the current repeat counts are 9px ×16, 20px ×9, 22px ×6,
+which are the next token candidates if anyone wants them named.
 
 ## Self-hosted Inter typeface (v11.53)
 
