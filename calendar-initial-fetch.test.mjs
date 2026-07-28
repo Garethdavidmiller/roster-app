@@ -561,15 +561,17 @@ describe('E1 — auth must not gate the cache paint', () => {
 
         const chip = getSyncChip();
         assert.ok(chip, 'the error chip should be present');
+        // Phase 2's own auth wait is bounded by SYNC_TIMEOUT_MS, so by now it has already given up
+        // waiting and attempted its read (v19.08 — that bound is what stops the fetch state leaking).
+        // Measure the RETRY specifically rather than a total, so this test tracks the retry path only.
+        const before = serverCalls;
         _fetchImpl = () => { serverCalls++; return Promise.resolve(); };   // retry would succeed
         chip._fire('click');
         await flushAsync();
         t.mock.timers.tick(2000);               // the bounded auth wait elapses
         await flushAsync(6);
 
-        // Exactly ONE read: phase 2 never fired (auth never resolved, which is the whole premise),
-        // so the only call is the retry's — which is precisely what must still get through.
-        assert.equal(serverCalls, 1,
+        assert.equal(serverCalls > before, true,
             'the retry must reach the read even though auth never settled — otherwise the chip is a dead end');
     });
 

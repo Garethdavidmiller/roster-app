@@ -244,7 +244,7 @@ calendar require a session too, closing the external review's **"public absence/
 
 | | Rule shape | Who it lets in | What it blocks | UX cost |
 |---|-----------|----------------|----------------|---------|
-| **Level 1** — auth-required read | `allow read: if request.auth != null;` | any session **incl. the calendar's existing anonymous one** | a raw REST/`curl` scrape with **no** Firebase session; casual URL sharing | **Small, not zero** — see E1 below. No front-door change. |
+| **Level 1** — auth-required read | `allow read: if request.auth != null;` | any session **incl. the calendar's existing anonymous one** | a raw REST/`curl` scrape with **no** Firebase session; casual URL sharing | **Small, not zero** — needs the E1 prep first. No front-door change. |
 | **Level 2** — named-only read | `allow read: if request.auth.token.name != null;` | only a **named** staff session | anonymous sessions too — anyone not signed in as staff | **Real** — the calendar must show a login before it renders. The true "behind login". |
 
 **Be honest about what each buys.** The project config is in the client JS, so a *determined* scraper
@@ -268,17 +268,21 @@ REST). Staged:
   after its session resolves") was right. Four paths read with whatever auth exists:
   `calendar-initial-fetch.js`, `calendar-huddle-viewer.js`, `calendar-doc-viewer.js`, and
   `nav-panel.js`'s Circular/Newsletter open. Ships green under today's open rules, so it soaks alone.
-- **E2 (was E1): tighten reads to Level 1** (`request.auth != null`, anonymous OK) on `overrides` +
-  the three document collections — only after E1 has soaked. ~6 of the 199 rules tests flip. Verify the
+- **E2: tighten reads to Level 1** (`request.auth != null`, anonymous OK) on `overrides` + the three
+  document collections — only after E1 has soaked. **This is the first phase that is a security
+  boundary at all**; everything before it is client-side. ~6 of the 199 rules tests flip. Verify the
   notification-tap fresh-visit path from a **fresh private window** with a cold cache. Keep the
   Anonymous auth provider **enabled**.
-- **E2 (soft): require named on the calendar behind the existing kill-switch.** Flip
-  `PAGE_POLICIES.calendar` to require named, wire the shared `login-overlay.js`, gate on
-  `ENFORCE_NAMED_SESSION` in a **soft** posture first — measure how many launches hit the wall.
-- **E3 (hard): tighten reads to Level 2** (`token.name != null`) + make the calendar login mandatory.
-  Only after E2 soaks. At this point `signInAnonymously` is dead and the **Anonymous provider can be
-  disabled project-wide** — which settles the "retire the anonymous fallback" residual below (decide
-  them together).
+- **E3: require named on the calendar, SOFT posture.** Flip `PAGE_POLICIES.calendar` to require named,
+  wire the shared `login-overlay.js`, gate on `ENFORCE_NAMED_SESSION` in a **soft** posture first —
+  measure how many launches hit the wall. Client UX only; the rules are unchanged at this phase.
+- **E4: offline grace mode — ships WITH E3, not after.** Without it E3 is a genuine regression for a
+  member whose session lapsed while offline. Design in `AUTH_PLAN.md` §4 (durable device marker,
+  cache-only render, real login on reconnect). Do not schedule E3 without it.
+- **E5: tighten reads to Level 2** (`token.name != null`) + make the calendar login mandatory. Only
+  after E3/E4 soak, and only after the claim-tier analysis `AUTH_PLAN.md` flags as missing. At this
+  point `signInAnonymously` is dead and the **Anonymous provider can be disabled project-wide** —
+  which settles the "retire the anonymous fallback" residual below (decide them together).
 
 - **E6 (independent of all the above): put the document FILES behind auth.** E1–E5 tighten Firestore
   *reads*; the Huddle/Circular/Newsletter files themselves ride permanent tokenised bearer URLs that
@@ -314,10 +318,14 @@ surface) — starting E means re-stamping that anti-goal, not violating it silen
 
 **Owner questions — answer BEFORE writing any E code:**
 
-1. **What bar are we defending?** Casual (indexing / shared URL) → **E1** may be *enough*. A motivated
-   outsider willing to script an anonymous sign-in → you need **E3** (named) and must accept the
-   front-door cost. *This single answer decides whether Track E is a one-hour rules tweak or a multi-week
-   front-door change.*
+1. **What bar are we defending?** Casual (indexing / shared URL) → **E0 + E2** is the stopping point.
+   A motivated outsider willing to script an anonymous sign-in → you need **E5** (named-only reads) and
+   must accept the front-door cost of E3/E4. *This single answer decides whether Track E is a one-hour
+   rules tweak or a multi-week front-door change.*
+   **Not E1.** E1 is behaviour-preserving CLIENT preparation — it changes no rule and does not stop a
+   direct Firestore REST read, so it is not a security boundary and must never be cited as one. (This
+   text previously said E1 might be enough; it was wrong, and it is exactly the misreading that would
+   let someone ship a client-only change believing the data was protected.)
 2. **Is a login wall on the home screen acceptable?** (The calendar is opened many times a day.)
 3. **Is the offline-lockout regression acceptable?** If not: a grace mode (render the cached roster
    read-only, require login only to *sync fresh* data) and/or longer sessions.
