@@ -102,6 +102,11 @@ registerPopInterceptor(() => _historyPushed);
 /** @type {any[]} */ let _navLbKeyHandlers = [];
 
 /** localStorage key for the archived notices list. */
+/** How long a drawer document tap waits for a session before reading anyway (v19.07). The user has
+ *  just tapped and a loading state is showing, so this is the "here's a response" budget — not a
+ *  general timeout. The whole fetch stays bounded by the existing 8s race below. */
+const DOC_AUTH_WAIT_MS = 2000;
+
 const NOTICES_KEY = 'myb_app_notices';
 /** Archive entries older than this are pruned from localStorage. */
 const ARCHIVE_EXPIRY_DAYS = 180;
@@ -366,19 +371,18 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             setTimeout(() => reject(new Error('doc-fetch-timeout')), 8000));
         // Wait for a Firebase session before reading (AUTH_PLAN.md → E1): the three document
         // collections are open today, but Track E requires a session, and a read fired before
-        // signInAnonymously lands would return nothing. A plain await is right here — the user
-        // just tapped, the loading state above is showing, and the 8s race still bounds the whole
-        // thing, so a hung sign-in cannot strand _docFetching. Each page passes its own promise
-        // (the calendar `calendarAuthReady`; the five authenticated pages `sessionReady`).
+        // signInAnonymously lands would return nothing. Each page passes its own promise (the
+        // calendar `calendarAuthReady`; the five authenticated pages `sessionReady`).
         //
-        // ACCEPTED TRADE-OFF: on operations/links the in-place-login path deliberately leaves
-        // `sessionReady` UNRESOLVED until the user signs in (see those coordinators — resolving it
-        // early poisons the one-shot). So a SIGNED-OUT user who opens the drawer there and taps a
-        // document now waits out the 8s race and gets the existing failure fallback, where before it
-        // opened. That is the correct destination — once reads require a session the fetch genuinely
-        // cannot succeed signed-out — and the failure is graceful (spinner cleared, blank tab closed,
-        // fallback shown) rather than a stuck state. Revisit if the 8s wait proves annoying.
-        Promise.race([authReady.then(() => fetchFn()), timed]).then(/** @param {any} data */ data => {
+        // BOUNDED, not plain (v19.07). A plain `await authReady` broke the very thing E1 was meant to
+        // preserve: on operations/links the in-place-login path deliberately leaves `sessionReady`
+        // UNRESOLVED until the user signs in, so a SIGNED-OUT user tapping a document there sat
+        // through the whole 8s race and got the failure fallback — where before it opened instantly,
+        // because these collections are open today. Waiting a moment for a session and then reading
+        // anyway restores that: it succeeds under today's rules, and once reads require a session it
+        // fails into the same fallback rather than stalling first.
+        const authOrSoon = Promise.race([authReady, new Promise(r => setTimeout(r, DOC_AUTH_WAIT_MS))]);
+        Promise.race([authOrSoon.then(() => fetchFn()), timed]).then(/** @param {any} data */ data => {
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {

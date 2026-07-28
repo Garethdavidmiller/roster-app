@@ -11,6 +11,12 @@
 import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache } from './calendar-overrides.js';
 import { formatISO } from './roster-data.js';
 
+/** How long a user-initiated RETRY will wait for a session before reading anyway (v19.07).
+ *  Not a tuned number and not a general timeout: the retry chip only exists after the 10s failure
+ *  timeout, so auth has already had 10s+ to settle. This is just the "you tapped, here's a response"
+ *  budget before an unresponsive control reads as broken. The READ itself is never bounded here. */
+const RETRY_AUTH_WAIT_MS = 2000;
+
 /**
  * Kick off the initial 3-month Firestore fetch and wire the sync chip + visibility handler.
  *
@@ -147,9 +153,18 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
 
     try {
-      // A retry is user-initiated with a visible "Retrying…" state, so a plain await is correct
-      // here — unlike phase 1 above, nothing is waiting to paint behind it.
-      await authReady;
+      // A retry is user-initiated with a visible "Retrying…" state, so waiting is expected — but it
+      // must not be UNBOUNDED, which a plain `await authReady` would be (v19.07 fix to v19.01).
+      // calendarAuthReady starts at page load, and this chip only appears after the 10s timeout, so
+      // an auth promise still pending HERE has already hung for 10s+ and may never settle. Awaiting
+      // it plainly would strand the chip on "Retrying…" — disabled, with no handler and no way back,
+      // which is worse than the failure it was trying to recover from.
+      //
+      // So: give it a short moment, then read regardless. Under today's open rules the read succeeds
+      // without a session; once reads require one it fails RETRYABLY into the error chip, which is
+      // the recoverable outcome. (Phase 1 deliberately does NOT do this — there the right answer is
+      // never to wait at all. Bounded-wait is right here precisely because a user is watching.)
+      await Promise.race([authReady, new Promise(r => setTimeout(r, RETRY_AUTH_WAIT_MS))]);
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
       _dataLoaded  = true;
