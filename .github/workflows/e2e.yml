@@ -14,6 +14,7 @@ on:
 jobs:
   unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -45,6 +46,7 @@ jobs:
   # in parallel with unit.
   smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -83,6 +85,7 @@ jobs:
   # regression is caught before merge, not at deploy.
   rules:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     env:
@@ -118,6 +121,7 @@ jobs:
   # can't (no headers). The Hosting emulator is Node-based, so no Java is needed here.
   csp:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
