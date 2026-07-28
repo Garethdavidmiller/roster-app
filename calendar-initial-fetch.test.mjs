@@ -89,7 +89,12 @@ function makeEl(tag) {
 
 let _header, _calGrid, _docListeners;
 
-function setupDOM() {
+/**
+ * @param {{ header?: boolean }} [opts] header:false models FIRST RUN and TEAM VIEW — the two states
+ *   where `.calendar-header` genuinely does not exist in the DOM, so no sync chip can ever be shown.
+ */
+function setupDOM(opts = {}) {
+    const withHeader = opts.header !== false;
     _header = makeEl('div');
     _header.className = 'calendar-header';
     _calGrid = makeEl('div');
@@ -97,7 +102,7 @@ function setupDOM() {
     global.document = {
         createElement: tag => makeEl(tag),
         getElementById: id  => id === 'calendarDisplay' ? _calGrid : null,
-        querySelector:  sel => sel === '.calendar-header' ? _header : null,
+        querySelector:  sel => (withHeader && sel === '.calendar-header') ? _header : null,
         addEventListener(evt, fn) {
             if (!_docListeners[evt]) _docListeners[evt] = [];
             _docListeners[evt].push(fn);
@@ -588,5 +593,178 @@ describe('E1 — auth must not gate the cache paint', () => {
         await flushAsync(8);
 
         assert.equal(serverCalled, true, 'the server read must still happen — the cache is not the truth');
+    });
+
+    // v19.08 — the state leak underneath the v19.07 fix. Phase 2's OWN `await authReady` was still
+    // unbounded, so when a sign-in never settled the async IIFE never settled either: neither `catch`
+    // nor `finally` ran. `_initialFetchInProgress` stayed true and the three months stayed claimed in
+    // `fetchedMonths` for the life of the page, silently disabling every later refresh. The 10s timer
+    // painted a retry chip, but only where a `.calendar-header` exists — not first-run, not Team View.
+    test('a never-settling authReady must not leak the fetch state past the deadline', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        initInitialFetch({
+            isTeamViewMode: () => false,
+            renderCalendar: () => {},
+            authReady: new Promise(() => {}),   // sign-in never settles
+        });
+        await flushAsync();
+
+        assert.equal(_progressHistory.includes(false), false,
+            'still legitimately in progress before the deadline');
+
+        t.mock.timers.tick(10000);   // SYNC_TIMEOUT_MS — phase 2 gives up waiting and reads anyway
+        await flushAsync(8);
+
+        assert.equal(_progressHistory.includes(false), true,
+            'the IIFE must ALWAYS settle so `finally` releases the in-progress flag — otherwise the ' +
+            'three months stay claimed forever and no later navigation can re-fetch them');
+        assert.equal(_calGrid._classes.has('calendar-fetching'), false,
+            'and the grid must not be left wearing the fetching state permanently');
+    });
+});
+
+// ── Recovery where there is NO sync chip (first run · Team View) ──────────────
+//
+// WHY THIS BLOCK EXISTS. Every chip test above builds a `.calendar-header` and then asserts on the
+// chip inside it. But the header does not exist during FIRST RUN or in TEAM VIEW — the module's own
+// comments say so twice, and it is the stated reason the failure path releases the pre-claimed
+// months at all. So the entire visible recovery mechanism is absent in exactly those two states, and
+// `clearFetchedMonth` is the ONLY thing standing between a failed sync and a session that can never
+// re-fetch those months.
+//
+// That made the most load-bearing line in the module the least tested one: a refactor that moved the
+// release inside `if (syncChip)` — a natural-looking tidy-up, since everything around it is chip work
+// — would pass every test above while permanently stranding first-run and Team View users on the
+// base roster, with no error shown and no way to recover short of a reinstall.
+
+describe('recovery without a sync chip (first run · team view)', () => {
+    beforeEach(() => setupDOM({ header: false }));
+
+    test('a failed fetch still releases the three months when no chip can be shown', async () => {
+        _fetchImpl = () => Promise.reject(new Error('offline'));
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync(6);
+
+        assert.deepEqual(new Set(_clearMonthsHistory), new Set(_addMonthsHistory[0]),
+            'with no chip to tap, releasing the months is the ONLY recovery path — a later render or ' +
+            'navigation re-fetches them via ensureOverridesCached');
+        assert.equal(_clearMonthsHistory.length, 3);
+    });
+
+    test('a failed fetch with no header does not throw, and still clears the fetch state', async () => {
+        _fetchImpl = () => Promise.reject(new Error('offline'));
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync(6);
+
+        // If ensureChipAttached()'s null return were dereferenced, the catch would throw before
+        // reaching `finally`'s cleanup — an unhandled rejection that leaves the grid mid-fetch.
+        assert.equal(_progressHistory.includes(false), true, 'finally must still run');
+        assert.equal(_calGrid._classes.has('calendar-fetching'), false);
+    });
+
+    test('the 10s timeout with no header leaves no fetching state on the grid', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => new Promise(() => {});
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+
+        t.mock.timers.tick(800);
+        assert.equal(_calGrid._classes.has('calendar-fetching'), true,
+            'the grid still shows it is fetching even though no chip exists to say so');
+
+        t.mock.timers.tick(9200);
+        assert.equal(_calGrid._classes.has('calendar-fetching'), false,
+            'at the deadline the grid must stop looking busy — with no chip, this is the only signal ' +
+            'these users get that the sync is over');
+    });
+
+    test('a failed fetch in TEAM VIEW releases the months and repaints nothing', async () => {
+        _fetchImpl = () => Promise.reject(new Error('offline'));
+        let teamRendered = false, calRendered = false;
+        initInitialFetch({
+            isTeamViewMode: () => true,
+            renderCalendar: () => { calRendered = true; },
+            renderTeamView: () => { teamRendered = true; },
+        });
+        await flushAsync(6);
+
+        assert.equal(_clearMonthsHistory.length, 3,
+            'Team View has no chip either — the release is its whole recovery story');
+        assert.equal(teamRendered, false, 'nothing new to paint on failure; keep the last-good grid');
+        assert.equal(calRendered,  false);
+    });
+});
+
+// ── Team View recovery through the retry path ─────────────────────────────────
+// The retry lives on a chip, so it can only be reached with a header present — but a user can be in
+// Team View WITH the calendar header still mounted (toggling views does not unmount it in every
+// state). The retry's success branch picks the renderer by mode, and that branch was untested: a
+// retry that repainted the personal calendar instead of the team grid would leave the Team View user
+// looking at a stale base-roster grid with a chip that had just told them everything was fine.
+
+describe('team view retry recovery', () => {
+    test('a successful retry in team view repaints the TEAM grid, not the calendar', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        // Same call-time-lookup hazard as the failed-retry test below: pin that the original is
+        // already in flight, so the repaint we assert on can only have come from doRetry.
+        let calls = 0;
+        _fetchImpl = () => { calls++; return new Promise(() => {}); };
+        let teamRendered = false, calRendered = false;
+        initInitialFetch({
+            isTeamViewMode: () => true,
+            renderCalendar: () => { calRendered = true; },
+            renderTeamView: () => { teamRendered = true; },
+        });
+        await flushAsync(6);
+        assert.equal(calls, 1, 'the original request must already be in flight before we arm the retry');
+
+        t.mock.timers.tick(800);
+        t.mock.timers.tick(9200);          // error chip appears
+
+        const chip = getSyncChip();
+        assert.ok(chip, 'the error chip should be present');
+        assert.equal(teamRendered, false, 'nothing has repainted yet — the original is still hung');
+
+        _fetchImpl = () => { calls++; return Promise.resolve(); };
+        chip._fire('click');
+        await flushAsync();
+        t.mock.timers.tick(2000);          // RETRY_AUTH_WAIT_MS
+        await flushAsync(6);
+
+        assert.equal(calls, 2, 'exactly one further request — the retry');
+
+        assert.equal(teamRendered, true,
+            'the retry must repaint whichever view the user is actually looking at');
+        assert.equal(calRendered, false,
+            'repainting the personal calendar would leave the team grid stale behind a success message');
+    });
+
+    test('a failed retry releases the months so a later navigation can re-fetch', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        // `_fetchImpl` is read at CALL time, so a naive reassign-then-click can be picked up by the
+        // ORIGINAL request instead of the retry — and then this test would pass on the original's
+        // release while proving nothing about doRetry. Count the calls and assert which one we are
+        // looking at, so the attribution is checked rather than assumed.
+        let calls = 0;
+        _fetchImpl = () => { calls++; return new Promise(() => {}); };   // original: hangs forever
+        initInitialFetch({ isTeamViewMode: () => true, renderCalendar: () => {}, renderTeamView: () => {} });
+        await flushAsync(6);
+        assert.equal(calls, 1, 'the original request must already be in flight before we arm the retry');
+
+        t.mock.timers.tick(800);
+        t.mock.timers.tick(9200);
+
+        const chip = getSyncChip();
+        _clearMonthsHistory = [];          // isolate the RETRY's releases from the original failure's
+        _fetchImpl = () => { calls++; return Promise.reject(new Error('still offline')); };
+        chip._fire('click');
+        await flushAsync();
+        t.mock.timers.tick(2000);
+        await flushAsync(6);
+
+        assert.equal(calls, 2, 'exactly one further request — the retry — and the original still hung');
+        assert.equal(_clearMonthsHistory.length, 3,
+            'a failed retry re-claimed the months up-front, so it must release them again — otherwise ' +
+            'one failed tap strands all three for the rest of the session');
     });
 });
