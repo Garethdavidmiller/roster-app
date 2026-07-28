@@ -146,6 +146,52 @@ describe('doc viewer — the open must always reach a terminal state', () => {
         assert.doesNotMatch(bodyText(), /Try again/, 'nor rendered into it');
     });
 
+    test('a fetch that NEVER settles still reaches the failure state at the 8s deadline', async (t) => {
+        // The other deadline. The test above covers auth never settling (the 2s bound); this covers
+        // the read itself hanging — a stalled Firestore request that neither resolves nor rejects.
+        // Without the total deadline the viewer sits on "Loading…" exactly as it did before v19.08,
+        // just for a different reason, so the two bounds need separate cover.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _circularImpl = () => new Promise(() => {});   // never settles
+
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+
+        t.mock.timers.tick(2000);      // past the auth bound — the read is attempted and hangs
+        await flush();
+        assert.doesNotMatch(bodyText(), /Try again/, 'still legitimately loading before the deadline');
+
+        t.mock.timers.tick(6000);      // 8s total
+        await flush();
+
+        assert.match(bodyText(), /Try again/,
+            'a hung read must land in the recoverable failure state, not spin forever');
+    });
+
+    test('the retry button issues a REAL second request', async (t) => {
+        // The test below asserts the control exists. That is not the same as it working: an inert
+        // button with the right label passes it, and a retry that does nothing is worse than no
+        // retry at all — it looks like the app tried and failed twice.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        let calls = 0;
+        _circularImpl = () => { calls++; return Promise.reject(new Error('offline')); };
+
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        assert.equal(calls, 1, 'precondition: the first attempt ran and failed');
+
+        const btn = _els.docViewerBody._children.find(c => /Try again/.test(c.textContent));
+        assert.ok(btn, 'the retry control is present');
+        btn._fire('click');
+        await flush();
+        t.mock.timers.tick(2000);
+        await flush();
+
+        assert.equal(calls, 2, 'pressing it must actually re-read the document');
+    });
+
     test('the failure state offers a retry CONTROL, not just text', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         _circularImpl = () => Promise.reject(new Error('offline'));
