@@ -40,6 +40,15 @@ const DOCS = {
  * @param {{ authReady?: Promise<any> }} [deps] authReady — resolves once a Firebase session exists.
  *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
  */
+/** Wait a moment for a session before reading, then read regardless — the user just tapped a
+ *  notification and is watching a "Loading…" panel. */
+const DOC_AUTH_WAIT_MS = 2000;
+/** Total deadline for the whole open, mirroring the nav-drawer document path's 8s race. */
+const DOC_FETCH_TIMEOUT_MS = 8000;
+
+/** @param {number} ms */
+const _delay = (ms) => new Promise(r => setTimeout(r, ms));
+
 export function initDocViewer({ authReady = Promise.resolve() } = {}) {
     const overlay  = /** @type {HTMLElement|null} */ (document.getElementById('docViewer'));
     const content  = /** @type {HTMLElement|null} */ (document.getElementById('docViewerContent'));
@@ -75,12 +84,20 @@ export function initDocViewer({ authReady = Promise.resolve() } = {}) {
         showMessage('Loading…', 'doc-viewer-loading');
         lb.open();
         try {
-            // A session must exist before the read (AUTH_PLAN.md → E1). Plain await: the viewer is
-            // already showing "Loading…", and this path only runs on a notification tap, so the user
-            // is expecting a fetch. Never on the render path.
-            await authReady;
-            if (seq !== _openSeq) return;
-            const doc = await d.fetch();
+            // BOUNDED, not plain (v19.08). This awaited `authReady` with no deadline, and the comment
+            // that used to sit here argued the visible "Loading…" made that acceptable. It does not:
+            // a loading state tells you something is happening, it does not make an unbounded wait
+            // RECOVERABLE. On a stalled connection where persistence setup or signInAnonymously never
+            // settles, the fetch was never attempted and the viewer sat on "Loading…" forever — from
+            // an explicit user action (a notification tap), with no failure ever announced to a
+            // screen reader. Same shape as the nav-drawer path and the calendar retry: wait a moment
+            // for a session, then read anyway; today that succeeds, and once reads require a session
+            // it fails into the catch below, which now offers a retry.
+            const authOrSoon = Promise.race([authReady, _delay(DOC_AUTH_WAIT_MS)]);
+            const doc = await Promise.race([
+                authOrSoon.then(() => (seq === _openSeq ? d.fetch() : null)),
+                _delay(DOC_FETCH_TIMEOUT_MS).then(() => { throw new Error('doc-fetch-timeout'); }),
+            ]);
             if (seq !== _openSeq) return;   // a newer tap superseded this one — don't clobber its content
             if (doc && isSafeStorageUrl(doc.storageUrl)) {
                 bodyEl.textContent = '';
@@ -108,7 +125,21 @@ export function initDocViewer({ authReady = Promise.resolve() } = {}) {
         } catch (err) {
             if (seq !== _openSeq) return;   // superseded — leave the newer tap's content alone
             console.warn(`[DocViewer] ${key} fetch failed:`, err);
-            showMessage("Couldn't load this document — please try again.", 'doc-viewer-empty');
+            // A RETRY CONTROL, not just text (v19.08). "please try again" with nothing to press is a
+            // dead end — and for a screen-reader user it is the only thing that ever replaces
+            // "Loading…", so it has to be actionable.
+            bodyEl.textContent = '';
+            const msg = document.createElement('p');
+            msg.className = 'doc-viewer-empty';
+            msg.textContent = "Couldn't load this document.";
+            const again = document.createElement('button');
+            again.type = 'button';
+            again.className = 'doc-open-btn';
+            again.textContent = '↻ Try again';
+            again.addEventListener('click', () => openDoc(key));
+            bodyEl.appendChild(msg);
+            bodyEl.appendChild(again);
+            again.focus();
         }
     }
 

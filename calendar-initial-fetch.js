@@ -11,6 +11,16 @@
 import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache } from './calendar-overrides.js';
 import { formatISO } from './roster-data.js';
 
+/** The sync's own failure deadline — the point at which the chip says "Couldn't update" (v19.08).
+ *  Phase 2's auth wait is bounded by the SAME value, deliberately: if we are going to declare the
+ *  sync failed at 10s, there is no sense waiting for a session past it. That also makes the async
+ *  IIFE ALWAYS settle, which the state machine depends on — a never-settling `await authReady` meant
+ *  neither `catch` nor `finally` ran, so `_initialFetchInProgress` stayed true, the three months
+ *  stayed claimed (so no later navigation could re-fetch them) and `.calendar-fetching` stayed on
+ *  the grid, permanently. The 10s timer painted a retry chip, but only where a `.calendar-header`
+ *  exists — not in first-run or Team View, which is exactly where the stall was invisible. */
+const SYNC_TIMEOUT_MS = 10000;
+
 /** How long a user-initiated RETRY will wait for a session before reading anyway (v19.07).
  *  Not a tuned number and not a general timeout: the retry chip only exists after the 10s failure
  *  timeout, so auth has already had 10s+ to settle. This is just the "you tapped, here's a response"
@@ -137,7 +147,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       announceSync('Couldn\'t update your shifts. Activate to retry.');
     }
     if (calGrid) calGrid.classList.remove('calendar-fetching');
-  }, 10000);
+  }, SYNC_TIMEOUT_MS);
 
   async function doRetry() {
     if (!syncChip) return;
@@ -218,7 +228,12 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       }
 
       // ── Phase 2: the authoritative server read, once a session exists ─────────────────────
-      await authReady;
+      // BOUNDED by the sync's own failure deadline (v19.08). Waiting for a session is the point of
+      // this phase, but waiting FOREVER is not: an unbounded await meant the IIFE could never
+      // settle, so neither catch nor finally ran and the fetch state leaked permanently (see
+      // SYNC_TIMEOUT_MS). Past the deadline we read anyway — today that succeeds, and once reads
+      // require a session it fails into the catch below, which is the recoverable path.
+      await Promise.race([authReady, new Promise(r => setTimeout(r, SYNC_TIMEOUT_MS))]);
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
       _dataLoaded  = true;

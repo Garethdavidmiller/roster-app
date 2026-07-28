@@ -22,8 +22,10 @@ that reads uniformly confident invites someone to start at the wrong end:
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
 | §5 documents (E6) | **A sketch.** The Office-viewer dependency invalidates the cheapest option. |
 
-**Status: UNDECIDED.** Only **E0 has shipped** (v19.00 — search engines excluded). Everything past the
-decision gate below is an option, not a commitment. The most likely trigger is external: if the app
+**Status: UNDECIDED past the gate.** **E0 shipped v19.00** (search engines excluded) and **E1 shipped
+v19.01** (the cache-first, auth-aware client preparation) — both were deliberately chosen as the two
+phases needing no decision. **E2 is the first phase that is a security boundary at all**, and nothing
+from E2 onward is committed. The most likely trigger is external: if the app
 becomes, or is assessed as, official Chiltern infrastructure, IT may require the roster data to sit
 behind authentication rather than a public URL. Until then the deliberate public-calendar design stands.
 
@@ -107,7 +109,7 @@ rules edit".
 
 | | Paths | Why |
 |---|---|---|
-| **User-initiated** | huddle subscribe · doc viewer · nav-panel doc open | The user just tapped something and all three already show a pending state. A plain `await` is correct: waiting is what the user expects, and offline these cannot succeed anyway. |
+| **User-initiated** | huddle subscribe · doc viewer · nav-panel doc open | The user just tapped something and all three already show a pending state, so waiting is what they expect — but a **BOUNDED** wait (v19.07/19.08). A plain `await` was shipped here first and was wrong three times over; see the correction below. |
 | **Render path** | the 3-month `overrides` fetch | The only one on the critical path to seeing your roster, and the only one that must work offline. A plain `await` here is the offline-first regression. |
 
 So the risky work is **one** path, not four.
@@ -118,6 +120,24 @@ on bad signal; gate it on auth and a returning device with flaky signal waits on
 already has. The obvious patch — bound the wait, then read anyway — is also wrong: under E2's rules the
 unauthenticated read is denied, so a slow first visit shows a spurious "⚠ Couldn't update". That trades an
 offline-first regression for a flakiness one, and needs a timeout constant with no basis to pick it.
+
+**CORRECTION (v19.07–19.08) — "user-initiated" does not mean "may wait forever".** The first cut of
+E1 used a plain `await authReady` on all three tap paths and on the retry, reasoning that a visible
+pending state made waiting acceptable. It does not: a loading state tells you something is happening,
+it does not make an unbounded wait **recoverable**. Three defects followed, found across two review
+passes:
+
+| Path | What a never-settling `authReady` did |
+|---|---|
+| `calendar-doc-viewer.js` | A notification tap sat on "Loading…" **forever** — the fetch never attempted, no failure ever announced to a screen reader. |
+| `nav-panel.js` (operations/links) | Those pages leave `sessionReady` unresolved until sign-in, so a signed-out tap stalled the full 8s and failed — where before it opened instantly. |
+| `doRetry` | The retry chip stuck on "Retrying…", disabled, with no handler — a dead end worse than the failure it was recovering from. |
+
+All four now wait a bounded moment and then read regardless: that succeeds under today's open rules
+and, once reads require a session, fails into an existing retryable path. **The rule to carry into
+E2/E5: no user-facing path may await auth without a deadline, and every failure state needs a
+control, not just text.** The render path is the one place that must not wait at all — for the
+opposite reason (the data is already cached).
 
 **Instead: paint from cache immediately, refresh authoritatively once auth lands.**
 
