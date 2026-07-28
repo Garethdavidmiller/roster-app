@@ -59,7 +59,25 @@ export function initDocViewer({ authReady = Promise.resolve() } = {}) {
     const bodyEl   = /** @type {HTMLElement} */ (document.getElementById('docViewerBody'));
     const closeBtn = /** @type {HTMLElement} */ (document.getElementById('docViewerClose'));
 
-    const lb = createLightbox({ overlay, content, closeBtn });
+    // Discards a superseded fetch: two rapid notification taps (#circular then #newsletter) each set
+    // the title synchronously then await their fetch — if the first resolves LAST it would write its
+    // "Open" button under the second's title (persistent doc/title mismatch). Only the latest tap wins.
+    //
+    // CLOSING THE VIEWER BUMPS IT TOO (v19.13). Dismissal is just as much a "this open is no longer
+    // wanted" signal as a newer tap, and it was not treated as one: a member who tapped a
+    // notification, saw "Loading…", and closed it still had the late resolve/reject append a button
+    // into the hidden dialog and call .focus() on it. For a mouse user that is invisible; for a
+    // keyboard or screen-reader user it drags focus out of whatever the lightbox restored it to and
+    // into content that is not on screen, then announces an action belonging to a dialog they
+    // already dismissed. Declared ABOVE createLightbox so onClose can reach it.
+    let _openSeq = 0;
+
+    const lb = createLightbox({
+        overlay, content, closeBtn,
+        // Invalidate whatever is in flight. The existing `seq !== _openSeq` guards on BOTH the
+        // success and failure paths then suppress every late DOM write and focus move.
+        onClose: () => { _openSeq++; },
+    });
 
     /** Render a short message (no markup) into the viewer body. @param {string} text @param {string} cls */
     function showMessage(text, cls) {
@@ -69,11 +87,6 @@ export function initDocViewer({ authReady = Promise.resolve() } = {}) {
         p.textContent = text;
         bodyEl.appendChild(p);
     }
-
-    // Discards a superseded fetch: two rapid notification taps (#circular then #newsletter) each set
-    // the title synchronously then await their fetch — if the first resolves LAST it would write its
-    // "Open" button under the second's title (persistent doc/title mismatch). Only the latest tap wins.
-    let _openSeq = 0;
 
     /** @param {string} key 'circular' | 'newsletter' */
     async function openDoc(key) {

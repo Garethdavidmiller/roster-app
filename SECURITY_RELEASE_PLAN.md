@@ -317,7 +317,12 @@ being open:
 4. **The document viewers** rely on open reads *because* the calendar had no session — E3 couples them to
    the login working on every path.
 
-**Rollout discipline:** migrate, don't cut over — E1 → E2-soft → E3-hard, never a single flip. Reuse
+**Rollout discipline:** migrate, don't cut over — **E0 → E1 → E2 → decision gate → E3 + E4 → E5**.
+Never make the calendar's front door and named-only read rules a single flip. (Until v19.13 this sentence carried a
+three-stage shorthand that predates the E0–E6 numbering: it began at E1, applied the soft/hard
+labels to the wrong phases, and omitted the offline-grace phase entirely. It survived the v19.08
+renumbering because the parity test checked phase HEADINGS, not prose. `auth-plan-parity.test.mjs`
+now pins this exact sequence in both documents and rejects the superseded shorthand.) Reuse
 `ENFORCE_NAMED_SESSION` + the staged posture the B-track proved. Verify only from a **fresh private
 window**. **Track E consciously REVERSES an anti-goal** (the calendar's deliberate anonymous read
 surface) — starting E means re-stamping that anti-goal, not violating it silently.

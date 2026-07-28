@@ -130,6 +130,37 @@ describe('Track E parity — both plans describe the same phases', () => {
     });
 });
 
+// The phase HEADINGS were guarded from v19.09; the prose that tells a maintainer what order to work
+// in was not. So a stale "E1 → E2-soft → E3-hard" rollout line survived the v19.08 renumbering in
+// the sequencing doc — naming the wrong stage "hard", implying E1 begins the rollout, and dropping
+// the offline-grace phase — while every structural check stayed green. A one-line summary is what
+// people actually follow when they are in a hurry, so it needs pinning at least as much as the
+// headings do.
+const CANONICAL_SEQUENCE = 'E0 → E1 → E2 → decision gate → E3 + E4 → E5';
+
+describe('Track E parity — the canonical rollout sequence', () => {
+    for (const [label, src] of [['AUTH_PLAN.md', AUTH], ['SECURITY_RELEASE_PLAN.md', SEC]]) {
+        test(`${label} states the canonical sequence verbatim`, () => {
+            assert.ok(src.includes(CANONICAL_SEQUENCE),
+                `${label} does not contain "${CANONICAL_SEQUENCE}". Both Track E documents must state ` +
+                'the order of work identically — a summary line is what gets followed under time ' +
+                'pressure, and a stale one sends someone past the offline-grace phase or straight to ' +
+                'named-only rules.');
+        });
+
+        test(`${label} carries no superseded phase shorthand`, () => {
+            // The specific shapes that predate the E0–E6 numbering. "soft"/"hard" as phase SUFFIXES
+            // are the tell: the real model has a soft posture INSIDE E3 and enforcement at E5, so
+            // "E2-soft"/"E3-hard" is always the old model leaking through.
+            const stale = [...src.matchAll(/E\d\s*-\s*(soft|hard)\b/gi)].map(m => m[0]);
+            assert.deepEqual(stale, [],
+                `${label} still uses superseded phase shorthand: ${stale.join(', ')}. The soft posture ` +
+                'belongs to E3 and hard enforcement to E5 — naming a phase "-soft"/"-hard" is the old ' +
+                'pre-renumbering model.');
+        });
+    }
+});
+
 describe('Track E parity — each plan agrees with itself', () => {
     test("SECURITY_RELEASE_PLAN's Track E heading names exactly the phases its bullets mark shipped", () => {
         const heading = SEC.split('\n').find(l => /^### Track E\b/.test(l));

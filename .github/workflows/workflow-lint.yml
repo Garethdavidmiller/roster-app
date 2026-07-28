@@ -10,9 +10,11 @@ name: Workflow Lint
 # and only fail the NEXT time it was supposed to run — i.e. at deploy time.
 #
 # This job closes that gap with the minimum possible surface: it runs ONLY when a
-# workflow file changes, and validates every workflow file. It uses the runner's
-# pre-installed Python (PyYAML) rather than a third-party action or a `curl | bash`
-# installer, keeping to this repo's "pin/self-contained, no remote scripts" rule.
+# workflow file changes, and validates every workflow file. It uses the runner's Python
+# with an EXPLICITLY PINNED PyYAML (see the install step) rather than a third-party
+# action or a `curl | bash` installer, keeping to this repo's "pin/self-contained, no
+# remote scripts" rule. It relied on PyYAML being preinstalled until v19.13 — present
+# today, but not a documented guarantee of a moving runner image.
 #
 # It also enforces `timeout-minutes` on every job (added Jul 2026). No job had one, so each
 # inherited GitHub's 6-HOUR default — a hung runner would have blocked the branch for
@@ -39,10 +41,27 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      # PyYAML is NOT a documented guarantee of the ubuntu-latest image — it is present today,
+      # probably transitively via another preinstalled tool, and `ubuntu-latest` follows a moving
+      # image. Depending on that implementation detail means a runner refresh could fail this job
+      # BEFORE it validates anything, which is a confusing way for a workflow-only change to break.
+      # Installing it explicitly (pinned) is a couple of seconds and removes the coupling. Still no
+      # third-party action and no `curl | bash` — the repo's "pin / self-contained" rule holds.
+      - name: Install the YAML parser (pinned — do not rely on the runner image)
+        run: python3 -m pip install --quiet --disable-pip-version-check 'PyYAML==6.0.2'
+
       - name: Validate workflow YAML
         run: |
           python3 - <<'PY'
-          import sys, glob, yaml
+          import sys, glob
+          try:
+              import yaml
+          except ModuleNotFoundError:
+              # Belt and braces: say WHAT is missing rather than emitting a bare import traceback,
+              # so the failure names its own fix instead of looking like a broken workflow file.
+              print('::error::PyYAML is not installed — the "Install the YAML parser" step above '
+                    'should have provided it. Workflow YAML was NOT validated.')
+              sys.exit(1)
 
           any_failed = False
           for path in sorted(glob.glob('.github/workflows/*.yml') +

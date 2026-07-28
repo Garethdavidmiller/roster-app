@@ -18,8 +18,16 @@ import assert from 'node:assert/strict';
 
 let _circularImpl = () => Promise.resolve(null);
 
+// The stub must honour onClose — that callback is what invalidates an in-flight open (v19.13),
+// so a stub that swallows it would make the close tests below pass against broken code.
+let _lbClose = () => {};
 mock.module('./overlay.js', {
-    namedExports: { createLightbox: () => ({ open() {}, close() {} }) },
+    namedExports: {
+        createLightbox: (cfg) => {
+            _lbClose = () => { cfg?.onClose?.(); };
+            return { open() {}, close() { _lbClose(); } };
+        },
+    },
 });
 mock.module('./firebase-client.js', {
     namedExports: {
@@ -86,6 +94,56 @@ describe('doc viewer — the open must always reach a terminal state', () => {
 
         assert.equal(fetched, true,
             'past the bounded auth wait the read must be attempted — otherwise the viewer spins forever');
+    });
+
+    test('a LATE SUCCESS after the viewer is closed writes nothing and steals no focus', async () => {
+        // Dismissal is as much a "no longer wanted" signal as a newer tap, and it was not treated as
+        // one: the late resolve appended an Open button into the hidden dialog and called .focus() on
+        // it. Invisible to a mouse user; for a keyboard or screen-reader user it drags focus out of
+        // whatever the lightbox restored it to, into content that is not on screen.
+        let resolveIt;
+        _circularImpl = () => new Promise(res => { resolveIt = res; });
+        let focused = 0;
+        const origCreate = global.document.createElement;
+        global.document.createElement = (...a) => {
+            const el = origCreate(...a);
+            el.focus = () => { focused++; };
+            return el;
+        };
+
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+
+        _lbClose();                                   // the member closes it while still loading
+        resolveIt({ storageUrl: 'https://x/y.pdf', fileType: 'pdf' });
+        await flush();
+
+        assert.equal(focused, 0, 'nothing inside a dismissed dialog may take focus');
+        assert.doesNotMatch(bodyText(), /Open /, 'and no button may be appended into it');
+    });
+
+    test('a LATE FAILURE after the viewer is closed writes nothing and steals no focus', async () => {
+        let rejectIt;
+        _circularImpl = () => new Promise((_r, rej) => { rejectIt = rej; });
+        let focused = 0;
+        const origCreate = global.document.createElement;
+        global.document.createElement = (...a) => {
+            const el = origCreate(...a);
+            el.focus = () => { focused++; };
+            return el;
+        };
+
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+
+        _lbClose();
+        rejectIt(new Error('offline'));
+        await flush();
+
+        assert.equal(focused, 0, 'the retry button must not be focused inside a closed viewer');
+        assert.doesNotMatch(bodyText(), /Try again/, 'nor rendered into it');
     });
 
     test('the failure state offers a retry CONTROL, not just text', async (t) => {
