@@ -46,7 +46,7 @@ part.**
 - **Team Week View** (v8.22–v8.40) — CLAUDE.md → "Team Week View". Durable: Sun–Sat weeks (`getSunday`, Chiltern convention); the `fetchToken` stale-result discard on rapid week nav; admin-only gate dropped at v8.40 (all staff now).
 - **Navigation overhaul** (v10.57–v10.71) — shared `nav-panel.js` slide-out drawer on all 6 pages; sign-out + 🔔/🔕 bell moved to the footer; header back buttons removed (return via the Calendar pill); headers → `1fr auto 1fr` centred branding. **Notification-tap PDF fix (v10.71):** a tap carries no user activation so `window.open` was pop-up-blocked — `_triggerAutoOpen()` renders an in-overlay "Open Huddle" button (the tap IS a gesture). OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
 - **Security hardening** (v10.72–74) — the v10.72 per-member write isolation was **reverted at v10.94 (production outage)**, later rebuilt as the permissive 3-tier rule (B2, v14.53) then made strict (B3, v16.29) — KNOWN_LIMITATIONS task #2. v10.73 back-pay-in-HPP was **superseded at v16.89** (it double-counted the award uplift — `.claude/rules/paycalc.md`). Plus `.gitignore`, an iOS scroll-lock `transitionend` fallback, and the May-2026 GCP API-key referrer restriction.
-- **Railcard guide** (v10.30–v10.48) + **FIP guide** — `.claude/rules/guide-pages.md`, GUIDE_SOURCES.md. FIP country-finder (v17.64) + sticky section chip-bar (v17.66) + scrollspy (v17.68) shipped. **Three FIP v2 ideas deliberately NOT shipped:** per-card reliability badges (a "Confirmed" tier would over-promise against GUIDE_SOURCES' explicit "sampled, not certified" carrier posture); per-section review dates (already tracked per-row in the register — clutter on a staff reference); collapsible major sections (invasive, low value now the finder + chip-bar carry navigation).
+- **Railcard guide** (v10.30–v10.48) + **FIP guide** — `.claude/rules/guide-pages.md`, GUIDE_SOURCES.md. FIP country-finder (v17.64) + sticky section chip-bar (v17.66) + scrollspy (v17.68) shipped. **Four FIP v2 ideas deliberately NOT shipped:** per-card reliability badges (a "Confirmed" tier would over-promise against GUIDE_SOURCES' explicit "sampled, not certified" carrier posture); per-section review dates (already tracked per-row in the register — clutter on a staff reference); collapsible major sections (invasive, low value now the finder + chip-bar carry navigation); **faceted "filter by property" search — see "FIP faceted filtering" below.**
 - **Cross-page / navy-chrome / typography consistency passes** (v11.64–v11.88) — CSS-only, no behaviour change; all resulting token/surface/motion/type rules live in `.claude/rules/css-tokens.md`.
 - **Huddle DOCX flow rework** (v11.66) — Power Automate flow made DOCX-first (the old noon time-of-day condition meant afternoon emails always sent PDF even with a DOCX attached); the viewer's auto-open + manual-click branches unified (`if htmlContent render inline; else "Open Huddle" button`).
 - **Pay reminder infrastructure fix** (v11.65) — the daily 08:00 reminder had **never fired**: the deploy SA lacked `roles/cloudscheduler.admin` (Firebase silently failed to create the Scheduler job every deploy) and a stale `us-central1` record blocked deploys; first live 27 Jun 2026.
@@ -120,6 +120,27 @@ _(The "simplify instead of remove" options are moot — the feature was fully re
 ## UX experiments — explored but held back
 
 Ideas that were prototyped and reverted. Implementation notes preserved here so they can be restored quickly if the case for them changes.
+
+### FIP faceted filtering ("which countries need a supplement?")
+**Status:** WON'T-DO (assessed Jul 2026, v19.10). Raised by an external review as *"add stronger country/operator filtering to the FIP handbook"* — but **the search half of that ask already shipped at v17.64** and the reviewer could not see it: their browser was policy-blocked from loading any URL, so the page was assessed from source alone. Re-raise only with new evidence, not from a static read of `fip.html`.
+
+**What already exists (`fip.js` → country finder).** A search box live-filters all 25 country cards **and** the A–Z jump chips against each card's full `textContent`, so an operator or train name finds its country. Placeholder: *"Search a country or operator — e.g. Spain, ÖBB, Railjet"*. Plus a "Popular from Marylebone" shortcut row, live result count, clear button, Escape-to-clear, a no-match message, print handling that un-hides filtered cards, and graceful degradation with JS off.
+
+**What genuinely does not exist** is filtering by *property* rather than by name — *"which countries need a supplement?"*, *"where do my coupons work?"* Free text cannot answer those, measured across the 25 cards:
+
+| search term | cards matched |
+|---|---|
+| `fip` | 25 / 25 |
+| `coupon` | 22 / 25 |
+| `ticket` | 22 / 25 |
+| `Railjet` | 2 / 25 |
+| `Liechtenstein` | 1 / 25 |
+
+Proper nouns are sharp; the words staff would actually filter by are noise. **And worse than noise:** Ireland's card reads *"**No** high-speed supplements"*, so a search for `supplement` returns a country where **none applies**. Substring matching cannot distinguish presence from absence, and this is a money question.
+
+**Why it is held back.** Doing it properly means tagging each card with structured attributes (`data-supplement="yes|no"`, `data-coupons`, …). **Every such tag is a factual assertion**, and under this repo's own governance every high-risk FIP claim needs a `GUIDE_SOURCES.md` row with a source and review date. The cost is therefore not the UI — it is ~50–75 new machine-readable claims to source and re-review annually, on the page where a wrong fact strands someone abroad or costs them at a barrier. Set against `.claude/rules/guide-pages.md`: *"fip.html is a low-frequency educational reference — not a core workflow… Do not flag reference-page format as a design defect."*
+
+**What would change the decision:** evidence that staff actually ask property questions of this page (the `guide-fip` open counter in the Operations Usage card is the only signal we collect, and it counts opens, not intent). If facets are ever built, tag a **small** set of genuinely decision-changing properties and register each in GUIDE_SOURCES — do not tag everything a card mentions.
 
 ### Bottom navigation bar
 **Status:** Prototyped at v7.66, reverted — felt like clutter at current scale. Case reassessed v10.01 — not needed, navigation is complete without it. Navigation overhaul (v10.57–v10.71) added a slide-out nav panel that covers cross-page navigation, guide links, sign-out, and notifications — this need is now fully met. **Do not revisit.**
