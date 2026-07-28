@@ -751,15 +751,15 @@ export function init() {
                 ]}],
             },
             'reset-requests': {
-            title: '🙋 Password Reset Requests',
-            items: [
-                { icon: '🔑', html: 'Staff who tap <strong>“ask the admin to reset your password”</strong> on the sign-in screen appear here. Nothing is reset automatically — <strong>you</strong> do it, from Account status below.' },
-                { icon: '⚠️', html: '<strong>Requests are not verified.</strong> The sign-in screen has no way to prove who is tapping, so anyone could file a request in someone else\'s name. <strong>Confirm with the member before resetting</strong> — a reset puts them back on their surname default and signs them out of their other devices.' },
-                { icon: '🆕', html: 'A row saying <strong>“No account yet”</strong> means there is no Firebase account to reset. Run <strong>Set up accounts</strong> instead.' },
-                { icon: '🧹', html: '<strong>Clear</strong> removes the row once you have dealt with it. If they ask again it comes back, with the count showing how many times.' },
-            ],
-        },
-        'account-status': {
+                title: '🙋 Password Reset Requests',
+                sections: [{ items: [
+                    { icon: '🔑', html: 'Staff who tap <strong>“ask the admin to reset your password”</strong> on the sign-in screen appear here. Nothing is reset automatically — <strong>you</strong> do it, from Account status below.' },
+                    { icon: '⚠️', html: '<strong>Requests are not verified.</strong> The sign-in screen has no way to prove who is tapping, so anyone could file a request in someone else\'s name. <strong>Confirm with the member before resetting</strong> — a reset puts them back on their surname default and signs them out of their other devices.' },
+                    { icon: '🆕', html: 'A row saying <strong>“No account yet”</strong> means there is no Firebase account to reset. Run <strong>Set up accounts</strong> instead.' },
+                    { icon: '🧹', html: '<strong>Clear</strong> removes the row once you have dealt with it. If they ask again it comes back, with the count showing how many times.' },
+                ]}],
+            },
+            'account-status': {
                 title: 'Account status',
                 sections: [
                     { heading: 'What it shows', items: [
