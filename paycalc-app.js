@@ -57,7 +57,8 @@ import { recordPageLatency } from './perf-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fdList, fmt, decimalToHM } from './paycalc-format.js';
-import { numVal, numValOr, intVal, hhmmDec, clampMins, _decHintEl, decPreview } from './paycalc-inputs.js';
+import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview } from './paycalc-inputs.js';
+import { emptyPeriodData, readFormData, writeFormData } from './paycalc-form-data.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
 
 /**
@@ -156,10 +157,12 @@ export function init() {
         : (parseFloat(String(getPensionDefault())) || 0);
     }
 
-    // Period data schema — all fields that get saved per period
-    function emptyPeriodData() {
-      return { satH:0, satM:0, bhH:0, bhM:0, bhOtH:0, bhOtM:0, otH:0, otM:0, rdwH:0, rdwM:0, sunH:0, sunM:0, boxH:0, boxM:0, peer:0, slSkip:false, otherAdj:0, actualNet:null };
-    }
+    // ── PERIOD DATA ROUND TRIP — extracted to paycalc-form-data.js (v19.11) ─────────
+    // emptyPeriodData / readFormData / writeFormData moved out so the round trip that four
+    // money-affecting defects came from (v16.84, v18.42, v18.43 and its predecessor) is
+    // finally testable. The coordinator keeps WHEN to save/load; the module keeps HOW a
+    // field persists. `_adjNegative` and the period pension default are injected, so the
+    // module needs no coordinator state.
 
     // ── DATE/CURRENCY HELPERS — imported from paycalc-format.js ──────────────────
     // fd / fdShort / fmt imported at the top of the file.
@@ -531,73 +534,6 @@ export function init() {
     // currentPeriodNum() imported from paycalc-periods.js
 
     // ── PERIOD DATA SAVE / LOAD ───────────────────────────────────────────────────
-    function readFormData() {
-      return {
-        satH: intVal('satH'), satM: intVal('satM'),
-        bhH:  intVal('bhH'),  bhM:  intVal('bhM'),
-        bhOtH:intVal('bhOtH'),bhOtM:intVal('bhOtM'),
-        otH:  intVal('otH'),  otM:  intVal('otM'),
-        rdwH: intVal('rdwH'), rdwM: intVal('rdwM'),
-        sunH: intVal('sunH'), sunM: intVal('sunM'),
-        boxH: intVal('boxH'), boxM: intVal('boxM'),
-        peer: +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent,
-        slSkip:   /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked,
-        otherAdj: (() => { const _r = Math.abs(numVal('otherAdj') || 0); return _adjNegative ? -_r : _r; })(),
-        // A BLANK pension field must persist as null (→ caller re-applies the period default), not 0.
-        // Coercing blank to 0 (the old `|| 0`) permanently stored £0 if autosave fired while the field
-        // was transiently empty (e.g. cleared to retype), overstating take-home by ~£147. A typed "0"
-        // still stores 0 (a genuine salary-sacrifice opt-out — see writeFormData's `!= null` restore).
-        // parseSmartFloatOrNull, NOT numVal||0 (v16.84): numVal floors garbage to 0, so a stray "."
-        // or "-" left mid-edit (then autosaved) stored a real £0 opt-out and overstated take-home by
-        // ~£147. null (empty OR garbage) means "not provided" → the period default is re-applied on
-        // load; a genuine typed "0" parses to 0 and is preserved (the deliberate opt-out).
-        pension:  (() => {
-          const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
-          if (!_el || _el.value.trim() === '') return null;
-          const _v = parseSmartFloatOrNull(_el.value);
-          // Self-heal (closes the KNOWN_LIMITATIONS "pension default is frozen onto a touched
-          // period" deferral, done WITH the pension cut-overs as it prescribed — v18.43): a value
-          // still EQUAL to this period's default is stored as null, so the period keeps healing to
-          // future default changes; a genuinely custom pension (differs from the default) persists.
-          // Mirrors updateSaveStatus's _hasCustomPension comparison (default × pro-rate, 2dp, ±0.005).
-          if (_v != null) {
-            const _p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
-            if (_p && Math.abs(_v - _periodDefaultPension(_p)) < 0.005) return null;
-          }
-          return _v;
-        })(),
-        // Real take-home from the payslip (v18.42 — review item 3): null when blank/garbage, like
-        // pension — mid-edit autosaves must not store a phantom £0 "actual". Deliberately NOT in
-        // isDataEmpty: a period with only this figure has no hours to compute from.
-        actualNet: (() => { const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput')); return (_el && _el.value.trim() !== '') ? parseSmartFloatOrNull(_el.value) : null; })(),
-      };
-    }
-
-    /** @param {any} d */
-    function writeFormData(d) {
-      clearRosterSuggestedAll();
-      const set = /** @param {string} id @param {any} v */ (id, v) => { /** @type {HTMLInputElement} */ (document.getElementById(id)).value = v || ''; };
-      set('satH', d.satH || ''); set('satM', d.satM || '');
-      set('bhH',   d.bhH   || ''); set('bhM',   d.bhM   || '');
-      set('bhOtH', d.bhOtH || ''); set('bhOtM', d.bhOtM || '');
-      set('otH',   d.otH   || ''); set('otM',   d.otM   || '');
-      set('rdwH', d.rdwH || ''); set('rdwM', d.rdwM || '');
-      set('sunH', d.sunH || ''); set('sunM', d.sunM || '');
-      set('boxH', d.boxH || ''); set('boxM', d.boxM || '');
-      /** @type {HTMLElement} */ (document.getElementById('peerVal')).textContent  = d.peer || 0;
-      /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked  = d.slSkip || false;
-      const _rawAdj = d.otherAdj ?? 0;
-      _adjNegative = _rawAdj < 0;
-      /** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value = _rawAdj ? Math.abs(_rawAdj).toFixed(2) : '';
-      // Restore pension only when period data has a saved value; period-specific default is
-      // applied by the caller (loadPeriodData or clearPeriod) when d.pension is null.
-      // Loose != null so that pension = 0 (salary sacrifice opted out) is preserved correctly.
-      const pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
-      if (pa && d.pension != null) pa.value = d.pension;
-      const an = /** @type {HTMLInputElement | null} */ (document.getElementById('actualNetInput'));
-      if (an) an.value = d.actualNet != null ? d.actualNet : '';
-    }
-
     function updateAdjSign() {
       const btn = /** @type {HTMLElement} */ (document.getElementById('adjSignBtn'));
       btn.textContent = _adjNegative ? '−' : '+';
@@ -610,7 +546,11 @@ export function init() {
     function autosave() {
       calculate(); // no-op double-call is harmless but kept here for standalone inputs
       const pNum = currentPeriodNum();
-      const d    = readFormData();
+      const _autoP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+      const d    = readFormData({
+        adjNegative: _adjNegative,
+        periodDefaultPension: _autoP ? _periodDefaultPension(_autoP) : null,
+      });
       try {
         lsSet(periodKey(pNum), JSON.stringify(d));
         updateSaveStatus(pNum);
@@ -629,7 +569,8 @@ export function init() {
       const _parsed = parseSavedPeriod(lsGet(periodKey(pNum)));
       if (_parsed.data) d = _parsed.data;
       _periodLoadWasCorrupt = !!_parsed.error;   // gate the background fetch's auto-overwrite (v16.82)
-      writeFormData(d);
+      clearRosterSuggestedAll();   // was writeFormData's opening statement (v19.11)
+      _adjNegative = writeFormData(d).adjNegative;
       _restoreRosterSuggested(pNum);
       // If no pension has been manually saved for this period, apply the period-specific
       // default. This handles both: (a) pension rate cut-overs (old periods show the old
@@ -730,6 +671,7 @@ export function init() {
       // the user confirmed the clear would resolve, see the flag unset, and refill + autosave the
       // just-cleared fields — silently undoing an explicit destructive action (v16.69 review fix).
       _hoursTouchedSinceFetch = true;
+      clearRosterSuggestedAll();   // was writeFormData's opening statement (v19.11)
       writeFormData(emptyPeriodData());
       // Apply the period-specific pension default (pro-rated for joining periods, rate-cut-over
       // aware) — writeFormData no longer does this when d.pension is null.
