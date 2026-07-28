@@ -221,7 +221,7 @@ Three design points that flow from this and still govern any future rule change:
   un-attested write path entirely. **If tightened before App Check:** add a key-count cap to the
   `activeAccounts` + `perf_` create/update conditions and a matching `assertFails`. (v17.43 audit.)
 
-### Track E — full-app authentication (put the calendar behind login) — E0 SHIPPED, REST UNDECIDED
+### Track E — full-app authentication (put the calendar behind login) — E0+E1 SHIPPED, REST UNDECIDED
 
 > **📄 `AUTH_PLAN.md` is the authoritative DESIGN doc for this track** (what "behind authentication" can
 > and cannot mean here, the per-phase build detail, the offline grace-mode answer, what to measure, the
@@ -262,12 +262,18 @@ REST). Staged:
   origin root). `robots.txt` deliberately **permits** crawling: a crawler blocked from fetching can
   never read the noindex, so `Disallow: /` would hide the signal, not the page. Guarded by
   `sw-asset-check.test.mjs`. Closes the *casual* half of the exposure, independent of everything below.
-- **E1 (prep, behaviour-preserving): make the calendar's reads await auth.** Do this as its OWN
-  release, before any rules change. `calendarAuthReady` currently gates only WRITES — the earlier
-  "≈ zero cost, already satisfied" claim here was **wrong**, and KNOWN_LIMITATIONS ("read strictly
-  after its session resolves") was right. Four paths read with whatever auth exists:
+- **E1 (prep, behaviour-preserving): make the calendar's reads auth-aware — ✓ SHIPPED v19.01.**
+  Shipped as its OWN release, before any rules change. `calendarAuthReady` gated only WRITES — the
+  earlier "≈ zero cost, already satisfied" claim here was **wrong**, and KNOWN_LIMITATIONS ("read
+  strictly after its session resolves") was right. Four paths read with whatever auth existed:
   `calendar-initial-fetch.js`, `calendar-huddle-viewer.js`, `calendar-doc-viewer.js`, and
-  `nav-panel.js`'s Circular/Newsletter open. Ships green under today's open rules, so it soaks alone.
+  `nav-panel.js`'s Circular/Newsletter open. The calendar's own load became **two-phase** (paint from
+  the local cache with no network and no auth, then the authoritative server read once auth resolves),
+  so requiring a session for reads can never put a sign-in round trip in front of data the device
+  already holds. The three tap paths wait for auth **with a deadline** — v19.01 shipped plain
+  `await authReady` on them and v19.07/v19.08 had to bound all three; see `AUTH_PLAN.md` → E1 for the
+  rule that came out of it. Green under today's open rules, so it is soaking alone.
+  **This is client preparation, NOT a security boundary** — it changes no rule (see question 1 below).
 - **E2: tighten reads to Level 1** (`request.auth != null`, anonymous OK) on `overrides` + the three
   document collections — only after E1 has soaked. **This is the first phase that is a security
   boundary at all**; everything before it is client-side. ~6 of the 199 rules tests flip. Verify the
