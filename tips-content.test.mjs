@@ -58,6 +58,42 @@ function readWiredCards(file) {
     return [...html.matchAll(/class="[^"]*btn-card-tips[^"]*"[^>]*data-card="([^"]+)"/g)].map(m => m[1]);
 }
 
+// paycalc has the SAME contract under a different name, and it was unguarded until this review.
+// `HELP_CONTENT` (paycalc-help.js) is keyed by `data-help`, lives in a different file from its
+// renderer (paycalc-lightboxes.js), and is consumed with `data.tips.map(...)` — so a missing `tips`
+// throws exactly like `tips.sections` did, and a missing key gives the same silently-inert button.
+// It is clean today; it is covered here so it stays that way. (The nav-panel arrays are deliberately
+// NOT covered: they are module-internal constants sitting directly above their own renderer, so an
+// editor sees both at once — the cross-FILE separation is what let the reset-requests bug through.)
+const { HELP_CONTENT } = await import('./paycalc-help.js');   // top level: .mjs allows it
+
+describe('paycalc-help.js — HELP_CONTENT', () => {
+    const html = readFileSync('paycalc.html', 'utf8');
+    const wired = [...html.matchAll(/data-help="([^"]+)"/g)].map(m => m[1]);
+
+    test('every entry has a title and a non-empty tips ARRAY', () => {
+        const broken = Object.entries(HELP_CONTENT)
+            .filter(([, v]) => !v || typeof v.title !== 'string' || !Array.isArray(v.tips) || !v.tips.length)
+            .map(([k, v]) => `${k} (tips: ${JSON.stringify(v && v.tips)})`);
+        assert.deepEqual(broken, [],
+            `paycalc-help.js: ${broken.join(', ')} — the renderer does \`data.tips.map(...)\`, so a ` +
+            'missing or non-array tips throws the moment the ? is tapped.');
+    });
+
+    test('every data-help button in paycalc.html has an entry', () => {
+        const missing = wired.filter(k => !(k in HELP_CONTENT));
+        assert.deepEqual(missing, [],
+            `paycalc.html: help button(s) with no HELP_CONTENT entry: ${missing.join(', ')} — the ` +
+            'renderer returns early, so the button is inert rather than broken.');
+    });
+
+    test('every entry is reachable from a button', () => {
+        const orphans = Object.keys(HELP_CONTENT).filter(k => !wired.includes(k));
+        assert.deepEqual(orphans, [],
+            `paycalc-help.js: entries no button opens: ${orphans.join(', ')}`);
+    });
+});
+
 for (const { js, html } of PAGES) {
     describe(`${js} — tips content`, () => {
         const tips = readCardTips(js);
