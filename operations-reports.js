@@ -279,6 +279,14 @@ async function initUsageCard() {
         // Active-account headline numbers. These are the DEVICE-deduped trend: a member using a
         // phone and a laptop counts twice, which is the price of the server never learning who was
         // active. The exact unique count is the separate section below.
+        // The card used to OPEN on two hero numbers with no heading, then hit a second set under
+        // "Accounts that have signed in" — five big numbers, only one block labelled, so nothing said
+        // how they related or which was authoritative. Both blocks are now headed and paired.
+        const accountsLabel = document.createElement('p');
+        accountsLabel.className = 'usage-section-label';
+        accountsLabel.innerHTML = '<span aria-hidden="true">\u{1F465}</span> Accounts active';
+        content.appendChild(accountsLabel);
+
         const accounts = document.createElement('div');
         accounts.className = 'usage-stats';
         accounts.innerHTML =
@@ -287,10 +295,9 @@ async function initUsageCard() {
             `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsLast30}</span>` +
             `<span class="usage-stat-lbl"><span aria-hidden="true">📅</span> active in last 30 days</span></div>`;
         content.appendChild(accounts);
-        const trendNote = document.createElement('p');
-        trendNote.className = 'usage-note';
-        trendNote.textContent = 'Counted per account-device, so anyone using two devices counts twice — a trend, not a headcount.';
-        content.appendChild(trendNote);
+        // No note here. "Counted per account-device… a trend, not a headcount" is stated verbatim by
+        // the card's own ? panel (the 📱 tip), and four blocks of dense grey micro-copy was most of
+        // what made this card read as cluttered. The ? exists precisely for the standing caveats.
 
         // Exact unique accounts, from Firebase Auth's own lastSignInTime (v18.96). Rendered as its
         // own section, NOT merged into the numbers above, because it measures something different:
@@ -330,7 +337,10 @@ async function initUsageCard() {
                 const row = document.createElement('div');
                 row.className = 'usage-bar-row';
                 row.innerHTML =
-                    `<span class="usage-bar-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
+                    // `title` so a truncated label is still recoverable. "Weekly Retail Circular"
+                    // ellipsises at 390px and must NOT be shortened — it is a canonical staff-facing
+                    // term (CLAUDE.md wording conventions), so the name stays and the tooltip carries it.
+                    `<span class="usage-bar-label" title="${label}"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
                     `<span class="usage-bar-track"><span class="usage-bar-fill" style="width:${pct}%"></span></span>` +
                     `<span class="usage-bar-count">${count.toLocaleString('en-GB')}</span>`;
                 list.appendChild(row);
@@ -344,7 +354,13 @@ async function initUsageCard() {
             // Split the shared counts map: page views vs document/guide opens (v18.20).
             const counts = all.filter(c => !OPEN_META[c.page]);
             const opens  = all.filter(c => OPEN_META[c.page]);
-            heading.textContent = `Page popularity — ${_usageMonthLabel(month)}`;
+            // Emoji + label on every section heading — the card had four different patterns
+            // (none / bare / emoji / bare-with-date), which is what made the sections read as a
+            // pile rather than a sequence.
+            // NOT \u{1F4CA} — that is the Usage card's OWN header icon, and a section should not
+            // wear its parent's identity. \u{1F440} says what the number is: what gets looked at.
+            heading.innerHTML = '<span aria-hidden="true">\u{1F440}</span> Page popularity — '
+                + _usageMonthLabel(month);
             popBody.innerHTML = '';
             if (!counts.length && !opens.length) {
                 const none = document.createElement('p');
@@ -361,7 +377,7 @@ async function initUsageCard() {
             if (opens.length) {
                 const openLbl = document.createElement('p');
                 openLbl.className = 'usage-section-label usage-section-label--sub';
-                openLbl.textContent = 'Documents & guides — opens';
+                openLbl.innerHTML = '<span aria-hidden="true">\u{1F4C4}</span> Documents &amp; guides — opens';
                 popBody.appendChild(openLbl);
                 popBody.appendChild(_bars(opens, OPEN_META, scaleMax));
             }
@@ -386,8 +402,11 @@ async function initUsageCard() {
             popToggle.appendChild(btn);
         });
 
-        content.appendChild(popToggle);
+        // Heading FIRST, then its toggle. Appended the other way round, the "This month / Last
+        // month" buttons sat above the only text that says what they filter — so they read as
+        // controlling whatever section happened to precede them.
         content.appendChild(heading);
+        content.appendChild(popToggle);
         content.appendChild(popBody);
         renderPop();
 
@@ -407,11 +426,16 @@ async function initUsageCard() {
 /** Short labels for the addresses the app is served from. `other` is deliberately vague — it is
  *  localhost and anything not yet named, and naming it precisely would imply we know what it is. */
 /** @type {Record<string, {emoji: string, label: string, note: string}>} */
+// Labels kept SHORT so these rows can share the same label column as every other bar group in the
+// card (38%). The v19.24 fix widened this section to 47% to stop "GitHub Pages mirror" truncating at
+// 390px — which cured the truncation and left the three bar groups no longer lining up with each
+// other, a worse kind of untidy. The full address is in each row's `title`, and the section heading
+// already says these ARE addresses, so the short form loses nothing.
 const ORIGIN_META = {
-    web:   { emoji: '\u2705', label: 'myb-roster.web.app', note: 'the address staff should end up on' },
-    pages: { emoji: '\u{1F4E6}', label: 'GitHub Pages mirror', note: 'the old address' },
-    fb:    { emoji: '\u{1F517}', label: 'myb-roster.firebaseapp.com', note: 'the Firebase auth domain' },
-    other: { emoji: '\u2753', label: 'somewhere else', note: 'localhost, or an address not yet named' },
+    web:   { emoji: '\u2705', label: 'web.app', note: 'myb-roster.web.app — the address staff should end up on' },
+    pages: { emoji: '\u{1F4E6}', label: 'GitHub Pages', note: 'garethdavidmiller.github.io — the old address' },
+    fb:    { emoji: '\u{1F517}', label: 'firebaseapp', note: 'myb-roster.firebaseapp.com — the Firebase auth domain' },
+    other: { emoji: '\u2753', label: 'elsewhere', note: 'localhost, or an address not yet named' },
 };
 
 /**
@@ -496,8 +520,7 @@ function _appendOriginSection(content, rows) {
     note.className = 'usage-note';
     // Kept to the two caveats that change how the number is READ. The rest (admin exclusion, how
     // dedup works) is true of every figure on this card and is stated once at the foot of it.
-    note.textContent = 'Unique accounts over the last 30 days. Someone using both addresses counts on each — '
-        + 'that is what half-migrated looks like. An install nobody has opened in 30 days is invisible here.';
+    note.textContent = 'Unique accounts over the last 30 days.';
     sec.appendChild(note);
 }
 
@@ -528,7 +551,7 @@ function _appendSignInSection(content) {
         if (!wrap.isConnected) return;
         const label = document.createElement('p');
         label.className = 'usage-section-label';
-        label.textContent = 'Accounts that have signed in';
+        label.innerHTML = '<span aria-hidden="true">\u{1F511}</span> Accounts that have signed in';
         const nums = document.createElement('div');
         nums.className = 'usage-stats';
         // Labels are terse ("last 30 days", not "in the last 30 days") because three stats share the
@@ -553,8 +576,7 @@ function _appendSignInSection(content) {
         // device-deduped activity figure directly above, so reusing the word here would make two
         // different numbers appear to measure the same thing.
         note.textContent =
-            `Exact count across ${s.total} staff accounts — one per person, however many devices they use. ` +
-            'Counts sign-ins, not opens: a session lasts up to 30 days, so someone can sign in once and use the app daily.';
+            `Exact count across ${s.total} staff accounts — counts sign-ins, not opens.`;
         wrap.append(label, nums, note);
     }).catch(e => {
         // Silent by design — see the docstring. Logged for the developer only.

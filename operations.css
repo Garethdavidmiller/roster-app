@@ -1053,10 +1053,6 @@ select:focus-visible, input:focus-visible {
     border-bottom: 1px solid var(--border-light);
 }
 .usage-origins .usage-note { margin-bottom: 0; }
-/* A wider label column for this section ONLY. An address is the whole point of the row, and at
-   390px the shared 38% truncated "GitHub Pages mirror" to "GitHub Pages …". These rows can afford
-   it: their counts are one or two digits, not the four of a page-view total. */
-.usage-origins .usage-bar-row { grid-template-columns: minmax(120px, 47%) 1fr auto; }
 
 
 /* Stacked fill: the outer band is the share of accounts on this address, the solid inner band the

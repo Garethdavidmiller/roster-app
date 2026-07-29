@@ -167,9 +167,12 @@ test('operations — Usage card, populated (desktop 1280)', async ({ page }) => 
     });
     const card = page.locator('#usageCard');
     // Proof the fixture landed AND the card rendered from it — without these the capture below
-    // could quietly be of the empty state.
-    await expect(card).toContainText('myb-roster.web.app');
+    // could quietly be of the empty state. Deliberately NOT a label string: the first version
+    // watched for "myb-roster.web.app" and broke the moment v19.26 shortened that label to
+    // "web.app" for column alignment. A sentinel should prove the DATA arrived, not police the
+    // copy — so: a distinctive fixture NUMBER, plus the row COUNT, both of which survive rewording.
     await expect(card).toContainText('1,284');
+    await expect(card.locator('.usage-origins .usage-bar-row')).toHaveCount(3);
     await page.waitForTimeout(400);          // collapse transition + bar widths settle
     await expect(card).toHaveScreenshot('operations-usage-card.png');
 });
