@@ -1,12 +1,18 @@
 // @ts-check
 /**
- * paycalc-transfer-card.js — the "Save or Move Your Pay Data" card on paycalc.html.
+ * paycalc-transfer-card.js — the "Move Your Pay Data" card on paycalc.html.
  *
  * NAMING: deliberately NOT "Back up your pay data" (v19.18). That title sat two cards below
  * "Pay Rise Back Pay" in the same column and scanned as BACK PAY data — the owner read it as the
  * back-pay card on sight. "Back pay" is established vocabulary in this app, so a card title must
  * not start with "Back up". The word "backup" is still fine as a NOUN on the buttons and in the
  * filename, where nothing collides.
+ *
+ * Shortened again to "Move Your Pay Data" at v19.19 (owner): the interim "Save or Move Your Pay
+ * Data" was the only title in the sidebar that ran long against its four siblings. The card does
+ * serve two purposes and "Move" names only one — the durable purpose is the safety copy, not the
+ * one-off migration — so the HINT carries it and must keep leading with "Keep a copy". Do not
+ * reword that hint to be about moving only.
  *
  * Owns: the card's DOM, the file/clipboard plumbing, and the confirmations before a restore.
  * Does NOT own: the backup format or any import RULE — those are pure, in paycalc-transfer.js,
