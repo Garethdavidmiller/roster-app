@@ -1210,6 +1210,45 @@ describe('analytics', () => {
         await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-25': 2 } }));
     });
 
+    // ── Per-address migration counters (v19.23, analytics/origins) ─────────────────────────────
+    test('auth can write the origins doc', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'origins'),
+            { daily: { '2026-06-25|web': 3, '2026-06-25|web|pwa': 2 } }));
+    });
+
+    test('auth cannot add a field beyond daily to the origins doc', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'),
+            { daily: { '2026-06-25|web': 1 }, memberName: 'G. Miller' }));
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'),
+            { daily: { '2026-06-25|web': 1 }, months: { '2026-06': 1 } }));
+    });
+
+    test('auth cannot write a non-map daily on the origins doc', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'), { daily: 'all of them' }));
+    });
+
+    test('the origins doc is admin-read only', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 1 } }));
+        await assertFails(getDoc(doc(staffDb(), 'analytics', 'origins')));
+        await assertSucceeds(getDoc(doc(adminDb(), 'analytics', 'origins')));
+    });
+
+    test('B4: a non-admin CANNOT wipe origins, but admin CAN prune a stale key', async () => {
+        // Same anti-wipe posture as the other analytics docs — the counters are the only record of
+        // the migration, and a wipe would be indistinguishable from "nobody has moved".
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'origins'),
+            { daily: { '2026-06-25|web': 4, '2026-05-01|pages': 1 } }));
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'), { daily: {} }));
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 4 } }));
+        await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 4 } }));
+    });
+
+    test('an unknown analytics doc id is still refused', async () => {
+        // The clause is pinned to the exact id — `origins` must not have opened a general escape.
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origin'), { daily: {} }));
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins_2026-06'), { daily: {} }));
+    });
+
     test('auth cannot write a perf doc with an extra field', async () => {
         await assertFails(setDoc(doc(staffDb(), 'analytics', 'perf_2026-06'), { ...VALID_PERF(), memberName: 'G. Miller' }));
     });

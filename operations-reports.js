@@ -299,6 +299,10 @@ async function initUsageCard() {
         // has its data.
         _appendSignInSection(content);
 
+        // Which ADDRESS is each account on (v19.23) — the migration picture while the app is served
+        // from both myb-roster.web.app and the GitHub Pages mirror.
+        _appendOriginSection(content, stats.origins || []);
+
         // Page popularity — This month / Last month toggle (trend; stable early in a month).
         let popActive = 'this';
         const popToggle = document.createElement('div');
@@ -398,6 +402,78 @@ async function initUsageCard() {
     } finally {
         content.removeAttribute('aria-busy');
     }
+}
+
+/** Short labels for the addresses the app is served from. `other` is deliberately vague — it is
+ *  localhost and anything not yet named, and naming it precisely would imply we know what it is. */
+/** @type {Record<string, {emoji: string, label: string, note: string}>} */
+const ORIGIN_META = {
+    web:   { emoji: '\u2705', label: 'myb-roster.web.app', note: 'the address staff should end up on' },
+    pages: { emoji: '\u{1F4E6}', label: 'GitHub Pages mirror', note: 'the old address' },
+    fb:    { emoji: '\u{1F517}', label: 'myb-roster.firebaseapp.com', note: 'the Firebase auth domain' },
+    other: { emoji: '\u2753', label: 'somewhere else', note: 'localhost, or an address not yet named' },
+};
+
+/**
+ * Render the migration picture: unique accounts per address over the last 30 days, and how many of
+ * them opened the INSTALLED app rather than a browser tab.
+ *
+ * Deliberately states what it CANNOT see. The counters record opens, so an install that nobody has
+ * opened in 30 days is invisible — and those are exactly the people a migration strands, which makes
+ * the caveat load-bearing rather than boilerplate.
+ *
+ * @param {HTMLElement} content
+ * @param {Array<{origin:string,accounts:number,installed:number}>} rows
+ */
+function _appendOriginSection(content, rows) {
+    const label = document.createElement('p');
+    label.className = 'usage-section-label';
+    label.innerHTML = '<span aria-hidden="true">\u{1F6A6}</span> Which address staff are on';
+    content.appendChild(label);
+
+    if (!rows.length) {
+        const empty = document.createElement('p');
+        empty.className = 'usage-note';
+        empty.textContent = 'Nothing recorded yet — this starts counting from the first page open after v19.23.';
+        content.appendChild(empty);
+        return;
+    }
+
+    const total = rows.reduce((n, r) => n + r.accounts, 0);
+    const bars = document.createElement('div');
+    bars.className = 'usage-bars';
+    rows.forEach(({ origin, accounts, installed }) => {
+        const meta = ORIGIN_META[origin] || ORIGIN_META.other;
+        const pct  = total ? Math.round((accounts / total) * 100) : 0;
+        const row  = document.createElement('div');
+        row.className = 'usage-bar-row';
+        const name = document.createElement('span');
+        name.className = 'usage-bar-lbl';
+        name.textContent = `${meta.emoji} ${meta.label}`;
+        name.title = meta.note;
+        const track = document.createElement('span');
+        track.className = 'usage-bar-track';
+        const fill = document.createElement('span');
+        fill.className = 'usage-bar-fill';
+        fill.style.width = `${Math.max(pct, accounts ? 2 : 0)}%`;
+        track.appendChild(fill);
+        const num = document.createElement('span');
+        num.className = 'usage-bar-num';
+        // Installed is deduped separately, so it is a LOWER bound on the same accounts — never a
+        // second population. Showing it as "N of M" keeps that relationship visible.
+        num.textContent = `${accounts} · ${installed} installed`;
+        row.append(name, track, num);
+        bars.appendChild(row);
+    });
+    content.appendChild(bars);
+
+    const note = document.createElement('p');
+    note.className = 'usage-note';
+    note.textContent = 'Unique accounts over the last 30 days, counted once per address — someone using both '
+        + 'counts on each, which is what half-migrated looks like. "Installed" means opened from the home-screen '
+        + 'app rather than a browser tab. An install nobody has opened in 30 days is invisible here, and your own '
+        + 'admin devices are never counted.';
+    content.appendChild(note);
 }
 
 /**
