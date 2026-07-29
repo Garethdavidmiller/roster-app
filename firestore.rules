@@ -1,6 +1,8 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
-// Last swept v18.20 (Jul 2026): analytics pv_ counts allowlist gains the five document/guide open ids
+// Last swept v19.23 (Jul 2026): analytics gains the `origins` doc (per-address migration counters —
+// a NEW doc rather than a third map on activeAccounts, so a rules-deploy lag cannot deny the writes
+// that already work). Prior sweep v18.20: analytics pv_ counts allowlist gains the five document/guide open ids
 // (huddle/circular/newsletter/guide-railcard/guide-fip). Prior sweep v17.03: B3 strict override
 // isolation · override update-owner re-check (v16.80) ·
 // H2 linksDesigner writes + linkDesigns shape-validation (v17.02) · analytics anti-wipe map guard
@@ -485,6 +487,20 @@ service cloud.firestore {
            (resource == null || request.auth.token.admin == true ||
             ((!('months' in resource.data) || ('months' in request.resource.data && request.resource.data.months.keys().hasAll(resource.data.months.keys()))) &&
              (!('daily'  in resource.data) || ('daily'  in request.resource.data && request.resource.data.daily.keys().hasAll(resource.data.daily.keys())))))) ||
+          // Per-ADDRESS counters (v19.23): analytics/origins = { daily: { 'YYYY-MM-DD|<origin>[|pwa]': int } }.
+          // Which of the two served addresses each account is actually using, and whether from the
+          // installed app — the migration metric. Anonymous: uniqueness is deduped client-side, so the
+          // server only ever sees "+1". A SEPARATE doc from activeAccounts on purpose: that one is
+          // pinned to hasOnly(['months','daily']) and rules evaluate the RESULTING document, so adding
+          // a key there would have denied every later write — including the counters that already work
+          // — for as long as the rules deploy lagged the hosting deploy. Same anti-wipe guard as the
+          // others; the key set is unbounded here (dates × origins) so it cannot be enumerated, which
+          // is why the client keeps origins to a closed label set (usage-stats.originLabel).
+          (docId == 'origins' &&
+           request.resource.data.keys().hasOnly(['daily']) &&
+           request.resource.data.daily is map &&
+           (resource == null || request.auth.token.admin == true ||
+            request.resource.data.daily.keys().hasAll(resource.data.daily.keys()))) ||
           // Page-load latency (Project 0): analytics/perf_YYYY-MM = { month: 'YYYY-MM', samples: {…} }.
           // Anonymous bucketed counters keyed by non-identifying dimensions (perf-stats.perfSampleKey);
           // the dynamic sample values can't be validated here (App Check is the eventual integrity

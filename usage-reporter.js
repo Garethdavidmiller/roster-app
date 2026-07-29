@@ -18,9 +18,9 @@
  * pass no member (e.g. the anonymous calendar) to record only the page view.
  */
 
-import { recordPageView, recordActiveAccount } from './firebase-client.js';
+import { recordPageView, recordActiveAccount, recordOriginUse } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { monthKey, dayKey, shouldCountMonth, shouldCountRolling } from './usage-stats.js';
+import { monthKey, dayKey, shouldCountMonth, shouldCountRolling, originLabel } from './usage-stats.js';
 import { CONFIG } from './roster-data.js';
 
 /**
@@ -38,6 +38,13 @@ export function recordUsage(page, member = null, identity = member) {
     if (identity && CONFIG.ADMIN_NAMES.includes(identity)) return;
 
     try { recordPageView(page); } catch (_e) { /* best-effort */ }
+
+    // Which ADDRESS is this account using, and is it the installed app? (v19.23 — the migration
+    // metric.) Keyed on `identity`, NOT `member`: active accounts only count signed-in pages, so
+    // calendar-only staff — the majority, and precisely the people a migration strands — would
+    // never appear. `identity` is the calendar's selected member, which never leaves the device;
+    // the server still only ever receives "+1".
+    _recordOrigin(identity);
 
     if (!member) return;
     try {
@@ -58,6 +65,42 @@ export function recordUsage(page, member = null, identity = member) {
         });
         if (monthHit) lsSet(monthStoreKey, monthKey(now));
         if (rollHit)  lsSet(rollStoreKey, String(now.getTime()));
+    } catch (_e) { /* best-effort — usage tracking must never affect the app */ }
+}
+
+/**
+ * Count this account once per rolling window per ADDRESS, and separately once per window per
+ * address for the INSTALLED app.
+ *
+ * The two flags are independent on purpose. A single flag would freeze whichever mode the account
+ * happened to use first, so anyone who opened a browser tab before opening the installed app would
+ * never be counted as installed — and "how many have actually installed it on the new address" is
+ * the whole question. localStorage is per-ORIGIN, so the per-address split needs no work at all:
+ * each address keeps its own flags.
+ *
+ * @param {string|null} identity the acting member's name (dedup only — never sent)
+ */
+function _recordOrigin(identity) {
+    if (!identity) return;
+    try {
+        const now = new Date();
+        const origin = originLabel(location.hostname);
+        let installed = false;
+        try {
+            installed = !!(window.matchMedia?.('(display-mode: standalone)')?.matches
+                || /** @type {any} */ (window.navigator).standalone);
+        } catch { /* matchMedia unavailable — treat as a browser tab */ }
+
+        const seenKey = `myb_origin_seen_${identity}`;
+        const pwaKey  = `myb_origin_pwa_${identity}`;
+        const seenHit = shouldCountRolling(parseInt(lsGet(seenKey) || '', 10), now);
+        const pwaHit  = installed && shouldCountRolling(parseInt(lsGet(pwaKey) || '', 10), now);
+        if (!seenHit && !pwaHit) return;
+
+        // A pwa-only hit still needs the day; `seenHit` false simply means don't re-count the visit.
+        recordOriginUse({ day: dayKey(now), origin, installed: pwaHit, countVisit: seenHit });
+        if (seenHit) lsSet(seenKey, String(now.getTime()));
+        if (pwaHit)  lsSet(pwaKey,  String(now.getTime()));
     } catch (_e) { /* best-effort — usage tracking must never affect the app */ }
 }
 

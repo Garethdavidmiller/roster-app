@@ -23,7 +23,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
 import { runWithClaimRetry } from './claim-retry.js';
-import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys } from './usage-stats.js';
+import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
 import { perfSampleKey, summarisePerf } from './perf-stats.js';
 import { APP_VERSION } from './roster-data.js';
 
@@ -950,6 +950,37 @@ export function recordActiveAccount({ month = null, day = null } = {}) {
 }
 
 /**
+ * Increment the anonymous per-ADDRESS counters (v19.23) — `analytics/origins` = `{ daily: {…} }`,
+ * keyed `YYYY-MM-DD|<origin>` and `YYYY-MM-DD|<origin>|pwa`. Answers "how far through the move off
+ * the GitHub Pages mirror are we", which nothing recorded before. No identity: uniqueness is deduped
+ * client-side in usage-reporter.js, so the server only ever sees "+1".
+ *
+ * A SEPARATE DOC from `activeAccounts`, deliberately. That doc's rule pins it to
+ * `hasOnly(['months','daily'])` and Firestore evaluates the RESULTING document — so the moment a
+ * client wrote an extra key there, the doc would permanently contain it and every later write,
+ * including the existing counters, would be denied until the rules deploy caught up. Hosting and
+ * rules ship from the same push via separate workflows with no ordering guarantee, so that window is
+ * real. Here, a rules lag costs only the new metric.
+ *
+ * The two counters are gated INDEPENDENTLY by the caller: `countVisit` false with `installed` true
+ * is the real case where an account already counted as a visit this window has now opened the
+ * installed app for the first time. Incrementing the visit again there would break the "unique
+ * accounts" guarantee the whole metric rests on.
+ *
+ * @param {{ day: string, origin: string, installed?: boolean, countVisit?: boolean }} o
+ */
+export function recordOriginUse({ day, origin, installed = false, countVisit = true }) {
+    if (!day || !origin) return;
+    /** @type {Record<string, any>} */
+    const daily = {};
+    if (countVisit) daily[originKey(day, origin)] = increment(1);
+    if (installed)  daily[originKey(day, origin, true)] = increment(1);
+    if (!Object.keys(daily).length) return;
+    setDoc(doc(db, COLLECTIONS.analytics, 'origins'), { daily }, { merge: true })
+        .catch(() => {/* best-effort analytics */});
+}
+
+/**
  * Increment an anonymous page-load latency counter (Project 0 instrumentation). Lives in one doc per
  * month, `analytics/perf_<YYYY-MM>`, as `{ month, samples: { <key>: int } }`. The key bundles only
  * non-identifying dimensions (app version, page, metric, duration BUCKET, PWA mode, connection class)
@@ -1002,16 +1033,18 @@ export async function getPerfStats() {
  * Read the usage figures for the Operations "Usage" card (admin-only). Also prunes
  * daily buckets outside the retention window, fire-and-forget, so the rolling doc
  * stays bounded (mirrors the resolved-error prune in getClientErrors).
- * @returns {Promise<{ month: string, prevMonth: string, pageCounts: Array<{page: string, count: number}>, prevPageCounts: Array<{page: string, count: number}>, accountsThisMonth: number, accountsLast30: number, monthsHistory: Record<string, number> }>}
+ * @returns {Promise<{ month: string, prevMonth: string, pageCounts: Array<{page: string, count: number}>, prevPageCounts: Array<{page: string, count: number}>, accountsThisMonth: number, accountsLast30: number, monthsHistory: Record<string, number>, origins: Array<{origin: string, accounts: number, installed: number}> }>}
  */
 export async function getUsageStats() {
     const now = new Date();
     const m = monthKey(now);
     const pm = prevMonthKey(now);
-    const [pvSnap, pvPrevSnap, aaSnap] = await Promise.all([
+    const [pvSnap, pvPrevSnap, aaSnap, orgSnap] = await Promise.all([
         getDoc(doc(db, COLLECTIONS.analytics, `pv_${m}`)),
         getDoc(doc(db, COLLECTIONS.analytics, `pv_${pm}`)),
         getDoc(doc(db, COLLECTIONS.analytics, 'activeAccounts')),
+        // Missing until the first write after v19.23 — an absent doc is the empty picture, not an error.
+        getDoc(doc(db, COLLECTIONS.analytics, 'origins')).catch(() => null),
     ]);
     const pv = pvSnap.exists() ? /** @type {any} */ (pvSnap.data()) : { counts: {} };
     const pvPrev = pvPrevSnap.exists() ? /** @type {any} */ (pvPrevSnap.data()) : { counts: {} };
@@ -1033,6 +1066,19 @@ export async function getUsageStats() {
         }
     } catch (_e) { /* prune is best-effort — never let it break the usage read */ }
 
+    // Same prune for the per-address counters, on the same terms (FieldPath, never a dotted string —
+    // an origin key contains hyphens AND a `|`, so a dotted path would throw synchronously).
+    const originDaily = (orgSnap && orgSnap.exists() ? /** @type {any} */ (orgSnap.data()).daily : null) || {};
+    try {
+        const staleO = staleOriginKeys(originDaily, now);
+        if (staleO.length) {
+            const ref = doc(db, COLLECTIONS.analytics, 'origins');
+            staleO.forEach(k => {
+                updateDoc(ref, new FieldPath('daily', k), deleteField()).catch(() => {/* best-effort */});
+            });
+        }
+    } catch (_e) { /* prune is best-effort */ }
+
     return {
         month: m,
         prevMonth: pm,
@@ -1041,5 +1087,6 @@ export async function getUsageStats() {
         accountsThisMonth: Number((aa.months || {})[m]) || 0,
         accountsLast30: sumDailyWindow(daily, now),
         monthsHistory: aa.months || {},
+        origins: summariseOrigins(originDaily, now),
     };
 }
