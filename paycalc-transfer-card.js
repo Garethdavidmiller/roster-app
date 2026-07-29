@@ -1,6 +1,12 @@
 // @ts-check
 /**
- * paycalc-transfer-card.js — the "Back up your pay data" card on paycalc.html.
+ * paycalc-transfer-card.js — the "Save or Move Your Pay Data" card on paycalc.html.
+ *
+ * NAMING: deliberately NOT "Back up your pay data" (v19.18). That title sat two cards below
+ * "Pay Rise Back Pay" in the same column and scanned as BACK PAY data — the owner read it as the
+ * back-pay card on sight. "Back pay" is established vocabulary in this app, so a card title must
+ * not start with "Back up". The word "backup" is still fine as a NOUN on the buttons and in the
+ * filename, where nothing collides.
  *
  * Owns: the card's DOM, the file/clipboard plumbing, and the confirmations before a restore.
  * Does NOT own: the backup format or any import RULE — those are pure, in paycalc-transfer.js,
@@ -62,8 +68,8 @@ export function initTransferCard() {
             // per-member namespace never activates for such a session, so `pcPrefix()` is the bare
             // `myb_pc_` and every control here would operate across EVERY member on the device.
             // Say what is actually wrong rather than "sign in", which they already have.
-            summaryEl.textContent = "This device can't tell whose pay data is saved here, so backing "
-                + 'up is turned off. Contact the admin.';
+            summaryEl.textContent = "This device can't tell whose pay data is saved here, so saving and "
+                + 'restoring are turned off. Contact the admin.';
             allControls.forEach(b => { if (b) b.disabled = true; });
             return;
         }
@@ -109,7 +115,7 @@ export function initTransferCard() {
 
     dlBtn?.addEventListener('click', () => {
         const b = makeBackup();
-        if (!b) { status('There is nothing to back up yet.', 'warn'); return; }
+        if (!b) { status('There is nothing to save yet.', 'warn'); return; }
         const url = URL.createObjectURL(new Blob([b.text], { type: 'application/json' }));
         const a = document.createElement('a');
         a.href = url;
@@ -124,10 +130,10 @@ export function initTransferCard() {
 
     copyBtn?.addEventListener('click', async () => {
         const b = makeBackup();
-        if (!b) { status('There is nothing to back up yet.', 'warn'); return; }
+        if (!b) { status('There is nothing to save yet.', 'warn'); return; }
         try {
             await navigator.clipboard.writeText(b.text);
-            status('Copied. Paste it into the Restore box on the other address.', 'ok');
+            status('Copied. Paste it into the Restore box on the new web address.', 'ok');
         } catch {
             status("Couldn't copy — use Download backup instead.", 'warn');
         }
