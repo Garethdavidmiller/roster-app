@@ -155,6 +155,35 @@ describe('the identity rule (option A — refuse a different member)', () => {
         assert.match(res.error, /belongs to S\. Silva/);
     });
 
+    test('NO importing identity is refused outright — fail closed', () => {
+        // Reachable on paycalc when the session name is no longer on the roster (a leaver, a
+        // rename): getLoggedMember() returns null, the per-member namespace never activates, and
+        // `pcPrefix()` falls back to the bare `myb_pc_` — which spans EVERY member on a shared
+        // device. Before v19.17 this path accepted the blob and the card deleted two people's pay
+        // history, then wrote the payload unnamespaced. Verified in a browser, both ways.
+        const res = validateBackup(makeBlob(), { currentSlug: '' });
+        assert.equal(res.ok, false);
+        assert.match(res.error, /can't tell whose pay data/);
+    });
+
+    test("a foreign backup is refused even against an empty slug — the check can't be bypassed", () => {
+        const other = JSON.stringify({
+            ...JSON.parse(makeBlob()), member: 'S. Silva', slug: 'ssilva',
+            data: { 'myb_pc_ssilva_p16': '{}' },
+        });
+        assert.equal(validateBackup(other, { currentSlug: '' }).ok, false);
+    });
+
+    test('a pathological member name is capped before it reaches the card', () => {
+        const other = JSON.stringify({
+            ...JSON.parse(makeBlob()), member: 'x'.repeat(5000), slug: 'ssilva',
+            data: { 'myb_pc_ssilva_p16': '{}' },
+        });
+        const res = validateBackup(other, { currentSlug: SLUG });
+        assert.equal(res.ok, false);
+        assert.ok(res.error.length < 120, `error was ${res.error.length} chars`);
+    });
+
     test('the same member is accepted', () => {
         assert.equal(validateBackup(makeBlob(), { currentSlug: SLUG }).ok, true);
     });

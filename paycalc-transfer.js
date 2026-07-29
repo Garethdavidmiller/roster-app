@@ -100,6 +100,16 @@ export function buildBackup({ entries, member, slug, appVersion, exportedAt, pre
  *          | { ok: true, blob: any, unnamespaced: boolean, counts: {periods:number,taxYears:number,keys:number} }}
  */
 export function validateBackup(text, { currentSlug }) {
+    // FAIL CLOSED ON IDENTITY, before anything else is considered. Every rule below is about whose
+    // data this is; with no importing identity none of them can be satisfied, and the caller's
+    // namespace would be the bare `myb_pc_` — which spans EVERY member on a shared device. Letting
+    // that through would make a restore delete two people's pay history and write the payload
+    // unnamespaced. (Reachable on paycalc when the session name is no longer on the roster — a
+    // leaver or a rename — because `getLoggedMember()` then returns null and the namespace never
+    // activates. Verified in a browser, v19.17.)
+    if (!currentSlug) {
+        return { ok: false, error: "This device can't tell whose pay data this is, so nothing was changed. Sign in again, or contact the admin." };
+    }
     /** @type {any} */ let blob;
     try {
         blob = JSON.parse(String(text));
@@ -139,8 +149,12 @@ export function validateBackup(text, { currentSlug }) {
     // Option A — refuse a different member outright. Staff share devices (which is precisely why
     // the per-member namespacing exists), and pay history is the most sensitive thing this app
     // holds. The legitimate cross-member case is rare enough to handle by signing in as that person.
-    if (srcSlug && currentSlug && srcSlug !== currentSlug) {
-        const who = typeof blob.member === 'string' && blob.member ? blob.member : 'someone else';
+    if (srcSlug && srcSlug !== currentSlug) {
+        // `member` is attacker-controlled text from the file. It is only ever rendered via
+        // textContent, so it cannot inject — but it is unbounded, so cap it rather than let a
+        // pathological string stretch the card.
+        const named = typeof blob.member === 'string' && blob.member.trim();
+        const who = named ? named.slice(0, 40) : 'someone else';
         return { ok: false, error: `That backup belongs to ${who}. Sign in as them to restore it.` };
     }
 

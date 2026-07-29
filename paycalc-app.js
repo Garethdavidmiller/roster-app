@@ -1870,12 +1870,14 @@ export function init() {
       else afterAuth();
     }());
 
+    // ── BACK UP YOUR PAY DATA ─────────────────────────────────────────────────────
+    // Runs late: it reads the per-member namespace runMigrations() activated above.
+    initTransferCard();
+
     // ── PRINT HEADER STAMP ────────────────────────────────────────────────────────
     // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
     // eagerly on load. The beforeprint handler is kept for desktop browsers.
     // onPeriodChange() also calls this so the stamp is always current when printing.
-    initTransferCard();
-
     function stampPaycalcPrintLine() {
       const hdr = document.querySelector('.app-header');
       if (!hdr) return;

@@ -210,11 +210,24 @@ const PT_QUIET = () => {
 
 test('paycalc: the Settings deep link lands on the backup card OPEN', async ({ page }) => {
     // A bare fragment jump would scroll to a collapsed header, which reads as a dead link.
+    // The viewport is pinned to a phone DELIBERATELY: the landing-position assertion below only
+    // reproduces the drift on a single-column layout. On desktop the card sits in the col-3 sidebar
+    // and never moves, so the project's default viewport made this test pass either way.
+    await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page);
     await page.addInitScript(PT_QUIET);
     await page.goto('/paycalc.html#payTransferCard');
     await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
     await expect(page.locator('#ptSummary')).not.toBeEmpty();
+
+    // Landing POSITION, not just state. One scrollIntoView is not enough — the calculator keeps
+    // laying out afterwards and the card drifts back down (measured at y=681 of an 844px viewport,
+    // with 605px of scroll still available, i.e. the page had not bottomed out). Anything below
+    // roughly a third of the viewport means the correction has regressed.
+    await page.waitForTimeout(900);
+    const box = await page.locator('#payTransferCard').boundingBox();
+    const vh = page.viewportSize().height;
+    expect(box.y, `card landed at y=${Math.round(box.y)} of ${vh}`).toBeLessThan(vh / 3);
 });
 
 test('paycalc: backup → restore round trip survives the reload', async ({ page }) => {
@@ -262,4 +275,61 @@ test("paycalc: another member's backup is refused and writes nothing", async ({ 
     await page.locator('#ptPasteGo').click();
     await expect(page.locator('#ptStatus')).toContainText('belongs to S. Silva');
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_ssilva_p16'))).toBeNull();
+});
+
+test('paycalc: an unidentifiable member cannot back up or restore', async ({ page }) => {
+    // A session name that is no longer on the roster (a leaver, a rename). getLoggedMember()
+    // returns null, so the per-member namespace never activates and pcPrefix() falls back to the
+    // bare `myb_pc_` — which spans EVERY member on a shared device. Before v19.17 the paste box was
+    // left enabled in this state, and one paste deleted two people's pay history and wrote the
+    // payload unnamespaced. The page's own session guard does NOT catch this: the session is valid,
+    // it is the member lookup that fails.
+    await seedSession(page, 'Z. NotOnRoster');
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#ptSummary')).toContainText("can't tell whose pay data");
+    for (const id of ['#ptDownload', '#ptCopy', '#ptRestore', '#ptPasteGo', '#ptPaste']) {
+        await expect(page.locator(id), `${id} must be disabled`).toBeDisabled();
+    }
+});
+
+test('paycalc: a restore onto storage that refuses writes changes nothing', async ({ page }) => {
+    // `lsSet` SWALLOWS a storage error (ls.js, for iOS private mode), so a write that did nothing is
+    // indistinguishable from one that worked — a try/catch around it is dead code. Before v19.17 the
+    // card wiped first and wrote second, so a device that had stopped accepting writes lost the
+    // member's entire pay history and was told "Restored". The write now happens FIRST, is verified
+    // by reading back, and the surplus is only removed once that passes.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_p16', '{"satH":7,"satM":30}'));
+
+    const backup = await page.evaluate(async () => {
+        const m = await import('/paycalc-transfer.js');
+        const mig = await import('/paycalc-migrations.js');
+        const keys = m.selectBackupKeys(Object.keys(localStorage), mig.pcPrefix());
+        const entries = Object.fromEntries(keys.map(k => [k, localStorage.getItem(k)]));
+        return JSON.stringify(m.buildBackup({
+            entries, member: 'G. Miller', slug: 'gmiller',
+            appVersion: 'x', exportedAt: '2026-07-29T00:00:00.000Z', prefix: mig.pcPrefix(),
+        }));
+    });
+
+    // The on-device data must DIFFER from the backup, or reading back matches trivially and this
+    // proves nothing. Plus a key the backup does not contain, to prove no surplus delete happened.
+    await page.evaluate(() => {
+        localStorage.setItem('myb_pc_gmiller_p16', 'STALE-VALUE');
+        localStorage.setItem('myb_pc_gmiller_surplus', 'SHOULD-SURVIVE');
+        Object.getPrototypeOf(localStorage).setItem = function () {
+            throw new DOMException('quota', 'QuotaExceededError');   // as a full device does
+        };
+    });
+
+    await page.locator('#ptPaste').fill(backup);
+    await page.locator('#ptPasteGo').click();
+    await page.locator('.dialog-btn-confirm').click();
+    await expect(page.locator('#ptStatus')).toContainText('nothing was changed');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p16'))).toBe('STALE-VALUE');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_surplus'))).toBe('SHOULD-SURVIVE');
 });

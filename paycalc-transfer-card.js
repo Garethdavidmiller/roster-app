@@ -31,6 +31,11 @@ export function initTransferCard() {
     const copyBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('ptCopy'));
     const restoreBtn= /** @type {HTMLButtonElement|null} */ (document.getElementById('ptRestore'));
     const fileInput = /** @type {HTMLInputElement|null} */ (document.getElementById('ptFile'));
+    const pasteBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('ptPasteGo'));
+    const pasteText = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('ptPaste'));
+    /** Every control that acts on pay data. The PASTE pair belongs here too — leaving it out is
+     *  what left the destructive path live for an unidentifiable member (v19.17). */
+    const allControls = [dlBtn, copyBtn, restoreBtn, pasteBtn, pasteText];
 
     /** @param {string} msg @param {'ok'|'warn'|''} [tone] */
     function status(msg, tone = '') {
@@ -38,6 +43,10 @@ export function initTransferCard() {
         statusEl.textContent = msg;
         statusEl.className = 'pt-status' + (tone ? ` pt-status--${tone}` : '');
     }
+
+    /** "1 payslip" / "2 payslips" — the restore messages state a count the member reads back to us.
+     *  @param {number} n @param {string} word */
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
     /** Current member's keys, or [] when signed out (the namespace would be wrong). */
     function ownKeys() {
@@ -48,11 +57,17 @@ export function initTransferCard() {
         const member = memberName();
         if (!summaryEl) return;
         if (!member) {
-            summaryEl.textContent = 'Sign in to back up your pay data.';
-            [dlBtn, copyBtn, restoreBtn].forEach(b => { if (b) b.disabled = true; });
+            // The page's own session guard means somebody IS signed in — so this is the narrower
+            // case of a session name that is no longer on the roster (a leaver, a rename). The
+            // per-member namespace never activates for such a session, so `pcPrefix()` is the bare
+            // `myb_pc_` and every control here would operate across EVERY member on the device.
+            // Say what is actually wrong rather than "sign in", which they already have.
+            summaryEl.textContent = "This device can't tell whose pay data is saved here, so backing "
+                + 'up is turned off. Contact the admin.';
+            allControls.forEach(b => { if (b) b.disabled = true; });
             return;
         }
-        [dlBtn, copyBtn, restoreBtn].forEach(b => { if (b) b.disabled = false; });
+        allControls.forEach(b => { if (b) b.disabled = false; });
         const keys = ownKeys();
         if (!keys.length) {
             summaryEl.textContent = 'Nothing saved on this device yet.';
@@ -60,10 +75,17 @@ export function initTransferCard() {
             if (copyBtn) copyBtn.disabled = true;
             return;
         }
+        // Say what is actually here. A flat "N payslips across M tax years" reads as "0 payslips
+        // across 1 tax year" for someone who has only ever opened the back-pay card — the first
+        // line of a card whose whole job is to tell you what you would be backing up.
         const s = summarise(keys, pcPrefix());
-        const bits = [`${s.periods} payslip${s.periods === 1 ? '' : 's'}`];
-        if (s.taxYears) bits.push(`${s.taxYears} tax year${s.taxYears === 1 ? '' : 's'}`);
-        summaryEl.textContent = `On this device: ${bits.join(' across ')}, plus your settings.`;
+        let what;
+        if (s.periods && s.taxYears)  what = `${plural(s.periods, 'payslip')} across ${plural(s.taxYears, 'tax year')}`;
+        else if (s.periods)           what = plural(s.periods, 'payslip');
+        else if (s.taxYears)          what = `${plural(s.taxYears, 'tax year')} of figures`;
+        summaryEl.textContent = what
+            ? `On this device: ${what}, plus your settings.`
+            : 'On this device: your settings. No payslip figures saved yet.';
     }
 
     /** Serialise the current member's data. @returns {{text: string, name: string}|null} */
@@ -127,6 +149,8 @@ export function initTransferCard() {
     /** The confirmation ladder, then the write. @param {string} text */
     async function applyRestore(text) {
         const member = memberName();
+        // Belt-and-braces alongside the disabled controls above: validateBackup fails closed on an
+        // empty slug too, so this path is refused twice over rather than once.
         const res = validateBackup(text, { currentSlug: memberSlug(member) });
         if (!res.ok) { status(res.error, 'warn'); return; }
 
@@ -140,40 +164,59 @@ export function initTransferCard() {
         }
 
         // Replace, never merge — a half-merged pay history is worse than either version.
-        if (ownKeys().length) {
+        const existing = ownKeys();
+        if (existing.length) {
             const ok = await confirmDialog({
                 title: 'Replace your pay data?',
-                message: `You already have pay data on this device. Restoring will replace it — the ${res.counts.periods} `
-                       + 'payslip figures in the backup will take over, and anything you have entered here will be lost.',
+                message: `You already have pay data on this device. Restoring will replace it — the `
+                       + `${plural(res.counts.periods, 'payslip')} in the backup will take over, and anything you `
+                       + 'have entered here will be lost.',
                 confirmLabel: 'Replace',
                 danger: true,
             });
             if (!ok) { status('Nothing was changed.'); return; }
-            // REMOVE, don't blank. Setting a key to '' leaves a value the app would later try to
-            // parse — an empty period reads as corrupt, not as absent. And a key the backup does
-            // not contain must genuinely disappear, or the restore is a merge wearing a replace's
-            // label: the member would be left with figures from a payslip they thought they'd
-            // replaced.
-            for (const k of ownKeys()) lsDel(k);
         }
 
+        // Snapshot BEFORE touching anything: localStorage has no transaction, so this is the only
+        // rollback available.
+        /** @type {Map<string, string|null>} */
+        const before = new Map(existing.map(k => [k, lsGet(k)]));
         const entries = rekeyEntries(res.blob.data, res.blob.slug || '', memberSlug(member));
-        let written = 0;
-        try {
-            for (const [k, v] of Object.entries(entries)) { lsSet(k, v); written++; }
-        } catch {
-            // localStorage cannot be written atomically, so report honestly rather than claim success.
-            status(`Storage stopped accepting data after ${written} of ${Object.keys(entries).length} items. `
-                 + 'Your pay data may be incomplete — restore again, or contact the admin.', 'warn');
+
+        // WRITE FIRST, DELETE THE SURPLUS AFTER. The obvious order (wipe, then write) makes the
+        // common failure catastrophic: `lsSet` SWALLOWS a storage error (ls.js, for iOS private
+        // mode), so on a device that has stopped accepting writes the wipe succeeds, the write
+        // silently does nothing, and the member is told "Restored" as their pay history disappears.
+        // Verified in a browser before this was changed (v19.17).
+        for (const [k, v] of Object.entries(entries)) lsSet(k, v);
+
+        // And because lsSet cannot report failure, the only way to know a write landed is to read
+        // it back. A try/catch here would be dead code.
+        const failed = Object.entries(entries).filter(([k, v]) => lsGet(k) !== v);
+        if (failed.length) {
+            for (const [k, v] of before) { if (v !== null) lsSet(k, v); }   // best-effort rollback
+            const intact = [...before].every(([k, v]) => v === null || lsGet(k) === v);
+            status(intact
+                ? "This device's storage refused the restore, so nothing was changed. Free up some space on the "
+                  + 'phone and try again — your backup is still fine.'
+                : "This device's storage refused the restore, and some of what was here could not be put back. "
+                  + 'Keep your backup and contact the admin.', 'warn');
             return;
         }
-        status(`Restored ${res.counts.periods} payslips. Reloading…`, 'ok');
+
+        // Only now remove what the backup does not contain. REMOVE, don't blank: a key set to ''
+        // leaves a value the app would later try to parse (an empty period reads as corrupt, not
+        // absent), and a key the backup lacks must genuinely disappear or the restore is a merge
+        // wearing a replace's label.
+        // `Object.hasOwn`, not `k in entries`: `in` walks the prototype chain, so a key named
+        // `constructor` or `toString` would report as present and survive a replace.
+        for (const k of before.keys()) if (!Object.hasOwn(entries, k)) lsDel(k);
+
+        status(`Restored ${plural(res.counts.periods, 'payslip')}. Reloading…`, 'ok');
         setTimeout(() => window.location.reload(), 800);
     }
 
     // Paste path — same ladder, different source.
-    const pasteBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('ptPasteGo'));
-    const pasteText = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('ptPaste'));
     pasteBtn?.addEventListener('click', async () => {
         const t = pasteText?.value.trim();
         if (!t) { status('Paste a backup into the box first.', 'warn'); return; }
@@ -191,5 +234,23 @@ export function initTransferCard() {
             document.getElementById('payTransferToggle')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         }
         card.scrollIntoView({ block: 'start' });
+        // Scrolling once is not enough: the calculator keeps laying out after this runs (the period
+        // band, the roster hint bar and the result card all resize), so the card drifts back down —
+        // measured landing at y=681 of an 844px viewport, with 605px of scroll still available.
+        // Re-scroll once things have settled, unless the member has started scrolling themselves;
+        // yanking the page under someone already reading is worse than landing low.
+        //
+        // The cancel signal is a real GESTURE, not a scrollY delta. A delta guard looks obvious and
+        // does not work here: growing content above the card makes the browser's own scroll
+        // anchoring move scrollY, so the guard reads that as "the member scrolled" and suppresses
+        // the very correction it exists to allow. (Measured — the delta version left it at y=681.)
+        let userMoved = false;
+        const mark = () => { userMoved = true; };
+        const opts = { passive: true, once: true };
+        ['wheel', 'touchstart', 'keydown'].forEach(e => window.addEventListener(e, mark, opts));
+        setTimeout(() => {
+            ['wheel', 'touchstart', 'keydown'].forEach(e => window.removeEventListener(e, mark));
+            if (!userMoved) card.scrollIntoView({ block: 'start' });
+        }, 400);
     }
 }
