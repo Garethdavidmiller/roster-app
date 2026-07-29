@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: July 2026 — v19.10 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.20 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -839,6 +839,40 @@ an ESLint `no-undef` error rather than a silent permissions failure.
 limitation entry is kept for history; the underlying issue is resolved.
 
 ---
+
+## Error Log noise filters (v19.20)
+
+Not every uncaught error is a fault in this app. Six classes are suppressed before the Firestore
+write, by the pure `shouldReport` in `client-errors.js`: the opaque cross-origin `Script error.`,
+browser-extension URL schemes, `ResizeObserver loop`, the skipped declarative view transition, a
+service-worker background-update failure **when accompanied by a network phrase**, and **WebKit's
+IndexedDB teardown messages when they come from the SDK origin**.
+
+That last one came from a staff report on an iPhone (iOS 18.7 / Safari 26.5, v19.19):
+
+    Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing.
+        getObjectStore@…/firebase-auth.js
+        _withRetries@…/firebase-auth.js
+
+Firebase Auth's `indexedDBLocalPersistence` POLLS its object store, because Safari's storage events
+are unreliable across tabs. WebKit closes IndexedDB connections whenever it suspends or reclaims a
+page — backgrounding the PWA, screen lock, the app switcher, memory pressure — so a poll landing in
+that window throws from deep inside the SDK with no app frame on the stack. Firebase wraps the call
+in `_withRetries` precisely because it expects this; when the retries are spent the rejection
+escapes to our reporter. The identity is already restored by then, Firestore uses a SEPARATE
+database (so calendar data is untouched, and since v19.01 the calendar paints from cache with no
+auth at all), and the connection reopens on the next foreground. Harmless and self-healing — but it
+recurs on every iPhone, and the Error Log is only worth reading if it is mostly signal.
+
+**Scoped to the SDK origin deliberately.** The same phrases from our own origin would mean the
+Firestore persistent cache is failing, which is a real fault worth seeing, so those still log. The
+list is exact phrases, never a loose `Database` substring — a version conflict or a quota failure is
+a genuine problem that happens to involve the same API call.
+
+**Do not add a filter without a test on BOTH sides.** The failure directions are not symmetric: too
+narrow leaves noise you can see and complain about, too broad silently swallows real errors and the
+log looks healthy *because* it is broken. `error-reporter.test.mjs` pins each rule against the thing
+it must suppress AND the neighbouring real error it must not.
 
 ## Error handling — silent catches audit (v13.72)
 

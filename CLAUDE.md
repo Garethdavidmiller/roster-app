@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v19.10 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.20 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `19.10` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `19.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -215,7 +215,7 @@ roster-app/
 ├── firebase-client.js      ← shared: Firebase init, db, all Firestore helpers
 ├── auth-identity.js        ← pure account-identity helpers extracted from firebase-client (no Firebase import, so unit-testable): normaliseSurname (surname derivation for Firebase Auth) + nameToEmail (initial.surname@myb-roster.local account email). Re-exported by firebase-client.js; the surname-parity source-equivalence check + the functions/roster-parse-helpers.js duplicate track THIS file
 ├── storage-utils.js        ← pure Storage helpers extracted from firebase-client (no Firebase import, so unit-testable): isSafeStorageUrl (download-URL allowlist — a security control), isDocxUpload (upload file-type detect), officeViewerUrl (wraps a .docx download URL in Microsoft's Office Online viewer so Word circulars/newsletters open+render instead of downloading), sixMonthCutoffISO (month-underflow-safe 6-month retention cutoff for _pruneOldDocs). Re-exported by firebase-client.js
-├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors, capUnresolvedErrors (the over-fetch→shown+truncated split, extracted from getClientErrors)
+├── client-errors.js        ← the pure RULES of the client error log, for BOTH sides of it: `shouldReport` (v19.20 — the capture-side noise filters, extracted from error-reporter.js because that module imports the gstatic SDK and so can't load in Node) + the read-side ordering/retention (isResolvedErrorExpired, expiredResolvedIds, orderClientErrors, capUnresolvedErrors — the over-fetch→shown+truncated split, extracted from getClientErrors). The filters had shipped UNTESTED from v13.31 to v19.19, which is backwards for this code specifically: too narrow only leaves visible noise, but too broad silently swallows real errors and the Error Log looks healthy BECAUSE it is broken
 ├── claim-retry.js          ← pure stale-claim self-heal runner (runWithClaimRetry, isClaimRetryable) extracted from firebase-client.js so the security-critical write retry (permission-denied/storage-unauthorized → force token refresh → retry once → preserve original error) is unit-testable in Node. firebase-client's withClaimRetry/_uploadBytesWithClaimRetry inject the Firebase auth deps. Tested by claim-retry.test.mjs
 ├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel, lsKeys
 ├── storage-keys.js         ← single source for the CROSS-FILE localStorage keys (SELECTED_MEMBER + legacy alias, VIEWED_MONTH/YEAR); shared by calendar-member/calendar-state/admin-app so a shared key has ONE spelling (v16.81). Per-module + paycalc-namespaced keys stay local.
@@ -263,6 +263,7 @@ roster-app/
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
 ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs / perf-stats.test.mjs
+├── error-reporter.test.mjs ← tests the Error Log noise filters (`shouldReport` in client-errors.js). Written when a FIFTH filter was needed and the existing four had no tests at all — the asymmetry is the point: a filter that is too narrow leaves noise you can see, a filter that is too broad silently swallows real errors and nothing ever tells you. So each rule is pinned from BOTH sides — the thing it must suppress, and the neighbouring real error it must not. Teeth-verified four ways, one of which initially PASSED (loosening the IndexedDB phrase list to a bare 'Database' slipped through until a case was added that shares the API call and differs only in its tail). Part of test:hygiene
 ├── storage-utils.test.mjs ← tests for isSafeStorageUrl (bucket allowlist) + isDocxUpload + officeViewerUrl (Office viewer wrap/encoding) + sixMonthCutoffISO (month-underflow clamp); part of test:hygiene
 ├── auth-identity.test.mjs ← tests for normaliseSurname + nameToEmail (identity-critical account email derivation); part of test:hygiene
 ├── notif.test.mjs         ← tests for notif.js: notifSupported/isIOS, getNotifState VAPID rotation, peekNotifState (no side effects), enable/disableNotifications (--experimental-test-module-mocks)
@@ -359,7 +360,7 @@ npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, claim-retry, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, csp-meta-parity, date-picker, guide-sources, guide-colour-parity, links-analysis, links-compare, paycalc-format, paycalc-breakdown, paycalc-inputs, paycalc-hpp-schedule, paycalc-transfer, card-header-parity, firestore-contract-parity, focus-ring-parity, type-scale-parity, chip-radius-parity, auth-plan-parity, workflow-hygiene, tips-content, password-force (authoritative list: package.json `test:hygiene`)
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, claim-retry, overlay(+history), usage-stats, perf-stats, surname-parity, payday-cutoff-parity, storage-rules-static, storage-utils, auth-identity, auth-state-core, auth-state, auth-policy, sw-register, sw-internals, csp-hygiene, csp-meta-parity, date-picker, guide-sources, guide-colour-parity, links-analysis, links-compare, paycalc-format, paycalc-breakdown, paycalc-inputs, paycalc-hpp-schedule, paycalc-transfer, card-header-parity, firestore-contract-parity, focus-ring-parity, type-scale-parity, chip-radius-parity, auth-plan-parity, workflow-hygiene, tips-content, password-force, error-reporter (authoritative list: package.json `test:hygiene`)
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 npm run test:functions # Cloud Functions pure-helper tests (roster-parse-helpers.test.mjs) — not part of npm test

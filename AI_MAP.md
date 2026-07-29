@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v19.10 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.20 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -827,13 +827,15 @@ Pure account-identity helpers extracted from `firebase-client.js` (v16.50) so th
 Pure Storage helpers extracted from `firebase-client.js` (v16.32) so they're unit-testable — firebase-client can't be imported in a Node test because it statically imports the Firebase SDK from the gstatic CDN. No imports of its own. `isSafeStorageUrl(url)` — the download-URL allowlist (a SECURITY control: HTTPS + a firebasestorage/GCS host under one of THIS project's buckets, trailing-slash-anchored so a look-alike bucket can't match) guarding every Huddle/Circular/Newsletter open button; `isDocxUpload(file)` — upload file-type detect (extension OR the docx MIME, matching the accept predicates); `officeViewerUrl(storageUrl)` (v16.45) — wraps a download URL in Microsoft's Office Online full-page viewer (`view.aspx`) so a Word (.docx) circular/newsletter OPENS and renders with images instead of downloading (a browser can't display a raw .docx); `sixMonthCutoffISO(now)` (v16.50) — the month-underflow-safe "YYYY-MM-DD" retention cutoff 6 months before `now`, clamping a month-end day the target month lacks (31 Aug → 28 Feb, not 3 Mar) so `_pruneOldDocs` can't prematurely delete circulars/newsletters. `firebase-client.js` re-exports `isSafeStorageUrl` + `officeViewerUrl` so existing importers are unaffected and uses `isDocxUpload` + `sixMonthCutoffISO` internally. Tested by `storage-utils.test.mjs`.
 
 ### `client-errors.js`
-Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by `firebase-client.js` only.
+The pure RULES of the client error log — no DOM, no Firebase. Two consumers: `error-reporter.js` for the CAPTURE side (what reaches the log at all) and `firebase-client.js` for the READ side (order + retention).
+- `shouldReport(message, src, hostname)` (v19.20) — the noise filters, extracted from `error-reporter.js` so they are unit-testable (that module imports the gstatic SDK, so Node can't load it). Suppresses: the opaque cross-origin `Script error.`, browser-extension URL schemes, `ResizeObserver loop`, the skipped declarative view transition, a service-worker background-update failure **only** alongside a network phrase, and (v19.20) **WebKit's IndexedDB teardown messages, only from the SDK origin**. The direction of a mistake here is asymmetric — too narrow leaves visible noise, too broad silently swallows real errors and the log looks healthy BECAUSE it is broken — so every rule is pinned from both sides in `error-reporter.test.mjs`.
+- `APP_SCRIPT_ORIGINS` — the CDNs the app's own dependencies load from (gstatic, jsdelivr). A crash inside those is app-breaking and must reach the log, so the cross-origin rule allowlists them; the IndexedDB rule uses the same list to tell SDK noise from a genuine Firestore-cache fault.
 - `CLIENT_ERROR_RETENTION_MS` — 90-day retention window constant (measured from resolution, not error time)
 - `isResolvedErrorExpired(rec, now, [retentionMs])` — true if a resolved record is past the retention window; records with no `resolvedAt` are never expired
 - `expiredResolvedIds(resolved, now, [retentionMs])` — IDs of resolved records that should be pruned
 - `orderClientErrors(unresolved, resolved, now, [opts])` — ordered list for the Error Log card: all unresolved first (newest-first), then up to `resolvedLimit` (default 30) recent resolved records. Unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) resolved backlogs cannot displace them.
 - `capUnresolvedErrors(fetchedUnresolved, cap)` → `{ shown, truncated }` (v18.28) — the over-fetch→display split extracted from `getClientErrors`: fetch `cap + 1`, show the first `cap`, `truncated` only when the extra row came back (no-silent-caps)
-- Tested by `client-errors.test.mjs` (no mocks, runs in `test:hygiene`)
+- Tested by `client-errors.test.mjs` + `error-reporter.test.mjs` (no mocks, both run in `test:hygiene`)
 
 ### `claim-retry.js`
 Pure stale-claim self-heal runner — no DOM, no Firebase. Imported by `firebase-client.js` only (v18.28). Extracted so the security-critical write-retry decision is unit-testable in Node (firebase-client.js can't load in a test — it pulls the gstatic SDK).

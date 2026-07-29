@@ -15,9 +15,12 @@ import { APP_VERSION } from './roster-data.js';
 import { logClientError } from './firebase-client.js';
 import { lsGet } from './ls.js';
 import { AUTH_KEY } from './session.js';
+import { shouldReport, APP_SCRIPT_ORIGINS } from './client-errors.js';
 
 // Deduplicate within the current page session — one Firestore write per distinct message.
 const _seen = new Set();
+
+
 
 /**
  * Apply noise filters then write to Firestore.
@@ -35,37 +38,12 @@ function _report(err, src = '') {
                 ? (() => { try { return JSON.stringify(err).slice(0, 300); } catch { return String(err); } })()
                 : String(err ?? '')).trim();
 
-        // Cross-origin script errors arrive as the literal string "Script error."
-        // with no useful stack — useless and very frequent from browser extensions.
-        if (!message || message === 'Script error.') return;
-
-        // Chrome fires this for layout side-effects of third-party content; it is
-        // cosmetic and cannot be acted on.
-        if (message.includes('ResizeObserver loop')) return;
-
-        // Browsers emit this from the DECLARATIVE cross-document view transition the app opts
-        // into (`@view-transition { navigation: auto }` in shared.css) whenever they skip a
-        // transition — a reload, an interrupted/ineligible navigation, or an engine quirk (seen
-        // on iOS Safari 26). It is NOT thrown app code (no stack; the app makes no
-        // startViewTransition()/skipTransition() call), the crossfade degrades to an instant cut,
-        // and it cannot be acted on — so it must not pollute the Error Log.
-        if (message.includes('Skipping view transition')) return;
-
-        // Chrome emits this as an unhandled rejection when its own background SW-update
-        // check fails due to a network blip. Only suppress when accompanied by a recognised
-        // network/fetch failure phrase — genuine SW installation failures (e.g. a bad script
-        // that can't be parsed or executed) use different phrasing and should still be logged.
-        if (message.includes('Failed to update a ServiceWorker') &&
-            (message.includes('net::') || message.includes('NetworkError') ||
-             message.includes('Failed to fetch') || message.includes('Load failed'))) return;
-
-        // Errors whose source URL is a different origin usually belong to extensions or injected
-        // scripts — out of scope. But the app's OWN dependencies load from CDNs (Firebase SDK on
-        // www.gstatic.com, Mammoth on cdn.jsdelivr.net), and a crash inside those is a genuine
-        // app-breaking failure that must reach the Error Log — so allowlist those origins.
-        const _APP_SCRIPT_ORIGINS = ['www.gstatic.com', 'cdn.jsdelivr.net'];
-        if (src && src.startsWith('http') && !src.includes(location.hostname) &&
-            !_APP_SCRIPT_ORIGINS.some(o => src.includes(o))) return;
+        // An unhandledrejection carries no filename, so `src` is the pathname — which would hide
+        // the SDK origin the IndexedDB filter keys off. Recover it from the stack, which for an
+        // SDK-internal throw names the gstatic file on every frame.
+        const stackText = err instanceof Error ? (err.stack ?? '') : '';
+        const origin = APP_SCRIPT_ORIGINS.find(o => src.includes(o) || stackText.includes(o));
+        if (!shouldReport(message, origin || src, location.hostname)) return;
 
         // One report per distinct message per page session — don't flood Firestore if
         // the same bug fires on every keypress or scroll event.
