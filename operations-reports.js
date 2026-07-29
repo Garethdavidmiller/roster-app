@@ -426,16 +426,28 @@ const ORIGIN_META = {
  * @param {Array<{origin:string,accounts:number,installed:number}>} rows
  */
 function _appendOriginSection(content, rows) {
+    // Its own wrapper with a rule top AND bottom, exactly as `.usage-signin` does. Without the
+    // bottom rule the Page-popularity "This month / Last month" toggle sits directly under this
+    // section's note and reads as though it filters the ADDRESSES — the toggle's own heading is
+    // below it, so nothing else says otherwise.
+    const sec = document.createElement('div');
+    sec.className = 'usage-origins';
+    content.appendChild(sec);
+
     const label = document.createElement('p');
     label.className = 'usage-section-label';
     label.innerHTML = '<span aria-hidden="true">\u{1F6A6}</span> Which address staff are on';
-    content.appendChild(label);
+    sec.appendChild(label);
 
     if (!rows.length) {
         const empty = document.createElement('p');
         empty.className = 'usage-note';
-        empty.textContent = 'Nothing recorded yet — this starts counting from the first page open after v19.23.';
-        content.appendChild(empty);
+        // Says it is a STATE, not a fault, and when to look again. The old wording named the
+        // version it shipped in, which is developer-speak in user-facing copy and goes stale —
+        // in six months "after v19.23" tells the reader nothing at all.
+        empty.textContent = 'No opens recorded yet. This fills in as staff open the app, and reads '
+            + 'properly once it has a full 30 days.';
+        sec.appendChild(empty);
         return;
     }
 
@@ -448,32 +460,45 @@ function _appendOriginSection(content, rows) {
         const row  = document.createElement('div');
         row.className = 'usage-bar-row';
         const name = document.createElement('span');
-        name.className = 'usage-bar-lbl';
+        name.className = 'usage-bar-label';
         name.textContent = `${meta.emoji} ${meta.label}`;
         name.title = meta.note;
+        // A STACKED bar, not a longer count column. "22 · 17 installed" made this the only group in
+        // the card whose count column was wide enough to shorten the tracks, so its bars no longer
+        // lined up with the ones above and below. Nesting the installed share inside the accounts
+        // share says the same thing — and says the RELATIONSHIP, which the text could not: installed
+        // is a subset of these accounts, never a second population.
         const track = document.createElement('span');
         track.className = 'usage-bar-track';
         const fill = document.createElement('span');
-        fill.className = 'usage-bar-fill';
+        fill.className = 'usage-origin-fill';
         fill.style.width = `${Math.max(pct, accounts ? 2 : 0)}%`;
+        const inner = document.createElement('span');
+        inner.className = 'usage-origin-installed';
+        inner.style.width = `${accounts ? Math.round((installed / accounts) * 100) : 0}%`;
+        fill.appendChild(inner);
         track.appendChild(fill);
         const num = document.createElement('span');
-        num.className = 'usage-bar-num';
-        // Installed is deduped separately, so it is a LOWER bound on the same accounts — never a
-        // second population. Showing it as "N of M" keeps that relationship visible.
-        num.textContent = `${accounts} · ${installed} installed`;
+        num.className = 'usage-bar-count';
+        num.textContent = String(accounts);
         row.append(name, track, num);
         bars.appendChild(row);
     });
-    content.appendChild(bars);
+    sec.appendChild(bars);
+
+    const legend = document.createElement('p');
+    legend.className = 'usage-origin-legend';
+    legend.innerHTML = '<span class="usage-origin-key usage-origin-key--installed"></span> opened from the installed app'
+        + '<span class="usage-origin-key usage-origin-key--browser"></span> browser tab';
+    sec.appendChild(legend);
 
     const note = document.createElement('p');
     note.className = 'usage-note';
-    note.textContent = 'Unique accounts over the last 30 days, counted once per address — someone using both '
-        + 'counts on each, which is what half-migrated looks like. "Installed" means opened from the home-screen '
-        + 'app rather than a browser tab. An install nobody has opened in 30 days is invisible here, and your own '
-        + 'admin devices are never counted.';
-    content.appendChild(note);
+    // Kept to the two caveats that change how the number is READ. The rest (admin exclusion, how
+    // dedup works) is true of every figure on this card and is stated once at the foot of it.
+    note.textContent = 'Unique accounts over the last 30 days. Someone using both addresses counts on each — '
+        + 'that is what half-migrated looks like. An install nobody has opened in 30 days is invisible here.';
+    sec.appendChild(note);
 }
 
 /**

@@ -1042,6 +1042,58 @@ select:focus-visible, input:focus-visible {
     padding-top: 14px;
     border-top: 1px solid var(--border-light);
 }
+/* Which address staff are on (v19.24). Same treatment as .usage-signin — a rule top AND bottom, so
+   it reads as its own section of the same card. The BOTTOM rule is load-bearing: the Page-popularity
+   toggle follows immediately and its own heading sits below it, so without a divider the toggle
+   reads as filtering the addresses. */
+.usage-origins {
+    margin: 18px 0 20px;
+    padding: 14px 0 16px;
+    border-top: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+}
+.usage-origins .usage-note { margin-bottom: 0; }
+/* A wider label column for this section ONLY. An address is the whole point of the row, and at
+   390px the shared 38% truncated "GitHub Pages mirror" to "GitHub Pages …". These rows can afford
+   it: their counts are one or two digits, not the four of a page-view total. */
+.usage-origins .usage-bar-row { grid-template-columns: minmax(120px, 47%) 1fr auto; }
+
+
+/* Stacked fill: the outer band is the share of accounts on this address, the solid inner band the
+   share of THOSE accounts on the installed app. Nesting states the subset relationship that a
+   number beside the bar could only assert. */
+.usage-origin-fill {
+    display: block;
+    height: 100%;
+    background: color-mix(in oklch, var(--primary-blue) 28%, white);
+    border-radius: var(--radius-pill);
+}
+.usage-origin-installed {
+    display: block;
+    height: 100%;
+    background: var(--primary-blue);
+    border-radius: var(--radius-pill);
+}
+.usage-origin-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    font-size: var(--type-micro);
+    color: var(--text-mid);
+    margin: 10px 0 0;
+}
+.usage-origin-key {
+    display: inline-block;
+    width: 14px;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    margin-right: 4px;
+    vertical-align: -1px;
+}
+.usage-origin-key--installed { background: var(--primary-blue); }
+.usage-origin-key--browser   { background: color-mix(in oklch, var(--primary-blue) 28%, white); }
+
 .usage-signin .usage-stats { margin-bottom: 8px; }
 .usage-signin .usage-note  { margin-bottom: 0; }
 

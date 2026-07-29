@@ -112,6 +112,68 @@ test('settings — mobile 390 (signed in)', async ({ page }) => {
     await expect(page).toHaveScreenshot('settings-mobile-390.png');
 });
 
+
+// ── Operations Usage card ─────────────────────────────────────────────────────────────────────
+// The card needs DATA to be worth baselining — the Firebase stub returns none, so without this it
+// would lock the empty state and say nothing about the composition (four sections, three bar
+// groups, a stacked bar, a legend).
+//
+// The injection is made LOUD on purpose. A silent string-replace is the wrong shape here: if the
+// anchor ever stops matching (a reformat, a signature change) the rewrite no-ops, the card renders
+// EMPTY, and the next person to regenerate baselines locks that in — leaving a green test that
+// stopped testing anything and nothing to say so. So a missing anchor throws, and the test asserts
+// the fixture actually reached the DOM before it captures.
+const USAGE_FIXTURE = `
+    return {
+        month: '2026-07', prevMonth: '2026-06',
+        pageCounts: [{page:'calendar',count:1284},{page:'paycalc',count:412},{page:'admin',count:203},
+                     {page:'settings',count:96},{page:'operations',count:31},{page:'huddle',count:341},
+                     {page:'circular',count:58},{page:'guide-fip',count:12}],
+        prevPageCounts: [{page:'calendar',count:1100},{page:'paycalc',count:388}],
+        accountsThisMonth: 31, accountsLast30: 34,
+        monthsHistory: {'2026-06':29,'2026-07':31},
+        origins: [{origin:'web',accounts:22,installed:17},
+                  {origin:'pages',accounts:9,installed:9},
+                  {origin:'other',accounts:1,installed:0}],
+    };`;
+
+/** Serve a firebase-client.js whose usage/sign-in reads return fixed data. Throws if either anchor
+ *  is missing, so the fixture can never silently stop applying. @param {import('@playwright/test').Page} page */
+function stubUsageReads(page) {
+    return page.route('**/firebase-client.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        const anchors = ['export async function getUsageStats() {', 'export async function getSignInStats() {'];
+        for (const a of anchors) {
+            if (!src.includes(a)) throw new Error(`visual: usage fixture anchor no longer matches — "${a}". `
+                + 'Update it, or this baseline silently degrades to the empty state.');
+        }
+        const body = src
+            .replace(anchors[0], anchors[0] + USAGE_FIXTURE)
+            .replace(anchors[1], anchors[1]
+                + ' return { last30: 28, last7: 19, last90: 33, total: 41, neverSignedIn: 5 };');
+        await route.fulfill({ response: res, body, contentType: 'text/javascript' });
+    });
+}
+
+test('operations — Usage card, populated (desktop 1280)', async ({ page }) => {
+    await stubUsageReads(page);
+    await prep(page, { width: 1280, height: 1400 });
+    await page.goto('/operations.html');
+    await settle(page, '#usageCard');
+    await page.evaluate(() => {
+        const b = document.getElementById('usageBody');
+        if (b && !b.classList.contains('open')) document.getElementById('usageToggleHeader')?.click();
+    });
+    const card = page.locator('#usageCard');
+    // Proof the fixture landed AND the card rendered from it — without these the capture below
+    // could quietly be of the empty state.
+    await expect(card).toContainText('myb-roster.web.app');
+    await expect(card).toContainText('1,284');
+    await page.waitForTimeout(400);          // collapse transition + bar widths settle
+    await expect(card).toHaveScreenshot('operations-usage-card.png');
+});
+
 // ── Guide pages (static, auth-free) ────────────────────────────────────────────────────────
 // The four guides don't import shared.css and have no Firebase/fractional-grid, so they baseline
 // cleanly. These lock the layouts touched by Section C (the .chip/.chip-bar hoist into
