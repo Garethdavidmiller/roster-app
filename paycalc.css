@@ -1074,6 +1074,7 @@
       #saveSettingsBtn, #actualsImportBtn,
       .bd-btn, .show-more-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #payslipCard, #hppCard, #backPayCard, #backPayCardToggle, #decimalConverterCard,
+      #payTransferCard,
       .field-hint, .net-hint, .check-actual, .prov-chips:empty,
       .privacy-note-standalone, .guide-footer-link,
       #rosterHintBar, .joiner-notice, #stickyTotal,
@@ -1573,3 +1574,47 @@
   .actuals-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: var(--type-medium); box-sizing: border-box; }
   .actuals-status { font-size: var(--type-small); min-height: 18px; margin: 6px 0; }
 
+
+/* ── Back up your pay data (v19.16) ───────────────────────────────────────────
+   Deliberately plain: this card is a safety net, not a feature to advertise. It
+   reuses .btn-action / .card-explainer so it inherits the app's focus rings and
+   press feedback rather than inventing a look for a card most staff open once. */
+.pt-summary {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin: 0 0 12px;
+}
+/* A plain block, NOT a flex row: .btn-action is width:100% so a flex row would wrap to a
+   stack anyway — and its `gap` would then stack on top of the shared
+   `.btn-action + .btn-action { margin-top: 8px }`, double-spacing the buttons. */
+.pt-actions { margin-bottom: 12px; }
+.pt-rule {
+    border: 0;
+    border-top: 1px solid var(--border-light);
+    margin: 16px 0 12px;
+}
+.pt-paste-label {
+    display: block;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin-bottom: 6px;
+}
+.pt-paste {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--type-small);
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 8px;
+    margin-bottom: 12px;
+    resize: vertical;
+}
+.pt-paste:focus { background-color: white; }
+/* Status is a live region — it must be readable, not decorative. */
+.pt-status { font-size: var(--type-small); margin: 4px 0 0; color: var(--text-mid); }
+.pt-status--ok   { color: var(--success-text); }
+.pt-status--warn { color: var(--error-red); }
+.pt-status:empty { display: none; }

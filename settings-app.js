@@ -148,6 +148,9 @@ export function init() {
         // Notifications card
         initHuddleNotifications();
 
+        // Pay Calculator Data — a pointer card, so collapse is the only behaviour it has.
+        initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
+
         // Icon lightbox
         initIconLightbox();
     }

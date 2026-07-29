@@ -684,3 +684,12 @@ test('operations reset requests: clearing two rows quickly leaves neither behind
     // The chip must agree — a stale count over an empty list is the v18.94 lesson.
     await expect(page.locator('#resetRequestsCountChip')).toHaveText('');
 });
+
+test('settings (signed in): the Pay Calculator Data pointer card renders and links to the backup card', async ({ page }) => {
+    // A POINTER, not a second copy of the controls — see paycalc-transfer-card.js.
+    await seedSession(page);
+    await page.goto('/settings.html');
+    const card = page.locator('#payDataCard');
+    await expect(card).toBeVisible();
+    await expect(card.locator('a[href*="paycalc.html#payTransferCard"]')).toBeVisible();
+});

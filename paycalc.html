@@ -75,6 +75,8 @@
   <link rel="modulepreload" href="./paycalc-hpp-schedule.js">
   <link rel="modulepreload" href="./paycalc-inputs.js">
   <link rel="modulepreload" href="./paycalc-form-data.js">
+  <link rel="modulepreload" href="./paycalc-transfer.js">
+  <link rel="modulepreload" href="./paycalc-transfer-card.js">
   <link rel="modulepreload" href="./paycalc-lightboxes.js">
   <link rel="modulepreload" href="./paycalc-migrations.js">
   <link rel="modulepreload" href="./paycalc-periods.js">
@@ -856,6 +858,38 @@
           <div class="decimal-conv-result" id="decimalHrsResult" aria-live="polite" aria-labelledby="decimalHrsResultLabel">–</div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="content-card" id="payTransferCard">
+    <div class="card-header card-header-toggle" id="payTransferToggle">
+      <div>
+        <h2><span aria-hidden="true">💾</span> Back up your pay data</h2>
+        <span class="hint">Save it, or move it to another address</span>
+      </div>
+      <div class="card-header-actions">
+        <span class="card-toggle-arrow">▼</span>
+      </div>
+    </div>
+    <div class="card-body collapsible-body" id="payTransferBody">
+      <p class="card-explainer">Your pay calculator is saved on <strong>this device only</strong> — it doesn't move with your account, so it won't follow you to a new phone or to a different web address. Back it up before you switch.</p>
+      <p class="pt-summary" id="ptSummary"></p>
+      <div class="pt-actions">
+        <button type="button" class="btn-action btn-primary" id="ptDownload">Download backup</button>
+        <button type="button" class="btn-action btn-secondary" id="ptCopy">Copy as text</button>
+      </div>
+      <hr class="pt-rule">
+      <p class="card-explainer">Restoring <strong>replaces</strong> what is on this device — it does not merge.</p>
+      <div class="pt-actions">
+        <button type="button" class="btn-action btn-secondary" id="ptRestore">Restore from a file</button>
+      </div>
+      <input type="file" id="ptFile" accept="application/json,.json" hidden>
+      <label class="pt-paste-label" for="ptPaste">Or paste a copied backup</label>
+      <textarea id="ptPaste" class="pt-paste" rows="3" spellcheck="false" autocomplete="off" placeholder="Paste here…"></textarea>
+      <div class="pt-actions">
+        <button type="button" class="btn-action btn-secondary" id="ptPasteGo">Restore from pasted text</button>
+      </div>
+      <p class="pt-status" id="ptStatus" role="status" aria-live="polite"></p>
     </div>
   </div>
 

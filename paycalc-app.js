@@ -59,6 +59,7 @@ import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fdList, fmt, decimalToHM } from './paycalc-format.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData } from './paycalc-form-data.js';
+import { initTransferCard } from './paycalc-transfer-card.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
 
 /**
@@ -1486,6 +1487,7 @@ export function init() {
     initCardCollapse('settingsToggle',    'settingsBody',    'settingsToggle');
     initCardCollapse('payslipCardToggle', 'payslipCardBody', 'payslipCardToggle');
     initCardCollapse('hppCardToggle',     'hppCardBody',     'hppCardToggle');
+    initCardCollapse('payTransferToggle', 'payTransferBody', 'payTransferToggle');
     initCardCollapse('backPayCardToggle', 'backPayBody',     'backPayCardToggle',
       /** @param {any} open */ open => {
         if (!open) return;
@@ -1867,6 +1869,10 @@ export function init() {
           .finally(afterAuth);
       else afterAuth();
     }());
+
+    // ── BACK UP YOUR PAY DATA ─────────────────────────────────────────────────────
+    // Runs late: it reads the per-member namespace runMigrations() activated above.
+    initTransferCard();
 
     // ── PRINT HEADER STAMP ────────────────────────────────────────────────────────
     // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
