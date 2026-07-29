@@ -107,6 +107,52 @@ describe('round trip', () => {
     });
 });
 
+describe('what a real member actually carries', () => {
+    // Asked directly by the owner: does this include HPP and back pay, and for years down the line?
+    // The answer has to stay yes without anyone remembering to update a list — which is why
+    // selection is a PREFIX SCAN. This test states the guarantee in the app's own vocabulary so a
+    // later refactor to an enumerated list fails here rather than silently shipping a partial backup.
+    const YEARS = ['2024_25', '2025_26', '2026_27'];
+    const REAL = {};
+    for (const yr of YEARS) {
+        REAL[`${PREFIX}hpp_est_${yr}`]    = '1843.01';   // the estimate
+        REAL[`${PREFIX}hpp_actual_${yr}`] = '1901.44';   // the confirmed figure off the payslip
+        REAL[`${PREFIX}hpp_mode_${yr}`]   = 'hours';     // which source was chosen
+        REAL[`${PREFIX}hpp_inc_${yr}`]    = '1';         // the include tick
+        REAL[`${PREFIX}bp_state_${yr}`]   = '{"mode":"manual","manual":"512.30","inc":"1"}';
+        REAL[`${PREFIX}ytd_pay_${yr}`]    = '21758.94';
+        REAL[`${PREFIX}ytd_tax_${yr}`]    = '3120.00';
+    }
+    REAL[`${PREFIX}p16`] = '{"satH":7,"satM":30}';
+    REAL[`${PREFIX}sl_paid_off`] = '20';
+
+    test('every HPP and back-pay key is carried, for EVERY tax year', () => {
+        const picked = selectBackupKeys(Object.keys(REAL), PREFIX);
+        for (const yr of YEARS) {
+            for (const kind of ['hpp_est', 'hpp_actual', 'hpp_mode', 'hpp_inc', 'bp_state']) {
+                assert.ok(picked.includes(`${PREFIX}${kind}_${yr}`), `${kind}_${yr} must be backed up`);
+            }
+        }
+        assert.equal(picked.length, Object.keys(REAL).length, 'nothing may be dropped');
+    });
+
+    test('a tax year that does not exist yet is carried too', () => {
+        // The whole point of the prefix scan: no code change when the app rolls into a new year.
+        const picked = selectBackupKeys([`${PREFIX}hpp_est_2031_32`, `${PREFIX}bp_state_2031_32`], PREFIX);
+        assert.equal(picked.length, 2);
+    });
+
+    test('the whole set survives the round trip byte-identically', () => {
+        const blob = buildBackup({
+            entries: REAL, member: 'G. Miller', slug: SLUG,
+            appVersion: '19.19', exportedAt: '2026-07-29T00:00:00.000Z', prefix: PREFIX,
+        });
+        const res = validateBackup(JSON.stringify(blob), { currentSlug: SLUG });
+        assert.equal(res.ok, true);
+        assert.deepEqual(rekeyEntries(res.blob.data, res.blob.slug, SLUG), REAL);
+    });
+});
+
 describe('the trust boundary — a backup must not write arbitrary storage', () => {
     const reject = (data, why) => {
         const res = validateBackup(makeBlob({ data }), { currentSlug: SLUG });
