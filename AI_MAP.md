@@ -680,6 +680,25 @@ The DOM-pure form-field input helpers extracted from `paycalc-app.js`'s `init()`
 - `_decHintEl(hId, make)` — find (or lazily create when `make`) the `.hhmm-dec-hint` element under an hours field's `.hhmm-wrap`; null when the markup is absent
 - `decPreview(hId)` — write the live "= Nh Mm" hint while a decimal is being typed, hide it for a whole number
 
+### `paycalc-transfer.js`
+The pay-data **backup format and import rules** (v19.16). Every function is pure — no localStorage, no files, no clipboard — because the import path decides whether to overwrite a member's entire pay history, so its rules have to be testable without a browser. The DOM half lives in `paycalc-transfer-card.js`.
+- **Why it exists:** pay-calculator data lives in `localStorage`, which is per-**origin**. It therefore does not follow a member from `garethdavidmiller.github.io` to `myb-roster.web.app`, and does not survive a new phone or cleared browser data. Everything else the app holds is in Firestore and moves with the account; this is the one thing that deliberately does not (pay data is kept off the server — ARCHITECTURE_PLAN.md, the MILLER_ACTUALS decision). A Firestore transfer doc was rejected for that reason, and an iframe/`postMessage` bridge because Chrome partitions storage by top-level site.
+- `BACKUP_FORMAT` / `BACKUP_VERSION` — the blob's identity and schema version. A blob from a NEWER version is refused outright rather than half-understood.
+- `selectBackupKeys(allKeys, prefix)` — a **prefix scan**, not an enumerated list: a hand-maintained list would silently drop any key type added later (the same failure mode as the SW precache list). `DEVICE_KEYS` are excluded — they describe the browser, not the member. Sorted, so an unchanged backup is byte-identical between runs.
+- `summarise(keys, prefix)` → `{periods, taxYears, keys}` — stated in payslips and tax years, the units a member recognises.
+- `buildBackup({entries, member, slug, appVersion, exportedAt, prefix})` — values are carried as **raw strings, never re-parsed**, so a backup survives a paycalc schema change it predates. Records the SOURCE `slug` so re-keying is unambiguous.
+- `validateBackup(text, {currentSlug})` → `{ok:false,error}` | `{ok:true,blob,unnamespaced,counts}` — returns a result rather than throwing, so each refusal renders in the member's own terms. **The trust boundary:** a backup is a file the member obtained from somewhere, so restoring it must never be a way to write arbitrary localStorage — only the paycalc key shape, never a `DEVICE_KEYS` flag, only string values, and every key must sit under the slug the blob claims. **Identity rule = option A:** a backup belonging to a DIFFERENT member is refused ("Sign in as them to restore it") — staff share devices, which is precisely why the per-member namespacing exists. Legacy pre-namespacing data has no owner recorded; it is accepted but flagged `unnamespaced` so the caller must confirm.
+- `rekeyEntries(entries, fromSlug, toSlug)` — `myb_pc_ytd_pay_2026_27` cannot be split into slug + tail by inspection (is the slug `ytd`?), which is why the source slug is recorded rather than guessed.
+- `backupFilename(member, isoDate)` — recognisable in a Downloads folder months later.
+- Tested by `paycalc-transfer.test.mjs` (part of `test:hygiene`).
+
+### `paycalc-transfer-card.js`
+The DOM half of the backup card on `paycalc.html` (v19.16) — file/clipboard plumbing and the confirmations before a restore. Owns no rule: every decision comes from `paycalc-transfer.js`.
+- `initTransferCard()` — safe no-op when the page has no card. Renders the summary ("On this device: 2 payslips across 1 tax year, plus your settings"), wires Download / Copy as text / Restore from a file / Restore from pasted text, and honours a `#payTransferCard` deep link from Settings by **expanding** the card (a bare fragment jump would land on a collapsed header).
+- **Restore is a REPLACE, never a merge** — a half-merged pay history is worse than either version. The ladder is: `validateBackup` → confirm if `unnamespaced` → confirm the replace (`danger`) → `lsDel` every existing key → `rekeyEntries` → write → reload. Existing keys are **removed, not blanked**: a key set to `''` leaves a value the app would later try to parse (an empty period reads as corrupt, not absent), and a key the backup does not contain must genuinely disappear or the "replace" is a merge wearing a replace's label.
+- localStorage cannot be written atomically, so a mid-write failure reports honestly ("stopped accepting data after N of M items") rather than claiming success.
+- Imports: `ls.js`, `paycalc-migrations.js`, `paycalc-settings.js` (`getLoggedMember`), `roster-data.js`, `overlay.js` (`confirmDialog`), `paycalc-transfer.js`.
+
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).
 - `HELP_CONTENT` object with keys: `hours`, `settings`, `accuracy`, `hpp`, `backpay`
@@ -696,6 +715,8 @@ localStorage key constants and data migration logic for the pay calculator (v11.
 - `parseSavedPeriod(raw)` (v16.66) — PURE saved-period JSON decoder → `{ data, error }`: null/empty → `{null,false}`, valid → `{obj,false}`, malformed → `{null,true}`. `readSavedPeriod(pNum)` composes `lsGet(periodKey(pNum))` + `parseSavedPeriod`. Single decoder shared by `paycalc-backpay.js` and `paycalc-hpp.js` so a corrupt saved period is SURFACED (a visible "couldn't read N periods — may be too low" note), never dropped silently (no-silent-caps). Tested by `paycalc-migrations.test.mjs`.
 - `hppEstKey(ty)`, `hppActualKey(ty)`, `ytdPayKey(ty)`, `ytdTaxKey(ty)` — key builders that take a tax-year object `ty` (with `.label` property, e.g. `'2025/26'`); `bpKey()` — the back-pay card's autosave blob key
 - `NOTICE_YTD_KEY` — device-level "Year to Date notice shown" flag (deliberately unnamespaced)
+- `memberSlug(name)` — `'G. Miller'` → `'gmiller'`; the namespace segment builder (exported since v19.16 for `paycalc-transfer.js`, which needs the slug WITHOUT activating a namespace)
+- `DEVICE_KEYS` — the unnamespaced device-level flags (migration guards, "seen this notice/welcome"). Exported since v19.16 so the backup path can exclude them: carrying `myb_pc_ns_migrated` onto a fresh device would suppress the legacy-ownership prompt on a device that genuinely needs it.
 - `isActualsDev(member)` / `readPayslipActuals()` / `writePayslipActuals(map)` / `clearPayslipActuals()` — the developer-only device-local payslip-actuals overlay (gated to `G. Miller`; data imported per-device, never served — see CLAUDE.md → Example payslips)
 - `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations, then migrates this member's shared data into their namespace and activates it; receives deps as params to avoid circular imports with `paycalc-app.js`
 - `_migrateCeaKeys` — internal migration (old CEA keys → grade-neutral format)

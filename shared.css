@@ -2241,6 +2241,9 @@ button.nav-panel-link--notices {
     font-weight: 700;
     border: 1.5px solid transparent;
     cursor: pointer;
+    /* The class is also worn by an <a> (Settings → Pay Calculator Data), which would otherwise
+       carry the default underline across the button face. */
+    text-decoration: none;
     touch-action: manipulation;
     font-family: inherit;
     transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);

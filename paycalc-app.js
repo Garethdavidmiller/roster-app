@@ -59,6 +59,7 @@ import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fdList, fmt, decimalToHM } from './paycalc-format.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData } from './paycalc-form-data.js';
+import { initTransferCard } from './paycalc-transfer-card.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
 
 /**
@@ -1486,6 +1487,7 @@ export function init() {
     initCardCollapse('settingsToggle',    'settingsBody',    'settingsToggle');
     initCardCollapse('payslipCardToggle', 'payslipCardBody', 'payslipCardToggle');
     initCardCollapse('hppCardToggle',     'hppCardBody',     'hppCardToggle');
+    initCardCollapse('payTransferToggle', 'payTransferBody', 'payTransferToggle');
     initCardCollapse('backPayCardToggle', 'backPayBody',     'backPayCardToggle',
       /** @param {any} open */ open => {
         if (!open) return;
@@ -1872,6 +1874,8 @@ export function init() {
     // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
     // eagerly on load. The beforeprint handler is kept for desktop browsers.
     // onPeriodChange() also calls this so the stamp is always current when printing.
+    initTransferCard();
+
     function stampPaycalcPrintLine() {
       const hdr = document.querySelector('.app-header');
       if (!hdr) return;

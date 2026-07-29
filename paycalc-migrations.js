@@ -35,13 +35,13 @@ let _nsSeg = '';
 
 /** Slug a member name to a localStorage-safe segment: lowercase, alphanumerics only.
  *  'G. Miller' → 'gmiller'. teamMembers names are unique, so slugs do not collide. */
-function _memberSlug(/** @type {string=} */ name) {
+export function memberSlug(/** @type {string=} */ name) {
     return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 /** Slugs of every known member — used to tell a member's namespaced key
  *  (`myb_pc_<slug>_…`) apart from genuinely unnamespaced legacy data. */
-const _MEMBER_SLUGS = new Set(teamMembers.map(m => _memberSlug(m.name)));
+const _MEMBER_SLUGS = new Set(teamMembers.map(m => memberSlug(m.name)));
 
 /** The member slug that OWNS a paycalc key, or null when the key has no member-slug
  *  segment (i.e. genuinely unnamespaced legacy data). `myb_pc_<slug>_<tail>` belongs to
@@ -85,7 +85,7 @@ _rebuildSK(); // initialise to the unnamespaced (legacy) key names at module loa
 /** Activate the per-member namespace. Pass the logged-in member's name, or a
  *  falsy value for unnamespaced (legacy) keys. Idempotent. */
 export function setPaycalcNamespace(/** @type {string=} */ memberName) {
-    _nsSeg = memberName ? `${_memberSlug(memberName)}_` : '';
+    _nsSeg = memberName ? `${memberSlug(memberName)}_` : '';
     _rebuildSK();
 }
 
@@ -173,7 +173,10 @@ export function clearPayslipActuals() { lsDel(payslipActualsKey()); }
 /** Device-level `myb_pc_*` keys that must NOT be moved into a member namespace:
  *  one-time migration guards and per-device "seen" flags. Everything else under
  *  the `myb_pc_` prefix is member-financial data and gets namespaced. */
-const DEVICE_KEYS = new Set([
+/** Keys that describe the BROWSER, not the member — never namespaced, and never carried by a
+ *  backup (paycalc-transfer.js): importing `ns_migrated` onto a fresh device would suppress the
+ *  legacy-ownership prompt on a device that genuinely needs it. */
+export const DEVICE_KEYS = new Set([
     'myb_pc_cea_migrated',
     'myb_pc_pension_v882_migrated',
     'myb_pc_pay_welcome_shown',
@@ -244,7 +247,7 @@ function _hasUnnamespacedPaycalcData() {
  *  ANY member (this one or another) are left untouched. Used by the 'mine' choice.
  *  @param {string|undefined} memberName */
 function _moveLegacyToNamespace(memberName) {
-    const seg = _memberSlug(memberName);
+    const seg = memberSlug(memberName);
     if (!seg) return;
     const nsPrefix = `myb_pc_${seg}_`;
     lsKeys().forEach(k => {                       // lsKeys() is a copy — safe to mutate in loop
@@ -274,7 +277,7 @@ function _clearLegacyData() {
  *  @param {string|undefined} memberName @returns {boolean} */
 export function hasPendingLegacyMigration(memberName) {
     if (lsGet('myb_pc_ns_migrated')) return false;
-    if (!_memberSlug(memberName)) return false;
+    if (!memberSlug(memberName)) return false;
     return _hasUnnamespacedPaycalcData();
 }
 

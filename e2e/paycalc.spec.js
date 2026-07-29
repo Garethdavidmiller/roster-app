@@ -195,3 +195,71 @@ test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', asy
     const num = parseFloat(ytdAmt.replace(/[^0-9.]/g,'')) || 0;
     expect(num, 'joiner ytd HPP figure must be positive (not zeroed by phantom pre-employment pay)').toBeGreaterThan(0);
 });
+
+// ── Back up your pay data (v19.16) ────────────────────────────────────────────
+// A restore REPLACES a member's entire pay history, and the rules that decide whether to do it are
+// unit-tested in paycalc-transfer.test.mjs. What no unit test can prove is the WIRING — that the
+// paste box reaches the ladder, that the confirmation actually gates the write, and that the data
+// survives the reload. That gap is exactly the one the v19.13 tips crash fell through (a static
+// suite passed; a human pressing the button found it), so the destructive path gets a real browser.
+const PT_QUIET = () => {
+    localStorage.setItem('myb_pc_ns_migrated', '1');
+    localStorage.setItem('myb_pc_pay_welcome_shown', '1');
+    localStorage.setItem('myb_pc_ytd_notice_shown', '1');
+};
+
+test('paycalc: the Settings deep link lands on the backup card OPEN', async ({ page }) => {
+    // A bare fragment jump would scroll to a collapsed header, which reads as a dead link.
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await expect(page.locator('#ptSummary')).not.toBeEmpty();
+});
+
+test('paycalc: backup → restore round trip survives the reload', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    // The payload key is written AFTER load, never in an init script: addInitScript re-runs on the
+    // post-restore reload, so a seeded value reappears on its own and the test passes even with the
+    // restore's write deleted. (Confirmed the hard way — the first version of this test did exactly
+    // that.) Written here, the restore is the only thing that can put the figure back.
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_p16', '{"satH":7,"satM":30}'));
+
+    const backup = await page.evaluate(async () => {
+        const m = await import('/paycalc-transfer.js');
+        const mig = await import('/paycalc-migrations.js');
+        const keys = m.selectBackupKeys(Object.keys(localStorage), mig.pcPrefix());
+        const entries = Object.fromEntries(keys.map(k => [k, localStorage.getItem(k)]));
+        return JSON.stringify(m.buildBackup({
+            entries, member: 'G. Miller', slug: 'gmiller',
+            appVersion: 'x', exportedAt: '2026-07-29T00:00:00.000Z', prefix: mig.pcPrefix(),
+        }));
+    });
+    expect(backup).toContain('myb_pc_gmiller_p16');
+
+    await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_p16', '{"satH":0,"satM":0}'));
+    await page.locator('#ptPaste').fill(backup);
+    await page.locator('#ptPasteGo').click();
+    await page.locator('.dialog-btn-confirm').click();      // "Replace" — the write is gated on this
+    await expect(page.locator('#ptStatus')).toContainText(/Restored/);
+    await page.waitForTimeout(1200);                        // the card reloads the page after 800ms
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p16')))
+        .toBe('{"satH":7,"satM":30}');
+});
+
+test("paycalc: another member's backup is refused and writes nothing", async ({ page }) => {
+    // Option A. Staff share devices — which is precisely why the per-member namespacing exists.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await page.locator('#ptPaste').fill(JSON.stringify({
+        format: 'myb-paycalc-backup', version: 1, member: 'S. Silva', slug: 'ssilva',
+        data: { myb_pc_ssilva_p16: '{}' },
+    }));
+    await page.locator('#ptPasteGo').click();
+    await expect(page.locator('#ptStatus')).toContainText('belongs to S. Silva');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_ssilva_p16'))).toBeNull();
+});
