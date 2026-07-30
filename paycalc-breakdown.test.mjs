@@ -143,7 +143,7 @@ test('buildActualCheck: quiet when empty; band boundaries; direction named', () 
     assert.match(near, /Year to Date/, 'points at the sharpening lever');
     const far = buildActualCheck(2800, 2900);
     assert.match(far, /£100\.00 less/, 'direction: payslip pays less');
-    assert.match(far, /absence, back pay or a payroll correction/);
+    assert.match(far, /absence, back pay, a payroll correction, or a student loan deduction that isn't on the payslip/);
     assert.ok(!/check-ok/.test(far), 'a large gap is not a green line');
 });
 
