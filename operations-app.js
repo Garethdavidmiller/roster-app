@@ -784,6 +784,14 @@ export function init() {
                         { icon: '👥', html: '<strong>Accounts active</strong> — how many individual staff accounts <strong>used the app</strong> this calendar month and over the last 30 days. Simply opening the app counts — a saved session doesn\'t need a fresh sign-in, so this is normally higher than the sign-in count on App Speed' },
                         { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened this month' },
                     ]},
+                    { heading: 'Which address staff are on', items: [
+                        { icon: '\u{1F6A6}', html: 'While the app is served from <strong>two addresses</strong>, this shows how far the move has got — unique accounts on each over the last 30 days, and how many opened the <strong>installed</strong> app rather than a browser tab' },
+                        { icon: '\u{1F4CD}', html: 'Someone using <strong>both</strong> addresses counts on each — that is what half-migrated looks like. An install nobody has <em>opened</em> in 30 days is invisible here, so treat it as a floor' },
+                    ]},
+                    { heading: 'Sign-ins vs opens', items: [
+                        { icon: '\u{1F511}', html: '<strong>Accounts that have signed in</strong> is the exact unique count, from Firebase Auth itself. It counts <strong>sign-ins, not opens</strong> — a session lasts up to 30 days, so someone can sign in once and use the app daily' },
+                        { icon: '\u{1F423}', html: '<strong>Never signed in</strong> is the actionable one: accounts set up that have never been used' },
+                    ]},
                     { heading: 'Privacy', items: [
                         { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it counts <em>how many</em> accounts and visits, never <em>which</em> account did what. No names, no per-person history is stored' },
                         { icon: '📱', html: 'Counts are per account-device, so someone using both a phone and a laptop may count twice — treat the numbers as a usage trend, not an exact headcount' },
