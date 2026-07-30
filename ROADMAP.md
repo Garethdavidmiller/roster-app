@@ -535,6 +535,28 @@ step-by-step upgrade checklist live in **KNOWN_LIMITATIONS.md**.
 
 ## Open decisions
 
+**Pay-data transfer notice — DEFERRED to after 8 Aug 2026 (owner decision, 30 Jul).** Staff will not
+discover the "💾 Move Your Pay Data" card on paycalc by themselves, and the guides only reach people who
+open them, so a one-time notice (`/new-notice`) is the only surface that reaches them unprompted.
+
+**Why it waits, and why waiting is safe.** The `password-2026` notice is already running on BOTH the
+calendar and paycalc until 8 Aug, and a second notice inside the same week is noise — the app deliberately
+runs at most one campaign at a time. Deferring costs nothing because **nobody loses pay data by waiting**:
+the GitHub Pages mirror keeps working, and the only way figures are lost is switching address and expecting
+them to follow. There is no deadline on the notice itself.
+
+**Waiting also makes it a decision instead of a guess.** The per-address counters started recording at
+v19.23 (Operations → Usage → "🚦 Which address staff are on"), so by 8 Aug there will be ~9 days of data.
+Check the mirror's count FIRST: near zero and a broad notice to ~50 staff is unnecessary — a word to the few
+who remain does it; substantial and the notice is justified and can say something concrete rather than
+generic. Read the mirror count going DOWN, not web.app going up: people appear on the new address the moment
+they visit, but have only moved when they stop appearing on the old one.
+
+**When writing it:** invoke `/new-notice` (the pattern, badge values and the `archiveNotice` timing rules
+live there), use the actionable CTA+snooze variant pointing at `paycalc.html#payTransferCard`, and add the
+row to CLAUDE.md's "Current notices" table. Note the password notice's HTML/JS stays in the codebase after
+8 Aug — `isNoticeExpired` only stops it SHOWING; the code goes at the 180-day monthly cleanup (~late Jan).
+
 **Auth hardening:** A five-stage plan to replace the surname-based password with a custom password backed by verified work email is documented under "Password security improvements" above (Stage 1 shipped v12.68). The staged approach preserves the name-dropdown login UX while progressively adding security. Key risk during rollout: `ensureFirebaseSession` must be reworked before Stage 3 ships — see that entry. See also KNOWN_LIMITATIONS.md → the four v11 security tasks (task #2, Firestore member write isolation, shipped STRICT at v16.29) for related context.
 
 **Multi-admin:** ✓ Resolved — `CONFIG.ADMIN_NAMES` is now an array in `roster-data.js`. Adding another admin is a one-line change (name must match `teamMembers[n].name` exactly).
