@@ -1090,6 +1090,22 @@ select:focus-visible, input:focus-visible {
 .usage-origin-key--installed { background: var(--primary-blue); }
 .usage-origin-key--browser   { background: color-mix(in oklch, var(--primary-blue) 28%, white); }
 
+/* The address key (v19.29). The bar labels are short so the three bar groups keep one shared label
+   column, which means the full address has to be stated somewhere the reader can actually see it —
+   a `title` tooltip needs a hover and this card is read on a phone. One line per row, in bar order.
+   `word-break: break-word` because the old mirror address is 39 characters and must wrap rather
+   than push the card sideways. */
+.usage-origin-addr {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    font-size: var(--type-micro);
+    line-height: 1.6;
+    color: var(--text-mid);
+    word-break: break-word;
+}
+.usage-origin-addr b { font-weight: 600; color: var(--text-dark); }
+
 .usage-signin .usage-stats { margin-bottom: 8px; }
 .usage-signin .usage-note  { margin-bottom: 0; }
 
