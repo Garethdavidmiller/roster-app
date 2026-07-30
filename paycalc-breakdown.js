@@ -123,7 +123,8 @@ export function buildBreakdownRows(d) {
  *   ≤ £2   → within the expected cumulative-PAYE rounding (the payslip-regression tolerance —
  *            payroll computes tax cumulatively, the estimate per period)
  *   ≤ £25  → close; usually a tax adjustment — pointing at the Year to Date card
- *   larger → check hours / absence / back pay / payroll corrections (the documented
+ *   larger → check hours / absence / back pay / payroll corrections / a student loan that was
+ *            NOT deducted on that payslip (the documented
  *            less-accurate cases from the result card's own caveat)
  *
  * @param {number} actual    take-home printed on the payslip (0/absent → '')
@@ -141,7 +142,7 @@ export function buildActualCheck(actual, estimated) {
     const dir = diff > 0 ? 'more' : 'less';
     if (ad <= 25)
         return `<div class="check-actual-line check-near">Close — your payslip pays ${fmt(ad)} ${dir} than this estimate. Small gaps usually come from tax adjustments; entering your Year to Date figures sharpens the next estimate.</div>`;
-    return `<div class="check-actual-line check-near">Your payslip pays ${fmt(ad)} ${dir} than this estimate. Check this payslip's hours are complete, and look for absence, back pay or a payroll correction on it.</div>`;
+    return `<div class="check-actual-line check-near">Your payslip pays ${fmt(ad)} ${dir} than this estimate. Check this payslip's hours are complete, and look for absence, back pay, a payroll correction, or a student loan deduction that isn't on the payslip.</div>`;
 }
 
 /**

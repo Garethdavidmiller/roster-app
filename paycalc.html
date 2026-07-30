@@ -192,7 +192,7 @@
           <option value="plan4">Plan 4 (Scotland)</option>
           <option value="plan5">Plan 5</option>
         </select>
-        <div class="field-hint">Only select a plan if student loan deductions appear on your payslip. If you repay by direct debit, leave as None.</div>
+        <div class="field-hint">Only select a plan if student loan deductions appear on your payslip. If you repay by direct debit, leave as None. A plan applies to <strong>every</strong> payslip — for any payslip where it <em>wasn't</em> deducted, tick <strong>"Student loan was not deducted this period"</strong> under Hours → Unusual deductions or corrections.</div>
       </div>
 
       <div class="field">
@@ -203,16 +203,21 @@
         <div class="field-hint">Tick this only if a separate Postgraduate Loan deduction (6%) also shows on your payslip. It is repaid <em>in addition</em> to any plan above.</div>
       </div>
 
-      <!-- Loan fully repaid mid-year (v18.41 — review item 9): the deduction stops on a specific
-           payslip while earlier payslips keep theirs (so they still reconcile). Options are built
-           by paycalc-app.js at init (one per payslip, grouped by tax year); hidden while no loan
-           is selected. -->
+      <!-- Deductions STOPPED from a specific payslip (v18.41 — review item 9; reworded v19.27):
+           earlier payslips keep theirs, so they still reconcile. Options are built by
+           paycalc-app.js at init (one per payslip, grouped by tax year); hidden while no loan is
+           selected.
+
+           Wording is deliberately the OBSERVABLE fact, not "finished repaying". Being moved to
+           DIRECT DEBIT for the last chunk is the Student Loans Company's normal endgame, so
+           "stopped being deducted but not repaid" is a common state the old label called a lie —
+           and it was the control a member in that position would reach for first. -->
       <div class="field hidden" id="slPaidOffField">
-        <label for="slPaidOffFrom">Finished repaying your loan?</label>
+        <label for="slPaidOffFrom">Student loan stopped being deducted?</label>
         <select id="slPaidOffFrom">
-          <option value="">No — still repaying</option>
+          <option value="">No — still deducted from my payslip</option>
         </select>
-        <div class="field-hint">If your loan is fully repaid, pick the <strong>first payslip that had no deduction</strong> on it — earlier payslips keep their deductions, so they still match your payslips.</div>
+        <div class="field-hint">If your payslip <strong>stopped</strong> showing a student loan deduction — repaid in full, or moved to direct debit — pick the <strong>first payslip that had no deduction</strong>. Earlier payslips keep theirs, so they still match. This is one-way: if deductions later <strong>restart</strong>, leave this as No and instead tick "not deducted this period" on each payslip in the gap.</div>
       </div>
 
       <button type="button" class="btn-primary" id="saveSettingsBtn">Save settings</button>

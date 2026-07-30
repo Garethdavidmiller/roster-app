@@ -691,6 +691,7 @@ The pay-data **backup format and import rules** (v19.16). Every function is pure
 - `rekeyEntries(entries, fromSlug, toSlug)` — `myb_pc_ytd_pay_2026_27` cannot be split into slug + tail by inspection (is the slug `ytd`?), which is why the source slug is recorded rather than guessed.
 - `backupFilename(member, isoDate)` — recognisable in a Downloads folder months later.
 - Tested by `paycalc-transfer.test.mjs` (part of `test:hygiene`).
+- **What keeps it correct as the pay calculator changes (v19.28).** This module carries whatever localStorage holds, so a new pay FEATURE needs no edit here — what breaks it is a change to key SHAPE, and both ways that happens are silent (an un-namespaced key is invisible to `selectBackupKeys`; a key tail outside `[A-Za-z0-9_]+` fails `KEY_RE` and is dropped while the member is told "Restored"). `paycalc-key-parity.test.mjs` guards the shape statically — the transfer tests here cannot, because they exercise the rules against keys they invent, never the app's real ones.
 
 ### `paycalc-transfer-card.js`
 The DOM half of the "Move Your Pay Data" card on `paycalc.html` (v19.16; renamed v19.18 — the original "Back up your pay data" collided with the "Pay Rise Back Pay" card two rows above it, and v19.19 shortened it further. The card serves two purposes and the title names only one, so the HINT carries the other and must keep leading with "Keep a copy") — file/clipboard plumbing and the confirmations before a restore. Owns no rule: every decision comes from `paycalc-transfer.js`.

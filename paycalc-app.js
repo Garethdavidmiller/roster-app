@@ -949,7 +949,9 @@ export function init() {
       // breakdown line below.
       const _slPaidOffP = slPaidOff ? getPeriods().find(/** @param {any} x */ x => x.num === _slPaidOffFromP) : null;
       const slLines = (slPaidOff && _anyLoan)
-        ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — repaid in full (no deduction from your ${_slPaidOffP ? fdShort(_slPaidOffP.payday) + ' payslip' : 'chosen payslip'} onwards)</span><span class="val">£0.00</span></div>`
+        // NOT "repaid in full" — the same wording fix as the Settings label (v19.27). The member may
+        // have moved to direct debit with a balance outstanding, which is the SLC's normal endgame.
+        ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — not deducted from your ${_slPaidOffP ? fdShort(_slPaidOffP.payday) + ' payslip' : 'chosen payslip'} onwards</span><span class="val">£0.00</span></div>`
         : (slSkip && _anyLoan)
         ? `<div class="sum-row sum-sl-zero"><span class="lbl">Student Loan — marked as not deducted this period</span><span class="val">£0.00</span></div>`
         : _slLine('Student Loan', slUnder, plan !== 'none', _slPlanLabel, _slThreshold,
