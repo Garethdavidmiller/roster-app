@@ -2,6 +2,7 @@
 // into per-area files (v17.46) so every spec draws from one source. Imported by
 // calendar.spec.js, auth.spec.js, paycalc.spec.js, pages.spec.js, responsive.spec.js.
 
+import { expect } from '@playwright/test';
 import { enforceNamedSession } from './fixtures.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
@@ -83,4 +84,82 @@ export async function signInThroughOverlay(page, fullName) {
     const pw = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
     await page.locator('#loginPassword').fill(pw);
     await page.locator('#loginSubmit').click();
+}
+
+
+// ── Roster review table ───────────────────────────────────────────────────────────────────────
+// The review table only exists after a successful PDF parse, so reaching it means stubbing the
+// Cloud Function and driving the real upload flow. Defined ONCE here because two suites need it:
+// the opt-in visual baseline (composition) and the CI-gated smoke test (wiring). A copy in each
+// would drift, and the fixture is the part that has to stay honest.
+//
+// The week is chosen so the flagged rows land on days G. Miller WORKS: on a base rest day both
+// candidate readings normalise to RD, the picker is correctly not offered, and a test written
+// against a rest day would silently cover nothing.
+export const ROSTER_REVIEW_DATES = [
+    '2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08',
+];
+
+/** Rows produced: 3 × DIFF, 1 × CONFLICT (seeded below), 1 flagged-garbled, 2 flagged-with-readings. */
+export const ROSTER_REVIEW_PARSE = {
+    weekEnding: '2026-08-08',
+    rosterType: 'cea',
+    dates: ROSTER_REVIEW_DATES,
+    crossCheck: 'partial',
+    missingMembers: [],
+    choices: {
+        'G. Miller|2026-08-06': ['RDW|14:30-22:00', 'SICK'],
+        'G. Miller|2026-08-07': ['AL', 'RD'],
+    },
+    parsed: [{
+        memberName: 'G. Miller',
+        shifts: {
+            '2026-08-02': 'RD',
+            '2026-08-03': '06:00-14:00',
+            '2026-08-04': '13:00-21:00',
+            '2026-08-05': 'UNKNOWN|XZ9 GARBLED',
+            '2026-08-06': 'UNKNOWN|RDW 14:30-22:00 or Absent? (PDF unclear)',
+            '2026-08-07': 'UNKNOWN|AL or Rest day? (PDF unclear)',
+            '2026-08-08': 'AL',
+        },
+    }],
+};
+
+/**
+ * Drive the real Operations roster upload to a rendered review table. The caller seeds the session
+ * (and viewport/clock) first; this does the navigation.
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<{ wasParseCalled: () => boolean }>}
+ */
+export async function openRosterReview(page) {
+    // A seeded MANUAL override on the Tuesday gives the CONFLICT row something to conflict with.
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [{
+            id: 'm1', memberName: 'G. Miller', date: '2026-08-04',
+            value: '23:00-06:00', type: 'shift', source: 'manual',
+        }];
+    });
+    let called = false;
+    await page.route('**/parseRosterPDF*', route => {
+        called = true;
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ROSTER_REVIEW_PARSE) });
+    });
+
+    await page.goto('/operations.html');
+    await expect(page.locator('#rosterUploadCard')).toBeVisible();
+    await page.evaluate(() => {
+        const b = document.getElementById('rosterUploadBody');
+        if (b && !b.classList.contains('open')) document.getElementById('rosterUploadToggleHeader')?.click();
+    });
+    await page.locator('#rosterWeekEnding').evaluate(el => {
+        /** @type {any} */ (el).value = '2026-08-08';
+        el.dispatchEvent(new Event('input',  { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await page.setInputFiles('#rosterFileInput',
+        { name: 'roster.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+    await page.locator('#rosterParseBtn').click();
+    await expect(page.locator('.roster-change-row').first()).toBeVisible({ timeout: 15000 });
+    return { wasParseCalled: () => called };
 }

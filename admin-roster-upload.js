@@ -212,6 +212,47 @@ export async function fetchOverridesForWeek(dates) {
 }
 
 /**
+ * Normalise one parsed cell value into the pair the review table compares and saves.
+ *
+ * Extracted from computeCellStates (v19.32) because a SECOND consumer arrived: an unreadable cell
+ * where the two AI reads disagreed now offers both readings as a pick, and a picked value has to
+ * pass exactly the same guards a parsed one does. Two copies of these rules would eventually let a
+ * pick write a Sunday AL — the one thing the Sunday layer exists to prevent.
+ *
+ * Both guards are deliberate and documented elsewhere:
+ *  · SUNDAY (CLAUDE.md): Sundays are non-contracted for every grade, so a PDF marking one as AL,
+ *    Absent, or an Other-family day is invalid — it becomes RD, matches the rest-day base, and is
+ *    never written. A worked Sunday TIME is untouched (it becomes RDW downstream).
+ *  · BASE REST DAY (v16.19, owner Jul 2026): full-pay absence and AL apply only to days the member
+ *    was rostered to WORK. This is the overpay guard for blanket Mon–Fri "OD" markings, and it stops
+ *    a week-long "AL" scrawled across the paper roster consuming entitlement for the rest days
+ *    inside it. The manual AL path already excludes rest days; this closes the import asymmetry.
+ *
+ * `display` keeps the "RDW|" marker while `value` is stripped: the stripped form compares correctly
+ * against stored plain-time docs (so re-imports don't churn), while the marked form is what gets
+ * SAVED — without it a weekday rest-day-worked import writes {type:'shift'} and the overtime is lost
+ * from both the calendar badge and paycalc's RDW pre-fill (v16.23).
+ *
+ * @param {string} rawShift  parsed value, possibly "RDW|HH:MM-HH:MM"
+ * @param {string} baseShift the member's base roster value for that date
+ * @param {string} date      "YYYY-MM-DD"
+ * @returns {{ value: string, display: string }}
+ */
+export function normaliseCellValue(rawShift, baseShift, date) {
+    const parsedValue = isRdwEncoded(rawShift) ? stripRdw(rawShift) : rawShift;
+    const isSun       = isSunday(date);
+    const sundaySafe  = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK' || isOtherValue(parsedValue)))
+        ? 'RD' : parsedValue;
+    const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
+    const restSafe = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
+        ? 'RD' : sundaySafe;
+    return {
+        value:   normRest(restSafe),
+        display: (isRdwEncoded(rawShift) && restSafe !== 'RD') ? `${RDW_PREFIX}${restSafe}` : restSafe,
+    };
+}
+
+/**
  * Compute the state of every (member, date) cell in the review table.
  *
  * Returns a Map keyed by "memberName|date" with values:
@@ -230,6 +271,9 @@ export async function fetchOverridesForWeek(dates) {
  */
 export function computeCellStates(parsedResult, existingOverrides) {
     const states = new Map();
+    // Candidate readings for cells the server's cross-check flagged (v19.32). Absent on an older
+    // function response — the rows then behave exactly as before (skip-only).
+    const choices = parsedResult.choices;
 
     // Build a quick lookup: "memberName|date" → best override doc.
     // Use shouldReplaceOverride so manual entries always beat roster imports,
@@ -265,12 +309,27 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // NEVER write the sentinel: chosen stays null and the save path only writes DIFF/CONFLICT.
             // The admin fixes the source PDF and re-uploads, or records the shift manually.
             if (isUnknownEncoded(parsedShift)) {
+                // …EXCEPT when the server told us which two readings disagreed (v19.32). Then the row
+                // can offer them as a pick instead of being a dead end that sends the admin off to
+                // Change a Shift. Each candidate is put through the SAME normalisation an ordinary
+                // parsed value gets (Sunday AL/absence → RD, absence-or-AL on a base rest day → RD,
+                // the RDW| display marker) — picking must not be a way to write a value the guards
+                // would have rejected on the parsed path. `chosen` stays null = skip, so the DEFAULT
+                // is still "write nothing"; a pick is always a deliberate act.
+                const cand = choices?.[key];
+                const opts = Array.isArray(cand)
+                    ? cand.map(v => normaliseCellValue(v, baseShift, date))
+                          // A pair that normalises to the same thing is not a question worth asking
+                          // (e.g. AL vs RD on a Sunday — both become RD).
+                          .filter((o, i, all) => all.findIndex(x => x.value === o.value) === i)
+                    : [];
                 states.set(key, {
                     state: 'UNREADABLE',
                     parsedShift, baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
                     chosen:      null,
+                    options:     opts.length > 1 ? opts : null,
                 });
                 continue;
             }
@@ -280,46 +339,14 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 ? (existing.source !== 'roster_import')   // no source field → treat as manual
                 : false;
 
-            // Normalise parsedShift for comparisons — strip the "RDW|" encoding so
-            // "RDW|14:30-22:00" compares correctly against a stored value "14:30-22:00"
-            const parsedValue = isRdwEncoded(parsedShift) ? stripRdw(parsedShift) : parsedShift;
-
-            // Sundays are non-contracted for all grades — a PDF marking a Sunday as
-            // AL, Absent (SICK), or an Other-family day is invalid. Treat it as RD so it matches
-            // the rest-day base, classifies as MATCH, and is never written as a Sunday
-            // AL/absence/Other override. (Worked Sunday times remain RDW — handled below.)
-            const isSun      = isSunday(date);
-            const sundaySafe = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK' || isOtherValue(parsedValue)))
-                ? 'RD' : parsedValue;
-
-            // Bilingual roster uses 'OFF' for rest days; AI always returns 'RD'.
-            // Treat them as identical for all comparison purposes.
+            // Per-cell normalisation — the Sunday + base-rest-day guards, and the RDW| display
+            // marker. Extracted to normaliseCellValue (v19.32) so the review table's new "pick a
+            // reading" control puts a CHOSEN value through the identical guards; a second copy is
+            // how a picked Sunday AL would quietly become writable when the parsed path forbids it.
+            const { value: normParsed, display: displayValue } = normaliseCellValue(parsedShift, baseShift, date);
             const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
-            // Absence on a BASE REST DAY normalises to RD (owner, Jul 2026): full-pay absence
-            // only applies to days the member was rostered to work. This is the overpay guard
-            // for blanket Mon–Fri "OD" markings on long-term sick members — rest days inside
-            // the blanket classify MATCH (never written), and a STALE imported absence on a
-            // rest day becomes REMOVE_IMPORT on re-upload (deleted, nothing written).
-            // AL added alongside SICK (v16.19): a blanket week-long "AL" written across the
-            // paper roster (incl. the RD) must not consume an AL-entitlement day for a rest
-            // day. The manual AL path already excludes rest days (isWorkingDate); this closes
-            // the import-vs-manual asymmetry that left AL on a base rest day unguarded.
-            const restSafe   = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
-                ? 'RD' : sundaySafe;
-            const normParsed = normRest(restSafe);
-            const normBase   = normRest(baseShift);
-
-            // The DISPLAY/SAVE value must keep the "RDW|" marker (restSafe/normParsed stay
-            // STRIPPED for COVERED/DIFF comparison against stored plain-time docs — so this
-            // adds no re-import churn). Without this, a weekday rest-day-worked import saved
-            // the bare time "14:30-22:00" → shiftValueToOverrideType returned 'shift' (not
-            // 'rdw', since `isTime && isSun` is false on a weekday) → the RDW overtime was
-            // dropped from the calendar badge AND from paycalc's roster-assist RDW pre-fill
-            // (pay under-fill). Re-attaching RDW| makes the save write {type:'rdw'} and the
-            // review row render the 💼 RDW badge. (Sunday RDW was already promoted by
-            // shiftValueToOverrideType's isSun branch, so this only corrects weekdays.)
-            const displayValue = (isRdwEncoded(parsedShift) && restSafe !== 'RD')
-                ? `${RDW_PREFIX}${restSafe}` : restSafe;
+            const normBase = normRest(baseShift);
+            const isSun    = isSunday(date);   // still needed by the RDW-parity check below
 
             let state;
             // RDW-ness of the existing override vs the incoming value must MATCH for a timed
@@ -632,6 +659,13 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // (a fresh base-matching override would be redundant and mask future base changes).
                 toWrite.push({ memberName, date, value: null, baseShift: state.baseShift, replaceId: state.manualId, deleteOnly: true });
             }
+            if (state.state === 'UNREADABLE' && typeof state.chosen === 'number' && state.options?.[state.chosen]) {
+                // The admin resolved a two-way "couldn't read" by picking one of the two readings
+                // (v19.32). Writes the option's DISPLAY value — already through normaliseCellValue,
+                // so it carries the same Sunday / base-rest-day guards and the RDW| marker as any
+                // parsed value. Untouched rows keep chosen === null and are still never written.
+                toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId });
+            }
             if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
                 // Admin chose PDF over the existing manual entry — replace it, don't leave both
                 // docs for the same date. Write the row's DISPLAYED (normalised) value: a raw
@@ -741,7 +775,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 if      (st.state === 'DIFF')          { if (st.chosen !== false) updates++; }
                 else if (st.state === 'REMOVE_IMPORT') { if (st.chosen !== false) clears++; }
                 else if (st.state === 'CONFLICT')      { conflictsTotal++; if (st.chosen === 'pdf') { conflictsSwitched++; updates++; } }
-                else if (st.state === 'UNREADABLE')    { unreadable++; }
+                else if (st.state === 'UNREADABLE')    {
+                    // A resolved one is an update, not an outstanding "couldn't read" — otherwise the
+                    // banner keeps reporting a problem the admin has just fixed.
+                    if (typeof st.chosen === 'number' && st.options?.[st.chosen]) updates++;
+                    else unreadable++;
+                }
             }
             const writes = updates + clears;
             applyBtn.disabled    = writes === 0;
@@ -883,6 +922,27 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <span class="roster-remove-note">no longer on the roster</span>
                         </div>
                         <span class="roster-act act-clear">Clear old</span>`;
+                } else if (s.state === 'UNREADABLE' && s.options) {
+                    // The two reads disagreed and we know BOTH readings — offer them rather than a
+                    // dead end (owner, Jul 2026: "there is no way to choose the correct option from
+                    // the results screen"). Same control as a CONFLICT row, with one difference that
+                    // matters: there is no safe default here, so it starts on NEITHER. `chosen` stays
+                    // null until the admin picks, and null still writes nothing — the pre-v19.32
+                    // behaviour is exactly what you get by leaving it alone.
+                    const picked = typeof s.chosen === 'number' ? s.chosen : -1;
+                    if (picked < 0) row.classList.add('roster-change-unreadable');
+                    row.innerHTML = `
+                        <div class="roster-choicebox">
+                            <div class="roster-cb-day">
+                                <span class="roster-day-abbr">${dayName}</span>
+                                <span class="roster-day-date">${dateStr}</span>
+                                <span class="roster-act act-choice">${picked < 0 ? "Couldn't read" : 'Your choice'}</span>
+                            </div>
+                            <div class="roster-pick" role="group" aria-label="Choose the correct value">
+                                ${s.options.map(/** @param {any} o @param {number} i */ (o, i) => `<button type="button" class="roster-choice-btn ${picked === i ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="${i}" aria-pressed="${picked === i}">${shiftDisplay(o.display, date)}</button>`).join('')}
+                                <button type="button" class="roster-choice-btn roster-choice-btn--skip ${picked < 0 ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="skip" aria-pressed="${picked < 0}">Skip</button>
+                            </div>
+                        </div>`;
                 } else if (s.state === 'UNREADABLE') {
                     // Skip-only: the PDF cell couldn't be parsed. No tick and no write — just surfaces
                     // the unreadable value so it isn't silently lost. The admin fixes the PDF and
@@ -1004,6 +1064,26 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (choiceBtn) {
                 const s = cellStates.get(choiceBtn.dataset.key ?? '');
                 if (!s) return;
+
+                // UNREADABLE rows use the same control with `data-opt` (an index, or 'skip') rather
+                // than `data-pick` — a picked reading, or back to writing nothing.
+                if (choiceBtn.dataset.opt !== undefined) {
+                    const raw = choiceBtn.dataset.opt;
+                    s.chosen = raw === 'skip' ? null : Number(raw);
+                    const box = /** @type {any} */ (choiceBtn.closest('.roster-pick'));
+                    box.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
+                        const on = b.dataset.opt === raw;
+                        b.classList.toggle('is-chosen', on);
+                        b.setAttribute('aria-pressed', String(on));
+                    });
+                    const rowEl = /** @type {any} */ (choiceBtn.closest('.roster-change-row'));
+                    rowEl.classList.toggle('roster-change-unreadable', s.chosen === null);
+                    const act = rowEl.querySelector('.act-choice');
+                    if (act) act.textContent = s.chosen === null ? "Couldn't read" : 'Your choice';
+                    refreshOutcome();
+                    return;
+                }
+
                 s.chosen = choiceBtn.dataset.pick;
                 const usesPDF = s.chosen === 'pdf';
                 /** @type {any} */ (choiceBtn.closest('.roster-pick')).querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {

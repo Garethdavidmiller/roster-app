@@ -1114,6 +1114,28 @@ describe('applyColumnScanCrossCheck', () => {
         assert.ok(entries[0].shifts[DATES[0]].startsWith('UNKNOWN|'), 'Sunday absence must not be recorded');
     });
 
+    test('a flagged cell records BOTH candidate values, so the review table can offer a pick', () => {
+        // The prose message names both readings; these are the same two as VALUES. Without them the
+        // review row is a dead end — it shows the ambiguity and the admin has to leave the upload and
+        // record the day by hand in Change a Shift (owner report, Jul 2026).
+        const row  = ['RD', 'AL', 'RD', 'RD', '08:00-16:00', 'RD', 'RD'];
+        const scan = ['blank', 'blank', 'blank', 'blank', '08:00-16:00', 'blank', 'blank'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        const st = applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.ok(entries[0].shifts[DATES[1]].startsWith('UNKNOWN|'), 'still flagged, still never auto-written');
+        assert.deepEqual(st.choices[`G. Miller|${DATES[1]}`], ['AL', 'RD'],
+            'row read first, column scan second — the same order the message names them');
+    });
+
+    test('an auto-RESOLVED disagreement offers no choice (there is nothing left to ask)', () => {
+        const row  = ['RD', 'SICK', 'RD', 'RD', '08:00-16:00', 'RD', 'RD'];
+        const scan = ['blank', 'blank', 'blank', 'blank', '08:00-16:00', 'blank', 'blank'];
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        const st = applyColumnScanCrossCheck(entries, scanOf(scan), HEADERS, DATES);
+        assert.equal(entries[0].shifts[DATES[1]], 'SICK', 'Rest↔Absent still resolves to the absence');
+        assert.deepEqual({ ...st.choices }, {}, 'resolved cells must not also appear as an open question');
+    });
+
     test('the "couldn\'t read" message uses app language (Absent), never the internal SICK value', () => {
         // A SICK-vs-AL disagreement is NOT rest↔absence, so it still flags — but the message must
         // say "Absent", not "SICK" (staff-facing wording rule).
@@ -1194,13 +1216,20 @@ describe('applyColumnScanCrossCheck coverage stats', () => {
 
     test('missing columnScan → { checked: 0 } (the fail-open the review UI must surface)', () => {
         const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(ROW) }];
-        assert.deepEqual(applyColumnScanCrossCheck(entries, undefined, HEADERS, DATES), { checked: 0, total: 1 });
+        const st = applyColumnScanCrossCheck(entries, undefined, HEADERS, DATES);
+        assert.equal(st.checked, 0);
+        assert.equal(st.total, 1);
+        // No scan ⇒ no disagreements ⇒ nothing for the review table to offer as a pick.
+        assert.deepEqual({ ...st.choices }, {});
     });
 
     test('full scan coverage → checked === total', () => {
         const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(ROW) }];
         const scan = Object.fromEntries(HEADERS.map((h, i) => [h, { 'G. Miller': ROW[i] === 'RD' ? 'blank' : ROW[i] }]));
-        assert.deepEqual(applyColumnScanCrossCheck(entries, scan, HEADERS, DATES), { checked: 1, total: 1 });
+        const st = applyColumnScanCrossCheck(entries, scan, HEADERS, DATES);
+        assert.equal(st.checked, 1);
+        assert.equal(st.total, 1);
+        assert.deepEqual({ ...st.choices }, {}, 'the two reads agree everywhere — nothing to resolve');
     });
 
     test('a member with <5 signalled days does not count as checked (partial)', () => {
@@ -1214,7 +1243,9 @@ describe('applyColumnScanCrossCheck coverage stats', () => {
             if (h === 'Mon' || h === 'Thu') col['L. Springer'] = ROW[i];
             return [h, col];
         }));
-        assert.deepEqual(applyColumnScanCrossCheck(entries, scan, HEADERS, DATES), { checked: 1, total: 2 });
+        const st = applyColumnScanCrossCheck(entries, scan, HEADERS, DATES);
+        assert.equal(st.checked, 1);
+        assert.equal(st.total, 2);
     });
 });
 

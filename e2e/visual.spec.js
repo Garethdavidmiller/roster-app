@@ -24,7 +24,7 @@
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
 import { test, expect } from './fixtures.js';
-import { seedSession, seedMember } from './helpers.js';
+import { seedSession, seedMember, openRosterReview } from './helpers.js';
 
 // A Wednesday inside G. Miller's rendered roster window — gives a stable "Today" cell and a
 // deterministic pay period without depending on the wall clock the suite runs on.
@@ -174,6 +174,62 @@ test('operations — Usage card, populated (desktop 1280)', async ({ page }) => 
     await expect(card.locator('.usage-origins .usage-bar-row')).toHaveCount(3);
     await page.waitForTimeout(400);          // collapse transition + bar widths settle
     await expect(card).toHaveScreenshot('operations-usage-card.png');
+});
+
+// ── Operations roster review table ────────────────────────────────────────────────────────────
+// The most state-dense surface in the app, and the LAST one with no pixel coverage — because it
+// only exists after a successful PDF parse, so no plain page load can reach it. That gap is not
+// theoretical: THREE UI defects in this table reached the owner rather than a screenshot diff
+// (v19.32–33 — a Skip button wearing the success green while meaning "write nothing", the same
+// button stretching full-width when the group wrapped, and a prose line duplicating the buttons
+// beneath it). All three were found by hand-rendering it. This makes that permanent.
+//
+// One capture, every row state the table can produce:
+//   Sun/Mon/Sat — DIFF (ticked, will save)      Wed — flagged, GARBLED (no readings → skip-only)
+//   Tue — CONFLICT (a seeded manual override)   Thu — flagged with two readings, UNRESOLVED
+//                                               Fri — flagged with two readings, RESOLVED
+// Thu and Fri are deliberately days G. Miller WORKS: on a base rest day both readings normalise to
+// RD and the picker is (correctly) not offered, so a rest day would capture the wrong thing.
+test('operations — roster review table, every row state (mobile 390)', async ({ page }) => {
+    await prep(page, { width: 390, height: 1500 });
+    const { wasParseCalled } = await openRosterReview(page);
+
+    // Resolve the Friday row, so the capture holds a RESOLVED pick beside an unresolved one — the
+    // chosen/unchosen button treatment is exactly what was wrong twice.
+    await page.locator('.roster-change-row .roster-choice-btn[data-opt="0"]').last().click();
+
+    // SENTINELS — without these the capture could silently be of a table that rendered but lost the
+    // feature. The stub reaching the app is not enough: if `choices` ever stops arriving, the rows
+    // still render (as plain skip-only) and the next re-baseline would lock in a green test that had
+    // quietly stopped covering the picker at all — the failure mode the Usage-card fixture documents.
+    expect(wasParseCalled(), 'the parse stub never fired — the function URL probably changed').toBe(true);
+    await expect(page.locator('.roster-change-row')).toHaveCount(7);
+    await expect(page.locator('.roster-pick')).toHaveCount(3);          // 1 conflict + 2 flagged
+    await expect(page.locator('.roster-choice-btn[data-opt="0"].is-chosen')).toHaveCount(1);
+
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(300);          // let the button background transition settle
+
+    // A COLOUR contract this baseline provably cannot hold, so it is asserted directly. Deleting the
+    // neutral-Skip rule (the v19.32 defect: Skip wearing the "this will be saved" green while meaning
+    // write nothing) does NOT fail the screenshot — verified, not assumed. `--text-mid` sits at L45%
+    // and `--success-green` at L48.5%, and pixelmatch's per-pixel delta is luminance-dominated, so a
+    // hue-only swap at near-equal lightness falls under the 0.15 threshold that exists to absorb
+    // anti-aliasing shimmer. Lowering that threshold to catch one rule would trade a real flake risk
+    // across all 16 baselines; reading the computed colour costs nothing and says what is meant.
+    // The lesson generalises: a visual baseline covers LAYOUT, not semantics.
+    //
+    // MUST run after the wait above. Read mid-transition (`transition: background var(--dur-med)`),
+    // the two settle to the SAME green but serialise differently — `oklch(...)` vs an interpolated
+    // `oklab(...)` — so a string compare called them different and the assertion passed with the rule
+    // deleted. A false pass, found only by printing both values.
+    const [skipBg, valueBg] = await page.evaluate(() => [
+        getComputedStyle(/** @type {Element} */ (document.querySelector('.roster-choice-btn--skip.is-chosen'))).backgroundColor,
+        getComputedStyle(/** @type {Element} */ (document.querySelector('.roster-choice-btn[data-opt="0"].is-chosen'))).backgroundColor,
+    ]);
+    expect(skipBg, 'Skip must not wear the colour that means "this will be saved"').not.toBe(valueBg);
+
+    await expect(page.locator('#rosterReviewSection')).toHaveScreenshot('operations-roster-review.png');
 });
 
 // ── Guide pages (static, auth-free) ────────────────────────────────────────────────────────
