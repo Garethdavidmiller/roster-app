@@ -938,10 +938,6 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                                 <span class="roster-day-date">${dateStr}</span>
                                 <span class="roster-act act-choice">${picked < 0 ? "Couldn't read" : 'Your choice'}</span>
                             </div>
-                            <div class="roster-cb-opt">
-                                <span class="roster-cb-lab">On the roster</span>
-                                <span class="roster-cv-manual">${esc(stripUnknown(s.parsedShift))}</span>
-                            </div>
                             <div class="roster-pick" role="group" aria-label="Choose the correct value">
                                 ${s.options.map(/** @param {any} o @param {number} i */ (o, i) => `<button type="button" class="roster-choice-btn ${picked === i ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="${i}" aria-pressed="${picked === i}">${shiftDisplay(o.display, date)}</button>`).join('')}
                                 <button type="button" class="roster-choice-btn roster-choice-btn--skip ${picked < 0 ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="skip" aria-pressed="${picked < 0}">Skip</button>
