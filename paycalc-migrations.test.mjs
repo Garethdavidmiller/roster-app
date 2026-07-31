@@ -95,7 +95,6 @@ describe('per-member namespace ownership', () => {
             'myb_pc_p43':             '{"std":140}',
             'myb_pc_setup_2025_26':   '1',
             'myb_pc_snap_43':         'a,b,c',
-            'myb_pc_pay_welcome_shown': '1',   // device-level — must stay
             'myb_pc_ytd_notice_shown':  '1',   // device-level — must stay
             'myb_pc_cea_migrated':      '1',
             'myb_pc_pension_v882_migrated': '1',
@@ -121,7 +120,7 @@ describe('per-member namespace ownership', () => {
 
     test('hasPendingLegacyMigration: false on a clean device (only device-level keys)', () => {
         global.localStorage = makeLocalStorage({
-            'myb_pc_pay_welcome_shown': '1',
+            'myb_pc_ytd_notice_shown': '1',
             'myb_pc_cea_migrated': '1',
         });
         assert.equal(hasPendingLegacyMigration('G. Miller'), false);
@@ -136,8 +135,8 @@ describe('per-member namespace ownership', () => {
         assert.equal(ls.getItem('myb_pc_gmiller_p43'), '{"std":140}');
         assert.equal(ls.getItem('myb_pc_gmiller_snap_43'), 'a,b,c');
         assert.equal(ls.getItem('myb_pc_rate'), null);                  // shared original removed
-        assert.equal(ls.getItem('myb_pc_pay_welcome_shown'), '1');      // device-level kept
-        assert.equal(ls.getItem('myb_pc_gmiller_pay_welcome_shown'), null); // not namespaced
+        assert.equal(ls.getItem('myb_pc_ytd_notice_shown'), '1');       // device-level kept
+        assert.equal(ls.getItem('myb_pc_gmiller_ytd_notice_shown'), null); // not namespaced
         assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');            // guard set
         assert.equal(hasPendingLegacyMigration('G. Miller'), false);
     });
@@ -150,7 +149,7 @@ describe('per-member namespace ownership', () => {
         assert.equal(ls.getItem('myb_pc_p43'), null);
         assert.equal(ls.getItem('myb_pc_snap_43'), null);
         assert.equal(ls.getItem('myb_pc_gmiller_rate'), null);          // not moved either
-        assert.equal(ls.getItem('myb_pc_pay_welcome_shown'), '1');      // device-level kept
+        assert.equal(ls.getItem('myb_pc_ytd_notice_shown'), '1');       // device-level kept
         assert.equal(ls.getItem('myb_pc_ns_migrated'), '1');            // guard set
         assert.equal(hasPendingLegacyMigration('G. Miller'), false);
     });

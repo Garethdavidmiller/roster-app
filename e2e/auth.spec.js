@@ -120,7 +120,6 @@ test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redire
     await armEnforcementWithFailingSignIn(page);
     // Suppress the one-time notices so nothing overlays the calculator.
     await page.addInitScript(() => {
-        localStorage.setItem('myb_pc_pay_welcome_shown', '1');
         localStorage.setItem('myb_pc_ytd_notice_shown', '1');
         localStorage.setItem('myb_pc_ns_migrated', '1');
     });
@@ -196,7 +195,6 @@ test('in-place sign-in: paycalc initialises (period selector built) without a re
     await enableInplaceLogin(page);
     // Suppress the one-time notices so nothing overlays the calculator after sign-in.
     await page.addInitScript(() => {
-        localStorage.setItem('myb_pc_pay_welcome_shown', '1');
         localStorage.setItem('myb_pc_ytd_notice_shown', '1');
         localStorage.setItem('myb_pc_ns_migrated', '1');
     });

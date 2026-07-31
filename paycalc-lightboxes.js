@@ -15,15 +15,9 @@ import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { lsGet, lsSet } from './ls.js';
 import { decimalToHM } from './paycalc-format.js';
-import { GRADES } from './paycalc-calc.js';
-import { SK, NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
+import { NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
          readPayslipActuals, writePayslipActuals, clearPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { getLoggedMember } from './paycalc-settings.js';
-
-// Shared seen-flag key — used by the welcome lightbox and the YTD notice (which
-// only shows after welcome has been dismissed). Defined at module level so both
-// IIFEs read the same string without risk of divergence.
-const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
 
 /**
  * Initialise all paycalc lightboxes and the decimal hours converter.
@@ -35,10 +29,10 @@ export function initPaycalcLightboxes() {
   // One-time notices must not stack — overlay.js manages a single active overlay
   // (history entry + focus trap), so two open at once fight over Back/Escape/Tab.
   // The data-ownership prompt is highest priority (it guards another member's pay
-  // data and forces a reload on resolution), so when it's pending we suppress the
-  // welcome and YTD notices this load; they reappear next load once it's resolved.
-  // (welcome and YTD are already mutually exclusive — YTD only shows after welcome
-  // has been dismissed — so this guard is the only coordination needed.)
+  // data and forces a reload on resolution), so when it's pending the YTD notice is suppressed
+  // this load and reappears next load once it's resolved. The welcome lightbox and the
+  // password-2026 notice that used to queue behind it were retired at v19.36 — the YTD notice is
+  // the only one left, so this guard now has a single subject.
   const _ownerPending = hasPendingLegacyMigration(getLoggedMember()?.name);
 
   // ── ABOUT LIGHTBOX ──────────────────────────────────────────────────────────
@@ -93,37 +87,12 @@ export function initPaycalcLightboxes() {
     });
   })();
 
-  // ── WELCOME LIGHTBOX ────────────────────────────────────────────────────────
-  // Shown once, on the very first visit to the pay calculator.
-  (function () {
-    const lb = document.getElementById('welcomeLightbox');
-    if (!lb) return;
-
-    const welcome = createLightbox({
-      overlay:  lb,
-      content:  /** @type {Element|undefined} */ (document.getElementById('welcomeLightboxContent') ?? undefined),
-      closeBtn: /** @type {Element|undefined} */ (document.getElementById('welcomeLightboxClose') ?? undefined),
-      onOpen() {
-        const badge = document.getElementById('welcomeGradeBadge');
-        if (badge) {
-          const g = lsGet(SK.grade);
-          badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA & CES') + ' grade';
-        }
-      },
-      onClose: () => lsSet(WELCOME_KEY, '1'),
-    });
-
-    lb.querySelector('.welcome-guide-link')?.addEventListener('click', () => welcome.close());
-
-    if (!lsGet(WELCOME_KEY) && !_ownerPending) welcome.open();
-  })();
-
   // ── YTD NOTICE ──────────────────────────────────────────────────────────────
-  // Shown once after the welcome lightbox has been dismissed.
+  // Shown once per device. It used to wait for the welcome lightbox; that was retired at v19.36.
   (function () {
     const NOTICE_DATE = '6 Apr 2026';
     if (isNoticeExpired(NOTICE_DATE, 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return; }
-    if (!lsGet(WELCOME_KEY) || lsGet(NOTICE_YTD_KEY)) return;
+    if (lsGet(NOTICE_YTD_KEY)) return;
     if (_ownerPending) return;   // data-ownership prompt takes priority this load
 
     const lb = document.getElementById('noticeYtdLightbox');
@@ -142,40 +111,6 @@ export function initPaycalcLightboxes() {
           body:    'Open the 📊 Year to Date Figures card and copy your Taxable Pay and Tax Paid from the Year to Date box on your most recent payslip, for accurate tax estimates.',
         });
         lsSet(NOTICE_YTD_KEY, '1');
-      },
-    });
-
-    notice.open();
-  })();
-
-  // ── PASSWORD SECURITY NOTICE ────────────────────────────────────────────────
-  // One-time nudge (expires 8 Aug 2026 = posted 23 Jul + 16 days) telling staff they can now set
-  // their own password in Settings → Password. Close-only: shown ONCE per device, then the done-key
-  // sticks; expiry silently dismisses it on a device that first visits after 8 Aug. Gated behind the
-  // welcome AND the YTD notice so at most one lightbox opens per load (no stacking).
-  (function () {
-    const NOTICE_DATE = '23 Jul 2026';
-    const NOTICE_KEY  = 'myb_notice_password-2026_done';
-    if (isNoticeExpired(NOTICE_DATE, 16) && !lsGet(NOTICE_KEY)) { lsSet(NOTICE_KEY, '1'); return; }
-    if (!lsGet(WELCOME_KEY) || !lsGet(NOTICE_YTD_KEY) || lsGet(NOTICE_KEY)) return;
-    if (_ownerPending) return;   // data-ownership prompt takes priority this load
-
-    const lb = document.getElementById('noticePwLightbox');
-    if (!lb) return;
-
-    const notice = createLightbox({
-      overlay:  lb,
-      content:  /** @type {Element|undefined} */ (document.getElementById('noticePwContent') ?? undefined),
-      closeBtn: /** @type {Element|undefined} */ (document.getElementById('noticePwClose') ?? undefined),
-      onClose: () => {
-        archiveNotice({
-          id:      'password-2026',
-          title:   'Set your own password',
-          section: 'Pay',
-          date:    NOTICE_DATE,
-          body:    'You can now set your own password in Settings → Password, replacing your surname default with something only you know.',
-        });
-        lsSet(NOTICE_KEY, '1');
       },
     });
 

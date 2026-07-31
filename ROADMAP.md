@@ -535,27 +535,56 @@ step-by-step upgrade checklist live in **KNOWN_LIMITATIONS.md**.
 
 ## Open decisions
 
-**Pay-data transfer notice — DEFERRED to after 8 Aug 2026 (owner decision, 30 Jul).** Staff will not
-discover the "💾 Move Your Pay Data" card on paycalc by themselves, and the guides only reach people who
-open them, so a one-time notice (`/new-notice`) is the only surface that reaches them unprompted.
+**Pay-data transfer notice — DISMISSED as drafted (owner decision, 31 Jul 2026).** A one-time notice
+(`/new-notice`) pointing staff at the "💾 Move Your Pay Data" card was drafted and rejected in that form.
+It is recorded here as a decision, not as work still queued — nothing is waiting on 8 Aug any more.
 
-**Why it waits, and why waiting is safe.** The `password-2026` notice is already running on BOTH the
-calendar and paycalc until 8 Aug, and a second notice inside the same week is noise — the app deliberately
-runs at most one campaign at a time. Deferring costs nothing because **nobody loses pay data by waiting**:
-the GitHub Pages mirror keeps working, and the only way figures are lost is switching address and expecting
-them to follow. There is no deadline on the notice itself.
+**Do not simply re-raise it.** The deferral reason that used to sit here (the `password-2026` campaign
+running until 8 Aug) is gone — that notice was retired early at v19.36 — so "the blocker has cleared" is
+not a reason to write it. If it comes back it needs a different form, not a rescheduled one.
 
-**Waiting also makes it a decision instead of a guess.** The per-address counters started recording at
-v19.23 (Operations → Usage → "🚦 Which address staff are on"), so by 8 Aug there will be ~9 days of data.
-Check the mirror's count FIRST: near zero and a broad notice to ~50 staff is unnecessary — a word to the few
-who remain does it; substantial and the notice is justified and can say something concrete rather than
-generic. Read the mirror count going DOWN, not web.app going up: people appear on the new address the moment
-they visit, but have only moved when they stop appearing on the old one.
+**What remains true, and does not need a notice to stay true:**
+- The card exists on paycalc, with a working deep link (`paycalc.html#payTransferCard`) that opens it
+  expanded, so anything pointing a member at it — a conversation, the guide, a future surface — works today.
+- **Nobody loses pay data by there being no notice.** The GitHub Pages mirror keeps working; figures are
+  lost only by switching address and expecting them to follow. There is no deadline.
+- The per-address counters (Operations → Usage → "🚦 Which address staff are on", v19.23) are the signal for
+  any future decision here. Read the MIRROR count going DOWN, not web.app going up: people appear on the new
+  address the moment they visit, but have only moved when they stop appearing on the old one.
+- The retired notice code is not left behind — `password-2026` was removed outright at v19.36 rather than
+  left to expire, so there is no dead campaign awaiting the 180-day cleanup.
 
-**When writing it:** invoke `/new-notice` (the pattern, badge values and the `archiveNotice` timing rules
-live there), use the actionable CTA+snooze variant pointing at `paycalc.html#payTransferCard`, and add the
-row to CLAUDE.md's "Current notices" table. Note the password notice's HTML/JS stays in the codebase after
-8 Aug — `isNoticeExpired` only stops it SHOWING; the code goes at the 180-day monthly cleanup (~late Jan).
+**Address migration campaign — PLANNED, sequenced AFTER the password plan (owner, 31 Jul 2026).**
+Staff do not generally know the app has two addresses (`myb-roster.web.app` and the
+`garethdavidmiller.github.io/roster-app/` mirror), so moving them across needs a real campaign, not a
+notice. This is the thing the dismissed pay-data notice above was a fragment of — which is part of why a
+fragment on its own was the wrong shape.
+
+**Why AFTER the password plan, concretely.** The forced set-password overlay fires at next sign-in and
+completes itself within 30 days (sessions cap at 30 days absolute / 7 idle). A new address is a NEW ORIGIN,
+so `localStorage` — and therefore the session — does not come with it: everyone who moves is signed out and
+must sign in again there. Migrate first and a member meets an unfamiliar URL, a forced sign-in, and a
+mandatory password overlay in one go; that is the moment someone concludes the app is broken. Doing the
+password work first means the only new thing about the new address is the address.
+
+**Three things the campaign has to handle — all consequences of "new origin", none obvious:**
+1. **Signed out on arrival.** The session is per-origin. Expect the campaign to be, in practice, "sign in
+   again at the new address", so the copy should say so rather than let it be a surprise.
+2. **Pay calculator figures do not follow.** Same cause (`localStorage` is per-origin), and the reason the
+   "💾 Move Your Pay Data" card exists. The campaign must carry this; it is the only genuinely
+   unrecoverable loss, because everything else lives in Firestore and follows the account.
+3. **Notifications double up during the transition.** A push subscription is tied to the service-worker
+   registration, so it is per-origin too — and `fanOutPush` sends to EVERY doc in `pushSubscriptions` with
+   no per-member dedup (verified in `functions/index.js`). A member subscribed on both addresses therefore
+   gets two notifications per Huddle until the old subscription is removed. Decide whether the campaign
+   tells people to turn notifications off on the old install, or whether the duplicates are accepted for
+   the transition window.
+
+**And the hard part: an installed PWA will not move itself.** It keeps launching from its own
+service-worker cache at its own origin, so migrating means delete-and-reinstall from the new address —
+which is exactly the instruction people get wrong. The per-address counters (Operations → Usage) already
+distinguish installed from browser-tab opens, so the size of that problem is measurable before the campaign
+is written, not guessed at afterwards.
 
 **Auth hardening:** A five-stage plan to replace the surname-based password with a custom password backed by verified work email is documented under "Password security improvements" above (Stage 1 shipped v12.68). The staged approach preserves the name-dropdown login UX while progressively adding security. Key risk during rollout: `ensureFirebaseSession` must be reworked before Stage 3 ships — see that entry. See also KNOWN_LIMITATIONS.md → the four v11 security tasks (task #2, Firestore member write isolation, shipped STRICT at v16.29) for related context.
 

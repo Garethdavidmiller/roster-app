@@ -17,7 +17,7 @@ import { auth, authReady, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, clearSession, reconcileExpiredIdentity } from './session.js';
 import { initTeamView } from './calendar-team-view.js';
-import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
+import { initNavPanel } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -853,54 +853,6 @@ initHuddleViewer({ authReady: calendarAuthReady });
 // CIRCULAR / NEWSLETTER VIEWER — opened from a #circular/#newsletter notification deep link
 // ============================================
 initDocViewer({ authReady: calendarAuthReady });
-
-// ============================================
-// ONE-TIME NOTICE — "Set your own password" (calendar surface of the password-2026 campaign)
-// ============================================
-// The SAME campaign as paycalc's noticePwLightbox (paycalc-lightboxes.js): shared dismissal key +
-// archive id, so whichever page shows it first wins and nobody is nagged twice. Added v18.78 for
-// reach — the calendar is the only page every member opens, and the paycalc-only notice reached
-// staff too slowly. Signed-in members only (the notice is about THEIR account; first-run/anonymous
-// visitors have nothing to set). Close-only pattern, matching the paycalc surface.
-(function () {
-    const NOTICE_DATE = '24 Jul 2026';
-    const NOTICE_KEY  = 'myb_notice_password-2026_done';   // SHARED with the paycalc surface
-    // Campaign ends 8 Aug 2026 (16 days from the 23 Jul paycalc post; 15 from this one) — a new
-    // device past that silently self-dismisses, mirroring the paycalc gate.
-    if (isNoticeExpired(NOTICE_DATE, 15) && !lsGet(NOTICE_KEY)) { lsSet(NOTICE_KEY, '1'); return; }
-    if (lsGet(NOTICE_KEY)) return;             // already seen (either surface) or completed
-    if (!getSession()) return;                 // account holders only
-    // A notification tap deep-linking to a document must never be blocked by a notice. Test the
-    // ENTRY hash, not the live one: the viewers above have already stripped it (v18.84). Reading the
-    // live hash made this guard dead, leaving only the 1500ms lb-open check below — which the Huddle
-    // path can lose, because its viewer opens only once the Firestore snapshot arrives (a first
-    // install, evicted IndexedDB or poor signal can exceed 1500ms). The notice then opened first and
-    // the Huddle landed on top of it: two stacked overlays for someone who tapped a notification.
-    if (/^#(huddle|circular|newsletter)/.test(_entryHash)) return;
-
-    const lb = document.getElementById('noticePwCalLightbox');
-    if (!lb) return;
-
-    const notice = createLightbox({
-        overlay:  lb,
-        content:  /** @type {Element|undefined} */ (document.getElementById('noticePwCalContent') ?? undefined),
-        closeBtn: /** @type {Element|undefined} */ (document.getElementById('noticePwCalClose') ?? undefined),
-        onClose: () => {
-            archiveNotice({
-                id:      'password-2026',      // same id as the paycalc surface — archive dedupes
-                title:   'Set your own password',
-                section: 'Calendar',
-                date:    NOTICE_DATE,
-                body:    'You can now set your own password in Settings → Password, replacing your surname default with something only you know.',
-            });
-            lsSet(NOTICE_KEY, '1');
-        },
-    });
-
-    // Delayed open, skipped if another overlay (huddle auto-open, AL lightbox, day detail…) got
-    // there first — the skill's competing-overlay guard. lockBodyScroll sets body.lb-open.
-    setTimeout(() => { if (!document.body.classList.contains('lb-open')) notice.open(); }, 1500);
-})();
 
 
 // calendarAuthReady is declared at the top of the module (just below the imports) — it is consumed

@@ -778,11 +778,6 @@ body.lb-open #stickyTotal { display: none !important; }
     text-wrap: pretty;
 }
 
-/* The welcome dialog's copy runs to 3 lines, past the point where centring works against the reader
-   (every line starts at a different x) — the .notice-body rule. Scoped so the 2-line About note,
-   which sits in a fully centred panel, keeps its alignment. */
-#welcomeLightbox .lightbox-privacy { text-align: left; }
-
 /* Forced set-password overlay (password-force.js, PASSWORD_PLAN.md Phase 2). It reuses the whole
    login-overlay visual family above — only two elements are its own. */
 /* This overlay's subtitle is four lines of PROSE, not the login overlay's one-line "Settings · Sign

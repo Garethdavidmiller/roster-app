@@ -545,8 +545,7 @@ Lightbox and overlay initialisation for `paycalc.html` — extracted from `payca
 - `initPaycalcLightboxes()` — initialises all five overlays; returns `{ openAboutLightbox }` so the nav-panel drawer logo can open the About panel
 - **About panel** — `initAboutLightbox({ appLabel, getUserName })` with header logo wired as back-to-calendar button
 - **Help lightbox** — `HELP_CONTENT`-driven; opened by any `.help-btn[data-help]` button
-- **Welcome lightbox** — first-visit; gated on `WELCOME_KEY = 'myb_pc_pay_welcome_shown'`; populates grade badge on open; closes and sets flag on dismiss
-- **YTD notice** — shown once after welcome has been dismissed; archives via `archiveNotice()` on close; 90-day expiry gate
+- **YTD notice** — shown once per device; archives via `archiveNotice()` on close; 90-day expiry gate (past it since 5 Jul 2026, so currently inert). It used to wait for the welcome lightbox, retired v19.36
 - **Decimal hours converter card** — `initCardCollapse` toggle; converts decimal hours to hr/min text on input
 - Imports: `overlay.js`, `about-lightbox.js`, `paycalc-help.js`, `nav-panel.js`, `ls.js`, `paycalc-calc.js`, `paycalc-migrations.js`, `paycalc-settings.js`
 
