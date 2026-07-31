@@ -423,19 +423,26 @@ async function initUsageCard() {
     }
 }
 
-/** Short labels for the addresses the app is served from. `other` is deliberately vague — it is
- *  localhost and anything not yet named, and naming it precisely would imply we know what it is. */
-/** @type {Record<string, {emoji: string, label: string, note: string}>} */
+/** Short labels for the addresses the app is served from, each with the text that says what it
+ *  actually IS. `other` is deliberately vague — it is localhost and anything not yet named, and
+ *  naming it precisely would imply we know what it is. */
+/** @type {Record<string, {emoji: string, label: string, explain: string}>} */
 // Labels kept SHORT so these rows can share the same label column as every other bar group in the
 // card (38%). The v19.24 fix widened this section to 47% to stop "GitHub Pages mirror" truncating at
 // 390px — which cured the truncation and left the three bar groups no longer lining up with each
-// other, a worse kind of untidy. The full address is in each row's `title`, and the section heading
-// already says these ARE addresses, so the short form loses nothing.
+// other, a worse kind of untidy.
+//
+// v19.29 — but a short label needs its meaning somewhere VISIBLE, and a `title` tooltip is not that.
+// The owner, who owns both addresses, could not tell what the `web.app` row meant: a title needs a
+// hover, and this card is read on a phone, so the one thing explaining these rows was unreachable on
+// the device they are read on. `explain` is now rendered as a KEY under the bars (and still feeds the
+// desktop title, but nothing depends on that). Every row gets a line, `elsewhere` included — it is
+// the least self-explanatory label of the four, so omitting it would leave the same gap in miniature.
 const ORIGIN_META = {
-    web:   { emoji: '\u2705', label: 'web.app', note: 'myb-roster.web.app — the address staff should end up on' },
-    pages: { emoji: '\u{1F4E6}', label: 'GitHub Pages', note: 'garethdavidmiller.github.io — the old address' },
-    fb:    { emoji: '\u{1F517}', label: 'firebaseapp', note: 'myb-roster.firebaseapp.com — the Firebase auth domain' },
-    other: { emoji: '\u2753', label: 'elsewhere', note: 'localhost, or an address not yet named' },
+    web:   { emoji: '\u2705', label: 'web.app', explain: 'myb-roster.web.app' },
+    pages: { emoji: '\u{1F4E6}', label: 'GitHub Pages', explain: 'garethdavidmiller.github.io/roster-app/' },
+    fb:    { emoji: '\u{1F517}', label: 'firebaseapp', explain: 'myb-roster.firebaseapp.com' },
+    other: { emoji: '\u2753', label: 'elsewhere', explain: 'localhost, or an address not recognised' },
 };
 
 /**
@@ -486,7 +493,7 @@ function _appendOriginSection(content, rows) {
         const name = document.createElement('span');
         name.className = 'usage-bar-label';
         name.textContent = `${meta.emoji} ${meta.label}`;
-        name.title = meta.note;
+        name.title = meta.explain;
         // A STACKED bar, not a longer count column. "22 · 17 installed" made this the only group in
         // the card whose count column was wide enough to shorten the tracks, so its bars no longer
         // lined up with the ones above and below. Nesting the installed share inside the accounts
@@ -515,6 +522,24 @@ function _appendOriginSection(content, rows) {
     legend.innerHTML = '<span class="usage-origin-key usage-origin-key--installed"></span> opened from the installed app'
         + '<span class="usage-origin-key usage-origin-key--browser"></span> browser tab';
     sec.appendChild(legend);
+
+    // The KEY (v19.29). Built from the rows actually SHOWN, in bar order, one line each — so it
+    // never names an address nobody is on, and the eye can map each line back onto its bar. A
+    // run-on sentence ("web.app is X, GitHub Pages is Y") is the shape that cannot be mapped back.
+    const key  = document.createElement('ul');
+    const seen = new Set();
+    key.className = 'usage-origin-addr';
+    rows.forEach(({ origin }) => {
+        const meta = ORIGIN_META[origin] || ORIGIN_META.other;
+        if (seen.has(meta.label)) return;
+        seen.add(meta.label);
+        const li = document.createElement('li');
+        const name = document.createElement('b');
+        name.textContent = meta.label;
+        li.append(name, ` \u2014 ${meta.explain}`);
+        key.appendChild(li);
+    });
+    sec.appendChild(key);
 
     const note = document.createElement('p');
     note.className = 'usage-note';
