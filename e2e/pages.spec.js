@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview } from './helpers.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -688,4 +688,66 @@ test('settings (signed in): the Pay Calculator Data pointer card renders and lin
     const card = page.locator('#payDataCard');
     await expect(card).toBeVisible();
     await expect(card.locator('a[href*="paycalc.html#payTransferCard"]')).toBeVisible();
+});
+
+// ── Roster review: resolving a flagged cell (v19.32, CI-gated) ────────────────────────────────
+// The visual baseline covers this table's COMPOSITION but is opt-in and not a CI gate, so the
+// feature's WIRING is asserted here where every branch runs it. What only a real browser proves is
+// that the pick reaches the save collector — the rules themselves are unit-tested in
+// admin-roster-upload.test.mjs, and duplicating them here would be a second, weaker copy.
+test('operations: a flagged roster cell can be resolved from the review table', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+
+    const saveBtn = page.locator('#rosterApplyBtn');
+    // Three DIFF rows are pre-ticked. The two flagged rows start unresolved and must contribute
+    // NOTHING — the pre-v19.32 behaviour is what you get by leaving them alone.
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+    await expect(page.locator('.roster-pick')).toHaveCount(3);   // 1 conflict + 2 flagged
+
+    // A garbled cell has no readings to offer, so it stays a skip-only row — the picker must not
+    // appear just because a cell was flagged.
+    await expect(page.locator('.roster-change-row .act-read')).toHaveCount(1);
+
+    // Picking a reading makes it a change to save…
+    const flagged = page.locator('.roster-change-row').filter({ has: page.locator('.roster-choice-btn[data-opt="0"]') });
+    await flagged.last().locator('.roster-choice-btn[data-opt="0"]').click();
+    await expect(saveBtn).toHaveText(/Save 4 changes/);
+
+    // …and Skip puts it back to writing nothing, so a mis-tap is always recoverable.
+    await flagged.last().locator('.roster-choice-btn[data-opt="skip"]').click();
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+
+    // Then actually SAVE, and assert the picked value reaches the write. The counter above and the
+    // save collector are two separate passes over the same state: asserting only the button text
+    // left this with no teeth at all (breaking the collector kept every assertion green), and a
+    // button promising N while N-1 are written is precisely the bug worth catching.
+    await flagged.first().locator('.roster-choice-btn[data-opt="0"]').click();
+    await expect(saveBtn).toHaveText(/Save 4 changes/);
+    await saveBtn.click();
+    await expect.poll(() => page.evaluate(() => (window.__E2E?.batchWrites || []).length)).toBe(4);
+    const values = await page.evaluate(() => (window.__E2E?.batchWrites || []).map(w => w.value));
+    // Thursday's first reading is RDW|14:30-22:00, which saves as the bare time with type 'rdw'.
+    expect(values, 'the picked reading must be among the values written').toContain('14:30-22:00');
+});
+
+// Skip means "write nothing", so it must never wear the colour that means "this will be saved".
+// Asserted on computed style rather than by screenshot: --text-mid (L45%) and --success-green
+// (L48.5%) differ in HUE at near-equal luminance, and pixelmatch's delta is luminance-dominated, so
+// the visual baseline provably cannot see this swap (verified in v19.34).
+test('operations: the review table Skip button is not the success colour', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+
+    const flagged = page.locator('.roster-change-row').filter({ has: page.locator('.roster-choice-btn[data-opt="0"]') });
+    await flagged.first().locator('.roster-choice-btn[data-opt="0"]').click();
+    await page.waitForTimeout(300);   // the background transition must settle, or both read as
+                                      // interpolated oklab() and a string compare is meaningless
+    const [skipBg, valueBg] = await page.evaluate(() => [
+        getComputedStyle(/** @type {Element} */ (document.querySelector('.roster-choice-btn--skip.is-chosen'))).backgroundColor,
+        getComputedStyle(/** @type {Element} */ (document.querySelector('.roster-choice-btn[data-opt="0"].is-chosen'))).backgroundColor,
+    ]);
+    expect(skipBg, 'Skip must not wear the colour that means "this will be saved"').not.toBe(valueBg);
 });

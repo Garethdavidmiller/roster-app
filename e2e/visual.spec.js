@@ -24,7 +24,7 @@
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
 import { test, expect } from './fixtures.js';
-import { seedSession, seedMember } from './helpers.js';
+import { seedSession, seedMember, openRosterReview } from './helpers.js';
 
 // A Wednesday inside G. Miller's rendered roster window — gives a stable "Today" cell and a
 // deterministic pay period without depending on the wall clock the suite runs on.
@@ -190,62 +190,9 @@ test('operations — Usage card, populated (desktop 1280)', async ({ page }) => 
 //                                               Fri — flagged with two readings, RESOLVED
 // Thu and Fri are deliberately days G. Miller WORKS: on a base rest day both readings normalise to
 // RD and the picker is (correctly) not offered, so a rest day would capture the wrong thing.
-const REVIEW_DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
-const REVIEW_PARSE = {
-    weekEnding: '2026-08-08',
-    rosterType: 'cea',
-    dates: REVIEW_DATES,
-    crossCheck: 'partial',
-    missingMembers: [],
-    choices: {
-        'G. Miller|2026-08-06': ['RDW|14:30-22:00', 'SICK'],
-        'G. Miller|2026-08-07': ['AL', 'RD'],
-    },
-    parsed: [{
-        memberName: 'G. Miller',
-        shifts: {
-            '2026-08-02': 'RD',
-            '2026-08-03': '06:00-14:00',
-            '2026-08-04': '13:00-21:00',
-            '2026-08-05': 'UNKNOWN|XZ9 GARBLED',
-            '2026-08-06': 'UNKNOWN|RDW 14:30-22:00 or Absent? (PDF unclear)',
-            '2026-08-07': 'UNKNOWN|AL or Rest day? (PDF unclear)',
-            '2026-08-08': 'AL',
-        },
-    }],
-};
-
 test('operations — roster review table, every row state (mobile 390)', async ({ page }) => {
-    // A seeded MANUAL override on the Tue gives the CONFLICT row something to conflict with.
-    await page.addInitScript(() => {
-        window.__E2E = window.__E2E || {};
-        window.__E2E.docs = [{
-            id: 'm1', memberName: 'G. Miller', date: '2026-08-04',
-            value: '23:00-06:00', type: 'shift', source: 'manual',
-        }];
-    });
-    let parseCalled = false;
-    await page.route('**/parseRosterPDF*', route => {
-        parseCalled = true;
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(REVIEW_PARSE) });
-    });
-
     await prep(page, { width: 390, height: 1500 });
-    await page.goto('/operations.html');
-    await expect(page.locator('#rosterUploadCard')).toBeVisible();
-    await page.evaluate(() => {
-        const b = document.getElementById('rosterUploadBody');
-        if (b && !b.classList.contains('open')) document.getElementById('rosterUploadToggleHeader')?.click();
-    });
-    await page.locator('#rosterWeekEnding').evaluate(el => {
-        /** @type {any} */ (el).value = '2026-08-08';
-        el.dispatchEvent(new Event('input',  { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    await page.setInputFiles('#rosterFileInput',
-        { name: 'roster.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
-    await page.locator('#rosterParseBtn').click();
-    await expect(page.locator('.roster-change-row').first()).toBeVisible({ timeout: 15000 });
+    const { wasParseCalled } = await openRosterReview(page);
 
     // Resolve the Friday row, so the capture holds a RESOLVED pick beside an unresolved one — the
     // chosen/unchosen button treatment is exactly what was wrong twice.
@@ -255,7 +202,7 @@ test('operations — roster review table, every row state (mobile 390)', async (
     // feature. The stub reaching the app is not enough: if `choices` ever stops arriving, the rows
     // still render (as plain skip-only) and the next re-baseline would lock in a green test that had
     // quietly stopped covering the picker at all — the failure mode the Usage-card fixture documents.
-    expect(parseCalled, 'the parse stub never fired — the function URL probably changed').toBe(true);
+    expect(wasParseCalled(), 'the parse stub never fired — the function URL probably changed').toBe(true);
     await expect(page.locator('.roster-change-row')).toHaveCount(7);
     await expect(page.locator('.roster-pick')).toHaveCount(3);          // 1 conflict + 2 flagged
     await expect(page.locator('.roster-choice-btn[data-opt="0"].is-chosen')).toHaveCount(1);

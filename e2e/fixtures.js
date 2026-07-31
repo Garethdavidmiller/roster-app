@@ -49,7 +49,21 @@ export const limit = () => marker('limit');
 // removed. Still an opaque object to every consumer; only the delete stub reads .path.
 export const doc = (...a) => ({ __stub: 'doc', path: a.slice(1).map(String).join('/') });
 export const serverTimestamp = () => marker('ts');
-export const writeBatch = () => ({ set: noop, update: noop, delete: noop, commit: () => Promise.resolve() });
+// writeBatch RECORDS its set() payloads (v19.35) rather than swallowing them. A test that can only
+// see the "Save N changes" counter is checking the outcome SUMMARY, not the write — and those are
+// two separate passes over the same state that can disagree (a button promising 4 while 3 are
+// written is exactly the bug worth catching). Recording is additive: every existing caller still
+// sees a working batch.
+export const writeBatch = () => {
+    const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+    e2e.batchWrites = e2e.batchWrites || [];
+    return {
+        set: (/** @type {any} */ _ref, /** @type {any} */ data) => { e2e.batchWrites.push(data); },
+        update: noop,
+        delete: noop,
+        commit: () => Promise.resolve(),
+    };
+};
 // runTransaction(db, fn): run the update fn with a stub tx whose get() returns a non-existent doc,
 // so the links-app.js concurrency transaction (Finding #13) links + executes in the hermetic suite.
 export const runTransaction = (_db, fn) => Promise.resolve(fn({ get: () => Promise.resolve({ exists: () => false, data: () => ({}) }), set: noop }));
