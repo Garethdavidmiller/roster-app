@@ -48,7 +48,7 @@
  * reaching them means putting the calendar behind a login (SECURITY_RELEASE_PLAN.md → Track E).
  */
 
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { lsGet, lsDel } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
 import { getPasswordStatus, setOwnPassword, reauthenticateWithPassword } from './firebase-client.js';
@@ -338,7 +338,6 @@ function _show(member) {
 
         /** The write completed: finish the flow. Shared by the in-time and the LATE success paths. */
         function onWriteConfirmed() {
-            lsSet('myb_notice_password-2026_done', '1');   // this completes that campaign
             // Let the host page refresh anything showing migration state. On settings.html the
             // Password card read passwordStatus BEFORE this overlay ran, so without this its
             // header chip still said "using surname" until a reload (FIX, v18.94).

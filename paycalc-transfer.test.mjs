@@ -52,7 +52,7 @@ describe('selecting what to back up', () => {
     test('never exports a DEVICE key — those describe the browser, not the member', () => {
         // Carrying ns_migrated onto a fresh device would suppress the legacy-ownership prompt on a
         // device that genuinely needs it.
-        const keys = selectBackupKeys([`${PREFIX}p16`, 'myb_pc_ns_migrated', 'myb_pc_pay_welcome_shown'], 'myb_pc_');
+        const keys = selectBackupKeys([`${PREFIX}p16`, 'myb_pc_ns_migrated', 'myb_pc_cea_migrated'], 'myb_pc_');
         assert.deepEqual(keys, [`${PREFIX}p16`]);
     });
 

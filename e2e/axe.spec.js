@@ -115,7 +115,6 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     test('paycalc (signed in)', async ({ page }) => {
         await seedSession(page);
         await page.addInitScript(() => {
-            localStorage.setItem('myb_pc_pay_welcome_shown', '1');
             localStorage.setItem('myb_pc_ytd_notice_shown', '1');
             localStorage.setItem('myb_pc_ns_migrated', '1');
         });

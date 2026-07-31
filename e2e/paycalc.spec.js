@@ -45,7 +45,6 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
         await seedSession(page);
         // Suppress the one-time notices so we measure the underlying layout.
         await page.addInitScript(() => {
-            localStorage.setItem('myb_pc_pay_welcome_shown', '1');
             localStorage.setItem('myb_pc_ytd_notice_shown', '1');
             localStorage.setItem('myb_pc_ns_migrated', '1');
         });
@@ -112,23 +111,28 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
     });
 }
 
-// One-time notices must not stack: with legacy data pending AND the welcome notice
-// unseen, only the data-ownership prompt (highest priority) should open — not both.
-test('paycalc: one-time notices do not stack (data-ownership prompt wins)', async ({ page }) => {
+// The data-ownership prompt is the paycalc overlay with the highest stakes — it decides whether
+// another member's pay data on a shared device is claimed or discarded — so it must actually open,
+// and it must be the ONLY thing open (overlay.js manages a single active overlay; two at once fight
+// over Back/Escape/Tab).
+//
+// This USED to be a stacking test: the welcome lightbox was the competitor it had to beat. The
+// welcome lightbox was retired at v19.36 and the YTD notice has been past its expiry since 5 Jul, so
+// there is nothing left on this page to stack WITH — the `_ownerPending` guard in
+// paycalc-lightboxes.js still exists and still suppresses the YTD notice, but it can no longer be
+// exercised from the outside. What remains testable is the prompt itself, which is the part that
+// matters; the loss of the priority coverage is real and deliberate, not an oversight.
+test('paycalc: the data-ownership prompt opens for legacy data, and alone', async ({ page }) => {
     await seedSession(page);   // signs in as a real member (G. Miller)
     await page.addInitScript(() => {
-        // Genuine unnamespaced legacy pay data → migration pending. Welcome unseen →
-        // without the priority guard, both the welcome AND data-ownership lightboxes
-        // would call .open() in the same startup tick.
+        // Genuine unnamespaced legacy pay data → migration pending.
         localStorage.setItem('myb_pc_rate', '20.74');
-        localStorage.removeItem('myb_pc_pay_welcome_shown');
         localStorage.removeItem('myb_pc_ns_migrated');
     });
     await page.goto('/paycalc.html');
 
     await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
     await expect(page.locator('.lb-overlay.visible'), 'exactly one overlay open').toHaveCount(1);
-    await expect(page.locator('#welcomeLightbox.visible'), 'welcome suppressed').toHaveCount(0);
 });
 
 
@@ -142,7 +146,6 @@ test('paycalc: a joiner is not asked to fill in pre-employment payslips', async 
     await seedSession(page, 'J. Davies');   // getLoggedMember reads the session, not the calendar member
     const oneSat = JSON.stringify({ satH:8,satM:0,bhH:0,bhM:0,bhOtH:0,bhOtM:0,otH:0,otM:0,rdwH:0,rdwM:0,sunH:0,sunM:0,boxH:0,boxM:0,peer:0,slSkip:false,otherAdj:0,actualNet:null });
     await page.addInitScript((seed) => {
-        localStorage.setItem('myb_pc_pay_welcome_shown','1');
         localStorage.setItem('myb_pc_ns_migrated','1');
         localStorage.setItem('myb_pc_jdavies_grade','cea');
         localStorage.setItem('myb_pc_jdavies_setup','1');
@@ -179,7 +182,6 @@ test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', asy
     await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page, 'J. Davies');
     await page.addInitScript(() => {
-        localStorage.setItem('myb_pc_pay_welcome_shown','1');
         localStorage.setItem('myb_pc_ns_migrated','1');
         localStorage.setItem('myb_pc_jdavies_grade','cea');
         localStorage.setItem('myb_pc_jdavies_setup','1');
@@ -204,7 +206,6 @@ test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', asy
 // suite passed; a human pressing the button found it), so the destructive path gets a real browser.
 const PT_QUIET = () => {
     localStorage.setItem('myb_pc_ns_migrated', '1');
-    localStorage.setItem('myb_pc_pay_welcome_shown', '1');
     localStorage.setItem('myb_pc_ytd_notice_shown', '1');
 };
 

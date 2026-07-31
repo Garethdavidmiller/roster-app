@@ -179,7 +179,6 @@ export function clearPayslipActuals() { lsDel(payslipActualsKey()); }
 export const DEVICE_KEYS = new Set([
     'myb_pc_cea_migrated',
     'myb_pc_pension_v882_migrated',
-    'myb_pc_pay_welcome_shown',
     'myb_pc_ytd_notice_shown',
     'myb_pc_ns_migrated',
 ]);
@@ -208,7 +207,6 @@ function _migrateCeaKeys({ getPeriods }) {
     migrate('cea_ytd_tax', SK.ytdTax);
     migrate('cea_grade',   SK.grade);
     migrate('cea_pension_v882_migrated', 'myb_pc_pension_v882_migrated');
-    migrate('cea_pay_welcome_shown',     'myb_pc_pay_welcome_shown');
 
     // Per-period keys: cea_p{N} → myb_pc_p{N}
     getPeriods().forEach((/** @type {any} */ p) => migrate(`cea_p${p.num}`, periodKey(p.num)));

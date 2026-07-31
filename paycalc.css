@@ -1140,56 +1140,8 @@
       .badge-peer { background: var(--green-light)     !important; color: var(--green)    !important; }
     }
 
-    /* ── WELCOME LIGHTBOX (first-time only) ─────────────────────────── */
-    /* Uses .lb-overlay / .lb-content / .lb-close — unique: higher z-index */
-    #welcomeLightbox { z-index: var(--z-notice); }
-    #welcomeLightboxContent {
-      display: flex; flex-direction: column; align-items: center; gap: 8px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: var(--radius-xl); padding: 36px 40px 32px;
-      width: min(300px, 85vw); text-align: center;
-      max-height: 80vh;
-      /* Deeper entrance start than the shared 0.88 — the ID selector outranks
-         .lb-overlay.open .lb-content, so the open state MUST be restated below
-         or the card stays stuck at 85% and never animates in. */
-      transform: scale(0.85);
-    }
-    #welcomeLightbox.open #welcomeLightboxContent { transform: scale(1); }
-    #welcomeLightboxClose { color: rgba(255,255,255,0.45); }
-    #welcomeLightboxClose:active { color: white; }
-    @media (hover: hover) and (pointer: fine) {
-      #welcomeLightboxClose:hover { color: white; }
-    }
-    .welcome-emoji { font-size: 56px; line-height: 1; margin-bottom: 4px; }
-    .welcome-grade-badge {
-      background: var(--primary-blue); color: var(--accent-gold);
-      font-size: var(--type-micro); font-weight: 800;
-      padding: 3px 10px; border-radius: var(--radius-pill);
-      letter-spacing: 0.5px; text-transform: uppercase;
-      margin: 2px 0 4px;
-    }
-    /* Left-aligned (v18.89) — the container centres everything, which suits the emoji, title and
-       grade badge but not this: the paragraph runs to five lines in a 300px card, and centring it
-       gave every line a different starting x. The masthead above stays centred. */
-    .welcome-desc {
-      font-size: var(--type-label); color: rgba(255,255,255,0.68); line-height: 1.6;
-      margin: 0; text-align: left; text-wrap: pretty; align-self: stretch;
-    }
-    .welcome-guide-link {
-      display: block; margin-top: 14px; padding-top: 12px;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      width: 100%; text-align: center;
-      font-size: var(--type-label); font-weight: 600;
-      color: var(--accent-gold); text-decoration: none;
-      transition: color var(--dur-med);
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .welcome-guide-link:hover { color: white; }
-    }
-
     /* ── YTD NOTICE LIGHTBOX ─────────────────────────────────────────── */
-    /* Mirrors the welcome lightbox pattern: emoji → app name → badge → desc */
+    /* emoji → app name → badge → desc (the shape the retired welcome lightbox set) */
     #noticeYtdLightbox { z-index: var(--z-notice); }
     #noticeYtdContent {
       display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -1211,7 +1163,6 @@
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */
     @media (prefers-reduced-motion: reduce) {
       #iconLightbox, #iconLightboxContent,
-      #welcomeLightbox, #welcomeLightboxContent,
       #noticeYtdLightbox, #noticeYtdContent,
       #helpLightbox, #helpLightboxContent,
       .bd-body, .bd-arrow, .boxing-banner, .collapsible-body,

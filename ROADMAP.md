@@ -539,9 +539,12 @@ step-by-step upgrade checklist live in **KNOWN_LIMITATIONS.md**.
 discover the "💾 Move Your Pay Data" card on paycalc by themselves, and the guides only reach people who
 open them, so a one-time notice (`/new-notice`) is the only surface that reaches them unprompted.
 
-**Why it waits, and why waiting is safe.** The `password-2026` notice is already running on BOTH the
-calendar and paycalc until 8 Aug, and a second notice inside the same week is noise — the app deliberately
-runs at most one campaign at a time. Deferring costs nothing because **nobody loses pay data by waiting**:
+**Why it waits, and why waiting is safe.** *(Updated v19.36 — the blocking reason is GONE: the
+`password-2026` notice was retired early, on 31 Jul, because the forced set-password overlay now compels
+the migration at next sign-in and made the nudge redundant. So there is no longer a competing campaign,
+and this notice could be written whenever you want it.)* The original reason was that a second notice
+inside the same week is noise — the app deliberately runs at most one campaign at a time. Deferring still
+costs nothing because **nobody loses pay data by waiting**:
 the GitHub Pages mirror keeps working, and the only way figures are lost is switching address and expecting
 them to follow. There is no deadline on the notice itself.
 
