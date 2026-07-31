@@ -135,7 +135,6 @@ test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redire
 
 test('B1 flag ON + sign-in OK: admin loads normally, no forced re-login', async ({ page }) => {
     await enforceNamedSession(page);   // switch ON; no __E2E.failSignIn → sign-in resolves → named
-    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html');
     await expect(page.locator('#loginOverlay')).toBeHidden();
@@ -144,7 +143,6 @@ test('B1 flag ON + sign-in OK: admin loads normally, no forced re-login', async 
 
 test('B1 flag ON + sign-in OK: operations loads (not redirected)', async ({ page }) => {
     await enforceNamedSession(page);
-    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
     await expect(page).toHaveURL(/operations\.html$/);
@@ -214,8 +212,6 @@ test('in-place sign-in: paycalc initialises (period selector built) without a re
 
 test('in-place sign-in: admin initialises (member selector + nav identity) without a reload', async ({ page }) => {
     await enableInplaceLogin(page);
-    // Mark the work-email check as recently done so its modal isn't "due" and can't cover the page.
-    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', String(Date.now())));
     await page.goto('/admin.html');
     await page.evaluate(() => { window.__noReload = 1; });
     await signInThroughOverlay(page, 'G. Miller');

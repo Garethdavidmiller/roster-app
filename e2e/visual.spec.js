@@ -40,7 +40,6 @@ function dismissOneTimeOverlays(page) {
             'myb_pc_ns_migrated': '1',         // paycalc legacy data-ownership prompt
             'myb_notif_prompt_done': '1',      // calendar notification prompt strip
             'myb_links_beta_seen': '1',        // links first-visit beta lightbox
-            'myb_email_check_done_G. Miller': '1', // operations/admin work-email overlay
         };
         for (const [k, v] of Object.entries(flags)) {
             try { localStorage.setItem(k, v); } catch { /* iOS private mode — ignore */ }

@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: July 2026 — v19.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.30 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -916,6 +916,13 @@ Not defects — things that must be done *before* a future date.
   reaches ~5000 documents (query cost + client cache size). A watch item — no action needed yet.
 - **`MAX_YEAR` 2030 → 2032** before the end of 2028 (update the lunar / bank-holiday data first).
 - **2026/27 pay rates** — see "2026/27 pay rates not confirmed" above (update `GRADES` when the award lands).
+- **A new starter's work email is now only ever entered by hand (v19.30).** The login overlay that
+  used to prompt for it was retired once every existing member was registered, so nothing asks any
+  more. It is a step in the `/new-starter` checklist (Operations → Account status → Set), and the
+  member can add it themselves in Settings → Work Email — but if both are missed the account simply
+  has no email on file and nothing says so. The Account status table's Email column is the only place
+  it shows. Worth a glance after each new starter; if joiners ever become frequent enough that this
+  is missed repeatedly, the fix is a count chip on that card, not a return of the modal.
 
 ---
 

@@ -82,8 +82,6 @@ for (const width of [1280, 1440]) {
     test(`operations desktop @${width}px: cards land in the right columns, no overflow`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
         await seedSession(page, 'G. Miller');   // admin — passes the operations guard
-        // Suppress the one-time work-email overlay so it doesn't cover the cards.
-        await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
         await page.goto('/operations.html');
         await expect(page).toHaveURL(/operations\.html$/);   // admin was NOT redirected out
         await expect(page.locator('#huddleUploadCard')).toBeVisible();
@@ -117,7 +115,6 @@ for (const width of [1280, 1440]) {
 // up" empty state — proving the read + perfVerdict + render path runs end-to-end.
 test('operations: App speed card renders both sections + empty-state verdict (no throw)', async ({ page }) => {
     await seedSession(page, 'G. Miller');
-    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', String(Date.now())));
     await page.goto('/operations.html');
     await expect(page.locator('#pageSpeedCard')).toBeVisible();
     // Two journeys: "Signing in" (login) + "Opening pages" (page-open), both empty on a stubbed read.
@@ -133,7 +130,6 @@ test('operations: App speed card renders both sections + empty-state verdict (no
 test('operations: Account-status email rows keep Edit/Remove on-screen at 375px (long emails ellipsise)', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 760 });
     await seedSession(page, 'G. Miller');
-    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
     await page.goto('/operations.html');
     await expect(page.locator('#accountStatusCard')).toBeVisible();
 

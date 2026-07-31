@@ -67,7 +67,7 @@ export const getDocs = () => {
   const wrap = (v) => (e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));
   if (!rows) return wrap({ empty: true, size: 0, docs: [], forEach: noop });
   // Only EPOCH-SCALE numbers become Timestamps (>= 1e12 ms, i.e. after Sep 2001) — the same heuristic
-  // isEmailCheckDue uses for legacy stamps. Converting every number turned a seeded count: 4 into a
+  // the retired work-email check used for legacy stamps. Converting every number turned a seeded count: 4 into a
   // Timestamp object, so "asked 4 times" silently vanished from the card.
   const ts = (v) => (typeof v === 'number' && v >= 1e12 ? { toDate: () => new Date(v), toMillis: () => v } : v);
   const docs = rows.map(r => ({

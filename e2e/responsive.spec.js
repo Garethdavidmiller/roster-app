@@ -68,7 +68,6 @@ for (const width of DESKTOP_WIDTHS) {
         await page.setViewportSize({ width, height: 900 });
         await seedSession(page, 'G. Miller');   // admin
         // Suppress the one-time work-email overlay so it doesn't cover the page.
-        await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
         await page.goto('/admin.html');
         // Signed in → the login overlay is never made .visible, and the admin UI shows.
         await expect(page.locator('#loginOverlay')).toBeHidden();
@@ -114,7 +113,6 @@ test('paycalc desktop @1280×720 (short height): result card renders, no horizon
 test('admin week label fits at 375px for every week across 13 months', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await seedSession(page, 'G. Miller');
-    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
     await page.goto('/admin.html');
     await expect(page.locator('#weekNavLabel')).toBeVisible();
 

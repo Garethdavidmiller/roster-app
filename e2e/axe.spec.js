@@ -128,7 +128,6 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
 
     test('operations (admin, signed in)', async ({ page }) => {
         await seedSession(page, 'G. Miller');
-        await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
         await page.goto('/operations.html');
         await expect(page.locator('#huddleUploadCard')).toBeVisible();
         const v = await scan(page);

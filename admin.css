@@ -1875,65 +1875,6 @@
 
         /* Checkbox column in the override table */
 
-/* ---- One-time email check (login-card design) ---- */
-/* Overlay and card structure shared with #loginOverlay / #loginCard in shared.css. */
-/* Button styles (#emailCheckYesBtn, #emailCheckSaveBtn) also live in shared.css.   */
-
-/* Card entrance animation — slides up from slightly below on show */
-#emailCheckContent {
-    opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.25s var(--ease-emphasized),
-                transform 0.25s var(--ease-emphasized);
-}
-#emailCheckOverlay.open #emailCheckContent { opacity: 1; transform: translateY(0); }
-@media (prefers-reduced-motion: reduce) { #emailCheckContent { transition: none; } }
-
-.email-check-current {
-    font-size: var(--type-body); font-weight: 600; text-align: center;
-    color: var(--primary-blue); background: var(--surface-sunken);
-    border-radius: 8px; padding: 10px 14px; margin: 0 0 16px;
-    overflow-wrap: break-word;
-}
-/* Privacy reassurance on the confirm view (A3) — the add view carries the same note in its
-   subtitle; the re-check is exactly when "who can see my email?" resurfaces, so mirror it here. */
-.email-check-privacy {
-    font-size: var(--type-small); color: var(--text-light);
-    text-align: center; margin: 0 0 14px;
-}
-.email-check-change {
-    display: block; width: 100%; margin-top: 4px; padding: 8px;
-    background: none; border: none; font-size: var(--type-label);
-    color: var(--text-mid); text-decoration: underline;
-    cursor: pointer; touch-action: manipulation; font-family: inherit;
-}
-@media (hover: hover) and (pointer: fine) {
-    .email-check-change:hover { color: var(--primary-blue); }
-}
-.email-check-error {
-    font-size: var(--type-small); color: var(--error-red);
-    min-height: 18px; margin-bottom: 8px; text-align: left;
-}
-.email-check-back {
-    font-size: var(--type-label);
-    color: var(--text-light);
-    background: none; border: none;
-    cursor: pointer; touch-action: manipulation; font-family: inherit;
-    display: inline-block; margin-top: 4px; padding: 6px;
-    transition: color 0.12s;
-}
-@media (hover: hover) and (pointer: fine) { .email-check-back:hover { color: var(--text-dark); } }
-/* Soft "I'll add this later" escape — pure-add screen only, so a new starter isn't locked out (D2).
-   Styled as a quiet full-width text button below Save, distinct from the primary action. */
-.email-check-later {
-    display: block; width: 100%; margin-top: 10px; padding: 8px;
-    font-size: var(--type-label); color: var(--text-mid);
-    background: none; border: none; text-decoration: underline;
-    cursor: pointer; touch-action: manipulation; font-family: inherit;
-    transition: color 0.12s;
-}
-@media (hover: hover) and (pointer: fine) { .email-check-later:hover { color: var(--text-dark); } }
-
 /* ── Training sub-controls (OTHER_PLAN.md) — flavour + RDW tick, shown while the
    Training pill is active. Composed into FLAVOUR[" RDW"][" HH:MM-HH:MM"] on save. ── */
 .other-opts {

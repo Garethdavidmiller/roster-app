@@ -131,7 +131,8 @@ The v14.75 contract: 8s `withTimeout`, **`saveSession` only after auth resolves*
 "Signing in…" disabled button. The `_attempting` mutex, `_signingIn` back-guard, and `_authGen`
 stale-auth generation guard all survive unchanged. **No Firestore read (or any slow await) on the
 login→reload critical path** — the must-set-password check runs fire-and-forget after login
-(the `initEmailCheck` pattern, 4s cap).
+(the `initEmailCheck` pattern, 4s cap — that module was retired at v19.30, but the pattern it set is
+what `password-force.js` still follows).
 
 ---
 
@@ -150,9 +151,10 @@ login→reload critical path** — the must-set-password check runs fire-and-for
   fields (free password-manager support).
 - **Forced variant** (after a reset / Phase 2 compel): a mandatory overlay on the
   `admin-email-check.js` model — login-gated, no ✕, shown fire-and-forget after login, never
-  blocks the app on network failure (retries next login). **Overlay precedence:** when both this
-  and the email check are due on one login, **password wins**; the email check is suppressed for
-  that session.
+  blocks the app on network failure (retries next login). *(That module was retired at v19.30 once
+  every member's work email was registered; this overlay is now the only post-login one, so the
+  precedence rule that used to sit here — password wins, the email check defers to the next login —
+  no longer has anything to arbitrate.)*
 - On success the client writes `passwordStatus.passwordSetAt` (§6) — after `updatePassword`
   resolves, never before.
 

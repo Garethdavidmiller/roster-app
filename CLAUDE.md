@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: July 2026 — v19.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.30 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `19.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `19.30` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -183,7 +183,6 @@ roster-app/
 ├── huddle.js               ← initHuddleUpload (→ operations) + initHuddleNotifications (→ settings)
 ├── doc-upload.js           ← shared Operations upload-card skeleton (Circular/Newsletter/Huddle): file-pick → validate (type + 20 MB) → optional transform (Huddle DOCX→HTML) → upload → feedback. initDocUploadCard(cfg)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card: initAuthSetup()
-├── admin-email-check.js    ← one-time work-email confirmation overlay (extracted from admin-app.js v16.41): initEmailCheck(member) + the pure isEmailCheckDue/EMAIL_CHECK_INTERVAL_MS cadence helper (tested). Self-contained (imports ls/firebase-client/roster-data/overlay/session + DOM only) — shown once per fresh login, ~3-monthly, mandatory once shown; never blocks the app. The login `myb_email_check_pending_<member>` marker is still SET by admin-app.js's login onSuccess and CONSUMED here.
 ├── admin-al.js             ← Annual Leave Booking: initALSection(deps), triggerConfirmedALSave() — thin config wrapper over admin-range-booking.js (60-day cap, 🏖️ preview + spare warning, over-entitlement confirm bar)
 ├── admin-sick.js           ← Sick Days Recording: initSickSection(deps) — thin config wrapper over admin-range-booking.js (1-year cap, 🪑 preview; no entitlement cap)
 ├── admin-range-booking.js  ← shared skeleton for the two date-range booking sections: createRangeBookingSection(cfg) — dropdown + range picker → live preview → recordRangeOverrides save flow. Per-section differences (range rule, preview copy, AL pre-save entitlement check, refresh hooks) injected via config
@@ -277,7 +276,6 @@ roster-app/
 ├── sw-internals.test.mjs   ← unit tests for service-worker.js's PURE helpers (_appCacheVersion, compareAppCacheDesc — the v16.86 cross-version cache sort — ctSafe, unredirect). The SW is a classic worker (can't be imported), so the test reads the SW source and evals each function BY NAME in a sandbox — assertions run against the SW's real code, no duplicate copy, no runtime change. Extraction throws (test fails loudly) if a helper is renamed. No mocks; part of test:hygiene
 ├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname, refreshClaimsIfStale (--experimental-test-module-mocks)
 ├── login-overlay.test.mjs  ← tests for runNamedSignIn: the sign-in core commits the local session ONLY after auth resolves (timeout/throw/enforce-fail → no save), enforce on/off, transient-vs-persistent messages (--experimental-test-module-mocks)
-├── admin-email-check.test.mjs ← tests for isEmailCheckDue: never/legacy-'1'/junk → due, the 3-month interval boundary, custom interval (--experimental-test-module-mocks; firebase-client + session mocked)
 ├── auth-state-core.test.mjs ← tests for reduceAuthState (pure identity state machine; no mocks; part of test:hygiene)
 ├── auth-state.test.mjs     ← tests for the auth store: getAuthSnapshot/subscribeAuth/dispatchAuth, no-op/listener isolation (no mocks; part of test:hygiene). The session.js→store bridge is tested in session.test.mjs.
 ├── auth-policy.test.mjs    ← tests for requirePageAuth/requirePage/rolesFor: the page×status×role decision matrix + invariants (degraded never allows, soft never blocks, public always allows, fail-closed on unknown page). No mocks; part of test:hygiene.
@@ -480,7 +478,6 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | `navigateToPaycalc(paydayStr)` in `calendar-app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
 | SW `new Request(url)` fetch pattern (v10.16) | `new Request(event.request.url, { cache: 'no-store', ... })` instead of passing opts to an existing Request. Passing opts alongside a Request doesn't reliably override cache mode on older Safari/Chromium. |
 | `initErrorReporter()` call pattern (v13.78) | Writes to Firestore `clientErrors`, so a valid auth token is required. Three canonical call sites: (1) **`calendar-app.js`** — wait for auth persistence, run `reconcileExpiredIdentity()` (item 7 — sign out a lingering expired named identity), then sign in anonymously only if no named user remains: `authReady.then(()=>reconcileExpiredIdentity()).then(()=>auth.currentUser?null:signInAnonymously(auth).catch(()=>{})).catch(()=>{}).finally(()=>initErrorReporter())` — this preserves a valid named identity instead of racing with or replacing it; (2) **Authenticated pages with `sessionReady`** (`admin-app.js`, `settings-app.js`, `operations-app.js`, `links-app.js`) — call `sessionReady.then(()=>initErrorReporter())`; (3) **`paycalc-app.js`** (no `sessionReady`) — call `ensureNamedSession(name).catch(()=>{}).finally(afterAuth)`, where the `afterAuth` callback runs `initErrorReporter()` (alongside `recordUsage`/`recordPageLatency`); the `else` branch (no member) calls `afterAuth()` directly. Never call `initErrorReporter()` bare without an auth context — writes will be silently rejected by Firestore rules. |
-| Work email check — login-gated, ~3-monthly (v13.68; Fix 4 + cadence v14.77; extracted to `admin-email-check.js` v16.41) | `_runEmailCheck(member)` in **`admin-email-check.js`** is the inner engine; `initEmailCheck(member)` is a thin wrapper called (fire-and-forget) on every authenticated page load — `admin-app.js` only imports/calls it (and still SETS the login marker in its login `onSuccess`). **Trigger (v14.77):** it shows ONLY when (a) a one-shot `myb_email_check_pending_{member}` marker is present — set by `showAdminLogin`'s `onSuccess` on a real login, consumed on the next load — so it never appears on a random Admin page load (Fix 4), AND (b) the member is **due**: `_emailCheckDue()` is true when `myb_email_check_done_{member}` (now the last-confirmed **timestamp**, ms) is absent / legacy `'1'` / ≥ 3 months old (`EMAIL_CHECK_INTERVAL_MS`). `_dismiss()` stamps `Date.now()` so it's not due again for ~3 months. (Pre-v14.77 it was off the login critical path since v14.74 — the login freeze fix; it must never block sign-in.) Fetches `getStaffContact(member)` with a 4s timeout; on timeout/error returns silently (never blocks the app). Shows `#emailCheckOverlay`: confirm view ("Yes" / "Use a different email → ← Back") or add view (email input + save). **No ✕ close button** — mandatory once shown. Also editable any time via Settings. |
 
 ---
 
@@ -784,9 +781,11 @@ landing on everyone at once. It shows only for a `named` identity — never the 
 session nor a soft-failed paycalc one, where `updatePassword` cannot succeed and the block would be
 unsatisfiable — and fails open on any failure it cannot recover from. A member who only ever views the
 roster never signs in anywhere and is therefore never compelled: accepted (reaching them means Track E).
-**Overlay precedence:** when a member is due both this and the work-email check on one login, password
-WINS and admin-app.js deletes the email check's pending marker, so that check defers to the next login
-instead of resurfacing on a later ordinary load (the v14.77 "Fix 4" class).
+**It is now the ONLY post-login overlay.** The work-email check that used to queue behind it was
+retired at v19.30 (every member's email is registered; a wrong one is corrected in Settings), taking
+the precedence rule and its marker-deletion with it. If a second post-login overlay is ever added,
+read the note above `_show` in `password-force.js` first — anything that must happen when an overlay
+OPENS has to fire before the await, never after it (the v18.94 bug).
 
 **Password security note:** The *default* password is surname-derived and not a secret — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`). A member who sets their own password (v18.63) does get a real secret; the surname default remains valid **only until** they do (the sign-in candidate ladder tries the typed value first, then falls back to the surname). An admin reset returns the account to the surname default. Full design + phasing: `PASSWORD_PLAN.md`.
 
