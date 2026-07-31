@@ -28,7 +28,6 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { SELECTED_MEMBER, SELECTED_MEMBER_LEGACY, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
-import { initEmailCheck } from './admin-email-check.js';
 import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -96,21 +95,14 @@ export function init() {
     // ---- Login overlay (shared in-place sign-in; see login-overlay.js) ----
     /** Show the shared sign-in overlay configured for Admin. On a confirmed sign-in, reload straight
      *  into the app.
-     *  The work-email check is DELIBERATELY NOT awaited here (v14.74). It used to run inline on the
-     *  login overlay before the reload (v13.68), but it awaits a Firestore read (getStaffContact), and
-     *  the FIRST read after a fresh sign-in can take several seconds (connection + auth-token handshake
-     *  warming up) — which froze the user on the login overlay (the v14.72–73 login-freeze reports).
-     *  Instead, onSuccess sets a one-shot "pending" marker and reloads; the check then runs on the next
-     *  page load via initEmailCheck() (async/non-blocking), gated so it appears ONLY after a real login
-     *  and at most once every ~3 months (Fix 4 + cadence, v14.77; see _emailCheckDue / _runEmailCheck). */
+     *  NOTHING may be awaited on this path (v14.74, LOGIN_INCIDENT.md). The retired work-email check
+     *  used to await a Firestore read here, and the FIRST read after a fresh sign-in can take several
+     *  seconds (connection + auth-token handshake warming up) — which froze the user on the login
+     *  overlay (the v14.72–73 login-freeze reports). Keep post-login work fire-and-forget. */
     function showAdminLogin({ reloadOnSuccess = false } = {}) {
         initLoginOverlay({
             pageLabel: 'Admin',
-            onSuccess: (/** @type {string} */ name) => {
-                // Mark a real login so the work-email check can fire (consumed by _runEmailCheck on the
-                // next pass / in initAuthorised). Set on BOTH paths so the email-check behaviour is
-                // identical whether we reload or initialise in place.
-                lsSet(`myb_email_check_pending_${name}`, '1');
+            onSuccess: () => {
                 // reloadOnSuccess is set on the B1 stale-session path (see the _adminAuth.then block in
                 // initAuthorised): initAuthorised() ALREADY ran optimistically there and resolved the
                 // one-shot sessionReady, which cannot be re-resolved — so re-initialising in place would
@@ -1638,25 +1630,14 @@ export function init() {
                 ));
             }
         }
-        // Post-login overlays — fire-and-forget; both do async Firestore reads inside, neither is on
-        // the login critical path. SEQUENCED, not parallel: when a member is due both, the forced
-        // password overlay WINS (PASSWORD_PLAN.md §4) and the work-email check waits for their next
-        // sign-in — two mandatory modals stacked on one login is too much.
+        // Forced password migration — fire-and-forget: it does an async Firestore read inside and is
+        // NOT on the login critical path (see showAdminLogin above / LOGIN_INCIDENT.md).
         //
-        // The `lsDel` is load-bearing, not tidiness: the email check's marker is consumed on the load
-        // where it SEES it, so simply not calling initEmailCheck would leave the marker set and the
-        // email check would then ambush the member on some later ordinary Admin load — the v14.77
-        // "Fix 4" defect that marker exists to prevent. Deleting it defers the check to the next real
-        // login, which is what "password wins" should mean.
-        // `onShow` fires SYNCHRONOUSLY as the overlay opens, not when it closes (FIX, v18.94). The
-        // returned promise settles only on close, so deleting the marker there never ran if the member
-        // navigated away or backgrounded the app while a modal with no ✕ was up — the natural reflex.
-        // The marker then survived and the email check ambushed them on a later ordinary load: the
-        // v14.77 "Fix 4" defect, re-created by the line written to prevent it.
-        initPasswordForce(currentUser, {
-            ready:  sessionReady,
-            onShow: () => lsDel(`myb_email_check_pending_${currentUser}`),
-        }).then(() => initEmailCheck(currentUser));
+        // This used to be SEQUENCED ahead of the work-email check, which was retired at v19.30 (every
+        // member's email is registered, and a wrong one is fixed in Settings). The precedence logic and
+        // its marker deletion went with it — there is now only one post-login overlay, so there is
+        // nothing left to lose a race with.
+        initPasswordForce(currentUser, { ready: sessionReady });
         // Nav panel — deferred here on the in-place login path so it renders with the signed-in identity
         // (deduped by initNavPanel's navPanelInit guard if already wired on a normal load).
         wireNavPanel();

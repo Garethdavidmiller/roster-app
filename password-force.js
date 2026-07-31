@@ -36,7 +36,7 @@
  *     Firebase requires a recent login, which a sign-in seconds ago satisfies. (If it doesn't, the
  *     `requires-recent-login` path below asks for the current password and reauthenticates.)
  *   · Without the marker the overlay would ambush a member mid-task on an ordinary page load — the
- *     v14.77 "Fix 4" defect that the email check's identical marker exists to prevent.
+ *     v14.77 "Fix 4" defect, first seen with the (since retired) work-email check's identical marker.
  * The marker is consumed EVEN WHEN we then decide not to show (or fail to read the status), so it can
  * never resurface on a later non-login load. That costs a compel cycle on a failed read; leaving the
  * marker set would re-create Fix 4, which is worse.
@@ -407,14 +407,15 @@ function _show(member) {
  * Fire-and-forget from a coordinator's authorised path — never awaited on the login critical path.
  *
  * @param {string|null|undefined} member
- * @param {{ ready?: Promise<any>, onShow?: () => void }} [opts]  `ready` is a barrier that resolves once the Firebase session is
+ * @param {{ ready?: Promise<any> }} [opts]  `ready` is a barrier that resolves once the Firebase session is
  *   settled. The four `sessionReady` pages pass it; paycalc calls this from inside its own post-auth
  *   callback and passes nothing (already settled). Raced with a timeout so a page whose barrier never
  *   resolves degrades to "don't show" instead of hanging.
- * @returns {Promise<boolean>} whether the overlay was shown (callers use this to defer the work-email
- *   check — PASSWORD_PLAN.md §4: password wins when both are due).
+ * @returns {Promise<boolean>} whether the overlay was shown. No caller consumes it today — the
+ *   work-email check that used to defer to it was retired at v19.30 — but it is the honest result of
+ *   the call, and the next overlay that has to queue behind this one will need it.
  */
-export async function initPasswordForce(member, { ready, onShow } = {}) {
+export async function initPasswordForce(member, { ready } = {}) {
     if (!member) return false;
     const pendingKey = PW_FORCE_PENDING_PREFIX + member;
     if (!lsGet(pendingKey)) return false;      // not a fresh sign-in → never ambush an ordinary load
@@ -456,13 +457,12 @@ export async function initPasswordForce(member, { ready, onShow } = {}) {
     })) return false;
 
     try {
-        // Fire BEFORE awaiting the overlay (FIX, v18.94). The returned promise resolves only when the
-        // member CLOSES the overlay, so a caller using it to settle a competing overlay never ran if
-        // they navigated away or backgrounded the app while it was up — which for a modal with no ✕ is
-        // the natural reflex. That stranded the work-email check's one-shot marker, and the email
-        // check then ambushed them on a later ordinary load: the v14.77 "Fix 4" defect, re-created by
-        // the very line meant to prevent it.
-        onShow?.();
+        // NOTE for whoever adds a second post-login overlay: anything that must happen when this one
+        // OPENS has to fire before this await, not after it. The returned promise settles only when the
+        // member CLOSES the overlay, and a modal with no ✕ is exactly the kind people navigate away
+        // from — so "on close" never runs for them. That was the v18.94 bug: the work-email check's
+        // one-shot marker was cleared after the await, survived, and ambushed the member on a later
+        // ordinary load — the v14.77 "Fix 4" defect, re-created by the line meant to prevent it.
         await _show(member);
     } catch (e) {
         console.warn('[Auth] forced password overlay failed to run:', e);

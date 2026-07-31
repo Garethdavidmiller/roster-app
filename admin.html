@@ -48,42 +48,6 @@
 </div>
 <!-- Login overlay is injected by login-overlay.js (shared in-place sign-in) when not signed in. -->
 
-<!-- One-time email check — shown once per device, triggered by a fresh login -->
-<div id="emailCheckOverlay" role="dialog" aria-label="Work email" aria-modal="true">
-    <div id="emailCheckContent">
-        <img src="icon-192.png" alt="" aria-hidden="true">
-
-        <!-- Confirm view — shown when an email is already stored -->
-        <div id="emailCheckConfirmView" hidden>
-            <div class="login-app-name">Your work email</div>
-            <div class="login-subtitle">Is this still your address for self-service password reset (in a future update)?</div>
-            <p id="emailCheckStoredEmail" class="email-check-current"></p>
-            <p class="email-check-privacy">Only you and the admin can see this email.</p>
-            <button type="button" id="emailCheckYesBtn">Yes, that's correct →</button>
-            <button id="emailCheckChangeBtn" type="button" class="email-check-change">Use a different email</button>
-        </div>
-
-        <!-- Add / edit view — shown when no email stored, or after "Use a different email" -->
-        <div id="emailCheckEditView" hidden>
-            <div class="login-app-name">Add your work email</div>
-            <div class="login-subtitle">Used for self-service password reset (in a future update) — only you and the admin can see it.</div>
-            <div class="login-field">
-                <label for="emailCheckInput">Work email address</label>
-                <input type="email" id="emailCheckInput"
-                       placeholder="name@chilternrailways.co.uk"
-                       autocomplete="email" inputmode="email"
-                       autocorrect="off" autocapitalize="none"
-                       spellcheck="false" enterkeyhint="go">
-            </div>
-            <div id="emailCheckError" class="email-check-error" aria-live="polite"></div>
-            <button type="button" id="emailCheckSaveBtn">Save email →</button>
-            <button type="button" id="emailCheckBackBtn" class="email-check-back" hidden>← Back</button>
-            <button type="button" id="emailCheckLaterBtn" class="email-check-later" hidden>I'll add this later</button>
-        </div>
-
-    </div>
-</div>
-
 <!-- Lightbox — tap the header icon to open -->
 <div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
     <div id="tipsLightboxContent" class="lb-content">

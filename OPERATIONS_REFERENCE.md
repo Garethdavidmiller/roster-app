@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: July 2026 — v19.20 · Updated every 0.10 version*
+*Last updated: July 2026 — v19.30 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -431,6 +431,25 @@ stored. Filtered to an allowlist of the current server-owned roster so an un-swe
 inflate it; returns four integers, no identity. It measures **sign-ins, not activity** (sessions last
 30 days absolute / 7 idle, so most page opens are session *restores*), and there is no history — only
 the last sign-in is stored. `neverSignedIn` is the actionable figure.
+
+### Which address staff are on (v19.23, key added v19.29)
+
+While the app is served from BOTH `myb-roster.web.app` and the GitHub Pages mirror, the Usage card's
+**Which address staff are on** section is the only record of how far the move has got. Unique accounts
+per address over the last 30 days, with the share that opened the **installed app** rather than a
+browser tab nested inside each bar. Each row names its full address underneath — the labels alone are
+too short to identify (v19.29, after the labels were shortened for column alignment and the addresses
+were left in a hover tooltip no phone can reach).
+
+**Read it knowing what it cannot see.** It counts OPENS, so an install nobody has opened in 30 days is
+invisible — and those are exactly the people a migration strands. Someone using both addresses counts
+on each, which is what half-migrated looks like. Admin loads are excluded, like every other figure on
+the card.
+
+**Why it matters operationally:** an installed PWA keeps launching from its own service-worker cache,
+so it will not drift onto the new address by itself. Anyone who does move loses their pay calculator
+data unless they carry it across first (paycalc → Move Your Pay Data), because localStorage is
+per-origin. The counters are how you tell whether that has happened yet.
 
 The `@myb-roster.local` domain is synthetic — not real email addresses. Firebase Auth accepts them as valid email format.
 

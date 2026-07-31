@@ -296,7 +296,7 @@
        and full navy GLASS SHEETS (About, notices, day detail, AL) at 24px. The six glass panels each
        restated `border-radius: 24px`, so that rule lived nowhere — naming it fixed that (v18.87).
        CORRECTION (v18.90): that pass documented two families while the code actually had three —
-       four white panels (login/email-check/Tips/dialog) were on --radius-lg, i.e. the CARD radius,
+       four white panels (login/work-email/Tips/dialog) were on --radius-lg, i.e. the CARD radius,
        which is easy to miss because it reads as a token rather than a literal. They now all sit on
        --radius-xl, so the two-family description is finally true of the code. */
     --radius-panel: 24px;   /* navy glass overlay sheets */
@@ -784,7 +784,7 @@ body.lb-open #stickyTotal { display: none !important; }
 #welcomeLightbox .lightbox-privacy { text-align: left; }
 
 /* Forced set-password overlay (password-force.js, PASSWORD_PLAN.md Phase 2). It reuses the whole
-   login/email-check visual family above — only two elements are its own. */
+   login-overlay visual family above — only two elements are its own. */
 /* This overlay's subtitle is four lines of PROSE, not the login overlay's one-line "Settings · Sign
    in" — so it follows the v18.89 rule and left-aligns. The title above it stays centred (masthead). */
 #pwForceContent .login-subtitle { text-align: left; text-wrap: pretty; }
@@ -1924,7 +1924,7 @@ button.nav-panel-link--notices {
 /* ═══════════════════════════════════════════════════════════════
    LOGIN OVERLAY — shared by admin.html and settings.html
    ═══════════════════════════════════════════════════════════════ */
-#loginOverlay, #emailCheckOverlay, #pwForceOverlay {
+#loginOverlay, #pwForceOverlay {
     display: none;
     position: fixed;
     inset: 0;
@@ -1936,11 +1936,11 @@ button.nav-panel-link--notices {
     -webkit-overflow-scrolling: touch;
     padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
 }
-#loginOverlay.visible, #emailCheckOverlay.visible, #pwForceOverlay.visible { display: flex; }
+#loginOverlay.visible, #pwForceOverlay.visible { display: flex; }
 
 /* Overlay, not a card — --radius-xl with the other compact dialogs (v18.90; was --radius-lg, the
    card radius). */
-#loginCard, #emailCheckContent, #pwForceContent {
+#loginCard, #pwForceContent {
     background: white;
     border-radius: var(--radius-xl);
     padding: 36px 32px 28px;
@@ -1949,7 +1949,7 @@ button.nav-panel-link--notices {
     text-align: center;
     box-shadow: var(--shadow-3);
 }
-#loginCard img, #emailCheckContent img, #pwForceContent img {
+#loginCard img, #pwForceContent img {
     width: 72px;
     height: 72px;
     border-radius: 16px;
@@ -2059,7 +2059,7 @@ button.nav-panel-link--notices {
     line-height: 1.4;
 }
 .login-error.visible { display: block; }
-#loginSubmit, #emailCheckYesBtn, #emailCheckSaveBtn, #pwfSave {
+#loginSubmit, #pwfSave {
     width: 100%;
     padding: 13px;
     background: var(--primary-blue);
@@ -2075,9 +2075,9 @@ button.nav-panel-link--notices {
     margin-bottom: 16px;
 }
 @media (hover: hover) and (pointer: fine) {
-    #loginSubmit:hover, #emailCheckYesBtn:hover, #emailCheckSaveBtn:hover, #pwfSave:hover { background: var(--primary-blue-dark); }
+    #loginSubmit:hover, #pwfSave:hover { background: var(--primary-blue-dark); }
 }
-#loginSubmit:active, #emailCheckYesBtn:active, #emailCheckSaveBtn:active, #pwfSave:active { transform: scale(var(--press-scale)); }
+#loginSubmit:active, #pwfSave:active { transform: scale(var(--press-scale)); }
 #loginName:disabled {
     background: white;
     color: var(--text-light);

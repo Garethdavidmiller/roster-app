@@ -84,8 +84,8 @@ the dialog side had a name — the six glass panels each restated `border-radius
 lived nowhere. No pixels moved.
 
 **An overlay never wears the card radius** (v18.90). The v18.87 pass above described two families
-while the code had three: four white panels (`#loginCard`, `#emailCheckContent`,
-`#tipsLightboxContent`, `.dialog-lb-content`) sat on `--radius-lg`, which is the radius `.card` uses
+while the code had three: four white panels (`#loginCard`, the work-email check's panel — since
+retired, v19.30 — `#tipsLightboxContent` and `.dialog-lb-content`) sat on `--radius-lg`, which is the radius `.card` uses
 on every page. A token hides that in a way a literal wouldn't — `--radius-lg` reads like it belongs
 to a large panel, and `.dialog-lb-content` even carried a comment claiming it matched "the
 modal-picker panel family", though no picker sets it. Sharing a silhouette with the card underneath

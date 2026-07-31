@@ -20,6 +20,7 @@ Run through every step in order. Do not skip steps.
 
 - [ ] Admin → Operations → Staff Login Accounts → **Set up accounts** (creates the login)
 - [ ] Confirm password convention in `OPERATIONS_REFERENCE.md`
+- [ ] **Record their work email** — Operations → Account status → Set. Nothing prompts for this any more: the login overlay that used to ask was retired at v19.30 once every existing member was registered, so a new starter's email is now only ever added here (or by them in Settings → Work Email). Miss it and the account simply has no email on file, silently — the Account status table's Email column is where you'd notice.
 
 ## Step 2b — Regenerate `functions/roster-members.json` (CEA / CES / Dispatcher only — not Management)
 

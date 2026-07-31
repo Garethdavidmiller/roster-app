@@ -37,7 +37,9 @@ user is **signed in but frozen on the login overlay**; when the read returns, th
 
 **Two lessons that must not be undone:**
 1. **Never put a Firestore read (or any slow await) on the login→reload critical path.** The email
-   check now runs fire-and-forget on the *next* page load (`initEmailCheck()`, with a 4s read cap).
+   check was moved to fire-and-forget on the *next* page load (`initEmailCheck()`, 4s read cap). That
+   check was retired entirely at v19.30, but the rule is unchanged and now binds `password-force.js`,
+   which took the same shape.
 2. **The v14.75 login contract:** `login-overlay.js` must wrap `ensureNamedSession` in an **8s
    `withTimeout`** and **only `saveSession` AFTER auth resolves** (on timeout / enforce-failure: no
    session is written, the button is restored, an error is shown), with a visible **"Signing in…"**
