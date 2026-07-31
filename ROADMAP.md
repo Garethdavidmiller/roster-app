@@ -554,6 +554,38 @@ not a reason to write it. If it comes back it needs a different form, not a resc
 - The retired notice code is not left behind — `password-2026` was removed outright at v19.36 rather than
   left to expire, so there is no dead campaign awaiting the 180-day cleanup.
 
+**Address migration campaign — PLANNED, sequenced AFTER the password plan (owner, 31 Jul 2026).**
+Staff do not generally know the app has two addresses (`myb-roster.web.app` and the
+`garethdavidmiller.github.io/roster-app/` mirror), so moving them across needs a real campaign, not a
+notice. This is the thing the dismissed pay-data notice above was a fragment of — which is part of why a
+fragment on its own was the wrong shape.
+
+**Why AFTER the password plan, concretely.** The forced set-password overlay fires at next sign-in and
+completes itself within 30 days (sessions cap at 30 days absolute / 7 idle). A new address is a NEW ORIGIN,
+so `localStorage` — and therefore the session — does not come with it: everyone who moves is signed out and
+must sign in again there. Migrate first and a member meets an unfamiliar URL, a forced sign-in, and a
+mandatory password overlay in one go; that is the moment someone concludes the app is broken. Doing the
+password work first means the only new thing about the new address is the address.
+
+**Three things the campaign has to handle — all consequences of "new origin", none obvious:**
+1. **Signed out on arrival.** The session is per-origin. Expect the campaign to be, in practice, "sign in
+   again at the new address", so the copy should say so rather than let it be a surprise.
+2. **Pay calculator figures do not follow.** Same cause (`localStorage` is per-origin), and the reason the
+   "💾 Move Your Pay Data" card exists. The campaign must carry this; it is the only genuinely
+   unrecoverable loss, because everything else lives in Firestore and follows the account.
+3. **Notifications double up during the transition.** A push subscription is tied to the service-worker
+   registration, so it is per-origin too — and `fanOutPush` sends to EVERY doc in `pushSubscriptions` with
+   no per-member dedup (verified in `functions/index.js`). A member subscribed on both addresses therefore
+   gets two notifications per Huddle until the old subscription is removed. Decide whether the campaign
+   tells people to turn notifications off on the old install, or whether the duplicates are accepted for
+   the transition window.
+
+**And the hard part: an installed PWA will not move itself.** It keeps launching from its own
+service-worker cache at its own origin, so migrating means delete-and-reinstall from the new address —
+which is exactly the instruction people get wrong. The per-address counters (Operations → Usage) already
+distinguish installed from browser-tab opens, so the size of that problem is measurable before the campaign
+is written, not guessed at afterwards.
+
 **Auth hardening:** A five-stage plan to replace the surname-based password with a custom password backed by verified work email is documented under "Password security improvements" above (Stage 1 shipped v12.68). The staged approach preserves the name-dropdown login UX while progressively adding security. Key risk during rollout: `ensureFirebaseSession` must be reworked before Stage 3 ships — see that entry. See also KNOWN_LIMITATIONS.md → the four v11 security tasks (task #2, Firestore member write isolation, shipped STRICT at v16.29) for related context.
 
 **Multi-admin:** ✓ Resolved — `CONFIG.ADMIN_NAMES` is now an array in `roster-data.js`. Adding another admin is a one-line change (name must match `teamMembers[n].name` exactly).
