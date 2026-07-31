@@ -1345,6 +1345,10 @@ columnScan: one key per column header; every staff member appears in every colum
             dates,
             crossCheck,
             missingMembers,
+            // The two candidate values for each cell the cross-check flagged (v19.32) — lets the
+            // review table offer a pick instead of a dead "couldn't read" row. Keyed
+            // "memberName|date"; keys for names filtered out above are harmless (never looked up).
+            choices: _ccStats.choices || {},
             parsed: filteredEntries,
         });
     }

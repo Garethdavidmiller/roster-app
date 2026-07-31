@@ -303,6 +303,64 @@ describe('computeCellStates — review state machine', () => {
         assert.equal(c.chosen, null);
     });
 
+    // ── Resolving a flagged cell from the review table (v19.32) ──────────────────────────────
+    // Owner: "when something is flagged for review there is no way to choose the correct option
+    // from the results screen." The server now sends both readings; these pin what the client does
+    // with them — above all that a PICK cannot bypass a guard the parsed path enforces.
+
+    // A weekday this member is ROSTERED TO WORK, and one they are not. Both guards below normalise
+    // AL away on a rest day, so the "offers both readings" case is only observable on a worked day —
+    // finding it by scanning beats hardcoding a date that a roster-data edit could silently flip.
+    const scan = /** @param {(v: string) => boolean} pred */ pred => {
+        for (let d = 1; d <= 28; d++) {
+            const iso = `2026-06-${String(d).padStart(2, '0')}`;
+            const dt  = new Date(iso + 'T12:00:00');
+            if (dt.getDay() === 0) continue;                       // Sundays have their own rule
+            if (pred(getBaseShift(member, dt))) return iso;
+        }
+        throw new Error('no suitable date found for the choice tests');
+    };
+    const WORKDAY = scan(/** @param {string} v */ v => /^\d{2}:\d{2}-/.test(v));
+    const RESTDAY = scan(/** @param {string} v */ v => v === 'RD' || v === 'OFF');
+
+    /** @param {string} shiftVal @param {string[]} cand @param {string} [date] */
+    const runChoice = (shiftVal, cand, date = WORKDAY) =>
+        computeCellStates(
+            {
+                parsed:  [{ memberName: mname, shifts: { [date]: shiftVal } }],
+                dates:   [date],
+                choices: { [`${mname}|${date}`]: cand },
+            }, [],
+        ).get(`${mname}|${date}`);
+
+    test('a flagged cell with two known readings offers both, and still defaults to writing nothing', () => {
+        const c = runChoice('UNKNOWN|AL or Rest day? (PDF unclear)', ['AL', 'RD']);
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.chosen, null, 'untouched must still write nothing — the pre-v19.32 behaviour');
+        assert.equal(c.options.length, 2);
+        assert.deepEqual(c.options.map(/** @param {any} o */ o => o.value), ['AL', 'RD']);
+    });
+
+    test('no candidates from the server → the old skip-only row, not a broken picker', () => {
+        const c = run('UNKNOWN|garbled (PDF unclear)');
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.options, null, 'fails open to skip-only when the server sent no readings');
+    });
+
+    test('a SUNDAY choice cannot smuggle AL past the Sunday guard', () => {
+        // The whole point of routing options through normaliseCellValue. On a Sunday both readings
+        // normalise to RD, so there is no longer a question to ask — and crucially no AL to pick.
+        const c = runChoice('UNKNOWN|AL or Rest day? (PDF unclear)', ['AL', 'RD'], SUN);
+        assert.equal(c.options, null, 'both readings collapse to RD — nothing to choose between');
+    });
+
+    test('a choice on a base REST DAY cannot smuggle AL past the rest-day guard', () => {
+        // Same guard, the other axis (v16.19): AL on a day the member was not rostered to work must
+        // not consume an entitlement day, whether the AL was parsed or picked.
+        const c = runChoice('UNKNOWN|AL or Rest day? (PDF unclear)', ['AL', 'RD'], RESTDAY);
+        assert.equal(c.options, null, 'AL on a base rest day normalises to RD, so both readings agree');
+    });
+
     test('a Sunday "AL" is normalised to RD — never written as AL', () => {
         // SUN (2026-06-21) is the module-level Sunday constant.
         const c = computeCellStates(

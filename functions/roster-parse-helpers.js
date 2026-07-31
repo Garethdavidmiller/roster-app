@@ -514,7 +514,13 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
     // Coverage stats so the caller can tell the ADMIN when the fail-open path ran — the check
     // failing open must not be invisible (v16.70). checked = members with a usable signal on ≥5
     // days (the same bar the auto-repair uses).
-    const stats = { checked: 0, total: safeEntries.length };
+    // `choices` carries the two candidate values for every cell this flags as a two-way
+    // disagreement, keyed "memberName|date" (v19.32). The flag message already names both readings,
+    // but only as PROSE — so the review table could show the ambiguity and offer no way to resolve
+    // it, leaving the admin to record the day by hand in Change a Shift. The values are what the
+    // client needs to turn that into a pick; absent (an older function, or a non-two-way flag) it
+    // simply falls back to today's skip-only row.
+    const stats = { checked: 0, total: safeEntries.length, choices: Object.create(null) };
     if (!columnScan || typeof columnScan !== 'object') return stats;
     if (!Array.isArray(columnHeaders) || dates.length < 7) return stats;
 
@@ -622,6 +628,9 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
             // app-language labels (reviewLabel) — never the internal 'SICK' value.
             console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: row read "${rowV}" ≠ column scan "${colV}" — flagged for review`);
             entry.shifts[d] = `UNKNOWN|${reviewLabel(rowV)} or ${reviewLabel(colV)}? (PDF unclear)`;
+            // Both readings, as VALUES rather than the prose above, so the review table can offer
+            // them as a choice. Order matches the message: row read first, column scan second.
+            stats.choices[`${entry.memberName}|${d}`] = [rowV, colV];
         }
     }
     return stats;

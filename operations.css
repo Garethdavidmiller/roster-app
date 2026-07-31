@@ -320,6 +320,11 @@ body.auth-ready .container { display: grid; }
     transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
 }
 .roster-choice-btn.is-chosen { background: var(--success-green); color: white; border-color: var(--success-green); }
+/* Skip is the ONE choice that means "write nothing", so it must not wear the success green every
+   other chosen button wears — on a flagged row Skip is the DEFAULT, and a green default read as
+   "this will be saved" when it means exactly the opposite (caught by rendering it, v19.32). Filled
+   neutral still says "this is the current selection" without claiming an outcome. */
+.roster-choice-btn--skip.is-chosen { background: var(--text-mid); color: white; border-color: var(--text-mid); }
 @media (hover: hover) and (pointer: fine) {
     .roster-choice-btn:not(.is-chosen):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
 }
