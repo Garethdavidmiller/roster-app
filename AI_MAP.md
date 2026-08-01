@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: July 2026 — v19.30 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.40 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -442,7 +442,16 @@ Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).
 - `calcCoverage(patterns, totalPos = 28)` / `calcHourlyCoverage(patterns, totalPos = 28)` — per-day and hour-by-hour on-duty counts for the Coverage heat map
 - `generatePatterns({ slots, spare, lines = 28 })` — the slot-based rotating-window generator (the only way to create a new design)
 - `runDesignChecks(patterns, rotatingLines = 28)` — unfilled lines, weekends off, short turnarounds (`MIN_REST_MINUTES` 12h), longest run, early/late balance
-- Constants: `DAYS`, `MIN_REST_MINUTES`
+- `canonicaliseShift(raw)` / `normalisePatterns(patterns)` (v19.38) — pad a legacy unpadded time on load so the module holds ONE time format
+- Constants: `DAYS`, `MIN_REST_MINUTES`, `ROTATING_LINES` (28 — v19.38; it was a literal in three files kept in step by a comment)
+- **`classifyShift` reads the hour through the same strict parser the coverage maths uses** (v19.38). Before that the two could disagree about what a time IS: `"6:00-14:00"` classified as a normal early while `startMinutes` returned null, so it counted in the day totals, was ABSENT from the hourly heat map, and was exempt from every turnaround check. Do not reintroduce a second, looser time read here.
+
+### `links-concurrency.js`
+The PURE co-editing rules for the Links workspace (v19.38) — no DOM, no Firebase, no timers. Extracted because this logic has produced THREE bugs (v16.19, v16.23, v17.18) and every one was a **silent** overwrite of a colleague's work: the loser of the race sees a successful save and only finds out on reopening. All three were fixed by reasoning inline in a 1,500-line coordinator that had no seam to test through.
+- `conflictOf(data, exists, { loadedUpdatedAt, baselineUnknown, currentUser })` → the conflict to confirm, or null. Two detection paths: a timestamp mismatch (definitive), or an UNKNOWN baseline plus someone else's name (weaker, but far better than treating an unknown baseline as "no conflict" — which is what disabled the guard at v17.18). Accepted limit: two devices under the SAME display name never conflict-prompt on path 2.
+- `baselineAfterWrite(millis, ok = true)` — a failed read-back must flag the baseline UNKNOWN, never merely null.
+- `canAdvanceBaseline(preTs, ourBaseline, preReadOk = true)` — a rename may move our baseline only when nothing changed underneath it (v16.19 is the bug from not advancing, v16.23 the bug from advancing blindly).
+- Tested by `links-concurrency.test.mjs`, one case per historical bug.
 
 ### `paycalc-boot.js`
 2-line bootstrap for `paycalc.html` (Phase 4a.2, v14.67). Imports `init` from `paycalc-app.js` and calls it. Same rationale as `operations-boot.js` (CSP + testability). No logic of its own.

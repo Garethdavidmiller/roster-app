@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: July 2026 — v19.30 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.40 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -748,15 +748,27 @@ for now:
   (`.row-unfilled`) flag any unfilled line until it is designed. **The auto-generator
   is the only way to create a new design (v12.43)** — it reads Mon–Fri/Sat/Sun
   headcount targets and produces a complete 28-line rotation in one step.
-- **The 28-line structure is hardcoded by design.** `TOTAL_POS` and `ROTATING_LINES`
-  reflect the agreed link concept — they are deliberately not derived from roster data.
-  If the link concept changes (e.g. more lines), these constants change with it.
+- **The 28-line structure is hardcoded by design.** `ROTATING_LINES` reflects the agreed
+  link concept — deliberately not derived from roster data. If the link concept changes
+  (e.g. more lines), the constant changes with it. Since **v19.38 it is declared once**, in
+  `links-design.js`, and imported: it was previously a literal in three files kept in step
+  by a comment.
 - **Save concurrency is warn-on-conflict, not merge.** Two designers saving at
   once get a confirm naming who saved last; the whole document is still replaced.
-  A field-level merge is not worth the complexity for a 2-person beta tool.
+  A field-level merge is not worth the complexity for a small design tool. Declining the
+  overwrite now offers **"Save mine as new"** (v19.38), so the loser of a race has somewhere
+  to put their work instead of choosing between discarding it and clobbering a colleague.
+  The concurrency RULES themselves are the pure `links-concurrency.js` (v19.38), tested with
+  a case per historical bug — three separate silent-overwrite bugs came out of that logic
+  while it was inline in the coordinator.
+- **Delete is permanent — no archive, no ownership check** (recorded v19.39). Any designer
+  or admin can delete any design behind a confirm dialog; recovery means a Firestore PITR
+  restore, which only exists if PITR is enabled on the project. Accepted while the tool had
+  two designers, with a third as the stated trigger to revisit — **a third arrived at v19.40
+  (M. Robson), so soft-delete is now an open question.**
 
 ### Test coverage gaps
-The suite is now broad (40+ test files, ~1420 tests — see CLAUDE.md's file tree for the
+The suite is now broad (74 root test files, ~1845 tests — see CLAUDE.md's file tree for the
 full per-suite listing; nearly every pure module has a companion `.test.mjs`, the exceptions
 being trivial data/formatter modules like `paycalc-help.js` and
 `roster-cycle-data.js`). What matters here is what is **still not** covered:

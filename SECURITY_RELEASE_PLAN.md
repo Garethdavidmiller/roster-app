@@ -101,7 +101,7 @@ B2, which recurs in B3/B4. State the tiers once, here:
 | **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
 | **Management** | `CONFIG.MANAGER_NAMES` (6 names) | **`{ manager: true, name }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
 | **Staff** | everyone else | `{ name }` | Only their **own** overrides (`token.name == memberName`) |
-| *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva']`) | *cross-cuts the above* — S. Silva is a **CEA**, not a manager. The `linksDesigner` claim is LIVE (H2, v16.29): `setupRosterAuth` sets it from `CONFIG.LINKS_DESIGNERS` and `linkDesigns` writes are gated on it | `linkDesigns` (designs are **not** member-owned) — write control is the `linksDesigner`/`admin` claim |
+| *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva', 'M. Robson']`) | *cross-cuts the above* — S. Silva and M. Robson are **CEAs**, not managers. The `linksDesigner` claim is LIVE (H2, v16.29): `setupRosterAuth` sets it from `CONFIG.LINKS_DESIGNERS` and `linkDesigns` writes are gated on it | `linkDesigns` (designs are **not** member-owned) — write control is the `linksDesigner`/`admin` claim |
 
 Three design points that flow from this and still govern any future rule change:
 
