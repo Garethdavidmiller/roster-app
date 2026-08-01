@@ -438,13 +438,14 @@ Compare mode on `links.html` — two saved designs side by side with a gold-outl
 
 ### `links-design.js`
 Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).
-- `classifyShift(shift)` / `normaliseCustomShift(raw)` (rejects night starts 21:00–03:59 — CEAs don't work nights) / `startMinutes` / `endMinutes` / `dayClass(d)`
+- `classifyShift(shift)` / `normaliseCustomShift(raw)` (rejects night starts 21:00–03:59 AND a wrapping end — CEAs don't work nights) / `startMinutes` / `endMinutes` / `endMinutesAbs` / `dayClass(d)`
 - `calcCoverage(patterns, totalPos = 28)` / `calcHourlyCoverage(patterns, totalPos = 28)` — per-day and hour-by-hour on-duty counts for the Coverage heat map
 - `generatePatterns({ slots, spare, lines = 28 })` — the slot-based rotating-window generator (the only way to create a new design)
 - `runDesignChecks(patterns, rotatingLines = 28)` — unfilled lines, weekends off, short turnarounds (`MIN_REST_MINUTES` 12h), longest run, early/late balance
 - `canonicaliseShift(raw)` / `normalisePatterns(patterns)` (v19.38) — pad a legacy unpadded time on load so the module holds ONE time format
 - Constants: `DAYS`, `MIN_REST_MINUTES`, `ROTATING_LINES` (28 — v19.38; it was a literal in three files kept in step by a comment)
 - **`classifyShift` reads the hour through the same strict parser the coverage maths uses** (v19.38). Before that the two could disagree about what a time IS: `"6:00-14:00"` classified as a normal early while `startMinutes` returned null, so it counted in the day totals, was ABSENT from the hourly heat map, and was exempt from every turnaround check. Do not reintroduce a second, looser time read here.
+- **`endMinutesAbs` is the ONE reading of a duty that runs past midnight** (v19.47, `LINKS_DEC2026_PLAN.md` package 5). Two callers each had their own inline expression and both erred the same way — towards *safer than the truth*: `calcHourlyCoverage` clamped the end to 24:00, so the post-midnight hours vanished from the very artefact used to spot gaps, and `runDesignChecks` computed `(1440 − end) + start`, so a 00:30 finish before an 06:20 start reported ~26h of rest instead of 5h50 — the most dangerous turnaround the module can express was the one it called compliant. The heat map now counts a wrapping duty on BOTH days (Sat spills to Sun); `links-fatigue.js`'s `dutyMinutes` delegates here rather than keeping a third copy. Unreachable from the CEA link (duties finish 23:55, and `normaliseCustomShift` refuses a wrapping value) — **keep that input-boundary ban; it is the first line of defence, not a duplicate of this.**
 
 ### `links-fatigue.js`
 The ORR good-practice **fatigue factors** (Dec 2021 guide, p3 — 24 factors) assessed against a link design (v19.46; `LINKS_DEC2026_PLAN.md` package 2). Pure — no DOM, no Firebase.

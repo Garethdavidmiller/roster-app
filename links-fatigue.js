@@ -35,7 +35,7 @@
  * estimate. `hoursAreFloor` is returned so the UI can say so rather than imply precision.
  */
 
-import { DAYS, ROTATING_LINES, startMinutes, endMinutes } from './links-design.js';
+import { DAYS, ROTATING_LINES, startMinutes, endMinutesAbs } from './links-design.js';
 
 /** A duty counts as an FF2 "early shift" when it starts in this window (inclusive of 05:00). */
 const EARLY_FROM = 5 * 60;
@@ -49,16 +49,18 @@ export function isWorked(s) { return !isRest(s); }
 /**
  * Duty length in minutes, or null when the value carries no times (RD / SPARE / unparseable).
  *
- * A duty whose end is at or before its start has run past midnight, so it gains 24h. Nothing in the
- * current CEA link does that — duties finish 23:55 — but a designer can type one, and the version of
- * this rule that ignores the case reports a NEGATIVE duty length rather than failing.
+ * A duty whose end is at or before its start has run past midnight, so it gains 24h — handled by
+ * `endMinutesAbs` in links-design.js, which is the ONE place that rule lives (v19.47; this module
+ * carried its own copy of the expression for one version). Nothing in the current CEA link runs past
+ * midnight — duties finish 23:55 — but a designer can type one, and the version of this rule that
+ * ignores the case reports a NEGATIVE duty length rather than failing.
  * @param {any} shift
  */
 export function dutyMinutes(shift) {
     const a = startMinutes(shift);
-    const b = endMinutes(shift);
+    const b = endMinutesAbs(shift);
     if (a === null || b === null) return null;
-    return b <= a ? (b + 24 * 60) - a : b - a;
+    return b - a;
 }
 
 /** Does this duty start in the FF2 early window? @param {any} shift */

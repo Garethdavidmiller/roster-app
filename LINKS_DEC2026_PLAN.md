@@ -175,6 +175,10 @@ Ordered **2 → 1 → 3 → 4 → 5**: the fatigue checks carry the most value a
 the operating window is what unblocks the overlay and the generator targets. The numbering is kept
 from the first draft so the review correction under package 1 stays legible.
 
+**Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47 out of order because it was cheap
+and self-contained. 1 is buildable now. 3 and 4 are blocked on open question 1 (what drives CEA
+workload) and, for 3, on package 1.
+
 ### 1. Operating-window setting
 
 Store the window **on each design**, with app defaults of Mon–Sat 06:20–23:55 and Sun 07:15–23:25.
@@ -272,13 +276,22 @@ profile or a simplifier import.
 so is the same defect class as the undated printed sheet fixed at v19.45 — the data was right when it
 was made and there is no way to tell later.
 
-### 5. Midnight-crossing guard — **correctness only, not priority**
+### 5. Midnight-crossing guard — ✅ **SHIPPED v19.47**
 
-`calcHourlyCoverage` clamps a duty's end to 24:00 when end ≤ start, and the turnaround check computes
-`rest = (1440 − end) + start`. A duty ending 00:30 therefore reports ~23h of rest where the truth is
-~11h, and its post-midnight hours vanish from the heat map. **Nothing in this work reaches it** —
-duties end 23:55, so `end > start` always holds — but it is a real latent defect and cheap to guard
-with a test. The 21:00–03:59 start ban in `normaliseCustomShift` is correct and should stay.
+`endMinutesAbs` in `links-design.js` is now the one reading of a duty that runs past midnight, and
+both callers use it: the heat map counts a wrapping duty on **both** days (Saturday spilling round to
+Sunday) instead of dropping its post-midnight hours, and the turnaround check lets that duty eat into
+the rest that follows it. `links-fatigue.js`'s `dutyMinutes` delegates to it rather than keeping a
+third copy.
+
+What the two defects had in common is the part worth remembering: **both erred towards *safer than
+the truth*.** The heat map lost hours from the artefact whose entire job is showing where cover is
+thin, and the turnaround check reported ~26h of rest for a 00:30 finish before an 06:20 start — 5h50
+in reality — so the most dangerous turnaround the module can express was the one it called compliant.
+
+Still unreachable from the CEA link (duties finish 23:55) and the `normaliseCustomShift` ban on a
+wrapping value stays — it is the input boundary, not a duplicate of this. Reachable only through
+legacy/imported data, the same route `canonicaliseShift` exists for.
 
 ## Not building
 

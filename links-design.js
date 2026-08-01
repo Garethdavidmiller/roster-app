@@ -137,6 +137,36 @@ export function endMinutes(/** @type {any} */ shift) {
 }
 
 /**
+ * End of a timed shift in minutes from the START day's midnight — so a duty that runs past midnight
+ * returns a value ABOVE 24*60 instead of a number smaller than its own start.
+ *
+ * WHY THIS EXISTS (v19.47). Two readers of a duty's end each handled the past-midnight case with
+ * their own inline expression, and both were wrong in the same direction — they made a wrapping duty
+ * look SAFER than it is:
+ *   · `calcHourlyCoverage` clamped the end to 24:00, so the post-midnight hours simply vanished from
+ *     the heat map — the artefact used to spot coverage gaps.
+ *   · `runDesignChecks` computed rest as `(1440 − end) + start`, so a duty ending 00:30 followed by an
+ *     06:20 start reported ~26h of rest where the truth is 5h50 — a genuinely dangerous turnaround
+ *     scoring as compliant.
+ * Nothing in the CEA link reaches either: duties finish 23:55 and `normaliseCustomShift` rejects a
+ * wrapping value at the input boundary (keep that ban — it is the first line of defence, not a
+ * duplicate of this). It is reachable through legacy/imported data, the same route
+ * `canonicaliseShift` exists for, and a latent rule that fails silently towards "compliant" is worth
+ * closing before someone relies on it.
+ *
+ * One helper rather than two expressions, for the reason recorded on `canonicaliseShift`: two readers
+ * of one string with their own idea of what it means is how they came to disagree in the first place.
+ * @param {any} shift
+ * @returns {number|null}
+ */
+export function endMinutesAbs(shift) {
+    const st = startMinutes(shift);
+    const en = endMinutes(shift);
+    if (st === null || en === null) return null;
+    return en <= st ? en + 24 * 60 : en;
+}
+
+/**
  * Count early/late/spare/night/rd per day across all positions.
  * @param {Object} patterns - { "1".."N": { sun..sat } }
  * @param {number} totalPos
@@ -168,8 +198,12 @@ export function dayClass(d) {
 /**
  * Count on-duty headcount for each hour of the day, per day of week.
  * Spare positions have no times, so they are counted separately.
- * Overnight ends (end <= start) are clamped to midnight — defensive only,
- * CEA shifts never wrap.
+ *
+ * A duty that runs past midnight is counted on BOTH days — its evening hours on the day it starts,
+ * its small hours on the next day (wrapping Sat → Sun), because that is where the people are. Until
+ * v19.47 the end was clamped to 24:00 and those hours disappeared, which is the wrong direction for
+ * an artefact whose whole job is showing where cover is thin. CEA duties finish 23:55, so this is
+ * reachable only through legacy/imported data.
  * @param {Object} patterns - { "1".."N": { sun..sat } }
  * @param {number} [totalPos=28]
  * @returns {Object.<string,{hours:number[], spare:number}>} keyed by day
@@ -180,16 +214,20 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
     for (let pos = 1; pos <= totalPos; pos++) {
         const p = /** @type {Record<string, any>} */ (patterns)[String(pos)];
         if (!p) continue;
-        for (const d of DAYS) {
+        for (const [i, d] of DAYS.entries()) {
             const s = p[d] ?? 'RD';
             if (s === 'RD' || s === 'OFF') continue;
             if (s === 'SPARE') { out[d].spare++; continue; }
             const st = startMinutes(s);
-            const enRaw = endMinutes(s);
-            if (st === null || enRaw === null) continue;
-            const en = enRaw <= st ? 24 * 60 : enRaw;
+            const en = endMinutesAbs(s);
+            if (st === null || en === null) continue;
             for (let h = 0; h < 24; h++) {
                 if (st < (h + 1) * 60 && en > h * 60) out[d].hours[h]++;
+            }
+            if (en > 24 * 60) {
+                const spill = en - 24 * 60;
+                const next = DAYS[(i + 1) % DAYS.length];
+                for (let h = 0; h < 24 && spill > h * 60; h++) out[next].hours[h]++;
             }
         }
     }
@@ -333,10 +371,12 @@ export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
 
     // Short turnarounds: consecutive timed shifts with less than MIN_REST_MINUTES
     // between the end of one and the start of the next. SPARE has no times, skip.
+    // `endMinutesAbs` (not `endMinutes`) so a duty running past midnight eats into the rest it is
+    // followed by instead of being credited with a phantom extra day of it — see that function.
     const turnarounds = [];
     for (let t = 0; t < N; t++) {
         const a = seq[t], b = seq[(t + 1) % N];
-        const end = endMinutes(a.shift), start = startMinutes(b.shift);
+        const end = endMinutesAbs(a.shift), start = startMinutes(b.shift);
         if (end === null || start === null) continue;
         const rest = (24 * 60 - end) + start;
         if (rest < MIN_REST_MINUTES) {
