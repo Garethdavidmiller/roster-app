@@ -39,7 +39,7 @@ import { initLinksAnalysis } from './links-analysis.js';
 import { initLinksCompare } from './links-compare.js';
 import { conflictOf as _conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
 import {
-    SOFT_DELETE_RETENTION_DAYS, isDeleted, purgeableIds, deletedLabel, canSoftDelete, sortByDeleted,
+    SOFT_DELETE_RETENTION_DAYS, isDeleted, isPurgeable, purgeableIds, deletedLabel, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
 
 
@@ -354,8 +354,13 @@ export function init() {
         const dupBtn         = /** @type {HTMLButtonElement|null} */ (document.getElementById('dupDesignBtn'));
         if (!wrap) return;
 
-        // Only show the picker once at least one design exists
-        wrap.style.display = designs.length > 0 ? '' : 'none';
+        // Show the picker once at least one design exists — or once anything is in the BIN
+        // (v19.41). The bin button lives inside this wrapper, so keying the whole strip on live
+        // designs alone made "Recently deleted" unreachable at exactly the moment it is most
+        // needed: zero live designs and several restorable ones. That state is reachable even
+        // though this client refuses to delete the last live design — two designers deleting the
+        // last two at once gets there, and so does any device still running an older build.
+        wrap.style.display = (designs.length > 0 || deletedDesigns.length > 0) ? '' : 'none';
 
         // Render main design chips. A chip is a <div> wrapping separate <button>s —
         // buttons must NOT nest (the HTML parser force-closes an open <button> when
@@ -595,7 +600,6 @@ export function init() {
             }
             if (newActive) _activateDesign(newActive);
             else { renderDesignPicker(); renderGrid(); compare.renderCompare(); }
-            renderDesignPicker();   // reveal the bin button now that it has something in it
         } catch (err) {
             console.error('[Links] Delete failed:', err);
             // Was console-only: a rules rejection or a dropped connection looked like the button
@@ -631,7 +635,16 @@ export function init() {
                 updatedAt: serverTimestamp(), updatedBy: currentUser,
             }, { merge: true }));
             deletedDesigns = deletedDesigns.filter(x => x.id !== id);
-            designs.push({ id: d.id, name: d.name, patterns: d.patterns, updatedAt: null, updatedBy: currentUser });
+            // Arm the concurrency baseline by reading the server timestamp back, exactly as
+            // createDesign/duplicateDesign do. A restored design is an OLD document a co-editor may
+            // still hold, so entering it with no baseline is worse here than for a new one: the
+            // next save would skip the "someone else saved" confirm entirely. On a failed read-back
+            // the entry keeps a null timestamp, which _activateDesign now correctly reads as an
+            // UNKNOWN baseline (guard on) rather than "nothing to compare" (guard off).
+            let restoredTs = null;
+            try { restoredTs = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt ?? null; }
+            catch { /* offline — the unknown-baseline flag covers it */ }
+            designs.push({ id: d.id, name: d.name, patterns: d.patterns, updatedAt: restoredTs, updatedBy: currentUser });
             _sortDesigns();
             renderDesignPicker();
             renderBinList();
@@ -728,8 +741,21 @@ export function init() {
         if (ids.length === 0) return;
         deletedDesigns = deletedDesigns.filter(d => !ids.includes(d.id));
         for (const id of ids) {
-            writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkDesigns, id)))
-                .catch(err => console.warn('[Links] Purge of an expired deletion failed (will retry next load):', err));
+            const ref = doc(db, COLLECTIONS.linkDesigns, id);
+            // Re-check inside a TRANSACTION rather than deleting on the strength of the load
+            // snapshot. That snapshot is not necessarily current: this app runs Firestore with
+            // persistentLocalCache, so a load made offline (or during a blip) is served from
+            // IndexedDB and can be arbitrarily stale — it could show a design as deleted-and-expired
+            // that a colleague restored days ago, and the queued delete would then destroy a LIVE
+            // design. A transaction reads from the server and commits atomically, so the decision
+            // and the deletion cannot be separated by someone else's restore. Offline it simply
+            // fails and nothing is destroyed, which is the right way for this one to fail.
+            writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                const snap = await tx.get(ref);
+                if (!snap.exists()) return;                          // already gone
+                if (!isPurgeable(snap.data(), Date.now())) return;   // restored, or not actually expired
+                tx.delete(ref);
+            })).catch(err => console.warn('[Links] Purge of an expired deletion failed (will retry next load):', err));
         }
     }
 
@@ -756,7 +782,13 @@ export function init() {
         activeDesignId  = d.id;
         lsSet(ACTIVE_KEY, d.id);
         design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
-        loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null; baselineUnknown = false;
+        // Derive the baseline through the tested rule rather than hardcoding `baselineUnknown =
+        // false` beside a possibly-null timestamp — that pair is precisely the v17.18 bug
+        // (neither a known baseline nor a flag saying it is unknown, so conflictOf reads it as
+        // "safe to overwrite"). It was harmless while every entry came from the server snapshot or
+        // from create/duplicate, both of which arm a real timestamp; v19.41's RESTORE added a third
+        // producer whose entry can carry null, and selecting it then switched the guard off.
+        ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(d.updatedAt?.toMillis?.()));
         dirty           = false;
         // Clear a prior design's "✓ Saved" / "Save failed" status — updateSaveBtn only clears it
         // while dirty, so without this it carried over to the newly selected design, falsely
@@ -1613,7 +1645,7 @@ export function init() {
                 activeDesignId  = d.id;
                 lsSet(ACTIVE_KEY, d.id);
                 design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
-                loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null; baselineUnknown = false;
+                ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(d.updatedAt?.toMillis?.()));
                 updateLastSaved(d.updatedBy, d.updatedAt);
             } else {
                 design = null;
