@@ -478,8 +478,23 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
     test('anon cannot read', async () => {
         await assertFails(getDocs(collection(anonDb(), 'linkDesigns')));
     });
-    test('any authenticated user can READ (reads stay open)', async () => {
-        await assertSucceeds(getDocs(collection(staffDb(), 'linkDesigns')));
+    // READ tightened at v19.39. The old rule was `request.auth != null`, documented as "any
+    // authenticated session" — but calendar-app.js signs EVERY visitor in anonymously, so that
+    // included anyone who could open the app URL. These cases pin the new line: a signed-in member
+    // is in, a claim-less (anonymous-equivalent) session is out, admin is in without a name claim,
+    // and a designer whose token predates the linksDesigner claim can still LOAD — which is the
+    // whole reason the read is not simply narrowed to isLinksWriter().
+    test('a NAMED member can READ', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('J. Davies'), 'linkDesigns')));
+    });
+    test('a name-less authenticated session CANNOT READ (the calendar\'s anonymous session)', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'linkDesigns')));
+    });
+    test('a designer on a token with `name` but NOT yet linksDesigner can still READ (self-heal path)', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('S. Silva', 'uid_stale'), 'linkDesigns')));
+    });
+    test('an admin can READ', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'linkDesigns')));
     });
     test('a designer can WRITE', async () => {
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), DESIGN()));

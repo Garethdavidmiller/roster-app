@@ -14,6 +14,8 @@ paths:
 - `NAV_PAGES` entry has `linksDesignerOnly: true`. `initNavPanel({ isLinksDesigner })` filters it out for non-designers.
 - Each page passes `isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(member)`. `links-app.js` passes `isLinksDesigner: true` (page already guards non-designers, redirecting to `admin.html`).
 - To grant access: add name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` — every page derives `isLinksDesigner` from that list. Current designers: `'G. Miller'`, `'S. Silva'`.
+- **Server-side (the real control):** `linkDesigns` writes require the `linksDesigner` or `admin` claim (H2, v16.29). **Reads require a `name` claim** (v19.39) — a session that has actually signed in as a member. The previous `request.auth != null` was intended as "any signed-in member", but the calendar signs every visitor in anonymously, so it admitted anyone who could open the app URL. Reads are deliberately NOT gated on `linksDesigner`: a designer whose token predates that claim has to be able to LOAD the page for the write self-heal (`writeWithClaimRetry`) to get its chance to run.
+- **Delete has no undo.** Any designer or admin can permanently delete any design; the only guard is the confirm dialog, and there is no archive or ownership check. With two designers that is an accepted risk — the recovery route is a Firestore PITR restore (RECOVERY_RUNBOOK.md → "A Link Design was lost or corrupted"), which is only a route if PITR is actually enabled on the project. If a third designer is ever added, revisit soft-delete.
 
 ## Beta marker + first-visit notice (v12.33)
 

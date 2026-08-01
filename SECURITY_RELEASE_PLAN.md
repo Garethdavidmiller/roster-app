@@ -114,7 +114,10 @@ Three design points that flow from this and still govern any future rule change:
 - **`linkDesigns` is NOT member-isolated** — designs are keyed by design **name**, not member, and
   designer S. Silva is a CEA with no admin/manager claim, so `token.name == memberName` is meaningless.
   Its write gate is the separate `linksDesigner`/`admin` claim (H2). Do not fold it into the override
-  member-name model.
+  member-name model. Its **read** gate is a `name` claim (v19.39) — one notch, not two: `request.auth
+  != null` was reached by the calendar's anonymous session, so it admitted any visitor; requiring the
+  `linksDesigner` claim instead would remove the load path a stale designer token needs before its
+  first write can self-heal.
 - **Server-owned lists carry all three tiers** (admin + manager + designer), generated from
   `roster-data.js` (B4) so a tampered client payload can't self-promote.
 
