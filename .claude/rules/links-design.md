@@ -106,8 +106,23 @@ The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`)
 
 **Baseline-unknown guard (v17.18):** after a successful save, `saveChanges()` re-reads the doc to re-arm the concurrency baseline (`loadedUpdatedAt`). If that read-back FAILS (brief blip), the catch now sets `baselineUnknown = true` (mirroring the transaction path) — leaving it `false` meant the NEXT save saw neither a known timestamp nor an unknown-baseline flag, so a co-editor's intervening save could be overwritten with no conflict prompt. Residual accepted limit: two devices under the SAME display name (`updatedBy` equal) still won't conflict-prompt — inherent to identifying editors by name.
 
-### Print (v12.37)
-A4 landscape grid + coverage + checks; generator and brush bar hidden.
+### Print (v12.37; reviewed v19.45)
+A4 landscape grid + coverage + checks; generator, brush bar, picker, save row, tips and chevrons hidden.
+
+**The whole 28-line rotation must land on ONE sheet** — you cannot judge a rotation split across
+two pages. That is a measured constraint, not a preference: A4 landscape at 1cm margins gives
+**718px** of printable height, and at the old 26px rows the grid card came to **903px**, so it
+always broke (the CSS comment claimed it fitted "or close to"). Rows are now 21px, the cell
+line-height 1.15, and the grid card's own header is dropped in print — the masthead names the sheet
+— which brings it to **703px**. Re-measure if the cell font or the masthead changes; there is only
+~15px of headroom.
+
+**The masthead carries provenance.** `#printDesignName` names the design, who last saved it and
+when, and the date it was printed (stamped on `beforeprint`, so a page left open for a week cannot
+print a stale date). Before v19.45 it printed the design name alone: the save row that carries
+"last saved by X" is hidden in print, so a circulated sheet had no way to say which version it was.
+Coverage and Design checks keep their card headers — they are separate sections a reader needs
+named.
 
 ### Sticky day headers (v12.37)
 At ≥1024px `.links-grid-wrapper` drops `overflow-x` and `.card` uses `overflow: clip` (not `hidden`) — both load-bearing for the sticky `thead`.

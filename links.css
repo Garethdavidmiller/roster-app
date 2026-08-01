@@ -287,7 +287,13 @@ body.auth-ready .container { display: grid; }
     white-space: nowrap;
     position: sticky;
     top: 0;
-    z-index: 1;
+    /* STACKING (v19.45). The grid is sticky in BOTH axes — a day-header row and a line-number
+       column — so the three layers have to be ordered explicitly: corner cell > header row >
+       number column. They used to be 2 / 1 / 2, i.e. the body's number column OUTRANKED the
+       header row, so scrolling put a row number where "LINE" belongs and let that row's cell text
+       show as a sliver above the header. The corner cell also tied with the body column at 2 and
+       lost on DOM order, which is what made the number visible in the header's own cell. */
+    z-index: 2;
 }
 .links-grid th.col-pos { width: 36px; min-width: 36px; }
 
@@ -297,8 +303,10 @@ body.auth-ready .container { display: grid; }
     position: sticky;
     left: 0;
     background: var(--surface-sunken);
-    z-index: 2;
+    z-index: 1;
 }
+/* The corner cell belongs to both sticky axes, so it must sit above both. */
+.links-grid thead th.col-pos { z-index: 3; }
 
 /* Position number cell */
 .links-grid .pos-num {
@@ -999,21 +1007,39 @@ body.auth-ready .container { display: grid; }
     /* Print collapsed cards too — paper has no tap-to-expand */
     .card-collapsible-body { display: block !important; }
 
-    /* Name the design on the printed sheet (hidden on screen) */
+    /* Masthead on the printed sheet (hidden on screen): which design, which version, printed when */
     .print-design-name {
-        display: block;
-        font-size: var(--type-body);
-        font-weight: 700;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
         margin: 0 0 6px;
         color: var(--text-dark);
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 4px;
     }
+    .print-design-title { font-size: var(--type-body); font-weight: 700; }
+    .print-design-meta  { font-size: var(--type-badge); color: var(--text-mid); }
+
+    /* The grid card's own header is redundant on paper — the masthead above names the sheet, and
+       those ~64px are what push a 28-line rotation onto a second sheet. Coverage and Design checks
+       KEEP their headers: they are separate sections a reader needs named. */
+    #linksGridCard > .card-header-toggle { display: none !important; }
+    #linksGridCard { border: none; }
+    #linksGridCard .card-body { padding: 0 !important; }
 
     .links-grid-wrapper { overflow: visible; margin: 0; padding: 0; }
     .links-grid { min-width: 0; }
     .links-grid tr { break-inside: avoid; }
-    /* Compact rows so the 28-line grid fits on (or close to) one sheet */
-    .links-grid .shift-cell { height: 26px; }
-    .shift-cell-btn { font-size: 8px; line-height: 1.2; padding: 1px 2px; }
+    /* Row height is what decides whether the whole 28-line rotation lands on ONE sheet, which is
+       the point of printing it — you cannot judge a rotation split across two pages. MEASURED
+       (v19.45): A4 landscape at 1cm margins is 718px of printable height; at 26px rows the grid
+       card came to 903px, so it always broke, and the comment here claimed it fitted "or close
+       to". 22px is the smallest height that still clears two 8px lines at 1.2 (19.2px + padding)
+       and, with the card chrome above dropped, brings the sheet inside 718. Re-measure if the
+       cell font changes. */
+    .links-grid .shift-cell { height: 21px; }
+    .shift-cell-btn { font-size: 8px; line-height: 1.15; padding: 0 2px; }
     /* Sticky positioning confuses print pagination — flatten it */
     .links-grid thead th,
     .links-grid .pos-num { position: static !important; }
