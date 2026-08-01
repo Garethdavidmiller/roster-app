@@ -341,6 +341,38 @@ describe('computeCellStates — review state machine', () => {
         assert.deepEqual(c.options.map(/** @param {any} o */ o => o.value), ['AL', 'RD']);
     });
 
+    test('a flagged cell over a MANUAL override records that a saved entry is at stake', () => {
+        // Picking a reading writes with replaceId = the existing doc, so it REPLACES whatever is
+        // there. For a previous import that is correct and routine. For a MANUAL entry it is the one
+        // thing the review table otherwise guarantees never happens silently — a readable PDF value
+        // in this situation becomes a CONFLICT row that shows "Saved: X" and asks. The flagged row
+        // has to carry the same information, so the renderer can show it.
+        const c = computeCellStates(
+            {
+                parsed:  [{ memberName: mname, shifts: { [WORKDAY]: 'UNKNOWN|AL or Rest day? (PDF unclear)' } }],
+                dates:   [WORKDAY],
+                choices: { [`${mname}|${WORKDAY}`]: ['AL', 'RD'] },
+            },
+            [{ memberName: mname, date: WORKDAY, value: '23:00-06:00', type: 'shift', source: 'manual', id: 'm9' }],
+        ).get(`${mname}|${WORKDAY}`);
+        assert.equal(c.state, 'UNREADABLE');
+        assert.ok(c.options, 'still offers the two readings');
+        assert.equal(c.isManual, true, 'the row must know a MANUAL entry would be replaced');
+        assert.equal(c.manualValue, '23:00-06:00');
+    });
+
+    test('a flagged cell over a previous IMPORT is not flagged as manual', () => {
+        const c = computeCellStates(
+            {
+                parsed:  [{ memberName: mname, shifts: { [WORKDAY]: 'UNKNOWN|AL or Rest day? (PDF unclear)' } }],
+                dates:   [WORKDAY],
+                choices: { [`${mname}|${WORKDAY}`]: ['AL', 'RD'] },
+            },
+            [{ memberName: mname, date: WORKDAY, value: '23:00-06:00', type: 'shift', source: 'roster_import', id: 'i9' }],
+        ).get(`${mname}|${WORKDAY}`);
+        assert.equal(c.isManual, false, 'replacing a previous import is routine, not a warning');
+    });
+
     test('no candidates from the server → the old skip-only row, not a broken picker', () => {
         const c = run('UNKNOWN|garbled (PDF unclear)');
         assert.equal(c.state, 'UNREADABLE');

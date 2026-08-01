@@ -176,12 +176,38 @@ export function clearPayslipActuals() { lsDel(payslipActualsKey()); }
 /** Keys that describe the BROWSER, not the member — never namespaced, and never carried by a
  *  backup (paycalc-transfer.js): importing `ns_migrated` onto a fresh device would suppress the
  *  legacy-ownership prompt on a device that genuinely needs it. */
-export const DEVICE_KEYS = new Set([
+const _ACTIVE_DEVICE_KEYS = [
     'myb_pc_cea_migrated',
     'myb_pc_pension_v882_migrated',
     'myb_pc_ytd_notice_shown',
     'myb_pc_ns_migrated',
-]);
+];
+
+/** Device keys the app NO LONGER WRITES — but which still sit in localStorage on every device that
+ *  set them, sometimes for years. They must stay classified as device-level for as long as they can
+ *  plausibly exist in the wild.
+ *
+ *  This list exists because deleting one was a live bug (v19.36 → fixed v19.37). Retiring the
+ *  welcome lightbox removed `myb_pc_pay_welcome_shown` from the set above, which is correct in the
+ *  sense that nothing writes it any more — but every device that ever dismissed that lightbox still
+ *  HAS the flag. The moment it stopped being declared, `_hasUnnamespacedPaycalcData` began reading it
+ *  as unnamespaced member data, and the "Is this your pay data?" ownership prompt started firing at
+ *  members who have no legacy data whatsoever. Worst affected were anyone who first used the pay
+ *  calculator AFTER the v14.11 namespacing: their data was namespaced from the start, so the prompt
+ *  never ran, so `myb_pc_ns_migrated` — the guard that short-circuits all of this — was never set.
+ *
+ *  RULE: retiring a feature that owned a device flag means MOVING its key here, never deleting it.
+ *  Removing an entry from this list is a data-classification change affecting existing devices, not
+ *  a tidy-up. `paycalc-key-parity.test.mjs` deliberately exempts these from its no-ghosts check —
+ *  having no writer is what "retired" MEANS. */
+const _RETIRED_DEVICE_KEYS = [
+    'myb_pc_pay_welcome_shown',   // welcome lightbox, retired v19.36
+];
+
+export const DEVICE_KEYS = new Set([..._ACTIVE_DEVICE_KEYS, ..._RETIRED_DEVICE_KEYS]);
+
+/** The retired subset, for the parity guard (which must not demand a writer for these). */
+export const RETIRED_DEVICE_KEYS = new Set(_RETIRED_DEVICE_KEYS);
 
 // ── KEY MIGRATION ─────────────────────────────────────────────────────────────
 // Renames all cea_ prefixed localStorage keys to myb_pc_ in one pass.

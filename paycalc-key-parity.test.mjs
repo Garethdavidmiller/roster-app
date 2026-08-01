@@ -21,7 +21,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { DEVICE_KEYS } from './paycalc-migrations.js';
+import { DEVICE_KEYS, RETIRED_DEVICE_KEYS } from './paycalc-migrations.js';
 import { TAX_YEARS } from './paycalc-calc.js';
 
 /** The shape `paycalc-transfer.js` accepts. Kept as a literal, deliberately: importing the module's
@@ -49,11 +49,27 @@ describe('hardcoded myb_pc_ keys must be declared device-level', () => {
             + 'DEVICE_KEYS if they genuinely describe the browser rather than the member.');
     });
 
-    test('DEVICE_KEYS has no ghosts', () => {
+    test('DEVICE_KEYS has no ghosts (RETIRED keys exempt — having no writer is the point)', () => {
         // A stale entry is harmless to behaviour but means the list has drifted from the code, and
         // this list is what the backup path trusts to decide what NOT to carry.
-        const ghosts = [...DEVICE_KEYS].filter(k => !ALL_SRC.includes(`'${k}'`)).sort();
+        //
+        // RETIRED_DEVICE_KEYS are deliberately exempt. A retired key by definition has no writer left
+        // — that is what retiring a feature means — but it still SITS on devices, so it must stay
+        // classified as device-level. Demanding a writer for those is what made v19.36 delete
+        // `myb_pc_pay_welcome_shown` outright and fire the pay-data ownership prompt at members with
+        // no legacy data at all. The exemption is the fix; do not "tidy" it away.
+        const ghosts = [...DEVICE_KEYS]
+            .filter(k => !RETIRED_DEVICE_KEYS.has(k))
+            .filter(k => !ALL_SRC.includes(`'${k}'`)).sort();
         assert.deepEqual(ghosts, [], `DEVICE_KEYS entries that appear nowhere in the source: ${ghosts.join(', ')}`);
+    });
+
+    test('a retired device key is still excluded from a backup', () => {
+        // The other half of DEVICE_KEYS' job. Carrying a retired flag to a fresh device would
+        // re-apply a decision made on the old one — the same reason `ns_migrated` is excluded.
+        for (const k of RETIRED_DEVICE_KEYS) {
+            assert.ok(DEVICE_KEYS.has(k), `${k} must remain in DEVICE_KEYS while it exists in the wild`);
+        }
     });
 });
 
