@@ -1,7 +1,7 @@
 // Tests for links-design.js — pure link-design maths (no DOM, no Firebase).
 // Run: node --test links-design.test.mjs
 
-import { test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     DAYS,
@@ -14,6 +14,9 @@ import {
     generatePatterns,
     runDesignChecks,
     dayClass,
+    canonicaliseShift,
+    normalisePatterns,
+    ROTATING_LINES,
 } from './links-design.js';
 import { CONFIG } from './roster-data.js';
 
@@ -271,4 +274,99 @@ test('runDesignChecks reports no unfilled lines when every line works at least o
         patterns[String(w)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
     }
     assert.deepEqual(runDesignChecks(patterns, 5).unfilledLines, []);
+});
+
+// ── The two readers of a shift string must agree about what a time IS (v19.38) ──────────────────
+describe('canonical shift form', () => {
+    test('classifyShift and startMinutes can no longer disagree — for ANY input', () => {
+        // THE BUG THIS PINS, and the strongest form of it. classifyShift used to read the hour with
+        // slice(0,2), which is looser than the strict parser the coverage maths uses — so
+        // "6:00-14:00" was a perfectly ordinary early to one reader and unreadable to the other. The
+        // shift counted in the day totals and the early/late balance while being ABSENT from the
+        // hourly heat map and exempt from every short-turnaround check: silent, and in the worst
+        // direction, since the heat map is what a coverage gap is spotted on.
+        const everything = [
+            '06:20-14:20', '14:00-22:00', '04:00-12:00', '20:59-23:59',
+            '6:00-14:00', '9:5-17:00', '25:00-30:00', 'nonsense', '',
+            'SPARE', 'RD', 'OFF', null, undefined, 7,
+        ];
+        for (const v of everything) {
+            const cls = classifyShift(/** @type {any} */ (v));
+            if (cls === 'early' || cls === 'late') {
+                assert.notEqual(startMinutes(v), null,
+                    `${JSON.stringify(v)} is classified ${cls} but has no readable start time`);
+            }
+        }
+    });
+
+    test('canonicalising makes a legacy unpadded value readable by both', () => {
+        assert.equal(classifyShift('6:00-14:00'), 'night', 'unpadded is NOT trusted as a normal early');
+        const fixed = canonicaliseShift('6:00-14:00');
+        assert.equal(fixed, '06:00-14:00');
+        assert.equal(classifyShift(fixed), 'early');
+        assert.notEqual(startMinutes(fixed), null);
+    });
+
+    test('a value that cannot be canonicalised is visible, not silent', () => {
+        // "9:5-17:00" has a single-digit MINUTE and cannot be repaired safely — 9:5 is either 9:05
+        // or 9:50, and guessing would invent a shift time. So it is left alone and falls to 'night',
+        // which the grid footer renders as an `N:` count. CEAs never work nights, so any N: at all is
+        // a visible "something here is wrong" flag. Do NOT map it to 'rd' — that hides it again.
+        //
+        // This case was found BY this suite: the first version of the invariant above asserted only
+        // that canonicalised values were readable, and it failed on exactly this input.
+        assert.equal(canonicaliseShift('9:5-17:00'), '9:5-17:00', 'not repaired — the minute is ambiguous');
+        assert.equal(classifyShift('9:5-17:00'), 'night', 'but never passed off as a normal early');
+    });
+
+    test('canonicaliseShift leaves non-times and impossible times untouched', () => {
+        for (const v of ['SPARE', 'RD', 'OFF', '', 'nonsense', '25:00-30:00', '10:99-11:00'])
+            assert.equal(canonicaliseShift(v), v);
+        assert.equal(canonicaliseShift(null), null);
+        assert.equal(canonicaliseShift(undefined), undefined);
+        assert.equal(canonicaliseShift(7), 7, 'a non-string passes through unharmed');
+    });
+
+    test('normalisePatterns fixes a whole design and mutates nothing', () => {
+        const input = { '1': { mon: '6:00-14:00', tue: 'SPARE', wed: 'RD' }, '2': { mon: '07:00-15:00' } };
+        const frozen = JSON.stringify(input);
+        const out = normalisePatterns(input);
+        assert.equal(out['1'].mon, '06:00-14:00');
+        assert.equal(out['1'].tue, 'SPARE');
+        assert.equal(out['2'].mon, '07:00-15:00');
+        assert.equal(JSON.stringify(input), frozen, 'input is not mutated');
+    });
+
+    test('normalisePatterns survives the junk a legacy document can hold', () => {
+        const out = normalisePatterns({ '1': null, '2': 'not-an-object', '3': { mon: '6:00-14:00' }, '4': {} });
+        assert.deepEqual(Object.keys(out).sort(), ['3', '4'], 'unusable rows are dropped, not crashed on');
+        assert.equal(out['3'].mon, '06:00-14:00');
+        assert.equal(normalisePatterns(null) && Object.keys(normalisePatterns(null)).length, 0);
+    });
+
+    test('a canonicalised legacy design becomes visible to the coverage heat map', () => {
+        // End-to-end of the defect: the same design, before and after.
+        const legacy = { '1': { sun: 'RD', mon: '6:00-14:00', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } };
+        // Before canonicalising, the strict classifier refuses to call it an early — it lands in
+        // `night`, the visible N: bucket — and it is absent from the heat map. Both readers agree it
+        // is not a normal shift, which is the point: the OLD behaviour had them disagreeing.
+        assert.equal(calcCoverage(legacy, 1).mon.early, 0);
+        assert.equal(calcCoverage(legacy, 1).mon.night, 1, 'flagged, not silently counted as early');
+        assert.equal(Math.max(...calcHourlyCoverage(legacy, 1).mon.hours), 0, 'and absent from the heat map');
+        const fixed = normalisePatterns(legacy);
+        assert.equal(calcCoverage(fixed, 1).mon.early, 1, 'a real early once canonicalised…');
+        assert.equal(Math.max(...calcHourlyCoverage(fixed, 1).mon.hours), 1, '…and present in the heat map');
+    });
+});
+
+describe('the rotation length is declared once', () => {
+    test('ROTATING_LINES is the default for every window in this module', () => {
+        // Three literal 28s (links-app's pair, links-analysis's pair, these defaults) kept in step by
+        // a comment is how a grid renders one number of rows while the checks examine another.
+        assert.equal(ROTATING_LINES, 28);
+        const all = {};
+        for (let i = 1; i <= ROTATING_LINES; i++) all[String(i)] = { sun: 'RD', mon: '06:00-14:00', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        assert.equal(runDesignChecks(all).totalWeeks, ROTATING_LINES);
+        assert.equal(calcCoverage(all).mon.early, ROTATING_LINES);
+    });
 });

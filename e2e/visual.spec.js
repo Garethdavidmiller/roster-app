@@ -231,6 +231,49 @@ test('operations — roster review table, every row state (mobile 390)', async (
     await expect(page.locator('#rosterReviewSection')).toHaveScreenshot('operations-roster-review.png');
 });
 
+// ── Links workspace ───────────────────────────────────────────────────────────────────────────
+// The app's most visually complex surface — a 28×7 grid, an hour-by-hour heat map, a paint bar, a
+// design picker — and until v19.38 it had no pixel coverage at all. Baselined at DESKTOP, where the
+// grid's sticky header and the ≥1024px `overflow-x` drop are load-bearing (see the links rules doc);
+// the mobile view is the same grid with horizontal scroll.
+//
+// A generated design is used rather than the empty state: an all-rest grid locks almost nothing,
+// and the heat map — the artefact a coverage gap is spotted on — renders nothing without shifts.
+const LINKS_DESIGN = (() => {
+    /** @type {Record<string, any>} */
+    const patterns = {};
+    const shifts = ['06:20-14:20', '07:00-15:00', '11:00-19:30', '14:00-22:30', 'SPARE', 'RD', 'RD'];
+    for (let i = 1; i <= 28; i++) {
+        /** @type {Record<string, string>} */
+        const row = {};
+        ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach((d, j) => {
+            row[d] = (i % 4 === 0 && (j === 0 || j === 6)) ? 'RD' : shifts[(i + j) % shifts.length];
+        });
+        patterns[String(i)] = row;
+    }
+    return patterns;
+})();
+
+test('links — design grid + coverage + checks (desktop 1280)', async ({ page }) => {
+    await page.addInitScript((pats) => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [{
+            id: 'd1', name: 'Option A', updatedBy: 'S. Silva', patterns: pats,
+        }];
+    }, LINKS_DESIGN);
+    await prep(page, { width: 1280, height: 2400 });
+    await page.goto('/links.html');
+
+    // Sentinels BEFORE the capture. Without them a regression that dropped the seeded design still
+    // renders a plausible page — 28 empty rows and an empty-state heat map — and the next baseline
+    // regeneration would lock in a green test covering nothing (the Usage-card lesson, v19.25).
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await expect(page.locator('tr.row-unfilled')).toHaveCount(0, { timeout: 10000 });
+    await expect(page.locator('#coverageHeatmap')).toBeVisible();
+    await settle(page, '.links-grid');
+    await expect(page).toHaveScreenshot('links-workspace.png');
+});
+
 // ── Guide pages (static, auth-free) ────────────────────────────────────────────────────────
 // The four guides don't import shared.css and have no Firebase/fractional-grid, so they baseline
 // cleanly. These lock the layouts touched by Section C (the .chip/.chip-bar hoist into
