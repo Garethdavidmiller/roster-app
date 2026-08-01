@@ -274,6 +274,31 @@ test('links — design grid + coverage + checks (desktop 1280)', async ({ page }
     await expect(page).toHaveScreenshot('links-workspace.png');
 });
 
+// The "Recently deleted" panel (v19.41) had NO pixel coverage, and it shipped broken because of it:
+// it used the bare `.lb-content`, which is only the transform/scroll base, so it rendered as a
+// transparent box — heading and prose in navy directly on the dimmed backdrop, no panel, no
+// padding. Every behavioural test passed. An overlay is exactly the kind of surface where a
+// baseline earns its keep, because nothing else in the suite looks at composition.
+test('links — Recently deleted panel (desktop 1280)', async ({ page }) => {
+    await page.addInitScript((pats) => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [
+            { id: 'd1', name: 'Option A', updatedBy: 'S. Silva', patterns: pats },
+            // Clock-pinned by prep(), so this deletion is a fixed age and the countdown is stable.
+            { id: 'd2', name: 'Old idea', updatedBy: 'S. Silva', patterns: pats,
+              deletedAt: Date.parse('2026-07-13T09:00:00Z'), deletedBy: 'S. Silva' },
+        ];
+    }, LINKS_DESIGN);
+    await prep(page, { width: 1280, height: 900 });
+    await page.goto('/links.html');
+    await page.locator('#designBinBtn').click();
+    // Sentinel: the row must actually be there, or the baseline locks in an empty panel.
+    await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
+    await expect(page.locator('.bin-row-meta')).toContainText('Deleted');
+    await settle(page, '#designBinContent');
+    await expect(page.locator('#designBinContent')).toHaveScreenshot('links-recently-deleted.png');
+});
+
 // ── Guide pages (static, auth-free) ────────────────────────────────────────────────────────
 // The four guides don't import shared.css and have no Firebase/fractional-grid, so they baseline
 // cleanly. These lock the layouts touched by Section C (the .chip/.chip-bar hoist into

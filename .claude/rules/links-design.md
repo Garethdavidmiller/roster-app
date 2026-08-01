@@ -53,6 +53,15 @@ Single dirty flag + one `linksSaveBtn` / `saveChanges()`. Grid clicks are **dele
 
 **Unsaved-changes guard:** `beforeunload` + explicit `confirm()` on sign-out, logo navigation, and a capture-phase click guard on nav-drawer links (mobile browsers suppress `beforeunload` dialogs).
 
+### Aesthetic conventions (v19.43 polish pass)
+
+- **A brush chip shows BOTH times, on two lines, exactly like the grid cell it paints.** It showed the start only until v19.43, and the roster has five distinct shifts starting 06:20, three starting 08:00 and so on — so the bar rendered as seven pairs of visually identical chips that paint different shifts, with the start time in `title` and `aria-label` too. Nothing anywhere disambiguated them. Do not "tidy" this back to a single time.
+- **The picker strip is always visible**, even with no designs: the empty state tells you to tap `+ New`, which lives inside it, and the bin button lives there too.
+- **`.design-chips` uses `min-width: min-content`, not `0`.** `0` lets a flex item shrink below its own contents, and the chips are `nowrap` — at 390px the box collapsed to 50px while the active chip stayed ~120px and its ✎ ✕ painted on top of "+ New".
+- **Overlay panels take their surface from an id rule or a modifier class** — `.lb-content` alone is only transform/scroll/cursor. The Recently-deleted panel shipped at v19.41 with the bare class and rendered as a transparent box (heading and prose in navy on the dimmed backdrop). It now joins the compact-dialog family, and `e2e/visual.spec.js` has a baseline for it, because behaviour tests cannot see this.
+- **Row actions reuse `.dialog-btn` + `.dialog-btn-confirm`/`-cancel`** from shared.css rather than a page-local recipe — that brings the 44px touch target and press feedback with them.
+- **Accepted, not fixed:** each compare column keeps `overflow-x: auto` with no scroll affordance, so at 1280px both grids clip mid-column with nothing indicating they scroll. Adding a fade would fight the gold diff outline; the alternative is a narrower cell, which hurts the primary (single-design) view. Revisit only with a real complaint.
+
 ### Paint mode (v12.39)
 A brush chip bar above the grid (`#brushBar`) — clicking a chip arms that shift; clicking grid cells then applies it directly (no dropdown); clicking the armed chip again or pressing Escape disarms. With no brush armed, a cell click opens the dropdown as before. `.shift-cell-btn` and `.brush-chip` set `touch-action: manipulation` — paint mode is rapid tapping, which otherwise triggers double-tap zoom on iOS/Android.
 
