@@ -382,9 +382,12 @@ export function init() {
             }).join('');
         }
 
-        // Print-only label naming the design being printed
-        const nameLabel = document.getElementById('printDesignName');
-        if (nameLabel) nameLabel.textContent = design?.name ?? '';
+        // Print-only masthead. It named the design and nothing else, which left a printed sheet
+        // with no way to tell WHICH version of that design you were holding (v19.45) — and the
+        // save row that carries "last saved by X at HH:MM" is hidden in print, so the provenance
+        // existed on screen and was dropped on paper. A link design is circulated for comment and
+        // revised repeatedly; an undated copy is the one thing it must not be.
+        _renderPrintMasthead();
 
         // Duplicate button state
         if (dupBtn) dupBtn.disabled = !activeDesignId;
@@ -1376,6 +1379,29 @@ export function init() {
         if (btn) btn.disabled = !dirty;
         if (status && dirty) status.textContent = '';
     }
+
+    /**
+     * Build the print-only masthead: which design, which version, printed when.
+     *
+     * The date is stamped at BEFOREPRINT rather than at render, so a page left open for a week
+     * cannot print yesterday's date on today's sheet.
+     */
+    function _renderPrintMasthead() {
+        const el = document.getElementById('printDesignName');
+        if (!el) return;
+        if (!design) { el.textContent = ''; return; }
+        const entry = designs.find(x => x.id === activeDesignId);
+        const when  = entry?.updatedAt?.toDate?.();
+        const saved = entry?.updatedBy
+            ? `Last saved by ${entry.updatedBy}${when ? ` · ${when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`
+            : 'Not saved yet';
+        const printed = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        el.innerHTML =
+            `<span class="print-design-title">${escapeHtml(design.name || 'Link design')}</span>` +
+            `<span class="print-design-meta">${escapeHtml(saved)} · Printed ${escapeHtml(printed)}</span>`;
+    }
+    // Re-stamp on the way to the printer so the "Printed" date is the real one.
+    window.addEventListener('beforeprint', _renderPrintMasthead);
 
     /**
      * @param {any} updatedBy
