@@ -12,6 +12,14 @@
 
 export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
+/** The rotation length. ONE declaration (v19.38) — it previously sat as a literal in three places
+ *  (links-app's TOTAL_POS + ROTATING_LINES, links-analysis's own pair, and the default parameter of
+ *  every function here), with a comment in links-analysis.js claiming they "stay in step without a
+ *  shared import". That is a hope, not a mechanism. Every line rotates, so the grid height, the
+ *  checks window and the generator output are necessarily the SAME number — there is no reading of
+ *  this app where they differ. */
+export const ROTATING_LINES = 28;
+
 /** Minimum rest between two timed shifts on consecutive days, in minutes. */
 export const MIN_REST_MINUTES = 12 * 60;
 
@@ -25,7 +33,21 @@ export const MIN_REST_MINUTES = 12 * 60;
 export function classifyShift(shift) {
     if (!shift || shift === 'RD' || shift === 'OFF') return 'rd';
     if (shift === 'SPARE') return 'spare';
-    const h = parseInt(shift.slice(0, 2), 10);
+    // Read the hour through the SAME strict parser the coverage maths uses (v19.38). This used to be
+    // `parseInt(shift.slice(0, 2))`, which is looser than startMinutes/endMinutes — so "6:00-14:00"
+    // classified as a perfectly ordinary early while startMinutes returned null, and the shift
+    // counted in the day totals and the early/late balance yet was ABSENT from the hourly coverage
+    // heat map and exempt from every short-turnaround check. Two readers of one string disagreeing
+    // about what a time is.
+    //
+    // Now they cannot disagree: anything this calls early or late is by construction readable by
+    // startMinutes. A value that is not a parseable time falls to 'night', which the grid footer
+    // renders as an `N:` count — and since CEAs never work nights, any N: at all is a visible
+    // "something here is wrong" flag rather than a shift masquerading as normal. Do NOT map it to
+    // 'rd' instead: that hides it again, which is the whole failure being escaped.
+    const st = startMinutes(shift);
+    if (st === null) return 'night';
+    const h = Math.floor(st / 60);
     if (h >= 4 && h < 11) return 'early';
     if (h >= 11 && h < 21) return 'late';
     return 'night';
@@ -54,6 +76,54 @@ export function normaliseCustomShift(raw) {
     return `${h1.padStart(2, '0')}:${m1}-${h2.padStart(2, '0')}:${m2}`;
 }
 
+/**
+ * Put ONE shift value into the module's canonical form, or return it unchanged when it is already
+ * canonical / not a time. Applied to a whole design by `normalisePatterns` on load.
+ *
+ * WHY THIS EXISTS (v19.38). The module has two readers of a shift string and they disagreed about
+ * what counts as a time:
+ *   · `classifyShift` reads the hour with `slice(0, 2)`, so "6:00-14:00" parses as 6 → early.
+ *   · `startMinutes`/`endMinutes` demand two digits, so the same value returns null.
+ * The result was a shift that COUNTED in the day totals and the early/late balance while being
+ * completely absent from the hourly coverage heat map and exempt from every short-turnaround check
+ * — silent, and in the worst direction, since the heat map is the artefact used to spot gaps.
+ *
+ * The app itself only ever writes padded values (`normaliseCustomShift` pads; roster-derived options
+ * are already padded), so this is reachable through legacy/imported data — including the
+ * `combined-28` migration, which copies patterns verbatim. Normalising ON LOAD is deliberately
+ * preferred to loosening the two regexes: loosening leaves two representations circulating forever
+ * and every future reader has to know about both. One canonical form has no such tail.
+ *
+ * @param {any} shift
+ * @returns {any} the padded "HH:MM-HH:MM" form, or the input untouched
+ */
+export function canonicaliseShift(shift) {
+    if (typeof shift !== 'string') return shift;
+    const m = shift.trim().match(/^(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})$/);
+    if (!m) return shift;
+    const [, h1, m1, h2, m2] = m;
+    if (+h1 > 23 || +h2 > 23 || +m1 > 59 || +m2 > 59) return shift;   // not a real time — leave alone
+    return `${h1.padStart(2, '0')}:${m1}-${h2.padStart(2, '0')}:${m2}`;
+}
+
+/**
+ * Canonicalise every cell of a design's patterns. Pure — returns a new object, mutates nothing.
+ * @param {any} patterns - { "1".."N": { sun..sat } }
+ * @returns {Record<string, any>}
+ */
+export function normalisePatterns(patterns) {
+    /** @type {Record<string, any>} */
+    const out = {};
+    for (const [pos, row] of Object.entries(patterns || {})) {
+        if (!row || typeof row !== 'object') continue;
+        /** @type {Record<string, any>} */
+        const p = {};
+        for (const d of DAYS) if (d in /** @type {any} */ (row)) p[d] = canonicaliseShift(/** @type {any} */ (row)[d]);
+        out[pos] = p;
+    }
+    return out;
+}
+
 /** Start of a timed shift in minutes since midnight, or null for RD/SPARE. */
 export function startMinutes(/** @type {any} */ shift) {
     const m = typeof shift === 'string' && shift.match(/^(\d{2}):(\d{2})-/);
@@ -71,7 +141,7 @@ export function endMinutes(/** @type {any} */ shift) {
  * @param {Object} patterns - { "1".."N": { sun..sat } }
  * @param {number} totalPos
  */
-export function calcCoverage(patterns, totalPos = 28) {
+export function calcCoverage(patterns, totalPos = ROTATING_LINES) {
     /** @type {Record<string, any>} */
     const cov = {};
     for (const d of DAYS) cov[d] = { early: 0, late: 0, spare: 0, night: 0, rd: 0 };
@@ -104,7 +174,7 @@ export function dayClass(d) {
  * @param {number} [totalPos=28]
  * @returns {Object.<string,{hours:number[], spare:number}>} keyed by day
  */
-export function calcHourlyCoverage(patterns, totalPos = 28) {
+export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
     const out = /** @type {Object.<string,{hours:number[], spare:number}>} */ ({});
     for (const d of DAYS) out[d] = { hours: new Array(24).fill(0), spare: 0 };
     for (let pos = 1; pos <= totalPos; pos++) {
@@ -157,7 +227,7 @@ export function calcHourlyCoverage(patterns, totalPos = 28) {
  * @returns {Object|null} patterns for "1".."lines", or null if invalid /
  *   any day-class total exceeds lines
  */
-export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }, lines = 28 }) {
+export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }, lines = ROTATING_LINES }) {
     if (!Array.isArray(slots) || slots.length === 0) return null;
     const _spare = /** @type {Record<string, any>} */ (spare);
     const classes = ['weekday', 'sat', 'sun'];
@@ -234,7 +304,7 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
  *   balance: { early:number, late:number, spare:number, worked:number }
  * }}
  */
-export function runDesignChecks(patterns, rotatingLines = 28) {
+export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
     const shiftAt = (/** @type {any} */ w, /** @type {any} */ d) => /** @type {Record<string, any>} */ (patterns)[String(w)]?.[d] ?? 'RD';
     const isWorked = (/** @type {any} */ s) => s !== 'RD' && s !== 'OFF';
 

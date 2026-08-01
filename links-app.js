@@ -27,14 +27,17 @@ import { recordPageLatency } from './perf-reporter.js';
 import { lsGet, lsSet } from './ls.js';
 import {
     DAYS,
+    ROTATING_LINES,
     classifyShift,
     normaliseCustomShift,
+    normalisePatterns,
     dayClass,
     calcCoverage,
     generatePatterns,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { initLinksCompare } from './links-compare.js';
+import { conflictOf as _conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
 
 
 /**
@@ -159,8 +162,9 @@ export function init() {
     // CONSTANTS
     // ============================================
     const DAY_LABELS    = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const TOTAL_POS     = 28;
-    const ROTATING_LINES = 28;
+    // ONE declaration of the rotation length, imported from links-design.js (v19.38). The grid
+    // height and the generator's output are necessarily the same number — every line rotates.
+    const TOTAL_POS = ROTATING_LINES;
 
     /** Firestore collection holding all named design documents. */
     const DESIGNS_COL = collection(db, COLLECTIONS.linkDesigns);
@@ -419,10 +423,13 @@ export function init() {
 
     /** Create a new blank design. */
     async function createDesign() {
+        // Ask about unsaved work FIRST (v19.38). This used to run after the name prompt, so you typed
+        // a name and were only then asked whether to abandon your changes — the decision that might
+        // cancel the whole action came last.
+        if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
         const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. "Option A"):', placeholder: 'Option A', maxLength: 100, confirmLabel: 'Create' }))?.trim();
         if (!name) return;
         if (_designNameTooLong(name)) return;
-        if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
         try {
             const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
                 name,
@@ -506,8 +513,8 @@ export function init() {
             const _preBaseline = (id === activeDesignId) ? loadedUpdatedAt : (d.updatedAt?.toMillis?.() ?? null);
             try {
                 const preTs = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt?.toMillis?.() ?? null;
-                baselineFresh = preTs === _preBaseline;
-            } catch { /* offline — treat as mismatch, don't advance */ }
+                baselineFresh = canAdvanceBaseline(preTs, _preBaseline);
+            } catch { baselineFresh = canAdvanceBaseline(null, _preBaseline, false); }
             await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkDesigns, id),
                 { name, updatedAt: serverTimestamp(), updatedBy: currentUser }, { merge: true }));
             d.name = name;
@@ -603,6 +610,7 @@ export function init() {
         compare.renderCompare();
         updateSaveBtn();
         updateLastSaved(d.updatedBy, d.updatedAt);
+        refreshGenTargetsForDesign();   // targets are per design (v19.38)
     }
 
     // COMPARE MODE was extracted to links-compare.js (v17.71); wired via `compare` above.
@@ -776,6 +784,12 @@ export function init() {
         if (!design) return;
         const pats = /** @type {Record<string, any>} */ (design.patterns);
         if (!pats[pos]) pats[pos] = emptyPattern();
+        // Painting a cell with the value it ALREADY holds is not a change (v19.38). It used to set
+        // the dirty flag anyway, so one stray tap in paint mode armed the unsaved-changes guard —
+        // the beforeunload prompt, the "changes will be lost" confirm on every design switch and on
+        // sign-out — for an edit that did not happen. Found by an e2e that painted RD onto a rest
+        // day and saw Save light up.
+        if (pats[pos][day] === shift) return;
         pats[pos][day] = shift;
         dirty = true;
         updateSaveBtn();
@@ -964,15 +978,70 @@ export function init() {
         return tot;
     }
 
+    // ── Generator targets: remembered per design (v19.38) ──────────────────────────────────────
+    // The DESIGN was saved but the INPUTS that produced it were not — every load re-seeded the table
+    // from the current roster, so a designer who tuned the targets lost that work on reload and
+    // could never answer "what targets produced this design?" when reviewing it. Stored in
+    // localStorage rather than on the Firestore doc: the doc's rules pin it to
+    // hasOnly(['name','patterns','updatedAt','updatedBy']), so a new field would need a rules deploy,
+    // and these are one designer's working notes rather than shared truth.
+    const GEN_KEY_PREFIX = 'myb_links_gen_';
+    const _genTargetsKey = () => GEN_KEY_PREFIX + (activeDesignId || 'unsaved');
+
+    /** Persist the current target table for the active design. Silent — losing it is a nuisance,
+     *  never a failure worth interrupting a designer for. */
+    function saveGenTargets() {
+        try { lsSet(_genTargetsKey(), JSON.stringify({ slots: genSlots, spare: genSpare })); }
+        catch { /* quota / private mode — the roster seed remains the fallback */ }
+    }
+
+    /** Read back a stored target table, VALIDATED. This is localStorage: it can hold anything, and a
+     *  malformed slot would reach generatePatterns and produce a silently wrong link. Anything that
+     *  fails the shape check is discarded in favour of the roster seed. */
+    function loadGenTargets() {
+        let raw;
+        try { raw = lsGet(_genTargetsKey()); } catch { return null; }
+        if (!raw) return null;
+        try {
+            const v = JSON.parse(raw);
+            const int = (/** @type {any} */ n) => Number.isInteger(n) && n >= 0;
+            const okCounts = (/** @type {any} */ o) => !!o && int(o.weekday) && int(o.sat) && int(o.sun);
+            if (!v || !Array.isArray(v.slots) || !okCounts(v.spare)) return null;
+            if (!v.slots.every((/** @type {any} */ sl) => sl && typeof sl.time === 'string' && okCounts(sl))) return null;
+            return {
+                slots: v.slots.map((/** @type {any} */ sl) => ({ time: sl.time, weekday: sl.weekday, sat: sl.sat, sun: sl.sun })),
+                spare: { weekday: v.spare.weekday, sat: v.spare.sat, sun: v.spare.sun },
+            };
+        } catch { return null; }
+    }
+
+    /** Put a target table on screen (state + the three spare inputs + the rows). */
+    function applyGenTargets(/** @type {any} */ t) {
+        genSlots = t.slots;
+        genSpare = t.spare;
+        const set = (/** @type {string} */ id, /** @type {number} */ n) => {
+            const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+            if (el) el.value = String(n);
+        };
+        set('genSpareWeekday', genSpare.weekday);
+        set('genSpareSat',     genSpare.sat);
+        set('genSpareSun',     genSpare.sun);
+        renderGenTable();
+    }
+
+    /** Show the active design's remembered targets, or the roster seed when it has none. */
+    function refreshGenTargetsForDesign() {
+        if (!document.getElementById('genSlotRows')) return;
+        applyGenTargets(loadGenTargets() ?? buildRosterTargets());
+    }
+
     (function initGenerator() {
         const tbody = document.getElementById('genSlotRows');
         if (!tbody) return;
 
-        ({ slots: genSlots, spare: genSpare } = buildRosterTargets());
-        /** @type {HTMLInputElement} */ (document.getElementById('genSpareWeekday')).value = String(genSpare.weekday);
-        /** @type {HTMLInputElement} */ (document.getElementById('genSpareSat')).value     = String(genSpare.sat);
-        /** @type {HTMLInputElement} */ (document.getElementById('genSpareSun')).value     = String(genSpare.sun);
-        renderGenTable();
+        // Remembered targets for whatever design ends up active, else the roster seed. loadDesigns
+        // calls refreshGenTargetsForDesign() again once it knows which design that is.
+        applyGenTargets(loadGenTargets() ?? buildRosterTargets());
 
         tbody.addEventListener('input', e => {
             const input = /** @type {HTMLInputElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-count'));
@@ -981,6 +1050,7 @@ export function init() {
             if (!slot) return;
             (/** @type {Record<string, any>} */ (slot))[input.dataset.class ?? ''] = Math.max(0, parseInt(input.value, 10) || 0);
             updateGenTotals();
+            saveGenTargets();
         });
 
         tbody.addEventListener('change', async e => {
@@ -991,11 +1061,12 @@ export function init() {
             if (select.value === '__custom__') {
                 const typed = normaliseCustomShift(
                     await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–end, e.g. 09:30-17:30 (start between 04:00 and 20:59):', defaultValue: slot.time, placeholder: '09:30-17:30', confirmLabel: 'Set' }));
-                if (typed) slot.time = typed;
+                if (typed) { slot.time = typed; saveGenTargets(); }
                 renderGenTable();
                 return;
             }
             slot.time = select.value;
+            saveGenTargets();
         });
 
         tbody.addEventListener('click', e => {
@@ -1003,22 +1074,27 @@ export function init() {
             if (!btn) return;
             genSlots.splice(+(btn.dataset.slot ?? ''), 1);
             renderGenTable();
+            saveGenTargets();
         });
 
         for (const [id, cls] of [['genSpareWeekday', 'weekday'], ['genSpareSat', 'sat'], ['genSpareSun', 'sun']]) {
             document.getElementById(id)?.addEventListener('input', e => {
                 (/** @type {Record<string, any>} */ (genSpare))[cls] = Math.max(0, parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10) || 0);
                 updateGenTotals();
+                saveGenTargets();
             });
         }
 
         document.getElementById('genAddSlotBtn')?.addEventListener('click', () => {
             genSlots.push({ time: EARLY_SHIFTS[0] || '06:20-14:20', weekday: 1, sat: 0, sun: 0 });
             renderGenTable();
+            saveGenTargets();
         });
 
         document.getElementById('genSeedBtn')?.addEventListener('click', () => {
+            // Re-seeding is an explicit "forget my tuning" — persist the roster values over it.
             ({ slots: genSlots, spare: genSpare } = buildRosterTargets());
+            saveGenTargets();
             /** @type {HTMLInputElement} */ (document.getElementById('genSpareWeekday')).value = String(genSpare.weekday);
             /** @type {HTMLInputElement} */ (document.getElementById('genSpareSat')).value     = String(genSpare.sat);
             /** @type {HTMLInputElement} */ (document.getElementById('genSpareSun')).value     = String(genSpare.sun);
@@ -1052,7 +1128,19 @@ export function init() {
                 return;
             }
 
-            if (!await confirmDialog({ title: 'Apply pattern', message: 'Apply the generated pattern to all 28 lines?', confirmLabel: 'Apply' })) return;
+            // Name what is at stake (v19.38). The message used to be the same whether the active design
+            // was blank or full of hand-tuned work — and Apply overwrites all 28 lines either way.
+            const _hasWork = !!design && Object.values(/** @type {Record<string, any>} */ (design.patterns || {}))
+                .some(p => DAYS.some(d => { const v = p?.[d]; return v && v !== 'RD' && v !== 'OFF'; }));
+            const _genMsg = _hasWork
+                ? `This replaces all 28 lines of “${design?.name || 'this design'}” with the generated pattern. Any edits you have made will be lost.`
+                : 'Apply the generated pattern to all 28 lines?';
+            if (!await confirmDialog({
+                title: 'Apply pattern',
+                message: _genMsg,
+                confirmLabel: _hasWork ? 'Replace all 28 lines' : 'Apply',
+                danger: _hasWork,
+            })) return;
 
             if (!design) {
                 // No active design yet — load into an unsaved in-memory design
@@ -1132,8 +1220,8 @@ export function init() {
                     // pair loadedUpdatedAt=null with baselineUnknown=true, else the NEXT save sees
                     // neither a known timestamp nor the unknown-baseline flag and can clobber a
                     // co-editor's intervening write with no conflict prompt.
-                    loadedUpdatedAt = savedAt?.toMillis?.() ?? null; baselineUnknown = (loadedUpdatedAt == null);
-                } catch { loadedUpdatedAt = null; baselineUnknown = true; }
+                    ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(savedAt?.toMillis?.()));
+                } catch { ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(null, false)); }
                 const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), updatedAt: savedAt, updatedBy: currentUser };
                 designs.push(newEntry);
                 _sortDesigns();
@@ -1162,13 +1250,10 @@ export function init() {
             });
             // Server doc vs our load baseline → { by, at } on conflict, else null. Single source used by
             // BOTH the transaction and the offline fallback so they can't drift.
-            const conflictOf = (/** @type {any} */ data, /** @type {boolean} */ exists) => {
-                const freshTs = exists ? (data.updatedAt?.toMillis?.() ?? null) : null;
-                const tsMismatch = loadedUpdatedAt !== null && freshTs !== null && freshTs !== loadedUpdatedAt;
-                const unknownButOthers = baselineUnknown && freshTs !== null
-                    && data.updatedBy && data.updatedBy !== currentUser;
-                return (tsMismatch || unknownButOthers) ? { by: data.updatedBy || 'Someone', at: data.updatedAt || null } : null;
-            };
+            // The RULE lives in links-concurrency.js (v19.38) — pure and tested, because three silent
+            // overwrites have come out of it (v16.19 / v16.23 / v17.18) and it had no seam.
+            const conflictOf = (/** @type {any} */ data, /** @type {boolean} */ exists) =>
+                _conflictOf(data, exists, { loadedUpdatedAt, baselineUnknown, currentUser });
             const confirmOverwrite = (/** @type {{by:string, at:any}} */ c) => {
                 const when = c.at?.toDate?.()?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? '';
                 return confirmDialog({
@@ -1182,9 +1267,22 @@ export function init() {
             const markNotSaved = () => {
                 if (btn) btn.disabled = false;
                 if (status) {
-                    status.textContent = 'Not saved — refresh the page to see the latest version.';
+                    status.textContent = 'Not saved — your changes are still here. Refreshing the page would discard them.';
                     status.className   = 'links-save-status err';
                 }
+            };
+            // Declining the overwrite used to be a dead end: the status said "refresh to see the
+            // latest version", and refreshing THROWS AWAY everything you just did. The only two
+            // outcomes were clobber your colleague or lose your own work. Offer the third (v19.38) —
+            // keep both, by forking your version into a new design. The machinery already exists.
+            const declineOrFork = async () => {
+                markNotSaved();
+                if (await confirmDialog({
+                    title: 'Keep your version too?',
+                    message: 'Their version stays as it is. Yours can be saved as a NEW design, so nothing is lost either way.',
+                    confirmLabel: 'Save mine as new',
+                    cancelLabel: 'Not now',
+                })) await duplicateDesign();
             };
 
             let committed = false;
@@ -1202,7 +1300,7 @@ export function init() {
                     // The transaction saw a co-editor's newer version. Ask; on overwrite write
                     // UNCONDITIONALLY (the user accepted the replace) — a plain setDoc, which also
                     // queues offline. On decline, stop without writing.
-                    if (!await confirmOverwrite(_e.conflict)) { markNotSaved(); return; }
+                    if (!await confirmOverwrite(_e.conflict)) { await declineOrFork(); return; }
                     await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
                     committed = true;
                 }
@@ -1214,7 +1312,7 @@ export function init() {
                 try {
                     const fresh = await getDoc(designRef);
                     const c = conflictOf(fresh.data() || {}, fresh.exists());
-                    if (c && !await confirmOverwrite(c)) { markNotSaved(); return; }
+                    if (c && !await confirmOverwrite(c)) { await declineOrFork(); return; }
                 } catch { /* offline — no reachable server state to compare; proceed with the queued write */ }
                 await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
             }
@@ -1227,9 +1325,9 @@ export function init() {
             if (entry) { entry.patterns = deepCopyPatterns(design.patterns); entry.updatedBy = currentUser; }
             try {
                 const after = await getDoc(designRef);
-                loadedUpdatedAt = after.data()?.updatedAt?.toMillis?.() ?? null; baselineUnknown = false;
+                ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(after.data()?.updatedAt?.toMillis?.()));
                 if (entry) entry.updatedAt = after.data()?.updatedAt;
-            } catch { loadedUpdatedAt = null; baselineUnknown = true; }
+            } catch { ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(null, false)); }
             // ^ On a post-save read-back failure the baseline is UNKNOWN, not "no baseline": leaving
             // baselineUnknown=false here meant the NEXT save saw neither a known timestamp
             // (loadedUpdatedAt=null) nor an unknown-baseline flag, so a co-editor's intervening save
@@ -1265,7 +1363,12 @@ export function init() {
                     named.push({
                         id:        d.id,
                         name:      data.name.trim(),
-                        patterns:  data.patterns || {},
+                        // Canonicalise on the way IN (v19.38) so exactly one time format exists in
+                        // memory. A legacy unpadded "6:00-14:00" classified as a worked early (so it
+                        // counted in the day totals) while startMinutes/endMinutes returned null —
+                        // making it invisible in the coverage heat map and exempt from every
+                        // short-turnaround check. See links-design.js → canonicaliseShift.
+                        patterns:  normalisePatterns(data.patterns || {}),
                         updatedAt: data.updatedAt,
                         updatedBy: data.updatedBy || '',
                     });
@@ -1319,6 +1422,11 @@ export function init() {
         renderBrushBar();
         renderDesignChecks();
         updateSaveBtn();
+        // Show the ACTIVE design's remembered generator targets (v19.38). loadDesigns sets the
+        // active design inline rather than through _activateDesign, so the hook there does not cover
+        // the initial load — without this the table always showed the roster seed on a fresh page
+        // and the remembered targets only appeared after switching design and back.
+        refreshGenTargetsForDesign();
     }
 
     // ============================================
@@ -1449,7 +1557,7 @@ export function init() {
                 sections: [{ items: [
                     { icon: '🔄', html: '<strong>All lines designed</strong> — every one of the 28 rotating lines must carry a real pattern. A line that is all rest days is unfinished (not a vacancy), and the link can\'t be authorised until they are all filled.' },
                     { icon: '✅', html: '<strong>Weekends off</strong> — a full weekend = Saturday rest + the following Sunday rest. Aim for at least 40% of weeks.' },
-                    { icon: '⏱️', html: '<strong>Rest between shifts</strong> — checks every transition across the rotation for less than 12 hours rest. Late-to-early next morning is the classic short turnaround.' },
+                    { icon: '⏱️', html: '<strong>Rest between shifts</strong> — checks every transition between two <em>timed</em> shifts across the rotation for less than 12 hours rest. Late-to-early next morning is the classic short turnaround. A spare day has no times, so a transition either side of one can\'t be measured and isn\'t counted.' },
                     { icon: '📅', html: '<strong>Longest run</strong> — how many consecutive working days appear anywhere in the 28-line cycle. Over 7 days is flagged.' },
                     { icon: '⚖️', html: '<strong>Shift balance</strong> — how the worked days split between early, late, and spare across the full rotation.' },
                     { icon: '🔄', html: 'Checks cover the <em>rotation</em>, not a single week — turnarounds and run lengths wrap across line boundaries.' },

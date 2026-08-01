@@ -761,3 +761,147 @@ test('operations: the review table Skip button is not the success colour', async
     ]);
     expect(skipBg, 'Skip must not wear the colour that means "this will be saved"').not.toBe(valueBg);
 });
+
+
+// ── Links workspace — behaviour, not just "the page rendered" (v19.38) ────────────────────────
+// Until now the only links coverage was auth: does a designer get in, does a non-designer bounce.
+// Nothing exercised what the page is FOR — paint a cell, save it, generate a link, compare designs
+// — even though the dirty-flag web (beforeunload + capture-phase nav guard + sign-out + logo) and
+// the co-edit concurrency guard are the most intricate code in the app. The RULES now live in
+// links-design.js / links-concurrency.js and are unit-tested; these cover the WIRING.
+async function openLinks(page) {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [{
+            id: 'd1', name: 'Option A', updatedBy: 'S. Silva',
+            patterns: { '1': { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } },
+        }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+}
+
+test('links: a designer sees all 28 lines and the saved design', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    // Line 1 Monday carries the seeded shift; the rest of the rotation is undesigned.
+    await expect(page.locator('tr[data-pos="1"] .shift-cell-btn').nth(1)).toContainText('06:20');
+    await expect(page.locator('tr.row-unfilled')).toHaveCount(27);
+});
+
+test('links: painting a cell marks the design dirty and enables Save', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+
+    const save = page.locator('#linksSaveBtn');
+    await expect(save).toBeDisabled();                       // nothing changed yet
+
+    // A real SHIFT chip, not the RD one that leads the bar — painting RD onto a rest day changes
+    // nothing, and (since v19.38) correctly does not dirty the design.
+    await page.locator('#brushBar .brush-chip.type-early').first().click();
+    await page.locator('tr[data-pos="2"] .shift-cell-btn').nth(1).click();
+
+    await expect(save).toBeEnabled();
+    await expect(page.locator('tr[data-pos="2"]')).not.toHaveClass(/row-unfilled/);
+});
+
+test('links: painting a cell with the value it already has is not a change', async ({ page }) => {
+    // Found by writing the test above: the RD chip leads the paint bar, so the obvious first move is
+    // to paint RD onto a rest day — which changed nothing yet armed the whole unsaved-changes
+    // apparatus (beforeunload, the "changes will be lost" confirm on every design switch and on
+    // sign-out). One stray tap and the page believed there was work to lose (fixed v19.38).
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+
+    await page.locator('#brushBar .brush-chip.type-rd').first().click();   // the RD brush
+    await page.locator('tr[data-pos="2"] .shift-cell-btn').nth(1).click(); // onto an existing RD
+
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+});
+
+test('links: saving writes the patterns and clears the dirty state', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.locator('#brushBar .brush-chip.type-early').first().click();
+    await page.locator('tr[data-pos="2"] .shift-cell-btn').nth(1).click();
+    await page.locator('#linksSaveBtn').click();
+
+    // The status line and the button are the user-visible contract; asserting only one of them
+    // would pass on a save that reported success without disarming the dirty flag.
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved');
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+});
+
+test('links: the generator fills all 28 lines and names what it replaces', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genApplyBtn').click();
+
+    // The active design has content, so the confirm must say so rather than the generic wording —
+    // Apply overwrites all 28 lines either way (v19.38).
+    const dialog = page.locator('.lb-overlay.visible');
+    await expect(dialog).toContainText('Option A');
+    await expect(dialog).toContainText(/replaces all 28 lines/i);
+    await dialog.getByRole('button', { name: /Replace all 28 lines/i }).click();
+
+    await expect(page.locator('tr.row-unfilled')).toHaveCount(0);   // every line now designed
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+});
+
+test('links: paint-mode analysis keeps up with rapid tapping', async ({ page }) => {
+    // C7 was a SUSPICION — every cell tap re-runs the coverage maths, the hour-by-hour heat map and
+    // the design checks, and paint mode is explicitly rapid tapping. Measured rather than assumed:
+    // the maths is ~0.3ms in Node, and this puts a number on the DOM half in a real browser. A
+    // debounce would add state and a stale-analysis failure mode, so it is only worth it if this
+    // budget is actually threatened.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+
+    // NOTE: no pre-armed brush here. Clicking an already-armed chip DISARMS it, so pre-arming made
+    // the loop's first chip click turn painting OFF — the next cell tap then opened the edit
+    // dropdown, replacing that button and quietly measuring the wrong thing. The loop arms its own.
+    const cells = page.locator('tr[data-pos="3"] .shift-cell-btn');
+    const perTap = await page.evaluate(async () => {
+        // Alternate two brushes so every tap is a REAL change — since v19.38 repainting the same
+        // value short-circuits, which would measure nothing.
+        const chips = Array.from(document.querySelectorAll('#brushBar .brush-chip.type-early, #brushBar .brush-chip.type-late'));
+        const btns  = Array.from(document.querySelectorAll('tr[data-pos="3"] .shift-cell-btn'));
+        const t0 = performance.now();
+        for (let i = 0; i < 20; i++) {
+            /** @type {HTMLElement} */ (chips[i % 2]).click();          // re-arm (alternating value)
+            /** @type {HTMLElement} */ (btns[i % btns.length]).click(); // paint
+        }
+        return (performance.now() - t0) / 20;
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[links] paint tap → full re-analysis: ${perTap.toFixed(2)} ms`);
+    expect(await cells.count()).toBe(7);
+    // One frame is 16.7ms. A tap costing more than that would drop frames while painting.
+    expect(perTap, 'a paint tap must stay inside one frame').toBeLessThan(16);
+});
+
+test('links: generator targets are remembered per design', async ({ page }) => {
+    // The design was saved but the INPUTS that produced it were not — every load re-seeded from the
+    // roster, so tuning was lost on reload (v19.38).
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+
+    const spare = page.locator('#genSpareWeekday');
+    await spare.fill('7');
+    await spare.dispatchEvent('input');
+
+    await page.reload();
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await page.locator('#generatorToggleHeader').click();
+    await expect(page.locator('#genSpareWeekday')).toHaveValue('7');
+});

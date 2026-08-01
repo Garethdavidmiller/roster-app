@@ -12,13 +12,14 @@
  * coordinator passes a getter for the live active design (or null) and calls the two renderers on
  * every pattern change, exactly as before — behaviour is unchanged.
  */
-import { DAYS, calcHourlyCoverage, runDesignChecks } from './links-design.js';
+import { DAYS, ROTATING_LINES, calcHourlyCoverage, runDesignChecks } from './links-design.js';
 
-// Presentation constants — mirror links-app.js. calcHourlyCoverage / runDesignChecks also default
-// to 28, so these stay in step with the 28-line rotation without a shared import.
+// Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
+// 28 alongside links-app.js's own pair, with a comment claiming they "stay in step without a shared
+// import". Three literals kept in step by hope is how a grid renders 28 rows while the checks
+// examine a different number, silently.
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const TOTAL_POS = 28;
-const ROTATING_LINES = 28;
+const TOTAL_POS = ROTATING_LINES;
 
 /**
  * @param {object} deps
