@@ -499,6 +499,23 @@ body.auth-ready .container { display: grid; }
 .brush-chip:active { transform: scale(var(--press-scale)); }
 
 /* ---- Design checks card ---- */
+/* Section heading inside the checks list — separates the design checks from the ORR fatigue
+   factors and the baseline comparison, so three different kinds of statement do not read as one
+   undifferentiated list. */
+.check-section-head {
+    font-size: var(--type-badge);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-mid);
+    margin: 14px 0 2px;
+}
+.check-section-head:first-child { margin-top: 0; }
+.check-section-head .check-note { text-transform: none; letter-spacing: 0; font-weight: 600; }
+/* A factor that is PRESENT is amber, never red: the ORR is explicit these are not limits, and a
+   red row would read as a failure the guidance does not define. */
+.check-warn-row { background: var(--bg-faint); }
+
 .check-rows { display: flex; flex-direction: column; gap: 8px; }
 .check-row {
     display: flex;

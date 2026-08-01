@@ -8,11 +8,15 @@
  * patterns and write to their own container, so they carry none of the coordinator's save /
  * concurrency / dirty state. That is what makes this a clean first extraction.
  *
- * `initLinksAnalysis({ getDesign })` returns `{ renderCoverageChart, renderDesignChecks }`. The
- * coordinator passes a getter for the live active design (or null) and calls the two renderers on
- * every pattern change, exactly as before — behaviour is unchanged.
+ * `initLinksAnalysis({ getDesign, getBaseline })` returns `{ renderCoverageChart, renderDesignChecks }`.
+ * The coordinator passes a getter for the live active design (or null) and calls the two renderers on
+ * every pattern change. `getBaseline` (v19.46) supplies the CURRENT link's fatigue profile so a
+ * design's findings can be read against what today's roster already scores — without it, a proposal
+ * reporting "15 consecutive shifts" reads as something the proposal introduced.
  */
 import { DAYS, ROTATING_LINES, calcHourlyCoverage, runDesignChecks } from './links-design.js';
+import { assessFatigue } from './links-fatigue.js';
+import { escapeHtml } from './roster-data.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
 // 28 alongside links-app.js's own pair, with a comment claiming they "stay in step without a shared
@@ -24,9 +28,10 @@ const TOTAL_POS = ROTATING_LINES;
 /**
  * @param {object} deps
  * @param {() => ({ patterns: Record<string, any> } | null)} deps.getDesign - the live active design, or null
+ * @param {() => ({ summary: string, detail: string } | null)} [deps.getBaseline] - the current link's profile
  * @returns {{ renderCoverageChart: () => void, renderDesignChecks: () => void }}
  */
-export function initLinksAnalysis({ getDesign }) {
+export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
     /** Hourly on-duty heat map for the active design (or the empty-state message). */
     function renderCoverageChart() {
         const design = getDesign();
@@ -184,7 +189,57 @@ export function initLinksAnalysis({ getDesign }) {
             `</div></div>`
         );
 
-        content.innerHTML = `<div class="check-rows">${rows.join('')}</div>`;
+        // ── ORR fatigue factors (p3) ─────────────────────────────────────────
+        // Reported as factors PRESENT, never as pass/fail: the ORR is explicit that these are not
+        // prescriptive limits. The greatest risk in this panel is a design showing nothing and being
+        // read as approved, so clear and not-applicable factors are listed too — silence must not be
+        // the same shape as compliance.
+        const fat = assessFatigue(design.patterns, ROTATING_LINES);
+        const base = getBaseline();
+        const fatRows = [];
+
+        fatRows.push(
+            `<div class="check-section-head">Fatigue factors <span class="check-note">ORR good practice, p3</span></div>`,
+            `<div class="check-row check-info"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
+            `<div class="check-body">These are <strong>not pass/fail limits</strong>. The more factors a pattern features, ` +
+            `the greater the need to justify, minimise, then assess and control the risk. This panel is an aid to that ` +
+            `conversation, not a fatigue risk assessment.</div></div>`
+        );
+
+        const ICON = { present: warn, clear: tick, standing: info, 'n/a': info };
+        const CLS  = { present: 'check-warn-row', clear: 'check-good', standing: 'check-info', 'n/a': 'check-info' };
+        for (const r of fat.results) {
+            if (r.status === 'n/a' && r.family === 'Night (not applicable)') continue;   // rolled up below
+            const val = (r.value !== undefined && r.value !== '') ? ` — <strong>${escapeHtml(String(r.value))}</strong>` : '';
+            const conf = r.confirm ? ` <span class="check-note">(definition to confirm)</span>` : '';
+            fatRows.push(
+                `<div class="check-row ${CLS[r.status]}">${ICON[r.status]}<div class="check-body">` +
+                `<span class="check-note">${escapeHtml(r.code)}</span> ${escapeHtml(r.title)}${val}${conf}` +
+                (r.detail ? `<div class="check-sub">${escapeHtml(r.detail)}</div>` : '') +
+                `</div></div>`
+            );
+        }
+        const nightRolled = fat.results.filter(r => r.family === 'Night (not applicable)');
+        if (nightRolled.length && nightRolled.every(r => r.status === 'n/a')) {
+            fatRows.push(
+                `<div class="check-row check-info">${info}<div class="check-body">` +
+                `<span class="check-note">${nightRolled.map(r => r.code).join(' · ')}</span> Night-shift factors do not apply` +
+                `<div class="check-sub">No duty reaches into 00:00–05:00. These become live the moment one does.</div>` +
+                `</div></div>`
+            );
+        }
+
+        if (base) {
+            fatRows.push(
+                `<div class="check-section-head">For comparison — today's link</div>`,
+                `<div class="check-row check-info">${info}<div class="check-body">` +
+                escapeHtml(base.summary) +
+                `<div class="check-sub">${escapeHtml(base.detail)}</div>` +
+                `</div></div>`
+            );
+        }
+
+        content.innerHTML = `<div class="check-rows">${rows.join('')}${fatRows.join('')}</div>`;
     }
 
     return { renderCoverageChart, renderDesignChecks };

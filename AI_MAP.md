@@ -446,6 +446,16 @@ Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).
 - Constants: `DAYS`, `MIN_REST_MINUTES`, `ROTATING_LINES` (28 — v19.38; it was a literal in three files kept in step by a comment)
 - **`classifyShift` reads the hour through the same strict parser the coverage maths uses** (v19.38). Before that the two could disagree about what a time IS: `"6:00-14:00"` classified as a normal early while `startMinutes` returned null, so it counted in the day totals, was ABSENT from the hourly heat map, and was exempt from every turnaround check. Do not reintroduce a second, looser time read here.
 
+### `links-fatigue.js`
+The ORR good-practice **fatigue factors** (Dec 2021 guide, p3 — 24 factors) assessed against a link design (v19.46; `LINKS_DEC2026_PLAN.md` package 2). Pure — no DOM, no Firebase.
+- `assessFatigue(patterns, lines)` → `{ results, present, confirmNeeded, hoursAreFloor }`, each result `{ code, family, title, status, value?, threshold?, detail?, confirm? }` with `status` one of `present` / `clear` / `standing` / `n/a`.
+- Composed from exported pure rules: `dutyMinutes` (a duty past midnight gains 24h rather than going negative), `isEarlyStart` / `isVeryEarlyStart` / `coversNightWindow`, `toSequence`, `longestRunBetween48hBreaks`, `longestWorkedRun`, `longestRunOf`, `earlyBlocksWithShortRecovery`, `maxHoursInAny7Days`, `startTimeJumps`, `rotationDirection`.
+- **Reports factors PRESENT; never passes or fails a design.** The ORR states these are not prescriptive limits, so a red/green rendering would misrepresent the guidance. The escalation it defines — justify, minimise, assess and control — is a human process this module feeds.
+- **Every rule reports its status, including clear and not-applicable**, because the dominant risk is false assurance: a design showing nothing and being read as approved. The night-shift family (FF6/FF8/FF9/FF12/FF14/FF16/FF20 + FF1) flips from `n/a` to `present` the moment a duty reaches into 00:00–05:00.
+- **FF11 ≠ the consecutive-worked-days check it resembles.** A single rest day is not a 48h break; a rotation with none at all returns every worked day, not the sequence length.
+- Unavoidable factors are `standing`, not findings (FF2 — every 06:20 duty). FF17/FF18/FF19 carry `confirm: true`: their interpretation is documented in the module and not yet agreed.
+- Consumed by `links-analysis.js` (the Design checks card) and by `links-app.js`'s `currentLinkBaseline()`. Tested by `links-fatigue.test.mjs`.
+
 ### `links-deletion.js`
 The PURE rules behind **Recently deleted** in the Links workspace (v19.41) — no DOM, no Firebase. Delete used to be permanent; a design now carries `deletedAt`/`deletedBy`, drops out of the picker, and stays restorable for `SOFT_DELETE_RETENTION_DAYS` (30).
 - `isDeleted(data)` / `isPurgeable(data, nowMs, days?)` / `purgeableIds(entries, nowMs, days?)` / `daysLeft(data, nowMs, days?)` / `deletedLabel(data, nowMs, days?)` / `sortByDeleted(entries)` / `canSoftDelete(liveCount)` / `tsMillis(ts)`.

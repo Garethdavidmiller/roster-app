@@ -206,7 +206,20 @@ pair added at v19.41 — so a rules deploy rides alongside hosting.
 *Done when:* the window is editable, persisted per design, shown on the Coverage card so the heat map
 explains itself, printed on the sheet, and defaulted for existing designs.
 
-### 2. Fatigue checks against p3 — **do first**
+### 2. Fatigue checks against p3 — ✅ **SHIPPED v19.46**
+
+`links-fatigue.js` + `links-fatigue.test.mjs`, rendered in the Design checks card. The baseline
+below ships with it. What it found on the live link the day it landed is recorded in "Baseline"
+above; the two design notes that survived contact are that FF11 needed its own rule (a single rest
+day is not a 48h break) and that a rotation with **no** 48h break anywhere has to report every
+worked day rather than the sequence length — the first implementation returned the length, counting
+rest days as shifts, and its own test caught it.
+
+Still open from this package: FF17/FF18/FF19 render with "(definition to confirm)" until Nathan
+settles them.
+
+<details><summary>Original scope</summary>
+
 
 Extend `runDesignChecks` to cover every factor in the table above that applies, each labelled with its
 FF number, so a printed proposal is already annotated against the document it will be assessed with.
@@ -235,6 +248,8 @@ than no tool at all. Nothing in the output should read as a certificate, and the
 
 *Done when:* every applicable factor is reported with its FF number, the inapplicable ones are
 asserted, and each rule has a unit test.
+
+</details>
 
 ### 3. Demand overlay on the coverage heat map
 

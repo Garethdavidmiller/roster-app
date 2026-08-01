@@ -36,6 +36,7 @@ import {
     generatePatterns,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
+import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
 import { conflictOf as _conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
 import {
@@ -232,7 +233,47 @@ export function init() {
 
     // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
     // links-analysis.js (v17.70). They read only the live active design, via this getter.
-    const { renderCoverageChart, renderDesignChecks } = initLinksAnalysis({ getDesign: () => design });
+    /**
+     * The CURRENT link's fatigue profile, for comparison (v19.46).
+     *
+     * Computed over each REAL rotation at its OWN length — the main cycle is 20 lines and the
+     * bilingual 8 — never spliced into one 28. Concatenating two unrelated rotations reports a
+     * longest run of 19 days, which is a property of the join rather than of either roster; the
+     * per-cycle answers are 15 and 14. A proposal reporting "15 consecutive shifts" reads very
+     * differently once you know that is also where today's link sits.
+     */
+    function currentLinkBaseline() {
+        try {
+            const toPatterns = (/** @type {any} */ cycle) => {
+                /** @type {Record<string, any>} */ const p = {}; let i = 1;
+                for (const k of Object.keys(cycle)) p[String(i++)] = cycle[k];
+                return { p, lines: i - 1 };
+            };
+            const main = toPatterns(weeklyRoster);
+            const bl   = toPatterns(bilingualRoster);
+            const a = assessFatigue(main.p, main.lines);
+            const b = assessFatigue(bl.p, bl.lines);
+            const pick = (/** @type {any} */ r, /** @type {string} */ code) =>
+                r.results.find((/** @type {any} */ x) => x.code === code && x.status !== 'n/a');
+            const ff11a = pick(a, 'FF11'), ff11b = pick(b, 'FF11');
+            const ff15a = pick(a, 'FF15');
+            return {
+                summary: `Today's link already features ${a.present} of these factors on the main ${main.lines}-line cycle`
+                    + ` and ${b.present} on the ${bl.lines}-line bilingual cycle.`,
+                detail: `Longest run without a 48h break: ${ff11a?.value} (main) and ${ff11b?.value} (bilingual), against FF11's 13.`
+                    + ` Longest run of consecutive early starts: ${ff15a?.value} (main), against FF15's 4.`
+                    + ` Measured per cycle at its own length, not spliced into one rotation.`,
+            };
+        } catch (err) {
+            console.warn('[Links] Baseline unavailable:', err);
+            return null;   // the panel simply omits the comparison rather than showing a wrong one
+        }
+    }
+
+    const { renderCoverageChart, renderDesignChecks } = initLinksAnalysis({
+        getDesign: () => design,
+        getBaseline: currentLinkBaseline,
+    });
 
     // ============================================
     // HELPERS
