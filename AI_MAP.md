@@ -446,6 +446,13 @@ Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).
 - Constants: `DAYS`, `MIN_REST_MINUTES`, `ROTATING_LINES` (28 — v19.38; it was a literal in three files kept in step by a comment)
 - **`classifyShift` reads the hour through the same strict parser the coverage maths uses** (v19.38). Before that the two could disagree about what a time IS: `"6:00-14:00"` classified as a normal early while `startMinutes` returned null, so it counted in the day totals, was ABSENT from the hourly heat map, and was exempt from every turnaround check. Do not reintroduce a second, looser time read here.
 
+### `links-deletion.js`
+The PURE rules behind **Recently deleted** in the Links workspace (v19.41) — no DOM, no Firebase. Delete used to be permanent; a design now carries `deletedAt`/`deletedBy`, drops out of the picker, and stays restorable for `SOFT_DELETE_RETENTION_DAYS` (30).
+- `isDeleted(data)` / `isPurgeable(data, nowMs, days?)` / `purgeableIds(entries, nowMs, days?)` / `daysLeft(data, nowMs, days?)` / `deletedLabel(data, nowMs, days?)` / `sortByDeleted(entries)` / `canSoftDelete(liveCount)` / `tsMillis(ts)`.
+- **The two predicates deliberately disagree about one state.** An unresolved `deletedAt` (what a `serverTimestamp()` write reads back as on the writing device) counts as DELETED but never as PURGEABLE — hiding a design you cannot date costs nothing, destroying it is the exact failure the feature prevents. `isPurgeable` fails closed on unresolved, future and malformed timestamps alike; the purge runs client-side, so it is only ever as trustworthy as `Date.now()`.
+- `canSoftDelete` counts LIVE designs — a full bin must not make the last remaining design disposable.
+- Consumed by `links-app.js` (bin panel, restore, purge-on-load, and the "deleted while you had it open" save branch). Tested by `links-deletion.test.mjs`.
+
 ### `links-concurrency.js`
 The PURE co-editing rules for the Links workspace (v19.38) — no DOM, no Firebase, no timers. Extracted because this logic has produced THREE bugs (v16.19, v16.23, v17.18) and every one was a **silent** overwrite of a colleague's work: the loser of the race sees a successful save and only finds out on reopening. All three were fixed by reasoning inline in a 1,500-line coordinator that had no seam to test through.
 - `conflictOf(data, exists, { loadedUpdatedAt, baselineUnknown, currentUser })` → the conflict to confirm, or null. Two detection paths: a timestamp mismatch (definitive), or an UNKNOWN baseline plus someone else's name (weaker, but far better than treating an unknown baseline as "no conflict" — which is what disabled the guard at v17.18). Accepted limit: two devices under the SAME display name never conflict-prompt on path 2.

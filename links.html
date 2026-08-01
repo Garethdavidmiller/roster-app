@@ -69,6 +69,17 @@
     </div>
 </div>
 
+<!-- Recently deleted designs (v19.41). Populated by links-app.js; empty until the bin has content. -->
+<div id="designBinLightbox" class="lb-overlay" role="dialog" aria-label="Recently deleted designs" aria-modal="true">
+    <div id="designBinContent" class="lb-content">
+        <button id="designBinClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <h2 class="tips-lb-title">🗑 Recently deleted</h2>
+        <p class="bin-intro">A deleted design is kept for 30 days, then removed for good.</p>
+        <div id="designBinList" class="bin-list"></div>
+        <p id="designBinStatus" class="bin-status" role="status" aria-live="polite"></p>
+    </div>
+</div>
+
 <main class="container">
 
     <header class="app-header">
@@ -110,6 +121,9 @@
                         <button class="btn-design-dup" id="dupDesignBtn" type="button" title="Duplicate the current design">⎘ Duplicate</button>
                         <button class="btn-design-compare" id="compareBtn" type="button"
                                 aria-pressed="false" title="Compare two designs side-by-side" disabled>⇔ Compare</button>
+                        <!-- Shown only when the bin has something in it (v19.41) -->
+                        <button class="btn-design-bin" id="designBinBtn" type="button"
+                                title="Designs you have deleted recently" style="display:none">🗑 Recently deleted</button>
                     </div>
                     <!-- Compare picker — shown only in compare mode -->
                     <div class="compare-picker-row" id="comparePickerRow" style="display:none">

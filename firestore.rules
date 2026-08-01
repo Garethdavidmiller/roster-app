@@ -1,6 +1,8 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
-// Last swept v19.39 (Aug 2026): linkDesigns READ now requires a `name` claim — the previous
+// Last swept v19.41 (Aug 2026): linkDesigns create/update accepts the optional `deletedAt`/
+// `deletedBy` soft-delete pair (present = in the bin, absent = live), type-checked when present.
+// Prior sweep v19.39: linkDesigns READ now requires a `name` claim — the previous
 // `request.auth != null` admitted the calendar's anonymous sessions, i.e. any visitor, which the
 // rule's own comment did not say. Prior sweep v19.23: analytics gains the `origins` doc (per-address migration counters —
 // a NEW doc rather than a third map on activeAccounts, so a rules-deploy lag cannot deny the writes
@@ -240,15 +242,27 @@ service cloud.firestore {
       // validate in rules, and the 1 MB document limit already bounds its size. The rename
       // path's merge:true write still satisfies hasOnly because request.resource.data reflects
       // the full post-merge document (existing patterns + the new name/updatedAt/updatedBy).
+      // `deletedAt`/`deletedBy` are the v19.41 SOFT DELETE: present = in the bin, absent = live.
+      // Both are OPTIONAL — a live document must not be forced to carry them (every existing
+      // design predates the field, and hasOnly is about the ceiling, not the floor). When present
+      // they are type-checked like everything else. A restore clears them with deleteField(), so
+      // the resulting document has neither key and passes this rule unchanged.
+      // NOTE the rules cannot express "only a designer may empty the bin" any more finely than
+      // this: delete is already gated on isLinksWriter(), which is the same set of people who can
+      // soft-delete. The retention window is a CLIENT policy (links-deletion.js), not a server one
+      // — worth knowing before treating the 30 days as a guarantee.
       allow create, update: if isLinksWriter() &&
-        request.resource.data.keys().hasOnly(['name', 'patterns', 'updatedAt', 'updatedBy']) &&
+        request.resource.data.keys().hasOnly(['name', 'patterns', 'updatedAt', 'updatedBy', 'deletedAt', 'deletedBy']) &&
         request.resource.data.name is string &&
         request.resource.data.name.size() >= 1 &&
         request.resource.data.name.size() <= 100 &&
         request.resource.data.patterns is map &&
         request.resource.data.updatedAt is timestamp &&
         request.resource.data.updatedBy is string &&
-        request.resource.data.updatedBy.size() <= 100;
+        request.resource.data.updatedBy.size() <= 100 &&
+        (!('deletedAt' in request.resource.data) || request.resource.data.deletedAt is timestamp) &&
+        (!('deletedBy' in request.resource.data) ||
+          (request.resource.data.deletedBy is string && request.resource.data.deletedBy.size() <= 100));
     }
 
     match /staffContact/{memberName} {

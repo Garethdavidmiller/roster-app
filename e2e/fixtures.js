@@ -107,14 +107,28 @@ export const getDoc = () => (globalThis.__E2E || {}).failGetDoc
     ? Promise.reject(Object.assign(new Error('e2e'), { code: 'unavailable' }))
     : Promise.resolve({ exists: () => false, data: () => ({}) });
 export const addDoc = () => Promise.resolve(marker('docRef'));
-export const setDoc = () => Promise.resolve();
+// setDoc RECORDS its payload (v19.41), for the same reason writeBatch does: a test that can only
+// see the UI is checking the SUMMARY of a write, not the write. The Links soft delete is exactly
+// that trap — a hard delete and a soft delete BOTH make the design vanish from the picker, so
+// asserting the chip is gone would pass against the very implementation being replaced. The
+// payload is where the two differ.
+export const setDoc = (/** @type {any} */ ref, /** @type {any} */ data, /** @type {any} */ opts) => {
+  const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+  e2e.setWrites = e2e.setWrites || [];
+  e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
+  return Promise.resolve();
+};
 export const updateDoc = () => Promise.resolve();
 // deleteDoc REMOVES the row from the seeded set (v18.97) instead of no-opping, so a card that
 // deletes and then re-reads sees the delete. Without this there was no way to test the
 // reset-requests refresh race: every reload returned the original rows, so a ghost row and a
 // correctly-cleared one looked identical.
 export const deleteDoc = (ref) => {
-  const e2e = globalThis.__E2E || {};
+  const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+  // Record the path too (v19.41) so a test can assert a hard delete did NOT happen — the negative
+  // is the whole claim of a soft delete.
+  e2e.deletedPaths = e2e.deletedPaths || [];
+  if (ref && ref.path) e2e.deletedPaths.push(String(ref.path));
   const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
   if (id && Array.isArray(e2e.docs)) e2e.docs = e2e.docs.filter(r => r.id !== id);
   return Promise.resolve();

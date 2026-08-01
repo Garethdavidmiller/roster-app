@@ -538,6 +538,47 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
         await assertSucceeds(deleteDoc(doc(designerDb(), 'linkDesigns', id)));
     });
+    // Soft delete (v19.41). `deletedAt`/`deletedBy` are OPTIONAL — the live documents that
+    // predate the field must keep working, which is the case the hasOnly change could break.
+    test('a designer CAN soft-delete (write deletedAt + deletedBy)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }, { merge: true }));
+    });
+    test('a LIVE design still writes with neither field (they are optional, not required)', async () => {
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('a designer CAN restore (a write carrying neither field is the restored shape)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+    });
+    test('a designer CANNOT write a non-timestamp deletedAt', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: 'yesterday' }));
+    });
+    test('a designer CANNOT write a non-string deletedBy', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 42 }));
+    });
+    test('a designer CANNOT write an over-long deletedBy (>100)', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'x'.repeat(101) }));
+    });
+    test('the widened hasOnly still rejects an unknown field', async () => {
+        // The soft-delete pair widened the allowlist; this pins that it widened by exactly two.
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: serverTimestamp(), archived: true }));
+    });
+    test('a NON-designer cannot soft-delete either (same gate as a hard delete)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertFails(setDoc(doc(namedDb('J. Davies'), 'linkDesigns', id),
+            { deletedAt: serverTimestamp(), deletedBy: 'J. Davies' }, { merge: true }));
+    });
+
     test('a designer CAN rename via merge:true (merge keeps patterns, so hasOnly still holds)', async () => {
         // renameDesign writes only {name, updatedAt, updatedBy} with merge:true — request.resource.data
         // is the full post-merge doc (existing patterns preserved), so the 4-field hasOnly passes.

@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -38,6 +38,9 @@ import {
 import { initLinksAnalysis } from './links-analysis.js';
 import { initLinksCompare } from './links-compare.js';
 import { conflictOf as _conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
+import {
+    SOFT_DELETE_RETENTION_DAYS, isDeleted, purgeableIds, deletedLabel, canSoftDelete, sortByDeleted,
+} from './links-deletion.js';
 
 
 /**
@@ -222,6 +225,10 @@ export function init() {
     /** @type {Array<{id:string, name:string, patterns:Object, updatedAt:*, updatedBy:string}>} */
     let designs         = [];
     /** @type {any} */ let activeDesignId  = null; // null = design not yet saved to Firestore
+    /** Deleted designs, newest first — the "Recently deleted" bin (v19.41). Held in memory with
+     *  their patterns so a restore is a field-clearing merge, never a re-upload of a stale copy.
+     *  @type {Array<{id:string, name:string, patterns:Object, deletedAt:*, deletedBy:string}>} */
+    let deletedDesigns  = [];
 
     // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
     // links-analysis.js (v17.70). They read only the live active design, via this getter.
@@ -353,8 +360,16 @@ export function init() {
         // Render main design chips. A chip is a <div> wrapping separate <button>s —
         // buttons must NOT nest (the HTML parser force-closes an open <button> when
         // another one starts, which silently breaks the markup).
+        // Recently-deleted button: present only when the bin has something in it, so the workspace
+        // gains no permanent extra control for a feature most sessions never touch.
+        const binBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('designBinBtn'));
+        if (binBtn) {
+            binBtn.style.display = deletedDesigns.length > 0 ? '' : 'none';
+            binBtn.textContent   = `🗑 Recently deleted (${deletedDesigns.length})`;
+        }
+
         if (chipsEl) {
-            const canDelete = designs.length > 1;
+            const canDelete = canSoftDelete(designs.length);
             chipsEl.innerHTML = designs.map(d => {
                 const isActive = d.id === activeDesignId;
                 const actions = isActive
@@ -542,18 +557,32 @@ export function init() {
     }
 
     /**
-     * Delete a design (with confirmation). The last design can't be deleted —
-     * the ✕ button is disabled in that state, so this guard is just a backstop.
+     * Delete a design — a SOFT delete since v19.41: it moves to "Recently deleted" for
+     * SOFT_DELETE_RETENTION_DAYS and can be restored, instead of being destroyed on the spot.
+     * The last LIVE design can't be deleted — the ✕ button is disabled in that state, so this
+     * guard is just a backstop.
      * @param {any} id
      */
     async function deleteDesign(id) {
-        if (designs.length <= 1) return;
+        if (!canSoftDelete(designs.length)) return;
         const d = designs.find(x => x.id === id);
         if (!d) return;
-        if (!await confirmDialog({ title: 'Delete design', message: `Delete "${d.name}"? This can't be undone.`, confirmLabel: 'Delete', danger: true })) return;
+        if (!await confirmDialog({
+            title: 'Delete design',
+            message: `Delete "${d.name}"?\n\nIt moves to Recently deleted, where you can restore it for the next ${SOFT_DELETE_RETENTION_DAYS} days.`,
+            confirmLabel: 'Delete',
+            danger: true,
+        })) return;
         try {
-            await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkDesigns, id)));
+            // A merge write, not a replace: the patterns we hold could be a stale copy of a
+            // co-designer's newer version, and deleting is not a reason to overwrite them.
+            await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkDesigns, id),
+                { deletedAt: serverTimestamp(), deletedBy: currentUser }, { merge: true }));
             designs = designs.filter(x => x.id !== id);
+            // deletedAt is null until the server resolves it — deliberately kept as null rather
+            // than stamped with a client clock, so the row reads "Deleted by X" until the real
+            // time is known instead of showing a countdown built from an invented figure.
+            deletedDesigns.unshift({ id: d.id, name: d.name, patterns: d.patterns, deletedAt: null, deletedBy: currentUser });
             const newActive = (id === activeDesignId) ? designs[0] : null;
             // Exit compare mode if the compare target was deleted, the delete drops below the 2
             // designs compare needs, OR the newly-promoted active design IS the current compare
@@ -566,8 +595,141 @@ export function init() {
             }
             if (newActive) _activateDesign(newActive);
             else { renderDesignPicker(); renderGrid(); compare.renderCompare(); }
+            renderDesignPicker();   // reveal the bin button now that it has something in it
         } catch (err) {
             console.error('[Links] Delete failed:', err);
+            // Was console-only: a rules rejection or a dropped connection looked like the button
+            // simply doing nothing. Every other design action surfaces here (v19.41).
+            _designActionStatus('Couldn’t delete the design — check your connection and try again.');
+        }
+    }
+
+    // ============================================
+    // RECENTLY DELETED (soft delete, v19.41)
+    // ============================================
+
+    /** Bin-panel feedback line. @param {string} msg @param {'ok'|'err'} [kind] */
+    function _binStatus(msg, kind = 'err') {
+        const el = document.getElementById('designBinStatus');
+        if (el) { el.textContent = msg; el.className = 'bin-status ' + kind; }
+    }
+
+    /**
+     * Restore a deleted design.
+     *
+     * Clears the two fields with `deleteField()` on a MERGE write rather than re-writing the whole
+     * document: the patterns held here were read when the page loaded, and a full replace would
+     * push that copy over anything the design carried at the moment it was deleted.
+     * @param {any} id
+     */
+    async function restoreDesign(id) {
+        const d = deletedDesigns.find(x => x.id === id);
+        if (!d) return;
+        try {
+            await writeWithClaimRetry(() => setDoc(doc(db, COLLECTIONS.linkDesigns, id), {
+                deletedAt: deleteField(), deletedBy: deleteField(),
+                updatedAt: serverTimestamp(), updatedBy: currentUser,
+            }, { merge: true }));
+            deletedDesigns = deletedDesigns.filter(x => x.id !== id);
+            designs.push({ id: d.id, name: d.name, patterns: d.patterns, updatedAt: null, updatedBy: currentUser });
+            _sortDesigns();
+            renderDesignPicker();
+            renderBinList();
+            _binStatus(`“${d.name}” restored.`, 'ok');
+        } catch (err) {
+            console.error('[Links] Restore failed:', err);
+            _binStatus('Couldn’t restore that design — check your connection and try again.');
+        }
+    }
+
+    /**
+     * Remove a deleted design for good (the only hard delete left in the workspace).
+     * @param {any} id
+     */
+    async function purgeDesign(id) {
+        const d = deletedDesigns.find(x => x.id === id);
+        if (!d) return;
+        if (!await confirmDialog({
+            title: 'Remove for good',
+            message: `Permanently remove "${d.name}"?\n\nThis one can't be undone.`,
+            confirmLabel: 'Remove for good',
+            danger: true,
+        })) return;
+        try {
+            await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkDesigns, id)));
+            deletedDesigns = deletedDesigns.filter(x => x.id !== id);
+            renderDesignPicker();
+            renderBinList();
+            _binStatus(`“${d.name}” removed.`, 'ok');
+        } catch (err) {
+            console.error('[Links] Permanent delete failed:', err);
+            _binStatus('Couldn’t remove that design — check your connection and try again.');
+        }
+    }
+
+    /** Rebuild the Recently-deleted list. */
+    function renderBinList() {
+        const list = document.getElementById('designBinList');
+        if (!list) return;
+        if (deletedDesigns.length === 0) {
+            list.innerHTML = '<p class="bin-empty">Nothing here. Deleted designs appear in this list.</p>';
+            return;
+        }
+        const now = Date.now();
+        list.innerHTML = deletedDesigns.map(d => {
+            const id = escapeHtml(d.id);
+            return `<div class="bin-row">` +
+                `<div class="bin-row-main">` +
+                    `<span class="bin-row-name">${escapeHtml(d.name)}</span>` +
+                    `<span class="bin-row-meta">${escapeHtml(deletedLabel(d, now))}</span>` +
+                `</div>` +
+                `<div class="bin-row-actions">` +
+                    `<button class="bin-restore" data-id="${id}" type="button">Restore</button>` +
+                    `<button class="bin-purge" data-id="${id}" type="button" ` +
+                        `aria-label="Remove ${escapeHtml(d.name)} for good">Remove for good</button>` +
+                `</div></div>`;
+        }).join('');
+    }
+
+    /** Wire the bin button + panel — called once on page load. */
+    function initDesignBin() {
+        const overlay = document.getElementById('designBinLightbox');
+        const content = document.getElementById('designBinContent');
+        const closeBtn = document.getElementById('designBinClose');
+        if (!overlay || !content || !closeBtn) return;
+        const lb = createLightbox({
+            overlay,
+            content:  /** @type {HTMLElement} */ (content),
+            closeBtn: /** @type {HTMLElement} */ (closeBtn),
+            onOpen() { _binStatus('', 'ok'); renderBinList(); },
+        });
+        document.getElementById('designBinBtn')?.addEventListener('click', () => lb.open());
+        document.getElementById('designBinList')?.addEventListener('click', e => {
+            const t = /** @type {Element} */ (e.target);
+            const restore = /** @type {HTMLElement|null} */ (t.closest('.bin-restore'));
+            const purge   = /** @type {HTMLElement|null} */ (t.closest('.bin-purge'));
+            if (restore)    restoreDesign(restore.dataset.id);
+            else if (purge) purgeDesign(purge.dataset.id);
+        });
+    }
+    initDesignBin();
+
+    /**
+     * Remove deleted designs that have aged out of the recovery window.
+     *
+     * Fire-and-forget on load, following the same client-side pruning pattern the circular /
+     * newsletter / analytics sweeps use. The decision itself is `purgeableIds` in
+     * links-deletion.js, which fails closed on an unresolved or future `deletedAt` — this runs on
+     * whatever the device thinks the time is, so it must never treat "I can't tell how old this
+     * is" as "old enough to destroy".
+     */
+    function purgeExpiredDeletions() {
+        const ids = purgeableIds(deletedDesigns, Date.now());
+        if (ids.length === 0) return;
+        deletedDesigns = deletedDesigns.filter(d => !ids.includes(d.id));
+        for (const id of ids) {
+            writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkDesigns, id)))
+                .catch(err => console.warn('[Links] Purge of an expired deletion failed (will retry next load):', err));
         }
     }
 
@@ -1275,6 +1437,24 @@ export function init() {
             // latest version", and refreshing THROWS AWAY everything you just did. The only two
             // outcomes were clobber your colleague or lose your own work. Offer the third (v19.38) —
             // keep both, by forking your version into a new design. The machinery already exists.
+            // A co-designer may have DELETED this design while we had it open (v19.41). That is
+            // not the same event as "someone saved a different version", and it must not be
+            // reported as one: the design is in their bin, and a plain overwrite here would
+            // silently resurrect it — a delete undone by someone who never saw the delete. Offer
+            // the fork instead, which keeps our work without contradicting their action.
+            const deletedElsewhere = async (/** @type {any} */ data) => {
+                markNotSaved();
+                const by = (data?.deletedBy || '').trim();
+                if (await confirmDialog({
+                    title: 'This design was deleted',
+                    message: `${by || 'Someone'} deleted this design while you had it open. It is in Recently deleted.\n\n` +
+                        'Your version can be saved as a NEW design so your work is not lost.',
+                    confirmLabel: 'Save mine as new',
+                    cancelLabel: 'Not now',
+                })) await duplicateDesign();
+                return true;
+            };
+
             const declineOrFork = async () => {
                 markNotSaved();
                 if (await confirmDialog({
@@ -1289,6 +1469,11 @@ export function init() {
             try {
                 await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
                     const snap = await tx.get(designRef);
+                    if (snap.exists() && isDeleted(snap.data())) {
+                        const e = /** @type {any} */ (new Error('design-deleted'));
+                        e.deletedData = snap.data();
+                        throw e;
+                    }
                     const c = conflictOf(snap.data() || {}, snap.exists());
                     if (c) { const e = /** @type {any} */ (new Error('concurrent-edit')); e.conflict = c; throw e; }
                     tx.set(designRef, buildDoc());
@@ -1296,6 +1481,7 @@ export function init() {
                 committed = true;
             } catch (txErr) {
                 const _e = /** @type {any} */ (txErr);
+                if (_e && _e.message === 'design-deleted') { await deletedElsewhere(_e.deletedData); return; }
                 if (_e && _e.message === 'concurrent-edit') {
                     // The transaction saw a co-editor's newer version. Ask; on overwrite write
                     // UNCONDITIONALLY (the user accepted the replace) — a plain setDoc, which also
@@ -1309,11 +1495,18 @@ export function init() {
             if (!committed) {
                 // Legacy fallback (offline, or the transaction failed for a non-conflict reason):
                 // getDoc-check then a queued setDoc, exactly as before the transaction was added.
+                let deletedByOther = false;
                 try {
                     const fresh = await getDoc(designRef);
-                    const c = conflictOf(fresh.data() || {}, fresh.exists());
-                    if (c && !await confirmOverwrite(c)) { await declineOrFork(); return; }
+                    if (fresh.exists() && isDeleted(fresh.data())) {
+                        await deletedElsewhere(fresh.data());
+                        deletedByOther = true;
+                    } else {
+                        const c = conflictOf(fresh.data() || {}, fresh.exists());
+                        if (c && !await confirmOverwrite(c)) { await declineOrFork(); return; }
+                    }
                 } catch { /* offline — no reachable server state to compare; proceed with the queued write */ }
+                if (deletedByOther) return;
                 await writeWithClaimRetry(() => setDoc(designRef, buildDoc()));
             }
             // Refresh the in-memory cache entry UNCONDITIONALLY after the successful write — the
@@ -1356,10 +1549,21 @@ export function init() {
             const snap = await getDocs(DESIGNS_COL);
 
             const named = [];
+            /** @type {any[]} */ const binned = [];
             let legacyData = null;
             for (const d of snap.docs) {
                 const data = d.data();
-                if (typeof data.name === 'string' && data.name.trim()) {
+                if (typeof data.name === 'string' && data.name.trim() && isDeleted(data)) {
+                    // In the bin (v19.41) — kept in memory WITH its patterns so a restore is a
+                    // field-clearing merge and never re-uploads a stale copy of the design.
+                    binned.push({
+                        id:        d.id,
+                        name:      data.name.trim(),
+                        patterns:  normalisePatterns(data.patterns || {}),
+                        deletedAt: data.deletedAt ?? null,
+                        deletedBy: data.deletedBy || '',
+                    });
+                } else if (typeof data.name === 'string' && data.name.trim()) {
                     named.push({
                         id:        d.id,
                         name:      data.name.trim(),
@@ -1398,6 +1602,10 @@ export function init() {
             // which would shuffle the picker between machines and visits.
             named.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
             designs = named;
+            // Bin: newest deletion first. The ordering rule (incl. the unresolved-timestamp case,
+            // which must not go through Infinity - Infinity) is pure and tested.
+            deletedDesigns = sortByDeleted(binned);
+            purgeExpiredDeletions();
 
             if (designs.length > 0) {
                 // Re-open the design that was active last visit, else the first

@@ -761,11 +761,22 @@ for now:
   The concurrency RULES themselves are the pure `links-concurrency.js` (v19.38), tested with
   a case per historical bug — three separate silent-overwrite bugs came out of that logic
   while it was inline in the coordinator.
-- **Delete is permanent — no archive, no ownership check** (recorded v19.39). Any designer
-  or admin can delete any design behind a confirm dialog; recovery means a Firestore PITR
-  restore, which only exists if PITR is enabled on the project. Accepted while the tool had
-  two designers, with a third as the stated trigger to revisit — **a third arrived at v19.40
-  (M. Robson), so soft-delete is now an open question.**
+- **Delete is a SOFT delete (v19.41).** A deleted design carries `deletedAt`/`deletedBy`, drops
+  out of the picker, and is restorable from "🗑 Recently deleted" for 30 days, after which it is
+  purged for good. It stopped being permanent when the trigger recorded at v19.39 fired: the
+  no-archive risk was accepted at two designers, and a third (M. Robson) arrived at v19.40.
+  Remaining limits, all deliberate:
+  - **Still no ownership check** — any designer or admin can delete or restore any design. With
+    three designers on one shared document set, per-owner permissions would be more machinery than
+    the problem justifies; the bin removes the irreversibility, which was the actual risk.
+  - **The 30 days is a CLIENT policy, not a server one.** The purge runs on load from whichever
+    device happens to open the workspace, like every other prune in this app (circulars,
+    newsletters, analytics buckets). Nothing purges if nobody visits, and the rules do not enforce
+    the window. `isPurgeable` fails closed on an unresolved, future or malformed `deletedAt` so a
+    wrong device clock cannot empty the bin, but it is not a guarantee — for a hard guarantee the
+    answer is Firestore PITR, not this.
+  - **"Remove for good" is still one confirm and genuinely permanent.** That is the point of
+    having it; the bin is what makes the ordinary path recoverable.
 
 ### Test coverage gaps
 The suite is now broad (74 root test files, ~1845 tests — see CLAUDE.md's file tree for the
