@@ -710,6 +710,16 @@ test('operations: a flagged roster cell can be resolved from the review table', 
     // appear just because a cell was flagged.
     await expect(page.locator('.roster-change-row .act-read')).toHaveCount(1);
 
+    // A flagged row sitting over a MANUAL entry must SHOW it (v19.37). Picking writes with
+    // replaceId, so the manual entry is replaced — and this table's standing guarantee is that a
+    // hand-recorded entry is never overwritten without the admin seeing it. The fixture puts a
+    // manual AL under the Thursday row for exactly this.
+    const overManual = page.locator('.roster-change-row')
+        .filter({ has: page.locator('.roster-choice-btn[data-opt="0"]') })
+        .filter({ hasText: 'Saved' });
+    await expect(overManual, 'the flagged row over a manual entry names what it would replace').toHaveCount(1);
+    await expect(overManual).toContainText('AL');
+
     // Picking a reading makes it a change to save…
     const flagged = page.locator('.roster-change-row').filter({ has: page.locator('.roster-choice-btn[data-opt="0"]') });
     await flagged.last().locator('.roster-choice-btn[data-opt="0"]').click();

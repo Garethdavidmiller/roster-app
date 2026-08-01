@@ -118,6 +118,27 @@ describe('per-member namespace ownership', () => {
         assert.equal(hasPendingLegacyMigration(''), false);
     });
 
+    test('a RETIRED device flag never re-triggers the ownership prompt (v19.37 regression)', () => {
+        // The bug v19.36 shipped. `myb_pc_pay_welcome_shown` was dropped from DEVICE_KEYS when the
+        // welcome lightbox was retired — but the flag still SITS on every device that ever dismissed
+        // it. With the declaration gone it stopped being a device flag and started looking like
+        // unnamespaced member data, so `hasPendingLegacyMigration` said true and the "Is this your
+        // pay data?" prompt fired at people who have no legacy data at all.
+        //
+        // Worst hit: anyone who first used paycalc AFTER v14.11 namespacing. Their data was
+        // namespaced from the start, so the ownership prompt never ran, so `ns_migrated` — the guard
+        // that short-circuits this — was never set. Nothing protected them.
+        global.localStorage = makeLocalStorage({
+            'myb_pc_pay_welcome_shown': '1',      // retired flag, still present in the wild
+            'myb_pc_ytd_notice_shown':  '1',
+            'myb_pc_gmiller_rate':      '21.49',  // their data — correctly namespaced already
+            'myb_pc_gmiller_p16':       '{"std":140}',
+            // deliberately NO myb_pc_ns_migrated: the prompt never ran for this member
+        });
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false,
+            'a retired device flag is still a DEVICE flag — it must never read as claimable pay data');
+    });
+
     test('hasPendingLegacyMigration: false on a clean device (only device-level keys)', () => {
         global.localStorage = makeLocalStorage({
             'myb_pc_ytd_notice_shown': '1',

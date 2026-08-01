@@ -134,6 +134,12 @@ export async function openRosterReview(page) {
         /** @type {any} */ (window).__E2E.docs = [{
             id: 'm1', memberName: 'G. Miller', date: '2026-08-04',
             value: '23:00-06:00', type: 'shift', source: 'manual',
+        }, {
+            // A MANUAL entry under a FLAGGED row (Thu). Picking a reading would replace it, so the
+            // row has to show it — the review table's "never silently overwrite a manual entry"
+            // guarantee (v19.37).
+            id: 'm2', memberName: 'G. Miller', date: '2026-08-06',
+            value: 'AL', type: 'annual_leave', source: 'manual',
         }];
     });
     let called = false;

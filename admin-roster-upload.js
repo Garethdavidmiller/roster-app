@@ -328,6 +328,13 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     parsedShift, baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
+                    // Whether a MANUAL entry is at stake (v19.37). Picking a reading writes with
+                    // replaceId, so it replaces whatever is stored — routine for a previous import,
+                    // but for a hand-recorded entry it is the one thing this table otherwise
+                    // guarantees never happens silently: a READABLE PDF value in the same situation
+                    // becomes a CONFLICT row that shows "Saved: X" and asks. The flagged row shows it
+                    // too, so the choice is made knowing what it costs.
+                    isManual:    existing ? (existing.source !== 'roster_import') : false,
                     chosen:      null,
                     options:     opts.length > 1 ? opts : null,
                 });
@@ -938,6 +945,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                                 <span class="roster-day-date">${dateStr}</span>
                                 <span class="roster-act act-choice">${picked < 0 ? "Couldn't read" : 'Your choice'}</span>
                             </div>
+                            ${s.isManual && s.manualValue ? `<div class="roster-cb-opt">
+                                <span class="roster-cb-lab">Saved</span>
+                                <span class="roster-cv-manual">${manualShiftDisplay(s)}</span>
+                            </div>` : ''}
                             <div class="roster-pick" role="group" aria-label="Choose the correct value">
                                 ${s.options.map(/** @param {any} o @param {number} i */ (o, i) => `<button type="button" class="roster-choice-btn ${picked === i ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="${i}" aria-pressed="${picked === i}">${shiftDisplay(o.display, date)}</button>`).join('')}
                                 <button type="button" class="roster-choice-btn roster-choice-btn--skip ${picked < 0 ? 'is-chosen' : ''}" data-key="${esc(key)}" data-opt="skip" aria-pressed="${picked < 0}">Skip</button>
