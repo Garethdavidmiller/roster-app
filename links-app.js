@@ -249,15 +249,6 @@ export function init() {
         return dash > 0 ? `${shift.slice(0, dash)}\n${shift.slice(dash + 1)}` : shift;
     }
 
-    /**
-     * Start-time portion of a shift string for compact chip labels: "06:20-14:20" → "06:20".
-     * @param {any} shift
-     */
-    function formatShortTime(shift) {
-        const dash = shift.indexOf('-');
-        return dash > 0 ? shift.slice(0, dash) : shift;
-    }
-
     /** All-RD pattern — a starting blank for an as-yet-undesigned line. */
     const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
 
@@ -354,13 +345,14 @@ export function init() {
         const dupBtn         = /** @type {HTMLButtonElement|null} */ (document.getElementById('dupDesignBtn'));
         if (!wrap) return;
 
-        // Show the picker once at least one design exists — or once anything is in the BIN
-        // (v19.41). The bin button lives inside this wrapper, so keying the whole strip on live
-        // designs alone made "Recently deleted" unreachable at exactly the moment it is most
-        // needed: zero live designs and several restorable ones. That state is reachable even
-        // though this client refuses to delete the last live design — two designers deleting the
-        // last two at once gets there, and so does any device still running an older build.
-        wrap.style.display = (designs.length > 0 || deletedDesigns.length > 0) ? '' : 'none';
+        // The picker strip is ALWAYS shown (v19.43). It used to appear only once a design existed,
+        // which contradicted the empty state's own instruction — "tap + New for a blank canvas"
+        // pointed at a button inside this very wrapper, so on a first visit the message named a
+        // control that was not on the page. It also hid the bin: "Recently deleted" lives here
+        // too, and zero live designs with a full bin is exactly when restore matters most (v19.41).
+        // Duplicate and Compare disable themselves when they have nothing to act on, so an empty
+        // strip is honest rather than misleading.
+        wrap.style.display = '';
 
         // Render main design chips. A chip is a <div> wrapping separate <button>s —
         // buttons must NOT nest (the HTML parser force-closes an open <button> when
@@ -696,9 +688,12 @@ export function init() {
                     `<span class="bin-row-name">${escapeHtml(d.name)}</span>` +
                     `<span class="bin-row-meta">${escapeHtml(deletedLabel(d, now))}</span>` +
                 `</div>` +
+                // The app's canonical dialog button pair — same recipe, same 44px touch target and
+                // press feedback as every confirm dialog (v19.43). These were a third, page-local
+                // recipe: ~26px tall pills with no press animation.
                 `<div class="bin-row-actions">` +
-                    `<button class="bin-restore" data-id="${id}" type="button">Restore</button>` +
-                    `<button class="bin-purge" data-id="${id}" type="button" ` +
+                    `<button class="bin-restore dialog-btn dialog-btn-confirm" data-id="${id}" type="button">Restore</button>` +
+                    `<button class="bin-purge dialog-btn dialog-btn-cancel" data-id="${id}" type="button" ` +
                         `aria-label="Remove ${escapeHtml(d.name)} for good">Remove for good</button>` +
                 `</div></div>`;
         }).join('');
@@ -837,16 +832,28 @@ export function init() {
         if (!design || compare.isCompareMode()) { bar.style.display = 'none'; return; }
         bar.style.display = '';
 
-        const chip = (/** @type {any} */ shift, /** @type {any} */ label, /** @type {any} */ typeClass, /** @type {any} */ extra = '') =>
-            `<button class="brush-chip type-${typeClass}${extra}" data-shift="${escapeHtml(shift)}" ` +
-            `aria-pressed="false" aria-label="Paint: ${escapeHtml(label)}" title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+        // The chip shows BOTH times, on two lines, exactly as the grid cell it paints does
+        // (v19.43). It used to show the start only — and the roster has five distinct shifts
+        // starting 06:20, three starting 08:00, and so on, so the bar rendered as seven pairs of
+        // visually IDENTICAL chips that paint different shifts. The start time also went into the
+        // title and aria-label, so nothing anywhere disambiguated them: the only way to tell which
+        // 06:20 you had armed was to paint a cell and read the result.
+        const spoken = (/** @type {any} */ shift) => {
+            const dash = String(shift).indexOf('-');
+            return dash > 0 ? `${String(shift).slice(0, dash)} to ${String(shift).slice(dash + 1)}` : String(shift);
+        };
+        const chip = (/** @type {any} */ shift, /** @type {any} */ label, /** @type {any} */ typeClass, /** @type {any} */ extra = '', /** @type {any} */ spokenLabel = null) => {
+            const say = spokenLabel ?? label;
+            return `<button class="brush-chip type-${typeClass}${extra}" data-shift="${escapeHtml(shift)}" ` +
+                `aria-pressed="false" aria-label="Paint: ${escapeHtml(say)}" title="${escapeHtml(say)}">${escapeHtml(label)}</button>`;
+        };
 
         bar.innerHTML = [
             '<span class="brush-bar-label">Paint:</span>',
-            chip('RD',    'RD',     'rd'),
-            chip('SPARE', 'SP',     'spare'),
-            ...EARLY_SHIFTS.map(s => chip(s, formatShortTime(s), 'early')),
-            ...LATE_SHIFTS.map(s  => chip(s, formatShortTime(s), 'late')),
+            chip('RD',    'RD',     'rd',    '', 'Rest day'),
+            chip('SPARE', 'SP',     'spare', '', 'Spare'),
+            ...EARLY_SHIFTS.map(s => chip(s, shiftLabel(s), 'early', '', spoken(s))),
+            ...LATE_SHIFTS.map(s  => chip(s, shiftLabel(s), 'late',  '', spoken(s))),
             `<button class="brush-chip brush-chip--custom" data-shift="__custom__" aria-pressed="false" title="Custom time…">Custom…</button>`,
         ].join('');
 
@@ -1775,6 +1782,7 @@ export function init() {
                     { heading: 'Multiple designs', items: [
                         { icon: '➕', html: '<strong>+ New</strong> starts a fresh blank design. <strong>⎘ Duplicate</strong> copies the current one so you can try a variation.' },
                         { icon: '⇔', html: '<strong>Compare</strong> shows two designs side-by-side — cells that differ are highlighted in gold. Only available when you have at least two designs.' },
+                        { icon: '🗑', html: 'Deleting a design does not destroy it — it moves to <strong>Recently deleted</strong>, where you can restore it for 30 days. The button only appears when something is in there.' },
                     ]},
                     { heading: 'Filling the lines', items: [
                         { icon: '⬜', html: 'A line shown as <strong>all rest days</strong> is <em>not yet designed</em> — its line number turns amber. Fill it manually or with the generator. The Design checks card lists any that are still empty.' },

@@ -468,6 +468,11 @@ body.auth-ready .container { display: grid; }
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
+    /* Two lines, start over end — the same shape as the cell this paints (v19.43). Centred so a
+       two-line chip and the single-line RD/SP/Custom chips sit on one baseline grid. */
+    white-space: pre-line;
+    line-height: 1.35;
+    text-align: center;
     transition: filter var(--dur-fast) var(--ease-standard), outline var(--dur-fast);
     outline: 2px solid transparent;
     outline-offset: 1px;
@@ -653,7 +658,19 @@ body.auth-ready .container { display: grid; }
     gap: 5px;
     flex-wrap: wrap;
     flex: 1;
-    min-width: 0;
+    /* min-content, NOT 0 (v19.43). `min-width: 0` lets a flex item shrink below the size of its
+       own contents — and the chips inside are `white-space: nowrap`, so at 390px this box
+       collapsed to 50px while the active chip stayed ~120px wide and its ✎ ✕ buttons painted on
+       top of "+ New". min-content is the widest single chip, so the chips wrap INSIDE the
+       container (and the action buttons wrap to their own row) instead of spilling over them.
+       Long names are still bounded — .design-chip-name caps at 180px with an ellipsis. */
+    min-width: min-content;
+}
+/* On a phone the chips and the four action buttons interleave into a ragged two-and-a-bit rows.
+   Giving the chips their own full row separates the two jobs — "which design am I on" above,
+   "what can I do to it" below — and costs nothing on desktop, where they share a row comfortably. */
+@media (max-width: 560px) {
+    .design-chips { flex-basis: 100%; }
 }
 /* A chip is a <div> wrapping a name <button> (+ rename/delete when active) —
    buttons can't nest, so the pill itself is not a button. */
@@ -767,6 +784,13 @@ body.auth-ready .container { display: grid; }
     border-color: var(--primary-blue);
 }
 .btn-design-compare:disabled { opacity: 0.4; cursor: default; }
+/* Compare's `margin-left: auto` (above) separates the mode toggle from the create actions on one
+   wide row. Once the row wraps it stops separating anything and just punches a hole mid-row, so it
+   is dropped at the width where wrapping starts. Declared AFTER the rule it overrides — a media
+   query adds no specificity, so an earlier copy of this simply lost. */
+@media (max-width: 560px) {
+    .btn-design-compare { margin-left: 0; }
+}
 
 /* Recently-deleted button — same secondary shape as Compare, but it does NOT take the
    `margin-left: auto` (Compare owns that; two auto margins would split the row). */
@@ -789,7 +813,25 @@ body.auth-ready .container { display: grid; }
 }
 .btn-design-bin:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
-/* Recently-deleted panel */
+/* Recently-deleted panel.
+   `.lb-content` alone is only the base — transform/scroll/cursor. Every real overlay in the app
+   takes its SURFACE from an id rule (#tipsLightboxContent, #iconLightboxContent) or a modifier
+   class (.notice-lb-content, .dialog-lb-content), and this one shipped at v19.41 with neither:
+   it computed to a transparent box with no padding and no radius, so the heading and intro floated
+   in navy text directly on the dimmed backdrop and only the rows — which carry their own
+   background — were visible. Every test passed, because they assert text and behaviour and no
+   visual baseline covered this overlay.
+   It joins the compact-dialog family (--radius-xl), at --modal-wide because each row carries a
+   name plus two actions. Do not invent a width; see .claude/rules/css-tokens.md. */
+#designBinContent {
+    background: white;
+    border-radius: var(--radius-xl);
+    padding: 28px 28px 24px;
+    width: min(var(--modal-wide), var(--modal-cap));
+    max-height: 85vh;
+    box-shadow: var(--shadow-3);
+    text-align: left;
+}
 .bin-intro {
     font-size: var(--type-small);
     color: var(--text-mid);
@@ -815,29 +857,11 @@ body.auth-ready .container { display: grid; }
 }
 .bin-row-meta { font-size: var(--type-micro); color: var(--text-mid); }
 .bin-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
-.bin-restore, .bin-purge {
-    border-radius: var(--radius-xl);
-    padding: 5px 12px;
-    font-size: var(--type-small);
-    font-family: inherit;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background var(--dur-fast) var(--ease-standard),
-                color var(--dur-fast) var(--ease-standard);
-}
-.bin-restore {
-    background: var(--primary-blue);
-    border: 1px solid var(--primary-blue);
-    color: white;
-}
-.bin-purge {
-    background: none;
-    border: 1px solid var(--border-light);
-    color: var(--text-mid);
-}
-@media (hover: hover) and (pointer: fine) {
-    .bin-purge:hover { background: var(--error-bg); color: var(--error-red); border-color: var(--error-red); }
-}
+/* The two row actions carry .dialog-btn + .dialog-btn-confirm/-cancel from shared.css — the app's
+   canonical pair, which brings the 44px touch target, the press scale and the hover states with
+   them. Only the row-level sizing is page-local: full width once the row stacks, so the buttons
+   don't sit as two stubs under a long design name. */
+.bin-restore, .bin-purge { white-space: nowrap; }
 .bin-restore:focus-visible, .bin-purge:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .bin-empty { font-size: var(--type-small); color: var(--text-mid); margin: 0; }
 .bin-status { font-size: var(--type-small); margin: 12px 0 0; min-height: 1em; }
