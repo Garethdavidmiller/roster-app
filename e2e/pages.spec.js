@@ -437,6 +437,108 @@ test('links: an expired deletion is purged on load and a recent one is not', asy
     await expect(page.locator('.bin-row-meta')).toHaveText(/Deleted 2 days ago by S. Silva/);
 });
 
+// The purge re-reads inside a transaction instead of trusting the load snapshot. This is the case
+// that justifies it: Firestore runs with persistentLocalCache, so a load can be served from
+// IndexedDB and be stale — showing a design as deleted-and-expired that a colleague has since
+// restored. Deleting on the strength of that snapshot destroys a LIVE design, which is the exact
+// outcome soft delete exists to prevent. Here the page loads the stale view and the server view
+// (txDocs) says restored.
+test('links: a design restored elsewhere is NOT purged, even if our snapshot says expired', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_beta_seen', '1');
+        const DAY = 86_400_000;
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        // What this device loaded (stale cache): "Shared" was deleted 40 days ago.
+        w.__E2E.docs = [
+            { id: 'live', name: 'Design A', patterns: {}, updatedAt: Date.now() - DAY, updatedBy: 'S. Silva' },
+            { id: 'shared', name: 'Shared', patterns: {}, deletedAt: Date.now() - 40 * DAY, deletedBy: 'S. Silva' },
+        ];
+        // What the server actually holds: M. Robson restored it — no deletedAt at all.
+        w.__E2E.txDocs = [
+            { id: 'live', name: 'Design A', patterns: {}, updatedAt: Date.now() - DAY, updatedBy: 'S. Silva' },
+            { id: 'shared', name: 'Shared', patterns: {}, updatedAt: Date.now(), updatedBy: 'M. Robson' },
+        ];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('.design-chip')).toHaveCount(1);
+    // Give the purge transaction time to resolve — the assertion is a NEGATIVE, so it has to be
+    // possible for it to have happened by the time we look.
+    await expect(page.locator('#designBinBtn')).toBeHidden();
+    const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
+    expect(deletes, 'a design the server says is live must survive a stale-snapshot purge').toEqual([]);
+});
+
+// Zero live designs with a full bin is the state where restore matters most, and it is reachable
+// even though this client refuses to delete the last live design (two designers deleting the last
+// two at once; a device on an older build). The bin button lives inside the picker strip, so if
+// that strip is keyed on live designs alone the only way back is invisible.
+test('links: the bin is still reachable when every design has been deleted', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_beta_seen', '1');
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [
+            { id: 'gone', name: 'Only design', patterns: {}, deletedAt: Date.now() - 86_400_000, deletedBy: 'S. Silva' },
+        ];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('.design-chip')).toHaveCount(0);
+    await expect(page.locator('#designBinBtn')).toBeVisible();
+    await page.locator('#designBinBtn').click();
+    await expect(page.locator('.bin-row-name')).toHaveText('Only design');
+    await page.locator('.bin-restore').click();
+    await expect(page.locator('.design-chip-name')).toHaveText('Only design');
+});
+
+// Saving a design a colleague deleted while you had it open must NOT put it back. An overwrite
+// there would be one designer undoing another's delete without ever being told a delete happened —
+// and it would arrive dressed as an ordinary "someone else saved" conflict, whose Replace button
+// reads like it only affects content.
+test('links: saving a design deleted by someone else offers a fork, and does not resurrect it', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_beta_seen', '1');
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        // Loaded live…
+        w.__E2E.docs = [
+            { id: 'd1', name: 'Design A', patterns: {}, updatedAt: Date.now() - 60_000, updatedBy: 'S. Silva' },
+            { id: 'd2', name: 'Design B', patterns: {}, updatedAt: Date.now() - 60_000, updatedBy: 'S. Silva' },
+        ];
+        // …but by the time we save, M. Robson has binned the one we are editing.
+        w.__E2E.txDocs = [
+            { id: 'd1', name: 'Design A', patterns: {}, deletedAt: Date.now(), deletedBy: 'M. Robson' },
+            { id: 'd2', name: 'Design B', patterns: {}, updatedAt: Date.now() - 60_000, updatedBy: 'S. Silva' },
+        ];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('.design-chip')).toHaveCount(2);
+
+    // Edit the active design, then save. A real SHIFT brush, not the RD chip that leads the bar —
+    // painting RD onto a rest day is correctly a no-op since v19.38 and would leave Save disabled.
+    await page.locator('#brushBar .brush-chip.type-early').first().click();
+    await page.locator('tr[data-pos="2"] .shift-cell-btn').nth(1).click();
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
+    await page.locator('#linksSaveBtn').click();
+
+    // Named as a deletion, not as a content conflict.
+    await expect(page.locator('.dialog-overlay')).toContainText('deleted this design');
+    await expect(page.locator('.dialog-overlay')).toContainText('M. Robson');
+    await page.locator('.dialog-overlay .dialog-btn-cancel').click();   // "Not now"
+
+    const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
+    expect(writes.filter(w => w.data && w.data.patterns),
+        'declining must not write the patterns back over a deleted design').toHaveLength(0);
+    await expect(page.locator('#linksSaveStatus')).toContainText('Not saved');
+});
+
 // ── ADMIN TOUCH LAYOUT — no horizontal blowout when a pill with hours is selected ──
 // Regression: on TOUCH devices (pointer: coarse) the bulk-bar time inputs' intrinsic
 // min-width (~180px each, unshrinkable without min-width: 0) stretched the whole page

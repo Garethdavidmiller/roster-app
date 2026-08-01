@@ -64,9 +64,47 @@ export const writeBatch = () => {
         commit: () => Promise.resolve(),
     };
 };
-// runTransaction(db, fn): run the update fn with a stub tx whose get() returns a non-existent doc,
-// so the links-app.js concurrency transaction (Finding #13) links + executes in the hermetic suite.
-export const runTransaction = (_db, fn) => Promise.resolve(fn({ get: () => Promise.resolve({ exists: () => false, data: () => ({}) }), set: noop }));
+// runTransaction(db, fn): runs the update fn against the SEEDED rows (v19.41 — it used to hand back
+// a permanently non-existent doc). With nothing seeded it still resolves "no such doc", so every
+// existing caller behaves as before; when a test seeds window.__E2E.docs the transaction sees them,
+// which is what makes the Links purge testable at all — that purge re-reads inside the transaction
+// precisely so a stale cached snapshot cannot destroy a restored design, and a tx.get that always
+// says "gone" would let a no-op purge pass as a working one.
+export const runTransaction = (_db, fn) => {
+  const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+  // window.__E2E.txDocs, when set, is what TRANSACTIONS see — i.e. the SERVER's view, which is
+  // allowed to differ from the window.__E2E.docs the page loaded. That divergence is the whole
+  // point of reading inside a transaction: Firestore runs here with persistentLocalCache, so a
+  // load can be served from IndexedDB and be arbitrarily stale. Without a way to express "the
+  // server disagrees with your snapshot", a re-check that reads the same stale data would look
+  // like it was working.
+  const find = (ref) => {
+    const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
+    const rows = Array.isArray(e2e.txDocs) ? e2e.txDocs : (Array.isArray(e2e.docs) ? e2e.docs : []);
+    return rows.find(r => r.id === id) || null;
+  };
+  const ts = (v) => (typeof v === 'number' && v >= 1e12 ? { toDate: () => new Date(v), toMillis: () => v } : v);
+  const tx = {
+    get: (ref) => {
+      const row = find(ref);
+      return Promise.resolve({
+        exists: () => !!row,
+        data: () => (row ? Object.fromEntries(Object.entries(row).map(([k, v]) => [k, ts(v)])) : {}),
+      });
+    },
+    set: (/** @type {any} */ ref, /** @type {any} */ data) => {
+      e2e.setWrites = e2e.setWrites || [];
+      e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: false });
+    },
+    delete: (/** @type {any} */ ref) => {
+      e2e.deletedPaths = e2e.deletedPaths || [];
+      if (ref && ref.path) e2e.deletedPaths.push(String(ref.path));
+      const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
+      if (id && Array.isArray(e2e.docs)) e2e.docs = e2e.docs.filter(r => r.id !== id);
+    },
+  };
+  return Promise.resolve(fn(tx));
+};
 // Collection reads resolve EMPTY unless a test seeds rows via window.__E2E.docs (an array of
 // { id, ...fields }). Any millisecond-number field is exposed as a Firestore-Timestamp-alike so card
 // code calling .toDate()/.toMillis() works unchanged. Added v18.94 because there was no way to render
