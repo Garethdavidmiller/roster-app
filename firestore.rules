@@ -1,6 +1,10 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
-// Last swept v19.23 (Jul 2026): analytics gains the `origins` doc (per-address migration counters —
+// Last swept v19.41 (Aug 2026): linkDesigns create/update accepts the optional `deletedAt`/
+// `deletedBy` soft-delete pair (present = in the bin, absent = live), type-checked when present.
+// Prior sweep v19.39: linkDesigns READ now requires a `name` claim — the previous
+// `request.auth != null` admitted the calendar's anonymous sessions, i.e. any visitor, which the
+// rule's own comment did not say. Prior sweep v19.23: analytics gains the `origins` doc (per-address migration counters —
 // a NEW doc rather than a third map on activeAccounts, so a rules-deploy lag cannot deny the writes
 // that already work). Prior sweep v18.20: analytics pv_ counts allowlist gains the five document/guide open ids
 // (huddle/circular/newsletter/guide-railcard/guide-fip). Prior sweep v17.03: B3 strict override
@@ -27,8 +31,9 @@ rules_version = '2';
 //   B3: removed the `!('name' in token)` no-name escape from the overrides create/update AND delete
 //   blocks (only that line changed; the name/admin/manager 3-tier is retained). Shipped after
 //   re-provision + the CLAIM_EPOCH=2 sweep. Rollback = re-add the two escape lines and redeploy.
-//   H2 (this deploy): linkDesigns write now requires the `linksDesigner` claim (or admin); reads stay
-//   open to any authed session. setupRosterAuth sets linksDesigner for CONFIG.LINKS_DESIGNERS; a stale
+//   H2 (this deploy): linkDesigns write now requires the `linksDesigner` claim (or admin); reads were
+//   left open to any authed session (tightened to a `name` claim at v19.39 — see the sweep line at the
+//   top of this file). setupRosterAuth sets linksDesigner for CONFIG.LINKS_DESIGNERS; a stale
 //   designer token self-heals via writeWithClaimRetry in links-app.js. Rollback = restore
 //   `allow read, write: if request.auth != null;`. Both rollbacks are instant, no data migration.
 //   clientErrors pins `timestamp == request.time` (server clock), admin-only read/update.
@@ -199,10 +204,22 @@ service cloud.firestore {
     }
 
     match /linkDesigns/{document=**} {
-      // Link design workspace data. Reads stay open to any authenticated session
-      // (design patterns are non-sensitive internal data; keeping read open also avoids
-      // locking out a designer whose token hasn't refreshed the linksDesigner claim yet).
-      allow read: if request.auth != null;
+      // Read requires a NAMED identity — a session that has actually signed in as a member —
+      // not merely `request.auth != null` (v19.39). The old rule was described as "any
+      // authenticated session", which read as "any signed-in member", but calendar-app.js calls
+      // signInAnonymously() unconditionally on every visit: an anonymous session satisfied it, so
+      // anyone who could open the app URL could read every design straight from the API. The
+      // sensitivity judgement itself still holds — staff names were removed from designs at v12.39,
+      // leaving line numbers and shift times — but "non-sensitive to a colleague" is a different
+      // claim from "non-sensitive to anyone who finds the URL", and only the first was ever
+      // intended.
+      // Deliberately NOT narrowed to the linksDesigner claim: that is exactly the lockout the open
+      // read existed to prevent — a designer whose token predates the claim must still be able to
+      // LOAD the workspace, so that their first write can permission-deny and self-heal through
+      // writeWithClaimRetry. Requiring `name` keeps that escape hatch (every provisioned member has
+      // it) while excluding the anonymous sessions that were never meant to be included.
+      allow read: if request.auth != null &&
+        ('name' in request.auth.token || request.auth.token.admin == true);
       // Writes require the linksDesigner claim (or admin, who outranks). setupRosterAuth
       // sets linksDesigner:true for CONFIG.LINKS_DESIGNERS. Closes H2 — before this, the
       // links-app.js client redirect was the ONLY control and the server accepted a write
@@ -225,15 +242,27 @@ service cloud.firestore {
       // validate in rules, and the 1 MB document limit already bounds its size. The rename
       // path's merge:true write still satisfies hasOnly because request.resource.data reflects
       // the full post-merge document (existing patterns + the new name/updatedAt/updatedBy).
+      // `deletedAt`/`deletedBy` are the v19.41 SOFT DELETE: present = in the bin, absent = live.
+      // Both are OPTIONAL — a live document must not be forced to carry them (every existing
+      // design predates the field, and hasOnly is about the ceiling, not the floor). When present
+      // they are type-checked like everything else. A restore clears them with deleteField(), so
+      // the resulting document has neither key and passes this rule unchanged.
+      // NOTE the rules cannot express "only a designer may empty the bin" any more finely than
+      // this: delete is already gated on isLinksWriter(), which is the same set of people who can
+      // soft-delete. The retention window is a CLIENT policy (links-deletion.js), not a server one
+      // — worth knowing before treating the 30 days as a guarantee.
       allow create, update: if isLinksWriter() &&
-        request.resource.data.keys().hasOnly(['name', 'patterns', 'updatedAt', 'updatedBy']) &&
+        request.resource.data.keys().hasOnly(['name', 'patterns', 'updatedAt', 'updatedBy', 'deletedAt', 'deletedBy']) &&
         request.resource.data.name is string &&
         request.resource.data.name.size() >= 1 &&
         request.resource.data.name.size() <= 100 &&
         request.resource.data.patterns is map &&
         request.resource.data.updatedAt is timestamp &&
         request.resource.data.updatedBy is string &&
-        request.resource.data.updatedBy.size() <= 100;
+        request.resource.data.updatedBy.size() <= 100 &&
+        (!('deletedAt' in request.resource.data) || request.resource.data.deletedAt is timestamp) &&
+        (!('deletedBy' in request.resource.data) ||
+          (request.resource.data.deletedBy is string && request.resource.data.deletedBy.size() <= 100));
     }
 
     match /staffContact/{memberName} {

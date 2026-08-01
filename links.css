@@ -768,6 +768,82 @@ body.auth-ready .container { display: grid; }
 }
 .btn-design-compare:disabled { opacity: 0.4; cursor: default; }
 
+/* Recently-deleted button — same secondary shape as Compare, but it does NOT take the
+   `margin-left: auto` (Compare owns that; two auto margins would split the row). */
+.btn-design-bin {
+    background: none;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    padding: 4px 10px;
+    font-size: var(--type-small);
+    font-family: inherit;
+    color: var(--text-mid);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+    .btn-design-bin:hover { background: var(--surface-sunken); color: var(--text-dark); }
+}
+.btn-design-bin:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+/* Recently-deleted panel */
+.bin-intro {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin: -8px 0 14px;
+}
+.bin-list { display: flex; flex-direction: column; gap: 10px; }
+.bin-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    background: var(--surface-sunken);
+    border-radius: var(--radius-xs);
+}
+.bin-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bin-row-name {
+    font-size: var(--type-body);
+    font-weight: 700;
+    color: var(--text-dark);
+    overflow-wrap: anywhere;
+}
+.bin-row-meta { font-size: var(--type-micro); color: var(--text-mid); }
+.bin-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.bin-restore, .bin-purge {
+    border-radius: var(--radius-xl);
+    padding: 5px 12px;
+    font-size: var(--type-small);
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard);
+}
+.bin-restore {
+    background: var(--primary-blue);
+    border: 1px solid var(--primary-blue);
+    color: white;
+}
+.bin-purge {
+    background: none;
+    border: 1px solid var(--border-light);
+    color: var(--text-mid);
+}
+@media (hover: hover) and (pointer: fine) {
+    .bin-purge:hover { background: var(--error-bg); color: var(--error-red); border-color: var(--error-red); }
+}
+.bin-restore:focus-visible, .bin-purge:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.bin-empty { font-size: var(--type-small); color: var(--text-mid); margin: 0; }
+.bin-status { font-size: var(--type-small); margin: 12px 0 0; min-height: 1em; }
+.bin-status.ok  { color: var(--success-green); }
+.bin-status.err { color: var(--error-red); }
+
 /* Compare picker row (shown in compare mode below the main chips) */
 .compare-picker-row {
     display: flex;

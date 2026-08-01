@@ -323,6 +323,120 @@ test('links: the analysis panels render for a generated design', async ({ page }
     await expect(page.locator('#checksContent .check-rows')).toBeVisible();   // checks panel
 });
 
+// ── LINKS SOFT DELETE (v19.41) ────────────────────────────────────────────
+// The rules are unit-tested in links-deletion.test.mjs; what only a real browser can prove is the
+// WIRING — that the ✕ writes a soft delete rather than destroying the document, and that Restore
+// puts the design back.
+//
+// The assertion that carries the weight is on the WRITE, not the UI. A hard delete and a soft
+// delete BOTH remove the chip from the picker, so "the chip is gone" passes just as happily
+// against the implementation this replaced. The payload is the only place the two differ.
+async function openLinksWithDesigns(page) {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_beta_seen', '1');
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [
+            { id: 'd1', name: 'Design A', patterns: {}, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+            { id: 'd2', name: 'Design B', patterns: {}, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+        ];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('.design-chip')).toHaveCount(2);
+}
+
+test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
+
+    // ✕ appears on the ACTIVE chip only.
+    await page.locator('.design-chip--active .design-chip-delete').click();
+    await page.locator('.dialog-overlay .dialog-btn-confirm').click();
+    await expect(page.locator('.design-chip')).toHaveCount(1);
+
+    const { writes, deletes } = await page.evaluate(() => ({
+        writes:  /** @type {any} */ (window).__E2E.setWrites || [],
+        deletes: /** @type {any} */ (window).__E2E.deletedPaths || [],
+    }));
+    const del = writes.find(w => w.data && w.data.deletedAt);
+    expect(del, 'the delete must WRITE deletedAt, not destroy the document').toBeTruthy();
+    expect(del.data.deletedBy).toBe('G. Miller');
+    expect(del.merge, 'a merge write — a replace would push our copy of patterns over the server\'s').toBe(true);
+    expect(deletes, 'nothing may be hard-deleted by the ✕ button').toHaveLength(0);
+
+    // …and it is now offered back.
+    await expect(page.locator('#designBinBtn')).toBeVisible();
+    await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
+});
+
+test('links: a deleted design can be restored from the bin', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    await page.locator('.design-chip--active .design-chip-delete').click();
+    await page.locator('.dialog-overlay .dialog-btn-confirm').click();
+    await expect(page.locator('.design-chip')).toHaveCount(1);
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
+    await page.locator('#designBinBtn').click();
+    await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
+    await page.locator('.bin-restore').click();
+
+    await expect(page.locator('.design-chip')).toHaveCount(2);
+    await expect(page.locator('#designBinList .bin-empty')).toBeVisible();
+    // By NAME, not by count: a restore that resurrects an empty document would still make the
+    // chip count go back to two.
+    await expect(page.locator('.design-chip-name').filter({ hasText: 'Design A' })).toHaveCount(1);
+    // And the document must still have been there to restore. Without this the test passes against
+    // a HARD delete — the bin list is rendered from memory, so the row and the Restore button both
+    // appear either way, and only the absent document tells them apart. (Found by teeth-checking:
+    // this case went green against the very implementation being replaced.)
+    const hardDeletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
+    expect(hardDeletes, 'a restore is only real if the document was never destroyed').toHaveLength(0);
+    const write = await page.evaluate(() =>
+        (/** @type {any} */ (window).__E2E.setWrites || []).find(w => w.data && 'deletedAt' in w.data));
+    // deleteField() is a sentinel object in the stub; what matters is that the restore CLEARS the
+    // field rather than writing another value into it.
+    expect(write?.data?.deletedAt?.__stub, 'restore must clear deletedAt with deleteField()').toBe('deleteField');
+    expect(write?.data?.deletedBy?.__stub).toBe('deleteField');
+});
+
+test('links: the bin button is hidden when nothing has been deleted', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    await expect(page.locator('#designBinBtn')).toBeHidden();
+});
+
+// The purge is the ONLY destructive path left in the workspace, so it gets a test that watches
+// both directions at once: the expired design must go, and the one still inside the window must
+// survive the same sweep. A purge that took everything would pass a test that only checked the
+// first half.
+test('links: an expired deletion is purged on load and a recent one is not', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_beta_seen', '1');
+        const DAY = 86_400_000;
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [
+            { id: 'live', name: 'Design A', patterns: {}, updatedAt: Date.now() - DAY, updatedBy: 'S. Silva' },
+            { id: 'old',  name: 'Long gone', patterns: {}, deletedAt: Date.now() - 40 * DAY, deletedBy: 'S. Silva' },
+            { id: 'fresh', name: 'Just binned', patterns: {}, deletedAt: Date.now() - 2 * DAY, deletedBy: 'S. Silva' },
+        ];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('.design-chip')).toHaveCount(1);
+    await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
+
+    const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
+    expect(deletes).toEqual(['linkDesigns/old']);
+
+    await page.locator('#designBinBtn').click();
+    await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
+    await expect(page.locator('.bin-row-name')).toHaveText('Just binned');
+    await expect(page.locator('.bin-row-meta')).toHaveText(/Deleted 2 days ago by S. Silva/);
+});
+
 // ── ADMIN TOUCH LAYOUT — no horizontal blowout when a pill with hours is selected ──
 // Regression: on TOUCH devices (pointer: coarse) the bulk-bar time inputs' intrinsic
 // min-width (~180px each, unshrinkable without min-width: 0) stretched the whole page

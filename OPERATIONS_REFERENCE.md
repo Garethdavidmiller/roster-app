@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: July 2026 — v19.30 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.40 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -279,7 +279,7 @@ Body:
 
 - RDW cells: AI returns `"RDW HH:MM-HH:MM"` — **never strip RDW from the return value**
 - Blank/absent Sunday cells: return `"RD"` — do not copy Monday's shift
-- Duty/diagram codes on a second line (e.g. `"CEA 16"`) — **ignore entirely**, only the first line is the shift value
+- **Cell layout is decided by CONTENT, never by line POSITION (v19.31 — this rule replaced the one that caused the AL bug).** A duty/diagram code (`"CEA 16"`, `"D24"`) is ignored *wherever it appears*; a status code (`AL`, `SPARE`, an absence code) is the cell's value *wherever it appears*, second line included. The retired wording was "duty codes sit on a second line — ignore them; only the first line is the shift value", which was true of a WORKED cell and false of every other one: on a non-worked day the second line holds the STATUS code, so that rule plus "blank = RD" composed into *discard the annual leave, see an empty first line, return RD*. It read most of the table perfectly and silently dropped leave and sickness — RD sits on that same second line and came out right by accident, which is why it hid. Pinned by `roster-prompt-parity.test.mjs`; do not reintroduce any line-position rule
 - `"N/A"`, `"NA"`, `"NS"` all mean RD on any day
 - **`"HA"` (hospital appointment), `"OD"` (paid absence / long-term sick marking), `"SC"`/`"SN"` (sick), and `"ML"` (maternity leave, v17.19) → `"SICK"`** (v15.45; SC/SN/ML added later). On a base REST day the review normalises them to RD (never written; a stale imported one REMOVE_IMPORTs on re-upload) — full-pay absence only applies to rostered days. Sundays: blocked like all absence. A **Rest↔Absence cross-check disagreement** (one AI pass reads the absence code, the other blank) now **records the absence** rather than flagging UNREADABLE (v17.14, `applyColumnScanCrossCheck`) — dropping a real absence is the dangerous silent failure; the review message uses app language ("Absent", never "sick")
 - `"AL"`, `"A/L"`, `"A.L."` all mean annual leave — return `"AL"`
@@ -300,8 +300,12 @@ computeCellStates(parsedResult, existingOverrides)
     REMOVE_IMPORT = a stale previous PDF import whose day now matches base — approving
                  DELETES the stale doc and writes nothing (a fresh base-matching override
                  would be redundant and mask a future base-roster change) (v15.31)
-    UNREADABLE = normaliseShift couldn't parse the cell (UNKNOWN| sentinel) — shown
-                 skip-only, NEVER written; admin fixes the PDF or records it manually (v15.30)
+    UNREADABLE = normaliseShift couldn't parse the cell (UNKNOWN| sentinel). Written ONLY
+                 if the admin picks one of the server's two candidate readings on the row
+                 (v19.32); with no pick it stays skip-only and writes nothing, exactly as
+                 before. A pick is offered only when the two candidates survive normalisation
+                 as DIFFERENT values — a pair that both collapse to RD is not a question with
+                 one answer. No candidates (or a bad PDF) → fix the PDF or record it manually (v15.30)
         ↓
 renderReviewTable() — per-person card list (presentation reworked v15.52):
   • plain-language OUTCOME SUMMARY above the list ("what Save will do")

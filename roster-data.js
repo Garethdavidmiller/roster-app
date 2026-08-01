@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '19.38';
+export const APP_VERSION = '19.41';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -42,7 +42,7 @@ export const CONFIG = {
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
-    LINKS_DESIGNERS:                  ['G. Miller', 'S. Silva'],                  // Names with access to the Links design workspace
+    LINKS_DESIGNERS:                  ['G. Miller', 'S. Silva', 'M. Robson'],     // Names with access to the Links design workspace
     MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js) AND the admin member-selector optgroups (admin-app.js), so the two can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)

@@ -71,6 +71,10 @@ export {
     getDocs, getDocsFromCache, getDoc, onSnapshot,
     // writes
     addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction,
+    // `deleteField` re-exported v19.41 for the Links soft-delete RESTORE: clearing deletedAt/
+    // deletedBy with a merge write leaves the rest of the document untouched, where a full setDoc
+    // would replace patterns with whatever the restoring device happens to hold.
+    deleteField,
 };
 
 /** Firestore collection name constants — single source of truth. Import these

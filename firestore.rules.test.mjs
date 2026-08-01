@@ -478,8 +478,23 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
     test('anon cannot read', async () => {
         await assertFails(getDocs(collection(anonDb(), 'linkDesigns')));
     });
-    test('any authenticated user can READ (reads stay open)', async () => {
-        await assertSucceeds(getDocs(collection(staffDb(), 'linkDesigns')));
+    // READ tightened at v19.39. The old rule was `request.auth != null`, documented as "any
+    // authenticated session" — but calendar-app.js signs EVERY visitor in anonymously, so that
+    // included anyone who could open the app URL. These cases pin the new line: a signed-in member
+    // is in, a claim-less (anonymous-equivalent) session is out, admin is in without a name claim,
+    // and a designer whose token predates the linksDesigner claim can still LOAD — which is the
+    // whole reason the read is not simply narrowed to isLinksWriter().
+    test('a NAMED member can READ', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('J. Davies'), 'linkDesigns')));
+    });
+    test('a name-less authenticated session CANNOT READ (the calendar\'s anonymous session)', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'linkDesigns')));
+    });
+    test('a designer on a token with `name` but NOT yet linksDesigner can still READ (self-heal path)', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('S. Silva', 'uid_stale'), 'linkDesigns')));
+    });
+    test('an admin can READ', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'linkDesigns')));
     });
     test('a designer can WRITE', async () => {
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), DESIGN()));
@@ -523,6 +538,47 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
         await assertSucceeds(deleteDoc(doc(designerDb(), 'linkDesigns', id)));
     });
+    // Soft delete (v19.41). `deletedAt`/`deletedBy` are OPTIONAL — the live documents that
+    // predate the field must keep working, which is the case the hasOnly change could break.
+    test('a designer CAN soft-delete (write deletedAt + deletedBy)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }, { merge: true }));
+    });
+    test('a LIVE design still writes with neither field (they are optional, not required)', async () => {
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', uid()), DESIGN()));
+    });
+    test('a designer CAN restore (a write carrying neither field is the restored shape)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+    });
+    test('a designer CANNOT write a non-timestamp deletedAt', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: 'yesterday' }));
+    });
+    test('a designer CANNOT write a non-string deletedBy', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 42 }));
+    });
+    test('a designer CANNOT write an over-long deletedBy (>100)', async () => {
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'x'.repeat(101) }));
+    });
+    test('the widened hasOnly still rejects an unknown field', async () => {
+        // The soft-delete pair widened the allowlist; this pins that it widened by exactly two.
+        await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
+            { ...DESIGN(), deletedAt: serverTimestamp(), archived: true }));
+    });
+    test('a NON-designer cannot soft-delete either (same gate as a hard delete)', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertFails(setDoc(doc(namedDb('J. Davies'), 'linkDesigns', id),
+            { deletedAt: serverTimestamp(), deletedBy: 'J. Davies' }, { merge: true }));
+    });
+
     test('a designer CAN rename via merge:true (merge keeps patterns, so hasOnly still holds)', async () => {
         // renameDesign writes only {name, updatedAt, updatedBy} with merge:true — request.resource.data
         // is the full post-merge doc (existing patterns preserved), so the 4-field hasOnly passes.
