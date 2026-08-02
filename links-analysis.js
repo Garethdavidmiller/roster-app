@@ -200,14 +200,14 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
 
         fatRows.push(
             `<div class="check-section-head">Fatigue factors <span class="check-note">ORR good practice, p3</span></div>`,
-            `<div class="check-row check-info"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
+            `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
             `<div class="check-body">These are <strong>not pass/fail limits</strong>. The more factors a pattern features, ` +
             `the greater the need to justify, minimise, then assess and control the risk. This panel is an aid to that ` +
             `conversation, not a fatigue risk assessment.</div></div>`
         );
 
         const ICON = { present: warn, clear: tick, standing: info, 'n/a': info };
-        const CLS  = { present: 'check-warn-row', clear: 'check-good', standing: 'check-info', 'n/a': 'check-info' };
+        const CLS  = { present: 'check-warn-row', clear: 'check-good', standing: 'check-neutral', 'n/a': 'check-neutral' };
         for (const r of fat.results) {
             if (r.status === 'n/a' && r.family === 'Night (not applicable)') continue;   // rolled up below
             const val = (r.value !== undefined && r.value !== '') ? ` — <strong>${escapeHtml(String(r.value))}</strong>` : '';
@@ -222,7 +222,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         const nightRolled = fat.results.filter(r => r.family === 'Night (not applicable)');
         if (nightRolled.length && nightRolled.every(r => r.status === 'n/a')) {
             fatRows.push(
-                `<div class="check-row check-info">${info}<div class="check-body">` +
+                `<div class="check-row check-neutral">${info}<div class="check-body">` +
                 `<span class="check-note">${nightRolled.map(r => r.code).join(' · ')}</span> Night-shift factors do not apply` +
                 `<div class="check-sub">No duty reaches into 00:00–05:00. These become live the moment one does.</div>` +
                 `</div></div>`
@@ -232,7 +232,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         if (base) {
             fatRows.push(
                 `<div class="check-section-head">For comparison — today's link</div>`,
-                `<div class="check-row check-info">${info}<div class="check-body">` +
+                `<div class="check-row check-neutral">${info}<div class="check-body">` +
                 escapeHtml(base.summary) +
                 `<div class="check-sub">${escapeHtml(base.detail)}</div>` +
                 `</div></div>`

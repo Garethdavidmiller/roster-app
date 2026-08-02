@@ -266,3 +266,98 @@ describe('assessFatigue — the report as a whole', () => {
         assert.equal(a.results.find(r => r.code === 'FF2').value, 0);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The v19.48 regression pass. Every one of these is a defect the module SHIPPED
+// with at v19.46, and every one of them failed the same way: it made a design
+// look better than it is. That is the exact failure the module's own header
+// calls its dominant risk, so each gets a test from both sides.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('FF13 is read from the real turnaround check, never hardcoded', () => {
+    const RD = 'RD';
+    const three = (mutate) => {
+        const p = design([RD, RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, RD]);
+        mutate(p);
+        return p;
+    };
+
+    test('a genuine short turnaround must not show a green tick', () => {
+        // 15:15–23:55 then 06:20 the next morning is 6h25m of rest. For one version FF13 rendered
+        // `clear` — an affirmative all-clear sitting directly beneath the amber short-turnaround
+        // row it is supposed to be the same finding as.
+        const p = three(q => { q['1'].mon = '15:15-23:55'; q['1'].tue = '06:20-14:20'; });
+        const ff13 = assessFatigue(p, 3).results.find(r => r.code === 'FF13');
+        assert.equal(ff13.status, 'present');
+        assert.equal(ff13.value, 1);
+        assert.match(ff13.detail, /6h 25m/);
+    });
+
+    test('and a design with no short turnaround still reports clear', () => {
+        const p = three(q => { q['1'].mon = '06:20-14:20'; q['1'].tue = '06:20-14:20'; });
+        assert.equal(assessFatigue(p, 3).results.find(r => r.code === 'FF13').status, 'clear');
+    });
+});
+
+describe('FF4 distinguishes NOT APPLICABLE from CLEAR', () => {
+    const RD = 'RD';
+    test('very early duties present but none over 8h → clear, not "not applicable"', () => {
+        const p = design(['04:00-10:00', RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, RD]);
+        const r = assessFatigue(p, 2).results;
+        assert.equal(r.find(x => x.code === 'FF3').status, 'present', 'FF3 counts the very-early duty');
+        // …so FF4 saying "not applicable" would directly contradict the row above it.
+        assert.equal(r.find(x => x.code === 'FF4').status, 'clear');
+    });
+    test('no very early duty at all → genuinely not applicable', () => {
+        const p = design(['06:20-14:20', RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, RD]);
+        assert.equal(assessFatigue(p, 2).results.find(x => x.code === 'FF4').status, 'n/a');
+    });
+    test('a very early duty over 8h → present', () => {
+        const p = design(['04:00-13:00', RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, RD]);
+        assert.equal(assessFatigue(p, 2).results.find(x => x.code === 'FF4').status, 'present');
+    });
+});
+
+describe('earlyBlocksWithShortRecovery laps the rotation', () => {
+    const RD = 'RD', E = '06:20-14:20', L = '11:00-19:00';
+    test('a block straddling the wrap point is one block, not two halves', () => {
+        // Last day of line 3 and first day of line 1 are earlies, then a SINGLE rest day. Scanning
+        // 0 → n split this into two blocks of one and reported nothing at all.
+        const p = design([E, RD, L, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, E]);
+        const blocks = earlyBlocksWithShortRecovery(toSequence(p, 3));
+        assert.equal(blocks.length, 1);
+        assert.equal(blocks[0].blockLength, 2);
+        assert.equal(blocks[0].restDays, 1);
+        assert.equal(blocks[0].fromLine, 3, 'the block STARTS on line 3, not line 1');
+    });
+    test('two rest days after the straddling block is still recovery', () => {
+        const p = design([E, RD, RD, L, RD, RD, RD], [RD, RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, E]);
+        assert.deepEqual(earlyBlocksWithShortRecovery(toSequence(p, 3)), []);
+    });
+    test('an all-early rotation is one block with no recovery', () => {
+        const p = design([E, E, E, E, E, E, E]);
+        const blocks = earlyBlocksWithShortRecovery(toSequence(p, 1));
+        assert.equal(blocks.length, 1);
+        assert.equal(blocks[0].blockLength, 7);
+        assert.equal(blocks[0].restDays, 0);
+    });
+});
+
+describe('coversNightWindow is exact, not sampled', () => {
+    test('a duty crossing midnight by minutes still counts', () => {
+        // The 15-minute sampling walk answered this by where its samples happened to land:
+        // "23:00-00:10" was caught and "23:50-00:05" was not.
+        assert.equal(coversNightWindow('23:50-00:05'), true);
+        assert.equal(coversNightWindow('23:00-00:10'), true);
+        assert.equal(coversNightWindow('23:59-00:01'), true);
+    });
+    test('a duty that stops at midnight does not', () => {
+        assert.equal(coversNightWindow('15:25-23:55'), false);
+        assert.equal(coversNightWindow('16:00-00:00'), false, 'ends exactly at midnight — no night minutes');
+    });
+    test('the 05:00 boundary is exclusive at the far end', () => {
+        assert.equal(coversNightWindow('20:00-05:00'), true, 'runs right up to 05:00');
+        assert.equal(coversNightWindow('05:00-13:00'), false);
+        assert.equal(coversNightWindow('04:59-13:00'), true);
+    });
+});

@@ -35,7 +35,7 @@
  * estimate. `hoursAreFloor` is returned so the UI can say so rather than imply precision.
  */
 
-import { DAYS, ROTATING_LINES, startMinutes, endMinutesAbs } from './links-design.js';
+import { DAYS, ROTATING_LINES, startMinutes, endMinutesAbs, runDesignChecks, MIN_REST_MINUTES } from './links-design.js';
 
 /** A duty counts as an FF2 "early shift" when it starts in this window (inclusive of 05:00). */
 const EARLY_FROM = 5 * 60;
@@ -85,12 +85,14 @@ export function coversNightWindow(shift) {
     const st = startMinutes(shift);
     const len = dutyMinutes(shift);
     if (st === null || len === null) return false;
-    // Walk the duty in minutes-from-midnight, wrapping, and look for anything in [00:00, 05:00).
-    for (let m = st; m < st + len; m += 15) {
-        const t = m % (24 * 60);
-        if (t < EARLY_FROM) return true;
-    }
-    return false;
+    // Exact interval overlap, NOT a sampled walk. The first version stepped through the duty in
+    // 15-minute hops and asked whether any sample landed before 05:00, which meant a duty that
+    // crossed midnight by less than one step was missed: "23:50-00:05" returned false while
+    // "23:00-00:10" returned true. On the one rule whose whole job is to be a loud alarm, an answer
+    // that depends on where the samples happen to fall is worse than no rule.
+    const end = st + len;   // st < 1440 and len <= 1440, so end < 2880 — two windows cover it
+    const hits = (/** @type {number} */ from) => st < from + EARLY_FROM && end > from;
+    return hits(0) || hits(24 * 60);
 }
 
 /**
@@ -183,24 +185,40 @@ export function longestRunOf(seq, pred) {
  * INTERPRETATION: a "block" is two or more consecutive early starts. A single early start followed
  * by one rest day is not what the factor is describing, and counting it would fire on almost every
  * design. Returns the offending blocks so the UI can name them.
+ *
+ * CIRCULAR, like every other rule here. The first version scanned index 0 → n and so cut any block
+ * straddling the rotation's wrap point in half: two earlies on the last day of line 28 and the first
+ * day of line 1, followed by a single rest day, became two blocks of one and were reported as
+ * nothing at all. The rotation has no start — the person on line 28 goes to line 1 next week — so
+ * the scan begins at the first NON-early day and laps once from there.
  * @param {Array<{shift:any, line:number, day:string}>} seq
  */
 export function earlyBlocksWithShortRecovery(seq) {
     const n = seq.length;
+    /** @type {Array<{fromLine:number, fromDay:string, blockLength:number, restDays:number}>} */
     const out = [];
+    if (!n) return out;
+
+    const origin = seq.findIndex(x => !isEarlyStart(x.shift));
+    if (origin === -1) {
+        // Every duty in the rotation is an early start — one unbroken block with no recovery at all.
+        return [{ fromLine: seq[0].line, fromDay: seq[0].day, blockLength: n, restDays: 0 }];
+    }
+    const at = (/** @type {number} */ k) => seq[(origin + k) % n];
+
     let i = 0;
     while (i < n) {
-        if (!isEarlyStart(seq[i].shift)) { i++; continue; }
+        if (!isEarlyStart(at(i).shift)) { i++; continue; }
         let j = i;
-        while (j < n && isEarlyStart(seq[j].shift)) j++;
+        while (j < n && isEarlyStart(at(j).shift)) j++;
         const blockLen = j - i;
         if (blockLen >= 2) {
             let rest = 0;
-            for (let k = j; k < j + 2 && k < n + j; k++) {
-                if (isRest(seq[k % n].shift)) rest++; else break;
+            for (let k = j; k < j + 2; k++) {
+                if (isRest(at(k).shift)) rest++; else break;
             }
             if (rest < 2) {
-                out.push({ fromLine: seq[i].line, fromDay: seq[i].day, blockLength: blockLen, restDays: rest });
+                out.push({ fromLine: at(i).line, fromDay: at(i).day, blockLength: blockLen, restDays: rest });
             }
         }
         i = j;
@@ -326,9 +344,17 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     add({ code: 'FF7', family: 'Duty length', title: 'Early shift over 10h', threshold: '10h',
         status: earlyOver10.length ? 'present' : 'clear', value: earlyOver10.length });
 
-    add({ code: 'FF4', family: 'Duty length', title: 'Very early shift (before 05:00) over 8h',
-        status: veryEarly.some(x => (dutyMinutes(x.shift) ?? 0) > 8 * 60) ? 'present' : 'n/a',
-        detail: veryEarly.length ? undefined : 'No duty starts before 05:00.' });
+    // NOT APPLICABLE and CLEAR are different answers, and conflating them is the false-assurance
+    // failure in miniature: with a very early duty present but none over 8h, the first version said
+    // "not applicable" — directly contradicting the FF3 row two lines above, which had just counted
+    // those same duties. The reassuring label was the wrong one.
+    const veryEarlyOver8 = veryEarly.filter(x => (dutyMinutes(x.shift) ?? 0) > 8 * 60);
+    add({ code: 'FF4', family: 'Duty length', title: 'Very early shift (before 05:00) over 8h', threshold: '8h',
+        status: veryEarlyOver8.length ? 'present' : (veryEarly.length ? 'clear' : 'n/a'),
+        value: veryEarly.length ? veryEarlyOver8.length : undefined,
+        detail: veryEarly.length
+            ? `${veryEarly.length} duty(s) start before 05:00; ${veryEarlyOver8.length} of them run over 8h.`
+            : 'No duty starts before 05:00.' });
 
     // ── Recovery time ────────────────────────────────────────────────────────
     const ff8b = earlyBlocksWithShortRecovery(seq);
@@ -389,10 +415,20 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
             detail: nights.length ? 'A night duty is present, so this factor now needs assessing.' : undefined });
     }
 
-    // FF13 is already reported by runDesignChecks as the short-turnaround check; cross-referenced
-    // rather than duplicated, so the two can never disagree about the same design.
+    // FF13 IS the short-turnaround check, so the rule is read from runDesignChecks rather than
+    // reimplemented — the two must never disagree about the same design.
+    //
+    // The status was hardcoded `clear` for one version, which is worse than the silence this module's
+    // header warns about: a design with a 6h25m turnaround showed the short-turnaround check in amber
+    // and, directly beneath it, FF13 with a GREEN TICK. An affirmative all-clear on a factor that is
+    // present. Never hardcode a status here — if a factor cannot be computed, it does not get a tick.
+    const ff13 = runDesignChecks(patterns, lines).turnarounds;
+    const worst = ff13.length ? Math.min(...ff13.map(t => t.restMinutes)) : null;
     add({ code: 'FF13', family: 'Intervals between duties', title: 'Less than 12h rest in any 24h',
-        status: 'clear', detail: 'Reported by the short-turnaround check above — see "Rest between shifts".' });
+        status: ff13.length ? 'present' : 'clear', value: ff13.length, threshold: `${MIN_REST_MINUTES / 60}h`,
+        detail: ff13.length
+            ? `Shortest rest between consecutive duties is ${Math.floor(/** @type {number} */(worst) / 60)}h ${/** @type {number} */(worst) % 60}m. Same finding as the short-turnaround check above — one rule, reported twice.`
+            : 'Every pair of consecutive duties has at least 12 hours between them. Same rule as the short-turnaround check above.' });
 
     return {
         results,

@@ -512,9 +512,6 @@ body.auth-ready .container { display: grid; }
 }
 .check-section-head:first-child { margin-top: 0; }
 .check-section-head .check-note { text-transform: none; letter-spacing: 0; font-weight: 600; }
-/* A factor that is PRESENT is amber, never red: the ORR is explicit these are not limits, and a
-   red row would read as a failure the guidance does not define. */
-.check-warn-row { background: var(--bg-faint); }
 
 .check-rows { display: flex; flex-direction: column; gap: 8px; }
 .check-row {
@@ -527,6 +524,10 @@ body.auth-ready .container { display: grid; }
     line-height: 1.4;
 }
 .check-good     { background: color-mix(in srgb, var(--success-green) 8%, transparent); }
+/* A fatigue factor that is PRESENT wears this amber, never `.check-bad` red: the ORR is explicit
+   these are not prescriptive limits, so a red row would read as a failure the guidance never
+   defines. (v19.48 removed a second, dead `.check-warn-row` declaration added above this one —
+   equal specificity, so this rule always won and the duplicate did nothing but mislead.) */
 .check-warn-row { background: color-mix(in srgb, var(--warning-amber) 10%, transparent); }
 .check-bad      { background: color-mix(in srgb, var(--error-red) 8%, transparent); }
 .check-neutral  { background: var(--surface-sunken); }

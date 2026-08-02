@@ -69,3 +69,51 @@ test('an unfilled (all-rest) line is reported by the checks panel', () => {
     a.renderDesignChecks();
     assert.match(els.checksContent.innerHTML, /Lines not yet designed/);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Every row class this panel emits must actually EXIST in links.css (v19.48).
+//
+// This is the one static guard worth having here, because the failure it catches is silent in
+// exactly the way the repo keeps re-learning: v19.46 shipped ~15 rows carrying `check-info`, a class
+// no stylesheet defines. Nothing threw, every behavioural test passed (they assert text), and the
+// rows simply rendered with no surface at all while every neighbour had one — visible only to
+// someone looking at the page, or to computed styles.
+//
+// A pixel baseline would also catch it, but a class-name typo is a STRING problem and this checks
+// the string directly: cheap, deterministic, and immune to the rendering-environment sensitivity
+// that keeps the visual suite opt-in.
+// ─────────────────────────────────────────────────────────────────────────────
+import { readFileSync } from 'node:fs';
+
+test('every check-row class the panel emits is defined in links.css', () => {
+    const js  = readFileSync(new URL('./links-analysis.js', import.meta.url), 'utf8');
+    const css = readFileSync(new URL('./links.css', import.meta.url), 'utf8');
+
+    // Row-surface classes: whatever sits alongside `check-row` in a class attribute, plus the two
+    // status→class maps, which are the ones a typo actually hides in.
+    /** @type {Set<string>} */
+    const used = new Set();
+    for (const m of js.matchAll(/class="check-row ([^"$]*)"/g)) {
+        for (const c of m[1].split(/\s+/)) if (c) used.add(c);
+    }
+    for (const m of js.matchAll(/\$\{(?:CLS\[[^\]]+\]|\w+ \? '([\w-]+)' : '([\w-]+)')\}/g)) {
+        for (const c of [m[1], m[2]]) if (c) used.add(c);
+    }
+    for (const m of js.matchAll(/const CLS\s*=\s*\{([^}]*)\}/g)) {
+        for (const c of m[1].matchAll(/'([\w-]+)'/g)) if (c[1].startsWith('check-')) used.add(c[1]);
+    }
+    // The section heading + its inline note are emitted outside a check-row.
+    for (const m of js.matchAll(/class="(check-section-head|check-note|check-sub|check-body|check-icon check-[\w-]+)"/g)) {
+        for (const c of m[1].split(/\s+/)) used.add(c);
+    }
+
+    assert.ok(used.size >= 8, `expected to find the row classes, found ${used.size}: ${[...used]}`);
+    assert.ok(used.has('check-neutral'), 'the neutral/info surface must be among them');
+
+    // `(?![\w-])`, NOT `\b`. A hyphen is a word boundary, so `\.check-info\b` happily matches inside
+    // `.check-info-icon` — which is precisely the pair in this stylesheet, so the first version of
+    // this guard passed against the exact bug it was written for. A class name only ends where a
+    // character that cannot be part of one begins.
+    const missing = [...used].filter(c => !new RegExp(`\\.${c}(?![\\w-])`).test(css));
+    assert.deepEqual(missing, [], `class(es) emitted by links-analysis.js with no rule in links.css: ${missing.join(', ')}`);
+});
