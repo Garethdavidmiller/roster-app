@@ -89,25 +89,24 @@ test('every check-row class the panel emits is defined in links.css', () => {
     const js  = readFileSync(new URL('./links-analysis.js', import.meta.url), 'utf8');
     const css = readFileSync(new URL('./links.css', import.meta.url), 'utf8');
 
-    // Row-surface classes: whatever sits alongside `check-row` in a class attribute, plus the two
-    // status→class maps, which are the ones a typo actually hides in.
+    // Collect EVERY `check-*` token the module names, from any class attribute plus the status→class
+    // map. Deliberately generic rather than an enumerated list of the classes that exist today: an
+    // enumerated list silently stops covering whatever gets added next, which is the same failure
+    // mode as a hand-maintained precache list. (The first version listed them; `check-code`,
+    // `check-family` and `check-section-meta` arrived one version later and were not covered.)
     /** @type {Set<string>} */
     const used = new Set();
-    for (const m of js.matchAll(/class="check-row ([^"$]*)"/g)) {
-        for (const c of m[1].split(/\s+/)) if (c) used.add(c);
-    }
-    for (const m of js.matchAll(/\$\{(?:CLS\[[^\]]+\]|\w+ \? '([\w-]+)' : '([\w-]+)')\}/g)) {
-        for (const c of [m[1], m[2]]) if (c) used.add(c);
+    for (const m of js.matchAll(/class="([^"]*)"/g)) {
+        for (const c of m[1].split(/[\s$]+/)) if (/^check-[\w-]+$/.test(c)) used.add(c);
     }
     for (const m of js.matchAll(/const CLS\s*=\s*\{([^}]*)\}/g)) {
         for (const c of m[1].matchAll(/'([\w-]+)'/g)) if (c[1].startsWith('check-')) used.add(c[1]);
     }
-    // The section heading + its inline note are emitted outside a check-row.
-    for (const m of js.matchAll(/class="(check-section-head|check-note|check-sub|check-body|check-icon check-[\w-]+)"/g)) {
-        for (const c of m[1].split(/\s+/)) used.add(c);
-    }
 
-    assert.ok(used.size >= 8, `expected to find the row classes, found ${used.size}: ${[...used]}`);
+    assert.ok(used.size >= 12, `expected to find the row classes, found ${used.size}: ${[...used]}`);
+    for (const expected of ['check-code', 'check-family', 'check-section-meta']) {
+        assert.ok(used.has(expected), `the scan must reach ${expected}`);
+    }
     assert.ok(used.has('check-neutral'), 'the neutral/info surface must be among them');
 
     // `(?![\w-])`, NOT `\b`. A hyphen is a word boundary, so `\.check-info\b` happily matches inside

@@ -304,7 +304,7 @@ export function rotationDirection(seq) {
  *
  * @param {Object} patterns - { "1".."N": { sun..sat } }
  * @param {number} [lines=ROTATING_LINES]
- * @returns {{results: FatigueResult[], present: number, confirmNeeded: number, hoursAreFloor: boolean}}
+ * @returns {{results: FatigueResult[], present: number, standing: number, confirmNeeded: number, hoursAreFloor: boolean}}
  */
 export function assessFatigue(patterns, lines = ROTATING_LINES) {
     const seq = toSequence(patterns, lines);
@@ -336,14 +336,6 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         status: veryEarly.length ? 'present' : 'clear', value: veryEarly.length });
 
     // ── Duty length ──────────────────────────────────────────────────────────
-    const over12 = seq.filter(x => (dutyMinutes(x.shift) ?? 0) > 12 * 60);
-    add({ code: 'FF5', family: 'Duty length', title: 'Day shift over 12h', threshold: '12h',
-        status: over12.length ? 'present' : 'clear', value: over12.length });
-
-    const earlyOver10 = seq.filter(x => isEarlyStart(x.shift) && (dutyMinutes(x.shift) ?? 0) > 10 * 60);
-    add({ code: 'FF7', family: 'Duty length', title: 'Early shift over 10h', threshold: '10h',
-        status: earlyOver10.length ? 'present' : 'clear', value: earlyOver10.length });
-
     // NOT APPLICABLE and CLEAR are different answers, and conflating them is the false-assurance
     // failure in miniature: with a very early duty present but none over 8h, the first version said
     // "not applicable" — directly contradicting the FF3 row two lines above, which had just counted
@@ -355,6 +347,14 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         detail: veryEarly.length
             ? `${veryEarly.length} duty(s) start before 05:00; ${veryEarlyOver8.length} of them run over 8h.`
             : 'No duty starts before 05:00.' });
+
+    const over12 = seq.filter(x => (dutyMinutes(x.shift) ?? 0) > 12 * 60);
+    add({ code: 'FF5', family: 'Duty length', title: 'Day shift over 12h', threshold: '12h',
+        status: over12.length ? 'present' : 'clear', value: over12.length });
+
+    const earlyOver10 = seq.filter(x => isEarlyStart(x.shift) && (dutyMinutes(x.shift) ?? 0) > 10 * 60);
+    add({ code: 'FF7', family: 'Duty length', title: 'Early shift over 10h', threshold: '10h',
+        status: earlyOver10.length ? 'present' : 'clear', value: earlyOver10.length });
 
     // ── Recovery time ────────────────────────────────────────────────────────
     const ff8b = earlyBlocksWithShortRecovery(seq);
@@ -370,13 +370,13 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         detail: `Longest run between 48-hour breaks is ${ff11} shifts. A single rest day is not a 48h break, so it does not reset this count.` });
 
     // ── Cumulative ───────────────────────────────────────────────────────────
-    const ff15 = longestRunOf(seq, isEarlyStart);
-    add({ code: 'FF15', family: 'Cumulative', title: 'More than 4 consecutive early shifts in a rotating pattern',
-        status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 4 });
-
     const ff10 = longestRunOf(seq, s => (dutyMinutes(s) ?? 0) > 12 * 60);
     add({ code: 'FF10', family: 'Cumulative', title: 'More than 4 consecutive 12h day shifts',
         status: ff10 > 4 ? 'present' : 'clear', value: ff10, threshold: 4 });
+
+    const ff15 = longestRunOf(seq, isEarlyStart);
+    add({ code: 'FF15', family: 'Cumulative', title: 'More than 4 consecutive early shifts in a rotating pattern',
+        status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 4 });
 
     const consec = longestWorkedRun(seq);
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 12 consecutive day shifts',
@@ -394,14 +394,14 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         value: `${rot.backward} backward / ${rot.forward} forward`,
         detail: 'Counted as steps within a working block where the next duty starts earlier. Confirm whether the factor means individual steps or the cycle’s net direction.' });
 
+    add({ code: 'FF18', family: 'Circadian', title: 'Rotating pattern of about a week', confirm: true,
+        status: 'standing', value: `${lines}-line rotation`,
+        detail: 'A link moves every person one line per week by construction, so this may apply to the concept rather than to any one design. Settle with the assessing manager before treating it as a finding.' });
+
     const jumps = startTimeJumps(seq);
     add({ code: 'FF19', family: 'Circadian', title: 'Successive start times varying by more than 2 hours', confirm: true,
         status: jumps.length ? 'present' : 'clear', value: jumps.length, threshold: '2h',
         detail: 'Counted only within a block of consecutive working days — a rest day is treated as time to adjust. Confirm whether the stricter reading (across rest days) applies.' });
-
-    add({ code: 'FF18', family: 'Circadian', title: 'Rotating pattern of about a week', confirm: true,
-        status: 'standing', value: `${lines}-line rotation`,
-        detail: 'A link moves every person one line per week by construction, so this may apply to the concept rather than to any one design. Settle with the assessing manager before treating it as a finding.' });
 
     // ── Night-shift factors that cannot apply to a link with no nights ───────
     for (const [code, title] of [
@@ -433,6 +433,10 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     return {
         results,
         present: results.filter(r => r.status === 'present').length,
+        // Counted SEPARATELY from `present`, never added to it: a standing characteristic of the
+        // operation (every 06:20 duty is an FF2 early) is not a finding about this design, and one
+        // combined total would say that it was.
+        standing: results.filter(r => r.status === 'standing').length,
         confirmNeeded: results.filter(r => r.confirm).length,
         hoursAreFloor: true,
     };

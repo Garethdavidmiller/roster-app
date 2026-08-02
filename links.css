@@ -501,17 +501,57 @@ body.auth-ready .container { display: grid; }
 /* ---- Design checks card ---- */
 /* Section heading inside the checks list — separates the design checks from the ORR fatigue
    factors and the baseline comparison, so three different kinds of statement do not read as one
-   undifferentiated list. */
+   undifferentiated list.
+   The HAIRLINE is load-bearing, not decoration (v19.49): the card runs to ~29 rows of similar
+   height, and a small uppercase label alone was not enough weight to break that ribbon — it read
+   as one more row. The rule is what makes the three sections legible as sections. */
 .check-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+    flex-wrap: wrap;
     font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.6px;
     color: var(--text-mid);
-    margin: 14px 0 2px;
+    margin: 18px 0 4px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-light);
 }
-.check-section-head:first-child { margin-top: 0; }
+.check-section-head:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .check-section-head .check-note { text-transform: none; letter-spacing: 0; font-weight: 600; }
+/* The section's headline counts, sitting at the far end of its own heading — so the reader gets
+   the summary BEFORE the 24 rows, not by tallying icons afterwards. */
+.check-section-meta { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-light); }
+
+/* The FF number is the panel's scanning key — the whole point is cross-referencing the ORR's own
+   p3 list — and it shipped as `.check-note`, the faintest thing in the row, running inline with the
+   title so it disappeared into wrapped prose on mobile. A fixed-width tag lets the codes align down
+   the left edge and reads as a label rather than as the first word of a sentence. */
+/* The ORR's own family grouping, named so the code column's order reads as deliberate rather than
+   shuffled. Deliberately quieter than `.check-section-head` — no rule, no counts: it is a label
+   inside a section, not a section of its own. */
+.check-family {
+    font-size: var(--type-badge);
+    font-weight: 600;
+    color: var(--text-light);
+    margin: 8px 0 -2px 2px;
+}
+.check-code {
+    display: inline-block;
+    min-width: 44px;
+    padding: 1px 5px;
+    margin-right: 5px;
+    border-radius: var(--radius-xs);
+    background: var(--bg-faint);
+    color: var(--text-mid);
+    font-size: var(--type-badge);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
 
 .check-rows { display: flex; flex-direction: column; gap: 8px; }
 .check-row {

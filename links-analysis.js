@@ -198,8 +198,19 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         const base = getBaseline();
         const fatRows = [];
 
+        // The headline counts go in the section HEADING, so the reader has the summary before the
+        // rows rather than having to tally 24 icons. `standing` is reported separately from
+        // `present` on purpose — an unavoidable characteristic of the operation is not a finding
+        // about this design, and adding the two together would say it was.
+        const meta = [
+            `${fat.present} present`,
+            fat.standing ? `${fat.standing} standing` : '',
+            fat.confirmNeeded ? `${fat.confirmNeeded} to confirm` : '',
+        ].filter(Boolean).join(' · ');
+
         fatRows.push(
-            `<div class="check-section-head">Fatigue factors <span class="check-note">ORR good practice, p3</span></div>`,
+            `<div class="check-section-head"><span>Fatigue factors <span class="check-note">ORR good practice, p3</span></span>` +
+            `<span class="check-section-meta">${escapeHtml(meta)}</span></div>`,
             `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
             `<div class="check-body">These are <strong>not pass/fail limits</strong>. The more factors a pattern features, ` +
             `the greater the need to justify, minimise, then assess and control the risk. This panel is an aid to that ` +
@@ -208,30 +219,48 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
 
         const ICON = { present: warn, clear: tick, standing: info, 'n/a': info };
         const CLS  = { present: 'check-warn-row', clear: 'check-good', standing: 'check-neutral', 'n/a': 'check-neutral' };
+        // The family label is what makes the ORDER legible. p3 groups the factors into families, and
+        // this panel follows that grouping — but with the families invisible, the code column read as
+        // shuffled (FF11 then FF10 then MRSF then FF17). Naming them costs a quiet line per group and
+        // matches the document the reader will have open beside this.
+        let family = '';
         for (const r of fat.results) {
             if (r.status === 'n/a' && r.family === 'Night (not applicable)') continue;   // rolled up below
-            const val = (r.value !== undefined && r.value !== '') ? ` — <strong>${escapeHtml(String(r.value))}</strong>` : '';
+            if (r.family !== family) {
+                family = r.family;
+                fatRows.push(`<div class="check-family">${escapeHtml(family)}</div>`);
+            }
+            // A count of 0 on a NOT-APPLICABLE row is noise dressed as data — "FF1 Night shift
+            // covering 00:00–05:00 — 0" invites the reader to weigh a number that only means the
+            // rule never ran. The detail line already says why it does not apply.
+            const showVal = r.status !== 'n/a' && r.value !== undefined && r.value !== '';
+            const val = showVal ? ` — <strong>${escapeHtml(String(r.value))}</strong>` : '';
             const conf = r.confirm ? ` <span class="check-note">(definition to confirm)</span>` : '';
             fatRows.push(
                 `<div class="check-row ${CLS[r.status]}">${ICON[r.status]}<div class="check-body">` +
-                `<span class="check-note">${escapeHtml(r.code)}</span> ${escapeHtml(r.title)}${val}${conf}` +
+                `<span class="check-code">${escapeHtml(r.code)}</span>${escapeHtml(r.title)}${val}${conf}` +
                 (r.detail ? `<div class="check-sub">${escapeHtml(r.detail)}</div>` : '') +
                 `</div></div>`
             );
         }
         const nightRolled = fat.results.filter(r => r.family === 'Night (not applicable)');
         if (nightRolled.length && nightRolled.every(r => r.status === 'n/a')) {
+            // Its OWN family label. The rollup is emitted after the loop, so without this it lands
+            // under whichever family happened to come last and reads as belonging to it.
             fatRows.push(
+                `<div class="check-family">Night shifts</div>`,
                 `<div class="check-row check-neutral">${info}<div class="check-body">` +
-                `<span class="check-note">${nightRolled.map(r => r.code).join(' · ')}</span> Night-shift factors do not apply` +
-                `<div class="check-sub">No duty reaches into 00:00–05:00. These become live the moment one does.</div>` +
+                `<span class="check-code">×${nightRolled.length}</span>Night-shift factors do not apply` +
+                `<div class="check-sub">${escapeHtml(nightRolled.map(r => r.code).join(' · '))}` +
+                ` — no duty reaches into 00:00–05:00. These become live the moment one does.</div>` +
                 `</div></div>`
             );
         }
 
         if (base) {
             fatRows.push(
-                `<div class="check-section-head">For comparison — today's link</div>`,
+                `<div class="check-section-head"><span>For comparison — today's link</span>` +
+                `<span class="check-section-meta">not part of this design</span></div>`,
                 `<div class="check-row check-neutral">${info}<div class="check-body">` +
                 escapeHtml(base.summary) +
                 `<div class="check-sub">${escapeHtml(base.detail)}</div>` +
