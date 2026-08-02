@@ -143,7 +143,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
 
     test('links (designer, signed in)', async ({ page }) => {
         await seedSession(page, 'G. Miller');
-        await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+        await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
         await page.goto('/links.html');
         await expect(page.locator('#generatorToggleHeader')).toBeVisible();
         const v = await scan(page);

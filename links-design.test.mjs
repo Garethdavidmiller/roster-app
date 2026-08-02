@@ -9,6 +9,8 @@ import {
     normaliseCustomShift,
     startMinutes,
     endMinutes,
+    endMinutesAbs,
+    MIN_REST_MINUTES,
     calcCoverage,
     calcHourlyCoverage,
     generatePatterns,
@@ -211,13 +213,66 @@ test('calcHourlyCoverage counts on-duty heads per hour', () => {
     assert.equal(hc.tue.hours.every(n => n === 0), true);
 });
 
-test('calcHourlyCoverage clamps a wrapping end to midnight (defensive)', () => {
+// ---------- the midnight-crossing guard (v19.47) ----------
+//
+// Nothing in the CEA link reaches any of this — duties finish 23:55, and normaliseCustomShift
+// rejects a wrapping value outright — so these tests exist to stop a LATENT rule that fails
+// silently towards "compliant" from being relied on later. Both defects ran the same way: a
+// wrapping duty looked SAFER than it is.
+
+describe('endMinutesAbs — one reading of a duty that runs past midnight', () => {
+    test('an ordinary duty is unchanged', () => {
+        assert.equal(endMinutesAbs('06:20-14:20'), 14 * 60 + 20);
+        assert.equal(endMinutesAbs('15:15-23:55'), 23 * 60 + 55);
+    });
+    test('a wrapping duty gains 24h rather than going backwards', () => {
+        assert.equal(endMinutesAbs('20:30-04:30'), 28 * 60 + 30);
+        assert.equal(endMinutesAbs('22:00-00:30'), 24 * 60 + 30);
+    });
+    test('no times, no answer', () => {
+        for (const s of ['RD', 'OFF', 'SPARE', '', null, undefined, 42]) assert.equal(endMinutesAbs(s), null);
+    });
+});
+
+test('calcHourlyCoverage puts a wrapping duty’s small hours on the NEXT day', () => {
     const patterns = {
         '1': { sun: 'RD', mon: '20:30-04:30', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' },
     };
     const hc = calcHourlyCoverage(patterns, 1);
-    assert.equal(hc.mon.hours[23], 1);
-    assert.equal(hc.mon.hours[2], 0); // not bled into the small hours of the same day
+    assert.equal(hc.mon.hours[20], 1, 'on duty from 20:30');
+    assert.equal(hc.mon.hours[23], 1, 'still on at 23:00');
+    assert.equal(hc.mon.hours[2], 0, 'and NOT in the small hours of its own day');
+    // The half of this that the old clamp threw away: those hours are real people on duty.
+    assert.equal(hc.tue.hours[0], 1);
+    assert.equal(hc.tue.hours[4], 1, '04:30 finish covers the 04:00 hour');
+    assert.equal(hc.tue.hours[5], 0);
+});
+
+test('calcHourlyCoverage wraps Saturday’s spill round to Sunday', () => {
+    const patterns = {
+        '1': { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: '21:00-01:00' },
+    };
+    const hc = calcHourlyCoverage(patterns, 1);
+    assert.equal(hc.sat.hours[23], 1);
+    assert.equal(hc.sun.hours[0], 1, 'the week is circular — Saturday night spills into Sunday');
+    assert.equal(hc.sun.hours[1], 0);
+});
+
+test('a wrapping duty eats the rest that follows it, instead of being credited a phantom day of it', () => {
+    const patterns = {};
+    for (let w = 1; w <= 3; w++) {
+        patterns[String(w)] = { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+    }
+    patterns['1'].mon = '20:00-04:00';   // finishes 04:00 Tuesday
+    patterns['1'].tue = '06:20-14:20';   // back on 2h20m later
+    const checks = runDesignChecks(patterns, 3);
+    const t = checks.turnarounds.find(x => x.fromDay === 'mon');
+    // The old `(1440 - end) + start` read 04:00 as this-morning and returned 1580 min (26h), which
+    // is above the 12h floor — so the most dangerous turnaround the module can express was the one
+    // it reported as fine.
+    assert.ok(t, 'a 2h20m turnaround must be flagged');
+    assert.equal(t.restMinutes, 140);
+    assert.ok(t.restMinutes < MIN_REST_MINUTES);
 });
 
 // ---------- runDesignChecks ----------

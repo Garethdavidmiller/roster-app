@@ -15,7 +15,7 @@
 
 /* "Admins only" role tag — marks the one admin-restricted workflow (Weekly Roster Upload, on the
    admin-only Operations page) so non-admin staff reading this shared guide know it doesn't apply
-   to them. Gold-outline pill, matching the app's beta-chip look. */
+   to them. Gold-outline pill; it matched the Links beta chip, which was removed at v19.50 — this one stands alone now. */
 .admins-only {
     display: inline-block;
     font-size: 10px;

@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v19.40 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.50 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -724,9 +724,33 @@ intermediate Google deps do). Re-check with `npm audit` / `npm outdated` periodi
 
 ---
 
-### Links design workspace — beta constraints (v12.37–v12.43)
-The Links workspace (`links.html`) is flagged beta in the UI. Known limits accepted
-for now:
+### Links design workspace — accepted constraints (v12.37 onwards)
+The Links workspace (`links.html`) no longer carries a beta marker (removed v19.50 — it is the tool
+the December 2026 proposals are built in). The constraints below are unchanged by that; they were
+never contingent on the beta label, and dropping it does not make any of them go away:
+
+- **The fatigue-factor panel is an AID, not a fatigue risk assessment (v19.46).** This is the
+  limitation that matters most on this page, because the failure mode is not a wrong number — it is
+  a design showing few findings and being read as approved. The panel reports which of the ORR's p3
+  factors are *present*; the ORR is explicit these are not prescriptive limits, and the escalation
+  it defines (justify why the factor cannot be avoided, minimise it, then assess and control the
+  residual risk) is a human process the panel feeds and does not perform. Specifically:
+  - **Three definitions are not settled** — FF17 (is "backward rotation" about individual steps or
+    the cycle's net direction?), FF19 (are start-time jumps counted across rest days?) and FF18
+    (does "a rotating pattern of about a week" describe a 28-line link by construction?). They
+    render as "(definition to confirm)" and the numbers should not be quoted without settling them.
+    FF18 may be **unavoidable**, in which case it belongs in the conversation with the assessing
+    manager rather than in a checklist.
+  - **Every hours figure is a FLOOR.** SPARE days carry no times, so a standby day contributes zero
+    to "hours in any 7 days". The real total is higher; the panel says so on the row.
+  - **Coverage is not completeness.** The factors the panel asserts as not-applicable are the
+    night-shift family, and that rests on CEAs working no nights. It flips to live the moment any
+    duty reaches 00:00–05:00 — but the p3 list is a good-practice summary, not the whole of fatigue
+    risk, and nothing here models workload, commute, or individual circumstance.
+  - **The baseline is measured per real cycle, not per 28 lines.** "Today's link" is computed over
+    `weeklyRoster` (20) and `bilingualRoster` (8) separately, because splicing two unrelated
+    rotations end to end reports a longest run of 19 that belongs to the join rather than to either
+    roster. A 28-line figure is only meaningful once the 28 lines genuinely are one rotation.
 
 - **Firefox keyboard editing commits early.** Firefox fires `change` on every
   arrow-key press inside a focused `<select>`, so keyboard-only editing of a shift
@@ -779,7 +803,7 @@ for now:
     having it; the bin is what makes the ordinary path recoverable.
 
 ### Test coverage gaps
-The suite is now broad (74 root test files, ~1845 tests — see CLAUDE.md's file tree for the
+The suite is now broad (76 root test files, ~1926 tests — see CLAUDE.md's file tree for the
 full per-suite listing; nearly every pure module has a companion `.test.mjs`, the exceptions
 being trivial data/formatter modules like `paycalc-help.js` and
 `roster-cycle-data.js`). What matters here is what is **still not** covered:

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: August 2026 — v19.40 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.50 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -245,8 +245,9 @@ deliberately **excluded** — tracked under Future capabilities / UX experiments
    display-appropriate negative tracking (`.app-header h1` −0.3px, `.month-year` −0.5px, `.net-amount`
    −2px). The proposed fluid `clamp()` on `--type-xl` was **dropped**: that token is used in exactly one
    place (an operations heading), so a clamp buys nothing and would only add a shared-token risk.
-4. **Motion completeness audit** — ✅ **DONE.** All six keyframe animations (`todayPulse`, `sync-pulse`,
-   `shimmer`, `pulse-confirm`, `spin`, `beta-sheen`) already sit behind `prefers-reduced-motion`
+4. **Motion completeness audit** — ✅ **DONE.** All keyframe animations (`todayPulse`, `sync-pulse`,
+   `shimmer`, `pulse-confirm`, `spin` — and `beta-sheen`, until the Links beta chip it belonged to
+   was removed at v19.50) already sit behind `prefers-reduced-motion`
    guards, plus the shared press-scale override. The optional global `scroll-behavior: smooth` was
    **skipped** (optional; changes scroll feel app-wide for marginal benefit).
 5. **Focus-visible / tap-target audit** — ✅ **DONE (audit-led).** Focus: fully covered — a

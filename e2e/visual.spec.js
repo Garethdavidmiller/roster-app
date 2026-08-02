@@ -38,7 +38,7 @@ function dismissOneTimeOverlays(page) {
             'myb_pc_ytd_notice_shown': '1',    // paycalc Year-to-Date notice
             'myb_pc_ns_migrated': '1',         // paycalc legacy data-ownership prompt
             'myb_notif_prompt_done': '1',      // calendar notification prompt strip
-            'myb_links_beta_seen': '1',        // links first-visit beta lightbox
+            'myb_links_welcome_seen': '1',        // links first-visit notice
         };
         for (const [k, v] of Object.entries(flags)) {
             try { localStorage.setItem(k, v); } catch { /* iOS private mode — ignore */ }

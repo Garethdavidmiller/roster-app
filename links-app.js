@@ -36,6 +36,7 @@ import {
     generatePatterns,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
+import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
 import { conflictOf as _conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
 import {
@@ -232,7 +233,47 @@ export function init() {
 
     // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
     // links-analysis.js (v17.70). They read only the live active design, via this getter.
-    const { renderCoverageChart, renderDesignChecks } = initLinksAnalysis({ getDesign: () => design });
+    /**
+     * The CURRENT link's fatigue profile, for comparison (v19.46).
+     *
+     * Computed over each REAL rotation at its OWN length — the main cycle is 20 lines and the
+     * bilingual 8 — never spliced into one 28. Concatenating two unrelated rotations reports a
+     * longest run of 19 days, which is a property of the join rather than of either roster; the
+     * per-cycle answers are 15 and 14. A proposal reporting "15 consecutive shifts" reads very
+     * differently once you know that is also where today's link sits.
+     */
+    function currentLinkBaseline() {
+        try {
+            const toPatterns = (/** @type {any} */ cycle) => {
+                /** @type {Record<string, any>} */ const p = {}; let i = 1;
+                for (const k of Object.keys(cycle)) p[String(i++)] = cycle[k];
+                return { p, lines: i - 1 };
+            };
+            const main = toPatterns(weeklyRoster);
+            const bl   = toPatterns(bilingualRoster);
+            const a = assessFatigue(main.p, main.lines);
+            const b = assessFatigue(bl.p, bl.lines);
+            const pick = (/** @type {any} */ r, /** @type {string} */ code) =>
+                r.results.find((/** @type {any} */ x) => x.code === code && x.status !== 'n/a');
+            const ff11a = pick(a, 'FF11'), ff11b = pick(b, 'FF11');
+            const ff15a = pick(a, 'FF15');
+            return {
+                summary: `Today's link already features ${a.present} of these factors on the main ${main.lines}-line cycle`
+                    + ` and ${b.present} on the ${bl.lines}-line bilingual cycle.`,
+                detail: `Longest run without a 48h break: ${ff11a?.value} (main) and ${ff11b?.value} (bilingual), against FF11's 13.`
+                    + ` Longest run of consecutive early starts: ${ff15a?.value} (main), against FF15's 4.`
+                    + ` Measured per cycle at its own length, not spliced into one rotation.`,
+            };
+        } catch (err) {
+            console.warn('[Links] Baseline unavailable:', err);
+            return null;   // the panel simply omits the comparison rather than showing a wrong one
+        }
+    }
+
+    const { renderCoverageChart, renderDesignChecks } = initLinksAnalysis({
+        getDesign: () => design,
+        getBaseline: currentLinkBaseline,
+    });
 
     // ============================================
     // HELPERS
@@ -1860,34 +1901,48 @@ export function init() {
     })();
 
     // ============================================
-    // BETA NOTICE LIGHTBOX — shown once on first visit
+    // FIRST-VISIT NOTICE — shown once, never again after close
     // ============================================
+    // Replaced the v12.33 beta notice at v19.51. Two things changed with it, both deliberate:
+    //
+    // A NEW STORAGE KEY. Reusing `myb_links_beta_seen` would have meant every current designer —
+    // all three of whom closed the beta notice months ago — never saw the replacement, which is the
+    // entire point of bringing it back. The old key is left on devices; it is an inert device flag.
+    //
+    // A 14-DAY WINDOW (owner, Aug 2026), against the skill's 28-day default. This is a small,
+    // known audience on a page they visit deliberately, so a fortnight is long enough for everyone
+    // to arrive; past that it self-dismisses rather than greeting someone months later with news.
+    // NOTE what expiry actually does: it marks the notice seen WITHOUT showing it, so after 16 Aug
+    // this lightbox is dead code on every device that had not already opened the page. That is
+    // correct for a one-time notice and is the reason both of the app's previous notices were
+    // silently inert — see CLAUDE.md's notice table, which now records expiry state.
     (function () {
-        const NOTICE_DATE = '9 Jun 2026';
-        const BETA_KEY    = 'myb_links_beta_seen';
-        if (lsGet(BETA_KEY)) return;
-        if (isNoticeExpired(NOTICE_DATE)) { lsSet(BETA_KEY, '1'); return; }
+        const NOTICE_DATE   = '2 Aug 2026';
+        const NOTICE_DAYS   = 14;
+        const WELCOME_KEY   = 'myb_links_welcome_seen';
+        if (lsGet(WELCOME_KEY)) return;
+        if (isNoticeExpired(NOTICE_DATE, NOTICE_DAYS)) { lsSet(WELCOME_KEY, '1'); return; }
 
-        const lb = document.getElementById('betaLightbox');
+        const lb = document.getElementById('linksWelcomeLb');
         if (!lb) return;
 
-        const beta = createLightbox({
+        const welcome = createLightbox({
             overlay:  lb,
-            content:  /** @type {HTMLElement} */ (document.getElementById('betaLightboxContent')),
-            closeBtn: /** @type {HTMLElement} */ (document.getElementById('betaLightboxClose')),
+            content:  /** @type {HTMLElement} */ (document.getElementById('linksWelcomeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('linksWelcomeClose')),
             onClose() {
-                lsSet(BETA_KEY, '1');
+                lsSet(WELCOME_KEY, '1');
                 archiveNotice({
-                    id:      'links-beta-2026',
+                    id:      'links-workspace-2026',
                     title:   'Links Workspace',
                     section: 'Links',
                     date:    NOTICE_DATE,
-                    body:    'The Links workspace is in early beta — a working sketch for designing the 28-line link. Changes here only affect the link-design document, never the live roster.',
+                    body:    'Changes in the Links workspace only affect the link-design document, never the live roster. The Design checks report which ORR fatigue factors a pattern features — they do not pass or fail a design. Designs are shared, and a deleted one is restorable for 30 days.',
                 });
             },
         });
 
-        beta.open();
+        welcome.open();
     })();
 
     // ============================================

@@ -57,15 +57,19 @@
     </div>
 </div>
 
-<!-- Beta notice lightbox — shown on first-ever visit to the Links workspace; never shown again after close -->
-<div id="betaLightbox" class="lb-overlay" role="dialog" aria-label="Links workspace is in beta" aria-modal="true">
-    <div id="betaLightboxContent" class="lb-content notice-lb-content">
-    <button id="betaLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+<!-- First-visit notice — shown once, never again after close. Replaced the v12.33 BETA notice at
+     v19.51: the beta marker was removed at v19.50, so its first paragraph ("this is an early beta,
+     the finished version will look quite different") described a page that no longer exists. Only
+     the paragraph that was still true survived. -->
+<div id="linksWelcomeLb" class="lb-overlay" role="dialog" aria-label="About the Links workspace" aria-modal="true">
+    <div id="linksWelcomeContent" class="lb-content notice-lb-content">
+    <button id="linksWelcomeClose" class="lb-close" type="button" aria-label="Close">✕</button>
         <div class="notice-badge notice-badge--links">🔗 Links</div>
         <div class="lightbox-app-name">Links Workspace</div>
-        <div class="notice-date">Posted 9 Jun 2026</div>
-        <p class="notice-body">This is an early <strong>beta</strong> — a working sketch for designing the 28-line link. The finished version will likely look and behave quite differently.</p>
-        <p class="notice-body">Changes here only affect the link-design document, never the live roster. Best used on a desktop or tablet — the 28-column grid is tight on a phone.</p>
+        <div class="notice-date">Posted 2 Aug 2026</div>
+        <p class="notice-body">Changes here only affect the link-design document — never the live roster. Best used on a desktop or tablet; the 28-column grid is tight on a phone.</p>
+        <p class="notice-body">Design checks include the ORR's fatigue factors. They report which factors a pattern <strong>features</strong> — they do not pass or fail a design, and no result here approves one.</p>
+        <p class="notice-body">Designs are shared: any designer can edit or delete any of them. A deleted design goes to <strong>Recently deleted</strong> and can be restored for 30 days.</p>
     </div>
 </div>
 
@@ -90,7 +94,6 @@
             <h1>Marylebone Roster</h1>
         </div>
         <div class="header-end">
-            <span class="beta-chip" title="This workspace is in beta">Beta</span>
             <span class="badge-page" id="linksBadge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</span>
         </div>
     </header>

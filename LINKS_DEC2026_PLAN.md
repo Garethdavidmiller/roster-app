@@ -103,9 +103,15 @@ proposals should answer it deliberately instead of inheriting it.
 
 ---
 
-## The fatigue factors, against what the tool checks today
+## The fatigue factors, against what the tool checked — the gap that package 2 closed
 
-P3 lists **24 factors** in five families. `runDesignChecks` currently tests two things that map to
+> **This table is the ORIGINAL gap analysis, kept as the record of WHY package 2 was built.** Its
+> "Checked today?" column describes the tool **before v19.46**; every row in it now reads yes. Do not
+> read it as current state — `links-fatigue.js` covers every applicable factor and asserts the
+> inapplicable ones. It is left here because the argument for the work is more useful than a table
+> of ticks, and because the "Applies to a CEA rotating link?" column is still the live judgement.
+
+P3 lists **24 factors** in five families. `runDesignChecks` tested two things that map to
 them, and CEAs work no nights, which makes a large part of the list inapplicable:
 
 | Factor | Applies to a CEA rotating link? | Checked today? |
@@ -122,7 +128,8 @@ them, and CEAs work no nights, which makes a large part of the list inapplicable
 | FF10 >4 consecutive 12h day shifts · MRSF >12 consecutive day shifts · >7 consecutive 8h shifts · >55h in any 7 days | Yes | No |
 | FF1, FF3, FF4, FF6, FF8, FF9, FF12, FF14, FF16, FF20, MRSF permanent-pattern rules | **No** — all night-shift or pre-05:00 rules | n/a, but a check should assert they stay n/a |
 
-The gap is the point: Nathan will assess against this list, and the tool currently covers two of it.
+The gap was the point: Nathan assesses against this list, and the tool covered two of it. Closed at
+v19.46 — see package 2 below for what the building actually found.
 
 ## Baseline: what the CURRENT link scores (review pass)
 
@@ -131,15 +138,22 @@ link. That was the wrong order — you cannot read a proposal's numbers without 
 pattern scores, and Nathan will inevitably ask. Measured by running `runDesignChecks` over the live
 `weeklyRoster` and `bilingualRoster`:
 
-| Cycle | Lines | Longest worked stretch | Short turnarounds (<12h) | Weekends off |
-|-------|-------|------------------------|--------------------------|--------------|
-| Main | 20 | **15 days** | **0** | 4/20 (20%) |
-| Bilingual | 8 | **14 days** | **0** | 0/8 |
+| Cycle | Lines | Longest worked stretch | FF11 — longest run between 48h breaks | Short turnarounds (<12h) | Weekends off |
+|-------|-------|------------------------|----------------------------------------|--------------------------|--------------|
+| Main | 20 | 15 days | **15 shifts** | **0** | 4/20 (20%) |
+| Bilingual | 8 | 14 days | **15 shifts** | **0** | 0/8 |
+
+**Those first two columns are DIFFERENT measures and the bilingual cycle is where they diverge.**
+The first draft of this table had only "longest worked stretch" and the paragraph below it called
+the 15 and 14 an FF11 result. They are not: a single rest day is not a 48h break, so it does not
+reset the FF11 count, and the bilingual cycle's 14-day stretch sits inside a 15-shift FF11 run.
+Corrected Aug 2026 against the shipped rule. Quote the FF11 column when the subject is FF11 — that is
+the one Nathan will be reading against the guidance.
 
 Two things fall out of that, and both matter more than anything else in this document:
 
 1. **The current link already exceeds FF11** (">13 consecutive shifts without a 48h break") on both
-   cycles, at 15 and 14 days. SPARE counts as worked, correctly — a standby day is a duty. So the
+   cycles, at **15 shifts each**. SPARE counts as worked, correctly — a standby day is a duty. So the
    proposals do not start from a clean sheet, and any FF11 finding in a new design should be read
    against 15, not against zero. This is the single most useful number to have in the room.
 2. **Zero short turnarounds on either cycle.** The existing link never places a timed late immediately
@@ -175,6 +189,10 @@ Ordered **2 → 1 → 3 → 4 → 5**: the fatigue checks carry the most value a
 the operating window is what unblocks the overlay and the generator targets. The numbering is kept
 from the first draft so the review correction under package 1 stays legible.
 
+**Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47 out of order because it was cheap
+and self-contained. 1 is buildable now. 3 and 4 are blocked on open question 1 (what drives CEA
+workload) and, for 3, on package 1.
+
 ### 1. Operating-window setting
 
 Store the window **on each design**, with app defaults of Mon–Sat 06:20–23:55 and Sun 07:15–23:25.
@@ -206,7 +224,20 @@ pair added at v19.41 — so a rules deploy rides alongside hosting.
 *Done when:* the window is editable, persisted per design, shown on the Coverage card so the heat map
 explains itself, printed on the sheet, and defaulted for existing designs.
 
-### 2. Fatigue checks against p3 — **do first**
+### 2. Fatigue checks against p3 — ✅ **SHIPPED v19.46**
+
+`links-fatigue.js` + `links-fatigue.test.mjs`, rendered in the Design checks card. The baseline
+below ships with it. What it found on the live link the day it landed is recorded in "Baseline"
+above; the two design notes that survived contact are that FF11 needed its own rule (a single rest
+day is not a 48h break) and that a rotation with **no** 48h break anywhere has to report every
+worked day rather than the sequence length — the first implementation returned the length, counting
+rest days as shifts, and its own test caught it.
+
+Still open from this package: FF17/FF18/FF19 render with "(definition to confirm)" until Nathan
+settles them.
+
+<details><summary>Original scope</summary>
+
 
 Extend `runDesignChecks` to cover every factor in the table above that applies, each labelled with its
 FF number, so a printed proposal is already annotated against the document it will be assessed with.
@@ -236,6 +267,8 @@ than no tool at all. Nothing in the output should read as a certificate, and the
 *Done when:* every applicable factor is reported with its FF number, the inapplicable ones are
 asserted, and each rule has a unit test.
 
+</details>
+
 ### 3. Demand overlay on the coverage heat map
 
 The heat map shows people on duty per hour against nothing. "Does this meet business requirements" is
@@ -257,13 +290,22 @@ profile or a simplifier import.
 so is the same defect class as the undated printed sheet fixed at v19.45 — the data was right when it
 was made and there is no way to tell later.
 
-### 5. Midnight-crossing guard — **correctness only, not priority**
+### 5. Midnight-crossing guard — ✅ **SHIPPED v19.47**
 
-`calcHourlyCoverage` clamps a duty's end to 24:00 when end ≤ start, and the turnaround check computes
-`rest = (1440 − end) + start`. A duty ending 00:30 therefore reports ~23h of rest where the truth is
-~11h, and its post-midnight hours vanish from the heat map. **Nothing in this work reaches it** —
-duties end 23:55, so `end > start` always holds — but it is a real latent defect and cheap to guard
-with a test. The 21:00–03:59 start ban in `normaliseCustomShift` is correct and should stay.
+`endMinutesAbs` in `links-design.js` is now the one reading of a duty that runs past midnight, and
+both callers use it: the heat map counts a wrapping duty on **both** days (Saturday spilling round to
+Sunday) instead of dropping its post-midnight hours, and the turnaround check lets that duty eat into
+the rest that follows it. `links-fatigue.js`'s `dutyMinutes` delegates to it rather than keeping a
+third copy.
+
+What the two defects had in common is the part worth remembering: **both erred towards *safer than
+the truth*.** The heat map lost hours from the artefact whose entire job is showing where cover is
+thin, and the turnaround check reported ~26h of rest for a 00:30 finish before an 06:20 start — 5h50
+in reality — so the most dangerous turnaround the module can express was the one it called compliant.
+
+Still unreachable from the CEA link (duties finish 23:55) and the `normaliseCustomShift` ban on a
+wrapping value stays — it is the input boundary, not a duplicate of this. Reachable only through
+legacy/imported data, the same route `canonicaliseShift` exists for.
 
 ## Not building
 

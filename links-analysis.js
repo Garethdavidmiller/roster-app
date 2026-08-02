@@ -8,11 +8,15 @@
  * patterns and write to their own container, so they carry none of the coordinator's save /
  * concurrency / dirty state. That is what makes this a clean first extraction.
  *
- * `initLinksAnalysis({ getDesign })` returns `{ renderCoverageChart, renderDesignChecks }`. The
- * coordinator passes a getter for the live active design (or null) and calls the two renderers on
- * every pattern change, exactly as before — behaviour is unchanged.
+ * `initLinksAnalysis({ getDesign, getBaseline })` returns `{ renderCoverageChart, renderDesignChecks }`.
+ * The coordinator passes a getter for the live active design (or null) and calls the two renderers on
+ * every pattern change. `getBaseline` (v19.46) supplies the CURRENT link's fatigue profile so a
+ * design's findings can be read against what today's roster already scores — without it, a proposal
+ * reporting "15 consecutive shifts" reads as something the proposal introduced.
  */
 import { DAYS, ROTATING_LINES, calcHourlyCoverage, runDesignChecks } from './links-design.js';
+import { assessFatigue } from './links-fatigue.js';
+import { escapeHtml } from './roster-data.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
 // 28 alongside links-app.js's own pair, with a comment claiming they "stay in step without a shared
@@ -22,11 +26,20 @@ const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS = ROTATING_LINES;
 
 /**
+ * The ORR family whose rows this panel ROLLS UP into one line while they are all not-applicable.
+ * It must equal the `family` string `links-fatigue.js` stamps on those factors — a mismatch would
+ * silently stop the rollup and print seven near-identical rows instead, so it is named once here
+ * rather than written out at each of the three use sites (v19.52).
+ */
+const NIGHT_FAMILY = 'Night shifts';
+
+/**
  * @param {object} deps
  * @param {() => ({ patterns: Record<string, any> } | null)} deps.getDesign - the live active design, or null
+ * @param {() => ({ summary: string, detail: string } | null)} [deps.getBaseline] - the current link's profile
  * @returns {{ renderCoverageChart: () => void, renderDesignChecks: () => void }}
  */
-export function initLinksAnalysis({ getDesign }) {
+export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
     /** Hourly on-duty heat map for the active design (or the empty-state message). */
     function renderCoverageChart() {
         const design = getDesign();
@@ -184,7 +197,86 @@ export function initLinksAnalysis({ getDesign }) {
             `</div></div>`
         );
 
-        content.innerHTML = `<div class="check-rows">${rows.join('')}</div>`;
+        // ── ORR fatigue factors (p3) ─────────────────────────────────────────
+        // Reported as factors PRESENT, never as pass/fail: the ORR is explicit that these are not
+        // prescriptive limits. The greatest risk in this panel is a design showing nothing and being
+        // read as approved, so clear and not-applicable factors are listed too — silence must not be
+        // the same shape as compliance.
+        const fat = assessFatigue(design.patterns, ROTATING_LINES);
+        const base = getBaseline();
+        const fatRows = [];
+
+        // The headline counts go in the section HEADING, so the reader has the summary before the
+        // rows rather than having to tally 24 icons. `standing` is reported separately from
+        // `present` on purpose — an unavoidable characteristic of the operation is not a finding
+        // about this design, and adding the two together would say it was.
+        const meta = [
+            `${fat.present} present`,
+            fat.standing ? `${fat.standing} standing` : '',
+            fat.confirmNeeded ? `${fat.confirmNeeded} to confirm` : '',
+        ].filter(Boolean).join(' · ');
+
+        fatRows.push(
+            `<div class="check-section-head"><span>Fatigue factors <span class="check-note">ORR good practice, p3</span></span>` +
+            `<span class="check-section-meta">${escapeHtml(meta)}</span></div>`,
+            `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
+            `<div class="check-body">These are <strong>not pass/fail limits</strong>. The more factors a pattern features, ` +
+            `the greater the need to justify, minimise, then assess and control the risk. This panel is an aid to that ` +
+            `conversation, not a fatigue risk assessment.</div></div>`
+        );
+
+        const ICON = { present: warn, clear: tick, standing: info, 'n/a': info };
+        const CLS  = { present: 'check-warn-row', clear: 'check-good', standing: 'check-neutral', 'n/a': 'check-neutral' };
+        // The family label is what makes the ORDER legible. p3 groups the factors into families, and
+        // this panel follows that grouping — but with the families invisible, the code column read as
+        // shuffled (FF11 then FF10 then MRSF then FF17). Naming them costs a quiet line per group and
+        // matches the document the reader will have open beside this.
+        let family = '';
+        for (const r of fat.results) {
+            if (r.status === 'n/a' && r.family === NIGHT_FAMILY) continue;   // rolled up below
+            if (r.family !== family) {
+                family = r.family;
+                fatRows.push(`<div class="check-family">${escapeHtml(family)}</div>`);
+            }
+            // A count of 0 on a NOT-APPLICABLE row is noise dressed as data — "FF1 Night shift
+            // covering 00:00–05:00 — 0" invites the reader to weigh a number that only means the
+            // rule never ran. The detail line already says why it does not apply.
+            const showVal = r.status !== 'n/a' && r.value !== undefined && r.value !== '';
+            const val = showVal ? ` — <strong>${escapeHtml(String(r.value))}</strong>` : '';
+            const conf = r.confirm ? ` <span class="check-note">(definition to confirm)</span>` : '';
+            fatRows.push(
+                `<div class="check-row ${CLS[r.status]}">${ICON[r.status]}<div class="check-body">` +
+                `<span class="check-code">${escapeHtml(r.code)}</span>${escapeHtml(r.title)}${val}${conf}` +
+                (r.detail ? `<div class="check-sub">${escapeHtml(r.detail)}</div>` : '') +
+                `</div></div>`
+            );
+        }
+        const nightRolled = fat.results.filter(r => r.family === NIGHT_FAMILY);
+        if (nightRolled.length && nightRolled.every(r => r.status === 'n/a')) {
+            // Its OWN family label. The rollup is emitted after the loop, so without this it lands
+            // under whichever family happened to come last and reads as belonging to it.
+            fatRows.push(
+                `<div class="check-family">${escapeHtml(NIGHT_FAMILY)}</div>`,
+                `<div class="check-row check-neutral">${info}<div class="check-body">` +
+                `<span class="check-code">×${nightRolled.length}</span>Night-shift factors do not apply` +
+                `<div class="check-sub">${escapeHtml(nightRolled.map(r => r.code).join(' · '))}` +
+                ` — no duty reaches into 00:00–05:00. These become live the moment one does.</div>` +
+                `</div></div>`
+            );
+        }
+
+        if (base) {
+            fatRows.push(
+                `<div class="check-section-head"><span>For comparison — today's link</span>` +
+                `<span class="check-section-meta">not part of this design</span></div>`,
+                `<div class="check-row check-neutral">${info}<div class="check-body">` +
+                escapeHtml(base.summary) +
+                `<div class="check-sub">${escapeHtml(base.detail)}</div>` +
+                `</div></div>`
+            );
+        }
+
+        content.innerHTML = `<div class="check-rows">${rows.join('')}${fatRows.join('')}</div>`;
     }
 
     return { renderCoverageChart, renderDesignChecks };

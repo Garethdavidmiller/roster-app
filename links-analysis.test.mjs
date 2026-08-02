@@ -69,3 +69,74 @@ test('an unfilled (all-rest) line is reported by the checks panel', () => {
     a.renderDesignChecks();
     assert.match(els.checksContent.innerHTML, /Lines not yet designed/);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Every row class this panel emits must actually EXIST in links.css (v19.48).
+//
+// This is the one static guard worth having here, because the failure it catches is silent in
+// exactly the way the repo keeps re-learning: v19.46 shipped ~15 rows carrying `check-info`, a class
+// no stylesheet defines. Nothing threw, every behavioural test passed (they assert text), and the
+// rows simply rendered with no surface at all while every neighbour had one — visible only to
+// someone looking at the page, or to computed styles.
+//
+// A pixel baseline would also catch it, but a class-name typo is a STRING problem and this checks
+// the string directly: cheap, deterministic, and immune to the rendering-environment sensitivity
+// that keeps the visual suite opt-in.
+// ─────────────────────────────────────────────────────────────────────────────
+import { readFileSync } from 'node:fs';
+
+test('every check-row class the panel emits is defined in links.css', () => {
+    const js  = readFileSync(new URL('./links-analysis.js', import.meta.url), 'utf8');
+    const css = readFileSync(new URL('./links.css', import.meta.url), 'utf8');
+
+    // Collect EVERY `check-*` token the module names, from any class attribute plus the status→class
+    // map. Deliberately generic rather than an enumerated list of the classes that exist today: an
+    // enumerated list silently stops covering whatever gets added next, which is the same failure
+    // mode as a hand-maintained precache list. (The first version listed them; `check-code`,
+    // `check-family` and `check-section-meta` arrived one version later and were not covered.)
+    /** @type {Set<string>} */
+    const used = new Set();
+    for (const m of js.matchAll(/class="([^"]*)"/g)) {
+        for (const c of m[1].split(/[\s$]+/)) if (/^check-[\w-]+$/.test(c)) used.add(c);
+    }
+    for (const m of js.matchAll(/const CLS\s*=\s*\{([^}]*)\}/g)) {
+        for (const c of m[1].matchAll(/'([\w-]+)'/g)) if (c[1].startsWith('check-')) used.add(c[1]);
+    }
+
+    assert.ok(used.size >= 12, `expected to find the row classes, found ${used.size}: ${[...used]}`);
+    for (const expected of ['check-code', 'check-family', 'check-section-meta']) {
+        assert.ok(used.has(expected), `the scan must reach ${expected}`);
+    }
+    assert.ok(used.has('check-neutral'), 'the neutral/info surface must be among them');
+
+    // `(?![\w-])`, NOT `\b`. A hyphen is a word boundary, so `\.check-info\b` happily matches inside
+    // `.check-info-icon` — which is precisely the pair in this stylesheet, so the first version of
+    // this guard passed against the exact bug it was written for. A class name only ends where a
+    // character that cannot be part of one begins.
+    const missing = [...used].filter(c => !new RegExp(`\\.${c}(?![\\w-])`).test(css));
+    assert.deepEqual(missing, [], `class(es) emitted by links-analysis.js with no rule in links.css: ${missing.join(', ')}`);
+});
+
+// The rollup depends on links-analysis.js's NIGHT_FAMILY matching the `family` string
+// links-fatigue.js stamps. A mismatch fails SILENTLY — the rollup simply stops matching and seven
+// near-identical rows print instead — so it is asserted behaviourally rather than by comparing two
+// string literals (v19.52).
+test('the night-shift factors roll up to one row, and lose the rollup when a night appears', () => {
+    const nightless = fullPatterns();
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: nightless }) }).renderDesignChecks();
+    const html = els.checksContent.innerHTML;
+    assert.match(html, /Night-shift factors do not apply/, 'the rollup row must render');
+    assert.equal((html.match(/FF6/g) || []).length, 1, 'FF6 appears once — in the rollup, not as its own row');
+    assert.doesNotMatch(html, /not applicable<\/div>/i, 'no heading may assert a verdict');
+
+    // Give one line a night duty: the rollup must disappear and the factors report individually.
+    const withNight = JSON.parse(JSON.stringify(nightless));
+    withNight['1'].mon = '22:00-06:00';
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: withNight }) }).renderDesignChecks();
+    const html2 = els.checksContent.innerHTML;
+    assert.doesNotMatch(html2, /Night-shift factors do not apply/, 'a night duty must end the rollup');
+    assert.ok((html2.match(/FF6/g) || []).length >= 1, 'FF6 must still be reported');
+    assert.doesNotMatch(html2, /Night \(not applicable\)/, 'the heading must not claim not-applicable over present rows');
+});

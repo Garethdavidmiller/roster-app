@@ -256,7 +256,7 @@ test('promptDialog: resolves the typed value on confirm, null on cancel (not nat
 test('links: a guide link (same-tab) routes through the unsaved-changes guard', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 800 });
     await seedSession(page, 'G. Miller');
-    await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+    await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
     await page.goto('/links.html');
 
     // Make the page dirty: apply the auto-generated pattern (targets seed from static roster data,
@@ -289,7 +289,7 @@ test('links: a guide link (same-tab) routes through the unsaved-changes guard', 
 test('links: opening the auto-generator causes no horizontal page overflow (narrow phone)', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 800 });   // common Android CSS width
     await seedSession(page, 'G. Miller');                       // G. Miller is a Links designer
-    await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+    await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
     await page.goto('/links.html');
     await expect(page.locator('#generatorToggleHeader')).toBeVisible();
 
@@ -313,7 +313,7 @@ test('links: opening the auto-generator causes no horizontal page overflow (narr
 test('links: the analysis panels render for a generated design', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
-    await page.addInitScript(() => localStorage.setItem('myb_links_beta_seen', '1'));
+    await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
     await page.goto('/links.html');
     await expect(page.locator('#generatorToggleHeader')).toBeVisible();
     await page.locator('#genApplyBtn').click();
@@ -335,7 +335,7 @@ async function openLinksWithDesigns(page) {
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
-        localStorage.setItem('myb_links_beta_seen', '1');
+        localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window);
         w.__E2E = w.__E2E || {};
         w.__E2E.docs = [
@@ -414,7 +414,7 @@ test('links: an expired deletion is purged on load and a recent one is not', asy
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
-        localStorage.setItem('myb_links_beta_seen', '1');
+        localStorage.setItem('myb_links_welcome_seen', '1');
         const DAY = 86_400_000;
         const w = /** @type {any} */ (window);
         w.__E2E = w.__E2E || {};
@@ -447,7 +447,7 @@ test('links: a design restored elsewhere is NOT purged, even if our snapshot say
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
-        localStorage.setItem('myb_links_beta_seen', '1');
+        localStorage.setItem('myb_links_welcome_seen', '1');
         const DAY = 86_400_000;
         const w = /** @type {any} */ (window);
         w.__E2E = w.__E2E || {};
@@ -479,7 +479,7 @@ test('links: the bin is still reachable when every design has been deleted', asy
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
-        localStorage.setItem('myb_links_beta_seen', '1');
+        localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window);
         w.__E2E = w.__E2E || {};
         w.__E2E.docs = [
@@ -503,7 +503,7 @@ test('links: saving a design deleted by someone else offers a fork, and does not
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
-        localStorage.setItem('myb_links_beta_seen', '1');
+        localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window);
         w.__E2E = w.__E2E || {};
         // Loaded live…
@@ -987,6 +987,14 @@ test('operations: the review table Skip button is not the success colour', async
 // links-design.js / links-concurrency.js and are unit-tested; these cover the WIRING.
 async function openLinks(page) {
     await page.addInitScript(() => {
+        // Suppress the first-visit notice. This helper did NOT do this until v19.51, and the suite
+        // passed anyway — because the notice it needed to suppress had been EXPIRED since Jul 2026
+        // and never opened. Posting a live one broke ten tests at once. Note which ten: every test
+        // that CLICKS something. "a designer sees all 28 lines" kept passing with a modal over the
+        // page, because text is readable behind an overlay — the same assert-text-vs-drive-the-UI
+        // split that has hidden three separate defects this release. Seed it HERE, once, rather
+        // than in each test.
+        localStorage.setItem('myb_links_welcome_seen', '1');
         /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
         /** @type {any} */ (window).__E2E.docs = [{
             id: 'd1', name: 'Option A', updatedBy: 'S. Silva',
