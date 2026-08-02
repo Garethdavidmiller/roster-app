@@ -465,7 +465,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | Nav-panel footer initials badge (v12.22) | The footer shows a 26px circular badge (`#navPanelAvatar`) before the member name — previously showed a profile photo, now always shows initials on a stable per-name colour. `avatarInitials(name)` and `avatarHue(name)` from `roster-data.js` are called directly in `nav-panel.js` — no fetch, no localStorage, no event listeners. Profile photo feature removed at v12.22; full spec and revert checklist in ROADMAP.md → "Profile photo / avatar". |
 | Operations page — admin-only pill (v10.99) | `NAV_PAGES` entry for Operations has `adminOnly: true`. `initNavPanel({ isAdmin })` filters it out for non-admins. `calendar-app.js`, `admin-app.js`, and `paycalc-app.js` pass `isAdmin: CONFIG.ADMIN_NAMES.includes(member)`. `operations-app.js` passes `isAdmin: true` (page already guards against non-admins). When NOT signed in, Operations shows the **shared in-place login** (`login-overlay.js`, v14.45+) — it no longer redirects to `admin.html` to authenticate. A signed-in **non-admin** is still redirected to `admin.html` (that is access control, not a login divert). |
 | Links page — access control (v12.06) | `linksDesignerOnly: true` in `NAV_PAGES`. Add name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` to grant access — **and run `npm run generate:roster-members` in the same commit**, because the `linksDesigner` claim is set by `setupRosterAuth` from the server-owned `functions/roster-members.json`, not from the client list. Then run Operations → Set up accounts, or the new designer holds no claim and every save permission-denies. Current designers: `’G. Miller’`, `’S. Silva’`, `’M. Robson’`. |
-| Links page — beta marker REMOVED (v19.50) | The gold-OUTLINE `.beta-chip` and its `beta-sheen` keyframes are gone (owner decision, Aug 2026 — the workspace is the tool the Dec 2026 proposals are built in, not a sketch to be announced). The first-visit `#betaLightbox` is still in `links.html` but has been **inert since ~7 Jul 2026** (posted 9 Jun, 28-day expiry), and its copy still says "early beta" — retire it or rewrite it, don't leave it half-way. See `.claude/rules/links-design.md`. |
+| Links page — beta marker REMOVED (v19.50) | The gold-OUTLINE `.beta-chip` and its `beta-sheen` keyframes are gone (owner decision, Aug 2026 — the workspace is the tool the Dec 2026 proposals are built in, not a sketch to be announced). The first-visit notice was rewritten at v19.51 (`#linksWelcomeLb`, 14-day window, new `myb_links_welcome_seen` key) — the beta paragraph went, the useful one stayed. See `.claude/rules/links-design.md`. |
 | Links page — design and save model (v12.09–v12.47) | Multi-design Firestore collection `linkDesigns` `{ name, patterns, updatedAt, updatedBy }`. 28-line full rotation — every line must carry a real pattern. CEAs do not work nights. Auto-generator is the only way to create a new design. Grid clicks delegated on `#linksGridBodyRows`. Position keys always `String`. Delete is a SOFT delete since v19.41 (30-day bin). See `.claude/rules/links-design.md` for full grid/paint/generator/coverage/checks/fatigue/concurrency/deletion/print detail — its `paths:` globs, so it loads whenever any `links-*.js` is edited. |
 | Links page — fatigue factors are ADVISORY, never pass/fail (v19.46) | The Design checks card's second half reports which of the ORR's p3 factors are **present** in a design (`links-fatigue.js`). The ORR states these are not prescriptive limits, so **nothing here may render as red/green or read as a certificate** — a design showing few findings and being read as approved is the failure this feature must not cause. Three consequences that are easy to undo by accident: **never hardcode a status** (FF13's was, and put a green tick beneath the amber finding it duplicates); **NOT-APPLICABLE, CLEAR and STANDING are three different answers**, not synonyms for "fine"; and every rule must **lap the rotation**, since a person on line 28 goes to line 1 next week. Full rules + the four v19.48 regressions: `.claude/rules/links-design.md` → Fatigue factors. Project context: `LINKS_DEC2026_PLAN.md`. |
 | Header back button removed (v10.63) | `admin.html` / `paycalc.html` no longer have a header `←` back button — it duplicated the nav drawer's Calendar pill (two competing nav paradigms) and clashed visually with the logo box. Navigation back to the roster is via the drawer. Header is now `[☰] [logo] Title … [badge]`. The admin "open calendar on the month I was editing" behaviour moved from the back button onto the `.nav-panel-pill--calendar` click in `admin-app.js`. `.btn-back` CSS removed from `shared.css` (still defined locally in `fip.html` / `railcard-guide.html`). |
@@ -493,10 +493,28 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 
 **Current notices** (keep this table current — monthly cleanup removes entries older than 180 days):
 
-| ID | Page | Title | Badge | Posted | Expiry | Dismiss mechanism |
-|----|------|-------|-------|--------|--------|-------------------|
-| `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | 6 Apr 2026 | 90 days | One-time; `NOTICE_YTD_KEY` set on close |
-| `links-beta-2026` | `links.html` | Links Workspace | 🔗 Links | 9 Jun 2026 | 28 days | One-time; `myb_links_beta_seen` set on close |
+> **The Status column is load-bearing — keep it accurate** (added v19.51). A notice goes INERT the
+> moment `isNoticeExpired` fires: the IIFE marks it seen and returns *without showing it*, so on any
+> device that has not already opened that page it is dead code. But the removal rule above only
+> fires at **180 days**, so a notice spends a long stretch expired-but-still-listed, and the table
+> read as though both rows were live when in fact **neither had shown to anyone for weeks**. That is
+> not merely untidy — it hides a real question. `ytd_2627` is the case in point: it prompts a member
+> to enter their Year-to-Date figures at the start of the tax year, and a **new starter or a new
+> device from July onwards gets no prompt at all**, which is exactly when accurate tax estimates
+> need those figures. Expiring is right for an announcement; it may be wrong for a recurring
+> seasonal prompt. Decide that rather than inherit it.
+
+| ID | Page | Title | Badge | Posted | Expiry | Status | Dismiss mechanism |
+|----|------|-------|-------|--------|--------|--------|-------------------|
+| `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | 6 Apr 2026 | 90 days | ⛔ **inert since ~5 Jul 2026** — copy is still accurate, but nobody new sees it (see note above) | One-time; `NOTICE_YTD_KEY` set on close |
+| `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **14 days** | ✅ live until ~16 Aug 2026 | One-time; `myb_links_welcome_seen` set on close |
+
+The retired `links-beta-2026` (posted 9 Jun 2026, 28 days) was replaced at v19.51: the beta chip
+went at v19.50, so its lead paragraph described a page that no longer existed. Only the paragraph
+that was still true survived, joined by the fatigue-checks framing and the shared-designs/30-day-bin
+note. It took a **new storage key** (`myb_links_welcome_seen`) — reusing the old one would have
+meant every current designer, all of whom closed the beta notice months ago, never saw the
+replacement.
 
 **Monthly cleanup:** on the 1st of each month, remove any notice from the table where `(today − Posted) > 180 days` — delete the HTML block, JS IIFE, and bump the version.
 

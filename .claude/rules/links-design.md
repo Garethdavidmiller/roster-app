@@ -52,15 +52,30 @@ tool the December 2026 proposals will actually be built in, so it is no longer b
 sketch. The chip, its keyframes and the reduced-motion override are gone; `.header-end` stays, since
 it is the flex wrapper the page badge lives in.
 
-**The first-visit `#betaLightbox` is still in `links.html` and is INERT.** It is a one-time notice
-posted `9 Jun 2026` on the default 28-day expiry, so `isNoticeExpired` has been silently dismissing
-it since roughly 7 Jul 2026 — any device that had not already seen it never will. Its copy still
-says "This is an early beta", which no longer matches a page with no beta marker. It is left in
-place rather than deleted because it is the page's only welcome/first-visit surface and reviving it
-is a content decision, not a cleanup: **either retire it (markup + the IIFE in `links-app.js` + the
-`links-beta-2026` row in CLAUDE.md's notice table) or rewrite the copy** — the second paragraph
-("changes here only affect the link-design document, never the live roster… best used on a desktop
-or tablet") is the genuinely useful half and would survive a rewrite. Do not leave it half-way.
+## First-visit notice (rewritten v19.51)
+
+`#linksWelcomeLb` — one-time, `createLightbox`, gated on `myb_links_welcome_seen`, **14-day expiry**
+(owner, Aug 2026; the skill's default is 28). It replaced the v12.33 beta notice, whose lead
+paragraph — "this is an early beta… the finished version will look quite different" — described a
+page that stopped existing at v19.50. Only the paragraph that was still true survived; it now sits
+with two more, chosen for what a first-time visitor could otherwise get **wrong**:
+
+1. Changes affect the link-design document only, never the live roster. Desktop or tablet.
+2. The Design checks report which ORR fatigue factors a pattern **features** — they do not pass or
+   fail a design and nothing here approves one. (The panel says this too; a designer who reads only
+   the first screen should still not be able to mistake a clean panel for an approval.)
+3. Designs are shared, and a deleted one is restorable for 30 days.
+
+**It took a NEW storage key.** Reusing `myb_links_beta_seen` would have meant every current designer
+— all three of whom closed the beta notice months ago — never saw the replacement, which is the whole
+point of bringing it back. The e2e specs seed the new key; the old one is left on devices as an inert
+flag.
+
+**Know what expiry does before setting one.** `isNoticeExpired` marks the notice seen *without
+showing it*, so from ~16 Aug 2026 this lightbox is dead code on any device that had not already
+opened the page. That is correct for an announcement — and it is why both of the app's previous
+notices sat silently inert. CLAUDE.md's notice table now carries a Status column so that state is
+visible rather than inferred.
 
 ## Design and save model (v12.09, redesigned v12.39–v12.43, multi-design v12.46–v12.47)
 

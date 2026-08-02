@@ -1901,34 +1901,48 @@ export function init() {
     })();
 
     // ============================================
-    // BETA NOTICE LIGHTBOX — shown once on first visit
+    // FIRST-VISIT NOTICE — shown once, never again after close
     // ============================================
+    // Replaced the v12.33 beta notice at v19.51. Two things changed with it, both deliberate:
+    //
+    // A NEW STORAGE KEY. Reusing `myb_links_beta_seen` would have meant every current designer —
+    // all three of whom closed the beta notice months ago — never saw the replacement, which is the
+    // entire point of bringing it back. The old key is left on devices; it is an inert device flag.
+    //
+    // A 14-DAY WINDOW (owner, Aug 2026), against the skill's 28-day default. This is a small,
+    // known audience on a page they visit deliberately, so a fortnight is long enough for everyone
+    // to arrive; past that it self-dismisses rather than greeting someone months later with news.
+    // NOTE what expiry actually does: it marks the notice seen WITHOUT showing it, so after 16 Aug
+    // this lightbox is dead code on every device that had not already opened the page. That is
+    // correct for a one-time notice and is the reason both of the app's previous notices were
+    // silently inert — see CLAUDE.md's notice table, which now records expiry state.
     (function () {
-        const NOTICE_DATE = '9 Jun 2026';
-        const BETA_KEY    = 'myb_links_beta_seen';
-        if (lsGet(BETA_KEY)) return;
-        if (isNoticeExpired(NOTICE_DATE)) { lsSet(BETA_KEY, '1'); return; }
+        const NOTICE_DATE   = '2 Aug 2026';
+        const NOTICE_DAYS   = 14;
+        const WELCOME_KEY   = 'myb_links_welcome_seen';
+        if (lsGet(WELCOME_KEY)) return;
+        if (isNoticeExpired(NOTICE_DATE, NOTICE_DAYS)) { lsSet(WELCOME_KEY, '1'); return; }
 
-        const lb = document.getElementById('betaLightbox');
+        const lb = document.getElementById('linksWelcomeLb');
         if (!lb) return;
 
-        const beta = createLightbox({
+        const welcome = createLightbox({
             overlay:  lb,
-            content:  /** @type {HTMLElement} */ (document.getElementById('betaLightboxContent')),
-            closeBtn: /** @type {HTMLElement} */ (document.getElementById('betaLightboxClose')),
+            content:  /** @type {HTMLElement} */ (document.getElementById('linksWelcomeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('linksWelcomeClose')),
             onClose() {
-                lsSet(BETA_KEY, '1');
+                lsSet(WELCOME_KEY, '1');
                 archiveNotice({
-                    id:      'links-beta-2026',
+                    id:      'links-workspace-2026',
                     title:   'Links Workspace',
                     section: 'Links',
                     date:    NOTICE_DATE,
-                    body:    'The Links workspace is in early beta — a working sketch for designing the 28-line link. Changes here only affect the link-design document, never the live roster.',
+                    body:    'Changes in the Links workspace only affect the link-design document, never the live roster. The Design checks report which ORR fatigue factors a pattern features — they do not pass or fail a design. Designs are shared, and a deleted one is restorable for 30 days.',
                 });
             },
         });
 
-        beta.open();
+        welcome.open();
     })();
 
     // ============================================
