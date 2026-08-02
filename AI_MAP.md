@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v19.40 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.50 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -422,7 +422,7 @@ The three read-only reporting cards on `operations.html` — **Error Log**, **Us
 ### `links-app.js`
 Coordinator for `links.html` — the 28-line link-design workspace (designer-only; see `.claude/rules/links-design.md` for the full architecture: grid/paint/generator/coverage/checks/concurrency/print).
 - Only export is `init()` (Phase 4a.2) — early-return access gate (designer via `requirePage`, else redirect), no top-level throw.
-- Owns: the multi-design Firestore collection (`linkDesigns`) load/save (atomic `runTransaction` save + offline getDoc fallback, `writeWithClaimRetry`, the v17.18 `baselineUnknown` guard), the design picker (new/duplicate/rename/delete), delegated grid clicks + paint mode, compare mode, the generator UI, the unsaved-changes guards (beforeunload + capture-phase nav-link guard + logo/ops-link confirms), and the beta first-visit notice.
+- Owns: the multi-design Firestore collection (`linkDesigns`) load/save (atomic `runTransaction` save + offline getDoc fallback, `writeWithClaimRetry`, the v17.18 `baselineUnknown` guard), the design picker (new/duplicate/rename/delete), delegated grid clicks + paint mode, compare mode, the generator UI, the unsaved-changes guards (beforeunload + capture-phase nav-link guard + logo/ops-link confirms), and the first-visit notice (`#betaLightbox` — inert since ~7 Jul 2026; the header beta chip itself was removed v19.50).
 - All pure design maths is imported from `links-design.js` — never duplicated back here.
 - The two read-only analysis panels (Coverage heat map + Design quality checks) are rendered by `links-analysis.js`, wired via `initLinksAnalysis({ getDesign: () => design })`.
 - Compare mode is `links-compare.js`, wired via `const compare = initLinksCompare({ getDesigns, getActiveDesignId, getDesign, renderDesignPicker, renderGrid, renderBrushBar, dearmBrush, emptyPattern, isUnfilledPattern, shiftLabel })`. It OWNS `compareMode`/`compareDesignId` — the coordinator only calls `compare.isCompareMode()`/`getCompareId()` (reads) or `resetCompare()` (delete/select/generator-apply) or `renderCompare()`.

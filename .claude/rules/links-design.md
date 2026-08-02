@@ -44,11 +44,23 @@ state lives, and the rules that have historically produced bugs have been pulled
   - **A save against a design someone else deleted does not resurrect it.** `saveChanges` detects the deletion in the transaction and offers "Save mine as new" instead — an overwrite there would be one designer undoing another's delete without ever seeing it.
   - The 30 days is a client policy enforced by a load-time purge, not a server rule. See KNOWN_LIMITATIONS.md → Links for the full list of what that does and does not promise.
 
-## Beta marker + first-visit notice (v12.33)
+## The beta marker — REMOVED v19.50
 
-**Header:** a gold-OUTLINE `.beta-chip` ("Beta") sits beside the solid-gold "🔗 Links" `.badge-page` inside a `.header-end` flex wrapper — outline vs solid keeps them as secondary + primary tags. A slow `beta-sheen` sweep runs a couple of times on load then rests — finite, not a perpetual loop (v18.31; disabled entirely under `prefers-reduced-motion`).
+The header carried a gold-OUTLINE `.beta-chip` ("Beta") beside the "🔗 Links" `.badge-page` from
+v12.33, with a finite `beta-sheen` sweep (v18.31). Owner decision, Aug 2026: the workspace is the
+tool the December 2026 proposals will actually be built in, so it is no longer being announced as a
+sketch. The chip, its keyframes and the reduced-motion override are gone; `.header-end` stays, since
+it is the flex wrapper the page badge lives in.
 
-**First-visit lightbox:** `#betaLightbox` follows the canonical `createLightbox` lifecycle — shown once, gated on `lsGet('myb_links_beta_seen')` set on close. Uses `.notice-badge notice-badge--links` (purple) and `.lightbox-app-name` (scoped to 17px within `.notice-lb-content`); no per-notice CSS in `links.css`.
+**The first-visit `#betaLightbox` is still in `links.html` and is INERT.** It is a one-time notice
+posted `9 Jun 2026` on the default 28-day expiry, so `isNoticeExpired` has been silently dismissing
+it since roughly 7 Jul 2026 — any device that had not already seen it never will. Its copy still
+says "This is an early beta", which no longer matches a page with no beta marker. It is left in
+place rather than deleted because it is the page's only welcome/first-visit surface and reviving it
+is a content decision, not a cleanup: **either retire it (markup + the IIFE in `links-app.js` + the
+`links-beta-2026` row in CLAUDE.md's notice table) or rewrite the copy** — the second paragraph
+("changes here only affect the link-design document, never the live roster… best used on a desktop
+or tablet") is the genuinely useful half and would survive a rewrite. Do not leave it half-way.
 
 ## Design and save model (v12.09, redesigned v12.39–v12.43, multi-design v12.46–v12.47)
 
