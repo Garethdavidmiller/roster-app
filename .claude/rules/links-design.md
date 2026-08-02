@@ -2,12 +2,35 @@
 paths:
   - "links.html"
   - "links.css"
-  - "links-app.js"
-  - "links-design.js"
-  - "links-design.test.mjs"
+  - "links-*.js"
+  - "links-*.test.mjs"
 ---
 
 # Links workspace — full architecture
+
+> **The `paths:` list above uses GLOBS, and must stay that way** (fixed Aug 2026). It enumerated five
+> filenames from the extraction-programme era and had silently stopped covering **nine of the
+> sixteen** Links files — every module added since (`links-analysis`, `-compare`, `-concurrency`,
+> `-deletion`, `-fatigue`, `-boot`) plus their tests. Editing any of them did not surface this
+> document, which is the one place the workspace's decisions are written down. Same failure as the
+> enumerated class list fixed at v19.49 and the `selectBackupKeys` prefix scan: a hand-maintained
+> list stops covering what arrives after it, and nothing says so. `paycalc.md` already globbed.
+
+## The module set
+
+The workspace is one coordinator over seven pure/extracted modules. Everything except `links-app.js`
+is testable without a browser, which is deliberate — the coordinator is where the Firestore and DOM
+state lives, and the rules that have historically produced bugs have been pulled out of it.
+
+| Module | Owns |
+|--------|------|
+| `links-app.js` | coordinator: Firestore, grid, paint, picker, save/dirty state (+ `links-boot.js`, the CSP bootstrap) |
+| `links-design.js` | the design maths — classification, coverage, the generator, `runDesignChecks`, `endMinutesAbs` |
+| `links-fatigue.js` | the ORR p3 fatigue factors (v19.46) |
+| `links-analysis.js` | the two read-only panels — Coverage heat map + Design checks — rendered from those pure results |
+| `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
+| `links-concurrency.js` | the co-editing rules (three historical silent-overwrite bugs, one test each) |
+| `links-deletion.js` | the soft-delete/restore/purge rules |
 
 ## Access control
 
@@ -46,7 +69,7 @@ With ≥2 designs, shows two read-only grids side-by-side (≥1024px) or stacked
 Staff names were removed at v12.39 — the design is patterns-only ("Line 1", "Line 2"…); who goes on which line is decided after patterns are agreed. Legacy `meta` in old docs is ignored on load and dropped on next save.
 
 ### Pure-maths module
-All design maths live in `links-design.js` (no DOM, no Firebase; tested by `links-design.test.mjs`) — `classifyShift`, `normaliseCustomShift`, `calcCoverage`, `calcHourlyCoverage`, `generatePatterns`, `runDesignChecks`, `dayClass`, `endMinutesAbs`. `links-app.js` imports these; do not duplicate them back into the app file. The ORR fatigue factors sit alongside in `links-fatigue.js` (v19.46), which imports from here.
+All design maths live in `links-design.js` (no DOM, no Firebase; tested by `links-design.test.mjs`) — `classifyShift`, `normaliseCustomShift`, `calcCoverage`, `calcHourlyCoverage`, `generatePatterns`, `runDesignChecks`, `dayClass`, `endMinutesAbs`. `links-app.js` imports these; do not duplicate them back into the app file. The ORR fatigue factors sit alongside in `links-fatigue.js` (v19.46), which imports from here — see the module table above for the full set.
 
 ### Save and dirty flag
 Single dirty flag + one `linksSaveBtn` / `saveChanges()`. Grid clicks are **delegated** on `#linksGridBodyRows` — do NOT call `renderGrid()` from inside `saveChanges()`.
@@ -78,8 +101,9 @@ The Coverage card renders an **hour-by-hour table** (`calcHourlyCoverage`) — r
 
 The station is staffed in **waves** (opens ~06:20, morning build 07:00–08:30, middles 11:00–12:00, afternoons 13:30–14:30, closes 15:00+) — do not revert to per-type stacked bars. A red `0` inside a day's staffed span marks a coverage gap; spares get their own `SP` column. The grid `tfoot` keeps compact per-day `E:/L:/SP:` counts.
 
-### Design checks (v12.39, completeness added v12.41)
-`runDesignChecks(patterns, 28)` checks:
+### Design checks (v12.39, completeness added v12.41; fatigue factors added v19.46)
+
+The card has **two halves**. The first is `runDesignChecks(patterns, 28)`:
 - **Unfilled lines** (any line that is entirely rest days is *not yet designed*, not a vacancy)
 - Weekends off (Sat of line w + Sun of line w+1, wrapping)
 - Short turnarounds (<12 h rest between consecutive timed shifts across the full circular rotation)
@@ -87,6 +111,42 @@ The station is staffed in **waves** (opens ~06:20, morning build 07:00–08:30, 
 - Early/late balance
 
 Renders plain-English traffic-light rows (completeness first); updates live on every cell edit / generate. All 28 lines rotate and are checked.
+
+### Fatigue factors — ORR good practice, p3 (v19.46)
+
+The second half of the card, from `links-fatigue.js`. It exists because the December 2026 proposals
+will be **assessed** against that list (`LINKS_DEC2026_PLAN.md`), and `runDesignChecks` covered two
+of its 24 factors. Read the module header before changing any rule; the four things that govern it:
+
+- **It reports factors PRESENT. It never passes or fails a design.** The ORR states these are not
+  prescriptive limits, so red/green would misrepresent the guidance being quoted. Amber
+  (`.check-warn-row`), never `.check-bad` red.
+- **The dominant risk is FALSE ASSURANCE**, not a missing rule — a design showing nothing and being
+  read as approved. So CLEAR and NOT-APPLICABLE report themselves too: silence must never be the
+  same shape as compliance. **Never hardcode a status.** FF13's was hardcoded `clear` for one
+  version and put a green tick directly beneath the amber short-turnaround row it is the same
+  finding as; it now reads from `runDesignChecks`, so the two cannot disagree.
+- **NOT-APPLICABLE ≠ CLEAR, and STANDING ≠ PRESENT.** FF4 called itself "not applicable" while FF3
+  was counting the very same duties (fixed v19.48). And FF2 fires on every 06:20 duty, so it is a
+  property of the operation — marked `standing` and counted separately, because adding it to the
+  findings total would claim the designer could have avoided it.
+- **Three definitions are unsettled** (FF17, FF18, FF19) and carry `confirm: true`, rendered as
+  "(definition to confirm)". FF18 in particular may be unavoidable by construction — a link moves
+  everyone one line per week — which is a conversation to have with the assessing manager *before*
+  the proposals are drawn, not a checklist item.
+
+Two things about the rules themselves that are easy to get wrong, both caught by their own tests:
+**FF11 is not the consecutive-worked-days check it resembles** (a single rest day is not a 48h break,
+and a rotation with no 48h break at all returns every worked day, not the sequence length); and
+**every rule laps the rotation** — `earlyBlocksWithShortRecovery` was the one that did not, so a
+block straddling line 28 → line 1 was cut in half and reported as nothing.
+
+Hours totals are a **floor**: SPARE carries no times, so a standby day contributes zero.
+
+`links-app.js` also passes a `getBaseline` thunk so the panel can show what **today's** link scores.
+It is computed over `weeklyRoster` (20 lines) and `bilingualRoster` (8) **at their own lengths** —
+splicing them into one 28 reports a longest run of 19, which is a property of the join and not of
+either roster.
 
 ### Auto-generator (v12.39, slot-based v12.40)
 **The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus a spare row.

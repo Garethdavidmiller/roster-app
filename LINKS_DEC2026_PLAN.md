@@ -103,9 +103,15 @@ proposals should answer it deliberately instead of inheriting it.
 
 ---
 
-## The fatigue factors, against what the tool checks today
+## The fatigue factors, against what the tool checked — the gap that package 2 closed
 
-P3 lists **24 factors** in five families. `runDesignChecks` currently tests two things that map to
+> **This table is the ORIGINAL gap analysis, kept as the record of WHY package 2 was built.** Its
+> "Checked today?" column describes the tool **before v19.46**; every row in it now reads yes. Do not
+> read it as current state — `links-fatigue.js` covers every applicable factor and asserts the
+> inapplicable ones. It is left here because the argument for the work is more useful than a table
+> of ticks, and because the "Applies to a CEA rotating link?" column is still the live judgement.
+
+P3 lists **24 factors** in five families. `runDesignChecks` tested two things that map to
 them, and CEAs work no nights, which makes a large part of the list inapplicable:
 
 | Factor | Applies to a CEA rotating link? | Checked today? |
@@ -122,7 +128,8 @@ them, and CEAs work no nights, which makes a large part of the list inapplicable
 | FF10 >4 consecutive 12h day shifts · MRSF >12 consecutive day shifts · >7 consecutive 8h shifts · >55h in any 7 days | Yes | No |
 | FF1, FF3, FF4, FF6, FF8, FF9, FF12, FF14, FF16, FF20, MRSF permanent-pattern rules | **No** — all night-shift or pre-05:00 rules | n/a, but a check should assert they stay n/a |
 
-The gap is the point: Nathan will assess against this list, and the tool currently covers two of it.
+The gap was the point: Nathan assesses against this list, and the tool covered two of it. Closed at
+v19.46 — see package 2 below for what the building actually found.
 
 ## Baseline: what the CURRENT link scores (review pass)
 
@@ -131,15 +138,22 @@ link. That was the wrong order — you cannot read a proposal's numbers without 
 pattern scores, and Nathan will inevitably ask. Measured by running `runDesignChecks` over the live
 `weeklyRoster` and `bilingualRoster`:
 
-| Cycle | Lines | Longest worked stretch | Short turnarounds (<12h) | Weekends off |
-|-------|-------|------------------------|--------------------------|--------------|
-| Main | 20 | **15 days** | **0** | 4/20 (20%) |
-| Bilingual | 8 | **14 days** | **0** | 0/8 |
+| Cycle | Lines | Longest worked stretch | FF11 — longest run between 48h breaks | Short turnarounds (<12h) | Weekends off |
+|-------|-------|------------------------|----------------------------------------|--------------------------|--------------|
+| Main | 20 | 15 days | **15 shifts** | **0** | 4/20 (20%) |
+| Bilingual | 8 | 14 days | **15 shifts** | **0** | 0/8 |
+
+**Those first two columns are DIFFERENT measures and the bilingual cycle is where they diverge.**
+The first draft of this table had only "longest worked stretch" and the paragraph below it called
+the 15 and 14 an FF11 result. They are not: a single rest day is not a 48h break, so it does not
+reset the FF11 count, and the bilingual cycle's 14-day stretch sits inside a 15-shift FF11 run.
+Corrected Aug 2026 against the shipped rule. Quote the FF11 column when the subject is FF11 — that is
+the one Nathan will be reading against the guidance.
 
 Two things fall out of that, and both matter more than anything else in this document:
 
 1. **The current link already exceeds FF11** (">13 consecutive shifts without a 48h break") on both
-   cycles, at 15 and 14 days. SPARE counts as worked, correctly — a standby day is a duty. So the
+   cycles, at **15 shifts each**. SPARE counts as worked, correctly — a standby day is a duty. So the
    proposals do not start from a clean sheet, and any FF11 finding in a new design should be read
    against 15, not against zero. This is the single most useful number to have in the room.
 2. **Zero short turnarounds on either cycle.** The existing link never places a timed late immediately
