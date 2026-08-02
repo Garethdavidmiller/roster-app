@@ -1001,7 +1001,8 @@ body.auth-ready .container { display: grid; }
 /* Print-only design name — set by JS, names the printed sheet */
 .print-design-name { display: none; }
 
-/* Beta notice lightbox — card styling from .notice-lb-content in shared.css */
+/* First-visit notice lightbox — card styling comes entirely from .notice-lb-content in shared.css.
+   No page-local overrides here, deliberately: that is the rule for every notice in the app. */
 
 /* A 28-line link design is a paper artefact — consultations, noticeboards,
    meeting handouts — so unlike settings/operations this page PRINTS its

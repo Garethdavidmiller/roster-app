@@ -410,7 +410,12 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         ['FF14', 'More than 4 consecutive nights in a rotating pattern'],
         ['FF16', 'More than 3 consecutive night shifts over 8h'], ['FF20', 'First night shift'],
     ]) {
-        add({ code, family: 'Night (not applicable)', title,
+        // FAMILY IS 'Night shifts', not 'Night (not applicable)' (v19.52). The family names a group;
+        // whether it APPLIES is per-row `status` and changes with the design. Baking the verdict into
+        // the group name meant the UI, which renders the family as a heading, printed
+        // "Night (not applicable)" above seven rows that had all just turned `present` — an
+        // all-clear headline over the exact state this family exists to make loud.
+        add({ code, family: 'Night shifts', title,
             status: nights.length ? 'present' : 'n/a',
             detail: nights.length ? 'A night duty is present, so this factor now needs assessing.' : undefined });
     }

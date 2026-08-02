@@ -26,6 +26,14 @@ const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS = ROTATING_LINES;
 
 /**
+ * The ORR family whose rows this panel ROLLS UP into one line while they are all not-applicable.
+ * It must equal the `family` string `links-fatigue.js` stamps on those factors — a mismatch would
+ * silently stop the rollup and print seven near-identical rows instead, so it is named once here
+ * rather than written out at each of the three use sites (v19.52).
+ */
+const NIGHT_FAMILY = 'Night shifts';
+
+/**
  * @param {object} deps
  * @param {() => ({ patterns: Record<string, any> } | null)} deps.getDesign - the live active design, or null
  * @param {() => ({ summary: string, detail: string } | null)} [deps.getBaseline] - the current link's profile
@@ -225,7 +233,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         // matches the document the reader will have open beside this.
         let family = '';
         for (const r of fat.results) {
-            if (r.status === 'n/a' && r.family === 'Night (not applicable)') continue;   // rolled up below
+            if (r.status === 'n/a' && r.family === NIGHT_FAMILY) continue;   // rolled up below
             if (r.family !== family) {
                 family = r.family;
                 fatRows.push(`<div class="check-family">${escapeHtml(family)}</div>`);
@@ -243,12 +251,12 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
                 `</div></div>`
             );
         }
-        const nightRolled = fat.results.filter(r => r.family === 'Night (not applicable)');
+        const nightRolled = fat.results.filter(r => r.family === NIGHT_FAMILY);
         if (nightRolled.length && nightRolled.every(r => r.status === 'n/a')) {
             // Its OWN family label. The rollup is emitted after the loop, so without this it lands
             // under whichever family happened to come last and reads as belonging to it.
             fatRows.push(
-                `<div class="check-family">Night shifts</div>`,
+                `<div class="check-family">${escapeHtml(NIGHT_FAMILY)}</div>`,
                 `<div class="check-row check-neutral">${info}<div class="check-body">` +
                 `<span class="check-code">×${nightRolled.length}</span>Night-shift factors do not apply` +
                 `<div class="check-sub">${escapeHtml(nightRolled.map(r => r.code).join(' · '))}` +

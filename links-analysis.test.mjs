@@ -116,3 +116,27 @@ test('every check-row class the panel emits is defined in links.css', () => {
     const missing = [...used].filter(c => !new RegExp(`\\.${c}(?![\\w-])`).test(css));
     assert.deepEqual(missing, [], `class(es) emitted by links-analysis.js with no rule in links.css: ${missing.join(', ')}`);
 });
+
+// The rollup depends on links-analysis.js's NIGHT_FAMILY matching the `family` string
+// links-fatigue.js stamps. A mismatch fails SILENTLY — the rollup simply stops matching and seven
+// near-identical rows print instead — so it is asserted behaviourally rather than by comparing two
+// string literals (v19.52).
+test('the night-shift factors roll up to one row, and lose the rollup when a night appears', () => {
+    const nightless = fullPatterns();
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: nightless }) }).renderDesignChecks();
+    const html = els.checksContent.innerHTML;
+    assert.match(html, /Night-shift factors do not apply/, 'the rollup row must render');
+    assert.equal((html.match(/FF6/g) || []).length, 1, 'FF6 appears once — in the rollup, not as its own row');
+    assert.doesNotMatch(html, /not applicable<\/div>/i, 'no heading may assert a verdict');
+
+    // Give one line a night duty: the rollup must disappear and the factors report individually.
+    const withNight = JSON.parse(JSON.stringify(nightless));
+    withNight['1'].mon = '22:00-06:00';
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: withNight }) }).renderDesignChecks();
+    const html2 = els.checksContent.innerHTML;
+    assert.doesNotMatch(html2, /Night-shift factors do not apply/, 'a night duty must end the rollup');
+    assert.ok((html2.match(/FF6/g) || []).length >= 1, 'FF6 must still be reported');
+    assert.doesNotMatch(html2, /Night \(not applicable\)/, 'the heading must not claim not-applicable over present rows');
+});

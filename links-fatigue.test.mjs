@@ -361,3 +361,33 @@ describe('coversNightWindow is exact, not sampled', () => {
         assert.equal(coversNightWindow('04:59-13:00'), true);
     });
 });
+
+test('the night family is a GROUP NAME, not a verdict (v19.52)', () => {
+    // `family` was 'Night (not applicable)'. links-analysis.js renders the family as a heading, so
+    // the moment a design acquired a night duty — the one state this family exists to make loud —
+    // it printed an all-clear headline over seven rows that had all just turned `present`.
+    // Applicability is per-row `status` and moves with the design; the group name does not.
+    const D = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const mk = (...weeks) => {
+        const p = {};
+        weeks.forEach((w, i) => { p[String(i + 1)] = Object.fromEntries(D.map((d, j) => [d, w[j]])); });
+        return p;
+    };
+    const RD = 'RD';
+    const nightless = assessFatigue(mk(['06:20-14:20', RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, RD]), 2);
+    const withNight = assessFatigue(mk(['22:00-06:00', RD, RD, RD, RD, RD, RD], [RD, RD, RD, RD, RD, RD, RD]), 2);
+
+    for (const [label, res] of [['nightless', nightless], ['withNight', withNight]]) {
+        const fams = new Set(res.results.map(r => r.family));
+        for (const f of fams) {
+            assert.doesNotMatch(f, /not applicable|n\/a|clear|present/i,
+                `${label}: family "${f}" states a verdict — that belongs in status, not the group name`);
+        }
+    }
+    // The family string is STABLE across both states — it is the rows underneath that change.
+    const famOf = (res) => res.results.find(r => r.code === 'FF6').family;
+    assert.equal(famOf(nightless), famOf(withNight));
+    // …and the statuses really do flip, so the test above is not vacuous.
+    assert.equal(nightless.results.find(r => r.code === 'FF6').status, 'n/a');
+    assert.equal(withNight.results.find(r => r.code === 'FF6').status, 'present');
+});
