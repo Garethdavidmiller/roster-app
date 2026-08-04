@@ -221,7 +221,7 @@ export function init() {
     // Generator targets
     /** @type {Array<{time:string, weekday:number, sat:number, sun:number}>} */
     let genSlots = [];
-    let genSpare = { weekday: 0, sat: 0, sun: 0 };
+    let genSpareLines = 0;      // whole LINES that are spare weeks (v19.58) — not a per-day count
 
     // Multi-design state
     /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, updatedBy:string}>} */
@@ -1288,12 +1288,11 @@ export function init() {
             sat:     perDay[time].sat,
             sun:     perDay[time].sun,
         }));
-        const spare = {
-            weekday: Math.max(...weekdays.map(d => spareByDay[d])),
-            sat:     spareByDay.sat,
-            sun:     spareByDay.sun,
-        };
-        return { slots, spare };
+        // Spare is a whole WEEK in the real roster, so the seed is a count of lines, not a per-day
+        // headcount. Every roster source line that is spare is spare on all seven days, so counting
+        // the fully-spare sources gives the right number directly.
+        const spareLines = sources.filter(src => src && DAYS.every(d => src[d] === 'SPARE')).length;
+        return { slots, spareLines };
     }
 
 
@@ -1317,7 +1316,8 @@ export function init() {
     }
 
     function updateGenTotals() {
-        const tot = /** @type {Record<string, any>} */ ({ weekday: genSpare.weekday, sat: genSpare.sat, sun: genSpare.sun });
+        // The spare LINES cannot carry a timed duty, so they are part of every day's total.
+        const tot = /** @type {Record<string, any>} */ ({ weekday: genSpareLines, sat: genSpareLines, sun: genSpareLines });
         for (const s of genSlots) {
             tot.weekday += s.weekday; tot.sat += s.sat; tot.sun += s.sun;
         }
@@ -1343,7 +1343,7 @@ export function init() {
     /** Persist the current target table for the active design. Silent — losing it is a nuisance,
      *  never a failure worth interrupting a designer for. */
     function saveGenTargets() {
-        try { lsSet(_genTargetsKey(), JSON.stringify({ slots: genSlots, spare: genSpare })); }
+        try { lsSet(_genTargetsKey(), JSON.stringify({ slots: genSlots, spareLines: genSpareLines })); }
         catch { /* quota / private mode — the roster seed remains the fallback */ }
     }
 
@@ -1370,14 +1370,18 @@ export function init() {
     /** Put a target table on screen (state + the three spare inputs + the rows). */
     function applyGenTargets(/** @type {any} */ t) {
         genSlots = t.slots;
-        genSpare = t.spare;
+        // Remembered targets predating v19.58 hold a per-day `spare` object. Read the largest of the
+        // three as the line count: it is the day that needed the most cover, so it never LOSES
+        // capacity in the migration. Reading only `weekday` would silently shrink a design whose
+        // Saturday carried more.
+        genSpareLines = Number.isInteger(t.spareLines)
+            ? t.spareLines
+            : Math.max(0, ...Object.values(/** @type {any} */ (t.spare) || {}).map(Number).filter(Number.isFinite));
         const set = (/** @type {string} */ id, /** @type {number} */ n) => {
             const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
             if (el) el.value = String(n);
         };
-        set('genSpareWeekday', genSpare.weekday);
-        set('genSpareSat',     genSpare.sat);
-        set('genSpareSun',     genSpare.sun);
+        set('genSpareLines', genSpareLines);
         renderGenTable();
     }
 
@@ -1429,9 +1433,10 @@ export function init() {
             saveGenTargets();
         });
 
-        for (const [id, cls] of [['genSpareWeekday', 'weekday'], ['genSpareSat', 'sat'], ['genSpareSun', 'sun']]) {
+        for (const [id, cls] of [['genSpareLines', 'lines']]) {
             document.getElementById(id)?.addEventListener('input', e => {
-                (/** @type {Record<string, any>} */ (genSpare))[cls] = Math.max(0, parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10) || 0);
+                void cls;
+                genSpareLines = Math.max(0, parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10) || 0);
                 updateGenTotals();
                 saveGenTargets();
             });
@@ -1445,11 +1450,9 @@ export function init() {
 
         document.getElementById('genSeedBtn')?.addEventListener('click', () => {
             // Re-seeding is an explicit "forget my tuning" — persist the roster values over it.
-            ({ slots: genSlots, spare: genSpare } = buildRosterTargets());
+            ({ slots: genSlots, spareLines: genSpareLines } = buildRosterTargets());
             saveGenTargets();
-            /** @type {HTMLInputElement} */ (document.getElementById('genSpareWeekday')).value = String(genSpare.weekday);
-            /** @type {HTMLInputElement} */ (document.getElementById('genSpareSat')).value     = String(genSpare.sat);
-            /** @type {HTMLInputElement} */ (document.getElementById('genSpareSun')).value     = String(genSpare.sun);
+            /** @type {HTMLInputElement} */ (document.getElementById('genSpareLines')).value = String(genSpareLines);
             renderGenTable();
             const errEl = document.getElementById('genError');
             if (errEl) errEl.textContent = '';
@@ -1474,7 +1477,7 @@ export function init() {
                 return;
             }
 
-            const generated = generatePatterns({ slots: genSlots, spare: genSpare, lines: ROTATING_LINES });
+            const generated = generatePatterns({ slots: genSlots, spareLines: genSpareLines, lines: ROTATING_LINES });
             if (!generated) {
                 if (errEl) errEl.textContent = `Can't generate — check every row has a valid time and whole-number targets.`;
                 return;

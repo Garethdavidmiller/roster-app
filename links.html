@@ -246,11 +246,14 @@
                             </thead>
                             <tbody id="genSlotRows"></tbody>
                             <tfoot>
+                                <!-- ONE number, not three (v19.58). A spare line is spare for the
+                                     WHOLE week — you are cover, you work four days of it, and you can
+                                     be put on any range of shifts — so it is a count of lines, not a
+                                     per-day headcount. The real roster is built this way: main lines
+                                     1, 7, 12 and 17 are SPARE on all seven days. -->
                                 <tr class="gen-spare-row">
-                                    <td class="gen-td-label">Spare (standby)</td>
-                                    <td><input type="number" id="genSpareWeekday" class="gen-input" min="0" max="28" value="0" aria-label="Spare target Mon–Fri"></td>
-                                    <td><input type="number" id="genSpareSat" class="gen-input" min="0" max="28" value="0" aria-label="Spare target Saturday"></td>
-                                    <td><input type="number" id="genSpareSun" class="gen-input" min="0" max="28" value="0" aria-label="Spare target Sunday"></td>
+                                    <td class="gen-td-label">Spare weeks<span class="gen-td-note">whole lines on standby</span></td>
+                                    <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="27" value="0" aria-label="How many whole lines are spare weeks"><span class="gen-td-note">of 28 lines</span></td>
                                     <td></td>
                                 </tr>
                                 <tr class="gen-total-row">

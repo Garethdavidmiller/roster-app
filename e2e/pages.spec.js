@@ -1427,4 +1427,16 @@ test('links window: generating the FIRST design reveals the window editor', asyn
     // than trusted to a reviewer noticing the call site grew a third responsibility.
     await expect(page.locator('#linksSummary .sum-chip')).toHaveCount(3);
     await expect(page.locator('.cov-demand')).toBeVisible();
+
+    // SPARE IS A WHOLE WEEK (v19.58, owner). A spare line is spare on all seven days — you are cover,
+    // you work four days of it, and you can be put on any range of shifts. The previous per-day model
+    // produced the right daily SP HEADCOUNT while scattering those days across different people,
+    // which is a shape the real roster has never had; the correct total is exactly why it went
+    // unnoticed. Asserted on the rendered grid, because that is where the distribution is visible.
+    const spareDays = await page.evaluate(() => [...document.querySelectorAll('#linksGridBodyRows tr')]
+        .map(r => [...r.querySelectorAll('.shift-cell-btn')].filter(b => b.textContent.trim() === 'SP').length));
+    expect(spareDays.every(n => n === 0 || n === 7),
+        `every line is spare all week or not at all — got ${spareDays.join(',')}`).toBe(true);
+    expect(spareDays.filter(n => n === 7).length,
+        'the roster seed has four spare weeks').toBe(4);
 });

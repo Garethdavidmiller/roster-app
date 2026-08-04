@@ -276,12 +276,18 @@ It is computed over `weeklyRoster` (20 lines) and `bilingualRoster` (8) **at the
 splicing them into one 28 reports a longest run of 19, which is a property of the join and not of
 either roster.
 
-### Auto-generator (v12.39, slot-based v12.40)
-**The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus a spare row.
+### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
+**The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
+
+**SPARE IS A WHOLE WEEK, NOT A SCATTER OF DAYS** (owner, Aug 2026). A spare line is spare on all seven days: you are cover, you work four days of that week, and you can be put on any range of shifts. The real roster is built this way — main lines **1, 7, 12, 17** are `SPARE` on every day, bilingual **1 and 8**, and there is not one scattered spare day anywhere in it.
+
+The previous model took a per-day-class spare HEADCOUNT and fed it to the rotating window as one more segment. Because the window slides daily, that gave each person spare on some days and a timed duty on others. **The daily SP headcount came out right, which is why it went unnoticed** — the total was correct and the distribution was wrong. `spareLines` whole lines are now reserved and spread evenly around the wheel, and the rotation is built over the remainder; daily targets are still met exactly, and every day shows the same SP count, as the real roster does.
+
+Two consequences worth knowing: the targets are validated against the **working** lines (`lines − spareLines`), so a total that fits in 28 can still be refused; and a spare week counts as **7 worked days** in the run-length check although the person works four of them — we do not know which three are rest, and over-reporting a run is the safe direction for a fatigue check.
 
 The table is **seeded from the current roster** on page load via `buildRosterTargets()` (main 20 weeks + the 2 BL lines; weekday count = busiest Mon–Fri day); `↺ Reset targets from current roster` re-seeds.
 
-`generatePatterns({ slots, spare, lines: 28 })` uses a rotating-window construction: window slides forward completing one lap per week; within the window slots are ordered latest-start at front, earliest at back, spare in the middle — so each person's week only moves later (never a late finish then early start; asserted by tests). Daily targets are met exactly; any day-class total > 28 is rejected. Generator writes all 28 lines.
+`generatePatterns({ slots, spareLines, lines: 28 })` uses a rotating-window construction: window slides forward completing one lap per week **over the working lines**; within the window slots are ordered latest-start at front, earliest at back — so each person's week only moves later (never a late finish then early start; asserted by tests). Daily targets are met exactly; any day-class total > 28 is rejected. Generator writes all 28 lines.
 
 **Do not add back** `buildDefaultDesign`, `initFromRosters`, or `resetFromRosters` — those paths were removed at v12.43 because they copied raw 22-line roster patterns leaving lines 23–28 as all-RD blanks. The generator produces a complete 28-line rotation.
 

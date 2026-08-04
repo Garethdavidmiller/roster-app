@@ -257,45 +257,61 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
  * Daily targets are met EXACTLY by construction (the window size equals the
  * target headcount for that day).
  *
+ * SPARE IS A WHOLE WEEK, NOT A SCATTER OF DAYS (v19.58, owner). A spare line is
+ * spare on all seven days: you are cover, you work four days of that week, and
+ * you can be put on any range of shifts. The real roster is built this way —
+ * main lines 1, 7, 12 and 17 are `SPARE` on every day, and there is not one
+ * scattered spare day anywhere in it.
+ *
+ * The previous model took a per-day-class spare HEADCOUNT and fed it to the
+ * window as one more segment. Because the window slides daily, that gave each
+ * person spare on some days and a timed duty on others — the opposite of a
+ * spare week, and a shape the roster has never had. Daily SP headcount came out
+ * right, which is why it went unnoticed: the total was correct and the
+ * distribution was wrong.
+ *
+ * So `spareLines` whole lines are reserved and spread evenly around the wheel,
+ * and the rotation is built over the REMAINING lines. Daily targets are still
+ * met exactly — the working lines carry them — and every day now shows exactly
+ * `spareLines` on standby, as the real roster does.
+ *
  * @param {Object} opts
  * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
  *   - one entry per distinct shift time, with target headcounts per day class
- * @param {{weekday:number, sat:number, sun:number}} [opts.spare] - standby targets
+ * @param {number} [opts.spareLines=0] - how many WHOLE lines are spare weeks
  * @param {number} [opts.lines=28]
  * @returns {Object|null} patterns for "1".."lines", or null if invalid /
- *   any day-class total exceeds lines
+ *   any day-class total exceeds the working lines
  */
-export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }, lines = ROTATING_LINES }) {
+export function generatePatterns({ slots, spareLines = 0, lines = ROTATING_LINES }) {
     if (!Array.isArray(slots) || slots.length === 0) return null;
-    const _spare = /** @type {Record<string, any>} */ (spare);
+    if (!Number.isInteger(spareLines) || spareLines < 0 || spareLines >= lines) return null;
+
+    const working = lines - spareLines;
     const classes = ['weekday', 'sat', 'sun'];
     for (const cls of classes) {
-        let total = _spare[cls] ?? 0;
-        if (!Number.isInteger(total) || total < 0) return null;
+        let total = 0;
         for (const s of /** @type {Array<Record<string, any>>} */ (slots)) {
             const n = s[cls] ?? 0;
             if (!Number.isInteger(n) || n < 0) return null;
             if (startMinutes(s.time) === null) return null;
             total += n;
         }
-        if (total > lines) return null;
+        // The spare lines cannot carry a timed duty, so the targets have to fit
+        // in what is left. Checked against `working`, not `lines`.
+        if (total > working) return null;
     }
 
-    // Front-to-back window order: latest start first, earliest last, spare in
-    // the middle. A person's position moves front-ward through their week, so
-    // they progress earliest → spare → latest across the days they work.
-    const sorted = [.../** @type {Array<Record<string, any>>} */ (slots)].sort((a, b) => /** @type {number} */ (startMinutes(b.time)) - /** @type {number} */ (startMinutes(a.time)));
-    const mid = Math.floor(sorted.length / 2);
-    const segdefs = [
-        ...sorted.slice(0, mid),
-        { isSpare: true },
-        ...sorted.slice(mid),
-    ];
+    // Front-to-back window order: latest start first, earliest last. A person's
+    // position moves front-ward through their week, so they progress earliest →
+    // latest across the days they work — a forward, body-clock-friendly rotation.
+    const sorted = [.../** @type {Array<Record<string, any>>} */ (slots)]
+        .sort((a, b) => /** @type {number} */ (startMinutes(b.time)) - /** @type {number} */ (startMinutes(a.time)));
 
-    // Window start positions: strides sum to `lines` across the 7 days so the
-    // wheel completes exactly one lap per week (the rotation is seamless).
-    const base = Math.floor(lines / 7);
-    const rem  = lines - base * 7;
+    // Window start positions: strides sum to `working` across the 7 days so the
+    // wheel completes exactly one lap per week over the WORKING lines.
+    const base = Math.floor(working / 7);
+    const rem  = working - base * 7;
     /** @type {number[]} */
     const starts = [];
     let acc = 0;
@@ -304,24 +320,36 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
         acc += base + (i < rem ? 1 : 0);
     }
 
+    // Which of the `lines` rows are spare weeks — spread evenly around the wheel,
+    // as the real roster does (main: 1, 7, 12, 17 of 20).
+    const spareRows = new Set();
+    for (let i = 0; i < spareLines; i++) spareRows.add(Math.round((i * lines) / spareLines) + 1);
+
     /** @type {Record<string, any>} */
     const patterns = {};
+    let wIndex = 0;                       // position of this row within the working rotation
     for (let row = 1; row <= lines; row++) {
         /** @type {Record<string, any>} */
         const p = {};
+        if (spareRows.has(row)) {
+            for (const d of DAYS) p[d] = 'SPARE';
+            patterns[String(row)] = p;
+            continue;
+        }
         DAYS.forEach((d, i) => {
             const cls = dayClass(d);
-            const pos = (((row - 1) - starts[i]) % lines + lines) % lines;
+            const pos = ((wIndex - starts[i]) % working + working) % working;
             let cum = 0;
             let val = 'RD';
-            for (const seg of /** @type {Array<Record<string, any>>} */ (segdefs)) {
-                const n = ('isSpare' in seg) ? (_spare[cls] ?? 0) : (seg[cls] ?? 0);
-                if (pos < cum + n) { val = ('isSpare' in seg) ? 'SPARE' : seg.time; break; }
+            for (const seg of /** @type {Array<Record<string, any>>} */ (sorted)) {
+                const n = seg[cls] ?? 0;
+                if (pos < cum + n) { val = seg.time; break; }
                 cum += n;
             }
             p[d] = val;
         });
         patterns[String(row)] = p;
+        wIndex++;
     }
     return patterns;
 }

@@ -109,10 +109,10 @@ const SLOTS = [
     { time: '11:00-19:30', weekday: 2, sat: 1, sun: 1 },
     { time: '15:15-23:55', weekday: 4, sat: 3, sun: 2 },
 ];
-const SPARE = { weekday: 3, sat: 2, sun: 1 };
+const SPARE_LINES = 4;   // whole spare WEEKS (v19.58) — a count of lines, not a per-day headcount
 
 test('generatePatterns meets every day-class target exactly', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
     assert.ok(patterns);
     for (const d of DAYS) {
         const cls = dayClass(d);
@@ -126,12 +126,44 @@ test('generatePatterns meets every day-class target exactly', () => {
         for (const slot of SLOTS) {
             assert.equal(counts[slot.time] || 0, slot[cls], `${slot.time} on ${d}`);
         }
-        assert.equal(spare, SPARE[cls], `spare on ${d}`);
+        // Every day shows the SAME spare headcount, because a spare line is spare all week. That
+        // equality across day classes is the whole change: the per-day model could and did produce
+        // a different figure each day, which the real roster never has.
+        assert.equal(spare, SPARE_LINES, `spare on ${d}`);
     }
 });
 
+test('a spare line is spare on ALL SEVEN DAYS — never a scattered spare day', () => {
+    // The defect this replaced (v19.58, owner): the rotating window slid daily and carried spare as
+    // one more segment, so a person was spare on some days and on a timed duty on others. The daily
+    // SP headcount came out right, which is why it went unnoticed — the total was correct and the
+    // distribution was wrong. The real roster has whole spare weeks only: main lines 1, 7, 12 and 17
+    // are SPARE on every day and there is not one scattered spare day in it.
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+    let full = 0;
+    for (let w = 1; w <= 28; w++) {
+        const days = DAYS.map(d => patterns[String(w)][d]);
+        const n = days.filter(v => v === 'SPARE').length;
+        assert.ok(n === 0 || n === 7, `line ${w} has ${n} spare days — a spare line is a whole WEEK`);
+        if (n === 7) full++;
+    }
+    assert.equal(full, SPARE_LINES);
+});
+
+test('spare weeks are spread around the wheel, not bunched', () => {
+    // The real roster puts them at 1, 7, 12, 17 of 20 — roughly every fifth line. Bunched spare
+    // weeks would give one person two cover weeks back to back and everyone else none for months.
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+    const rows = [];
+    for (let w = 1; w <= 28; w++) if (patterns[String(w)].mon === 'SPARE') rows.push(w);
+    assert.equal(rows.length, SPARE_LINES);
+    const gaps = rows.map((r, i) => (i ? r - rows[i - 1] : r + 28 - rows[rows.length - 1]));
+    const ideal = 28 / SPARE_LINES;
+    for (const g of gaps) assert.ok(Math.abs(g - ideal) <= 1, `gap ${g} against an even ${ideal}`);
+});
+
 test('generatePatterns produces all 28 lines with all 7 days', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
     for (let w = 1; w <= 28; w++) {
         const p = patterns[String(w)];
         assert.ok(p, `line ${w}`);
@@ -140,7 +172,7 @@ test('generatePatterns produces all 28 lines with all 7 days', () => {
 });
 
 test('generatePatterns never produces a short turnaround (forward body-clock rotation)', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
     const checks = runDesignChecks(patterns, 28);
     assert.equal(checks.turnarounds.length, 0,
         `expected no turnarounds, got: ${JSON.stringify(checks.turnarounds)}`);
@@ -149,12 +181,25 @@ test('generatePatterns never produces a short turnaround (forward body-clock rot
 test('generatePatterns rejects totals over the line count', () => {
     const big = [{ time: '06:20-14:20', weekday: 29, sat: 0, sun: 0 }];
     assert.equal(generatePatterns({ slots: big, lines: 28 }), null);
-    // spare pushes it over
+    // Spare LINES reduce what is left to carry the targets, so a total that would fit in 28 can
+    // still be refused — 26 duties cannot fit in the 25 working lines left by 3 spare weeks.
     assert.equal(generatePatterns({
         slots: [{ time: '06:20-14:20', weekday: 26, sat: 0, sun: 0 }],
-        spare: { weekday: 3, sat: 0, sun: 0 },
+        spareLines: 3,
         lines: 28,
     }), null);
+    // …and it fits with one fewer spare week.
+    assert.ok(generatePatterns({
+        slots: [{ time: '06:20-14:20', weekday: 26, sat: 0, sun: 0 }],
+        spareLines: 2,
+        lines: 28,
+    }));
+});
+
+test('generatePatterns rejects an impossible spare-line count', () => {
+    assert.equal(generatePatterns({ slots: SLOTS, spareLines: 28, lines: 28 }), null);   // nothing left to work
+    assert.equal(generatePatterns({ slots: SLOTS, spareLines: -1, lines: 28 }), null);
+    assert.equal(generatePatterns({ slots: SLOTS, spareLines: 1.5, lines: 28 }), null);
 });
 
 test('generatePatterns rejects invalid input', () => {
@@ -172,7 +217,7 @@ test('generatePatterns accepts a many-slot wave profile (real roster shape)', ()
         '13:30-22:00', '14:00-22:30', '15:00-23:30', '15:15-23:55',
     ].map(time => ({ time, weekday: 1, sat: 1, sun: 1 }));
     waves[2].weekday = 2; // 06:20-14:20 ×2
-    const patterns = generatePatterns({ slots: waves, spare: { weekday: 4, sat: 4, sun: 4 }, lines: 28 });
+    const patterns = generatePatterns({ slots: waves, spareLines: 4, lines: 28 });
     assert.ok(patterns);
     const checks = runDesignChecks(patterns, 28);
     assert.equal(checks.turnarounds.length, 0);
