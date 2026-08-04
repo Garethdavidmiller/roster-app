@@ -16,7 +16,7 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { initCardCollapse, createLightbox, confirmDialog, promptDialog } from './overlay.js';
+import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -1942,7 +1942,10 @@ export function init() {
             },
         });
 
-        welcome.open();
+        // Not `welcome.open()`: a one-time notice must never open stacked with another overlay —
+        // if it did, one Escape used to dismiss both and the buried one was flagged seen for good.
+        // Deferring leaves it unopened AND unflagged, so it gets its turn on the next load.
+        openNoticeIfClear(welcome);
     })();
 
     // ============================================
