@@ -16,11 +16,11 @@ describe('DEC_2026_DEMAND — the measured profile', () => {
 
     test('totals match the published measurement', () => {
         assert.equal(sum(DEC_2026_DEMAND.weekday.mv), 311);
-        assert.equal(sum(DEC_2026_DEMAND.weekday.cars), 1758);
+        assert.equal(sum(DEC_2026_DEMAND.weekday.cars), 1756);
         assert.equal(sum(DEC_2026_DEMAND.sat.mv), 215);
-        assert.equal(sum(DEC_2026_DEMAND.sat.cars), 1270);
+        assert.equal(sum(DEC_2026_DEMAND.sat.cars), 1266);
         assert.equal(sum(DEC_2026_DEMAND.sun.mv), 188);
-        assert.equal(sum(DEC_2026_DEMAND.sun.cars), 1063);
+        assert.equal(sum(DEC_2026_DEMAND.sun.cars), 1059);
     });
 
     test('every day class carries 24 hours of both figures', () => {
@@ -43,15 +43,38 @@ describe('DEC_2026_DEMAND — the measured profile', () => {
         }
     });
 
-    test('mean train length is plausible on every populated hour (3–9 cars)', () => {
-        // Max CAO runs 3 to 9. A mean outside that range means movements and cars have drifted apart.
+    test('EVERY movement carries a possible train length (3–9 cars)', () => {
+        // Max CAO runs 3 to 9 — that is the route, not a guess. Checked per MOVEMENT, deliberately:
+        // the first version of this test checked each hour's MEAN, and a single impossible value
+        // smooths away in a bucket of a dozen movements. It did: three arrivals carried 11, 13 and
+        // 13 cars from the diagram-sum recovery (a cell listing two unit diagrams) and this test was
+        // green over all three.
         for (const cls of ['weekday', 'sat', 'sun']) {
-            for (let h = 0; h < 24; h++) {
-                const mv = DEC_2026_DEMAND[cls].mv[h];
-                if (!mv) continue;
-                const mean = DEC_2026_DEMAND[cls].cars[h] / mv;
-                assert.ok(mean >= 3 && mean <= 9, `${cls} ${h}: mean ${mean.toFixed(1)} cars`);
+            for (const [t, cars, isArr] of DEC_2026_MOVEMENTS[cls]) {
+                assert.ok(cars >= 3 && cars <= 9,
+                    `${cls} ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} ` +
+                    `${isArr ? 'arr' : 'dep'} — ${cars} cars is not a possible train length`);
             }
+        }
+    });
+
+    test('the derived hourly curve agrees with the movements it came from', () => {
+        // The curve is DERIVED, so this should be true by construction — which is exactly why it is
+        // worth pinning: if anyone ever reintroduces a hand-written hourly table beside the times,
+        // this is what notices, and nothing else would.
+        for (const cls of ['weekday', 'sat', 'sun']) {
+            assert.equal(sum(DEC_2026_DEMAND[cls].mv), DEC_2026_MOVEMENTS[cls].length, cls);
+            assert.equal(sum(DEC_2026_DEMAND[cls].cars),
+                DEC_2026_MOVEMENTS[cls].reduce((a, x) => a + x[1], 0), cls);
+        }
+    });
+
+    test('movements are sorted and within the day', () => {
+        for (const cls of ['weekday', 'sat', 'sun']) {
+            const t = DEC_2026_MOVEMENTS[cls].map(x => x[0]);
+            assert.deepEqual(t, [...t].sort((a, b) => a - b), cls);
+            assert.ok(t.every(v => v >= 0 && v < 1440), cls);
+            assert.ok(DEC_2026_MOVEMENTS[cls].every(x => x[2] === 0 || x[2] === 1), cls);
         }
     });
 

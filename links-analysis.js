@@ -8,7 +8,8 @@
  * patterns and write to their own container, so they carry none of the coordinator's save /
  * concurrency / dirty state. That is what makes this a clean first extraction.
  *
- * `initLinksAnalysis({ getDesign, getBaseline })` returns `{ renderCoverageChart, renderDesignChecks }`.
+ * `initLinksAnalysis({ getDesign, getBaseline })` returns `{ renderCoverageChart, renderDesignChecks,
+ * renderSummary }` — the third being the live strip in the grid card's sticky bar (v19.57).
  * The coordinator passes a getter for the live active design (or null) and calls the two renderers on
  * every pattern change. `getBaseline` (v19.46) supplies the CURRENT link's fatigue profile so a
  * design's findings can be read against what today's roster already scores — without it, a proposal
@@ -61,7 +62,7 @@ const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0'
  * @param {object} deps
  * @param {() => ({ patterns: Record<string, any>, window?: any } | null)} deps.getDesign - the live active design, or null
  * @param {() => ({ summary: string, detail: string } | null)} [deps.getBaseline] - the current link's profile
- * @returns {{ renderCoverageChart: () => void, renderDesignChecks: () => void }}
+ * @returns {{ renderCoverageChart: () => void, renderDesignChecks: () => void, renderSummary: () => void }}
  */
 export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
     /** Hourly on-duty heat map for the active design (or the empty-state message). */
@@ -145,7 +146,14 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             : '';
 
         wrap.innerHTML =
-            `<div class="cov-heat-wrap"><table class="cov-heat">` +
+            // `tabindex="0"` + a role and name, because below 1024px this wrapper scrolls
+            // horizontally (`overflow-x: auto`; desktop drops it for the sticky thead) and contains
+            // nothing focusable — every cell is a `<td>`. A keyboard user could therefore never
+            // reach the later hours at all. Caught the day the axe gate was first pointed at a
+            // LOADED page: the violation is older than the demand rows, it had simply never been
+            // scanned, because the gate only ever rendered the empty state.
+            `<div class="cov-heat-wrap" tabindex="0" role="region" aria-label="Coverage and demand by hour">` +
+            `<table class="cov-heat">` +
             `<thead><tr><th class="cov-heat-day"></th>${hourTh.join('')}<th class="cov-heat-spare-h">SP</th></tr></thead>` +
             `<tbody>${rows}</tbody>` +
             demandBody(sum, minH, maxH) +
@@ -269,6 +277,68 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             `${escapeHtml(DEC_2026_SOURCE.detail)}</span></p>`;
     }
 
+    /**
+     * The live summary in the grid card's sticky bar (v19.57) — three figures and a way down.
+     *
+     * WHY IT EXISTS. The grid card is ~1,400px tall and the Coverage and Design-checks cards start
+     * ~1,600px and ~2,300px below the fold (measured at 1440x900). Editing therefore meant: paint a
+     * cell, scroll two screens to read the effect, scroll two screens back. The analysis already
+     * updated live — you just could not see it happen, which for an inherently iterative task is the
+     * single biggest drag on the tool.
+     *
+     * WHICH THREE, and why not others. They are the three that change what you do next:
+     *   1. lines still undesigned — nothing else means anything until this is zero;
+     *   2. staffed hours with trains and nobody on duty — the cover-versus-service finding;
+     *   3. fatigue factors PRESENT — `standing` is deliberately excluded, because an unavoidable
+     *      characteristic of the operation is not something an edit can improve, and putting it in a
+     *      number the designer is trying to drive down would be telling them to chase the
+     *      unchaseable.
+     * Deliberately NOT a score. Same rule as the panels it summarises: show, do not decide.
+     *
+     * IT RECOMPUTES rather than reading what the other two renderers worked out. That is duplicated
+     * WORK, not duplicated LOGIC — every figure still comes from the one pure function that owns it —
+     * and it buys order-independence: sharing state between the three would make the strip silently
+     * wrong whenever a caller ran them in a different order, which is exactly the kind of bug that
+     * renders fine and tells nobody. Over 28 lines the cost is microseconds.
+     */
+    function renderSummary() {
+        const el = document.getElementById('linksSummary');
+        if (!el) return;
+        const design = getDesign();
+        if (!design) { el.hidden = true; el.innerHTML = ''; return; }
+        el.hidden = false;
+
+        const checks = runDesignChecks(design.patterns, ROTATING_LINES);
+        const hourly = calcHourlyCoverage(design.patterns, TOTAL_POS);
+        const win = normaliseWindow(design.window);
+        const sum = summariseDemand({
+            profile: DEC_2026_DEMAND,
+            movements: DEC_2026_MOVEMENTS,
+            hourly,
+            days: DAYS,
+            windowFor: (day) => minutesOf(windowForDay(win, day)),
+        });
+        const fat = assessFatigue(design.patterns, ROTATING_LINES);
+
+        const chip = (/** @type {string} */ state, /** @type {string} */ icon,
+            /** @type {string|number} */ value, /** @type {string} */ label) =>
+            `<span class="sum-chip sum-chip--${state}"><span aria-hidden="true">${icon}</span>` +
+            `<strong>${escapeHtml(String(value))}</strong> ${escapeHtml(label)}</span>`;
+
+        const unfilled = checks.unfilledLines.length;
+        el.innerHTML =
+            (unfilled
+                ? chip('bad', '✗', unfilled, unfilled === 1 ? 'line undesigned' : 'lines undesigned')
+                : chip('ok', '✓', ROTATING_LINES, 'lines designed'))
+            + (sum.uncovered.length
+                ? chip('bad', '⛔', sum.uncovered.length, 'hours uncovered')
+                : chip('ok', '✓', 'All', 'service covered'))
+            + (fat.present
+                ? chip('warn', '⚠', fat.present, 'fatigue factors')
+                : chip('ok', '✓', 'No', 'fatigue factors'))
+            + `<a class="sum-jump btn-text-link" href="#coverageCard">Full analysis ↓</a>`;
+    }
+
     /** Traffic-light design quality checks for the active design (or the empty-state message). */
     function renderDesignChecks() {
         const design = getDesign();
@@ -376,10 +446,15 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         // rows rather than having to tally 24 icons. `standing` is reported separately from
         // `present` on purpose — an unavoidable characteristic of the operation is not a finding
         // about this design, and adding the two together would say it was.
+        // `clear` joins the headline counts (v19.57): the clear rows are now behind a disclosure, so
+        // without it the heading would understate how much was actually checked — which is the exact
+        // false-assurance failure running the other way.
+        const quietCount = fat.results.filter(r => r.status === 'clear' || r.status === 'n/a').length;
         const meta = [
             `${fat.present} present`,
             fat.standing ? `${fat.standing} standing` : '',
             fat.confirmNeeded ? `${fat.confirmNeeded} to confirm` : '',
+            quietCount ? `${quietCount} clear` : '',
         ].filter(Boolean).join(' · ');
 
         fatRows.push(
@@ -397,12 +472,30 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         // this panel follows that grouping — but with the families invisible, the code column read as
         // shuffled (FF11 then FF10 then MRSF then FF17). Naming them costs a quiet line per group and
         // matches the document the reader will have open beside this.
-        let family = '';
+        // Rows that report NOTHING TO REPORT — `clear` and `n/a` — are pulled out into a disclosure
+        // rather than printed inline (v19.57). Measured, the card ran 1,799px: 24 rows of which 16
+        // said nothing had happened, so the 8 real findings were diluted five to one and you scrolled
+        // a card taller than the grid it describes to reach them.
+        //
+        // THIS DOES NOT WEAKEN THE "SILENCE IS NOT COMPLIANCE" RULE, and it must not be allowed to.
+        // Three things keep it honest: the counts stay in the always-visible section heading (with
+        // `clear` now among them, which it was not before); the disclosure is labelled with what is
+        // inside and is one click away; and CLEAR and NOT-APPLICABLE keep their separate icons and
+        // wording inside it, because "we checked and it is fine" and "this cannot apply here" are
+        // still two different answers. What is hidden is the PROSE, never the fact of the check.
+        //
+        // `present` and `standing` always render inline. Standing is not a finding, but it IS a real
+        // characteristic of the operation, and the assessing manager will ask about it.
+        const quietRows = /** @type {string[]} */ ([]);
+        let family = '', quietFamily = '';
         for (const r of fat.results) {
             if (r.status === 'n/a' && r.family === NIGHT_FAMILY) continue;   // rolled up below
-            if (r.family !== family) {
-                family = r.family;
-                fatRows.push(`<div class="check-family">${escapeHtml(family)}</div>`);
+            const quiet = r.status === 'clear' || r.status === 'n/a';
+            const into = quiet ? quietRows : fatRows;
+            const seen = quiet ? quietFamily : family;
+            if (r.family !== seen) {
+                if (quiet) quietFamily = r.family; else family = r.family;
+                into.push(`<div class="check-family">${escapeHtml(r.family)}</div>`);
             }
             // A count of 0 on a NOT-APPLICABLE row is noise dressed as data — "FF1 Night shift
             // covering 00:00–05:00 — 0" invites the reader to weigh a number that only means the
@@ -410,24 +503,36 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             const showVal = r.status !== 'n/a' && r.value !== undefined && r.value !== '';
             const val = showVal ? ` — <strong>${escapeHtml(String(r.value))}</strong>` : '';
             const conf = r.confirm ? ` <span class="check-note">(definition to confirm)</span>` : '';
-            fatRows.push(
+            into.push(
                 `<div class="check-row ${CLS[r.status]}">${ICON[r.status]}<div class="check-body">` +
                 `<span class="check-code">${escapeHtml(r.code)}</span>${escapeHtml(r.title)}${val}${conf}` +
                 (r.detail ? `<div class="check-sub">${escapeHtml(r.detail)}</div>` : '') +
                 `</div></div>`
             );
         }
+        // The night-family rollup belongs INSIDE the disclosure, not beside it (v19.57). With it
+        // outside, the heading counted 17 clear while the disclosure label said 10 — both true (the
+        // other 7 were in the rollup) and impossible to reconcile by looking. Everything that reports
+        // "nothing to report" now lives in one place, so the two numbers agree.
         const nightRolled = fat.results.filter(r => r.family === NIGHT_FAMILY);
         if (nightRolled.length && nightRolled.every(r => r.status === 'n/a')) {
-            // Its OWN family label. The rollup is emitted after the loop, so without this it lands
-            // under whichever family happened to come last and reads as belonging to it.
-            fatRows.push(
+            quietRows.push(
                 `<div class="check-family">${escapeHtml(NIGHT_FAMILY)}</div>`,
                 `<div class="check-row check-neutral">${info}<div class="check-body">` +
                 `<span class="check-code">×${nightRolled.length}</span>Night-shift factors do not apply` +
                 `<div class="check-sub">${escapeHtml(nightRolled.map(r => r.code).join(' · '))}` +
                 ` — no duty reaches into 00:00–05:00. These become live the moment one does.</div>` +
                 `</div></div>`
+            );
+        }
+
+        if (quietRows.length) {
+            const n = fat.results.filter(r => r.status === 'clear' || r.status === 'n/a').length;
+            fatRows.push(
+                `<details class="check-quiet"><summary class="check-quiet-summary">` +
+                `<span class="check-quiet-label">${n} factor${n === 1 ? '' : 's'} with nothing to report</span>` +
+                `<span class="check-note">checked, and either clear or not applicable</span>` +
+                `</summary><div class="check-quiet-body">${quietRows.join('')}</div></details>`
             );
         }
 
@@ -445,5 +550,5 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         content.innerHTML = `<div class="check-rows">${rows.join('')}${fatRows.join('')}</div>`;
     }
 
-    return { renderCoverageChart, renderDesignChecks };
+    return { renderCoverageChart, renderDesignChecks, renderSummary };
 }

@@ -190,7 +190,28 @@ The station is staffed in **waves** (opens ~06:20, morning build 07:00–08:30, 
 - **Ask the boundary question to the MINUTE, never by the hour.** This shipped broken once. Sunday closes at 23:25, so `isHourStaffed('sun', 23)` is TRUE and an hour-level test reported the five post-23:25 movements as fully covered — the one live finding the feature exists for, invisible in it, with a green unit test that used a synthetic whole-hour window. `summariseDemand` takes the window in **minutes**, and the profile stores **times**, not hourly buckets, precisely so the hourly question cannot be asked by accident.
 - The `dem-shut` cell marker comes from the same summary the prose reads, so a marked cell and a named movement can never disagree. It marks hour 06 as well as hour 23 — three weekday trains run before the 06:20 opening.
 
-### Design checks (v12.39, completeness added v12.41; fatigue factors added v19.46)
+### The sticky summary bar (v19.57)
+
+The grid card's save row is `position: sticky; bottom: 0` and carries three live figures plus a jump
+link. **It exists because the feedback loop was broken by distance**: the grid card is ~1,400px tall
+and the Coverage and Design-checks cards start ~1,600px and ~2,300px below the fold (measured at
+1440×900), so editing meant paint a cell → scroll two screens → read → scroll two screens back. The
+analysis already updated live; you could not see it happen.
+
+- **Which three, and why not others.** Lines still undesigned (nothing else matters until it is zero),
+  staffed hours with trains and nobody on duty, and fatigue factors **present**. `standing` is
+  deliberately excluded — an unavoidable characteristic of the operation is not something an edit can
+  improve, and putting it in a number the designer is trying to drive down tells them to chase the
+  unchaseable. It is **not a score**, for the same reason the panels it summarises are not.
+- **`renderSummary` recomputes rather than reading the other renderers' results.** Duplicated WORK,
+  not duplicated LOGIC — each figure still comes from the one pure function that owns it — bought in
+  exchange for order-independence. Shared state would make the strip silently wrong whenever a caller
+  ran the three renderers in a different order, which renders fine and tells nobody.
+- `sticky` works here without a scroll container because the card uses `overflow: clip` at ≥1024px
+  (chosen for the sticky `thead` precisely because it does NOT create one). The bar keeps its place in
+  flow, so it can never cover the last grid row.
+
+### Design checks (v12.39, completeness added v12.41; fatigue factors added v19.46; quiet rows collapsed v19.57)
 
 The card has **two halves**. The first is `runDesignChecks(patterns, 28)`:
 - **Unfilled lines** (any line that is entirely rest days is *not yet designed*, not a vacancy)
@@ -231,6 +252,24 @@ and a rotation with no 48h break at all returns every worked day, not the sequen
 block straddling line 28 → line 1 was cut in half and reported as nothing.
 
 Hours totals are a **floor**: SPARE carries no times, so a standby day contributes zero.
+
+**The `clear` and `n/a` rows are collapsed behind a disclosure** (v19.57). The card measured 1,799px —
+24 rows of which 16 said nothing had happened, so the 8 real findings were diluted five to one in a
+card taller than the grid it describes. It is now 1,134px. **This must not be allowed to weaken the
+"silence is not compliance" rule**, and three things keep it honest: the counts stay in the
+always-visible section heading (with `clear` now among them, which it was not before); the disclosure
+is labelled with what is inside; and CLEAR and NOT-APPLICABLE keep their separate icons and wording
+inside it. What is hidden is the PROSE, never the fact of the check. `present` and `standing` always
+render inline.
+
+Two things that had to be right and were not on the first attempt: the **night-family rollup belongs
+INSIDE the disclosure** (outside it, the heading counted 17 clear while the label said 10 — both true,
+impossible to reconcile by looking), and **printing must force every `<details>` open**. CSS cannot do
+the latter: Chromium hides a closed disclosure's content through an internal slot no author rule
+reaches, so a `@media print` override still printed 13 of 24 rows. `links-app.js` opens them on
+`beforeprint` and closes them on `afterprint`. The printed sheet goes to the assessing manager, so
+silently dropping 17 completed checks from it would be the precise false-assurance failure this panel
+exists to prevent.
 
 `links-app.js` also passes a `getBaseline` thunk so the panel can show what **today's** link scores.
 It is computed over `weeklyRoster` (20 lines) and `bilingualRoster` (8) **at their own lengths** —

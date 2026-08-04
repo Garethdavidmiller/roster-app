@@ -360,8 +360,11 @@ export function init() {
      * renderGrid but never painted the editor, so the very first design a designer made had no
      * visible window control until they reloaded.
      */
-    function renderCoverageCard() { renderCoverageChart(); paintWindowEditor(); }
-    const { renderCoverageChart, renderDesignChecks } = initLinksAnalysis({
+    // The Coverage CARD is chart + window editor + the sticky summary strip in the grid card above
+    // it — one call, because as separate calls every site had to remember all three, and the
+    // generator (the only way to create a design) already proved that does not happen (v19.55).
+    function renderCoverageCard() { renderCoverageChart(); paintWindowEditor(); renderSummary(); }
+    const { renderCoverageChart, renderDesignChecks, renderSummary } = initLinksAnalysis({
         getDesign: () => design,
         getBaseline: currentLinkBaseline,
     });
@@ -1027,6 +1030,11 @@ export function init() {
         const saveRow    = document.getElementById('linksSaveRow');
 
         if (!design) {
+            // renderGrid early-returns here, so renderCoverageCard — and with it renderSummary —
+            // never runs on this path. The save row is hidden below, so a stale strip would not be
+            // VISIBLE; it would still be wrong, and the next design to load would flash it. This is
+            // the one place the summary needs asking for by name.
+            renderSummary();
             const emptyMsg = document.getElementById('linksEmptyMsg');
             if (emptyMsg) emptyMsg.innerHTML = loadFailed
                 ? `Couldn't load the saved design — check your connection and refresh the page.`
@@ -1548,6 +1556,33 @@ export function init() {
     }
     // Re-stamp on the way to the printer so the "Printed" date is the real one.
     window.addEventListener('beforeprint', _renderPrintMasthead);
+
+    /**
+     * Open every `<details>` before printing, and put them back afterwards (v19.57).
+     *
+     * The fatigue panel's "N factors with nothing to report" disclosure is collapsed by default on
+     * screen, and CSS **cannot** open it: Chromium hides a closed `details`'s content through its own
+     * internal slot, which no author `display` rule reaches. Measured — a `@media print` override
+     * still printed 13 of 24 rows.
+     *
+     * That is not a cosmetic loss. The printed sheet is what gets circulated to the assessing
+     * manager, so a silent drop of 17 completed checks would be precisely the false-assurance failure
+     * this panel was built to prevent: a design that looks like it was assessed against fewer factors
+     * than it actually was. On paper the panel is a record, so it prints whole.
+     *
+     * `afterprint` restores the on-screen state — printing must not be a way to permanently expand
+     * something the designer had deliberately collapsed.
+     */
+    let _reopenAfterPrint = /** @type {HTMLDetailsElement[]} */ ([]);
+    window.addEventListener('beforeprint', () => {
+        _reopenAfterPrint = /** @type {HTMLDetailsElement[]} */ (
+            [...document.querySelectorAll('details:not([open])')]);
+        for (const d of _reopenAfterPrint) d.open = true;
+    });
+    window.addEventListener('afterprint', () => {
+        for (const d of _reopenAfterPrint) d.open = false;
+        _reopenAfterPrint = [];
+    });
 
     /**
      * @param {any} updatedBy
