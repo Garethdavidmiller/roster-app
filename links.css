@@ -207,19 +207,20 @@ body.auth-ready .container { display: grid; }
     background-image: repeating-linear-gradient(135deg,
         transparent 0 4px, color-mix(in srgb, var(--text-light) 12%, transparent) 4px 5px);
 }
-/* The window a design was built to — stated above the map so the map explains itself, and so a
-   moved boundary can never pass unremarked. */
-.cov-window-line {
-    font-size: var(--type-badge);
-    color: var(--text-mid);
-    margin: 0 0 8px;
-}
-.cov-window-line em { color: var(--warning-amber); font-style: normal; font-weight: 700; }
+/* The window is stated ONCE on screen — by the editor's own fields, directly above, now that they
+   carry a "Staffed window" eyebrow. A prose line repeating the same two times 20px lower was the
+   kind of duplication that reads as a second, possibly different, fact. On PAPER the editor is
+   hidden and the print masthead carries it instead. */
 
 /* ---- Staffed-window editor (v19.54) ----
    Two rows, Mon–Sat and Sunday, because the operation genuinely differs. Sits ABOVE the heat map
    it explains: the map's red zeros mean "open and nobody on", which is meaningless without the
    window stated beside them. */
+/* `display` on an author rule BEATS the `hidden` attribute's UA `display:none`, so this pair is
+   mandatory, not belt-and-braces: without it the editor rendered — empty fields and all — on a page
+   with no design at all. Missed on the first pass because the probe read `el.hidden` (the property,
+   correctly true) instead of what the browser actually painted. */
+.win-editor[hidden] { display: none; }
 .win-editor {
     display: flex;
     flex-direction: column;
@@ -261,17 +262,11 @@ body.auth-ready .container { display: grid; }
 .win-dash { color: var(--text-light); }
 .win-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
 .win-status { font-size: var(--type-badge); color: var(--warning-amber); font-weight: 700; }
-.btn-link-sm {
-    background: none;
-    border: 0;
-    padding: 4px 2px;
-    font-family: var(--font-sans);
-    font-size: var(--type-badge);
-    color: var(--primary-blue);
-    text-decoration: underline;
-    cursor: pointer;
-}
-.btn-link-sm:focus-visible { outline: var(--focus-outline); border-radius: var(--radius-xs); }
+/* The reset control reuses `.btn-text-link`, this stylesheet's existing small text button — a
+   second link-button recipe would be the drift the token rules keep warning about. */
+.win-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.win-head .field-eyebrow { margin-bottom: 0; }
+.win-moved { font-size: var(--type-badge); font-weight: 700; color: var(--warning-amber); }
 
 /* Compare mode states each column's window — see links-compare.js: the diff is per CELL, so
    without this two designs built to different spans read as like for like. */

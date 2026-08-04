@@ -1205,7 +1205,8 @@ test('links window: an unstaffed evening is flagged, where the old span hid it',
     await expect(page.locator('.cov-heat-cell.heat-gap').first()).toBeVisible();
     const gaps = await page.locator('.cov-heat-cell.heat-gap').count();
     expect(gaps, 'the evening the station is open and unstaffed must be flagged').toBeGreaterThan(50);
-    await expect(page.locator('.cov-window-line')).toContainText('Mon–Sat 06:20–23:55');
+    await expect(page.locator('#winMonSatStart')).toHaveValue('06:20');
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('23:55');
     // Sunday opens at 07:15, so its 06:00 column is CLOSED, not a hole.
     expect(await page.locator('.cov-heat-cell.heat-closed').count()).toBeGreaterThan(0);
 });
@@ -1253,4 +1254,43 @@ test('links window: the printed sheet states the window it was designed to', asy
     await openWindowDesign(page);
     await page.emulateMedia({ media: 'print' });
     await expect(page.locator('#printDesignName')).toContainText('Staffed window: Mon–Sat 06:20–23:55');
+});
+
+test('links window: a RESTORED design keeps the window it was designed to', async ({ page }) => {
+    // The bin carried patterns but not the window, so a restore handed back a design wearing the
+    // app default — and the next save would have written that default straight over the moved
+    // boundary the design was actually built to. Same class as the v19.41 restore bugs.
+    await openWindowDesign(page, [{
+        id: 'gone', name: 'Binned early start', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva',
+        deletedAt: Date.now() - 2 * 86400000, deletedBy: 'S. Silva',
+        window: { monSat: { start: '05:00', end: '23:55' }, sun: { start: '07:15', end: '23:55' } },
+    }]);
+    await page.locator('#designBinBtn').click();
+    await expect(page.locator('#designBinLightbox.visible')).toBeVisible();
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await page.locator('#designBinClose').click();
+    await page.locator('.design-chip-name:has-text("Binned early start")').click();
+    await expect(page.locator('#winMonSatStart')).toHaveValue('05:00');
+    await expect(page.locator('#winMoved')).toBeVisible();
+});
+
+test('links window: generating the FIRST design reveals the window editor', async ({ page }) => {
+    // The generator is the only way to create a design. It refreshes the heat map through
+    // renderGrid, but the editor was a separate call it did not make — so a designer's very first
+    // link had no visible window control until they reloaded. Both now go through one function.
+    await page.setViewportSize({ width: 1280, height: 1200 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await page.waitForTimeout(700);
+    await expect(page.locator('#windowEditor')).toBeHidden();      // no design yet
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click({ force: true });
+    const ok = page.locator('.dialog-btn-confirm');
+    if (await ok.count()) await ok.first().click();
+    await expect(page.locator('#windowEditor')).toBeVisible();
 });

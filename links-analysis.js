@@ -16,7 +16,7 @@
  */
 import { DAYS, ROTATING_LINES, calcHourlyCoverage, runDesignChecks } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
-import { normaliseWindow, heatSpan, isHourStaffed, formatWindow, isDefaultWindow } from './links-window.js';
+import { normaliseWindow, heatSpan, isHourStaffed } from './links-window.js';
 import { escapeHtml } from './roster-data.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
@@ -103,8 +103,6 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
                 `</tr>`;
         }).join('');
 
-        const winNote = `Staffed window: <strong>${escapeHtml(formatWindow(win))}</strong>` +
-            (isDefaultWindow(win) ? '' : ' <em>(moved from the standard hours)</em>');
         const gapNote = gapCount
             ? ` <strong>${gapCount} staffed hour${gapCount === 1 ? '' : 's'} with nobody on duty.</strong>`
             : '';
@@ -113,7 +111,6 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             : '';
 
         wrap.innerHTML =
-            `<p class="cov-window-line">${winNote}</p>` +
             `<div class="cov-heat-wrap"><table class="cov-heat">` +
             `<thead><tr><th class="cov-heat-day"></th>${hourTh.join('')}<th class="cov-heat-spare-h">SP</th></tr></thead>` +
             `<tbody>${rows}</tbody>` +

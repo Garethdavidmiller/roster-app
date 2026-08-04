@@ -150,6 +150,26 @@ Three rules that are easy to undo by accident:
   format *even at en-GB* (measured in both locales), which would put "11:55 PM" beside a grid, heat
   map and window line all reading 23:55. `canonicaliseWindowTime` does the padding.
 
+Three things the v19.55 pass fixed, all found by driving the page rather than reading it:
+
+- **A design carries its window through the BIN.** The bin kept patterns but not the window, so a
+  restore handed back a design wearing the app default — and the next save wrote that default
+  straight over the moved boundary it was actually built to. Same class as the v19.41 restore bugs.
+- **`renderCoverageCard()` renders the chart AND the editor**, in one call. They are one card, and
+  as two calls every site had to remember both. The generator — the only way to create a design —
+  refreshed the chart through `renderGrid` but never painted the editor, so a designer's very first
+  link had no visible window control until they reloaded.
+- **`.win-editor[hidden] { display: none }` is mandatory, not tidiness.** An author `display` rule
+  beats the `hidden` attribute's UA `display:none`, so the editor rendered on a page with no design
+  at all. Missed on the first pass because the probe read `el.hidden` — the property, correctly
+  true — instead of what the browser actually painted.
+
+The window is stated **once** on screen: by the editor's own fields, under a "Staffed window"
+eyebrow. A prose line repeating the same two times 20px below it was removed — duplication like
+that reads as a second, possibly different, fact. On paper the editor is hidden and the print
+masthead carries it. The reset control reuses `.btn-text-link`, this stylesheet's existing small
+text button, rather than a second link-button recipe.
+
 An invalid pair (finish at or before start) is **refused, not coerced** — and the refusal message is
 written AFTER the repaint, because `paint()` rewrites the status line from the stored window and
 would otherwise wipe it in the same tick, leaving the field to appear to revert for no stated reason.

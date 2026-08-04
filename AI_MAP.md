@@ -473,7 +473,9 @@ The **operating window** of a link design — when Marylebone is staffed (v19.54
 - **`normaliseWindow` falls back PER ROW, never per FIELD.** A good Sunday survives a corrupt Mon–Sat (two independent settings), but a stored start is never paired with a default end — that would invent a window nobody chose and then print it as deliberate.
 - Stored as an optional `window` map on `linkDesigns`; designs saved before it read as the default, so nothing already saved changes. Type-checked as a map in `firestore.rules`; the shape is validated on the read path by `normaliseWindow`, so a malformed value can only ever reach the UI as the default.
 - **The editor uses TEXT inputs, not `<input type="time">`**: Chromium renders that widget in the OS's 12-hour format *even at en-GB* (measured in both locales), which would have put "11:55 PM" beside a grid, heat map and window line all reading 23:55. `canonicaliseWindowTime` does the padding that the native widget would have.
-- Tested by `links-window.test.mjs`; the WIRING (heat map, editor, compare, print) by `e2e/pages.spec.js`.
+- **The design carries its window through the BIN too** (v19.55) — the bin kept patterns but not the window, so a restore handed back the app default and the next save wrote that default over the moved boundary. Same class as the v19.41 restore bugs.
+- `links-app.js`'s `renderCoverageCard()` renders the chart AND the editor in one call: as two calls the generator (the only way to create a design) refreshed the chart but never painted the editor, so a designer's first link had no visible window control. And `.win-editor[hidden] { display: none }` is required — an author `display` rule beats the `hidden` attribute, so without it the editor rendered on a page with no design.
+- Tested by `links-window.test.mjs`; the WIRING (heat map, editor, restore, generator, compare, print) by `e2e/pages.spec.js`.
 
 ### `links-deletion.js`
 The PURE rules behind **Recently deleted** in the Links workspace (v19.41) — no DOM, no Firebase. Delete used to be permanent; a design now carries `deletedAt`/`deletedBy`, drops out of the picker, and stays restorable for `SOFT_DELETE_RETENTION_DAYS` (30).

@@ -229,7 +229,7 @@ export function init() {
     /** @type {any} */ let activeDesignId  = null; // null = design not yet saved to Firestore
     /** Deleted designs, newest first — the "Recently deleted" bin (v19.41). Held in memory with
      *  their patterns so a restore is a field-clearing merge, never a re-upload of a stale copy.
-     *  @type {Array<{id:string, name:string, patterns:Object, deletedAt:*, deletedBy:string}>} */
+     *  @type {Array<{id:string, name:string, patterns:Object, window?:*, deletedAt:*, deletedBy:string}>} */
     let deletedDesigns  = [];
 
     // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
@@ -291,6 +291,7 @@ export function init() {
                       end:   /** @type {HTMLInputElement|null} */ (document.getElementById('winSunEnd')) },
         };
         const status = document.getElementById('winStatus');
+        const moved  = /** @type {HTMLElement|null} */ (document.getElementById('winMoved'));
         const reset  = document.getElementById('winReset');
 
         function paint() {
@@ -302,8 +303,9 @@ export function init() {
                 if (els[row].start) els[row].start.value = w[row].start;
                 if (els[row].end)   els[row].end.value   = w[row].end;
             }
-            // NOT a "moved from standard hours" note here: `.cov-window-line` says exactly that
-            // ~40px below, beside the map it qualifies. This slot is for a REFUSAL only.
+            // The moved flag sits in the EYEBROW row beside the "Staffed window" label, where it
+            // qualifies the fields it describes. `.win-status` below is for a REFUSAL only.
+            if (moved) moved.hidden = isDefaultWindow(w);
             if (status) status.textContent = '';
         }
 
@@ -331,8 +333,7 @@ export function init() {
             design = { ...design, window: next };
             dirty = true;
             updateSaveBtn();
-            renderCoverageChart();
-            if (status) status.textContent = '';
+            renderCoverageCard();   // repaints the editor, so the moved flag follows the change
         }
 
         for (const row of /** @type {const} */ (['monSat', 'sun'])) {
@@ -345,13 +346,21 @@ export function init() {
             design = { ...design, window: normaliseWindow(null) };
             dirty = true;
             updateSaveBtn();
-            paint();
-            renderCoverageChart();
+            renderCoverageCard();   // repaints the editor too — no separate paint() needed
         });
         return paint;
     }
 
     /** @type {() => void} */ let paintWindowEditor = () => {};
+    /**
+     * Render the whole Coverage CARD — the heat map AND the staffed-window editor above it.
+     *
+     * ONE call, because they are one card and every call site would otherwise have to remember
+     * both. It did not: the generator (the only way to create a design) refreshed the chart via
+     * renderGrid but never painted the editor, so the very first design a designer made had no
+     * visible window control until they reloaded.
+     */
+    function renderCoverageCard() { renderCoverageChart(); paintWindowEditor(); }
     const { renderCoverageChart, renderDesignChecks } = initLinksAnalysis({
         getDesign: () => design,
         getBaseline: currentLinkBaseline,
@@ -712,7 +721,7 @@ export function init() {
             // deletedAt is null until the server resolves it — deliberately kept as null rather
             // than stamped with a client clock, so the row reads "Deleted by X" until the real
             // time is known instead of showing a countdown built from an invented figure.
-            deletedDesigns.unshift({ id: d.id, name: d.name, patterns: d.patterns, deletedAt: null, deletedBy: currentUser });
+            deletedDesigns.unshift({ id: d.id, name: d.name, patterns: d.patterns, window: normaliseWindow(d.window), deletedAt: null, deletedBy: currentUser });
             const newActive = (id === activeDesignId) ? designs[0] : null;
             // Exit compare mode if the compare target was deleted, the delete drops below the 2
             // designs compare needs, OR the newly-promoted active design IS the current compare
@@ -769,7 +778,7 @@ export function init() {
             let restoredTs = null;
             try { restoredTs = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt ?? null; }
             catch { /* offline — the unknown-baseline flag covers it */ }
-            designs.push({ id: d.id, name: d.name, patterns: d.patterns, updatedAt: restoredTs, updatedBy: currentUser });
+            designs.push({ id: d.id, name: d.name, patterns: d.patterns, window: normaliseWindow(d.window), updatedAt: restoredTs, updatedBy: currentUser });
             _sortDesigns();
             renderDesignPicker();
             renderBinList();
@@ -928,7 +937,7 @@ export function init() {
         renderGrid();
         renderBrushBar();
         renderDesignChecks();
-        renderCoverageChart();
+        renderCoverageCard();
         paintWindowEditor();
         compare.renderCompare();
         updateSaveBtn();
@@ -1044,7 +1053,7 @@ export function init() {
                 }
             }
             renderBrushBar();
-            renderCoverageChart();
+            renderCoverageCard();
             renderDesignChecks();
             return;
         }
@@ -1086,7 +1095,7 @@ export function init() {
 
         const cov = calcCoverage(design.patterns);
         renderFooter(cov);
-        renderCoverageChart();
+        renderCoverageCard();
     }
 
     // Delegated grid events — one listener instead of one per cell button.
@@ -1138,7 +1147,7 @@ export function init() {
 
         const cov = calcCoverage(design.patterns);
         renderFooter(cov);
-        renderCoverageChart();
+        renderCoverageCard();
         renderDesignChecks();
     }
 
@@ -1764,6 +1773,10 @@ export function init() {
                         id:        d.id,
                         name:      data.name.trim(),
                         patterns:  normalisePatterns(data.patterns || {}),
+                        // Carry the WINDOW into the bin too (v19.55). Without it a restore handed
+                        // back a design wearing the app default, and the next save wrote that
+                        // default over the moved boundary the design was actually built to.
+                        window:    normaliseWindow(data.window),
                         deletedAt: data.deletedAt ?? null,
                         deletedBy: data.deletedBy || '',
                     });
