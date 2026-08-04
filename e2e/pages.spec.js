@@ -417,6 +417,64 @@ test('links: an hour whose service is not fully staffed is marked on the demand 
     await expect(page.locator('.cov-demand .dem-shut')).toHaveCount(4);
 });
 
+test('links: the sticky summary bar carries a live reading of the analysis below', async ({ page }) => {
+    // The grid card is ~1,400px tall and the analysis starts ~1,600px below the fold, so before
+    // v19.57 the effect of an edit was invisible without scrolling two screens away and back.
+    await openLinksWithDesign(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    const chips = page.locator('#linksSummary .sum-chip');
+    await expect(chips).toHaveCount(3);
+
+    // It must be STICKY and PAINTED mid-grid, not merely present — the v19.55 lesson (a probe read
+    // `el.hidden` while the browser rendered the element anyway).
+    await page.evaluate(() => window.scrollTo(0, 500));
+    const box = await page.locator('#linksSaveRow').boundingBox();
+    expect(Math.round(box.y + box.height), 'the bar must sit at the viewport bottom while the grid is on screen')
+        .toBe(900);
+
+    // …and it must UPDATE. Painting rest days over worked cells has to move a figure.
+    const before = await chips.allTextContents();
+    await page.locator('.brush-chip').first().click();          // the RD brush
+    for (let i = 0; i < 40; i++) await page.locator('.shift-cell-btn').nth(i).click();
+    await expect.poll(() => chips.allTextContents()).not.toEqual(before);
+});
+
+test('links: the fatigue panel collapses its "nothing to report" rows but still counts them', async ({ page }) => {
+    await openLinksWithDesign(page);
+    const rows = page.locator('#checksContent .check-row:visible');
+    const collapsed = await rows.count();
+
+    // The count stays in the always-visible heading — that is what stops the disclosure becoming
+    // false assurance. And the two figures must AGREE: they did not at first (the heading said 17
+    // while the label said 10, because the night-family rollup sat outside the disclosure).
+    const meta = await page.locator('.check-section-meta').first().textContent();
+    const clear = Number((meta.match(/(\d+) clear/) || [])[1]);
+    const label = await page.locator('.check-quiet-label').textContent();
+    expect(Number((label.match(/^(\d+)/) || [])[1]),
+        'the heading count and the disclosure label must describe the same set').toBe(clear);
+
+    await page.locator('.check-quiet-summary').click();
+    await expect.poll(() => rows.count()).toBeGreaterThan(collapsed);
+});
+
+test('links: printing opens every collapsed disclosure, and closes it again afterwards', async ({ page }) => {
+    // CSS cannot do this — Chromium hides a closed <details>'s content via an internal slot no author
+    // rule reaches, so a `@media print` override still printed 13 of 24 rows (measured). The printed
+    // sheet is what goes to the assessing manager; dropping 17 completed checks from it silently
+    // would be the exact false-assurance failure the panel exists to prevent.
+    await openLinksWithDesign(page);
+    const rows = page.locator('#checksContent .check-row:visible');
+    const onScreen = await rows.count();
+
+    await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+    await expect.poll(() => rows.count()).toBeGreaterThan(onScreen);
+
+    // Printing must not permanently expand something the designer collapsed on purpose.
+    await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+    await expect.poll(() => rows.count()).toBe(onScreen);
+});
+
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {
     await openLinksWithDesigns(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
@@ -1363,4 +1421,10 @@ test('links window: generating the FIRST design reveals the window editor', asyn
     const ok = page.locator('.dialog-btn-confirm');
     if (await ok.count()) await ok.first().click();
     await expect(page.locator('#windowEditor')).toBeVisible();
+    // The sticky summary is the third thing this one call has to refresh (v19.57). "The generator
+    // forgot to refresh X" has now been a bug twice — the window editor at v19.55, and this would
+    // have been the same shape — so every artefact `renderCoverageCard` owns is pinned here rather
+    // than trusted to a reviewer noticing the call site grew a third responsibility.
+    await expect(page.locator('#linksSummary .sum-chip')).toHaveCount(3);
+    await expect(page.locator('.cov-demand')).toBeVisible();
 });

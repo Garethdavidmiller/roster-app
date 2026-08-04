@@ -150,6 +150,59 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    /**
+     * The SAME page with a design LOADED (v19.57) — and it is a different page in every way that
+     * matters to this gate.
+     *
+     * The scan above renders the EMPTY state. Measured, it contains **0 grid cells, 0 heat-map cells
+     * and 0 check rows**: the workspace's entire content — a 196-cell grid, an hourly heat map, a
+     * 24-row analysis panel — had never been through the accessibility gate at all, because none of
+     * it exists until a design is in memory. The gate was green on a page with nothing on it.
+     *
+     * Loading one immediately surfaced 29 colour-contrast failures at 10px bold, two of which had
+     * been shipped for months (`heat-b4` at 2.59:1, `heat-b5` at 4.33:1) and one of which was four
+     * days old (`dem-b5` at 3.14:1). All four are fixed; this is what stops them coming back.
+     *
+     * The lesson generalises past this page: a gate that only ever sees a state with no data in it
+     * is measuring the shell, not the app.
+     */
+    test('links WITH a design loaded — the grid, heat map and checks the empty state never renders', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_links_welcome_seen', '1');
+            // A shape with real variety: every heat bucket populated (so every contrast pair is
+            // actually rendered), spares, a Sunday, and a rest day — a uniform design would leave
+            // most of the ramp unscanned and pass for the wrong reason.
+            const starts = ['06:20-14:20', '07:00-15:00', '08:00-16:00', '11:00-19:00',
+                '14:00-22:00', '15:55-23:55'];
+            const patterns = /** @type {any} */ ({});
+            for (let i = 1; i <= 28; i++) {
+                const s = starts[i % starts.length];
+                patterns[String(i)] = {
+                    sun: (i % 4 === 0) ? '07:15-15:15' : 'RD',
+                    mon: s, tue: s, wed: s, thu: s,
+                    fri: (i % 5 === 0) ? 'RD' : s,
+                    sat: (i % 3 === 0) ? 'SPARE' : 'RD',
+                };
+            }
+            const w = /** @type {any} */ (window);
+            w.__E2E = w.__E2E || {};
+            w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns,
+                updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+        });
+        await page.goto('/links.html');
+        // Wait for the content itself, not the shell — the whole point of this test.
+        await expect(page.locator('.cov-heat')).toBeVisible();
+        await expect(page.locator('.cov-demand')).toBeVisible();
+        expect(await page.locator('.shift-cell-btn').count(),
+            'the grid must actually be rendered, or this scan is the empty-state scan again')
+            .toBeGreaterThan(100);
+        expect(await page.locator('#checksContent .check-row').count()).toBeGreaterThan(10);
+
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // ── Open-overlay states (H2, v17.75) — the settled-page scans above never OPEN these
     // surfaces. A11Y_FINDINGS.md's promotion path calls for scanning more rendered states
     // ("an open lightbox, an error state") per page; each of these is a full interactive

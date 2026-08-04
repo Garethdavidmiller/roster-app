@@ -48,20 +48,20 @@ Passenger movements at Marylebone — ECS excluded:
 
 | | Movements | Cars | Shape | First → last |
 |---|---|---|---|---|
-| **SX** Mon–Fri | 311 (148 arr / 163 dep) | 1,758 | **Twin-peaked** — by movement 08:00 (23) and 17:00 (23); **by cars the evening wins**, 17:00 (140) / 18:00 (138) over 08:00 (127) | 00:01 → 23:57 |
-| **SO** Saturday | 215 (105 / 110) | 1,270 | **Flat** — 13–15 per hour across 08:00–20:00; peak 10:00 on both measures | 00:10 → 23:57 |
-| **Su** Sunday | 188 (91 / 97) | 1,063 | **Late-starting, evening-weighted** — nothing 01:00–07:00, peak 17:00 on both measures | 00:05 → 23:54 |
+| **SX** Mon–Fri | 311 (148 arr / 163 dep) | 1,756 | **Twin-peaked** — by movement 08:00 (23) and 17:00 (23); **by cars the evening wins**, 17:00 (140) / 18:00 (138) over 08:00 (127) | 00:01 → 23:57 |
+| **SO** Saturday | 215 (105 / 110) | 1,266 | **Flat** — 13–15 per hour across 08:00–20:00; peak 10:00 on both measures | 00:10 → 23:57 |
+| **Su** Sunday | 188 (91 / 97) | 1,059 | **Late-starting, evening-weighted** — nothing 01:00–07:00, peak 17:00 on both measures | 00:05 → 23:54 |
 
 Hourly, both measures (arrivals + departures; hours 01–04 are empty on all three days and omitted):
 
 ```
 hour        00  05  06  07  08  09  10  11  12  13  14  15  16  17  18  19  20  21  22  23
 SX  movements 5   1  14  19  23  22  17  15  14  15  14  15  18  23  23  19  16  13  13  12
-SX  cars     27   5  69 107 127 122  97  85  75  84  79  87 105 140 138 107  90  73  75  66
+SX  cars     27   5  69 107 127 122  95  85  75  84  79  87 105 140 138 107  90  73  75  66
 SO  movements 1   1   4  10  13  14  15  14  13  11  12  12  14  14  12  11  13  12  11   8
-SO  cars      4   6  24  58  75  81  92  92  77  64  68  72  84  82  67  64  79  78  62  41
+SO  cars      4   6  24  58  75  81  92  88  77  64  68  72  84  82  67  64  79  78  62  41
 Su  movements 1   -   -   3   8  11  13  13  12  11  10  11  13  14  13  13  10  11  12   9
-Su  cars      5   -   -  15  45  69  71  74  71  61  55  64  69  78  73  75  52  71  65  50
+Su  cars      5   -   -  15  45  65  71  74  71  61  55  64  69  78  73  75  52  71  65  50
 ```
 
 Three genuinely different shapes. The generator already separates Mon–Fri / Sat / Sun targets, so the
@@ -80,7 +80,13 @@ platform and a unit — the arrival turns round into that departure — so the r
 arrival's length too; that covers 85–89% of arrivals directly. The `Unit Diag.` column recovers a
 further handful by matching the diagram to a length recorded elsewhere in the sheet. That leaves
 **21 SX / 11 SO / 10 Su arrivals with no length recorded anywhere**, counted at the day's mean
-(5.6–6.0 cars) rather than dropped.
+(6 cars) rather than dropped.
+
+**A recovered length is capped at 9, the route maximum.** Where a cell listed two unit diagrams the
+recovery summed them — right in principle, since the arrival splits into two departures — but it
+produced three impossible values (11, 13 and 13 cars) against a `Max CAO` that never exceeds 9 in
+the authoritative data. Capping them costs 10 cars across 4,081, and the peak hours are unchanged
+except that Saturday's 10:00/11:00 tie by cars resolves to 10:00, matching its movement peak.
 
 > **Do not default an unresolved arrival downward.** These are mostly trains that terminate and go
 > empty to stabling, so nobody re-boards — arguably a *heavier* CEA job than a turnround, not a
@@ -372,6 +378,21 @@ legacy/imported data, the same route `canonicaliseShift` exists for.
 
 **An automatic optimiser.** The generator produces a compliant skeleton; which duties fit the service
 is a judgement for the two designers. The tool's job is to check and to show, not to decide.
+
+**Compare mode carrying its own analysis.** Compare shows two grids with a gold cell diff; the
+Coverage and Design-checks cards below still describe only the ACTIVE design. So the reason you would
+compare two proposals — their cover against the service, their fatigue findings — is the one thing
+compare mode does not do, and the cell diff tells you *where* they differ rather than *what that
+means*. **Deliberately deferred, not rejected:** it is a real gap, but it is a feature rather than a
+polish item, and it should be built once there are two real proposals to compare, instead of against
+a guess about what the comparison ought to say. (Related, and already recorded as accepted: at 1440px
+both compare columns clip before Saturday, so Saturday cannot be compared without scrolling each
+column on its own.)
+
+**The generator's 25 near-identical rows.** Seeded from the current roster it renders 25 shift rows ×
+3 columns = 75 number fields, around 50 of them zero, so reshaping one part of the day means finding
+one row among 25 similar time dropdowns. Left alone on purpose: package 4 changes where those targets
+come from, and re-designing the table before that lands would mean doing it twice.
 
 ## Open questions
 

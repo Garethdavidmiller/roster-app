@@ -477,6 +477,27 @@ The **operating window** of a link design — when Marylebone is staffed (v19.54
 - `links-app.js`'s `renderCoverageCard()` renders the chart AND the editor in one call: as two calls the generator (the only way to create a design) refreshed the chart but never painted the editor, so a designer's first link had no visible window control. And `.win-editor[hidden] { display: none }` is required — an author `display` rule beats the `hidden` attribute, so without it the editor rendered on a page with no design.
 - Tested by `links-window.test.mjs`; the WIRING (heat map, editor, restore, generator, compare, print) by `e2e/pages.spec.js`.
 
+### `links-analysis.js` — the sticky summary strip (v19.57)
+`renderSummary()` — the third renderer, writing three live figures + a jump link into the grid card's
+sticky save bar.
+- **Why:** the grid card is ~1,400px tall and the Coverage / Design-checks cards start ~1,600px and
+  ~2,300px below the fold (measured, 1440×900). Editing meant paint a cell → scroll two screens →
+  read the effect → scroll two screens back. The analysis already updated live; you could not see it.
+- **Which three:** lines still undesigned · staffed hours with trains and nobody on duty · fatigue
+  factors **present**. `standing` is excluded on purpose — an unavoidable characteristic of the
+  operation is not something an edit can improve, so putting it in a number the designer is driving
+  down would be telling them to chase the unchaseable. Not a score.
+- **It recomputes rather than sharing state with the other two renderers.** Duplicated WORK, not
+  duplicated logic — every figure still comes from the pure function that owns it — bought for
+  order-independence. Shared state would make the strip silently wrong whenever a caller ran the
+  renderers in a different order: renders fine, tells nobody.
+- The fatigue panel's `clear`/`n/a` rows moved behind a `<details>` in the same pass (1,799px → 1,134px).
+  The heading's counts gained `clear` so the disclosure cannot become false assurance, and the
+  night-family rollup went INSIDE it — outside, the heading said 17 clear while the label said 10.
+  **Printing forces every `<details>` open** (`beforeprint` in `links-app.js`, restored on
+  `afterprint`): CSS cannot, because Chromium hides closed disclosure content through an internal slot
+  no author rule reaches, and a `@media print` override still printed 13 of 24 rows.
+
 ### `links-demand.js`
 The **service** a link design has to cover — trains per hour at Marylebone (v19.56, `LINKS_DEC2026_PLAN.md` package 3). Pure; no DOM, no Firebase.
 - `DEC_2026_MOVEMENTS` · `DEC_2026_DEMAND` (derived) · `DEC_2026_SOURCE` · `DAY_CLASS_KEYS` · `DAY_CLASSES` · `DAY_LABEL` · `demandAt` · `peakCars` · `peakHours` · `demandBucket` · `movementsOutside` · `summariseDemand` · `describeHours` · `describeMovements`.

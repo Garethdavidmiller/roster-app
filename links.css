@@ -123,12 +123,67 @@ body.auth-ready .container { display: grid; }
     padding: 4px 0 2px;
 }
 
-/* ---- Save row ---- */
+/* ---- Save row + live summary (sticky, v19.57) ----
+   The card is ~1,400px tall and the analysis it feeds sits ~1,600px below the fold, so editing used
+   to mean: paint a cell, scroll two screens to see the effect, scroll two screens back. This bar
+   sticks to the bottom of the viewport for as long as the grid card is on screen and scrolls away
+   with it — carrying both the Save button (previously 1,400px from wherever you were editing) and a
+   live reading of the three figures that decide whether the edit was any good.
+
+   `sticky` needs no scroll container here: the card uses `overflow: clip` at >=1024px (chosen for the
+   sticky thead precisely because it does NOT create one). The element keeps its place in flow, so it
+   can never cover the last grid row. */
 .links-save-row {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
     margin-top: 14px;
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 12px;
+    padding: 10px 0 2px;
+    background: var(--surface);
+    box-shadow: 0 -8px 12px -8px rgb(0 0 0 / 0.12);
+}
+/* No shadow on paper — it is a scroll affordance, and there is no scrolling on paper. */
+@media print { .links-save-row { position: static; box-shadow: none; } }
+
+.links-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin-left: auto;
+}
+.sum-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: var(--type-badge);
+    font-weight: 600;                    /* quiet-status tier — a reading, not a label to scan */
+    background: var(--surface-sunken);
+    color: var(--text-mid);
+    white-space: nowrap;
+}
+.sum-chip strong { font-weight: 800; color: var(--text-dark); }
+/* Three states, and they must be distinguishable without colour: the emoji carries the meaning and
+   the tint only reinforces it. */
+.sum-chip--ok    { background: color-mix(in srgb, var(--success-green) 12%, white); }
+.sum-chip--ok strong { color: color-mix(in srgb, var(--success-green) 80%, black); }
+.sum-chip--warn  { background: color-mix(in srgb, var(--warning-amber) 18%, white); }
+.sum-chip--warn strong { color: color-mix(in srgb, var(--warning-amber) 55%, black); }
+.sum-chip--bad   { background: color-mix(in srgb, var(--error-red) 10%, white); }
+.sum-chip--bad strong { color: color-mix(in srgb, var(--error-red) 80%, black); }
+.sum-jump { font-size: var(--type-badge); white-space: nowrap; }
+
+@media (max-width: 767px) {
+    /* The bar would eat a third of a phone screen with everything on one line. Summary drops to its
+       own row under the button; nothing is hidden — on mobile the analysis is 4,000px away, so the
+       figures and the jump link matter MORE here, not less. */
+    .links-summary { margin-left: 0; width: 100%; }
 }
 .links-save-meta {
     flex: 1;
@@ -195,9 +250,20 @@ body.auth-ready .container { display: grid; }
 .cov-heat-cell.heat-b1 { background: color-mix(in srgb, var(--cov-early) 14%, white); }
 .cov-heat-cell.heat-b2 { background: color-mix(in srgb, var(--cov-early) 30%, white); }
 .cov-heat-cell.heat-b3 { background: color-mix(in srgb, var(--cov-early) 48%, white); }
-.cov-heat-cell.heat-b4 { background: color-mix(in srgb, var(--cov-early) 68%, white); color: white; }
-.cov-heat-cell.heat-b5 { background: var(--cov-early); color: white; }
-.cov-heat-cell.heat-gap { color: var(--error-red); background: color-mix(in srgb, var(--error-red) 10%, white); }
+/* b4 keeps DARK text (v19.57). It used to switch to white here — one bucket too early — which made
+   the mid-tone the WORST cell on the card at 2.59:1, worse than the darkest one. Dark text on the
+   same fill is 5.23:1, so this is a contrast fix with no colour change at all. */
+.cov-heat-cell.heat-b4 { background: color-mix(in srgb, var(--cov-early) 68%, white); }
+/* The darkest bucket is 8% darker than the raw token so white text clears AA: the token itself gave
+   4.33:1 against the 4.5 floor, and these cells are 10px bold, so the large-text exemption does not
+   apply. */
+.cov-heat-cell.heat-b5 { background: color-mix(in srgb, var(--cov-early) 92%, black); color: white; }
+/* The most important number on the card — "the station is open and nobody is on". Raw --error-red on
+   its own 10% tint is 4.28:1, so the text is darkened to clear AA; the fill is untouched. */
+.cov-heat-cell.heat-gap {
+    color: color-mix(in srgb, var(--error-red) 80%, black);
+    background: color-mix(in srgb, var(--error-red) 10%, white);
+}
 /* Outside the staffed window — the station is SHUT, which is not the same thing as a hole in the
    cover and must never look like one (v19.54). Deliberately inert: a flat neutral with no heat
    tint, so the eye reads it as "not applicable here" rather than as a reading of zero. */
@@ -234,7 +300,10 @@ body.auth-ready .container { display: grid; }
 .dem-cell.dem-b2 { background: color-mix(in srgb, var(--cov-late) 26%, white); }
 .dem-cell.dem-b3 { background: color-mix(in srgb, var(--cov-late) 42%, white); }
 .dem-cell.dem-b4 { background: color-mix(in srgb, var(--cov-late) 60%, white); }
-.dem-cell.dem-b5 { background: var(--cov-late); color: white; }
+/* Darkened for the same reason as heat-b5, and by more: white on the raw orange token is only
+   3.14:1. Orange is the harder hue — it carries more luminance at full saturation — so it needs a
+   deeper step to clear the 4.5 floor. */
+.dem-cell.dem-b5 { background: color-mix(in srgb, var(--cov-late) 78%, black); color: white; }
 /* Service in an hour the window does not staff. Marked, NOT faulted — it is the same distinction
    heat-closed makes on the cover row, seen from the other side: trains run whether or not we roster
    anyone. An underline rather than a fill, so the demand figure keeps its own intensity. */
@@ -336,6 +405,12 @@ body.auth-ready .container { display: grid; }
     color: var(--text-light);
     margin: 10px 0 0;
     line-height: 1.5;
+}
+@media (min-width: 1024px) {
+    /* The app caps full-width prose at ~64-72ch on desktop (css-tokens.md). These two notes measured
+       188ch — 2.6x over — because the heat map beneath them is genuinely wide and the paragraphs
+       simply inherited its width. The TABLE keeps the full column; only the prose is capped. */
+    .cov-heat-note { max-width: 72ch; }
 }
 
 /* ---- Grid wrapper — horizontal scroll on mobile ---- */
@@ -867,12 +942,21 @@ body.auth-ready .container { display: grid; }
 }
 /* Room for the ✎ ✕ action buttons inside the active chip (main picker only) */
 #designChips .design-chip--active { padding-right: 4px; }
-/* Rename / delete buttons inside the active chip */
+/* Rename / delete buttons inside the active chip.
+   Sized 24x24 (v19.57) — they were 15x13, which made ✕ the DESTRUCTIVE control on this page and also
+   the smallest target on it, at about a third of everything else. Still under the 44px touch floor:
+   the workspace is desktop/tablet by its own first-visit notice, and a 44px control inside a 25px
+   chip is not expressible. The padding grows the hit area without moving a pixel of the glyph. */
 .design-chip-rename,
 .design-chip-delete {
     background: none;
     border: none;
-    padding: 1px 3px;
+    padding: 0;
+    min-width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: var(--type-badge);
     font-family: inherit;
     color: rgba(255, 255, 255, 0.6);
@@ -1195,4 +1279,62 @@ body.auth-ready .container { display: grid; }
     /* Sticky positioning confuses print pagination — flatten it */
     .links-grid thead th,
     .links-grid .pos-num { position: static !important; }
+}
+
+/* ---- "Nothing to report" disclosure in the fatigue panel (v19.57) ----
+   Native <details>, so it needs no JS and no focus management of its own. Styled as a quiet row in
+   the same family as the checks it holds, NOT as a card header — it is a row that opens, not a
+   section. */
+.check-quiet {
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    background: var(--surface-sunken);
+    margin: 6px 0 2px;
+}
+/* A flex <summary> loses its ::marker in Chromium — measured: the row rendered with no triangle at
+   all and read as a static line rather than something you could open. The chevron is drawn
+   explicitly and matches the card-collapse chevron used everywhere else on the page. */
+.check-quiet-summary {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 9px 12px;
+    cursor: pointer;
+    font-size: var(--type-badge);
+    color: var(--text-mid);
+    list-style: none;
+}
+.check-quiet-summary::-webkit-details-marker { display: none; }
+.check-quiet-summary::before {
+    content: '▸';
+    color: var(--accent-gold);
+    font-size: var(--type-badge);
+    line-height: 1;
+    transition: transform var(--dur-fast) var(--ease-standard);
+    display: inline-block;
+}
+.check-quiet[open] > .check-quiet-summary::before { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .check-quiet-summary::before { transition: none; } }
+.check-quiet-summary:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: var(--radius); }
+.check-quiet-label { font-weight: 700; color: var(--text-dark); }
+.check-quiet-body { padding: 0 8px 8px; }
+/* On paper the panel is a record, so every factor prints — a collapsed disclosure would silently
+   drop 14 checks from a sheet somebody is assessing a proposal against. */
+@media print {
+    .check-quiet { border: none; background: none; margin: 0; display: block; }
+    .check-quiet-body { padding: 0; display: block !important; }
+    /* The LABEL stays — it is the only thing introducing the second run of family headings, and
+       without it the printed panel reads as though Time of day / Cumulative / Circadian had each
+       been printed twice for no reason. Only the chevron and the on-screen hint go. */
+    .check-quiet-summary {
+        display: block;
+        padding: 12px 0 4px;
+        border-top: 1px solid var(--border-light);
+        margin-top: 10px;
+        cursor: auto;
+    }
+    .check-quiet-summary::before,
+    .check-quiet-summary .check-note { display: none; }
+    .check-quiet-label { text-transform: uppercase; letter-spacing: 0.4px; font-size: var(--type-micro); }
 }
