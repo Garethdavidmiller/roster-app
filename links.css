@@ -198,6 +198,87 @@ body.auth-ready .container { display: grid; }
 .cov-heat-cell.heat-b4 { background: color-mix(in srgb, var(--cov-early) 68%, white); color: white; }
 .cov-heat-cell.heat-b5 { background: var(--cov-early); color: white; }
 .cov-heat-cell.heat-gap { color: var(--error-red); background: color-mix(in srgb, var(--error-red) 10%, white); }
+/* Outside the staffed window — the station is SHUT, which is not the same thing as a hole in the
+   cover and must never look like one (v19.54). Deliberately inert: a flat neutral with no heat
+   tint, so the eye reads it as "not applicable here" rather than as a reading of zero. */
+.cov-heat-cell.heat-closed {
+    background: var(--bg-faint);
+    color: var(--text-light);
+    background-image: repeating-linear-gradient(135deg,
+        transparent 0 4px, color-mix(in srgb, var(--text-light) 12%, transparent) 4px 5px);
+}
+/* The window is stated ONCE on screen — by the editor's own fields, directly above, now that they
+   carry a "Staffed window" eyebrow. A prose line repeating the same two times 20px lower was the
+   kind of duplication that reads as a second, possibly different, fact. On PAPER the editor is
+   hidden and the print masthead carries it instead. */
+
+/* ---- Staffed-window editor (v19.54) ----
+   Two rows, Mon–Sat and Sunday, because the operation genuinely differs. Sits ABOVE the heat map
+   it explains: the map's red zeros mean "open and nobody on", which is meaningless without the
+   window stated beside them. */
+/* `display` on an author rule BEATS the `hidden` attribute's UA `display:none`, so this pair is
+   mandatory, not belt-and-braces: without it the editor rendered — empty fields and all — on a page
+   with no design at all. Missed on the first pass because the probe read `el.hidden` (the property,
+   correctly true) instead of what the browser actually painted. */
+.win-editor[hidden] { display: none; }
+.win-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    margin: 0 0 12px;
+    background: var(--surface-sunken);
+    border-radius: var(--radius-xs);
+}
+.win-row { display: flex; align-items: center; gap: 8px; }
+.win-label {
+    font-size: var(--type-badge);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-mid);
+    min-width: 62px;
+}
+/* 16px, like every other focusable field in the app — below it iOS zooms the page on focus.
+   Sized to its CONTENT (5 characters): a default text input is 20 characters wide, which made a
+   "06:20" field look like somewhere to type a sentence. */
+.win-time {
+    font-family: var(--font-sans);
+    font-size: var(--type-medium);
+    width: 5.6em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    padding: 5px 7px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xs);
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+}
+.win-time:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+    background-color: white;
+}
+.win-dash { color: var(--text-light); }
+.win-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.win-status { font-size: var(--type-badge); color: var(--warning-amber); font-weight: 700; }
+/* The reset control reuses `.btn-text-link`, this stylesheet's existing small text button — a
+   second link-button recipe would be the drift the token rules keep warning about. */
+.win-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.win-head .field-eyebrow { margin-bottom: 0; }
+.win-moved { font-size: var(--type-badge); font-weight: 700; color: var(--warning-amber); }
+
+/* Compare mode states each column's window — see links-compare.js: the diff is per CELL, so
+   without this two designs built to different spans read as like for like. */
+.compare-window {
+    display: block;
+    font-size: var(--type-badge);
+    font-weight: 600;
+    color: var(--text-mid);
+    text-transform: none;
+    letter-spacing: 0;
+}
+.compare-window--differs { color: var(--warning-amber); }
 .cov-heat-spare, .cov-heat-spare-h {
     font-size: var(--type-micro);
     font-weight: 700;
@@ -1019,7 +1100,10 @@ body.auth-ready .container { display: grid; }
     .app-header, .lb-overlay, .nav-panel, .nav-panel-overlay,
     .links-save-row, .links-empty-state,
     #generatorCard, .brush-bar, .design-picker-wrap, .compare-grids-wrap,
-    .btn-card-tips, .collapse-chevron, .hint { display: none !important; }
+    .btn-card-tips, .collapse-chevron, .hint,
+    /* The window EDITOR is a control, not information — the masthead and the line above the heat
+       map both state the window in prose, which is what a paper reader needs. */
+    #windowEditor { display: none !important; }
 
     .container { display: block !important; max-width: none; }
     .card {

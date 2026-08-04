@@ -18,7 +18,7 @@ paths:
 
 ## The module set
 
-The workspace is one coordinator over seven pure/extracted modules. Everything except `links-app.js`
+The workspace is one coordinator over eight pure/extracted modules. Everything except `links-app.js`
 is testable without a browser, which is deliberate — the coordinator is where the Firestore and DOM
 state lives, and the rules that have historically produced bugs have been pulled out of it.
 
@@ -27,6 +27,7 @@ state lives, and the rules that have historically produced bugs have been pulled
 | `links-app.js` | coordinator: Firestore, grid, paint, picker, save/dirty state (+ `links-boot.js`, the CSP bootstrap) |
 | `links-design.js` | the design maths — classification, coverage, the generator, `runDesignChecks`, `endMinutesAbs` |
 | `links-fatigue.js` | the ORR p3 fatigue factors (v19.46) |
+| `links-window.js` | the staffed OPERATING WINDOW — when the station is open (v19.54) |
 | `links-analysis.js` | the two read-only panels — Coverage heat map + Design checks — rendered from those pure results |
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
 | `links-concurrency.js` | the co-editing rules (three historical silent-overwrite bugs, one test each) |
@@ -122,6 +123,56 @@ A brush chip bar above the grid (`#brushBar`) — clicking a chip arms that shif
 **A duty that does run past midnight is read in ONE place — `endMinutesAbs`** (v19.47). Before it, `calcHourlyCoverage` and `runDesignChecks` each carried their own inline expression and both erred the same way, towards *safer than the truth*: the heat map clamped the end to 24:00 and simply lost the post-midnight hours, and the turnaround check computed `(1440 − end) + start`, so a 00:30 finish before an 06:20 start reported ~26h of rest instead of 5h50 — the most dangerous turnaround the module can express, scored as compliant. The heat map now counts such a duty on **both** days (Sat spills round to Sun) and `links-fatigue.js`'s `dutyMinutes` delegates here. This is only reachable through legacy/imported data — the same route `canonicaliseShift` exists for — which is exactly why it is worth keeping correct: nothing exercises it, so nothing would tell you.
 
 **Shift option lists:** `EARLY_SHIFTS` / `LATE_SHIFTS` derived from `weeklyRoster` + `bilingualRoster` at module load — never a static list. **Custom time…** validated by `normaliseCustomShift()`.
+
+### The staffed operating window (v19.54)
+
+Stored on each design as `window` (`{monSat,sun}:{start,end}`), defaulting to Mon–Sat 06:20–23:55 ·
+Sun 07:15–23:25. All the rules are the pure `links-window.js`; the coordinator owns only the editor
+on the Coverage card and the Firestore field.
+
+**It exists because the heat map could not see missing cover at the ends of the day.** The span ran
+first-worked-hour → last-worked-hour and a gap had to fall strictly between them, so a design where
+everybody finishes at 14:20 — leaving the station unstaffed to the 23:55 close — showed **no gaps at
+all**. It now shows 71. Span and gaps both come from the window; an hour outside it renders
+`heat-closed` (hatched, inert) because a shut station is not a hole in the cover and must never look
+like one.
+
+Three rules that are easy to undo by accident:
+
+- **Compare mode diffs CELLS, not windows.** Two designs built to different spans would read as like
+  for like — the per-design override becoming a way to make an unfair comparison look fair. Both
+  column headers state the window and `windowsDiffer` flags a mismatch; the printed masthead states
+  it too. Never render a comparison without them.
+- **`normaliseWindow` falls back per ROW, never per FIELD.** A good Sunday survives a corrupt
+  Mon–Sat; a stored start is never paired with a default end, because that invents a window nobody
+  chose and then prints it as deliberate.
+- **TEXT inputs, not `<input type="time">`.** Chromium renders that widget in the OS's 12-hour
+  format *even at en-GB* (measured in both locales), which would put "11:55 PM" beside a grid, heat
+  map and window line all reading 23:55. `canonicaliseWindowTime` does the padding.
+
+Three things the v19.55 pass fixed, all found by driving the page rather than reading it:
+
+- **A design carries its window through the BIN.** The bin kept patterns but not the window, so a
+  restore handed back a design wearing the app default — and the next save wrote that default
+  straight over the moved boundary it was actually built to. Same class as the v19.41 restore bugs.
+- **`renderCoverageCard()` renders the chart AND the editor**, in one call. They are one card, and
+  as two calls every site had to remember both. The generator — the only way to create a design —
+  refreshed the chart through `renderGrid` but never painted the editor, so a designer's very first
+  link had no visible window control until they reloaded.
+- **`.win-editor[hidden] { display: none }` is mandatory, not tidiness.** An author `display` rule
+  beats the `hidden` attribute's UA `display:none`, so the editor rendered on a page with no design
+  at all. Missed on the first pass because the probe read `el.hidden` — the property, correctly
+  true — instead of what the browser actually painted.
+
+The window is stated **once** on screen: by the editor's own fields, under a "Staffed window"
+eyebrow. A prose line repeating the same two times 20px below it was removed — duplication like
+that reads as a second, possibly different, fact. On paper the editor is hidden and the print
+masthead carries it. The reset control reuses `.btn-text-link`, this stylesheet's existing small
+text button, rather than a second link-button recipe.
+
+An invalid pair (finish at or before start) is **refused, not coerced** — and the refusal message is
+written AFTER the repaint, because `paint()` rewrites the status line from the stored window and
+would otherwise wipe it in the same tick, leaving the field to appear to revert for no stated reason.
 
 ### Coverage heat map (v12.40)
 The Coverage card renders an **hour-by-hour table** (`calcHourlyCoverage`) — rows = days, columns = hours spanning the staffed day, cell = on-duty headcount, intensity buckets `heat-b0`–`heat-b5` (color-mix tints of `--cov-early`, scaled to the week's peak).

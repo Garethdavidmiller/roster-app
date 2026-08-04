@@ -36,6 +36,7 @@ import {
     generatePatterns,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
+import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
 import { conflictOf as _conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
@@ -201,7 +202,7 @@ export function init() {
     // ============================================
     /**
      * The currently active design. `id` is null for a freshly generated (not-yet-saved) design.
-     * @type {{ id: string|null, name: string, patterns: Object } | null}
+     * @type {{ id: string|null, name: string, patterns: Object, window?: any } | null}
      */
     let design = null;
     let dirty  = false;
@@ -223,12 +224,12 @@ export function init() {
     let genSpare = { weekday: 0, sat: 0, sun: 0 };
 
     // Multi-design state
-    /** @type {Array<{id:string, name:string, patterns:Object, updatedAt:*, updatedBy:string}>} */
+    /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, updatedBy:string}>} */
     let designs         = [];
     /** @type {any} */ let activeDesignId  = null; // null = design not yet saved to Firestore
     /** Deleted designs, newest first — the "Recently deleted" bin (v19.41). Held in memory with
      *  their patterns so a restore is a field-clearing merge, never a re-upload of a stale copy.
-     *  @type {Array<{id:string, name:string, patterns:Object, deletedAt:*, deletedBy:string}>} */
+     *  @type {Array<{id:string, name:string, patterns:Object, window?:*, deletedAt:*, deletedBy:string}>} */
     let deletedDesigns  = [];
 
     // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
@@ -270,10 +271,101 @@ export function init() {
         }
     }
 
+    /**
+     * The staffed-window editor on the Coverage card (v19.54).
+     *
+     * Edits mark the design DIRTY like any cell edit — the window is part of the proposal, not a
+     * view preference — so it saves with everything else and travels with the design.
+     *
+     * An invalid pair (finish at or before start, or a cleared field) is REFUSED rather than
+     * silently coerced: coercing would hand the designer a window they did not choose and then
+     * print it on the sheet as though they had.
+     */
+    function initWindowEditor() {
+        const box = /** @type {HTMLElement|null} */ (document.getElementById('windowEditor'));
+        if (!box) return () => {};
+        const els = {
+            monSat: { start: /** @type {HTMLInputElement|null} */ (document.getElementById('winMonSatStart')),
+                      end:   /** @type {HTMLInputElement|null} */ (document.getElementById('winMonSatEnd')) },
+            sun:    { start: /** @type {HTMLInputElement|null} */ (document.getElementById('winSunStart')),
+                      end:   /** @type {HTMLInputElement|null} */ (document.getElementById('winSunEnd')) },
+        };
+        const status = document.getElementById('winStatus');
+        const moved  = /** @type {HTMLElement|null} */ (document.getElementById('winMoved'));
+        const reset  = document.getElementById('winReset');
+
+        function paint() {
+            if (!box) return;
+            box.hidden = !design;
+            if (!design) return;
+            const w = normaliseWindow(design.window);
+            for (const row of /** @type {const} */ (['monSat', 'sun'])) {
+                if (els[row].start) els[row].start.value = w[row].start;
+                if (els[row].end)   els[row].end.value   = w[row].end;
+            }
+            // The moved flag sits in the EYEBROW row beside the "Staffed window" label, where it
+            // qualifies the fields it describes. `.win-status` below is for a REFUSAL only.
+            if (moved) moved.hidden = isDefaultWindow(w);
+            if (status) status.textContent = '';
+        }
+
+        /** @param {'monSat'|'sun'} row */
+        function commit(row) {
+            if (!design) return;
+            // Pad what was typed — "6:20" and "06:20" are the same instruction, and the stored
+            // value must be the one canonical form the rest of the workspace reads.
+            const start = canonicaliseWindowTime(els[row].start?.value) || '';
+            const end   = canonicaliseWindowTime(els[row].end?.value) || '';
+            const candidate = { start, end };
+            if (!isValidWindowRow(candidate)) {
+                // Put the stored value back so the field never sits showing something that is not
+                // in force, and say why — a silently reverted input reads as the app losing input.
+                // ORDER MATTERS: paint() rewrites `status` from the stored window, so the message
+                // has to be written AFTER it or it is wiped in the same tick and the field appears
+                // to revert for no reason at all.
+                paint();
+                if (status) status.textContent = 'A finish must be after its start — that change wasn’t applied.';
+                return;
+            }
+            const next = normaliseWindow(design.window);
+            if (next[row].start === start && next[row].end === end) return;
+            next[row] = candidate;
+            design = { ...design, window: next };
+            dirty = true;
+            updateSaveBtn();
+            renderCoverageCard();   // repaints the editor, so the moved flag follows the change
+        }
+
+        for (const row of /** @type {const} */ (['monSat', 'sun'])) {
+            els[row].start?.addEventListener('change', () => commit(row));
+            els[row].end?.addEventListener('change', () => commit(row));
+        }
+        reset?.addEventListener('click', () => {
+            if (!design) return;
+            if (isDefaultWindow(design.window)) return;
+            design = { ...design, window: normaliseWindow(null) };
+            dirty = true;
+            updateSaveBtn();
+            renderCoverageCard();   // repaints the editor too — no separate paint() needed
+        });
+        return paint;
+    }
+
+    /** @type {() => void} */ let paintWindowEditor = () => {};
+    /**
+     * Render the whole Coverage CARD — the heat map AND the staffed-window editor above it.
+     *
+     * ONE call, because they are one card and every call site would otherwise have to remember
+     * both. It did not: the generator (the only way to create a design) refreshed the chart via
+     * renderGrid but never painted the editor, so the very first design a designer made had no
+     * visible window control until they reloaded.
+     */
+    function renderCoverageCard() { renderCoverageChart(); paintWindowEditor(); }
     const { renderCoverageChart, renderDesignChecks } = initLinksAnalysis({
         getDesign: () => design,
         getBaseline: currentLinkBaseline,
     });
+    paintWindowEditor = initWindowEditor();
 
     // ============================================
     // HELPERS
@@ -490,6 +582,7 @@ export function init() {
             const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
                 name,
                 patterns:  {},
+                window:    normaliseWindow(null),   // a blank design starts on the app default
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
             }));
@@ -498,7 +591,7 @@ export function init() {
             // guard was bypassed (updatedAt:null) and a concurrent edit was silently clobbered.
             let createdTs = null;
             try { createdTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline — no concurrent editor to guard */ }
-            const d = { id: ref.id, name, patterns: {}, updatedAt: createdTs, updatedBy: currentUser };
+            const d = { id: ref.id, name, patterns: {}, window: normaliseWindow(null), updatedAt: createdTs, updatedBy: currentUser };
             designs.push(d);
             _sortDesigns();
             _activateDesign(d);
@@ -517,17 +610,22 @@ export function init() {
         if (!name) return;
         if (_designNameTooLong(name)) return;
         const patterns = deepCopyPatterns(design.patterns);
+        // A duplicate inherits the window it was designed to. Copying the patterns alone would
+        // silently re-base the copy on the standard hours, which is the one thing a designer
+        // duplicating a moved-boundary proposal is least likely to notice.
+        const window = normaliseWindow(design.window);
         try {
             const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
                 name,
                 patterns,
+                window,
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
             }));
             // Arm the concurrency baseline (see createDesign).
             let dupTs = null;
             try { dupTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline */ }
-            const d = { id: ref.id, name, patterns, updatedAt: dupTs, updatedBy: currentUser };
+            const d = { id: ref.id, name, patterns, window, updatedAt: dupTs, updatedBy: currentUser };
             designs.push(d);
             _sortDesigns();
             _activateDesign(d);
@@ -623,7 +721,7 @@ export function init() {
             // deletedAt is null until the server resolves it — deliberately kept as null rather
             // than stamped with a client clock, so the row reads "Deleted by X" until the real
             // time is known instead of showing a countdown built from an invented figure.
-            deletedDesigns.unshift({ id: d.id, name: d.name, patterns: d.patterns, deletedAt: null, deletedBy: currentUser });
+            deletedDesigns.unshift({ id: d.id, name: d.name, patterns: d.patterns, window: normaliseWindow(d.window), deletedAt: null, deletedBy: currentUser });
             const newActive = (id === activeDesignId) ? designs[0] : null;
             // Exit compare mode if the compare target was deleted, the delete drops below the 2
             // designs compare needs, OR the newly-promoted active design IS the current compare
@@ -680,7 +778,7 @@ export function init() {
             let restoredTs = null;
             try { restoredTs = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt ?? null; }
             catch { /* offline — the unknown-baseline flag covers it */ }
-            designs.push({ id: d.id, name: d.name, patterns: d.patterns, updatedAt: restoredTs, updatedBy: currentUser });
+            designs.push({ id: d.id, name: d.name, patterns: d.patterns, window: normaliseWindow(d.window), updatedAt: restoredTs, updatedBy: currentUser });
             _sortDesigns();
             renderDesignPicker();
             renderBinList();
@@ -820,7 +918,7 @@ export function init() {
         if (!d) return;
         activeDesignId  = d.id;
         lsSet(ACTIVE_KEY, d.id);
-        design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
+        design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns), window: normaliseWindow(d.window) };
         // Derive the baseline through the tested rule rather than hardcoding `baselineUnknown =
         // false` beside a possibly-null timestamp — that pair is precisely the v17.18 bug
         // (neither a known baseline nor a flag saying it is unknown, so conflictOf reads it as
@@ -839,7 +937,8 @@ export function init() {
         renderGrid();
         renderBrushBar();
         renderDesignChecks();
-        renderCoverageChart();
+        renderCoverageCard();
+        paintWindowEditor();
         compare.renderCompare();
         updateSaveBtn();
         updateLastSaved(d.updatedBy, d.updatedAt);
@@ -954,7 +1053,7 @@ export function init() {
                 }
             }
             renderBrushBar();
-            renderCoverageChart();
+            renderCoverageCard();
             renderDesignChecks();
             return;
         }
@@ -996,7 +1095,7 @@ export function init() {
 
         const cov = calcCoverage(design.patterns);
         renderFooter(cov);
-        renderCoverageChart();
+        renderCoverageCard();
     }
 
     // Delegated grid events — one listener instead of one per cell button.
@@ -1048,7 +1147,7 @@ export function init() {
 
         const cov = calcCoverage(design.patterns);
         renderFooter(cov);
-        renderCoverageChart();
+        renderCoverageCard();
         renderDesignChecks();
     }
 
@@ -1437,9 +1536,15 @@ export function init() {
             ? `Last saved by ${entry.updatedBy}${when ? ` · ${when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`
             : 'Not saved yet';
         const printed = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        // The printed sheet states the window it was designed to (v19.54). A circulated sheet is
+        // read away from the app, so without this a proposal built to a moved Sunday finish is
+        // indistinguishable from one built to the standard hours.
+        const win = formatWindow(design.window);
+        const moved = isDefaultWindow(design.window) ? '' : ' (moved)';
         el.innerHTML =
             `<span class="print-design-title">${escapeHtml(design.name || 'Link design')}</span>` +
-            `<span class="print-design-meta">${escapeHtml(saved)} · Printed ${escapeHtml(printed)}</span>`;
+            `<span class="print-design-meta">${escapeHtml(saved)} · Printed ${escapeHtml(printed)}</span>` +
+            `<span class="print-design-meta">Staffed window: ${escapeHtml(win + moved)}</span>`;
     }
     // Re-stamp on the way to the printer so the "Printed" date is the real one.
     window.addEventListener('beforeprint', _renderPrintMasthead);
@@ -1473,6 +1578,7 @@ export function init() {
                 const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
                     name:      dsn.name || 'Design 1',
                     patterns:  dsn.patterns,
+                    window:    normaliseWindow(dsn.window),
                     updatedAt: serverTimestamp(),
                     updatedBy: currentUser,
                 }));
@@ -1490,7 +1596,7 @@ export function init() {
                     // co-editor's intervening write with no conflict prompt.
                     ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(savedAt?.toMillis?.()));
                 } catch { ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(null, false)); }
-                const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), updatedAt: savedAt, updatedBy: currentUser };
+                const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), window: normaliseWindow(design.window), updatedAt: savedAt, updatedBy: currentUser };
                 designs.push(newEntry);
                 _sortDesigns();
                 dirty = false;
@@ -1513,6 +1619,7 @@ export function init() {
             const buildDoc = () => ({
                 name:      dsn.name || 'Design 1',
                 patterns:  dsn.patterns,
+                window:    normaliseWindow(dsn.window),
                 updatedAt: serverTimestamp(),
                 updatedBy: currentUser,
             });
@@ -1666,6 +1773,10 @@ export function init() {
                         id:        d.id,
                         name:      data.name.trim(),
                         patterns:  normalisePatterns(data.patterns || {}),
+                        // Carry the WINDOW into the bin too (v19.55). Without it a restore handed
+                        // back a design wearing the app default, and the next save wrote that
+                        // default over the moved boundary the design was actually built to.
+                        window:    normaliseWindow(data.window),
                         deletedAt: data.deletedAt ?? null,
                         deletedBy: data.deletedBy || '',
                     });
@@ -1679,6 +1790,10 @@ export function init() {
                         // making it invisible in the coverage heat map and exempt from every
                         // short-turnaround check. See links-design.js → canonicaliseShift.
                         patterns:  normalisePatterns(data.patterns || {}),
+                        // The staffed window travels with the design (v19.54). Normalised on the
+                        // way in, so a design saved before the field existed reads as the default
+                        // and nothing already saved changes.
+                        window:    normaliseWindow(data.window),
                         updatedAt: data.updatedAt,
                         updatedBy: data.updatedBy || '',
                     });
@@ -1718,7 +1833,7 @@ export function init() {
                 const d = designs.find(x => x.id === lsGet(ACTIVE_KEY)) || designs[0];
                 activeDesignId  = d.id;
                 lsSet(ACTIVE_KEY, d.id);
-                design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
+                design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns), window: normaliseWindow(d.window) };
                 ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(d.updatedAt?.toMillis?.()));
                 updateLastSaved(d.updatedBy, d.updatedAt);
             } else {
@@ -1735,6 +1850,11 @@ export function init() {
         renderGrid();
         renderBrushBar();
         renderDesignChecks();
+        // loadDesigns sets the active design INLINE rather than through _activateDesign, so the
+        // paint hook there does not cover a fresh page open — exactly the gap the generator targets
+        // hit at v19.38 (see the note below). Without this the window editor stayed hidden and
+        // empty until the designer switched design.
+        paintWindowEditor();
         updateSaveBtn();
         // Show the ACTIVE design's remembered generator targets (v19.38). loadDesigns sets the
         // active design inline rather than through _activateDesign, so the hook there does not cover

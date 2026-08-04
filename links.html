@@ -286,6 +286,31 @@
         <div class="card-collapsible-body open" id="coverageBody">
             <div class="card-body" id="coverageSummaryWrap">
                 <p class="links-empty-msg" id="coverageEmptyMsg">Load or create a link design to see coverage.</p>
+                <!-- Staffed window (v19.54). Per DESIGN, not global: a proposal may legitimately test a
+                     moved boundary. Editing it is what makes the heat map's "open but nobody on" gaps
+                     mean something. -->
+                <div id="windowEditor" class="win-editor" hidden>
+                    <div class="win-head">
+                        <span class="field-eyebrow">Staffed window</span>
+                        <span id="winMoved" class="win-moved" hidden>Moved from the standard hours</span>
+                    </div>
+                    <div class="win-row">
+                        <span class="win-label">Mon–Sat</span>
+                        <input type="text" id="winMonSatStart" class="win-time" inputmode="numeric" maxlength="5" placeholder="06:20" aria-label="Mon to Saturday start, 24-hour">
+                        <span class="win-dash" aria-hidden="true">–</span>
+                        <input type="text" id="winMonSatEnd" class="win-time" inputmode="numeric" maxlength="5" placeholder="23:55" aria-label="Mon to Saturday finish, 24-hour">
+                    </div>
+                    <div class="win-row">
+                        <span class="win-label">Sunday</span>
+                        <input type="text" id="winSunStart" class="win-time" inputmode="numeric" maxlength="5" placeholder="07:15" aria-label="Sunday start, 24-hour">
+                        <span class="win-dash" aria-hidden="true">–</span>
+                        <input type="text" id="winSunEnd" class="win-time" inputmode="numeric" maxlength="5" placeholder="23:25" aria-label="Sunday finish, 24-hour">
+                    </div>
+                    <div class="win-actions">
+                        <button type="button" id="winReset" class="btn-text-link">Reset to standard hours</button>
+                        <span id="winStatus" class="win-status" role="status" aria-live="polite"></span>
+                    </div>
+                </div>
                 <div id="coverageHeatmap" style="display:none"></div>
             </div>
         </div>

@@ -1172,3 +1172,125 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
     expect(after.bin, 'the bin must survive an Escape aimed at the confirm above it').toBe(true);
     expect(after.locked, 'scroll stays locked while the bin is still open').toBe(true);
 });
+
+// ── The staffed operating window (v19.54, LINKS_DEC2026_PLAN package 1) ───────────────────────
+// The heat map used to derive its own span from the design — first worked hour to last — and
+// flagged a gap only strictly BETWEEN them. So missing cover at either END of the day was
+// invisible: the span shrank to fit and those hours left the table. These drive the real page
+// against a design where everybody finishes at 14:20 while the station stays open to 23:55.
+const WINDOW_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+function morningOnlyPatterns() {
+    /** @type {any} */ const p = {};
+    for (let i = 1; i <= 28; i++) {
+        p[String(i)] = {};
+        WINDOW_DAYS.forEach(d => { p[String(i)][d] = d === 'sun' ? 'RD' : '06:20-14:20'; });
+    }
+    return p;
+}
+async function openWindowDesign(page, extraDocs = []) {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(([patterns, extra]) => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Morning heavy', patterns, updatedAt: 1750000000000, updatedBy: 'S. Silva' }, ...extra];
+    }, [morningOnlyPatterns(), extraDocs]);
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+}
+
+test('links window: an unstaffed evening is flagged, where the old span hid it', async ({ page }) => {
+    await openWindowDesign(page);
+    // Every hour from 15:00 to 23:00, six days — open, nobody on. Previously ZERO gaps rendered.
+    await expect(page.locator('.cov-heat-cell.heat-gap').first()).toBeVisible();
+    const gaps = await page.locator('.cov-heat-cell.heat-gap').count();
+    expect(gaps, 'the evening the station is open and unstaffed must be flagged').toBeGreaterThan(50);
+    await expect(page.locator('#winMonSatStart')).toHaveValue('06:20');
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('23:55');
+    // Sunday opens at 07:15, so its 06:00 column is CLOSED, not a hole.
+    expect(await page.locator('.cov-heat-cell.heat-closed').count()).toBeGreaterThan(0);
+});
+
+test('links window: editing it changes the gaps and marks the design dirty', async ({ page }) => {
+    await openWindowDesign(page);
+    const before = await page.locator('.cov-heat-cell.heat-gap').count();
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await expect.poll(() => page.locator('.cov-heat-cell.heat-gap').count()).toBeLessThan(before);
+    // The window is part of the PROPOSAL, not a view preference — it must save with everything else.
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+});
+
+test('links window: an invalid finish is refused, never coerced', async ({ page }) => {
+    await openWindowDesign(page);
+    await page.locator('#winMonSatEnd').fill('05:00');            // before the 06:20 start
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    // Coercing would hand the designer a window they did not choose and then print it as theirs.
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('23:55');
+    await expect(page.locator('#winStatus')).toContainText('after its start');
+});
+
+test('links window: compare states BOTH windows and flags that they differ', async ({ page }) => {
+    // Compare diffs CELLS, so without this two designs built to different spans would read as like
+    // for like — the per-design window becoming a way to make an unfair comparison look fair.
+    await openWindowDesign(page, [{
+        id: 'b', name: 'Later Sunday', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva',
+        window: { monSat: { start: '06:20', end: '23:55' }, sun: { start: '07:15', end: '23:55' } },
+    }]);
+    await page.locator('button:has-text("Compare")').first().click();
+    await expect(page.locator('.compare-window').first()).toBeVisible();
+    // Order-agnostic: designs sort by NAME, so which one lands in column A is not this test's
+    // business — that BOTH windows are stated, and that the difference is called out, is.
+    const heads = await page.locator('#compareHeadA, #compareHeadB').allTextContents();
+    const joined = heads.join(' | ');
+    expect(joined, 'the standard Sunday finish must be stated').toContain('Sun 07:15–23:25');
+    expect(joined, 'the moved Sunday finish must be stated').toContain('Sun 07:15–23:55');
+    expect(await page.locator('.compare-window--differs').count()).toBe(2);
+});
+
+test('links window: the printed sheet states the window it was designed to', async ({ page }) => {
+    // A circulated sheet is read away from the app; without this a proposal built to a moved
+    // Sunday finish is indistinguishable from one built to the standard hours.
+    await openWindowDesign(page);
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('#printDesignName')).toContainText('Staffed window: Mon–Sat 06:20–23:55');
+});
+
+test('links window: a RESTORED design keeps the window it was designed to', async ({ page }) => {
+    // The bin carried patterns but not the window, so a restore handed back a design wearing the
+    // app default — and the next save would have written that default straight over the moved
+    // boundary the design was actually built to. Same class as the v19.41 restore bugs.
+    await openWindowDesign(page, [{
+        id: 'gone', name: 'Binned early start', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva',
+        deletedAt: Date.now() - 2 * 86400000, deletedBy: 'S. Silva',
+        window: { monSat: { start: '05:00', end: '23:55' }, sun: { start: '07:15', end: '23:55' } },
+    }]);
+    await page.locator('#designBinBtn').click();
+    await expect(page.locator('#designBinLightbox.visible')).toBeVisible();
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await page.locator('#designBinClose').click();
+    await page.locator('.design-chip-name:has-text("Binned early start")').click();
+    await expect(page.locator('#winMonSatStart')).toHaveValue('05:00');
+    await expect(page.locator('#winMoved')).toBeVisible();
+});
+
+test('links window: generating the FIRST design reveals the window editor', async ({ page }) => {
+    // The generator is the only way to create a design. It refreshes the heat map through
+    // renderGrid, but the editor was a separate call it did not make — so a designer's very first
+    // link had no visible window control until they reloaded. Both now go through one function.
+    await page.setViewportSize({ width: 1280, height: 1200 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await page.waitForTimeout(700);
+    await expect(page.locator('#windowEditor')).toBeHidden();      // no design yet
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click({ force: true });
+    const ok = page.locator('.dialog-btn-confirm');
+    if (await ok.count()) await ok.first().click();
+    await expect(page.locator('#windowEditor')).toBeVisible();
+});
