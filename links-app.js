@@ -36,6 +36,7 @@ import {
     generatePatterns,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
+import { reorderLines, applyOrder } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
@@ -1358,11 +1359,20 @@ export function init() {
             const v = JSON.parse(raw);
             const int = (/** @type {any} */ n) => Number.isInteger(n) && n >= 0;
             const okCounts = (/** @type {any} */ o) => !!o && int(o.weekday) && int(o.sat) && int(o.sun);
-            if (!v || !Array.isArray(v.slots) || !okCounts(v.spare)) return null;
+            if (!v || !Array.isArray(v.slots)) return null;
+            // TWO accepted shapes, and both must stay accepted. v19.58 replaced the per-day `spare`
+            // object with a single `spareLines` count; a validator that demanded only the new one
+            // would reject every table stored before the change, and a validator that demanded only
+            // the old one rejects everything written after it — silently, because the fallback is a
+            // perfectly plausible roster seed. There is no error, just the designer's tuning quietly
+            // gone. Accept either, reject anything that is neither.
+            const legacy = okCounts(v.spare);
+            if (!int(v.spareLines) && !legacy) return null;
             if (!v.slots.every((/** @type {any} */ sl) => sl && typeof sl.time === 'string' && okCounts(sl))) return null;
             return {
                 slots: v.slots.map((/** @type {any} */ sl) => ({ time: sl.time, weekday: sl.weekday, sat: sl.sat, sun: sl.sun })),
-                spare: { weekday: v.spare.weekday, sat: v.spare.sat, sun: v.spare.sun },
+                spareLines: int(v.spareLines) ? v.spareLines : null,
+                spare: legacy ? { weekday: v.spare.weekday, sat: v.spare.sat, sun: v.spare.sun } : null,
             };
         } catch { return null; }
     }
@@ -1497,12 +1507,31 @@ export function init() {
                 danger: _hasWork,
             })) return;
 
+            // Tune the ORDER of the lines to whichever objectives are switched on. This is free with
+            // respect to coverage — permuting rows cannot change how many people work shift X on day
+            // D — so it can only ever trade the objectives against each other, and the status line
+            // states what that trade actually was rather than leaving the designer to trust it.
+            //
+            // AFTER the confirm, deliberately: the 2-opt sweep is ~150ms on a desktop and several
+            // times that on the phones this is used from, and run before the dialog that is the
+            // button sitting dead with nothing on screen to explain it.
+            const _chk = (/** @type {string} */ id) =>
+                !!(/** @type {HTMLInputElement|null} */ (document.getElementById(id))?.checked);
+            const _on = {
+                gentle: _chk('objGentle'), weekends: _chk('objWeekends'),
+                longWeekends: _chk('objLongWeekends'), turnarounds: _chk('objTurnarounds'),
+            };
+            const _target = Math.max(0, parseInt(
+                /** @type {HTMLInputElement|null} */ (document.getElementById('objLongTarget'))?.value ?? '4', 10) || 0);
+            const _ord = reorderLines(generated, { on: _on, longWeekendTarget: _target });
+            const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
+
             if (!design) {
                 // No active design yet — load into an unsaved in-memory design
-                design = { id: null, name: 'Design 1', patterns: generated };
+                design = { id: null, name: 'Design 1', patterns: _final };
                 activeDesignId = null;
             } else {
-                design = { ...design, patterns: generated };
+                design = { ...design, patterns: _final };
             }
 
             dirty = true;
@@ -1516,7 +1545,18 @@ export function init() {
             updateSaveBtn();
 
             const status = document.getElementById('linksSaveStatus');
-            if (status) { status.textContent = 'Link generated — review and save when ready.'; status.className = 'links-save-status ok'; }
+            if (status) {
+                // State the trade. A reorder that improved one figure at another's expense must say
+                // so — a bare "generated" would let the designer assume everything got better.
+                const b = _ord.before, a = _ord.after;
+                const bits = _ord.changed
+                    ? [`week-to-week ${b.gentleMean}→${a.gentleMean} min`,
+                        `weekends off ${b.weekends}→${a.weekends}`,
+                        `long ${b.longWeekends}→${a.longWeekends}`]
+                    : [];
+                status.textContent = 'Link generated' + (bits.length ? ` — ${bits.join(', ')}.` : ' — review and save when ready.');
+                status.className = 'links-save-status ok';
+            }
         });
     })();
 

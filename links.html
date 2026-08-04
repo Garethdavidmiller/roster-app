@@ -240,7 +240,11 @@
                                     <th class="gen-th-time">Shift time</th>
                                     <th>Mon–Fri</th>
                                     <th>Sat</th>
-                                    <th>Sun</th>
+                                    <!-- Sunday is NOT contracted (owner, Aug 2026) — a Sunday duty is
+                                         agreed RDW, so this column is cover you hope to fill rather
+                                         than cover you can require. Labelled so a designer does not
+                                         read a met Sunday target as a commitment. -->
+                                    <th>Sun<span class="gen-th-note">RDW</span></th>
                                     <th class="gen-th-remove"><span class="sr-only">Remove</span></th>
                                 </tr>
                             </thead>
@@ -252,7 +256,7 @@
                                      per-day headcount. The real roster is built this way: main lines
                                      1, 7, 12 and 17 are SPARE on all seven days. -->
                                 <tr class="gen-spare-row">
-                                    <td class="gen-td-label">Spare weeks<span class="gen-td-note">whole lines on standby</span></td>
+                                    <td class="gen-td-label">Spare weeks<span class="gen-td-note">whole lines; 4 days worked Mon–Sat</span></td>
                                     <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="27" value="0" aria-label="How many whole lines are spare weeks"><span class="gen-td-note">of 28 lines</span></td>
                                     <td></td>
                                 </tr>
@@ -270,6 +274,19 @@
                         <button class="btn-text-link" id="genAddSlotBtn" type="button">+ Add another shift</button>
                         <button class="btn-text-link" id="genSeedBtn" type="button">↺ Reset targets from current roster</button>
                     </div>
+                    <!-- Line-order objectives (v19.58). These tune WHICH LINE FOLLOWS WHICH, which is
+                         free with respect to coverage — permuting the rows cannot change how many
+                         people work shift X on day D. So they compete only with each other, and each
+                         one you turn on takes freedom from the rest. Switches rather than a formula
+                         precisely so the tool can show you what each one cost. -->
+                    <fieldset class="gen-objectives">
+                        <legend>Line order — what to tune for</legend>
+                        <p class="gen-obj-note">These change the order of the lines, never the cover. Turning one on takes freedom from the others; the result says what each cost.</p>
+                        <label class="gen-obj"><input type="checkbox" id="objGentle" checked> Gentle week-to-week change<span class="gen-obj-hint">Keeps your working day from jumping when you move line</span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objWeekends" checked> Full weekends off<span class="gen-obj-hint">Saturday rest followed by Sunday rest</span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked> Long weekends, at least <input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="28" value="4"> of 28<span class="gen-obj-hint">Three or four days off across the week boundary</span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objTurnarounds" checked> Rest across the week boundary<span class="gen-obj-hint">Saturday's finish into Sunday's start — the one turnaround a single line cannot show</span></label>
+                    </fieldset>
                     <div id="genError" class="gen-error" aria-live="polite"></div>
                     <button type="button" class="btn-action btn-primary" id="genApplyBtn">Generate link (all 28 lines)</button>
                     <p class="gen-note">Each day's total can't exceed 28 — the remaining lines become rest days.</p>

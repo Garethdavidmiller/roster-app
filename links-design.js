@@ -275,6 +275,23 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
  * met exactly — the working lines carry them — and every day now shows exactly
  * `spareLines` on standby, as the real roster does.
  *
+ * SUNDAY IS NOT CONTRACTED, and the generator does NOT model that (owner, Aug 2026). Sundays appear
+ * on the roster as agreed RDW — overtime by agreement, not contracted hours — but here `sun` is
+ * simply a third day class with its own headcount, exactly like `weekday` and `sat`. Nothing in this
+ * module, `runDesignChecks` or `links-fatigue.js` treats a Sunday duty as voluntary.
+ *
+ * That is mostly harmless — the cover still has to be found, and for FATIGUE purposes an hour worked
+ * is an hour worked however it is paid — but two readings do change:
+ *   · the Sunday column is cover you HOPE to fill, not cover you can require, so a Sunday target the
+ *     generator meets exactly is a plan rather than a commitment;
+ *   · "weekends off" counts Sat-not-worked plus Sun-not-worked, and a Sunday you do not work is the
+ *     DEFAULT. `links-adjacency.js` splits days-off from contracted-days-GIVEN for that reason.
+ *
+ * A SPARE WEEK'S FOUR DAYS COME FROM MON–SAT. The Sunday of a spare week stays RDW if the roster
+ * clerk gives it, on top of the four; it is not one of them. All seven days are still marked SPARE,
+ * which is what the real roster does and what "available for cover" means — but a reader should not
+ * take the four out of seven.
+ *
  * @param {Object} opts
  * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
  *   - one entry per distinct shift time, with target headcounts per day class

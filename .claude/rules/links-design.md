@@ -33,6 +33,7 @@ state lives, and the rules that have historically produced bugs have been pulled
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
 | `links-concurrency.js` | the co-editing rules (three historical silent-overwrite bugs, one test each) |
 | `links-deletion.js` | the soft-delete/restore/purge rules |
+| `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in (v19.58) |
 
 ## Access control
 
@@ -290,6 +291,59 @@ The table is **seeded from the current roster** on page load via `buildRosterTar
 `generatePatterns({ slots, spareLines, lines: 28 })` uses a rotating-window construction: window slides forward completing one lap per week **over the working lines**; within the window slots are ordered latest-start at front, earliest at back — so each person's week only moves later (never a late finish then early start; asserted by tests). Daily targets are met exactly; any day-class total > 28 is rejected. Generator writes all 28 lines.
 
 **Do not add back** `buildDefaultDesign`, `initFromRosters`, or `resetFromRosters` — those paths were removed at v12.43 because they copied raw 22-line roster patterns leaving lines 23–28 as all-RD blanks. The generator produces a complete 28-line rotation.
+
+### Line ORDER — the four objectives (v19.58)
+
+`links-adjacency.js`, applied by the generator through four switches. A whole class of the design's
+quality lives in which line follows which, because you work line w one week and line w+1 the next:
+the week-to-week movement of your working day (the FF18 question), whether Saturday off is followed
+by Sunday off, whether that extends to three or four days, and whether Saturday's finish runs into
+Sunday's start.
+
+**Reordering is FREE with respect to coverage, and that fact is what makes the feature safe.** Daily
+coverage is "how many lines work shift X on day D"; permuting the rows leaves that multiset
+identical. So these objectives cannot cost a single person's cover — they compete only with EACH
+OTHER, over the one scarce resource of line adjacency. There is a test asserting the multiset is
+unchanged; if it ever fails, the reorder has started moving cells rather than rows.
+
+**Switches, not a formula** (owner, Aug 2026). Turning one on takes freedom from the rest, so the
+tool's job is to let you turn each on and SHOW what it cost — `scoreOrder` returns all the figures
+whatever you optimised for, and the generator's status line reports before→after. A blended score
+would hide the trade. Measured on a generated design: gentle-only takes week-to-week movement from
+42 to 9 minutes but drops weekends off from 10 to 9; all four on gives 14 minutes and 12 weekends.
+
+**Everything off means leave it alone** — the order comes back untouched rather than re-sorted by
+whatever was left.
+
+Two rules that are easy to undo:
+
+- **A spare week must not read as a gentle transition.** A spare line carries no times, so the step
+  across it cannot be measured — and an optimiser scoring "unmeasurable" as "no change" would learn
+  to park spare weeks between the two harshest lines and report a beautiful number. Unmeasurable
+  steps are counted and reported SEPARATELY, never folded into the mean.
+- **Days off and contracted days GIVEN are two different answers.** Sunday is not contracted, so
+  Sat + Sun off is a two-day break but only one contracted day. Rolled into one number, a design
+  that simply never rosters Sundays would score as generous while giving nothing away. `breakLength`
+  returns both; `days` is right for fatigue, `given` is right for judging the design.
+
+**Deterministic** — no randomness. The same design and switches always give the same order, so a
+designer can re-run and get their design back, and two designers comparing notes compare the same
+thing. Greedy nearest-neighbour then a bounded 2-opt; not optimal and does not claim to be.
+
+### Sunday is not contracted, and the generator does not model it
+
+Sundays appear on the roster as agreed **RDW** — overtime by agreement, not contracted hours — but
+`dayClass` returns `'sun'` and that is the entire extent of it. Nothing in the generator,
+`runDesignChecks` or `links-fatigue.js` treats a Sunday duty as voluntary. Mostly harmless (the cover
+still has to be found, and an hour worked is an hour worked for fatigue), but two readings change:
+the Sunday column is cover you HOPE to fill rather than cover you can require, and "weekends off"
+counts a Sunday you were never going to work. The generator table labels the column `RDW` for the
+first; `links-adjacency.js` splits days-off from contracted-days-given for the second.
+
+**A spare week's four days come from Mon–Sat.** The Sunday of a spare week stays RDW if the roster
+clerk gives it, on top of the four — it is not one of them. All seven days are still marked SPARE,
+which is what the real roster does and what "available for cover" means, but a reader should not take
+the four out of seven.
 
 ### Line numbering (full 28-line rotation, v12.42)
 All 28 lines rotate and **every one must carry a real worked pattern** — in the rotation everyone passes through every line, so a "vacancy" is a missing *person*, not a missing *pattern*. `ROTATING_LINES = 28`.

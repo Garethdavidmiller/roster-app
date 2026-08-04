@@ -1338,3 +1338,72 @@ body.auth-ready .container { display: grid; }
     .check-quiet-summary .check-note { display: none; }
     .check-quiet-label { text-transform: uppercase; letter-spacing: 0.4px; font-size: var(--type-micro); }
 }
+
+/* Generator column/row notes (v19.58). Two facts a designer has to have in view while setting
+   targets, both of which they would otherwise have to remember: Sunday is not contracted (a Sunday
+   duty is agreed RDW, so that column is cover you hope to fill, not cover you can require), and a
+   spare line is a whole WEEK of which four days Mon–Sat are worked. */
+.gen-th-note,
+.gen-td-note {
+    display: block;
+    font-size: var(--type-micro);
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: none;
+    letter-spacing: 0;
+}
+.gen-td-spare { text-align: left; }
+.gen-td-spare .gen-input { margin-right: 8px; }
+.gen-td-spare .gen-td-note { display: inline; }
+
+/* ---- Line-order objectives (v19.58) ----
+   Four switches over one scarce resource: which line follows which. They cannot cost coverage
+   (permuting rows leaves each day's multiset identical), so they compete only with each other —
+   which is why they are switches with a stated cost rather than a single blended score. */
+.gen-objectives {
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    background: var(--surface-sunken);
+    padding: 10px 14px 12px;
+    margin: 14px 0 0;
+}
+.gen-objectives legend {
+    font-size: var(--type-micro);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-mid);
+    padding: 0 4px;
+}
+.gen-obj-note {
+    font-size: var(--type-badge);
+    color: var(--text-light);
+    margin: 0 0 8px;
+    line-height: 1.5;
+}
+.gen-obj {
+    display: block;
+    font-size: var(--type-label);
+    color: var(--text-dark);
+    padding: 5px 0;
+    cursor: pointer;
+}
+.gen-obj input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    margin-right: 7px;
+    vertical-align: -3px;
+    accent-color: var(--primary-blue);
+    cursor: pointer;
+}
+.gen-obj input:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.gen-obj-hint {
+    display: block;
+    margin-left: 24px;
+    font-size: var(--type-badge);
+    color: var(--text-light);
+    line-height: 1.45;
+}
+.gen-input-inline { width: 52px; margin: 0 2px; }
+@media (min-width: 1024px) { .gen-obj-note { max-width: 72ch; } }
+@media print { .gen-objectives { display: none; } }

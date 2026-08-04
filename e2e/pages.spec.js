@@ -475,6 +475,57 @@ test('links: printing opens every collapsed disclosure, and closes it again afte
     await expect.poll(() => rows.count()).toBe(onScreen);
 });
 
+test('links: the line-order switches change the design, and say what each one cost', async ({ page }) => {
+    // Reordering lines is FREE with respect to coverage — permuting rows leaves each day's multiset
+    // identical — so these four objectives compete only with each other. That is exactly why they are
+    // switches with a stated price rather than one blended score, and why the status line has to name
+    // the trade: a bare "generated" would let a designer assume everything improved.
+    async function generate(page, off = []) {
+        await page.setViewportSize({ width: 1280, height: 1400 });
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_links_welcome_seen', '1');
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+        });
+        await page.goto('/links.html');
+        await page.waitForTimeout(600);
+        await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+        for (const id of off) await page.locator('#' + id).uncheck();
+        await page.locator('#genApplyBtn').click({ force: true });
+        const ok = page.locator('.dialog-btn-confirm');
+        if (await ok.count()) await ok.first().click();
+        await expect(page.locator('#linksSaveStatus')).toContainText('Link generated');
+        return (await page.locator('#linksSaveStatus').textContent()).trim();
+    }
+
+    // Switches ON: the reorder runs and reports before→after for each objective.
+    const on = await generate(page);
+    expect(on, 'the status line must state the trade, not just "generated"').toMatch(/week-to-week \d+→\d+ min/);
+    expect(on).toMatch(/weekends off \d+→\d+/);
+});
+
+test('links: every line-order switch OFF leaves the generated order untouched', async ({ page }) => {
+    // Re-sorting by an empty objective set would hand back a different design for no stated reason.
+    await page.setViewportSize({ width: 1280, height: 1400 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await page.waitForTimeout(600);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    for (const id of ['objGentle', 'objWeekends', 'objLongWeekends', 'objTurnarounds']) {
+        await page.locator('#' + id).uncheck();
+    }
+    await page.locator('#genApplyBtn').click({ force: true });
+    const ok = page.locator('.dialog-btn-confirm');
+    if (await ok.count()) await ok.first().click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('review and save when ready');
+    // …and specifically NOT a before→after report, because nothing was reordered.
+    await expect(page.locator('#linksSaveStatus')).not.toContainText('week-to-week');
+});
+
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {
     await openLinksWithDesigns(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
@@ -1248,14 +1299,39 @@ test('links: generator targets are remembered per design', async ({ page }) => {
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
 
-    const spare = page.locator('#genSpareWeekday');
+    // Spare is a count of whole LINES since v19.58 — a spare week is a full week on cover, not a
+    // per-day slot, so the three per-day boxes became one.
+    const spare = page.locator('#genSpareLines');
     await spare.fill('7');
     await spare.dispatchEvent('input');
 
     await page.reload();
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
     await page.locator('#generatorToggleHeader').click();
-    await expect(page.locator('#genSpareWeekday')).toHaveValue('7');
+    await expect(page.locator('#genSpareLines')).toHaveValue('7');
+});
+
+test('links: a target table stored BEFORE the spare-week change is still read', async ({ page }) => {
+    // The reload test above can only ever exercise the shape the CURRENT code writes, so it cannot
+    // see a stored blob written by an older version — and that is precisely how this broke: v19.58
+    // started writing `spareLines` while the validator still demanded the per-day `spare` object,
+    // so every remembered table was rejected in favour of the roster seed. Silently: the fallback
+    // is a plausible-looking table, nothing throws, and the designer just finds their tuning gone.
+    // The migration reads the LARGEST of the three days — 5 here, not weekday's 2 — because that is
+    // the day that needed the most cover, so no capacity is lost in the move.
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        // Keyed on the design that `openLinks` makes active — targets are remembered per design.
+        localStorage.setItem('myb_links_gen_d1', JSON.stringify({
+            slots: [{ time: '06:20-14:20', weekday: 6, sat: 4, sun: 3 }],
+            spare: { weekday: 2, sat: 5, sun: 1 },
+        }));
+    });
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+    await expect(page.locator('#genSpareLines')).toHaveValue('5');
+    await expect(page.locator('#genSlotRows tr')).toHaveCount(1);
 });
 
 // ── Escape closes only the TOPMOST overlay (v19.53) ───────────────────────────────────────────
