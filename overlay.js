@@ -75,6 +75,51 @@ export function _pushOverlayState(closeHandler) {
 }
 
 /**
+ * Is this overlay's close handler at the TOP of the stack — i.e. is it the one the user can
+ * actually see and interact with?
+ *
+ * WHY (v19.53). Every open overlay attaches its OWN `document`-level keydown listener, so a single
+ * Escape fired all of them. Android Back was already correct (one history entry is consumed per
+ * press, so only the topmost handler runs) and so was the ✕ (it belongs to one overlay) — Escape
+ * was the odd one out, and it was the dangerous one: with two one-time NOTICES open, one keypress
+ * ran both `onClose` callbacks, so the notice buried underneath was archived and flagged
+ * permanently seen by someone who never saw it. Measured, not theorised.
+ *
+ * `_backHandlers` is reused deliberately rather than a second stack being introduced: it is already
+ * the ordered record of what is open, already drives Back, and already has tests. Two stacks would
+ * be two things to keep in step.
+ *
+ * **Fails OPEN.** A handler that is not on the stack at all cannot be shown to be underneath
+ * anything, so it is treated as topmost — a wrongly-suppressed Escape is a user trapped in a dialog,
+ * which is far worse than an extra close.
+ * @param {Function} closeHandler
+ */
+export function _isTopOverlay(closeHandler) {
+    if (!_backHandlers.includes(closeHandler)) return true;
+    return _backHandlers[_backHandlers.length - 1] === closeHandler;
+}
+
+/**
+ * Open a one-time NOTICE only if nothing else is on screen — otherwise leave it for the next load.
+ *
+ * A notice is dismissed once and then never shown again, so it must never appear stacked behind (or
+ * in front of) another overlay: the reader either cannot see it, or cannot see what it covered.
+ * Returning without opening leaves the notice UNSEEN and UNARCHIVED — the "seen" flag is written in
+ * `onClose`, which cannot run — so it simply gets its turn next time.
+ *
+ * Which one wins when two are due is DOM/registration order, and that is fine: the point is that
+ * exactly one shows per load, not which. The `new-notice` skill's actionable pattern already had
+ * this guard inline; the close-only pattern (which both of the app's current notices use) did not.
+ * @param {{ open: (...a: any[]) => void }} lightbox - the createLightbox handle
+ * @returns {boolean} true if it opened
+ */
+export function openNoticeIfClear(lightbox) {
+    if (document.body.classList.contains('lb-open')) return false;
+    lightbox.open();
+    return true;
+}
+
+/**
  * Close an overlay: remove .open, then once the CSS fade-out ends (or after a
  * 500 ms safety fallback) remove .visible and unlock body scroll.
  *
@@ -224,6 +269,10 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
 
     /** @param {KeyboardEvent} e */
     function onKey(e) {
+        // Only the TOPMOST overlay reacts. Both halves matter: Escape used to close every open
+        // overlay at once (see `_isTopOverlay`), and `trapFocus` on a BURIED overlay would drag Tab
+        // back into a dialog the user cannot see. Fails open — see `_isTopOverlay`.
+        if (!_isTopOverlay(close)) return;
         if (e.key === 'Escape') { close(); return; }
         trapFocus(content ?? overlay, e);
     }

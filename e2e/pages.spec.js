@@ -1129,3 +1129,46 @@ test('links: generator targets are remembered per design', async ({ page }) => {
     await page.locator('#generatorToggleHeader').click();
     await expect(page.locator('#genSpareWeekday')).toHaveValue('7');
 });
+
+// ── Escape closes only the TOPMOST overlay (v19.53) ───────────────────────────────────────────
+// Every open overlay attaches its own document-level keydown listener, so one Escape used to close
+// them all. With two one-time NOTICES up that meant a single keypress archived and permanently
+// flagged the one buried underneath, for someone who never saw it.
+//
+// This drives a REAL nested pair — the Recently-deleted bin with its "Remove for good" confirm on
+// top — because `overlay-history.test.mjs` tests the RULE (`_isTopOverlay`) and cannot see the
+// wiring: deleting the guard from `onKey` leaves every one of those unit tests green and only this
+// test red. Teeth-verified exactly that way.
+test('links: Escape closes the confirm on top, not the bin underneath it', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= 28; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        w.__E2E.docs = [
+            { id: 'live', name: 'Option A', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' },
+            // Deleted RECENTLY — a 30-day-old deletion is purged on load and the bin button never appears.
+            { id: 'gone', name: 'Old idea', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva',
+              deletedAt: Date.now() - 2 * 86400000, deletedBy: 'S. Silva' },
+        ];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await page.locator('#designBinBtn').click();
+    await expect(page.locator('#designBinLightbox.visible')).toBeVisible();
+    await page.locator('#designBinList button:has-text("Remove for good")').first().click();
+    await expect(page.locator('.lb-overlay.visible')).toHaveCount(2);
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(600);
+    const after = await page.evaluate(() => ({
+        bin: !!document.querySelector('#designBinLightbox.visible'),
+        open: document.querySelectorAll('.lb-overlay.visible').length,
+        locked: document.body.classList.contains('lb-open'),
+    }));
+    expect(after.open, 'one Escape closes one overlay').toBe(1);
+    expect(after.bin, 'the bin must survive an Escape aimed at the confirm above it').toBe(true);
+    expect(after.locked, 'scroll stays locked while the bin is still open').toBe(true);
+});

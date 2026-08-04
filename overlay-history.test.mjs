@@ -37,7 +37,15 @@ global.history = /** @type {any} */ ({
     back:      () => { backCount++; popstateHandler?.(); },
 });
 global.document = /** @type {any} */ ({
-    body: { classList: { add() {}, remove() {} }, style: { setProperty() {}, removeProperty() {} } },
+    body: {
+        // Set-backed so `openNoticeIfClear` can ask whether an overlay is already up.
+        classList: (() => { const set = new Set(); return {
+            add: (/** @type {string} */ c) => set.add(c),
+            remove: (/** @type {string} */ c) => set.delete(c),
+            contains: (/** @type {string} */ c) => set.has(c),
+        }; })(),
+        style: { setProperty() {}, removeProperty() {} },
+    },
     addEventListener: () => {}, removeEventListener: () => {},
 });
 
@@ -162,5 +170,69 @@ describe('overlay history stack — _pushOverlayState / _clearOverlayHistory / p
         // Only closeB remains registered; a Back closes B (not A again).
         pressBack();
         assert.deepEqual(calls, ['B']);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Only the TOPMOST overlay reacts to Escape (v19.53).
+//
+// Every open overlay attaches its own document-level keydown listener, so one Escape fired all of
+// them. Back was already right (one history entry consumed per press) and so was the ✕ (it belongs
+// to one overlay) — Escape was the outlier, and the dangerous one: two one-time NOTICES open meant
+// one keypress ran both onClose callbacks, archiving and permanently flagging the notice buried
+// underneath for someone who never saw it. Proven in a browser before this was written.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('_isTopOverlay — which overlay owns the keyboard', () => {
+    test('with one overlay open, it is the top', async () => {
+        const { _pushOverlayState, _isTopOverlay } = await freshOverlay();
+        const a = () => {};
+        _pushOverlayState(a);
+        assert.equal(_isTopOverlay(a), true);
+    });
+
+    test('with two open, only the LAST pushed is the top', async () => {
+        const { _pushOverlayState, _isTopOverlay } = await freshOverlay();
+        const lower = () => {}, upper = () => {};
+        _pushOverlayState(lower);
+        _pushOverlayState(upper);
+        assert.equal(_isTopOverlay(upper), true, 'the one the user can see');
+        assert.equal(_isTopOverlay(lower), false, 'the buried one must ignore the key');
+    });
+
+    test('closing the top hands the keyboard back to the one underneath', async () => {
+        const { _pushOverlayState, _clearOverlayHistory, _isTopOverlay } = await freshOverlay();
+        const lower = () => {}, upper = () => {};
+        _pushOverlayState(lower);
+        _pushOverlayState(upper);
+        _clearOverlayHistory(upper);
+        assert.equal(_isTopOverlay(lower), true);
+    });
+
+    test('FAILS OPEN: a handler that is not on the stack counts as top', async () => {
+        // A suppressed Escape is a user trapped in a dialog they cannot close — strictly worse than
+        // an extra close. If we cannot prove an overlay is underneath another, it gets the key.
+        const { _pushOverlayState, _isTopOverlay } = await freshOverlay();
+        assert.equal(_isTopOverlay(() => {}), true, 'empty stack');
+        _pushOverlayState(() => {});
+        assert.equal(_isTopOverlay(() => {}), true, 'unregistered handler, non-empty stack');
+    });
+});
+
+describe('openNoticeIfClear — a one-time notice never opens stacked', () => {
+    test('opens when nothing else is up', async () => {
+        const { openNoticeIfClear } = await freshOverlay();
+        let opened = 0;
+        assert.equal(openNoticeIfClear({ open: () => { opened++; } }), true);
+        assert.equal(opened, 1);
+    });
+
+    test('defers — and does NOT open — when another overlay is already up', async () => {
+        const { openNoticeIfClear } = await freshOverlay();
+        document.body.classList.add('lb-open');
+        let opened = 0;
+        assert.equal(openNoticeIfClear({ open: () => { opened++; } }), false);
+        assert.equal(opened, 0, 'not opening is the whole point: onClose cannot run, so the ' +
+            'notice is never flagged seen and returns on the next load');
+        document.body.classList.remove('lb-open');
     });
 });

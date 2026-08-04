@@ -9,7 +9,7 @@
  * Edit here for: lightbox content, first-visit notice, decimal converter logic.
  */
 
-import { createLightbox, initCardCollapse } from './overlay.js';
+import { createLightbox, initCardCollapse, openNoticeIfClear } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
@@ -114,7 +114,11 @@ export function initPaycalcLightboxes() {
       },
     });
 
-    notice.open();
+    // Two guards, catching DIFFERENT cases — keep both. `_ownerPending` above is a WILL-OPEN guard
+    // (the ownership prompt has not opened yet at this point, so an is-open test cannot see it);
+    // `openNoticeIfClear` is an IS-OPEN guard for anything already on screen. Deferring leaves the
+    // notice unflagged, so it returns on the next load.
+    openNoticeIfClear(notice);
   })();
 
   // ── DECIMAL HOURS CONVERTER ─────────────────────────────────────────────────

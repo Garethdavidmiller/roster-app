@@ -78,7 +78,12 @@ The user reads the notice and closes it. `archiveNotice()` fires in `onClose` be
         },
     });
 
-    lb.open();   // or conditionally, e.g.: if (lsGet(PREV_KEY) && !lsGet(NOTICE_KEY)) lb.open();
+    // openNoticeIfClear, NEVER lb.open() — a notice must not appear stacked with another overlay.
+    // Two open notices used to share one Escape: a single keypress ran BOTH onClose callbacks, so
+    // the one buried underneath was archived and flagged permanently seen by someone who never saw
+    // it. Deferring leaves it unopened AND unflagged, so it gets its turn on the next load.
+    // Import from './overlay.js'.
+    openNoticeIfClear(lb);   // or conditionally, e.g.: if (lsGet(PREV_KEY) && !lsGet(NOTICE_KEY)) openNoticeIfClear(lb);
 }());
 ```
 
@@ -130,7 +135,8 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
     laterBtn?.addEventListener('click', () => lb.close());
 
     // Guard: skip if another overlay (e.g. Huddle viewer) opened in the 1500ms window.
-    setTimeout(() => { if (!document.body.classList.contains('lb-open')) lb.open(); }, 1500);
+    // openNoticeIfClear IS that guard, now shared with the close-only pattern above (v19.53).
+    setTimeout(() => openNoticeIfClear(lb), 1500);
 }());
 ```
 
@@ -151,6 +157,7 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 | Expiry on new device — long (90 days) | Use for tax-year or seasonal notices that stay relevant for months: YTD entry reminders, pay rate change notices. `if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }` — same placement as short. |
 | Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than **180 days** on every write — the archive stays fresh over time on each device without the user having to clear storage. (It lives in `localStorage`, so it is per-device and does **not** sync across devices; legacy pre-v13.41 entries without `archivedAt` are migrated — stamped with the current time — not dropped, on the first write.) |
 | Show delay | 1500ms when notice competes with page render; 0 when it is the first thing shown |
+| Opening it | **Always `openNoticeIfClear(lb)`, never `lb.open()`** — a notice must never open stacked with another overlay. Not opening leaves it unflagged, so it returns next load. |
 
 ## After adding the notice
 
