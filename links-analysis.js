@@ -16,7 +16,11 @@
  */
 import { DAYS, ROTATING_LINES, calcHourlyCoverage, runDesignChecks } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
-import { normaliseWindow, heatSpan, isHourStaffed } from './links-window.js';
+import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, windowMinutes } from './links-window.js';
+import {
+    DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, DAY_CLASSES,
+    demandAt, demandBucket, peakCars, peakHours, summariseDemand, describeHours, describeMovements,
+} from './links-demand.js';
 import { escapeHtml } from './roster-data.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
@@ -33,6 +37,25 @@ const TOTAL_POS = ROTATING_LINES;
  * rather than written out at each of the three use sites (v19.52).
  */
 const NIGHT_FAMILY = 'Night shifts';
+
+/**
+ * The scale the demand row is shaded against — the profile's own busiest hour, computed once at
+ * module load because the profile is a constant.
+ *
+ * Deliberately NOT the cover grid's peak. The two rows measure different things in different units
+ * (people on duty · cars per hour), so a shared scale would be arithmetic with no meaning. What each
+ * row shows is its own shape, and it is the shapes a reader puts side by side.
+ */
+const DEMAND_PEAK = peakCars(DEC_2026_DEMAND);
+
+/** A window row's staffed span, in minutes since midnight. */
+const minutesOf = (/** @type {{start: string, end: string}} */ row) => ({
+    start: /** @type {number} */ (windowMinutes(row.start)),
+    end:   /** @type {number} */ (windowMinutes(row.end)),
+});
+
+/** "17:00" from an hour index. */
+const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0')}:00`;
 
 /**
  * @param {object} deps
@@ -77,6 +100,17 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             hourTh.push(`<th class="cov-heat-hour">${String(h).padStart(2, '0')}</th>`);
         }
 
+        // Read the design against the service ONCE, and hand the same result to both the rows and
+        // the prose. Two calls would be two chances for the cells and the sentence under them to
+        // disagree about the very comparison the card exists to make.
+        const sum = summariseDemand({
+            profile: DEC_2026_DEMAND,
+            movements: DEC_2026_MOVEMENTS,
+            hourly,
+            days: DAYS,
+            windowFor: (day) => minutesOf(windowForDay(win, day)),
+        });
+
         let gapCount = 0, outsideCount = 0;
         const rows = DAYS.map((/** @type {string} */ d, /** @type {number} */ di) => {
             const { hours, spare } = hourly[d];
@@ -114,10 +148,125 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             `<div class="cov-heat-wrap"><table class="cov-heat">` +
             `<thead><tr><th class="cov-heat-day"></th>${hourTh.join('')}<th class="cov-heat-spare-h">SP</th></tr></thead>` +
             `<tbody>${rows}</tbody>` +
+            demandBody(sum, minH, maxH) +
             `</table></div>` +
             `<p class="cov-heat-note">Each cell shows how many people are on duty during that hour — darker means more. ` +
             `Red 0 = the station is open and nobody is on. Grey = outside the staffed window. ` +
-            `SP = spares on standby (no fixed time). Peak this week: ${maxCount}.${gapNote}${outNote}</p>`;
+            `SP = spares on standby (no fixed time). Peak this week: ${maxCount}.${gapNote}${outNote}</p>` +
+            demandNote(sum, minH, maxH);
+    }
+
+    /**
+     * The service the design has to cover, as three rows in the SAME table as the cover — one per
+     * day class, because the timetable has three shapes and not seven.
+     *
+     * In the same table on purpose: a reader comparing cover against service is comparing columns,
+     * and two tables side by side would put that comparison at the mercy of two independent
+     * horizontal scrolls. It is a second `<tbody>`, not more rows in the first, so the two halves
+     * can be told apart at a glance and by a screen reader.
+     *
+     * @param {ReturnType<typeof summariseDemand>} sum
+     * @param {number} minH
+     * @param {number} maxH
+     */
+    function demandBody(sum, minH, maxH) {
+        // Which cells hold service the window does not staff — keyed `label|hour`, from the SAME
+        // summary the prose reads, so a marked cell and a named movement can never disagree.
+        const shutCells = new Set(sum.outside.map(e => `${e.label}|${Math.floor(e.t / 60)}`));
+
+        const rows = DAY_CLASSES.map(({ day, label }) => {
+            const cells = [];
+            for (let h = minH; h < maxH; h++) {
+                const { mv, cars } = demandAt(DEC_2026_DEMAND, day, h);
+                // Shaded against the PROFILE's own peak, not the cover grid's — the two rows measure
+                // different things in different units, so a shared scale would mean nothing. Each
+                // row shows its own shape, and the shapes are what the reader is comparing.
+                const bucket = demandBucket(cars, DEMAND_PEAK);
+                // Marked because some of this hour's service falls outside the window — NOT as a
+                // fault. It is the distinction the cover row makes with `heat-closed`, seen from the
+                // other side: trains run whether or not we roster anyone. Note the marker is driven
+                // by MOVEMENTS, not by `isHourStaffed`: Sunday closes at 23:25, so the 23:00 hour is
+                // "staffed" while five of its movements are not covered, and an hour-level test
+                // reported the whole thing as fine. That was the v19.56 bug.
+                const shut = shutCells.has(`${label}|${h}`);
+                const title = mv > 0 ? ` title="${mv} train${mv === 1 ? '' : 's'}, ${cars} cars"` : '';
+                cells.push(
+                    `<td class="cov-heat-cell dem-cell dem-b${bucket}${shut ? ' dem-shut' : ''}"${title}>` +
+                    `${cars || ''}</td>`,
+                );
+            }
+            return `<tr><th class="cov-heat-day dem-day">${label}</th>${cells.join('')}` +
+                `<td class="cov-heat-spare dem-cell dem-pad"></td></tr>`;
+        }).join('');
+        return `<tbody class="cov-demand">` +
+            `<tr class="dem-head-row"><th class="cov-heat-day dem-day" colspan="${maxH - minH + 2}">` +
+            `Trains per hour — cars (arrivals + departures)</th></tr>${rows}</tbody>`;
+    }
+
+    /**
+     * The prose under the table: what the demand rows mean, the two things that are not visible as
+     * cells, and where the figures came from.
+     *
+     * The provenance line is not optional. These simplifiers are base files that will be revised and
+     * the weekday one is not marked final, so a demand curve printed with no version on it is the
+     * undated-printed-sheet defect (v19.45) all over again — right when it was made, unverifiable
+     * afterwards.
+     *
+     * @param {ReturnType<typeof summariseDemand>} sum
+     * @param {number} minH
+     * @param {number} maxH
+     */
+    function demandNote(sum, minH, maxH) {
+        // A FINDING: the station is open, trains are running, nobody is on.
+        const nUnc = sum.uncovered.length;
+        const uncovered = nUnc
+            ? `<span class="dem-finding">Trains run in ${nUnc} staffed hour${nUnc === 1 ? '' : 's'} ` +
+              `with nobody on duty</span> (${escapeHtml(describeHours(sum.uncovered))}). `
+            : `Every staffed hour with trains in it has someone on duty. `;
+
+        // A FACT, never a finding — see links-demand.js. The last trains and the 05:5x first
+        // departure are like this on every design there has ever been, so an amber flag here would
+        // fire forever and be learned-ignored, taking the sentence above it along too.
+        //
+        // Reported to the MINUTE and split before/after, because that is the resolution the question
+        // is actually asked at: "five Sunday movements fall after the 23:25 finish" is the argument,
+        // and an hourly answer cannot make it.
+        // Split before/after: an early start and a late finish are different business decisions,
+        // and the pre-opening set is three times bigger AND permanent, so one combined list ordered
+        // by time puts every unmovable movement ahead of the five Sunday ones this exists to show.
+        const clause = (/** @type {any[]} */ entries, /** @type {string} */ phrase, cap = 5) => (entries.length
+            ? `${entries.length} ${phrase} (${escapeHtml(describeMovements(entries, cap))}). `
+            : '');
+        const outside = sum.outside.length
+            ? clause(sum.outsideAfter, `train movement${sum.outsideAfter.length === 1 ? ' runs' : 's run'} after the day's finish`, 8)
+              + clause(sum.outsideBefore, `run${sum.outsideBefore.length === 1 ? 's' : ''} before the day's start`)
+              + `Both are stated, not scored: where the window sits is a business decision, not a design fault. `
+            : '';
+
+        // Movements the table cannot show. The span is the window plus whatever is worked, so
+        // service outside both is real but off-table; saying nothing would make the row look
+        // complete.
+        const offTable = sum.outside.filter(e => Math.floor(e.t / 60) < minH || Math.floor(e.t / 60) >= maxH).length;
+        const offNote = offTable
+            ? `${offTable} of those fall outside the hours shown above. `
+            : '';
+
+        // The two measures disagree about the weekday peak, and that disagreement is the reason both
+        // are kept rather than blended. Stated rather than left to a `title` tooltip, which does not
+        // exist on a phone — and computed from the profile, so a timetable swapped in later tells
+        // its own truth instead of repeating this one's.
+        const pk = peakHours(DEC_2026_DEMAND, 'weekday');
+        const peakNote = pk.differ
+            ? `Mon–Fri is busiest at ${hhmm(pk.byMv)} by number of trains but ${hhmm(pk.byCars)} by ` +
+              `train length — the evening carries more people over fewer movements. `
+            : '';
+
+        return `<p class="cov-heat-note dem-note">` +
+            `<strong>Trains per hour</strong> shows the service this design has to cover — arrivals ` +
+            `and departures together, weighted by train length. ${peakNote}${uncovered}${outside}${offNote}` +
+            `<span class="dem-source">${escapeHtml(DEC_2026_SOURCE.label)}` +
+            `${DEC_2026_SOURCE.provisional ? ' (provisional)' : ''} — ` +
+            `${escapeHtml(DEC_2026_SOURCE.detail)}</span></p>`;
     }
 
     /** Traffic-light design quality checks for the active design (or the empty-state message). */

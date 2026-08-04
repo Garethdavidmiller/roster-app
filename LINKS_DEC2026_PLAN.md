@@ -40,41 +40,64 @@ against departures (train, departure from MYB, destination, max CAO, diagrams). 
 
 ## What the timetable demands (measured, not estimated)
 
-Passenger movements at Marylebone — arrivals plus departures, ECS excluded:
+**Demand = arrivals *and* departures, weighted by the length of the train** (owner, Aug 2026 —
+this settles what was open question 1). Both halves matter: an arrival is a full detrain and an
+departure is a dispatch, and a 9-car train is not the same job as a 3-car one either way.
 
-| | Movements | Shape | First → last |
-|---|---|---|---|
-| **SX** Mon–Fri | 306 (147 arr / 159 dep) | **Twin-peaked** — 08:00 (23) and 17:00 (23) / 18:00 (22); trough 12:00–14:00 (14) | 00:01 → 23:57 |
-| **SO** Saturday | 215 (105 / 110) | **Flat** — 13–15 per hour right across 08:00–20:00, peak 10:00 | 00:10 → 23:57 |
-| **Su** Sunday | 188 (91 / 97) | **Late-starting, evening-weighted** — nothing 01:00–07:00, peak 17:00 (14) | 00:05 → 23:54 |
+Passenger movements at Marylebone — ECS excluded:
 
-Hourly totals (arrivals + departures):
+| | Movements | Cars | Shape | First → last |
+|---|---|---|---|---|
+| **SX** Mon–Fri | 311 (148 arr / 163 dep) | 1,758 | **Twin-peaked** — by movement 08:00 (23) and 17:00 (23); **by cars the evening wins**, 17:00 (140) / 18:00 (138) over 08:00 (127) | 00:01 → 23:57 |
+| **SO** Saturday | 215 (105 / 110) | 1,270 | **Flat** — 13–15 per hour across 08:00–20:00; peak 10:00 on both measures | 00:10 → 23:57 |
+| **Su** Sunday | 188 (91 / 97) | 1,063 | **Late-starting, evening-weighted** — nothing 01:00–07:00, peak 17:00 on both measures | 00:05 → 23:54 |
+
+Hourly, both measures (arrivals + departures; hours 01–04 are empty on all three days and omitted):
 
 ```
-hour   00  05  06  07  08  09  10  11  12  13  14  15  16  17  18  19  20  21  22  23
-SX      5   1  14  19  23  19  17  15  14  15  14  15  17  23  22  19  16  13  13  12
-SO      1   1   4  10  13  14  15  14  13  11  12  12  14  14  12  11  13  12  11   8
-Su      1   -   -   3   8  11  13  13  12  11  10  11  13  14  13  13  10  11  12   9
+hour        00  05  06  07  08  09  10  11  12  13  14  15  16  17  18  19  20  21  22  23
+SX  movements 5   1  14  19  23  22  17  15  14  15  14  15  18  23  23  19  16  13  13  12
+SX  cars     27   5  69 107 127 122  97  85  75  84  79  87 105 140 138 107  90  73  75  66
+SO  movements 1   1   4  10  13  14  15  14  13  11  12  12  14  14  12  11  13  12  11   8
+SO  cars      4   6  24  58  75  81  92  92  77  64  68  72  84  82  67  64  79  78  62  41
+Su  movements 1   -   -   3   8  11  13  13  12  11  10  11  13  14  13  13  10  11  12   9
+Su  cars      5   -   -  15  45  69  71  74  71  61  55  64  69  78  73  75  52  71  65  50
 ```
 
 Three genuinely different shapes. The generator already separates Mon–Fri / Sat / Sun targets, so the
 model fits — what changes is the distribution of duty start times inside the day, not the length of
 the working day.
 
-**A movement count is the crudest usable proxy, and the review pass found two better signals already
-in the spreadsheet that this plan ignores.** Every movement is counted equally, so a 3-car midday
-arrival weighs the same as a 9-car evening departure:
+**Weighting by cars changes the weekday answer.** On movement count the morning and evening peaks tie
+at 23; on cars the evening is 10% heavier (140 v 127) and the peak *hour* moves from 08:00 to 17:00.
+The evening also stays high for longer — 17:00 and 18:00 are both above 135 cars, whereas 08:00 has a
+single hour at that level. A design that staffs the two peaks equally is therefore under-covering the
+one that matters more. Saturday and Sunday are unaffected: both measures agree on their peak hour.
 
-- **`Max CAO`** — present on every departure, values 3 to 9 (plus `5 (3)` / `6 (3)` splits and `-` for
-  ECS). It reads as maximum train length in cars, i.e. a direct proxy for passenger volume and
-  dispatch effort. **Confirm what it means before relying on it.**
-- **Platform occupancy** — the `Plat.` column spans platforms 1–6 plus `1T`–`6T` variants and `W`.
-  Concurrent platform use is arguably closer to what actually drives CEA headcount than movements per
-  hour: two trains on one platform is not the same job as two trains on two platforms.
+**Where the length figures come from, and the one gap.** `Max CAO` (train length in cars, 3–9) is
+present on **every** departure. An arrival and a departure on the same spreadsheet row share a
+platform and a unit — the arrival turns round into that departure — so the row's `Max CAO` is the
+arrival's length too; that covers 85–89% of arrivals directly. The `Unit Diag.` column recovers a
+further handful by matching the diagram to a length recorded elsewhere in the sheet. That leaves
+**21 SX / 11 SO / 10 Su arrivals with no length recorded anywhere**, counted at the day's mean
+(5.6–6.0 cars) rather than dropped.
 
-Neither is hard to compute, and either could change the demand curve materially. The plan should not
-present the movement profile as the requirement until someone who knows the work confirms which
-signal drives CEA workload. **This is an assumption, not a finding.**
+> **Do not default an unresolved arrival downward.** These are mostly trains that terminate and go
+> empty to stabling, so nobody re-boards — arguably a *heavier* CEA job than a turnround, not a
+> lighter one. Counting them at zero would quietly delete the workload the tool exists to show.
+
+**Two corrections to the earlier figures in this plan.** First, five SX cells store their time as an
+Excel serial fraction (`0.4034…` = 09:41) rather than as text, and the first parse dropped them —
+three at 09:00, one at 16:00, one at 18:00. The SX totals are therefore **311, not 306**. Second,
+`+` in a time (`05+46`) marks an **ECS** move, without exception: all 53 `+` movements carry a `5x`
+headcode and all 306 `:` movements carry `1x`/`2x`. That rule is what the ECS exclusion rests on, and
+it is worth restating because a parser that treats `+` as a separator silently inflates the weekday
+day by 53 movements of work nobody does.
+
+**Still not used: platform occupancy.** The `Plat.` column spans platforms 1–6 plus `1T`–`6T` variants
+and `W`. Concurrent platform use is arguably closer again to what drives CEA *headcount* — two trains
+on one platform is not the same job as two trains on two platforms — and nothing here computes it.
+Recorded as a known limitation of the demand curve, not as a blocker.
 
 **Also unresolved: the weekday file may not be final.** `SO` and `Su` are both named `__Final`; the
 `SX` file is named `10_of_13` and is not. The weekday profile drives most of the design, so it is
@@ -90,7 +113,7 @@ Measured against those real windows:
 
 | | Inside window | Before | After |
 |---|---|---|---|
-| Mon–Fri | 295/306 — **96.4%** | 9: last trains 00:01–00:15, then 05:55 / 06:04 / 06:11 dep, 06:16 arr | 2 — both 23:57 |
+| Mon–Fri | 300/311 — **96.5%** | 9: last trains 00:01–00:15, then 05:55 / 06:04 / 06:11 dep, 06:16 arr | 2 — both 23:57 |
 | Saturday | 212/215 — **98.6%** | 2: 00:10 dep, 05:52 dep | 1 — 23:57 dep |
 | **Sunday** | 182/188 — **96.8%** | 1: 00:05 dep | **5: 23:27 dep, 23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr** |
 
@@ -189,9 +212,9 @@ Ordered **2 → 1 → 3 → 4 → 5**: the fatigue checks carry the most value a
 the operating window is what unblocks the overlay and the generator targets. The numbering is kept
 from the first draft so the review correction under package 1 stays legible.
 
-**Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47, 1 shipped v19.54. That leaves
-3 and 4, both blocked on open question 1 — what actually drives CEA workload — which is a
-conversation, not code. Package 1 has now removed the other thing holding 3 back.
+**Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47, 1 shipped v19.54, 3 shipped
+v19.56. Only **4** remains — unblocked, since open question 1 was answered in Aug 2026 (arrivals and
+departures, weighted by train length) and package 3 has already put that profile in the tool.
 
 ### 1. Operating-window setting — ✅ **SHIPPED v19.54**
 
@@ -291,15 +314,25 @@ asserted, and each rule has a unit test.
 
 </details>
 
-### 3. Demand overlay on the coverage heat map
+### 3. Demand overlay on the coverage heat map — ✅ **SHIPPED v19.56**
 
-The heat map shows people on duty per hour against nothing. "Does this meet business requirements" is
-precisely cover versus service, so overlay the movement profile.
+`links-demand.js` + `links-demand.test.mjs`. Three demand rows sit under the cover in the same
+table, one per day class, shaded in orange against their own peak — cars per hour, arrivals plus
+departures, per the answer to open question 1. The note names the disagreement between the two
+measures (08:00 by movement, 17:00 by cars), states the uncovered staffed hours as a finding, states
+the movements outside the window as a fact, and carries the timetable's provenance.
 
-**It must distinguish service the link deliberately does not staff from a genuine hole in the staffed
-span** — otherwise hours 00 and 05 render as permanent uncovered demand on every design, the existing
-"red 0 = a gap inside the working day" rule cries wolf, and the check gets ignored. Package 1 is what
-makes that distinction expressible.
+**It shipped broken once, and the failure is worth keeping.** The first implementation held HOURLY
+buckets and asked the window an hourly question. The Sunday finish is **23:25**, so "is hour 23
+staffed" is true — and the five movements after it, the one live finding in this whole plan, were
+reported as fully covered. Every unit test passed: one of them was written with a synthetic
+`h <= 22` Sunday window rather than the real one, so it agreed with the bug. It was caught by
+rendering the actual page and reading the actual sentence.
+
+The fix stores movement TIMES rather than hourly buckets — and derives the hourly curve from them,
+so the shading and the boundary check cannot describe different timetables. That also made the
+mirror-image finding visible at the other end of the day: **three weekday trains (06:04, 06:11,
+06:16) run before the 06:20 opening.**
 
 ### 4. Timetable-driven generator targets
 
@@ -311,6 +344,12 @@ profile or a simplifier import.
 `SX` is not even marked final. A design built against a superseded timetable with nothing on it to say
 so is the same defect class as the undated printed sheet fixed at v19.45 — the data was right when it
 was made and there is no way to tell later.
+
+**If a simplifier import is built, the two parsing traps above are the spec.** A `+` time is ECS and
+must be excluded; a time may arrive as an Excel serial fraction rather than text and must still be
+read. Both failed silently in this plan's own first pass — one inflating the day by 53 movements, the
+other losing 5 — and neither raised an error. An importer that gets them wrong produces a demand curve
+that looks entirely plausible.
 
 ### 5. Midnight-crossing guard — ✅ **SHIPPED v19.47**
 
@@ -338,19 +377,22 @@ is a judgement for the two designers. The tool's job is to check and to show, no
 
 Ordered by how much they change if the answer is unexpected.
 
-1. **What actually drives CEA workload?** This plan assumes train movements. `Max CAO` (train length)
-   and platform occupancy are both in the data and are both plausibly better. Everything in packages 3
-   and 4 rests on the answer, so settle it with Sara first — it is a five-minute conversation and it
-   could redraw the whole demand curve.
+1. ~~**What actually drives CEA workload?**~~ — **ANSWERED (owner, Aug 2026): arrivals as well as
+   departures, weighted by the length of those trains.** Computed and recorded in "What the timetable
+   demands" above; it moves the weekday peak from 08:00 to 17:00, which is a material change to what
+   packages 3 and 4 are built against. Platform occupancy remains uncomputed — a known limitation of
+   the curve rather than an open question, since the signal that was going to be settled has been.
 2. **FF18 may be unavoidable by construction, and that needs raising early.** "Rotating pattern of
    about a week" describes a 28-line link exactly: each person changes line weekly, by design. If it
    counts, then no proposal can avoid it and it belongs in the justify/minimise/control conversation
    with Nathan rather than in a checklist — which is a very different conversation to have *before*
    the proposals are drawn than after. It also means the tool should state it as a property of the
    link concept, not flag it per design.
-3. **Does the Sunday finish move?** Five movements fall after 23:25, including a 23:45 departure. Note
-   this depends on question 1: if arrivals need no CEA, only the 23:27 and 23:45 *departures* matter,
-   which weakens the case from five movements to two.
+3. **Does the Sunday finish move?** Five movements fall after 23:25 — and the answer to question 1
+   **strengthens** this rather than weakening it. The earlier draft noted the case would drop from
+   five movements to two if arrivals needed no CEA; arrivals do count, so all five stand: 23:27 dep,
+   23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr. Three of those five are arrivals full of people
+   getting off at an unstaffed terminus.
 4. **Is the weekday simplifier final?** `SO`/`Su` are named `__Final`; `SX` is `10_of_13` and is not.
 5. **Should Saturday's window ever differ from Mon–Fri?** Currently identical; the setting can split
    them if the answer changes.

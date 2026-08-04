@@ -347,6 +347,76 @@ async function openLinksWithDesigns(page) {
     await expect(page.locator('.design-chip')).toHaveCount(2);
 }
 
+/**
+ * The demand overlay (v19.56). The RULES are unit-tested in links-demand.test.mjs; what only a real
+ * browser can prove is that the rows reach the DOM and that the boundary finding reaches the prose.
+ *
+ * The specific thing worth an e2e: the first implementation asked an HOURLY question of a
+ * minute-level boundary, so Sunday's 23:25 finish counted the whole 23:00 hour as staffed and the
+ * five movements after it vanished. Every unit test passed — one of them was written with a
+ * synthetic whole-hour Sunday window. Naming the five here means the panel has to actually say them.
+ */
+async function openLinksWithDesign(page) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const patterns = /** @type {any} */ ({});
+        for (let i = 1; i <= 28; i++) {
+            patterns[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20',
+                wed: '06:20-14:20', thu: '14:00-22:00', fri: 'RD', sat: 'RD' };
+        }
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns,
+            updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('.design-chip')).toHaveCount(1);
+}
+
+test('links: the coverage card carries a demand row per day class, in the same table', async ({ page }) => {
+    await openLinksWithDesign(page);
+
+    // One tbody, inside the cover table — not a second table, which would give the comparison two
+    // independent horizontal scrolls.
+    await expect(page.locator('.cov-heat .cov-demand')).toHaveCount(1);
+    await expect(page.locator('.cov-demand .dem-day')).toHaveText([
+        /Trains per hour/, 'Mon–Fri', 'Sat', 'Sun',
+    ]);
+
+    // It must be PAINTED, not merely present — the v19.55 lesson (a probe read `el.hidden` while
+    // the browser rendered the element anyway).
+    const box = await page.locator('.cov-demand').boundingBox();
+    expect(box.height, 'the demand rows must have real height').toBeGreaterThan(40);
+    const filled = await page.locator('.dem-cell.dem-b5').first()
+        .evaluate(el => getComputedStyle(el).backgroundColor);
+    expect(filled, 'the busiest hour must carry the demand ramp, not the page background')
+        .not.toBe('rgba(0, 0, 0, 0)');
+});
+
+test('links: the demand note names every movement past the staffed finish, to the minute', async ({ page }) => {
+    await openLinksWithDesign(page);
+    const note = await page.locator('.dem-note').textContent();
+
+    // The five Sunday movements after the 23:25 finish — the live question in LINKS_DEC2026_PLAN.md,
+    // and the exact thing an hour-resolution implementation reported as fully covered.
+    for (const m of ['Sun 23:27 dep', 'Sun 23:35 arr', 'Sun 23:45 dep', 'Sun 23:51 arr', 'Sun 23:54 arr']) {
+        expect(note, `the panel must name ${m}`).toContain(m);
+    }
+    // Stated, never scored: where the window sits is a business decision.
+    expect(note).toContain('not scored');
+    // And the provenance travels with the figures — these are base files that will be revised.
+    expect(note).toContain('December 2026 timetable (provisional)');
+});
+
+test('links: an hour whose service is not fully staffed is marked on the demand row', async ({ page }) => {
+    await openLinksWithDesign(page);
+    // 06:04 / 06:11 / 06:16 run before the 06:20 opening, and 23:57 after the 23:55 finish — so the
+    // first and last weekday columns are both marked. A whole-hour test sees neither.
+    await expect(page.locator('.cov-demand .dem-shut')).toHaveCount(4);
+});
+
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {
     await openLinksWithDesigns(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
