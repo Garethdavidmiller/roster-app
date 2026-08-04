@@ -189,11 +189,31 @@ Ordered **2 → 1 → 3 → 4 → 5**: the fatigue checks carry the most value a
 the operating window is what unblocks the overlay and the generator targets. The numbering is kept
 from the first draft so the review correction under package 1 stays legible.
 
-**Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47 out of order because it was cheap
-and self-contained. 1 is buildable now. 3 and 4 are blocked on open question 1 (what drives CEA
-workload) and, for 3, on package 1.
+**Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47, 1 shipped v19.54. That leaves
+3 and 4, both blocked on open question 1 — what actually drives CEA workload — which is a
+conversation, not code. Package 1 has now removed the other thing holding 3 back.
 
-### 1. Operating-window setting
+### 1. Operating-window setting — ✅ **SHIPPED v19.54**
+
+`links-window.js` + `links-window.test.mjs`. The window is editable on the Coverage card, persisted
+per design, shown above the heat map, stated on both compare column headers and on the printed
+sheet, and defaulted for every design saved before it.
+
+**The reason turned out to be stronger than this plan recorded.** The heat map derived its own span
+from the design — first worked hour to last — and flagged a gap only strictly *between* them. So
+missing cover at either END of the day was invisible: the span simply shrank to fit and those hours
+left the table. Measured on a 28-line design where everybody finishes at 14:20, leaving the station
+unstaffed until the 23:55 close: **zero gaps flagged**. It now flags **71**. The window did not just
+make the demand overlay expressible — it fixed a blind spot in the check that already existed.
+
+Two things worth knowing before changing it: `normaliseWindow` falls back per ROW but never per
+FIELD (pairing a stored start with a default end would invent a window nobody chose and then print
+it as deliberate), and the editor uses TEXT inputs because Chromium renders `<input type="time">` in
+the OS's 12-hour format **even at en-GB** — measured — which would have put "11:55 PM" beside a grid
+reading 23:55.
+
+<details><summary>Original scope</summary>
+
 
 Store the window **on each design**, with app defaults of Mon–Sat 06:20–23:55 and Sun 07:15–23:25.
 
@@ -223,6 +243,8 @@ pair added at v19.41 — so a rules deploy rides alongside hosting.
 
 *Done when:* the window is editable, persisted per design, shown on the Coverage card so the heat map
 explains itself, printed on the sheet, and defaulted for existing designs.
+
+</details>
 
 ### 2. Fatigue checks against p3 — ✅ **SHIPPED v19.46**
 

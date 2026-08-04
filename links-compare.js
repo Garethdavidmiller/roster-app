@@ -15,15 +15,16 @@
  */
 import { escapeHtml } from './roster-data.js';
 import { DAYS, classifyShift, calcCoverage } from './links-design.js';
+import { formatWindow, windowsDiffer } from './links-window.js';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS = 28;
 
 /**
  * @param {object} deps
- * @param {() => Array<{id:string, name:string, patterns:Object}>} deps.getDesigns
+ * @param {() => Array<{id:string, name:string, patterns:Object, window?:any}>} deps.getDesigns
  * @param {() => any} deps.getActiveDesignId
- * @param {() => ({ name?: string, patterns: Record<string, any> } | null)} deps.getDesign
+ * @param {() => ({ name?: string, patterns: Record<string, any>, window?: any } | null)} deps.getDesign
  * @param {() => void} deps.renderDesignPicker
  * @param {() => void} deps.renderGrid
  * @param {() => void} deps.renderBrushBar
@@ -91,8 +92,18 @@ export function initLinksCompare(deps) {
 
         const headA = document.getElementById('compareHeadA');
         const headB = document.getElementById('compareHeadB');
-        if (headA) headA.textContent = design.name || 'Design A';
-        if (headB) headB.textContent = other.name   || 'Design B';
+        // THE STAFFED WINDOW MUST APPEAR HERE (v19.54). Compare mode diffs CELLS, not windows, so
+        // two designs built to different spans would sit side by side looking like for like — the
+        // per-design window would become a way to make an unfair comparison look fair. Stated on
+        // both columns, and called out when they disagree, so the difference cannot pass unread.
+        const differ = windowsDiffer(design.window, other.window);
+        const head = (/** @type {Element|null} */ el, /** @type {string} */ name, /** @type {any} */ win) => {
+            if (!el) return;
+            el.innerHTML = `${escapeHtml(name)}` +
+                `<span class="compare-window${differ ? ' compare-window--differs' : ''}">${escapeHtml(formatWindow(win))}</span>`;
+        };
+        head(headA, design.name || 'Design A', design.window);
+        head(headB, other.name   || 'Design B', other.window);
 
         renderCompareGrid('compareGridBodyRowsA', 'compareGridFootA', design.patterns, other.patterns);
         renderCompareGrid('compareGridBodyRowsB', 'compareGridFootB', other.patterns, design.patterns);

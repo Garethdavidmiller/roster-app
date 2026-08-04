@@ -16,6 +16,7 @@
  */
 import { DAYS, ROTATING_LINES, calcHourlyCoverage, runDesignChecks } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
+import { normaliseWindow, heatSpan, isHourStaffed, formatWindow, isDefaultWindow } from './links-window.js';
 import { escapeHtml } from './roster-data.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
@@ -35,7 +36,7 @@ const NIGHT_FAMILY = 'Night shifts';
 
 /**
  * @param {object} deps
- * @param {() => ({ patterns: Record<string, any> } | null)} deps.getDesign - the live active design, or null
+ * @param {() => ({ patterns: Record<string, any>, window?: any } | null)} deps.getDesign - the live active design, or null
  * @param {() => ({ summary: string, detail: string } | null)} [deps.getBaseline] - the current link's profile
  * @returns {{ renderCoverageChart: () => void, renderDesignChecks: () => void }}
  */
@@ -57,35 +58,43 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         wrap.style.display = '';
 
         const hourly = calcHourlyCoverage(design.patterns, TOTAL_POS);
+        const win = normaliseWindow(design.window);
 
-        let minH = 24, maxH = 0, maxCount = 0;
+        // Span and gaps both come from the WINDOW now, not from the design's own extremes (v19.54).
+        // The old rule ran first-worked-hour → last-worked-hour and called an hour a gap only if it
+        // fell strictly BETWEEN them, so missing cover at either end of the day could not be seen:
+        // the span just shrank to fit and those hours left the table. A design where everybody
+        // finished at 14:20 — leaving the station unstaffed until the 23:55 close — rendered as
+        // solid colour with NO gaps flagged. That is the defect this feature exists for.
+        const { minH, maxH } = heatSpan(win, hourly, DAYS);
+        let maxCount = 0;
         for (const d of DAYS) {
-            hourly[d].hours.forEach((/** @type {number} */ n, /** @type {number} */ h) => {
-                if (n > 0) {
-                    if (h < minH) minH = h;
-                    if (h + 1 > maxH) maxH = h + 1;
-                    if (n > maxCount) maxCount = n;
-                }
-            });
+            for (const n of hourly[d].hours) if (n > maxCount) maxCount = n;
         }
-        if (minH >= maxH) { minH = 6; maxH = 24; }
 
         const hourTh = [];
         for (let h = minH; h < maxH; h++) {
             hourTh.push(`<th class="cov-heat-hour">${String(h).padStart(2, '0')}</th>`);
         }
 
+        let gapCount = 0, outsideCount = 0;
         const rows = DAYS.map((/** @type {string} */ d, /** @type {number} */ di) => {
             const { hours, spare } = hourly[d];
-            const dayHasWork = hours.some((/** @type {number} */ n) => n > 0);
-            const first = hours.findIndex((/** @type {number} */ n) => n > 0);
-            const last  = hours.length - 1 - [...hours].reverse().findIndex((/** @type {number} */ n) => n > 0);
             const cells = [];
             for (let h = minH; h < maxH; h++) {
                 const n = hours[h];
+                const staffed = isHourStaffed(win, d, h);
                 const bucket = n === 0 ? 0 : Math.max(1, Math.ceil((n / maxCount) * 5));
-                const isGap = dayHasWork && n === 0 && h > first && h < last;
-                cells.push(`<td class="cov-heat-cell heat-b${bucket}${isGap ? ' heat-gap' : ''}">${n || (isGap ? '0' : '')}</td>`);
+                // A GAP is now "the station is open and nobody is on" — a real hole, wherever it
+                // falls. An hour OUTSIDE the window is not a hole, it is a closed station, and it
+                // is shaded so the two can never be mistaken for each other. Someone rostered
+                // outside the window is neither: it shows as ordinary cover on a shut-station
+                // column, which is exactly the anomaly a reviewer should notice.
+                const isGap = staffed && n === 0;
+                const cls = isGap ? ' heat-gap' : (!staffed ? ' heat-closed' : '');
+                if (isGap) gapCount++;
+                if (!staffed && n > 0) outsideCount++;
+                cells.push(`<td class="cov-heat-cell heat-b${bucket}${cls}">${n || (isGap ? '0' : '')}</td>`);
             }
             return `<tr>` +
                 `<th class="cov-heat-day">${DAY_LABELS[di]}</th>` +
@@ -94,13 +103,24 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
                 `</tr>`;
         }).join('');
 
+        const winNote = `Staffed window: <strong>${escapeHtml(formatWindow(win))}</strong>` +
+            (isDefaultWindow(win) ? '' : ' <em>(moved from the standard hours)</em>');
+        const gapNote = gapCount
+            ? ` <strong>${gapCount} staffed hour${gapCount === 1 ? '' : 's'} with nobody on duty.</strong>`
+            : '';
+        const outNote = outsideCount
+            ? ` ${outsideCount} hour${outsideCount === 1 ? ' is' : 's are'} rostered outside the staffed window.`
+            : '';
+
         wrap.innerHTML =
+            `<p class="cov-window-line">${winNote}</p>` +
             `<div class="cov-heat-wrap"><table class="cov-heat">` +
             `<thead><tr><th class="cov-heat-day"></th>${hourTh.join('')}<th class="cov-heat-spare-h">SP</th></tr></thead>` +
             `<tbody>${rows}</tbody>` +
             `</table></div>` +
             `<p class="cov-heat-note">Each cell shows how many people are on duty during that hour — darker means more. ` +
-            `Red 0 = a gap inside the working day. SP = spares on standby (no fixed time). Peak this week: ${maxCount}.</p>`;
+            `Red 0 = the station is open and nobody is on. Grey = outside the staffed window. ` +
+            `SP = spares on standby (no fixed time). Peak this week: ${maxCount}.${gapNote}${outNote}</p>`;
     }
 
     /** Traffic-light design quality checks for the active design (or the empty-state message). */

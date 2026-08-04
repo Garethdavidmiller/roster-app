@@ -251,8 +251,15 @@ service cloud.firestore {
       // this: delete is already gated on isLinksWriter(), which is the same set of people who can
       // soft-delete. The retention window is a CLIENT policy (links-deletion.js), not a server one
       // — worth knowing before treating the 30 days as a guarantee.
+      // `window` is the v19.54 OPERATING WINDOW — when the station is staffed, stored per design
+      // so a proposal can test a moved boundary (the live case is Sunday, where five December 2026
+      // movements fall after the current 23:25 finish). OPTIONAL, like deletedAt/deletedBy: every
+      // design predates it and reads as the app default. Type-checked as a map only — its
+      // {monSat,sun}:{start,end} shape is validated client-side by links-window.js's
+      // normaliseWindow, which is also the read path, so a malformed value can never reach the UI
+      // as anything but the default.
       allow create, update: if isLinksWriter() &&
-        request.resource.data.keys().hasOnly(['name', 'patterns', 'updatedAt', 'updatedBy', 'deletedAt', 'deletedBy']) &&
+        request.resource.data.keys().hasOnly(['name', 'patterns', 'window', 'updatedAt', 'updatedBy', 'deletedAt', 'deletedBy']) &&
         request.resource.data.name is string &&
         request.resource.data.name.size() >= 1 &&
         request.resource.data.name.size() <= 100 &&
@@ -261,6 +268,7 @@ service cloud.firestore {
         request.resource.data.updatedBy is string &&
         request.resource.data.updatedBy.size() <= 100 &&
         (!('deletedAt' in request.resource.data) || request.resource.data.deletedAt is timestamp) &&
+        (!('window' in request.resource.data) || request.resource.data.window is map) &&
         (!('deletedBy' in request.resource.data) ||
           (request.resource.data.deletedBy is string && request.resource.data.deletedBy.size() <= 100));
     }

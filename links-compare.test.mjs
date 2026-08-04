@@ -78,8 +78,15 @@ test('renderCompare renders both grids + headers with diff cells when comparing'
     const c = initLinksCompare(makeDeps().deps);
     c.toggleCompareMode();   // enters compare (id='b'), which calls renderCompare
     assert.ok(els.compareGridsWrap.classList.contains('compare-mode-active'));
-    assert.equal(els.compareHeadA.textContent, 'A');
-    assert.equal(els.compareHeadB.textContent, 'B');
+    // Headers are innerHTML since v19.54 — each carries its design's STAFFED WINDOW beneath the
+    // name. That is not decoration: compare diffs CELLS, so two designs built to different spans
+    // would otherwise sit side by side reading as like for like.
+    assert.match(els.compareHeadA.innerHTML, /^A/);
+    assert.match(els.compareHeadB.innerHTML, /^B/);
+    for (const el of [els.compareHeadA, els.compareHeadB]) {
+        assert.match(el.innerHTML, /compare-window/, 'each column must state its window');
+        assert.match(el.innerHTML, /Mon–Sat 06:20–23:55 · Sun 07:15–23:25/, 'an unset window shows its effective value');
+    }
     assert.match(els.compareGridBodyRowsA.innerHTML, /shift-cell/);
     assert.match(els.compareGridBodyRowsA.innerHTML, /cell-diff/);   // A (early) vs B (late) differ
     assert.match(els.compareGridFootA.innerHTML, /cov-cell/);
