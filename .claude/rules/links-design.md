@@ -28,6 +28,7 @@ state lives, and the rules that have historically produced bugs have been pulled
 | `links-design.js` | the design maths — classification, coverage, the generator, `runDesignChecks`, `endMinutesAbs` |
 | `links-fatigue.js` | the ORR p3 fatigue factors (v19.46) |
 | `links-window.js` | the staffed OPERATING WINDOW — when the station is open (v19.54) |
+| `links-demand.js` | the SERVICE that window has to cover — trains per hour (v19.56) |
 | `links-analysis.js` | the two read-only panels — Coverage heat map + Design checks — rendered from those pure results |
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
 | `links-concurrency.js` | the co-editing rules (three historical silent-overwrite bugs, one test each) |
@@ -174,10 +175,20 @@ An invalid pair (finish at or before start) is **refused, not coerced** — and 
 written AFTER the repaint, because `paint()` rewrites the status line from the stored window and
 would otherwise wipe it in the same tick, leaving the field to appear to revert for no stated reason.
 
-### Coverage heat map (v12.40)
-The Coverage card renders an **hour-by-hour table** (`calcHourlyCoverage`) — rows = days, columns = hours spanning the staffed day, cell = on-duty headcount, intensity buckets `heat-b0`–`heat-b5` (color-mix tints of `--cov-early`, scaled to the week's peak).
+### Coverage heat map (v12.40; demand overlay v19.56)
 
-The station is staffed in **waves** (opens ~06:20, morning build 07:00–08:30, middles 11:00–12:00, afternoons 13:30–14:30, closes 15:00+) — do not revert to per-type stacked bars. A red `0` inside a day's staffed span marks a coverage gap; spares get their own `SP` column. The grid `tfoot` keeps compact per-day `E:/L:/SP:` counts.
+The Coverage card renders an **hour-by-hour table** (`calcHourlyCoverage`) — rows = days, columns = hours spanning the staffed window, cell = on-duty headcount, intensity buckets `heat-b0`–`heat-b5` (color-mix tints of `--cov-early`, scaled to the week's peak).
+
+The station is staffed in **waves** (opens ~06:20, morning build 07:00–08:30, middles 11:00–12:00, afternoons 13:30–14:30, closes 15:00+) — do not revert to per-type stacked bars. A red `0` inside the staffed window marks a coverage gap; spares get their own `SP` column. The grid `tfoot` keeps compact per-day `E:/L:/SP:` counts.
+
+**Beneath it, three DEMAND rows** (`links-demand.js`) — the December 2026 service, one row per day class, in the **same table** so a reader comparing cover against service is comparing columns rather than fighting two horizontal scrolls. Rules that are easy to undo:
+
+- **A different hue is load-bearing.** Demand uses `--cov-late` orange against the cover's `--cov-early` blue. Two rows of the same colour in one table mean two different things in two different units (people · cars), and the eye reads the darker one as more of the same.
+- **Separate scales, stated.** Each half is shaded against its own peak; the note tells the reader to compare shapes, not depth of colour.
+- **Never score the design.** No "covers N% of demand". Same principle as the fatigue panel — show, do not decide.
+- **The finding/fact split is the anti-cry-wolf rule.** `uncovered` (open, trains running, nobody on) is a finding and renders red. `outside` (trains when the station is shut) is a neutral fact: the last trains and the 05:5x first departure are outside the window on **every** design there has ever been, so flagging them would fire forever and teach the reader to skip the row.
+- **Ask the boundary question to the MINUTE, never by the hour.** This shipped broken once. Sunday closes at 23:25, so `isHourStaffed('sun', 23)` is TRUE and an hour-level test reported the five post-23:25 movements as fully covered — the one live finding the feature exists for, invisible in it, with a green unit test that used a synthetic whole-hour window. `summariseDemand` takes the window in **minutes**, and the profile stores **times**, not hourly buckets, precisely so the hourly question cannot be asked by accident.
+- The `dem-shut` cell marker comes from the same summary the prose reads, so a marked cell and a named movement can never disagree. It marks hour 06 as well as hour 23 — three weekday trains run before the 06:20 opening.
 
 ### Design checks (v12.39, completeness added v12.41; fatigue factors added v19.46)
 

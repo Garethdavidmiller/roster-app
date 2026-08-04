@@ -212,10 +212,9 @@ Ordered **2 → 1 → 3 → 4 → 5**: the fatigue checks carry the most value a
 the operating window is what unblocks the overlay and the generator targets. The numbering is kept
 from the first draft so the review correction under package 1 stays legible.
 
-**Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47, 1 shipped v19.54. That leaves
-3 and 4, and **both are now unblocked** — open question 1 was answered in Aug 2026 (arrivals and
-departures, weighted by train length) and package 1 supplied the staffed window that lets the overlay
-tell "we do not staff this hour" apart from "we have a hole here".
+**Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47, 1 shipped v19.54, 3 shipped
+v19.56. Only **4** remains — unblocked, since open question 1 was answered in Aug 2026 (arrivals and
+departures, weighted by train length) and package 3 has already put that profile in the tool.
 
 ### 1. Operating-window setting — ✅ **SHIPPED v19.54**
 
@@ -315,20 +314,25 @@ asserted, and each rule has a unit test.
 
 </details>
 
-### 3. Demand overlay on the coverage heat map
+### 3. Demand overlay on the coverage heat map — ✅ **SHIPPED v19.56**
 
-The heat map shows people on duty per hour against nothing. "Does this meet business requirements" is
-precisely cover versus service, so overlay the demand profile — **cars per hour, arrivals plus
-departures**, per the answer to open question 1.
+`links-demand.js` + `links-demand.test.mjs`. Three demand rows sit under the cover in the same
+table, one per day class, shaded in orange against their own peak — cars per hour, arrivals plus
+departures, per the answer to open question 1. The note names the disagreement between the two
+measures (08:00 by movement, 17:00 by cars), states the uncovered staffed hours as a finding, states
+the movements outside the window as a fact, and carries the timetable's provenance.
 
-**It must distinguish service the link deliberately does not staff from a genuine hole in the staffed
-span** — otherwise hours 00 and 05 render as permanent uncovered demand on every design, the existing
-"red 0 = a gap inside the working day" rule cries wolf, and the check gets ignored. Package 1 is what
-makes that distinction expressible.
+**It shipped broken once, and the failure is worth keeping.** The first implementation held HOURLY
+buckets and asked the window an hourly question. The Sunday finish is **23:25**, so "is hour 23
+staffed" is true — and the five movements after it, the one live finding in this whole plan, were
+reported as fully covered. Every unit test passed: one of them was written with a synthetic
+`h <= 22` Sunday window rather than the real one, so it agreed with the bug. It was caught by
+rendering the actual page and reading the actual sentence.
 
-**Show cars, but keep the movement count visible.** They disagree on the weekday peak hour (08:00 by
-movement, 17:00 by cars) and that disagreement is information — a designer looking at a single blended
-number cannot see it. Two figures per hour, one curve drawn.
+The fix stores movement TIMES rather than hourly buckets — and derives the hourly curve from them,
+so the shading and the boundary check cannot describe different timetables. That also made the
+mirror-image finding visible at the other end of the day: **three weekday trains (06:04, 06:11,
+06:16) run before the 06:20 opening.**
 
 ### 4. Timetable-driven generator targets
 

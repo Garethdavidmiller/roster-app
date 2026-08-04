@@ -207,6 +207,50 @@ body.auth-ready .container { display: grid; }
     background-image: repeating-linear-gradient(135deg,
         transparent 0 4px, color-mix(in srgb, var(--text-light) 12%, transparent) 4px 5px);
 }
+/* ---- Demand rows (v19.56, LINKS_DEC2026_PLAN package 3) ----
+   The service the design has to cover, in the SAME table as the cover so a reader comparing the two
+   is comparing columns rather than fighting two independent horizontal scrolls.
+
+   A DIFFERENT HUE is load-bearing, not decoration. Shading these in the cover ramp's blue would put
+   two rows of the same colour in one table meaning two different things in two different units
+   (people on duty · cars per hour), and the eye would read the darker one as "more of the same".
+   --cov-late (orange) is already in this stylesheet's coverage family, so the pair still reads as
+   one artefact. */
+.cov-demand { border-top: 3px solid var(--border); }
+.dem-head-row th {
+    font-size: var(--type-badge);
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+    text-align: left;
+    color: var(--text-mid);
+    background: var(--surface-sunken);
+    padding: 5px 8px;
+}
+.dem-day { font-weight: 700; }
+.dem-cell { color: var(--text-dark); }
+.dem-cell.dem-b0 { background: var(--surface); color: var(--text-light); }
+.dem-cell.dem-b1 { background: color-mix(in srgb, var(--cov-late) 12%, white); }
+.dem-cell.dem-b2 { background: color-mix(in srgb, var(--cov-late) 26%, white); }
+.dem-cell.dem-b3 { background: color-mix(in srgb, var(--cov-late) 42%, white); }
+.dem-cell.dem-b4 { background: color-mix(in srgb, var(--cov-late) 60%, white); }
+.dem-cell.dem-b5 { background: var(--cov-late); color: white; }
+/* Service in an hour the window does not staff. Marked, NOT faulted — it is the same distinction
+   heat-closed makes on the cover row, seen from the other side: trains run whether or not we roster
+   anyone. An underline rather than a fill, so the demand figure keeps its own intensity. */
+.dem-cell.dem-shut { box-shadow: inset 0 -3px 0 var(--text-mid); }
+/* The SP column has no meaning on a demand row — the timetable has no spares. It keeps the cell so
+   the columns line up, but not the gold tint, which would read as a figure that is simply missing. */
+.dem-cell.dem-pad { background: var(--surface-sunken); }
+.dem-note { margin-top: 6px; }
+.dem-finding { color: var(--error-red); font-weight: 700; }
+.dem-source {
+    display: block;
+    margin-top: 6px;
+    font-size: var(--type-micro);
+    color: var(--text-light);
+}
+
 /* The window is stated ONCE on screen — by the editor's own fields, directly above, now that they
    carry a "Staffed window" eyebrow. A prose line repeating the same two times 20px lower was the
    kind of duplication that reads as a second, possibly different, fact. On PAPER the editor is
