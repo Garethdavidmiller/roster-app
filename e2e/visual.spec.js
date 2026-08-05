@@ -274,6 +274,97 @@ test('links — design grid + coverage + checks (desktop 1280)', async ({ page }
     await expect(page).toHaveScreenshot('links-workspace.png');
 });
 
+// The AUTO-GENERATOR had no pixel coverage at all until v19.64, because the card is collapsed in the
+// workspace baseline above — so four consecutive releases reshaped it with nothing but hand-read
+// screenshots watching. That is a lot of surface: the 28-row target table, the spare-week row, the
+// totals, and the five line-order objectives, all of which moved between v19.58 and v19.63.
+//
+// It is also where this page's layout bugs actually happen. The list is not hypothetical: an inline
+// number box that dropped into the checkbox column under `display: grid`; a spare-row caption that
+// overflowed its own sticky cell; two adjacent checked rows sharing an edge and reading as one tall
+// box; a 90px shift time floating in a 477px cell. Every one of those passed the behavioural suite,
+// because behaviour tests assert text and these are all composition.
+test('links — auto-generator card, objectives on and off (desktop 1280)', async ({ page }) => {
+    await page.addInitScript((pats) => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [{
+            id: 'd1', name: 'Option A', updatedBy: 'S. Silva', patterns: pats,
+        }];
+    }, LINKS_DESIGN);
+    await prep(page, { width: 1280, height: 2600 });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
+
+    // TWO objectives are switched off deliberately: the whole point of the v19.63 restyle is that on
+    // and off look different, and a baseline showing five identical rows could not tell whether the
+    // checked treatment still existed.
+    await page.locator('#objWeekends').uncheck();
+    await page.locator('#objTurnarounds').uncheck();
+
+    // Sentinels before the capture — same reasoning as the workspace shot. The target table is
+    // SEEDED FROM THE ROSTER, so a regression in `buildRosterTargets` would render a plausible but
+    // empty generator, and the next baseline regeneration would lock in a green test covering
+    // nothing. Six spare lines is the roster's real figure (main 1/7/12/17 + bilingual 1/8).
+    await expect(page.locator('#genSlotRows tr').first()).toBeVisible();
+    await expect(page.locator('#genSpareLines')).toHaveValue('6');
+    await expect(page.locator('.gen-obj')).toHaveCount(5);
+    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(3);
+
+    // THE CHECKED TREATMENT IS ASSERTED IN COMPUTED STYLE, NOT LEFT TO THE PIXELS — and that split
+    // is deliberate, because the pixels genuinely cannot see it. `--bg-faint` is oklch(97%) against
+    // white: a 3% lightness step, far under this config's `threshold: 0.15` per-pixel sensitivity,
+    // so pixelmatch scores those pixels identical. Teeth-verified — deleting the fill AND the shadow
+    // from `.gen-obj:has(input:checked)` left the screenshot passing.
+    //
+    // So the two do different jobs here and both are needed: the baseline below catches COMPOSITION
+    // (removing the 8px row gap fails it, as it should), and this catches the on/off STATE, which is
+    // the whole point of the v19.63 restyle.
+    const rowStyles = await page.evaluate(() => {
+        const cs = (/** @type {string} */ sel) => {
+            const el = document.querySelector(sel);
+            if (!el) return null;
+            const s = getComputedStyle(el);
+            return { bg: s.backgroundColor, border: s.borderTopColor, shadow: s.boxShadow };
+        };
+        return { on: cs('.gen-obj:has(input:checked)'), off: cs('.gen-obj:not(:has(input:checked))') };
+    });
+    expect(rowStyles.on, 'a checked objective row must exist').not.toBeNull();
+    expect(rowStyles.off, 'an unchecked objective row must exist').not.toBeNull();
+    expect(rowStyles.on.bg, 'checked and unchecked rows must not share a fill').not.toBe(rowStyles.off.bg);
+    expect(rowStyles.on.border, 'checked and unchecked rows must not share a border').not.toBe(rowStyles.off.border);
+    expect(rowStyles.on.shadow, 'the checked row carries the lift').not.toBe('none');
+
+    await settle(page, '.gen-objectives');
+    await expect(page.locator('#generatorCard')).toHaveScreenshot('links-generator.png');
+});
+
+// The same card at a NARROW viewport, where its layout rules actually differ: the shift-time column
+// goes sticky, the objectives stack, and the numeric clause drops onto its own line.
+//
+// NOTE WHAT THIS DOES NOT COVER. `playwright.visual.mjs` runs ONE desktop project, so this is a
+// narrow window on a FINE pointer — the `@media (pointer: coarse)` rules (16px fields, the 20px
+// checkbox, the 44px targets) are NOT exercised here and must not be assumed to be. Those are
+// measured instead, by the focus-zoom gate in pages.spec.js which runs on a real coarse pointer.
+test('links — auto-generator card at a narrow width (390)', async ({ page }) => {
+    await page.addInitScript((pats) => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [{
+            id: 'd1', name: 'Option A', updatedBy: 'S. Silva', patterns: pats,
+        }];
+    }, LINKS_DESIGN);
+    await prep(page, { width: 390, height: 1400 });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
+    await page.locator('#objWeekends').uncheck();
+
+    await expect(page.locator('.gen-obj')).toHaveCount(5);
+    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(4);
+    await settle(page, '.gen-objectives');
+    await expect(page.locator('.gen-objectives')).toHaveScreenshot('links-objectives-narrow.png');
+});
+
 // The "Recently deleted" panel (v19.41) had NO pixel coverage, and it shipped broken because of it:
 // it used the bare `.lb-content`, which is only the transform/scroll base, so it rendered as a
 // transparent box — heading and prose in navy directly on the dimmed backdrop, no panel, no
