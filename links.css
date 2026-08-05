@@ -1421,24 +1421,54 @@ body.auth-ready .container { display: grid; }
     line-height: 1.5;
 }
 .gen-obj {
-    display: block;
+    /* An OPTION ROW, mirroring paycalc's `.bp-mode-opt`/`.hpp-mode-opt` (v19.63). These shipped at
+       v19.58 as five bare browser checkboxes with text beside them — which is precisely the
+       complaint that pattern was built to answer ("the design system instead of two bare browser
+       radios floating in space"), and it read as unstyled next to every other control in the app.
+       Same 2px border in BOTH states so switching one on causes no reflow. */
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
     font-size: var(--type-label);
     color: var(--text-dark);
-    padding: 5px 0;
+    line-height: 1.35;
+    padding: 10px 12px;
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    background-color: white;
     cursor: pointer;
+    transition: border-color var(--dur-fast) var(--ease-standard),
+                background-color var(--dur-fast) var(--ease-standard),
+                box-shadow var(--dur-fast) var(--ease-standard);
 }
+/* Rows need air between them or two adjacent checked ones read as one tall box with a line through
+   it — the same 8px `.bp-mode-toggle` uses. Sibling margin rather than a flex `gap` on the fieldset,
+   because a `<legend>` inside a flex container lays out unpredictably across engines. */
+.gen-obj + .gen-obj { margin-top: 8px; }
+/* ON is legible from the whole row, not just a 17px box in the corner of it. */
+.gen-obj:has(input:checked) {
+    border-color: var(--primary-blue);
+    background-color: var(--bg-faint);
+    box-shadow: var(--shadow-1);
+}
+.gen-obj:has(input:checked) .gen-obj-title { font-weight: 600; }
+@media (hover: hover) and (pointer: fine) {
+    .gen-obj:hover { border-color: var(--border-mid); }
+    .gen-obj:has(input:checked):hover { border-color: var(--primary-blue); }
+}
+/* The ring goes on the ROW, not the 17px box — the row is what you are choosing. */
+.gen-obj:has(input:focus-visible) { outline: var(--focus-outline); outline-offset: 2px; }
 .gen-obj input[type="checkbox"] {
-    width: 17px;
-    height: 17px;
-    margin-right: 7px;
-    vertical-align: -3px;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    margin: 1px 0 0;
     accent-color: var(--primary-blue);
     cursor: pointer;
 }
-.gen-obj input:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .gen-obj-hint {
     display: block;
-    margin-left: 24px;
+    margin-top: 3px;
     font-size: var(--type-badge);
     color: var(--text-light);
     line-height: 1.45;
@@ -1475,10 +1505,9 @@ body.auth-ready .container { display: grid; }
     .gen-input-inline { width: 56px; }
     .gen-remove-btn { padding: 12px 10px; min-height: 44px; }
     .btn-text-link { padding: 12px 2px; min-height: 44px; }
-    /* The LABEL is the touch target — clicking it toggles, and it is ≥44px tall — so the box itself
-       only needs to be comfortably aimable, not 44px. At 22px it dominated the sentence. */
-    .gen-obj > input[type="checkbox"] { width: 20px; height: 20px; }
-    .gen-obj { padding: 8px 0; }
+    /* The ROW is the touch target — clicking a label toggles it, and the row clears 44px — so the
+       box itself only needs to be comfortably aimable, not 44px. At 22px it dominated the sentence. */
+    .gen-obj input[type="checkbox"] { width: 20px; height: 20px; }
 }
 
 /* 3. THE SHIFT-TIME COLUMN STAYS PUT WHILE THE COUNTS SCROLL.
@@ -1543,23 +1572,27 @@ body.auth-ready .container { display: grid; }
 /* 5. THE OBJECTIVE LABELS NO LONGER COME APART AROUND THEIR NUMBER BOX.
    Two of the five carry an inline number ("at most [3] weeks the same"), and at 390px the tail wrapped
    onto its own line flush with the CHECKBOX — left of the label it belonged to, so it read as a
-   sixth objective. Indenting the whole label instead of only the hint keeps a wrapped tail under its
-   own text, which is what a hanging indent is for. */
-.gen-obj { display: flex; align-items: flex-start; gap: 8px; }
-.gen-obj > input[type="checkbox"] { margin-right: 0; flex: none; margin-top: 1px; }
+   sixth objective. The text is one element so it wraps as a block; GRID is wrong here, because every
+   child of a grid container becomes an item and the number box leaves its own sentence. */
 .gen-obj-text { flex: 1; min-width: 0; }
-.gen-obj-hint { display: block; margin-left: 0; margin-top: 2px; }
+.gen-obj-title { display: block; }
 /* The two objectives that carry a number get it on its OWN line rather than inline in the sentence.
    A 16px field is 40px tall on a coarse pointer (the touch-target floor), and a 40px box inside a
    sentence in a 260px column forces the line box open and breaks the phrase at whatever word
    happens to land there — "at most [3] / weeks the same". Its own line is also simply clearer:
    the label says what the objective IS, the line under it says what it is set to. */
 .gen-obj-num {
-    display: block;
-    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 5px;
     font-size: var(--type-small);
     color: var(--text-mid);
 }
+/* The number belongs to the row it sits in, so it takes the row's fill rather than the page's field
+   grey — on `--bg-faint` a `--field-bg` box reads as a hole rather than a control. */
+.gen-obj-num .gen-input-inline { background-color: white; }
 /* GRID WAS TRIED HERE AND IS WRONG: two of the five labels carry an inline number input, and as a
    grid container every child becomes an item — so the number box left the sentence it belongs to and
    dropped into the checkbox's column on a row of its own ("Vary the shift type, at most" / "3 |

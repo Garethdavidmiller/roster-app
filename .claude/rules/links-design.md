@@ -306,6 +306,18 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   sit inside a sentence in a 260px column. **Grid was tried here and is wrong**: every child of a
   grid container becomes an item, so the number box left its sentence and dropped into the
   checkbox's column.
+- **The objectives are OPTION ROWS, not bare checkboxes** (v19.63, owner: "the toggle switches and
+  associated writing look unstyled" — they were). They shipped at v19.58 as five native checkboxes
+  with text beside them, which is exactly what paycalc's `.bp-mode-opt`/`.hpp-mode-opt` was built to
+  replace; that rule's own comment reads *"the design system instead of two bare browser radios
+  floating in space"*. `.gen-obj` now mirrors it: a bordered row on white, navy border + `--bg-faint`
+  + a subtle lift via `:has(input:checked)`, an 18px `accent-color` box (20px on a coarse pointer),
+  and the focus ring on the ROW rather than the box, because the row is what you are choosing. Same
+  2px border in both states so toggling one causes no reflow, and `.gen-obj + .gen-obj` spaces them —
+  two adjacent checked rows with no gap read as one tall box with a line through it. A `<legend>`
+  inside a flex container lays out unpredictably across engines, so the gap is a sibling margin, not
+  a flex `gap` on the fieldset. **Do not re-create a page-local variant of this** — if the option-row
+  treatment needs to change, change it with paycalc's.
 
 ### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
 **The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
