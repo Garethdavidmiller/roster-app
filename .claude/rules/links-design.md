@@ -357,6 +357,52 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   screenshot passing (teeth-verified). The baseline catches composition; the style assertion catches
   on-versus-off. Keep both.
 
+### The blank page, and three fixes that came out of screenshotting it (v19.66)
+
+The page had been polished repeatedly **in use** and never looked at **empty**. Measured at 1280px
+with no designs saved, the three cards came to **160px / 117px / 117px** — each a white slab holding
+one 12px grey sentence pinned to the left edge. That is what a new designer sees first, and it read
+as three empty boxes rather than a page waiting to be used.
+
+- **An empty card says what it is waiting FOR, and the one that can act carries the action.** The
+  grid card gets a centred icon + title + sentence + a real `.btn-save` primary ("Go to
+  Auto-generate") and a text link ("Start with a blank grid"). Left-aligned, the old sentence sat
+  ~700px from the "+ New" button it was telling you to press. The two analysis cards get
+  `.links-empty-panel` — centred, `min-height: 132px` — because they can offer nothing: there is
+  nothing to analyse.
+- **The primary action SCROLLS; it does not generate.** Firing the generator from an empty card
+  would build against whatever the roster seed happened to hold, which is a design nobody chose.
+- **The empty checks panel must not wear a green tick.** It was `✅` (the card's own emoji) for one
+  iteration — a tick centred in an empty checks card reads as "checks passed", the exact
+  false-assurance failure that card exists to prevent, and it would be claiming it before a single
+  check had run. `📋` instead.
+- **A load FAILURE is not "you have not made one yet".** `renderGrid` swaps the title and hides the
+  actions on `loadFailed`: telling someone whose designs exist but did not load that they have none,
+  and inviting them to generate a new one, is how a connection blip becomes a duplicate design.
+- **The card header hint is state-dependent.** It said "Tap any shift cell to change it. Use the
+  Paint bar…" in a state with no grid and no paint bar on screen. Both strings live in
+  `_setGridHint` so they cannot drift.
+- **`links-analysis.js` must MIRROR the empty-panel markup** its card ships in `links.html` — that
+  branch replaces the whole card body, so the bare `<p>` it used to write silently undid the empty
+  state on the first re-render.
+
+Two more from the same pass, both in-use surfaces:
+
+- **The generator form is CENTRED on desktop, not left-aligned.** The 660px cap is right (measured
+  at v19.61 — a full-width table puts a 90px shift time in a 477px cell), but left-aligning it in
+  the 1100px card dumped the whole remainder on one side: **440px of empty white running 1,794px
+  down** the tallest card on the page, which reads as a rendering fault. Centred, it is 220px of
+  symmetric gutter.
+- **The 28-row target table keeps its column headers** (`position: sticky` on `thead th`). They
+  scrolled away after the first six rows, leaving three unlabelled number columns — and Mon–Fri,
+  Sat and Sun are three different commitments (Sunday is not even contracted), so typing into the
+  wrong one is a real error with nothing to catch it.
+- **The Design-checks status is carried on the LEFT EDGE, not by the fill alone.** At 8–10% of a hue
+  against white the four fills land within a couple of percent of each other, so 30 rows rendered as
+  one ribbon with the status readable only from a 13px glyph. A 3px edge in the full-strength token
+  makes them scannable. **It changes no semantics and must not**: a fatigue factor that is present
+  still wears amber and never the red edge.
+
 ### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
 **The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
 

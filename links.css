@@ -101,11 +101,42 @@ body.auth-ready .container { display: grid; }
 }
 
 /* ---- Prose inside cards ---- */
+/* ---- Empty states (v19.66) ----
+   The blank page was its weakest surface by a distance. Measured at 1280px with no designs saved,
+   the three cards came to 160px / 117px / 117px — each a white slab holding ONE 12px grey sentence
+   pinned to the left edge. That is the first thing a new designer sees, and it read as three empty
+   boxes rather than as a page waiting to be used. Worse, the grid card's header hint still said
+   "Tap any shift cell to change it. Use the Paint bar to fill cells quickly" — instructions for a
+   grid and a paint bar that are not on screen in that state.
+
+   So an empty card now says what it is waiting FOR, centred in its own space with room to breathe,
+   and the one card that can DO something about it carries the action. Deliberately restrained: a
+   muted glyph, a short line, and — on the grid card only — the primary button. No illustration, no
+   marketing voice; this is a staff tool and the calm register is the app's own. */
 .links-empty-msg {
     font-size: var(--type-small);
     color: var(--text-mid);
     margin: 0;
 }
+/* The two ANALYSIS placeholders (coverage, checks). They can offer no action — there is nothing to
+   analyse — so they state the dependency and stop. `min-height` is what stops a card that holds one
+   sentence from collapsing to a 117px sliver beside a 2,000px generator. */
+.links-empty-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 132px;
+    padding: 20px 16px;
+    text-align: center;
+}
+.links-empty-panel .links-empty-icon {
+    font-size: var(--type-xl);
+    line-height: 1;
+    opacity: 0.35;   /* present, not decorative — it must not compete with real findings */
+}
+.links-empty-panel .links-empty-msg { max-width: 42ch; }
 .links-desc {
     font-size: var(--type-label);
     color: var(--text-mid);
@@ -115,12 +146,39 @@ body.auth-ready .container { display: grid; }
 .links-desc:last-of-type { margin-bottom: 0; }
 
 /* ---- Empty state ---- */
+/* The GRID card's empty state — the only one that can offer a way out, so it carries the action.
+   `align-items: center` rather than `flex-start`: left-aligned, the sentence sat ~700px from the
+   "+ New" button it was telling you to press, at opposite ends of an 1100px card. */
 .links-empty-state {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 4px 0 2px;
+    align-items: center;
+    gap: 10px;
+    padding: 26px 16px 30px;
+    text-align: center;
+}
+.links-empty-state .links-empty-icon {
+    font-size: var(--type-xl);
+    line-height: 1;
+    opacity: 0.35;
+}
+.links-empty-state .links-empty-msg { max-width: 46ch; }
+.links-empty-title {
+    font-size: var(--type-medium);
+    font-weight: 700;
+    color: var(--text-dark);
+    margin: 0;
+}
+/* The action pair. `.btn-save` is the page's existing primary button — reused, not restated, so it
+   brings the 44px target and the press feedback with it (the same reasoning as the row actions
+   taking `.dialog-btn`). */
+.links-empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 4px;
 }
 
 /* ---- Save row + live summary (sticky, v19.57) ----
@@ -767,14 +825,30 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-label);
     line-height: 1.4;
 }
-.check-good     { background: color-mix(in srgb, var(--success-green) 8%, transparent); }
+/* THE STATUS IS CARRIED ON THE LEFT EDGE, NOT BY THE FILL ALONE (v19.66). At 8–10% of a hue
+   against white, all four fills land within a couple of percent of each other, so a 30-row card
+   rendered as one ribbon of same-height, near-identical bars — the status readable only from a
+   13px glyph. A 3px edge in the FULL-strength token is the cheapest way to make the four states
+   scannable down the column without touching what any of them MEAN.
+
+   It changes no semantics, and must not: a fatigue factor that is present still wears amber and
+   never `.check-bad` red (below), so this makes the existing distinction visible rather than
+   introducing a new one. Do not promote a fatigue row to the red edge. */
+.check-row { border-left: 3px solid transparent; }
+.check-good     { background: color-mix(in srgb, var(--success-green) 8%, transparent);
+                  border-left-color: var(--success-green); }
 /* A fatigue factor that is PRESENT wears this amber, never `.check-bad` red: the ORR is explicit
    these are not prescriptive limits, so a red row would read as a failure the guidance never
    defines. (v19.48 removed a second, dead `.check-warn-row` declaration added above this one —
    equal specificity, so this rule always won and the duplicate did nothing but mislead.) */
-.check-warn-row { background: color-mix(in srgb, var(--warning-amber) 10%, transparent); }
-.check-bad      { background: color-mix(in srgb, var(--error-red) 8%, transparent); }
-.check-neutral  { background: var(--surface-sunken); }
+.check-warn-row { background: color-mix(in srgb, var(--warning-amber) 10%, transparent);
+                  border-left-color: var(--warning-amber); }
+.check-bad      { background: color-mix(in srgb, var(--error-red) 8%, transparent);
+                  border-left-color: var(--error-red); }
+/* Neutral keeps a visible-but-quiet edge rather than none: an edge of `transparent` would make the
+   informational rows the only ones whose text starts 3px further left, which reads as a wobble
+   down the column. */
+.check-neutral  { background: var(--surface-sunken); border-left-color: var(--border-mid); }
 .check-icon { font-size: var(--type-body); flex-shrink: 0; margin-top: 1px; }
 .check-tick      { color: var(--success-green); }
 .check-warn      { color: var(--warning-amber); }
@@ -1578,8 +1652,31 @@ body.auth-ready .container { display: grid; }
        620px table under a 1036px objectives box under a 1036px button — a card reading as three
        unrelated widths. Capping the FORM lines every part of it up, and 660px sits right beside the
        ~72ch the intro prose above is already held to. */
-    .generator-form { max-width: 660px; }
+    /* CENTRED, not left-aligned (v19.66). The 660px cap is right — it was measured, and widening
+       the table just puts a 90px shift time in a 477px cell. But left-aligning it inside the
+       1100px card dumped the whole remainder on one side: 440px of empty white running 1,794px
+       down the tallest card on the page, which reads as a rendering fault rather than as margin.
+       Centred, the same space becomes 220px of symmetric gutter and the card looks deliberate.
+       Nothing moves on mobile, where the cap does not apply. */
+    .generator-form { max-width: 660px; margin-inline: auto; }
     .gen-th-time, .gen-td-time { width: 46%; }
+}
+
+/* THE 28-ROW TARGET TABLE KEEPS ITS COLUMN HEADERS (v19.66). Seeded from the roster it renders 28
+   rows of near-identical time dropdowns against three unlabelled number columns — and the header
+   row scrolled away after the first six, so for most of the table there was nothing on screen
+   saying which column was Mon–Fri, which Sat and which Sun. They are three different commitments
+   (Sunday is not even contracted), so typing into the wrong one is a real error with nothing to
+   catch it. The wrapper only scrolls horizontally, so the sticky offset is the page.
+   `z-index` keeps the header above the cells' own backgrounds as they pass under it. */
+.gen-slot-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    /* The header's own `--surface-sunken` is opaque, but the CELL BORDERS are not covered by it and
+       a row passing underneath showed through as a hairline across the header. A shadow on the
+       header rather than a border on the row, so nothing shifts when it un-sticks. */
+    box-shadow: 0 2px 4px -2px rgba(0, 30, 60, 0.28);
 }
 
 /* 5. THE OBJECTIVE LABELS NO LONGER COME APART AROUND THEIR NUMBER BOX.
