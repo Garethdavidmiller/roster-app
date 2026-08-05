@@ -1388,6 +1388,62 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
     }
 });
 
+test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
+    // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
+    // the only way to reach them was the browser menu, which an installed PWA often does not expose.
+    //
+    // The half worth testing hardest is the MASTHEAD. It states provenance ("Last saved by X") from
+    // the SAVED Firestore doc, while the grid prints the LIVE in-memory patterns — so printing with
+    // unsaved edits produced a sheet showing your changes under somebody else's name. That sheet
+    // goes to the assessing manager.
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= 28; i++) {
+            pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD',
+                thu: '15:15-23:55', fri: '15:15-23:55', sat: 'RD' };
+        }
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' }];
+        // A real print dialog would hang headless Chromium. Stub it, but still fire `beforeprint` —
+        // the masthead stamp and the open-every-`details` handler hang off that event, so a stub
+        // that skipped it would test the button and none of the behaviour behind it.
+        w.__printed = 0;
+        window.print = () => { w.__printed++; window.dispatchEvent(new Event('beforeprint')); };
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+
+    const btn = page.locator('#linksPrintBtn');
+    await expect(btn).toBeVisible();
+    await btn.click();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__printed)).toBe(1);
+
+    const clean = await page.locator('#printDesignName').innerText();
+    expect(clean).toContain('Last saved by S. Silva');
+    expect(clean, 'a saved design must not claim unsaved changes').not.toContain('unsaved changes');
+
+    // Now dirty the design and print again.
+    await page.locator('tr[data-pos="1"] .shift-cell-btn').first().click();
+    await page.locator('.shift-cell-select').selectOption({ index: 2 });
+    await btn.click();
+    expect(await page.locator('#printDesignName').innerText(),
+        'a sheet printed mid-edit must say so, or it misattributes the design')
+        .toContain('includes unsaved changes');
+
+    // The button is chrome, not content — it must not appear on the paper, and the grid must still
+    // fit the one sheet the whole print layout is built around (718px printable, A4 landscape).
+    await page.emulateMedia({ media: 'print' });
+    const printed = await page.evaluate(() => ({
+        row: getComputedStyle(/** @type {any} */ (document.getElementById('linksSaveRow'))).display,
+        gridH: Math.round(/** @type {any} */ (document.getElementById('linksGridCard')).getBoundingClientRect().height),
+    }));
+    expect(printed.row).toBe('none');
+    expect(printed.gridH, 'the 28-line rotation must stay on ONE sheet').toBeLessThanOrEqual(718);
+});
+
 test('links: the variety switch is what keeps you off one shift type for months', async ({ page }) => {
     // v19.59 settled each week and then laid the shift waves out in contiguous blocks, so moving one
     // line a week gave 11 straight weeks of mornings and 11 of afternoons — "a bit excessive and
