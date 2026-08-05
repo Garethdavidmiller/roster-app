@@ -465,9 +465,17 @@ Ordered by how much they change if the answer is unexpected.
    gives you unless you turn variety off and accept blocks of 8+. Offering the 9 in the room would
    overstate the tool by an order of magnitude.
 
-   Still outstanding: FF18's own row in the fatigue panel reports a **hardcoded** `standing`. The
-   measurement now exists, so that row should read from it — and "never hardcode a status here" is
-   already the module's own rule, broken once before at v19.48 (FF13).
+   **The panel row now reads from that measurement** (v19.69; it reported a hardcoded `standing`
+   from v19.46, breaking the module's own "never hardcode a status" rule for the second time after
+   FF13 at v19.48). It states the typical weekly move, the largest, and how many boundaries exceed
+   two hours. **On the live main roster: typically 4h 0m a week, largest 8h 46m, 9 of 20 boundaries
+   over 2h** — the baseline to read any proposal's figure against, and the number to take into the
+   conversation below. For comparison the generator's shipped default measures ~1h 35m.
+
+   The STATUS deliberately stays `standing` whenever the step is measurable rather than turning
+   `present` above some figure: the ORR gives no threshold for FF18, so inventing one would be the
+   pass/fail rendering this panel must never produce. The derived branch is `n/a`, for a design with
+   no timed lines at all — a row that cannot be computed does not get to claim anything.
 3. **Does the Sunday finish move?** Five movements fall after 23:25 — and the answer to question 1
    **strengthens** this rather than weakening it. The earlier draft noted the case would drop from
    five movements to two if arrivals needed no CEA; arrivals do count, so all five stand: 23:27 dep,

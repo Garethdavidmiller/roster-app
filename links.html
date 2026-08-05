@@ -103,7 +103,11 @@
         <div class="card-header card-header-toggle" id="linksGridToggleHeader">
             <div>
                 <h2><span aria-hidden="true">🗓️</span> Link design — 28 lines</h2>
-                <span class="hint">Tap any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.</span>
+                <!-- Swapped in the empty state (v19.66): this text tells you to tap a shift cell and
+                     use the Paint bar, and in the empty state there is no grid and no Paint bar on
+                     screen — a card header describing controls that are not there. `linksGridHint`
+                     is set from renderGrid, which already knows which state it is in. -->
+                <span class="hint" id="linksGridHint">Tap any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.</span>
             </div>
             <div class="card-header-actions">
                 <button type="button" class="btn-card-tips" data-card="links-grid" aria-label="Tips for link design" title="Tips for link design">?</button>
@@ -138,7 +142,13 @@
 
                 <!-- Empty state: shown before any design is loaded or created -->
                 <div id="linksEmptyState" class="links-empty-state">
-                    <p class="links-empty-msg" id="linksEmptyMsg">No designs saved yet — use the Auto-generate card below to create one, or tap <strong>+ New</strong> for a blank canvas.</p>
+                    <span class="links-empty-icon" aria-hidden="true">🔗</span>
+                    <p class="links-empty-title">No designs yet</p>
+                    <p class="links-empty-msg" id="linksEmptyMsg">Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty 28-line grid.</p>
+                    <div class="links-empty-actions">
+                        <button type="button" class="btn-save" id="linksEmptyGenerate">Go to Auto-generate</button>
+                        <button type="button" class="btn-text-link" id="linksEmptyNew">Start with a blank grid</button>
+                    </div>
                 </div>
 
                 <!-- Paint-mode brush bar — arm a shift then single-click cells to fill -->
@@ -328,7 +338,10 @@
         </div>
         <div class="card-collapsible-body open" id="coverageBody">
             <div class="card-body" id="coverageSummaryWrap">
-                <p class="links-empty-msg" id="coverageEmptyMsg">Load or create a link design to see coverage.</p>
+                <div class="links-empty-panel" id="coverageEmptyMsg">
+                    <span class="links-empty-icon" aria-hidden="true">📊</span>
+                    <p class="links-empty-msg">Cover against the December 2026 service appears here once a design is loaded or created.</p>
+                </div>
                 <!-- Staffed window (v19.54). Per DESIGN, not global: a proposal may legitimately test a
                      moved boundary. Editing it is what makes the heat map's "open but nobody on" gaps
                      mean something. -->
@@ -373,7 +386,14 @@
         </div>
         <div class="card-collapsible-body open" id="checksBody">
             <div class="card-body" id="checksContent">
-                <p class="links-empty-msg" id="checksEmptyMsg">Load or create a link design to see quality checks.</p>
+                <div class="links-empty-panel" id="checksEmptyMsg">
+                    <!-- NOT the card's own ✅ (v19.66). A green tick sitting in the middle of an
+                         EMPTY checks card reads as "checks passed" — the precise false-assurance
+                         failure this panel is built to prevent, and it would be showing it before
+                         a single check had run. A neutral clipboard says "nothing assessed yet". -->
+                    <span class="links-empty-icon" aria-hidden="true">📋</span>
+                    <p class="links-empty-msg">Quality checks and the ORR fatigue factors appear here once a design is loaded or created.</p>
+                </div>
             </div>
         </div>
     </div>

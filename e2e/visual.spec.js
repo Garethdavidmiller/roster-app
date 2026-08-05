@@ -254,6 +254,30 @@ const LINKS_DESIGN = (() => {
     return patterns;
 })();
 
+// THE BLANK PAGE HAD NO PIXEL COVERAGE AT ALL, WHICH IS HOW IT DRIFTED (v19.66). Every other links
+// baseline seeds a design, so the state a new designer actually meets first was the one surface
+// nothing ever looked at — and it had become three white slabs (160/117/117px) each holding one
+// grey sentence pinned to the left edge, with the grid card's header still describing a paint bar
+// that was not on screen. All 256 e2e tests passed throughout: they assert text and behaviour.
+//
+// This is a whole-page shot rather than one card, deliberately — the defect was the RELATIONSHIP
+// between the three cards (three empty boxes in a column), which no single-card capture can see.
+test('links — the blank state, no designs saved (desktop 1280)', async ({ page }) => {
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [];
+    });
+    await prep(page, { width: 1280, height: 900 });
+    await page.goto('/links.html');
+    // Sentinels: the empty state must be the thing on screen, and it must carry its action — a
+    // regression that dropped the button would otherwise just re-baseline as the new truth.
+    await expect(page.locator('#linksEmptyState')).toBeVisible();
+    await expect(page.locator('#linksEmptyGenerate')).toBeVisible();
+    await expect(page.locator('#linksGridHint')).not.toContainText('Paint bar');
+    await settle(page, '#linksEmptyState');
+    await expect(page.locator('#linksGridCard')).toHaveScreenshot('links-blank-grid-card.png');
+});
+
 test('links — design grid + coverage + checks (desktop 1280)', async ({ page }) => {
     await page.addInitScript((pats) => {
         /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};

@@ -1437,6 +1437,117 @@ test('links: a numeric objective clause does not come apart on a phone', async (
     }
 });
 
+// ── Opening a card in code must move the chevron and the ARIA with it (v19.70) ──────────────────
+// `initCardCollapse` only syncs `aria-expanded` on a real click, so anything that opens a card
+// programmatically has to do it by hand. `renderGrid`'s auto-expand did; the v19.66 empty-state
+// button did not — it added `.open` to the body and left the chevron pointing collapsed with
+// `aria-expanded="false"` over an open card.
+//
+// It stayed invisible because on the default path `renderGrid` has usually opened the generator
+// already, so the button's own open is a no-op. You only see it by COLLAPSING the card first,
+// which is what this test does. Both sites now share `_openGenerator`.
+test('links: the empty-state button opens the generator with its chevron and ARIA in step', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksEmptyGenerate')).toBeVisible();
+
+    // Collapse it by hand — the state in which the button's own open actually does something.
+    await page.locator('#generatorChevron').click();
+    await expect(page.locator('#generatorBody')).not.toHaveClass(/open/);
+
+    await page.locator('#linksEmptyGenerate').click();
+    await expect(page.locator('#generatorBody')).toHaveClass(/open/);
+    // The two that drifted. A body open behind a collapsed chevron is a visual contradiction; the
+    // ARIA is the half a sighted reviewer would never catch.
+    await expect(page.locator('#generatorChevron')).toHaveClass(/open/);
+    await expect(page.locator('#generatorChevron')).toHaveAttribute('aria-expanded', 'true');
+});
+
+// ── The generator card has ONE left edge on desktop (v19.67) ─────────────────────────────────────
+// v19.66 centred `.generator-form` to split the 440px of dead space beside it, and left the intro
+// prose where it was — so the card ended up with TWO left edges: the intro ran 122→778 while the
+// table, objectives, action links and Generate button all ran 310→970. Nearly the same WIDTH
+// (656 vs 660), 188px apart, which reads as a mistake rather than as hierarchy.
+//
+// A screenshot would not police this reliably: the baseline is a whole-card capture, and a
+// re-baseline records whatever the alignment happens to be. Measuring the left edges does.
+test('links: the generator card lines up on one left edge at desktop width', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile-chrome', 'the shared column only applies at >=1024px');
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/links.html');
+    await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
+    await page.waitForTimeout(250);
+
+    const edges = await page.evaluate(() => {
+        /** @type {Record<string, number>} */
+        const out = {};
+        for (const [name, sel] of [
+            ['intro', '#generatorCard .links-desc'], ['table', '.gen-slot-table'],
+            ['objectives', '.gen-objectives'], ['actions', '.gen-actions'], ['generate', '#genApplyBtn'],
+        ]) {
+            const el = document.querySelector(sel);
+            if (el) out[name] = Math.round(el.getBoundingClientRect().left);
+        }
+        return out;
+    });
+    const names = Object.keys(edges);
+    expect(names.length, 'every part of the generator must be measurable').toBe(5);
+    const [first, ...rest] = names;
+    for (const n of rest) {
+        expect(Math.abs(edges[n] - edges[first]),
+            `"${n}" starts at ${edges[n]} but "${first}" starts at ${edges[first]} — the card has two left edges`)
+            .toBeLessThanOrEqual(1);
+    }
+});
+
+// ── A sticky header is only sticky against the right scroll container (v19.66) ───────────────────
+// The generator's `thead th` carries `position: sticky`, and at ≥768px it works: the wrapper is
+// `overflow-x: visible`, so the sticky offset is the page. Below 768px the wrapper sets
+// `overflow-x: auto` to scroll the 443px table inside a 306px card — and per spec, when one
+// overflow axis is not `visible` the other computes to `auto`. So the wrapper becomes a vertical
+// scroll container as tall as its own content, and the header sticks to a box that never scrolls
+// vertically. It reads as correct in the stylesheet and does nothing.
+//
+// This test does not demand it work on mobile — that needs a `max-height` and a nested scrollbox
+// around the primary creation path, which is a UX decision nobody has taken. It pins the two facts
+// that make the situation legible, so the boundary cannot be claimed away: the declaration is
+// there, and the mobile wrapper really is a scroll container in BOTH axes. If someone later makes
+// it work on a phone, the second assertion is what will fail and send them to the note in
+// links.css rather than letting them assume it had been working all along.
+test('links: the generator header is sticky on desktop, and provably not on mobile', async ({ page }, info) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    await page.setViewportSize(info.project.name === 'mobile-chrome' ? { width: 390, height: 844 } : { width: 1280, height: 900 });
+    await page.goto('/links.html');
+    await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
+    await page.waitForTimeout(250);
+
+    const m = await page.evaluate(() => {
+        const wrap = /** @type {Element} */ (document.querySelector('.gen-slot-table-wrap'));
+        const th = /** @type {Element} */ (document.querySelector('.gen-slot-table thead th'));
+        const w = getComputedStyle(wrap);
+        return { pos: getComputedStyle(th).position, ox: w.overflowX, oy: w.overflowY };
+    });
+    expect(m.pos, 'the sticky declaration must be present at every width').toBe('sticky');
+
+    if (info.project.name === 'mobile-chrome') {
+        // The wrapper scrolls horizontally, which forces the vertical axis too — this is WHY the
+        // header cannot stick to the page here.
+        expect(m.ox, 'the narrow wrapper scrolls the table horizontally').toBe('auto');
+        expect(m.oy, 'and so becomes a vertical scroll container — the reason sticky is inert here').toBe('auto');
+    } else {
+        // Not a scroll container ⇒ the sticky offset is the page ⇒ the header actually sticks.
+        expect(m.ox, 'at >=768px the wrapper must not be a scroll container, or sticky breaks').toBe('visible');
+    }
+});
+
 test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
     // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
     // the only way to reach them was the browser menu, which an installed PWA often does not expose.

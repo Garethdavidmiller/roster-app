@@ -391,3 +391,100 @@ test('the night family is a GROUP NAME, not a verdict (v19.52)', () => {
     assert.equal(nightless.results.find(r => r.code === 'FF6').status, 'n/a');
     assert.equal(withNight.results.find(r => r.code === 'FF6').status, 'present');
 });
+
+// ── FF18 — the row that reported a hardcoded status for 23 versions (v19.69) ─────────────────────
+// It said `standing` no matter what the design did, from v19.46 to v19.68, which broke this
+// module's own "never hardcode a status" rule for the second time (FF13 was the first, v19.48).
+// It was written when the factor was read as being about the weekly CADENCE — true of every link,
+// so the row could never say anything. The owner corrected the reading: the concern is the SIZE OF
+// THE STEP, which is a design choice and, since v19.58, measurable.
+//
+// So the cases below pin the two things a hardcoded status could not do: RESPOND to the design, and
+// REFUSE to answer when it cannot be computed.
+describe('FF18 — the week-to-week step', () => {
+    const ff18 = (/** @type {any} */ d) => assessFatigue(d, Object.keys(d).length).results.find(r => r.code === 'FF18');
+
+    test('the reported step RESPONDS to the design — the whole point of the fix', () => {
+        // Every line the same shift: the working day never moves week to week.
+        const flat = ff18(design(
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+        ));
+        // Alternating early/late: the largest step this vocabulary allows.
+        const swinging = ff18(design(
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+            [RD, LATE,  LATE,  LATE,  LATE,  LATE,  RD],
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+        ));
+        assert.notEqual(flat.value, swinging.value, 'a hardcoded row would report the same for both');
+        assert.match(String(flat.value), /0h 0m/);
+        // The rotation LAPS — line 3 → line 1 is a boundary like any other — so the three steps are
+        // 9h05, 9h05 and 0, giving a mean of 6h03 and a worst of 9h05. Asserting the mean alone
+        // would have hidden the lap; the first draft of this test expected 9h05 and was wrong.
+        assert.match(String(swinging.value), /typically 6h 3m/);
+        assert.match(String(swinging.detail), /largest is 9h 5m/);
+        assert.match(String(swinging.detail), /2 of 3 line boundaries move by more than 2 hours/);
+    });
+
+    test('the CADENCE stays `standing` however gentle the step — it is not a pass/fail row', () => {
+        const gentle = ff18(design(
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+        ));
+        // `standing`, never `clear`: a weekly rotation IS present in every link. Turning it
+        // `present` above some figure would invent a threshold the ORR does not give, which is the
+        // pass/fail rendering this panel exists to avoid.
+        assert.equal(gentle.status, 'standing');
+    });
+
+    test('a design with no times at all REFUSES to answer rather than claiming a step', () => {
+        const allSpare = ff18(design(
+            ['SPARE', 'SPARE', 'SPARE', 'SPARE', 'SPARE', 'SPARE', 'SPARE'],
+            ['SPARE', 'SPARE', 'SPARE', 'SPARE', 'SPARE', 'SPARE', 'SPARE'],
+        ));
+        // n/a, NOT clear and NOT standing-with-a-zero: an unmeasurable step reported as "no change"
+        // is the flattery this module exists to prevent — and it is exactly how a spare week could
+        // otherwise be made to look like a gentle transition.
+        assert.equal(allSpare.status, 'n/a');
+        assert.doesNotMatch(String(allSpare.value), /typically/);
+    });
+
+    test('spare boundaries are excluded and SAID to be, never counted as no change', () => {
+        const withSpare = ff18(design(
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+            ['SPARE', 'SPARE', 'SPARE', 'SPARE', 'SPARE', 'SPARE', 'SPARE'],
+            [RD, LATE, LATE, LATE, LATE, LATE, RD],
+        ));
+        assert.equal(withSpare.status, 'standing');
+        assert.match(String(withSpare.detail), /carry no times \(spare weeks\) and are excluded/);
+    });
+
+    // The v19.69 cases all passed `lines` EQUAL to the key count, so none of them could see this:
+    // the measurability guard was `unmeasurable < lines`, comparing boundaries walked against the
+    // count the CALLER claims. A partly-built design has fewer keys than lines, and an empty one has
+    // none — which sailed through as "measurable" and reported a confident 0h 0m about a design with
+    // no shifts in it. Found by the v19.70 regression pass.
+    test('a design with FEWER lines than claimed does not invent a measurement', () => {
+        const empty = assessFatigue({}, 28).results.find(r => r.code === 'FF18');
+        assert.equal(empty.status, 'n/a');
+        assert.doesNotMatch(String(empty.value), /typically/);
+
+        // …and the same design part-built DOES measure, so the guard is not simply always-off.
+        const partial = assessFatigue(design(
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+            [RD, LATE,  LATE,  LATE,  LATE,  LATE,  RD],
+        ), 28).results.find(r => r.code === 'FF18');
+        assert.equal(partial.status, 'standing');
+        assert.match(String(partial.value), /typically/);
+    });
+
+    test('the stated threshold is the one actually counted against', () => {
+        const d = ff18(design(
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+            [RD, LATE,  LATE,  LATE,  LATE,  LATE,  RD],
+        ));
+        assert.equal(d.threshold, '2h');
+        assert.match(String(d.detail), /more than 2 hours/);
+    });
+});

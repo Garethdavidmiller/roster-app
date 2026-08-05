@@ -242,9 +242,23 @@ of its 24 factors. Read the module header before changing any rule; the four thi
   property of the operation — marked `standing` and counted separately, because adding it to the
   findings total would claim the designer could have avoided it.
 - **Three definitions are unsettled** (FF17, FF18, FF19) and carry `confirm: true`, rendered as
-  "(definition to confirm)". FF18 in particular may be unavoidable by construction — a link moves
-  everyone one line per week — which is a conversation to have with the assessing manager *before*
-  the proposals are drawn, not a checklist item.
+  "(definition to confirm)". FF18's reading is the one still worth settling with the assessing
+  manager *before* the proposals are drawn: on the weekly CADENCE alone no design can avoid it, and
+  that belongs in the justify/minimise/control conversation rather than on a checklist.
+- **FF18 measures the STEP, and its status is derived** (v19.69). It reported a hardcoded `standing`
+  from v19.46 to v19.68 — the "never hardcode a status" rule above, broken for the second time —
+  because the factor was originally read as being about the cadence, which is true of every link and
+  so made the row informationless. The owner corrected the reading (Aug 2026): the concern is **how
+  far the working day moves at each step**, which is a design choice and, since v19.58, measurable.
+  The row now reads `scoreOrder` from `links-adjacency.js` and states the typical weekly move, the
+  largest, and how many boundaries exceed 2h. **Live main roster: 4h 0m typical / 8h 46m worst /
+  9 of 20 over** — quote that as the baseline; the generator's default measures ~1h 35m.
+  Two things not to "tidy": the status stays **`standing`** whenever the step is measurable rather
+  than turning `present` above some figure — the ORR gives no FF18 threshold, and inventing one is
+  the pass/fail rendering this panel forbids — and it derives to **`n/a`** for a design with no timed
+  lines, which is the real branch a hardcoded status could not express. The 2h figure is the ORR's
+  own FF19 threshold, single-sourced from `GENTLE_THRESHOLD_MINUTES` so the chip and the sentence
+  cannot drift from what was actually counted.
 
 Two things about the rules themselves that are easy to get wrong, both caught by their own tests:
 **FF11 is not the consecutive-worked-days check it resembles** (a single rest day is not a 48h break,
@@ -356,6 +370,86 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   suite's `threshold: 0.15` per-pixel sensitivity — deleting the fill AND the shadow left the
   screenshot passing (teeth-verified). The baseline catches composition; the style assertion catches
   on-versus-off. Keep both.
+
+### Known MOBILE gaps on this page — measured, not yet decided (v19.66)
+
+The v19.66 review captured desktop and mobile but was **read** desktop-first, and the mobile
+in-use page was not examined until afterwards. Three things it found at 390×844, all measured,
+none fixed — recorded so they are not re-discovered as new:
+
+- **The grid loses its day headers.** `.links-grid-wrapper` is `overflow-x: auto` below 1024px, so
+  by the spec rule above it is a scroll container in both axes and its sticky `thead` is inert —
+  the same trap as the generator table. Scrolling lines 9–27 there is no LINE/SUN/MON header on
+  screen at all, and the grid is **43% off-screen horizontally** (592px of table in a 338px
+  wrapper), so position cannot disambiguate the column either. On the page's primary object this
+  is the most serious of the three.
+- **The sticky save row takes 146px of an 844px viewport — 17%**, permanently: two buttons, a
+  provenance line, and the summary chips wrapped onto two rows.
+- **The brush bar is 239px** — 26 chips over seven rows before the grid begins.
+
+None is a regression; all three predate v19.66. The fixes are not free (the first needs a nested
+scrollbox; the other two need something to give), so they are a conversation rather than a sweep.
+
+### The blank page, and three fixes that came out of screenshotting it (v19.66)
+
+The page had been polished repeatedly **in use** and never looked at **empty**. Measured at 1280px
+with no designs saved, the three cards came to **160px / 117px / 117px** — each a white slab holding
+one 12px grey sentence pinned to the left edge. That is what a new designer sees first, and it read
+as three empty boxes rather than a page waiting to be used.
+
+- **An empty card says what it is waiting FOR, and the one that can act carries the action.** The
+  grid card gets a centred icon + title + sentence + a real `.btn-save` primary ("Go to
+  Auto-generate") and a text link ("Start with a blank grid"). Left-aligned, the old sentence sat
+  ~700px from the "+ New" button it was telling you to press. The two analysis cards get
+  `.links-empty-panel` — centred, `min-height: 132px` — because they can offer nothing: there is
+  nothing to analyse.
+- **The primary action SCROLLS; it does not generate.** Firing the generator from an empty card
+  would build against whatever the roster seed happened to hold, which is a design nobody chose.
+- **The empty checks panel must not wear a green tick.** It was `✅` (the card's own emoji) for one
+  iteration — a tick centred in an empty checks card reads as "checks passed", the exact
+  false-assurance failure that card exists to prevent, and it would be claiming it before a single
+  check had run. `📋` instead.
+- **A load FAILURE is not "you have not made one yet".** `renderGrid` swaps the title and hides the
+  actions on `loadFailed`: telling someone whose designs exist but did not load that they have none,
+  and inviting them to generate a new one, is how a connection blip becomes a duplicate design.
+- **The card header hint is state-dependent.** It said "Tap any shift cell to change it. Use the
+  Paint bar…" in a state with no grid and no paint bar on screen. Both strings live in
+  `_setGridHint` so they cannot drift.
+- **`links-analysis.js` must MIRROR the empty-panel markup** its card ships in `links.html` — that
+  branch replaces the whole card body, so the bare `<p>` it used to write silently undid the empty
+  state on the first re-render.
+
+Two more from the same pass, both in-use surfaces:
+
+- **The generator form is CENTRED on desktop, not left-aligned — and the INTRO comes with it.** The
+  660px cap is right (measured at v19.61 — a full-width table puts a 90px shift time in a 477px
+  cell), but left-aligning it in the 1100px card dumped the whole remainder on one side: **440px of
+  empty white running 1,794px down** the tallest card on the page, which reads as a rendering fault.
+  Centred, it is 220px of symmetric gutter.
+  **Centring the form ALONE was a regression, caught by re-screenshotting** (v19.67): the intro
+  prose stayed put, so the card had two left edges — intro 122→778 against table/objectives/actions/
+  Generate all at 310→970. Nearly the same WIDTH (656 vs 660) 188px apart, which reads as a mistake
+  rather than as hierarchy. `#generatorCard .links-desc` now shares the form's cap. **Anything added
+  to this card must join that column too**; an e2e measures all five left edges and names the
+  offender, because a whole-card baseline just re-records whatever the alignment happens to be.
+- **The 28-row target table keeps its column headers — at ≥768px ONLY** (`position: sticky` on
+  `thead th`). They scrolled away after the first six rows, leaving three unlabelled number columns
+  — and Mon–Fri, Sat and Sun are three different commitments (Sunday is not even contracted), so
+  typing into the wrong one is a real error with nothing to catch it.
+  **Below 768px the declaration is inert, and that is a CSS constraint rather than a decision.**
+  `sticky` resolves against the nearest scroll container; the narrow wrapper sets `overflow-x: auto`
+  to scroll the 443px table inside a 306px card, and per spec the other axis then computes to `auto`
+  as well (measured at 390px). The wrapper becomes a vertical scroll container as tall as its own
+  content, so the header sticks to a box that never scrolls. **Do not "fix" it with
+  `overflow-y: visible`** — that is the exact declaration the spec overrides, so it would read as
+  correct and change nothing, which is this file's most frequently repeated failure. Making it work
+  on a phone needs a `max-height` and therefore a nested scrollbox around the primary creation path:
+  a UX decision, not a tidy-up. Both facts are pinned by an e2e that runs at both widths.
+- **The Design-checks status is carried on the LEFT EDGE, not by the fill alone.** At 8–10% of a hue
+  against white the four fills land within a couple of percent of each other, so 30 rows rendered as
+  one ribbon with the status readable only from a 13px glyph. A 3px edge in the full-strength token
+  makes them scannable. **It changes no semantics and must not**: a fatigue factor that is present
+  still wears amber and never the red edge.
 
 ### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
 **The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.

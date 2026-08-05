@@ -346,7 +346,15 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         if (!content) return;
 
         if (!design) {
-            content.innerHTML = '<p class="links-empty-msg">Load or create a link design to see quality checks.</p>';
+            // Must MIRROR the same panel markup links.html ships for this card (v19.66). This
+            // branch replaces the whole card body, so a bare `<p>` here silently undid the empty
+            // state on the first re-render after load — the card looked right until anything
+            // called this, then reverted to a left-pinned grey line.
+            content.innerHTML = '<div class="links-empty-panel">' +
+                // Deliberately NOT a green tick — see the note beside the same markup in links.html.
+                '<span class="links-empty-icon" aria-hidden="true">📋</span>' +
+                '<p class="links-empty-msg">Quality checks and the ORR fatigue factors appear here once a design is loaded or created.</p>' +
+                '</div>';
             return;
         }
 

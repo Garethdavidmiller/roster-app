@@ -467,6 +467,16 @@ export function init() {
             if (nameBtn) compare.selectCompareDesign(nameBtn.dataset.id);
         });
         document.getElementById('newDesignBtn')?.addEventListener('click',     createDesign);
+        // The empty state's two actions (v19.66). They do not duplicate any behaviour — the blank
+        // one calls the SAME `createDesign` the picker's "+ New" does, and the primary one only
+        // scrolls, because generating needs targets the designer has to look at first. Offering
+        // "Generate" straight from an empty card would fire the generator against whatever the
+        // roster seed happened to produce, which is a design nobody chose.
+        document.getElementById('linksEmptyNew')?.addEventListener('click',    createDesign);
+        document.getElementById('linksEmptyGenerate')?.addEventListener('click', () => {
+            _openGenerator();
+            document.getElementById('generatorCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
         document.getElementById('dupDesignBtn')?.addEventListener('click',     duplicateDesign);
         document.getElementById('compareBtn')?.addEventListener('click',       compare.toggleCompareMode);
     }
@@ -1023,6 +1033,40 @@ export function init() {
     // GRID RENDERING
     // ============================================
 
+    /**
+     * Open the generator card programmatically, chevron and ARIA included.
+     *
+     * ONE implementation, because the two call sites had already drifted (found in the v19.70
+     * regression pass). `initCardCollapse` only syncs `aria-expanded` on a real click, so anything
+     * that opens the card in code has to do it by hand — the auto-expand in `renderGrid` did, and
+     * the v19.66 empty-state button did not. Collapse the generator, then press "Go to
+     * Auto-generate": the body opened while the chevron still pointed collapsed and a screen reader
+     * was told `aria-expanded="false"` over an open card. Harmless on the default path only because
+     * `renderGrid` has usually opened it already — which is exactly how the gap stayed invisible.
+     */
+    function _openGenerator() {
+        const body    = document.getElementById('generatorBody');
+        const chevron = document.getElementById('generatorChevron');
+        if (body && !body.classList.contains('open')) body.classList.add('open');
+        if (chevron) {
+            chevron.classList.add('open');
+            chevron.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    /**
+     * The grid card's header hint describes the GRID, which is not on screen in the empty state
+     * (v19.66) — it told you to tap a shift cell and use the Paint bar when neither existed. Both
+     * strings live here rather than in two render branches so they cannot drift apart.
+     * @param {boolean} hasDesign
+     */
+    function _setGridHint(hasDesign) {
+        const el = document.getElementById('linksGridHint');
+        if (el) el.textContent = hasDesign
+            ? 'Tap any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.'
+            : 'A link is 28 lines — everyone works line 1 one week, line 2 the next, all the way round.';
+    }
+
     function renderGrid() {
         const tbody      = document.getElementById('linksGridBodyRows');
         const tfoot      = document.getElementById('linksCoverageFoot');
@@ -1036,31 +1080,29 @@ export function init() {
             // VISIBLE; it would still be wrong, and the next design to load would flash it. This is
             // the one place the summary needs asking for by name.
             renderSummary();
-            const emptyMsg = document.getElementById('linksEmptyMsg');
+            // The empty state has a TITLE and ACTIONS as well as this sentence (v19.66), and a load
+            // FAILURE is not the same state as "you have not made one yet" — offering "No designs
+            // yet" to someone whose designs exist but did not load would be a lie, and inviting
+            // them to generate a new one is how a connection blip turns into a duplicate design.
+            const emptyMsg   = document.getElementById('linksEmptyMsg');
+            const emptyTitle = document.querySelector('#linksEmptyState .links-empty-title');
+            const emptyActs  = document.querySelector('#linksEmptyState .links-empty-actions');
+            if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : 'No designs yet';
             if (emptyMsg) emptyMsg.innerHTML = loadFailed
-                ? `Couldn't load the saved design — check your connection and refresh the page.`
-                : `No designs saved yet — use the Auto-generate card below to create one, or tap <strong>+ New</strong> for a blank canvas.`;
+                ? `Check your connection and refresh the page. Nothing has been lost — saved designs are on the server.`
+                : `Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty 28-line grid.`;
+            if (emptyActs) /** @type {HTMLElement} */ (emptyActs).style.display = loadFailed ? 'none' : '';
+            _setGridHint(false);
             if (wrapper)    wrapper.style.display    = 'none';
             if (emptyState) emptyState.style.display = '';
             if (saveRow)    saveRow.style.display    = 'none';
             if (tbody)      tbody.innerHTML          = '';
             if (tfoot)      tfoot.innerHTML          = '';
             document.body.classList.remove('links-compare-on');
-            // Auto-expand the generator so the user sees it without having to discover it
-            if (!loadFailed) {
-                const genBody    = document.getElementById('generatorBody');
-                const genChevron = document.getElementById('generatorChevron');
-                if (genBody && !genBody.classList.contains('open')) {
-                    genBody.classList.add('open');
-                    if (genChevron) {
-                        genChevron.classList.add('open');
-                        // Keep the collapse control's ARIA state in step with the class-only
-                        // open so a screen reader hears "expanded" (initCardCollapse only
-                        // syncs aria-expanded on click; this programmatic open bypasses it).
-                        genChevron.setAttribute('aria-expanded', 'true');
-                    }
-                }
-            }
+            // Auto-expand the generator so the user sees it without having to discover it.
+            // Shares `_openGenerator` with the empty state's button — see the note there for why
+            // the ARIA sync has to be explicit, and what happened when only one site did it.
+            if (!loadFailed) _openGenerator();
             renderBrushBar();
             renderCoverageCard();
             renderDesignChecks();
@@ -1069,6 +1111,7 @@ export function init() {
 
         if (emptyState) emptyState.style.display = 'none';
         if (saveRow)    saveRow.style.display    = '';
+        _setGridHint(true);
 
         // In compare mode the main grid is hidden on SCREEN ONLY (body class +
         // screen-scoped CSS) but stays fully rendered — print must always output
