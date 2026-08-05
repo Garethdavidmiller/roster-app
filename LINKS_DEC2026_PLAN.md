@@ -105,10 +105,26 @@ and `W`. Concurrent platform use is arguably closer again to what drives CEA *he
 on one platform is not the same job as two trains on two platforms — and nothing here computes it.
 Recorded as a known limitation of the demand curve, not as a blocker.
 
-**Also unresolved: the weekday file may not be final.** `SO` and `Su` are both named `__Final`; the
-`SX` file is named `10_of_13` and is not. The weekday profile drives most of the design, so it is
-worth confirming its status before building against it.
+**Resolved: all three simplifiers are final** (owner, Aug 2026 — open question 4). `SO` and `Su` are
+named `__Final`; `SX` is named `10_of_13` and is not, which is why this was flagged — the weekday
+profile drives most of the design. The naming is not the status: the content of the measured file is
+settled. The file name stays on screen in `DEC_2026_SOURCE` regardless, because "final" means *this
+file* is settled — if a later weekday file ever supersedes it, every figure here has to be
+re-measured from that file rather than assumed to carry over.
 
+## What actually drives CEA headcount (owner, Aug 2026)
+
+Not the trains, mostly. The station rosters **posts** — ticket office, gateline, passenger assist,
+lost property (daytime Mon–Fri only) — plus **extras to cover breaks**. A post is a continuous
+commitment: the gateline needs someone on it whether the hour carries 23 movements or 5. So a large
+part of the headcount is flat across the operating window and does not follow the train curve at all.
+
+**The existing link already covers all of that**, which is why the existing link is the baseline for
+December 2026 rather than something to be rebuilt from the timetable. See package 4.
+
+**So the measured service above is EVIDENCE, not a target.** It is what the coverage overlay shows a
+designer so they can judge whether cover looks right; it is not a number the tool turns into staffing.
+There is no CEA-per-train ratio written down anywhere, and the tool must not invent one.
 ## The staffed window, and the one boundary that has to move
 
 The CEA operating window is **Mon–Sat 06:20–23:55** and **Sunday 07:15–23:25** (owner, Aug 2026).
@@ -198,53 +214,40 @@ happily compute a stretch across any 28 lines it is given, so a 28-line design i
 those 28 lines genuinely are one rotation. In the new design they will be; in the baseline they are
 not.
 
-## The generator already scores better than the live link
+## What the generator produces, measured against the real seed
 
-Also checked in the review pass, because the plan assumed a twin-peaked weekday might be beyond the
-rotating-window construction. It is not. Given a deliberately twin-peaked target set (heavy 06:20 and
-07:00, light middle, heavy 14:00 and 15:25) `generatePatterns` returns 28 filled lines with:
+Re-measured v19.75 against the actual roster seed (28 slot rows, 6 spare lines) rather than a
+hand-built target set, because every earlier figure in this section was taken from a reconstruction
+and through a construction that stopped being the default at v19.59.
 
-**longest stretch 6 days · 0 short turnarounds · 15/28 weekends off (54%)**
+| | live main roster (20 lines) | generated, settled (default) | generated, rotating (fallback) |
+|---|---|---|---|
+| days per line | 3–7, clustered at 5 | 3–7, clustered at 5 | 3–7, clustered at 5 |
+| longest run | 15 days | 15 days | 13 days |
+| short turnarounds | 0 | **0** | **0** |
+| weekends off | 4/20 (20%) | 7/28 (25%) | 6/28 (21%) |
 
-against the live link's 15 days and 20%. So the generator is a good starting point for the Dec 2026
-work rather than something to be fought, and no work is needed to make it express the new shape.
+*(The 7s are spare weeks — SPARE is not rest, so a spare line counts as seven worked days. The live
+roster has four, the seed six.)*
 
-> **Those three numbers describe a construction that is no longer the default** (v19.65). They were
-> taken through `generatePatterns` when that meant the ROTATING window; since v19.59 the same call
-> builds **settled weeks**. Re-measured on a reconstruction of the target set described above:
-> rotating **6 days / 0 turnarounds / 8-of-28 weekends**, settled **8 days / 1 turnaround /
-> 10-of-28**. So the headline survives — both beat the live link's 15 days — but two specifics do
-> not: the longest stretch is longer under today's default, and "0 short turnarounds" is not a
-> property you can promise of it.
->
-> **The exact targets were never written down, which is why this could only be approximated.** The
-> reconstruction above comes from the prose ("heavy 06:20 and 07:00, light middle, heavy 14:00 and
-> 15:25") and does not reproduce the 15/28 weekends, so the absolute figures here are not checkable
-> by anyone, including whoever wrote them. Record the target set beside any measurement you add —
-> the same rule the line-order figures needed.
+**The generator's output is indistinguishable from the real roster on the measures that matter**, and
+matches it exactly on the one that would be dangerous to get wrong: zero short turnarounds. It does
+not IMPROVE the longest run — 15 days, the same as today's link and already past FF11's 13 — which is
+a property of the targets, not of the construction. A proposal that wants to fix that has to change
+the targets or the number of lines.
 
-**That conclusion was drawn from too few measurements** (corrected v19.59, after comparing the
-generator's output against the live roster rule by rule). The figures above are real, but they are
-the four things `runDesignChecks` happened to count. On the measure the tool had *just* started
-reporting — FF19, successive start times more than 2h apart — the generated design scored **27**
-against the live link's **6**, because the rotating window slid DAILY and walked every person across
-the whole span of shift times inside one week: mean within-week start spread **8h09**, with all 22
-worked lines above 4h, where the real main roster averages 3h44 and only 7 of 16 exceed it. Nobody at
-Marylebone has ever worked a week that starts 15:25 on the Sunday and 06:20 on the Wednesday.
+**Correctness, verified rather than assumed** (v19.75). Against the real seed, both constructions:
 
-The generator now builds **settled weeks** by default (see `.claude/rules/links-design.md`): 1h33
-mean spread, 0 lines above 4h, **2** FF19 jumps, same exact daily targets, and days-per-line matching
-the real roster's distribution. The original construction remains as a fallback and had a separate
-defect of its own — its documented "never a late finish then an early start" guarantee was untrue at
-high staffing (27 short turnarounds at 6h25 rest), and it now refuses those targets rather than
-claiming it.
+- meet every day's total **exactly** — Sun 10, Mon–Fri 16, Sat 14, matching the seed;
+- staff every individual shift TIME at exactly the right level on every day, not merely the totals;
+- fill all 28 lines, none blank;
+- produce **0** short turnarounds;
+- and reordering for the line-order objectives leaves the daily coverage multiset **identical**,
+  which is the safety property the whole objectives feature rests on.
 
-The lesson worth keeping for the rest of this plan: **a design scoring well on the checks that exist
-is not the same as a design being good.** Every check added since has found something the previous
-set could not see.
-
-
----
+The generator also **refuses** rather than degrading when the targets exceed capacity — see the
+capacity table under package 4, which is where that stops being a curiosity and starts being the
+argument.
 
 ## Work packages
 
@@ -253,8 +256,10 @@ the operating window is what unblocks the overlay and the generator targets. The
 from the first draft so the review correction under package 1 stays legible.
 
 **Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47, 1 shipped v19.54, 3 shipped
-v19.56. Only **4** remains — unblocked, since open question 1 was answered in Aug 2026 (arrivals and
-departures, weighted by train length) and package 3 has already put that profile in the tool.
+v19.56. Only **4** remains — and it is now FULLY unblocked: open question 1 was answered in Aug 2026 (arrivals and
+departures, weighted by train length), package 3 has already put that profile in the tool, and open
+question 4 was answered in Aug 2026 (all three simplifiers are final), which was the last thing
+holding it — building an importer against a timetable about to be reissued would have been wasted.
 
 ### 1. Operating-window setting — ✅ **SHIPPED v19.54**
 
@@ -377,23 +382,43 @@ an hour cell with the opening. A fourth, the 05:55 departure, is earlier still a
 the heat map does not draw at all; the window table above counts all four. Quote four, not three,
 if the subject is how much of the morning falls outside the link.
 
-### 4. Timetable-driven generator targets
+### 4. More people, same shape
 
-`buildRosterTargets()` seeds from the *current* roster, which is the wrong baseline for a timetable
-change. Allow the targets to be driven by the new service instead — either a pasted per-hour demand
-profile or a simplifier import.
+**The new roster keeps the existing pattern** — same start times, same waves, same distribution
+(owner, Aug 2026). December 2026 adds trains, so it adds people. Nothing about the shape changes.
 
-**Record which simplifier version the targets came from.** These are "base" files and will be revised;
-`SX` is not even marked final. A design built against a superseded timetable with nothing on it to say
-so is the same defect class as the undated printed sheet fixed at v19.45 — the data was right when it
-was made and there is no way to tell later.
+> new target per slot = current target × (1 + uplift)
 
-**If a simplifier import is built, the two parsing traps above are the spec.** A `+` time is ECS and
-must be excluded; a time may arrive as an Excel serial fraction rather than text and must still be
-read. Both failed silently in this plan's own first pass — one inflating the day by 53 movements, the
-other losing 5 — and neither raised an error. An importer that gets them wrong produces a demand curve
-that looks entirely plausible.
+applied to the seed `buildRosterTargets()` already produces, with the target table underneath for
+hand-adjustment. **Needs one figure: the uplift.** Whether it splits by day class (the three curves
+grow differently) is a detail to settle when it arrives.
 
+**Two things measured while checking the generator, and both change how this must be built:**
+
+**(a) Rounding per slot silently swallows a small uplift.** The per-slot targets are mostly 1s and
+2s, so `round(1 × 1.15)` is 1 — and measured against the real seed, **every uplift from 0% to 15%
+produces byte-identical output**: 104 duties, unchanged. Then 25% jumps straight to 129. A designer
+typing 10% would see nothing happen and reasonably conclude the control was broken. Apply the uplift
+to the **total** and distribute the remainder (largest-remainder), never `Math.round` each slot on
+its own.
+
+**(b) The 28-line link cannot absorb much, and this is the finding that matters.** 22 working lines
+× 7 days = **154 day-slots per cycle**. Every extra duty comes out of a rest day:
+
+| uplift | duties | rest days | rest days per line | longest run |
+|---|---|---|---|---|
+| 0% (today) | 104 | 50 | 2.27 | 15 days |
+| +20% | 107 | 47 | 2.14 | 15 days |
+| +25% | 129 | 25 | **1.14** | **21 days** |
+| +50% | — | — | — | **refused: over capacity** |
+
+FF11 flags more than 13 consecutive shifts without a 48h break, and today's link is already at 15.
+At +25% it is 21. **A service increase of any size cannot be absorbed by making the existing lines
+denser — the link has to get bigger, which means more staff.** The generator refuses outright above
+~+37% (28 people needed on a weekday against 22 working lines), so the tool fails loudly rather than
+quietly producing something unworkable.
+
+That is the argument to take into the room, and it is now backed by numbers rather than assertion.
 ### 5. Midnight-crossing guard — ✅ **SHIPPED v19.47**
 
 `endMinutesAbs` in `links-design.js` is now the one reading of a duty that runs past midnight, and
@@ -481,7 +506,10 @@ Ordered by how much they change if the answer is unexpected.
    five movements to two if arrivals needed no CEA; arrivals do count, so all five stand: 23:27 dep,
    23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr. Three of those five are arrivals full of people
    getting off at an unstaffed terminus.
-4. **Is the weekday simplifier final?** `SO`/`Su` are named `__Final`; `SX` is `10_of_13` and is not.
+4. ~~**Is the weekday simplifier final?**~~ — **ANSWERED (owner, Aug 2026): yes, all three are final.**
+   The `10_of_13` naming on the weekday file is not a status. This unblocks package 4, which had no
+   business being built against a timetable about to be reissued. `DEC_2026_SOURCE.provisional` is
+   cleared and the coverage card no longer says "(provisional)".
 5. **Should Saturday's window ever differ from Mon–Fri?** Currently identical; the setting can split
    them if the answer changes.
 
@@ -489,11 +517,18 @@ Ordered by how much they change if the answer is unexpected.
 
 Recorded so the gaps are visible rather than implied:
 
+- **The CURRENT timetable.** Every service figure in this document is December 2026; today's is not
+  measured anywhere. Recorded as a gap, **not** a blocker on package 4 — that framing was corrected
+  by the owner: the tool already holds today's STAFFING, and the uplift is a figure the business
+  states rather than one derived from two timetables. See "The shape is KEPT; only the numbers grow".
 - **Whether "coverage vs service" is the business requirement at all.** It is an inference from the
   data available, not something Nathan stated. He said business requirements and fatigue guidelines;
   the fatigue half is documented on p3, the business half is not written down anywhere here.
-- **What CEAs actually do at Marylebone hour by hour** — dispatch, gateline, assistance, revenue —
-  and therefore which of those the movement profile is even a proxy for.
+  Partly softened by the posts steer above — the requirement is now known to be posts + relief +
+  a train-driven remainder — but nobody has confirmed that is what the proposals will be judged on.
+- ~~**What CEAs actually do at Marylebone hour by hour**~~ — **PARTLY ANSWERED (owner, Aug 2026), and
+  it changes the demand model.** See "Demand is POSTS, not trains" below. The remaining unknowns are
+  the numbers, not the structure.
 - **Whether other grades cover the window's edges.** The 05:55 first departure and the post-midnight
   last trains sit outside the CEA link; something covers them, and knowing what would settle whether
   the Sunday finish is really a gap.

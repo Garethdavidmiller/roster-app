@@ -44,11 +44,25 @@ import { DAYS, dayClass } from './links-design.js';
  * fixed at v19.45 — right when it was made, and unverifiable afterwards. These are "base" files that
  * WILL be revised, and the weekday one is not even marked final, so the label says so.
  */
+/**
+ * Provenance for the demand profile, rendered under the heat map.
+ *
+ * `provisional` cleared v19.71: the weekday simplifier is confirmed FINAL (owner, Aug 2026 —
+ * the answer to the plan's open question 4). It had been flagged because the file is named
+ * `Dec_26_10_of_13_SX_…` while its Saturday and Sunday counterparts are named `__Final`, and a
+ * demand curve built on a file about to be reissued is worth saying so about.
+ *
+ * **The file NAME is kept in the detail deliberately.** "Final" here means the content of the file
+ * these figures were measured from is settled — not that the naming was tidied. If a later
+ * weekday file ever supersedes it, every number in `DEC_2026_MOVEMENTS` has to be re-measured from
+ * that file rather than assumed to carry over, so the trail back to the exact source stays on
+ * screen.
+ */
 export const DEC_2026_SOURCE = Object.freeze({
     label: 'December 2026 timetable',
-    detail: 'Marylebone simplifiers — SX “10 of 13” (not marked final), SO and Su “Final”. '
+    detail: 'Marylebone simplifiers — SX “10 of 13”, SO and Su “Final”; all three confirmed final. '
         + 'Passenger movements only; ECS excluded. Measured Aug 2026.',
-    provisional: true,
+    provisional: false,
 });
 
 /** The three shapes the timetable has. Named once — the profile is keyed by them throughout. */

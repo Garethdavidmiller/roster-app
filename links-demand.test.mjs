@@ -93,9 +93,22 @@ describe('DEC_2026_DEMAND — the measured profile', () => {
         }
     });
 
-    test('the source is labelled provisional — the weekday file is not marked final', () => {
-        assert.equal(DEC_2026_SOURCE.provisional, true);
+    // This asserted `provisional === true` until v19.71, which pinned a STATE rather than a
+    // contract — so confirming the weekday file as final (owner, Aug 2026) failed a test whose real
+    // subject is "can a design be traced back to the data it was built on". `provisional` is
+    // genuinely allowed to flip; what must not change is that the source names the exact FILE.
+    //
+    // That matters because "final" means *this file* is settled, not that the naming was tidied. If
+    // a later weekday simplifier ever supersedes it, every figure in DEC_2026_MOVEMENTS has to be
+    // re-measured from that file rather than assumed to carry over — and the only thing that would
+    // tell a reader which file they are looking at is this string.
+    test('the source identifies the exact files, so a design can be traced back to them', () => {
+        assert.match(DEC_2026_SOURCE.detail, /10 of 13/, 'the weekday file must be identifiable by name');
+        assert.match(DEC_2026_SOURCE.detail, /Final/, 'and so must its Sat/Sun counterparts');
         assert.match(DEC_2026_SOURCE.detail, /ECS excluded/i);
+        assert.match(DEC_2026_SOURCE.detail, /Measured \w+ \d{4}/, 'when it was measured');
+        // The renderer branches on this, so it has to stay a boolean whichever way it points.
+        assert.equal(typeof DEC_2026_SOURCE.provisional, 'boolean');
     });
 });
 
