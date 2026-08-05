@@ -457,29 +457,28 @@ Three consequences worth stating, because each closes off something that was liv
 3. **So the tool's job is a DELTA**, applied to a seed it already produces. That is a far smaller
    feature than "drive the targets from the service", and it needs no staffing ratio at all.
 
-**And that leaves exactly one thing missing, which is the blocker.** Laid out as a 2×2:
+**And it needs ONE number, not a data-gathering exercise** (owner correction, Aug 2026 — an earlier
+draft of this section asked for the current simplifiers and called them a blocker, which was
+over-built). The app already holds the existing pattern: `buildRosterTargets()` reads `weeklyRoster`
++ `bilingualRoster` directly, so today's staffing is in the tool. What is missing is only the
+INCREASE — how much more train there is — and that is a figure the business states rather than
+something the tool has to derive from two timetables.
 
-| | today | December 2026 |
-|---|---|---|
-| **service** (trains per hour) | ✗ **not measured** | ✓ measured — package 3 |
-| **staffing** (people per shift) | ✓ `buildRosterTargets()` | ← what we are building |
+So the model is:
 
-To expand today's numbers "to cover the timetable increase" you need the increase, and the increase
-is today's service against December's. Three of the four corners are in the tool; the missing one is
-**the current timetable at Marylebone**. Nothing in this document has ever held it — every figure
-here is Dec 2026.
+> **new target per slot = current target × (1 + increase)**, rounded
 
-Two ways to fill it, either fine:
+applied to the seed the generator already produces. Nothing else changes: same start times, same
+waves, same distribution.
 
-- **The current simplifiers** (or equivalent), measured the same way — same ECS exclusion, same
-  `Max CAO` weighting, same two parse traps. Then the uplift is computed per hour and per day class,
-  and the tool can show its working.
-- **A stated uplift** from Nathan or the business — "two extra per hour in the evening peak", or a
-  headcount figure. Cruder, but it is the number that would actually be agreed, and the tool should
-  accept it directly rather than pretend to derive it.
+Two things to settle when the figure arrives, both small:
 
-Until one of those exists, package 4 cannot size anything, and building the importer first would be
-building the half that was never the hard part.
+- **Is it one number or several?** A single uplift is simplest; it may differ Mon–Fri / Sat / Sun,
+  since the three day classes grow differently, or peak vs off-peak.
+- **Rounding, and what does NOT scale.** A post does not: if the gateline needs one person, 10% more
+  train does not make it 1.1. Only the train-driven part of each slot scales, so a slot that exists
+  to cover a post should round to itself. Worth a sanity check on the result rather than a rule in
+  the code — the totals row already shows what each day comes to.
 
 ---
 
@@ -607,9 +606,9 @@ Ordered by how much they change if the answer is unexpected.
 Recorded so the gaps are visible rather than implied:
 
 - **The CURRENT timetable.** Every service figure in this document is December 2026; today's is not
-  measured anywhere. That is now the single blocker on package 4 — "expand the numbers to cover the
-  timetable increase" needs the increase, and the increase is today's service against December's.
-  See "The shape is KEPT; only the numbers grow".
+  measured anywhere. Recorded as a gap, **not** a blocker on package 4 — that framing was corrected
+  by the owner: the tool already holds today's STAFFING, and the uplift is a figure the business
+  states rather than one derived from two timetables. See "The shape is KEPT; only the numbers grow".
 - **Whether "coverage vs service" is the business requirement at all.** It is an inference from the
   data available, not something Nathan stated. He said business requirements and fatigue guidelines;
   the fatigue half is documented on p3, the business half is not written down anywhere here.
