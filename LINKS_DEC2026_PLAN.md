@@ -105,9 +105,12 @@ and `W`. Concurrent platform use is arguably closer again to what drives CEA *he
 on one platform is not the same job as two trains on two platforms — and nothing here computes it.
 Recorded as a known limitation of the demand curve, not as a blocker.
 
-**Also unresolved: the weekday file may not be final.** `SO` and `Su` are both named `__Final`; the
-`SX` file is named `10_of_13` and is not. The weekday profile drives most of the design, so it is
-worth confirming its status before building against it.
+**Resolved: all three simplifiers are final** (owner, Aug 2026 — open question 4). `SO` and `Su` are
+named `__Final`; `SX` is named `10_of_13` and is not, which is why this was flagged — the weekday
+profile drives most of the design. The naming is not the status: the content of the measured file is
+settled. The file name stays on screen in `DEC_2026_SOURCE` regardless, because "final" means *this
+file* is settled — if a later weekday file ever supersedes it, every figure here has to be
+re-measured from that file rather than assumed to carry over.
 
 ## The staffed window, and the one boundary that has to move
 
@@ -253,8 +256,10 @@ the operating window is what unblocks the overlay and the generator targets. The
 from the first draft so the review correction under package 1 stays legible.
 
 **Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47, 1 shipped v19.54, 3 shipped
-v19.56. Only **4** remains — unblocked, since open question 1 was answered in Aug 2026 (arrivals and
-departures, weighted by train length) and package 3 has already put that profile in the tool.
+v19.56. Only **4** remains — and it is now FULLY unblocked: open question 1 was answered in Aug 2026 (arrivals and
+departures, weighted by train length), package 3 has already put that profile in the tool, and open
+question 4 was answered in Aug 2026 (all three simplifiers are final), which was the last thing
+holding it — building an importer against a timetable about to be reissued would have been wasted.
 
 ### 1. Operating-window setting — ✅ **SHIPPED v19.54**
 
@@ -481,7 +486,10 @@ Ordered by how much they change if the answer is unexpected.
    five movements to two if arrivals needed no CEA; arrivals do count, so all five stand: 23:27 dep,
    23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr. Three of those five are arrivals full of people
    getting off at an unstaffed terminus.
-4. **Is the weekday simplifier final?** `SO`/`Su` are named `__Final`; `SX` is `10_of_13` and is not.
+4. ~~**Is the weekday simplifier final?**~~ — **ANSWERED (owner, Aug 2026): yes, all three are final.**
+   The `10_of_13` naming on the weekday file is not a status. This unblocks package 4, which had no
+   business being built against a timetable about to be reissued. `DEC_2026_SOURCE.provisional` is
+   cleared and the coverage card no longer says "(provisional)".
 5. **Should Saturday's window ever differ from Mon–Fri?** Currently identical; the setting can split
    them if the answer changes.
 
