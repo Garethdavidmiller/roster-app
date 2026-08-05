@@ -515,9 +515,13 @@ test('links: every line-order switch OFF leaves the generated order untouched', 
     await page.goto('/links.html');
     await page.waitForTimeout(600);
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
-    for (const id of ['objGentle', 'objWeekends', 'objLongWeekends', 'objTurnarounds']) {
-        await page.locator('#' + id).uncheck();
-    }
+    // Every switch, read from OBJECTIVES rather than hardcoded — a new objective added without a
+    // line here would leave the reorder running and this test asserting "untouched" about a design
+    // that had in fact been re-sorted. That is exactly what happened when `variety` arrived.
+    const switches = await page.evaluate(() =>
+        [...document.querySelectorAll('.gen-objectives input[type="checkbox"]')].map(el => el.id));
+    expect(switches.length).toBeGreaterThan(4);
+    for (const id of switches) await page.locator('#' + id).uncheck();
     await page.locator('#genApplyBtn').click({ force: true });
     const ok = page.locator('.dialog-btn-confirm');
     if (await ok.count()) await ok.first().click();
@@ -1339,6 +1343,45 @@ test('links: generating names the construction that produced the design', async 
     await page.locator('#genApplyBtn').click();
     await page.locator('.dialog-btn-confirm').click();
     await expect(page.locator('#linksSaveStatus')).toContainText(/settled weeks, \d+ waves?/);
+});
+
+test('links: the variety switch is what keeps you off one shift type for months', async ({ page }) => {
+    // v19.59 settled each week and then laid the shift waves out in contiguous blocks, so moving one
+    // line a week gave 11 straight weeks of mornings and 11 of afternoons — "a bit excessive and
+    // would be unpopular" (owner). `gentle` made it worse rather than better, because the smallest
+    // possible week-to-week step is no step at all: minimising it IS a block.
+    //
+    // The maths is unit-tested; what only a browser can prove is that the checkbox reaches
+    // `reorderLines`. Read from the status line, which reports the before→after either way.
+    await page.setViewportSize({ width: 1280, height: 1400 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    // No designs seeded, so the grid is empty until the first generate — wait on the generator.
+    await expect(page.locator('#genApplyBtn')).toBeAttached();
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+
+    const blockAfter = async () => {
+        await page.locator('#genApplyBtn').click({ force: true });
+        const ok = page.locator('.dialog-btn-confirm');
+        if (await ok.count()) await ok.first().click();
+        const txt = await page.locator('#linksSaveStatus').innerText();
+        const m = txt.match(/longest block (\d+)→(\d+) weeks/);
+        if (!m) throw new Error(`status did not report the block: ${txt}`);
+        return { before: Number(m[1]), after: Number(m[2]) };
+    };
+
+    const on = await blockAfter();
+    expect(on.before, 'the raw generated design blocks badly — that is what the switch is for')
+        .toBeGreaterThan(on.after);
+    expect(on.after, 'with variety on, no longer than the live roster runs').toBeLessThanOrEqual(3);
+
+    await page.locator('#objVariety').uncheck();
+    const off = await blockAfter();
+    expect(off.after, `variety off should block worse than ${on.after}`).toBeGreaterThan(on.after);
 });
 
 test('links: a target table stored BEFORE the spare-week change is still read', async ({ page }) => {

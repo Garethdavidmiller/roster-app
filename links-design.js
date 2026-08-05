@@ -522,6 +522,32 @@ function cappedStarts(working, totals) {
     return starts;
 }
 
+/**
+ * THE WAVES ARE DEALT IN CONTIGUOUS BLOCKS, AND INTERLEAVING THEM HERE WAS TRIED AND REVERTED
+ * (v19.60). Read this before "fixing" it again.
+ *
+ * Laying the waves out contiguously means every morning line, then every middles line, then every
+ * afternoon line — and since you move one line a week, that is **11 consecutive weeks of mornings
+ * followed by 11 of afternoons** (owner: "a bit excessive and would be unpopular"; the live roster's
+ * longest run on much the same shift is 3). The obvious fix is to deal them interleaved, and it does
+ * take the raw output from 11 to 2.
+ *
+ * It is still the wrong place to fix it, measured both ways on the real roster seed:
+ *
+ *                          raw block   raw short turnarounds   with every switch on
+ *   interleaved here            2               2              block 3 · 95min · 8 weekends · 5 long
+ *   contiguous (kept)          11               0              block 3 · 95min · 8 weekends · 7 long
+ *
+ * Alternating waves puts a late wave's 23:55 Saturday next to a morning wave's 06:20 Sunday — a 6h25
+ * turnaround the construction had been free of. And it constrains the reorder into a WORSE local
+ * optimum: two fewer long weekends for no gain, because both routes reach a longest block of 3
+ * anyway.
+ *
+ * The order of the lines belongs to ONE place — `links-adjacency.js` — and its `variety` objective,
+ * on by default, is what keeps the blocks short. That objective has to exist regardless, because
+ * `gentle` pulls the other way and would otherwise re-block whatever the generator handed it.
+ */
+
 /** Which rows are spare weeks — spread evenly around the wheel so no one gets two cover weeks
  *  back to back. (The real roster's 1/7/12/17 of 20 is roughly, not exactly, even.) */
 function spareRowSet(/** @type {number} */ spareLines, /** @type {number} */ lines) {
