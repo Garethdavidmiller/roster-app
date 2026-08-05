@@ -422,6 +422,29 @@ badge/title/date **masthead stays centred**; only the prose is left-aligned, whi
 arrangement the About panel already used. The `new-notice` skill template carries the same rule so
 future notices inherit it.
 
+## The 16px focusable-field rule is now MEASURED, not assumed (v19.61)
+
+The typography section above has said "never go below 16px on a focusable field" since v11.77,
+because iOS force-zooms the page when you focus a smaller one. Nothing enforced it, and it had
+already failed twice — in opposite ways, neither visible by reading the CSS:
+
+- **`links.css` had the guard and it did nothing.** A `@media (pointer: coarse)` block set the
+  generator's inputs to `--type-medium`, with the correct comment about iOS. Its base rule is
+  declared **~230 lines later** at equal specificity, so source order handed the win back to 13px.
+  Its neighbour in that same block worked, purely because THAT base rule happened to sit earlier —
+  and nothing in the code said so. Measured on a real coarse pointer: 13px.
+- **`paycalc.css`'s `.pt-paste` had no guard at all** — a 12px textarea you paste a whole backup
+  blob into, which is the worst place for the viewport to jump.
+
+**A static CSS test cannot catch either**: both are cascade outcomes, not text. `e2e/pages.spec.js`
+now scans every `input`/`select`/`textarea` on all six pages on **mobile-chrome** (a real coarse
+pointer), with every collapsible forced open, and asserts the COMPUTED size. Checkboxes, radios and
+file inputs are excluded — none opens a keyboard, so none can trigger the zoom.
+
+**When you scope a size to `pointer: coarse`, put the override AFTER the base rule** (or raise its
+specificity) and let the test confirm it, rather than trusting the cascade to have gone the way it
+reads.
+
 **A button under a field matches the field.** Settings capped `.btn-action` at 280px on desktop —
 exactly half the 536px field above it and sharing its left edge, so every card ended with a 256px
 gutter. Full width is what the login overlay and the mobile layout already do.

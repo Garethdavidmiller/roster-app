@@ -277,6 +277,36 @@ It is computed over `weeklyRoster` (20 lines) and `bilingualRoster` (8) **at the
 splicing them into one 28 reports a longest run of 19, which is a property of the join and not of
 either roster.
 
+### Generator layout — the v19.61 polish pass
+
+Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug rather than polish:
+
+- **The iOS focus-zoom guard had never worked.** Full account in `css-tokens.md` → "The 16px
+  focusable-field rule is now MEASURED". The override now sits at the END of `links.css`, after the
+  base rule it has to beat, and an e2e measures the computed size on a real coarse pointer.
+- **Touch targets.** On a coarse pointer the fields were 28px, the row ✕ 20px and the two text
+  links 15px. All now ≥40/44px. The app's rule is that density is gated on `pointer: fine` — a wide
+  touch screen still needs the target spacing.
+- **The SHIFT TIME column is sticky on mobile.** At 390px the table is 443px inside a 306px wrapper:
+  131px hidden, which is the whole **Sunday** column and the ✕. Sunday is a required INPUT, so this
+  is not the same call as compare mode's accepted clipping of a read-only view. Sticky identifies the
+  row while you type AND makes the scroll self-evident, and a right-edge shadow (pure CSS,
+  `local`/`scroll` gradients — no scroll listener) says there is more. **Every sticky cell needs an
+  OPAQUE fill:** the spare row's own background is `color-mix(gold 10%, transparent)` — 90%
+  see-through — so the caption sat there with the scrolled column showing through it, which reads as
+  a fault, not a feature. And `white-space: nowrap` had to go: fine in a cell that sizes to content,
+  but in a sticky one it just overflows the fill.
+- **ONE measure on desktop.** The table filled all 1036px of the card, putting a 90px shift time in a
+  477px cell. Capping the table alone then left a 620px table under a 1036px objectives box under a
+  1036px button — a card reading as three unrelated widths. The cap belongs on `.generator-form`, so
+  every part lines up, at 660px beside the ~72ch the intro prose already uses.
+- **The objective labels.** Two of the five carry an inline number, and at 390px the tail wrapped
+  flush with the CHECKBOX, reading as a sixth objective. The label text is now one `<span>` (a flex
+  item) so it wraps as a block, and the numeric clause has its own line — a 40px-tall field cannot
+  sit inside a sentence in a 260px column. **Grid was tried here and is wrong**: every child of a
+  grid container becomes an item, so the number box left its sentence and dropped into the
+  checkbox's column.
+
 ### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
 **The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
 

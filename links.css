@@ -591,10 +591,11 @@ body.auth-ready .container { display: grid; }
 .cov-label-s { color: var(--shift-spare-text); }
 
 /* iOS force-zooms the page when a focused field is under 16px. Scoped to
-   coarse pointers so the dense desktop grid keeps its compact type. */
+   coarse pointers so the dense desktop grid keeps its compact type.
+   `.gen-input`/`.gen-select` are handled at the END of this file instead — see the note there;
+   their base rule is declared after this block, so at equal specificity an override here LOSES. */
 @media (pointer: coarse) {
     .shift-cell-select { font-size: var(--type-medium); }
-    .gen-input, .gen-select { font-size: var(--type-medium); }
 }
 
 .btn-text-link {
@@ -1407,3 +1408,124 @@ body.auth-ready .container { display: grid; }
 .gen-input-inline { width: 52px; margin: 0 2px; }
 @media (min-width: 1024px) { .gen-obj-note { max-width: 72ch; } }
 @media print { .gen-objectives { display: none; } }
+
+/* ═══ Generator polish (v19.61) — read the WHY before changing any of this ═══ */
+
+/* 1. THE iOS FOCUS-ZOOM GUARD, WHICH HAD NEVER WORKED.
+   A `@media (pointer: coarse)` block near the top of this file set these two to 16px, with the
+   correct comment about iOS zooming a page whose focused field is under 16px. It did nothing: the
+   base `.gen-input, .gen-select` rule is declared ~230 lines LATER at equal specificity, so source
+   order handed the win to 13px. Measured on a coarse-pointer device: 13px. Its neighbour in that
+   same block, `.shift-cell-select`, works — because ITS base rule happens to sit earlier.
+   That is the whole difference between the two, and nothing about the code said so.
+   Declared here, at the end, so it beats the base rule; and an e2e now measures the computed size
+   on a real coarse-pointer device rather than trusting the cascade to have gone the way it reads.
+
+   2. TOUCH TARGETS. The app's rule is that a coarse pointer keeps 44px regardless of width
+   (css-tokens.md — density is gated on `pointer: fine`, never on width alone). These were 28px
+   fields, a 20px ✕ and 15px text links. */
+@media (pointer: coarse) {
+    .gen-input, .gen-select {
+        font-size: var(--type-medium);
+        padding: 8px 6px;
+        min-height: 40px;
+    }
+    /* `:not(.gen-input-inline)` because this block sits AFTER `.gen-input-inline`'s own width at
+       equal specificity — the very trap that left the font-size guard above dead for two versions.
+       A bare `.gen-input` here would silently widen the two in-sentence number boxes as well. */
+    .gen-input:not(.gen-input-inline) { width: 60px; }
+    .gen-input-inline { width: 56px; }
+    .gen-remove-btn { padding: 12px 10px; min-height: 44px; }
+    .btn-text-link { padding: 12px 2px; min-height: 44px; }
+    /* The LABEL is the touch target — clicking it toggles, and it is ≥44px tall — so the box itself
+       only needs to be comfortably aimable, not 44px. At 22px it dominated the sentence. */
+    .gen-obj > input[type="checkbox"] { width: 20px; height: 20px; }
+    .gen-obj { padding: 8px 0; }
+}
+
+/* 3. THE SHIFT-TIME COLUMN STAYS PUT WHILE THE COUNTS SCROLL.
+   At 390px the target table is 443px wide inside a 306px wrapper — 137px hidden, which is the whole
+   SUNDAY column and the remove ✕, with nothing on screen to say so. Sunday is a required input, not
+   a nice-to-have view: a designer on a phone could not set it without discovering a scroll nobody
+   had told them about. (Compare mode's clipping is documented as accepted; that is a read-only
+   view, so it is not the same call.)
+   Making the time column sticky solves both halves at once — the row stays identified while you
+   type, and content visibly sliding under a fixed column IS the affordance. */
+@media (max-width: 767px) {
+    .gen-th-time,
+    .gen-td-time,
+    .gen-spare-row .gen-td-label,
+    .gen-total-row td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        /* A real edge, not a hairline: content sliding under a 1px rule reads as a rendering glitch
+           rather than as a layer, and the sliced-in-half input it leaves behind looks broken. */
+        box-shadow: 6px 0 6px -5px rgba(0, 30, 60, 0.18);
+    }
+    /* EVERY sticky cell needs an OPAQUE fill. The spare row's own background is
+       `color-mix(gold 10%, transparent)` — 90% see-through — so the label sat there with the
+       scrolled input showing straight through it. A sticky cell you can see through is worse than no
+       sticky cell at all: it looks like a fault rather than a feature. */
+    .gen-th-time, .gen-td-time { background: var(--surface); }
+    .gen-slot-table thead .gen-th-time { background: var(--surface-sunken); }
+    .gen-spare-row .gen-td-label { background: color-mix(in srgb, var(--accent-gold) 10%, var(--surface)); }
+    .gen-total-row td:first-child { background: var(--surface-sunken); }
+    .gen-select { min-width: 104px; }
+    /* The counts are what scrolls, so they must not each claim a third of the viewport. */
+    .gen-slot-table th:not(.gen-th-time), .gen-slot-table td:not(.gen-td-time) { padding: 4px 4px; }
+    /* `nowrap` is fine in a cell that sizes to its content; in a STICKY one it just overflows the
+       opaque fill, so the spare-row caption ran straight over the scrolled column beside it. */
+    .gen-td-label { white-space: normal; }
+
+    /* The right-edge cue: a shadow that is there while more table remains and gone at the end.
+       `local` gradients mask it out as you reach each edge, `scroll` pins it to the wrapper — the
+       standard CSS-only technique, and it needs no JS scroll listener to stay accurate. */
+    .gen-slot-table-wrap {
+        background:
+            linear-gradient(to left, var(--surface), rgba(255, 255, 255, 0)) right / 24px 100% no-repeat local,
+            radial-gradient(farthest-side at 100% 50%, rgba(0, 30, 60, 0.16), rgba(0, 30, 60, 0)) right / 10px 100% no-repeat scroll;
+    }
+}
+
+/* 4. DESKTOP: the table stops sprawling.
+   At 1280px it filled all 1036px of the card, which put a 90px shift time in a 477px cell and a
+   58px number box in a 174px one — a table mostly made of gap. Capping it is the same move the app
+   already makes for the usage/speed bar charts (~540px), and for the same reason: a control reads
+   as one object when its parts are near each other. */
+@media (min-width: 768px) {
+    /* ONE measure for the whole form, not three. The table was capped first and that alone left a
+       620px table under a 1036px objectives box under a 1036px button — a card reading as three
+       unrelated widths. Capping the FORM lines every part of it up, and 660px sits right beside the
+       ~72ch the intro prose above is already held to. */
+    .generator-form { max-width: 660px; }
+    .gen-th-time, .gen-td-time { width: 46%; }
+}
+
+/* 5. THE OBJECTIVE LABELS NO LONGER COME APART AROUND THEIR NUMBER BOX.
+   Two of the five carry an inline number ("at most [3] weeks the same"), and at 390px the tail wrapped
+   onto its own line flush with the CHECKBOX — left of the label it belonged to, so it read as a
+   sixth objective. Indenting the whole label instead of only the hint keeps a wrapped tail under its
+   own text, which is what a hanging indent is for. */
+.gen-obj { display: flex; align-items: flex-start; gap: 8px; }
+.gen-obj > input[type="checkbox"] { margin-right: 0; flex: none; margin-top: 1px; }
+.gen-obj-text { flex: 1; min-width: 0; }
+.gen-obj-hint { display: block; margin-left: 0; margin-top: 2px; }
+/* The two objectives that carry a number get it on its OWN line rather than inline in the sentence.
+   A 16px field is 40px tall on a coarse pointer (the touch-target floor), and a 40px box inside a
+   sentence in a 260px column forces the line box open and breaks the phrase at whatever word
+   happens to land there — "at most [3] / weeks the same". Its own line is also simply clearer:
+   the label says what the objective IS, the line under it says what it is set to. */
+.gen-obj-num {
+    display: block;
+    margin-top: 3px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+/* GRID WAS TRIED HERE AND IS WRONG: two of the five labels carry an inline number input, and as a
+   grid container every child becomes an item — so the number box left the sentence it belongs to and
+   dropped into the checkbox's column on a row of its own ("Vary the shift type, at most" / "3 |
+   weeks the same"). The text has to be ONE element for it to wrap as one. */
+/* The legend matches the app's shared `.field-eyebrow` (shared.css) rather than restating a
+   near-copy of it — same size, weight, transform and tracking. */
+.gen-objectives legend { letter-spacing: 0.5px; color: var(--text-light); }
