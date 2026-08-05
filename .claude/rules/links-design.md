@@ -242,9 +242,23 @@ of its 24 factors. Read the module header before changing any rule; the four thi
   property of the operation — marked `standing` and counted separately, because adding it to the
   findings total would claim the designer could have avoided it.
 - **Three definitions are unsettled** (FF17, FF18, FF19) and carry `confirm: true`, rendered as
-  "(definition to confirm)". FF18 in particular may be unavoidable by construction — a link moves
-  everyone one line per week — which is a conversation to have with the assessing manager *before*
-  the proposals are drawn, not a checklist item.
+  "(definition to confirm)". FF18's reading is the one still worth settling with the assessing
+  manager *before* the proposals are drawn: on the weekly CADENCE alone no design can avoid it, and
+  that belongs in the justify/minimise/control conversation rather than on a checklist.
+- **FF18 measures the STEP, and its status is derived** (v19.69). It reported a hardcoded `standing`
+  from v19.46 to v19.68 — the "never hardcode a status" rule above, broken for the second time —
+  because the factor was originally read as being about the cadence, which is true of every link and
+  so made the row informationless. The owner corrected the reading (Aug 2026): the concern is **how
+  far the working day moves at each step**, which is a design choice and, since v19.58, measurable.
+  The row now reads `scoreOrder` from `links-adjacency.js` and states the typical weekly move, the
+  largest, and how many boundaries exceed 2h. **Live main roster: 4h 0m typical / 8h 46m worst /
+  9 of 20 over** — quote that as the baseline; the generator's default measures ~1h 35m.
+  Two things not to "tidy": the status stays **`standing`** whenever the step is measurable rather
+  than turning `present` above some figure — the ORR gives no FF18 threshold, and inventing one is
+  the pass/fail rendering this panel forbids — and it derives to **`n/a`** for a design with no timed
+  lines, which is the real branch a hardcoded status could not express. The 2h figure is the ORR's
+  own FF19 threshold, single-sourced from `GENTLE_THRESHOLD_MINUTES` so the chip and the sentence
+  cannot drift from what was actually counted.
 
 Two things about the rules themselves that are easy to get wrong, both caught by their own tests:
 **FF11 is not the consecutive-worked-days check it resembles** (a single rest day is not a 48h break,

@@ -743,9 +743,15 @@ never contingent on the beta label, and dropping it does not make any of them go
     one line a week by construction. That reads the factor as being about the weekly *cadence*, when
     the concern is the **size of the step** — a rotation whose consecutive lines sit close together
     asks far less of the body clock than one where they do not. The cadence is fixed; the step is a
-    design choice, is measured by `links-adjacency.js`, and the generator can tune for it. FF18's own
-    row still reports a hardcoded `standing`, which is the module's own "never hardcode a status" rule
-    being broken for the second time (FF13 was the first, v19.48).
+    design choice, is measured by `links-adjacency.js`, and the generator can tune for it. **FF18's
+    row now reads from that measurement** (v19.69) — it had reported a hardcoded `standing` since
+    v19.46, breaking the module's own "never hardcode a status" rule for the second time (FF13 was
+    the first, v19.48). It states the typical weekly move, the largest, and how many line boundaries
+    exceed two hours; the live main roster measures 4h 0m typical / 8h 46m worst / 9 of 20 over.
+    The status stays `standing` when the step is measurable — the ORR gives no threshold for FF18,
+    so promoting it to `present` above some figure would invent the pass/fail this panel forbids —
+    and derives to `n/a` for a design with no timed lines, which is the branch a hardcoded status
+    could not express.
   - **Every hours figure is a FLOOR.** SPARE days carry no times, so a standby day contributes zero
     to "hours in any 7 days". The real total is higher; the panel says so on the row (it did **not**
     until v19.59 — `hoursAreFloor` had been returned "so the UI can say so" since v19.46 and nothing

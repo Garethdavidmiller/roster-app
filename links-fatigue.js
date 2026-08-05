@@ -36,10 +36,26 @@
  */
 
 import { DAYS, ROTATING_LINES, startMinutes, endMinutesAbs, runDesignChecks, MIN_REST_MINUTES } from './links-design.js';
+// FF18 is the one factor here whose subject is what happens BETWEEN lines, so it is the one that
+// needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
+// only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
+import { scoreOrder, GENTLE_THRESHOLD_MINUTES } from './links-adjacency.js';
 
 /** A duty counts as an FF2 "early shift" when it starts in this window (inclusive of 05:00). */
 const EARLY_FROM = 5 * 60;
 const EARLY_TO   = 7 * 60;      // exclusive — 07:00 itself is not an early start
+
+/**
+ * Minutes as `"6h 25m"` — the shape this panel already used for FF13's shortest-rest figure, now
+ * written once and shared with FF18's week-to-week step (v19.69). Deliberately keeps the `0m` tail
+ * rather than trimming it, so adopting it changed no existing output.
+ * @param {number} mins
+ * @returns {string}
+ */
+function _hm(mins) {
+    const m = Math.round(mins);
+    return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
 
 /** @param {any} s */
 export function isRest(s) { return !s || s === 'RD' || s === 'OFF'; }
@@ -394,9 +410,46 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         value: `${rot.backward} backward / ${rot.forward} forward`,
         detail: 'Counted as steps within a working block where the next duty starts earlier. Confirm whether the factor means individual steps or the cycle’s net direction.' });
 
+    // FF18 — THE CADENCE IS STANDING, THE STEP IS THE DESIGN CHOICE (v19.69).
+    //
+    // This row reported a HARDCODED `standing` from v19.46 to v19.68, which broke this module's own
+    // "never hardcode a status" rule for the second time (FF13 was the first, v19.48). It was
+    // written when the plan read the factor as being about the weekly CADENCE — and since a link
+    // moves everyone one line a week by construction, that reading makes every design identical and
+    // the row informationless.
+    //
+    // The owner corrected that reading (Aug 2026): the concern FF18 names is the SIZE OF THE STEP.
+    // A rotation whose consecutive lines sit close together asks far less of the body clock than one
+    // where they do not. The cadence is fixed; the step is a real design choice — and since v19.58
+    // it is measurable, by the same `scoreOrder` the generator's line-order switches optimise.
+    //
+    // So the row now reports THIS design: the typical week-to-week move, the worst one, and how many
+    // of the boundaries exceed two hours.
+    //
+    // WHY THE STATUS STAYS `standing` WHEN IT IS MEASURABLE, rather than turning `present` above
+    // some figure: the ORR gives no threshold for FF18, and inventing one would be exactly the
+    // pass/fail rendering this panel must never produce. A weekly rotation IS present in every link,
+    // unavoidably, which is what `standing` means. The measurement belongs in the value, where it
+    // informs without pretending to adjudicate. The derived branch is REAL: a design with no timed
+    // lines at all (every line SPARE) has no measurable step, and a row that cannot be computed does
+    // not get to claim anything — that is `n/a`, and it is what the FF13 lesson was about.
+    //
+    // The 2h figure is not invented either: it is the ORR's own FF19 threshold, and the week
+    // boundary is precisely the "across rest days" reading FF19's own detail flags as unconfirmed.
+    // Hence `confirm: true` stays on this row.
+    const adj = scoreOrder(patterns, Object.keys(patterns || {}).sort((a, b) => Number(a) - Number(b)));
+    const stepMeasurable = adj.unmeasurable < lines;
     add({ code: 'FF18', family: 'Circadian', title: 'Rotating pattern of about a week', confirm: true,
-        status: 'standing', value: `${lines}-line rotation`,
-        detail: 'A link moves every person one line per week by construction, so this may apply to the concept rather than to any one design. Settle with the assessing manager before treating it as a finding.' });
+        status: stepMeasurable ? 'standing' : 'n/a',
+        value: stepMeasurable
+            ? `${lines}-line rotation · typically ${_hm(adj.gentleMean)} a week`
+            : `${lines}-line rotation`,
+        // Both the chip and the sentence read the SAME constant `scoreOrder` counted against, so the
+        // stated threshold cannot drift from the one actually applied.
+        threshold: stepMeasurable ? `${GENTLE_THRESHOLD_MINUTES / 60}h` : undefined,
+        detail: stepMeasurable
+            ? `A link moves every person one line per week by construction, so the weekly cadence itself is unavoidable — what a design controls is how far the working day moves at each step. Here the typical move is ${_hm(adj.gentleMean)}, the largest is ${_hm(adj.gentleWorst)}, and ${adj.gentleOver} of ${lines} line boundaries move by more than ${GENTLE_THRESHOLD_MINUTES / 60} hours.${adj.unmeasurable ? ` ${adj.unmeasurable} boundaries carry no times (spare weeks) and are excluded rather than counted as no change.` : ''} Settle the reading with the assessing manager: on the cadence alone no design can avoid this factor.`
+            : `No line carries a start time, so the week-to-week step cannot be measured. The ${lines}-line weekly cadence still applies.` });
 
     const jumps = startTimeJumps(seq);
     add({ code: 'FF19', family: 'Circadian', title: 'Successive start times varying by more than 2 hours', confirm: true,
@@ -432,7 +485,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     add({ code: 'FF13', family: 'Intervals between duties', title: 'Less than 12h rest in any 24h',
         status: ff13.length ? 'present' : 'clear', value: ff13.length, threshold: `${MIN_REST_MINUTES / 60}h`,
         detail: ff13.length
-            ? `Shortest rest between consecutive duties is ${Math.floor(/** @type {number} */(worst) / 60)}h ${/** @type {number} */(worst) % 60}m. Same finding as the short-turnaround check above — one rule, reported twice.`
+            ? `Shortest rest between consecutive duties is ${_hm(/** @type {number} */(worst))}. Same finding as the short-turnaround check above — one rule, reported twice.`
             : 'Every pair of consecutive duties has at least 12 hours between them. Same rule as the short-turnaround check above.' });
 
     return {
