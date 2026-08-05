@@ -202,6 +202,15 @@
 
                 <div id="linksSaveRow" class="links-save-row" style="display:none">
                     <button type="button" id="linksSaveBtn" class="btn-save" disabled>Save changes</button>
+                    <!-- Print lives here rather than in the header because this is where you finish
+                         with a design, and the row is sticky so it is reachable from any scroll
+                         position. The print CSS and the beforeprint/afterprint machinery have
+                         existed since v12.37 — until v19.62 the only way to reach them was the
+                         browser menu, which an installed PWA often does not expose at all. -->
+                    <button type="button" id="linksPrintBtn" class="btn-print-design"
+                            title="Print this design (A4 landscape)">
+                        <span aria-hidden="true">🖨</span> Print
+                    </button>
                     <div class="links-save-meta">
                         <span id="linksSaveStatus" class="links-save-status" aria-live="polite"></span>
                         <span id="linksLastSaved" class="links-last-saved"></span>

@@ -187,7 +187,11 @@ body.auth-ready .container { display: grid; }
 }
 .links-save-meta {
     flex: 1;
-    min-width: 0;
+    /* `min-width: 0` let this be crushed to 45px when the Print button joined the row at v19.62 —
+       "Last saved by S. Silva at 15:06" then stacked four lines deep and made the whole row 33px
+       taller. A real minimum means flex-wrap does its job and drops the meta onto its own line
+       instead, which is what the wrap was there for. Measured: 45px → full width, row 168 → 135px. */
+    min-width: 160px;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -198,7 +202,41 @@ body.auth-ready .container { display: grid; }
 .links-last-saved  { font-size: var(--type-badge); color: var(--text-light); }
 
 /* Links page uses .btn-save inline (not full-width) — override the shared defaults */
-.btn-save { flex: none; width: auto; padding: 10px 20px; }
+/* `min-height` because this page's `padding: 10px 20px` override rendered the shared `.btn-save` at
+   39px — under the app's own 44px touch-target floor, unnoticed until the Print button landed beside
+   it at 44px and the mismatch became visible. Raising Save is the right way round: it fixes the
+   target and makes the pair align, and it costs nothing extra (the row grows to 56px either way). */
+.btn-save { flex: none; width: auto; padding: 10px 20px; min-height: 44px; }
+
+/* Print (v19.62) — a SECONDARY action beside the navy Save button, so it is outlined rather than
+   filled: two solid buttons side by side would compete, and saving is the one that matters.
+   44px tall on every width — it sits next to a 44px Save, and the app gates density on
+   `pointer: fine`, never on width alone. */
+.btn-print-design {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 10px 16px;
+    background: var(--surface);
+    color: var(--primary-blue);
+    border: 1px solid var(--border-mid);
+    /* `--radius-button`, the token the app's own buttons use — not `--radius-md`, which is the
+       panel corner. Same class of mistake as v18.90's overlay-wearing-the-card-radius. */
+    border-radius: var(--radius-button);
+    font-family: inherit;
+    font-size: var(--type-button);
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+    .btn-print-design:hover { background: var(--surface-sunken); }
+}
+.btn-print-design:active { transform: scale(var(--press-scale)); }
+.btn-print-design:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
 /* ---- Coverage heat map — on-duty headcount per hour per day ----
    Intensity buckets b1–b5 are tints of --cov-early scaled to the week's peak;

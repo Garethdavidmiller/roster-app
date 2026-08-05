@@ -451,9 +451,24 @@ line-height 1.15, and the grid card's own header is dropped in print — the mas
 — which brings it to **703px**. Re-measure if the cell font or the masthead changes; there is only
 ~15px of headroom.
 
-**The masthead carries provenance.** `#printDesignName` names the design, who last saved it and
-when, and the date it was printed (stamped on `beforeprint`, so a page left open for a week cannot
-print a stale date). Before v19.45 it printed the design name alone: the save row that carries
+**There is a Print button** (`#linksPrintBtn`, v19.62) in the sticky save row beside Save changes —
+outlined, because two filled buttons would compete and saving is the one that matters. All of the
+print machinery above had existed since v12.37 with **no way to reach it but the browser menu**,
+which an installed PWA often does not expose at all. It only calls `window.print()`, so it goes
+through the same `beforeprint` path as the menu item rather than duplicating any of it. The save row
+is already in the print hide-list, so the button costs the sheet nothing (measured: grid card 703px
+with and without, against the 718px printable height).
+
+**The masthead carries provenance — and must say when that provenance does not describe the sheet.**
+`#printDesignName` names the design, who last saved it and when, and the date it was printed (stamped
+on `beforeprint`, so a page left open for a week cannot print a stale date). **The provenance line
+reads the SAVED Firestore doc while the grid prints the LIVE in-memory patterns**, so with unsaved
+edits those are two different designs and a sheet showing your changes would carry somebody else's
+"Last saved by". It appends **"· includes unsaved changes"** when `dirty` (v19.62). Printing a work
+in progress is a reasonable thing to want, so this states the fact rather than blocking the print —
+but do not remove it: this sheet goes to the assessing manager, and a misattributed proposal is the
+same false-assurance failure the fatigue panel is built around. Pinned by an e2e that prints clean,
+then edits and prints again. Before v19.45 it printed the design name alone: the save row that carries
 "last saved by X" is hidden in print, so a circulated sheet had no way to say which version it was.
 Coverage and Design checks keep their card headers — they are separate sections a reader needs
 named.

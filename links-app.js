@@ -1615,9 +1615,15 @@ export function init() {
         if (!design) { el.textContent = ''; return; }
         const entry = designs.find(x => x.id === activeDesignId);
         const when  = entry?.updatedAt?.toDate?.();
+        // The provenance line describes the SAVED document; the grid prints the LIVE in-memory
+        // patterns. With unsaved edits those are two different designs, so a sheet showing your
+        // changes would carry someone else's "Last saved by" — and this sheet goes to the assessing
+        // manager. Say so on the paper rather than refusing to print: printing a work in progress is
+        // a perfectly reasonable thing to want (v19.62).
+        const unsaved = dirty ? ' · includes unsaved changes' : '';
         const saved = entry?.updatedBy
-            ? `Last saved by ${entry.updatedBy}${when ? ` · ${when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`
-            : 'Not saved yet';
+            ? `Last saved by ${entry.updatedBy}${when ? ` · ${when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}${unsaved}`
+            : `Not saved yet${unsaved}`;
         const printed = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
         // The printed sheet states the window it was designed to (v19.54). A circulated sheet is
         // read away from the app, so without this a proposal built to a moved Sunday finish is
@@ -1631,6 +1637,11 @@ export function init() {
     }
     // Re-stamp on the way to the printer so the "Printed" date is the real one.
     window.addEventListener('beforeprint', _renderPrintMasthead);
+
+    // The print button (v19.62). `window.print()` fires `beforeprint`, so it goes through exactly the
+    // same path as the browser's own menu item — the masthead stamp and the open-every-`details`
+    // handler above are shared, not duplicated here.
+    document.getElementById('linksPrintBtn')?.addEventListener('click', () => window.print());
 
     /**
      * Open every `<details>` before printing, and put them back afterwards (v19.57).
