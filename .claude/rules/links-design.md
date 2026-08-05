@@ -324,9 +324,30 @@ Daily targets are met exactly by both; any day-class total > the working lines i
 
 **Do not add back** `buildDefaultDesign`, `initFromRosters`, or `resetFromRosters` — those paths were removed at v12.43 because they copied raw 22-line roster patterns leaving lines 23–28 as all-RD blanks. The generator produces a complete 28-line rotation.
 
-### Line ORDER — the four objectives (v19.58)
+### Line ORDER — the five objectives (v19.58; `variety` added v19.60)
 
-`links-adjacency.js`, applied by the generator through four switches. A whole class of the design's
+> **`variety` and `gentle` are opposite ends of one dial, and `variety` must stay ON by default.**
+> Minimising the week-to-week step, taken to its limit, IS a long block of the same shift — the
+> smallest possible step is no step at all. Between v19.59 and v19.60 the generator settled each week
+> and then laid the waves out contiguously, so a person got **11 straight weeks of mornings and 11 of
+> afternoons**; turning `gentle` on made it 8 even after a reorder. The owner's verdict was "a bit
+> excessive and would be unpopular", and the live roster's longest run on much the same shift is
+> **3** (bilingual 2), which is `DEFAULT_BLOCK_TARGET`.
+>
+> `variety` is weighted as a **constraint** rather than a preference (excess × 400 against gentle's
+> raw minutes), so the optimiser alternates but alternates by the smallest step available — early →
+> middles → late rather than early → late. Measured on the roster seed: block 3, week-to-week 95 min,
+> 8 weekends off, 0 short turnarounds. With `variety` off: block 8.
+>
+> **`blockRuns` treats a SPARE line as transparent** — neither breaking a block nor counting towards
+> one. A cover week interrupts, but it does not change what you go back to; counting it as a break
+> would let four spare weeks hide a 20-week block behind a reported maximum of 4.
+>
+> **Interleaving the waves inside the generator is a WON'T-DO** — tried and reverted at v19.60, with
+> the numbers in `links-design.js`'s own comment. It fixes the raw block length but introduces short
+> turnarounds and costs two long weekends. The generator owns the SHAPE; this module owns the ORDER.
+
+`links-adjacency.js`, applied by the generator through five switches. A whole class of the design's
 quality lives in which line follows which, because you work line w one week and line w+1 the next:
 the week-to-week movement of your working day (the FF18 question), whether Saturday off is followed
 by Sunday off, whether that extends to three or four days, and whether Saturday's finish runs into

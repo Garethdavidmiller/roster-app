@@ -1,8 +1,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    OBJECTIVES, GENTLE_THRESHOLD_MINUTES, lineStartProfile, weekStep, breakLength,
-    boundaryRest, scoreOrder, cost, reorderLines, applyOrder,
+    OBJECTIVES, GENTLE_THRESHOLD_MINUTES, DEFAULT_BLOCK_TARGET, lineStartProfile, weekStep,
+    breakLength, boundaryRest, scoreOrder, cost, reorderLines, applyOrder,
+    blockRuns, blockExcess,
 } from './links-adjacency.js';
 import { generatePatterns } from './links-design.js';
 
@@ -111,9 +112,67 @@ describe('scoreOrder', () => {
     });
 });
 
+describe('blockRuns — how many weeks in a row on much the same shift', () => {
+    const at = (/** @type {string} */ t) => only({ mon: t, tue: t, wed: t, thu: t, fri: t });
+    const rota = (/** @type {string[]} */ times) =>
+        Object.fromEntries(times.map((t, i) => [String(i + 1), t === 'SP'
+            ? { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' }
+            : at(t)]));
+    const runs = (/** @type {string[]} */ times) => {
+        const p = rota(times);
+        return blockRuns(p, Object.keys(p));
+    };
+
+    test('counts consecutive lines within the 2h band, lapping the rotation', () => {
+        // Four mornings and two afternoons. The mornings are only contiguous BECAUSE the walk laps
+        // (lines 5, 6, 1, 2) — without the lap this would read as two blocks of two.
+        // The partition starts at the first real boundary, so the afternoons are listed first;
+        // sorted here because the claim is about the lengths, not where the walk began.
+        assert.deepEqual(runs(['06:00-14:00', '07:00-15:00', '15:00-23:00', '16:00-23:30',
+            '06:30-14:30', '07:30-15:30']).sort((a, b) => b - a), [4, 2]);
+    });
+
+    test('a SPARE line is TRANSPARENT — it neither breaks a block nor counts towards one', () => {
+        // The flattering reading would let a cover week split an 11-week block into two of five and
+        // report the maximum as five. A cover week interrupts, but it does not change what you go
+        // back to the week after.
+        assert.deepEqual(runs(['06:00-14:00', '06:30-14:30', 'SP', '07:00-15:00', '15:00-23:00']), [3, 1]);
+    });
+
+    test('a whole rotation inside one band is ONE block, not a partition artefact', () => {
+        assert.deepEqual(runs(['06:00-14:00', '06:30-14:30', '07:00-15:00', '07:30-15:30']), [4]);
+    });
+
+    test('the excess is summed over every over-long block, not just the worst', () => {
+        // A flat "longest block" gives the optimiser no gradient: two 8-week blocks score the same
+        // as one, so fixing either looks free and it fixes neither.
+        assert.equal(blockExcess([8, 4, 2], 3), 5 + 1);
+        assert.equal(blockExcess([3, 2, 1], 3), 0);
+    });
+
+    test('the default target is the live roster\'s own figure', () => {
+        assert.equal(DEFAULT_BLOCK_TARGET, 3);
+    });
+
+    test('the RAW generated design blocks badly — the reorder is what fixes it, not the generator', () => {
+        // Pinning the division of labour, because interleaving the waves inside the generator was
+        // tried at v19.60 and reverted: it took the raw output from 11 blocks to 2 but introduced
+        // short turnarounds (a late wave's 23:55 Saturday beside a morning wave's 06:20 Sunday) and
+        // cost two long weekends, while the reorder reaches a longest block of 3 either way.
+        //
+        // So the generator owns the SHAPE and `links-adjacency` owns the ORDER, and this test fails
+        // if someone re-adds an interleave here — which would look like an improvement in isolation.
+        const p = design();
+        const s = scoreOrder(p, Object.keys(p));
+        assert.ok(s.longestBlock > DEFAULT_BLOCK_TARGET,
+            'if the raw generator is already varied, the interleave is back — read the note in links-design.js');
+    });
+});
+
 describe('cost', () => {
     const s = { gentleMean: 100, gentleOver: 2, gentleWorst: 300, unmeasurable: 0,
-        weekends: 5, longWeekends: 1, fourDayBreaks: 0, contractedDaysGiven: 6, shortBoundary: 3 };
+        weekends: 5, longWeekends: 1, fourDayBreaks: 0, contractedDaysGiven: 6, shortBoundary: 3,
+        blocks: [8, 4, 2], longestBlock: 8 };
 
     test('an objective that is OFF contributes nothing at all', () => {
         assert.equal(cost(s, {}), 0);
@@ -182,6 +241,31 @@ describe('reorderLines', () => {
         }
     });
 
+    test('gentle ALONE re-blocks the rotation, and variety is what stops it', () => {
+        // The v19.59 shape fix settled each week and then laid the waves out in solid blocks, so a
+        // person got 11 straight weeks of mornings and 11 of afternoons — "a bit excessive and would
+        // be unpopular" (owner). Turning gentle on made it worse, because the smallest possible
+        // week-to-week step is no step at all: minimising it IS a block. The generator now deals the
+        // waves interleaved, but the reorder can undo that, so this pins BOTH halves.
+        const p = design();
+        const gentleOnly = reorderLines(p, { on: { gentle: true } });
+        const withVariety = reorderLines(p, { on: { gentle: true, variety: true } });
+        assert.ok(gentleOnly.after.longestBlock > withVariety.after.longestBlock,
+            `gentle alone gave ${gentleOnly.after.longestBlock}, with variety ${withVariety.after.longestBlock}`);
+        assert.ok(withVariety.after.longestBlock <= DEFAULT_BLOCK_TARGET,
+            `longest block ${withVariety.after.longestBlock} exceeds the target ${DEFAULT_BLOCK_TARGET}`);
+    });
+
+    test('variety costs week-to-week movement, and the scorecard says so', () => {
+        // The two are opposite ends of one dial. The tool's job is to show the price, not to hide it
+        // — `scoreOrder` reports both figures whichever was optimised for.
+        const p = design();
+        const gentleOnly = reorderLines(p, { on: { gentle: true } });
+        const withVariety = reorderLines(p, { on: { gentle: true, variety: true } });
+        assert.ok(withVariety.after.gentleMean >= gentleOnly.after.gentleMean,
+            'variety cannot be free — it must cost some week-to-week movement');
+    });
+
     test('a spare week is never used to hide a harsh transition', () => {
         // The optimiser cannot score an unmeasurable step as good, so it gains nothing by parking a
         // spare week between the two most distant lines. `unmeasurable` is fixed by how many spare
@@ -210,7 +294,8 @@ describe('OBJECTIVES', () => {
     test('every objective the cost function reads has a labelled switch', () => {
         // A term in `cost` with no switch would be permanently on and invisible.
         const s = { gentleMean: 10, gentleOver: 1, gentleWorst: 10, unmeasurable: 0, weekends: 1,
-            longWeekends: 0, fourDayBreaks: 0, contractedDaysGiven: 1, shortBoundary: 1 };
+            longWeekends: 0, fourDayBreaks: 0, contractedDaysGiven: 1, shortBoundary: 1,
+            blocks: [9], longestBlock: 9 };
         for (const o of OBJECTIVES) {
             assert.notEqual(cost(s, { [o.key]: true }), 0, `${o.key} has no effect on the cost`);
             assert.ok(o.label && o.label.length > 3, `${o.key} needs a human label`);

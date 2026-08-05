@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v19.50 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.60 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -737,12 +737,35 @@ never contingent on the beta label, and dropping it does not make any of them go
   residual risk) is a human process the panel feeds and does not perform. Specifically:
   - **Three definitions are not settled** — FF17 (is "backward rotation" about individual steps or
     the cycle's net direction?), FF19 (are start-time jumps counted across rest days?) and FF18
-    (does "a rotating pattern of about a week" describe a 28-line link by construction?). They
-    render as "(definition to confirm)" and the numbers should not be quoted without settling them.
-    FF18 may be **unavoidable**, in which case it belongs in the conversation with the assessing
-    manager rather than in a checklist.
+    ("a rotating pattern of about a week"). They render as "(definition to confirm)" and the numbers
+    should not be quoted without settling them. **FF18's framing here was wrong until v19.60** and is
+    worth stating properly: this doc used to call it unavoidable because a 28-line link moves everyone
+    one line a week by construction. That reads the factor as being about the weekly *cadence*, when
+    the concern is the **size of the step** — a rotation whose consecutive lines sit close together
+    asks far less of the body clock than one where they do not. The cadence is fixed; the step is a
+    design choice, is measured by `links-adjacency.js`, and the generator can tune for it. FF18's own
+    row still reports a hardcoded `standing`, which is the module's own "never hardcode a status" rule
+    being broken for the second time (FF13 was the first, v19.48).
   - **Every hours figure is a FLOOR.** SPARE days carry no times, so a standby day contributes zero
-    to "hours in any 7 days". The real total is higher; the panel says so on the row.
+    to "hours in any 7 days". The real total is higher; the panel says so on the row (it did **not**
+    until v19.59 — `hoursAreFloor` had been returned "so the UI can say so" since v19.46 and nothing
+    read it, so this line described an app that did not exist).
+
+- **The generator's objectives genuinely conflict, and no default is right for everyone** (v19.60).
+  Line ORDER is one scarce resource with several claims on it, and two of them are direct opposites:
+  `gentle` minimises the week-to-week change, and taken to its limit that IS a long block of the same
+  shift — the smallest possible step is no step at all. `variety` caps the block length. Shipped with
+  both on and variety weighted as a constraint, which lands on the live roster's own figure (longest
+  block 3) while keeping the step at ~1h35. **Turning variety off gives blocks of 8+**, which is what
+  the tool did between v19.59 and v19.60 and is the shape the owner rejected as "excessive and
+  unpopular". The switches are the honest answer, not a better formula: the trade is real and the
+  designer should be the one making it.
+- **Interleaving the waves inside the generator is a WON'T-DO, measured** (v19.60). It fixes the
+  block length in the raw output (11 → 2) but puts a late wave's 23:55 Saturday beside a morning
+  wave's 06:20 Sunday — a 6h25 turnaround the construction was free of — and constrains the reorder
+  into two fewer long weekends for no gain, since both routes reach a longest block of 3. The
+  generator owns the SHAPE, `links-adjacency.js` owns the ORDER. A test fails if the interleave
+  returns.
   - **Coverage is not completeness.** The factors the panel asserts as not-applicable are the
     night-shift family, and that rests on CEAs working no nights. It flips to live the moment any
     duty reaches 00:00–05:00 — but the p3 list is a good-practice summary, not the whole of fatigue

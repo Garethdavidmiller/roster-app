@@ -36,7 +36,7 @@ import {
     generateLink,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
-import { reorderLines, applyOrder } from './links-adjacency.js';
+import { reorderLines, applyOrder, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
@@ -1539,12 +1539,16 @@ export function init() {
             const _chk = (/** @type {string} */ id) =>
                 !!(/** @type {HTMLInputElement|null} */ (document.getElementById(id))?.checked);
             const _on = {
-                gentle: _chk('objGentle'), weekends: _chk('objWeekends'),
+                variety: _chk('objVariety'), gentle: _chk('objGentle'), weekends: _chk('objWeekends'),
                 longWeekends: _chk('objLongWeekends'), turnarounds: _chk('objTurnarounds'),
             };
-            const _target = Math.max(0, parseInt(
-                /** @type {HTMLInputElement|null} */ (document.getElementById('objLongTarget'))?.value ?? '4', 10) || 0);
-            const _ord = reorderLines(generated, { on: _on, longWeekendTarget: _target });
+            const _num = (/** @type {string} */ id, /** @type {number} */ dflt, min = 0) => Math.max(min, parseInt(
+                /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? String(dflt), 10) || dflt);
+            const _target = _num('objLongTarget', 4);
+            const _blockTarget = _num('objBlockTarget', DEFAULT_BLOCK_TARGET, 1);
+            const _ord = reorderLines(generated, {
+                on: _on, longWeekendTarget: _target, blockTarget: _blockTarget,
+            });
             const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
 
             if (!design) {
@@ -1571,7 +1575,8 @@ export function init() {
                 // so — a bare "generated" would let the designer assume everything got better.
                 const b = _ord.before, a = _ord.after;
                 const bits = _ord.changed
-                    ? [`week-to-week ${b.gentleMean}→${a.gentleMean} min`,
+                    ? [`longest block ${b.longestBlock}→${a.longestBlock} weeks`,
+                        `week-to-week ${b.gentleMean}→${a.gentleMean} min`,
                         `weekends off ${b.weekends}→${a.weekends}`,
                         `long ${b.longWeekends}→${a.longWeekends}`]
                     : [];

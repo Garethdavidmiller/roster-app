@@ -31,16 +31,23 @@
  */
 import { DAYS, startMinutes, endMinutesAbs } from './links-design.js';
 
-/** The four things the order can be tuned for. Order matters — it is the display order too. */
+/** The five things the order can be tuned for. Order matters — it is the display order too. */
 export const OBJECTIVES = Object.freeze([
+    { key: 'variety',      label: 'Vary the shift type week to week' },
     { key: 'gentle',       label: 'Gentle week-to-week change' },
     { key: 'weekends',     label: 'Full weekends off' },
     { key: 'longWeekends', label: 'Long weekends' },
     { key: 'turnarounds',  label: 'Rest across the week boundary' },
 ]);
 
-/** Minutes a start time may move between weeks before it counts as a real change. */
+/** Minutes a start time may move between weeks before it counts as a real change. Doubles as the
+ *  width of a BLOCK: lines whose working day sits within this of each other are the same sort of
+ *  week, which is the same 2h the shift waves and FF19 use. */
 export const GENTLE_THRESHOLD_MINUTES = 2 * 60;
+
+/** Weeks in a row on much the same shift before it reads as a block. Measured from the live roster:
+ *  the main 20-week link's longest is 3 and the bilingual 8-week's is 2. */
+export const DEFAULT_BLOCK_TARGET = 3;
 
 /** Rest is RD/OFF only. SPARE is NOT rest — you are on cover and can be called for any shift. */
 const isRest = (/** @type {any} */ s) => !s || s === 'RD' || s === 'OFF';
@@ -115,6 +122,62 @@ export function boundaryRest(a, b) {
 }
 
 /**
+ * Split the rotation into BLOCKS — maximal runs of consecutive lines whose working day stays within
+ * `span` of the run's first. "How many weeks in a row am I working much the same time."
+ *
+ * WHY THIS EXISTS (v19.60, owner). Settling each week fixed one problem and created its opposite:
+ * every line sat in one shift wave, but the waves were laid onto the lines in contiguous blocks, so
+ * moving one line a week gave **11 straight weeks of mornings then 11 of afternoons**. The live
+ * roster's longest block is **3** (bilingual 2). Eleven is not a rota, it is a season, and a long
+ * block of lates in particular is the socially punishing one.
+ *
+ * Anchored to the run's FIRST line, not to each step. A design that drifts an hour later every week
+ * is a gradual drift, not a block; being stuck within 2h of the same start for eleven weeks is.
+ *
+ * SPARE LINES ARE TRANSPARENT — they neither break a block nor count towards one. A cover week is a
+ * genuine interruption, but it does not change what you go back to the week after, and treating it
+ * as a break would let four spare weeks hide a 20-week block behind a reported maximum of 4. That is
+ * the flattering reading, and it is the one this workspace keeps having to refuse.
+ * @param {Record<string, any>} patterns
+ * @param {string[]} order
+ * @param {number} [span]
+ * @returns {number[]} block lengths, in order
+ */
+export function blockRuns(patterns, order, span = GENTLE_THRESHOLD_MINUTES) {
+    const prof = order.map(k => lineStartProfile(patterns[k]));
+    const idx = prof.map((v, i) => (v === null ? -1 : i)).filter(i => i >= 0);
+    if (idx.length < 2) return idx.length ? [1] : [];
+
+    // Start the walk at a real boundary so the cyclic partition is canonical rather than an artefact
+    // of starting at line 1. If every line is within span of its predecessor there is no boundary,
+    // and the honest answer is one block covering the whole rotation.
+    const n = idx.length;
+    let start = -1;
+    for (let k = 0; k < n; k++) {
+        const prev = /** @type {number} */ (prof[idx[(k - 1 + n) % n]]);
+        const here = /** @type {number} */ (prof[idx[k]]);
+        if (Math.abs(here - prev) > span) { start = k; break; }
+    }
+    if (start < 0) return [n];
+
+    const runs = [];
+    let anchor = null, len = 0;
+    for (let k = 0; k < n; k++) {
+        const v = /** @type {number} */ (prof[idx[(start + k) % n]]);
+        if (anchor === null) { anchor = v; len = 1; continue; }
+        if (Math.abs(v - anchor) <= span) { len++; continue; }
+        runs.push(len); anchor = v; len = 1;
+    }
+    runs.push(len);
+    return runs;
+}
+
+/** Weeks beyond `target` across every over-long block — a smooth gradient, unlike the bare maximum. */
+export function blockExcess(/** @type {number[]} */ runs, /** @type {number} */ target) {
+    return runs.reduce((a, n) => a + Math.max(0, n - target), 0);
+}
+
+/**
  * Score one ordering of the lines. Returns every figure regardless of what was optimised for, so
  * the cost of an objective is always visible beside its benefit.
  *
@@ -136,8 +199,12 @@ export function scoreOrder(patterns, order, opts = {}) {
         if (rest !== null && rest < minRest) shortBoundary++;
     }
 
+    const runs = blockRuns(patterns, order, GENTLE_THRESHOLD_MINUTES);
     const abs = steps.map(Math.abs);
     return {
+        // How long you stay on much the same shift. The live roster's longest is 3.
+        blocks: runs,
+        longestBlock: runs.length ? Math.max(...runs) : 0,
         // Gentle: mean absolute move, and how many weeks move more than the threshold.
         gentleMean: abs.length ? Math.round(abs.reduce((a, b) => a + b, 0) / abs.length) : 0,
         gentleOver: abs.filter(v => v > GENTLE_THRESHOLD_MINUTES).length,
@@ -162,9 +229,16 @@ export function scoreOrder(patterns, order, opts = {}) {
  * @param {ReturnType<typeof scoreOrder>} s
  * @param {Record<string, boolean>} on
  * @param {number} [longWeekendTarget]
+ * @param {number} [blockTarget] - weeks in a row on much the same shift before it costs
  */
-export function cost(s, on, longWeekendTarget = 4) {
+export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_TARGET) {
     let c = 0;
+    // Variety is deliberately the HEAVIEST term, because it works as a constraint rather than a
+    // preference: keep the blocks short, and let the other objectives arrange things inside that.
+    // Gentle pulls the opposite way — minimising the week-to-week step, taken to its limit, IS a
+    // block — so with both on the optimiser alternates, but alternates by the smallest step it can
+    // (early → middles → late rather than early → late), which is the answer that serves both.
+    if (on.variety)      c += blockExcess(s.blocks, blockTarget) * 400;
     if (on.gentle)       c += s.gentleMean + s.gentleOver * 60;
     if (on.weekends)     c += -s.weekends * 120;
     // Only the SHORTFALL is penalised. Rewarding every long weekend without limit would spend the
@@ -190,10 +264,11 @@ export function cost(s, on, longWeekendTarget = 4) {
  * @param {object} [opts]
  * @param {Record<string, boolean>} [opts.on] - which objectives are enabled
  * @param {number} [opts.longWeekendTarget]
+ * @param {number} [opts.blockTarget] - weeks in a row on much the same shift before it costs
  * @param {number} [opts.passes] - improvement sweeps
  * @returns {{order: string[], before: ReturnType<typeof scoreOrder>, after: ReturnType<typeof scoreOrder>, changed: boolean}}
  */
-export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, passes = 6 } = {}) {
+export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_TARGET, passes = 6 } = {}) {
     const keys = Object.keys(patterns || {}).sort((a, b) => Number(a) - Number(b));
     const before = scoreOrder(patterns, keys);
     const anyOn = OBJECTIVES.some(o => on[o.key]);
@@ -201,7 +276,7 @@ export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, passes 
     // different design for no stated reason, which is worse than doing nothing.
     if (!anyOn || keys.length < 3) return { order: keys, before, after: before, changed: false };
 
-    const scoreOf = (/** @type {string[]} */ ord) => cost(scoreOrder(patterns, ord), on, longWeekendTarget);
+    const scoreOf = (/** @type {string[]} */ ord) => cost(scoreOrder(patterns, ord), on, longWeekendTarget, blockTarget);
 
     // Greedy: keep the first line where it is and repeatedly take whichever remaining line makes the
     // best next step. Starting from line 1 rather than the best possible start keeps it stable.
