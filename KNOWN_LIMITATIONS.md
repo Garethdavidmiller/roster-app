@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v19.60 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.70 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -781,6 +781,24 @@ never contingent on the beta label, and dropping it does not make any of them go
   generator owns the SHAPE, `links-adjacency.js` owns the ORDER. A test fails if the interleave
   returns.
 
+- **The generator and the grid lose their column headers on a PHONE** (measured v19.67, recorded
+  here in the v19.70 sweep). Both tables sit in an `overflow-x: auto` wrapper below their breakpoint
+  so the table can scroll inside the card — and per spec, when one overflow axis is not `visible`
+  the other computes to `auto` too. The wrapper therefore becomes a vertical scroll container as
+  tall as its own content, and a `position: sticky` header sticks to a box that never scrolls. The
+  declaration is present and inert. **Do not "fix" it with `overflow-y: visible`** — that is the
+  exact declaration the spec overrides, so it would read as correct and change nothing.
+  Measured at 390×844: the grid is **43% off-screen horizontally** (592px of table in a 338px
+  wrapper) with no LINE/SUN/MON header on screen for most of the scroll, so neither a label nor a
+  countable column position tells you which day you are editing; the generator's SUN column and the
+  footer totals clip the same way. The sticky save row takes **146px of an 844px viewport (17%)**
+  and the brush bar **239px**.
+  **Accepted rather than fixed**, on three grounds: the workspace's own first-visit notice says
+  *"Best used on a desktop or tablet; the 28-column grid is tight on a phone"*; a tablet at ≥768px
+  gets the working desktop layout, so this is phone-only; and the plan explicitly defers redesigning
+  the target table until package 4, so rebuilding it for mobile now means doing it twice. The real
+  fix is a `max-height` and therefore a nested scrollbox around the primary creation path — a UX
+  decision, not a tidy-up. Both facts are pinned by an e2e that runs at both widths.
 - **Firefox keyboard editing commits early.** Firefox fires `change` on every
   arrow-key press inside a focused `<select>`, so keyboard-only editing of a shift
   cell commits on the first arrow instead of on Enter. Chrome/Safari (all staff

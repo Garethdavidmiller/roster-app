@@ -474,8 +474,7 @@ export function init() {
         // roster seed happened to produce, which is a design nobody chose.
         document.getElementById('linksEmptyNew')?.addEventListener('click',    createDesign);
         document.getElementById('linksEmptyGenerate')?.addEventListener('click', () => {
-            const body = document.getElementById('generatorBody');
-            body?.classList.add('open');
+            _openGenerator();
             document.getElementById('generatorCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
         document.getElementById('dupDesignBtn')?.addEventListener('click',     duplicateDesign);
@@ -1035,6 +1034,27 @@ export function init() {
     // ============================================
 
     /**
+     * Open the generator card programmatically, chevron and ARIA included.
+     *
+     * ONE implementation, because the two call sites had already drifted (found in the v19.70
+     * regression pass). `initCardCollapse` only syncs `aria-expanded` on a real click, so anything
+     * that opens the card in code has to do it by hand — the auto-expand in `renderGrid` did, and
+     * the v19.66 empty-state button did not. Collapse the generator, then press "Go to
+     * Auto-generate": the body opened while the chevron still pointed collapsed and a screen reader
+     * was told `aria-expanded="false"` over an open card. Harmless on the default path only because
+     * `renderGrid` has usually opened it already — which is exactly how the gap stayed invisible.
+     */
+    function _openGenerator() {
+        const body    = document.getElementById('generatorBody');
+        const chevron = document.getElementById('generatorChevron');
+        if (body && !body.classList.contains('open')) body.classList.add('open');
+        if (chevron) {
+            chevron.classList.add('open');
+            chevron.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    /**
      * The grid card's header hint describes the GRID, which is not on screen in the empty state
      * (v19.66) — it told you to tap a shift cell and use the Paint bar when neither existed. Both
      * strings live here rather than in two render branches so they cannot drift apart.
@@ -1079,21 +1099,10 @@ export function init() {
             if (tbody)      tbody.innerHTML          = '';
             if (tfoot)      tfoot.innerHTML          = '';
             document.body.classList.remove('links-compare-on');
-            // Auto-expand the generator so the user sees it without having to discover it
-            if (!loadFailed) {
-                const genBody    = document.getElementById('generatorBody');
-                const genChevron = document.getElementById('generatorChevron');
-                if (genBody && !genBody.classList.contains('open')) {
-                    genBody.classList.add('open');
-                    if (genChevron) {
-                        genChevron.classList.add('open');
-                        // Keep the collapse control's ARIA state in step with the class-only
-                        // open so a screen reader hears "expanded" (initCardCollapse only
-                        // syncs aria-expanded on click; this programmatic open bypasses it).
-                        genChevron.setAttribute('aria-expanded', 'true');
-                    }
-                }
-            }
+            // Auto-expand the generator so the user sees it without having to discover it.
+            // Shares `_openGenerator` with the empty state's button — see the note there for why
+            // the ARIA sync has to be explicit, and what happened when only one site did it.
+            if (!loadFailed) _openGenerator();
             renderBrushBar();
             renderCoverageCard();
             renderDesignChecks();

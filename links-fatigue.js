@@ -437,8 +437,17 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     // The 2h figure is not invented either: it is the ORR's own FF19 threshold, and the week
     // boundary is precisely the "across rest days" reading FF19's own detail flags as unconfirmed.
     // Hence `confirm: true` stays on this row.
-    const adj = scoreOrder(patterns, Object.keys(patterns || {}).sort((a, b) => Number(a) - Number(b)));
-    const stepMeasurable = adj.unmeasurable < lines;
+    const ff18Order = Object.keys(patterns || {}).sort((a, b) => Number(a) - Number(b));
+    const adj = scoreOrder(patterns, ff18Order);
+    // Measurable iff at least one BOUNDARY actually produced a step. Derived from the boundaries
+    // walked, never from `lines`: `scoreOrder` iterates the keys the design really has, while
+    // `lines` is what the caller CLAIMS it has, and those differ in the ordinary case of a design
+    // that is not fully filled in. The first version tested `adj.unmeasurable < lines`, so an EMPTY
+    // design (0 keys, 0 unmeasurable, 28 claimed) passed as measurable and reported "typically
+    // 0h 0m a week" — a confident figure about a design with no shifts in it, which is precisely
+    // the flattery this module exists to prevent. Found by the v19.70 regression pass, not by the
+    // v19.69 tests, because those all passed `lines` equal to the key count.
+    const stepMeasurable = ff18Order.length - adj.unmeasurable > 0;
     add({ code: 'FF18', family: 'Circadian', title: 'Rotating pattern of about a week', confirm: true,
         status: stepMeasurable ? 'standing' : 'n/a',
         value: stepMeasurable

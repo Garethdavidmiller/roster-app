@@ -460,6 +460,25 @@ describe('FF18 — the week-to-week step', () => {
         assert.match(String(withSpare.detail), /carry no times \(spare weeks\) and are excluded/);
     });
 
+    // The v19.69 cases all passed `lines` EQUAL to the key count, so none of them could see this:
+    // the measurability guard was `unmeasurable < lines`, comparing boundaries walked against the
+    // count the CALLER claims. A partly-built design has fewer keys than lines, and an empty one has
+    // none — which sailed through as "measurable" and reported a confident 0h 0m about a design with
+    // no shifts in it. Found by the v19.70 regression pass.
+    test('a design with FEWER lines than claimed does not invent a measurement', () => {
+        const empty = assessFatigue({}, 28).results.find(r => r.code === 'FF18');
+        assert.equal(empty.status, 'n/a');
+        assert.doesNotMatch(String(empty.value), /typically/);
+
+        // …and the same design part-built DOES measure, so the guard is not simply always-off.
+        const partial = assessFatigue(design(
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+            [RD, LATE,  LATE,  LATE,  LATE,  LATE,  RD],
+        ), 28).results.find(r => r.code === 'FF18');
+        assert.equal(partial.status, 'standing');
+        assert.match(String(partial.value), /typically/);
+    });
+
     test('the stated threshold is the one actually counted against', () => {
         const d = ff18(design(
             [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],

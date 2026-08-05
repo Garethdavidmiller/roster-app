@@ -1437,6 +1437,37 @@ test('links: a numeric objective clause does not come apart on a phone', async (
     }
 });
 
+// ── Opening a card in code must move the chevron and the ARIA with it (v19.70) ──────────────────
+// `initCardCollapse` only syncs `aria-expanded` on a real click, so anything that opens a card
+// programmatically has to do it by hand. `renderGrid`'s auto-expand did; the v19.66 empty-state
+// button did not — it added `.open` to the body and left the chevron pointing collapsed with
+// `aria-expanded="false"` over an open card.
+//
+// It stayed invisible because on the default path `renderGrid` has usually opened the generator
+// already, so the button's own open is a no-op. You only see it by COLLAPSING the card first,
+// which is what this test does. Both sites now share `_openGenerator`.
+test('links: the empty-state button opens the generator with its chevron and ARIA in step', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksEmptyGenerate')).toBeVisible();
+
+    // Collapse it by hand — the state in which the button's own open actually does something.
+    await page.locator('#generatorChevron').click();
+    await expect(page.locator('#generatorBody')).not.toHaveClass(/open/);
+
+    await page.locator('#linksEmptyGenerate').click();
+    await expect(page.locator('#generatorBody')).toHaveClass(/open/);
+    // The two that drifted. A body open behind a collapsed chevron is a visual contradiction; the
+    // ARIA is the half a sighted reviewer would never catch.
+    await expect(page.locator('#generatorChevron')).toHaveClass(/open/);
+    await expect(page.locator('#generatorChevron')).toHaveAttribute('aria-expanded', 'true');
+});
+
 // ── The generator card has ONE left edge on desktop (v19.67) ─────────────────────────────────────
 // v19.66 centred `.generator-form` to split the 440px of dead space beside it, and left the intro
 // prose where it was — so the card ended up with TWO left edges: the intro ran 122→778 while the
