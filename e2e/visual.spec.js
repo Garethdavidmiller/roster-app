@@ -320,27 +320,61 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
     // So the two do different jobs here and both are needed: the baseline below catches COMPOSITION
     // (removing the 8px row gap fails it, as it should), and this catches the on/off STATE, which is
     // the whole point of the v19.63 restyle.
+    // ASSERTING THE FILLS MERELY DIFFER WAS NOT ENOUGH, AND v19.65 is the proof (staff report:
+    // "everything doesn't quite look right"). They differed the WRONG WAY ROUND: checked
+    // `--bg-faint`, unchecked `white`, so switching an objective ON made its row 3% dimmer, and
+    // against this panel's `--surface-sunken` (L 96.3%) the checked fill landed 0.7% away — visually
+    // nothing. With all five on, the default, every row was panel-coloured inside a navy outline.
+    // Both assertions below passed throughout. So the DIRECTION is what has to be pinned, measured
+    // against the SUBSTRATE the rows sit on, not just against each other.
+    //
+    // Resolved through a canvas so `oklch()`, `oklab()` and `rgb()` are all compared as sRGB —
+    // getComputedStyle hands back whichever notation the author used, and these three surfaces are
+    // declared in two different ones.
     const rowStyles = await page.evaluate(() => {
+        const lum = (/** @type {string} */ c) => {
+            const cv = document.createElement('canvas');
+            cv.width = cv.height = 1;
+            const ctx = /** @type {CanvasRenderingContext2D} */ (cv.getContext('2d'));
+            ctx.fillStyle = c;
+            ctx.fillRect(0, 0, 1, 1);
+            const d = ctx.getImageData(0, 0, 1, 1).data;
+            return (d[0] + d[1] + d[2]) / 3;
+        };
         const cs = (/** @type {string} */ sel) => {
             const el = document.querySelector(sel);
             if (!el) return null;
             const s = getComputedStyle(el);
-            return { bg: s.backgroundColor, border: s.borderTopColor, shadow: s.boxShadow };
+            return { bg: s.backgroundColor, lum: lum(s.backgroundColor), border: s.borderTopColor, shadow: s.boxShadow };
         };
-        return { on: cs('.gen-obj:has(input:checked)'), off: cs('.gen-obj:not(:has(input:checked))') };
+        const panel = getComputedStyle(/** @type {Element} */ (document.querySelector('.gen-objectives'))).backgroundColor;
+        return {
+            on: cs('.gen-obj:has(input:checked)'),
+            off: cs('.gen-obj:not(:has(input:checked))'),
+            panelLum: lum(panel),
+        };
     });
     expect(rowStyles.on, 'a checked objective row must exist').not.toBeNull();
     expect(rowStyles.off, 'an unchecked objective row must exist').not.toBeNull();
     expect(rowStyles.on.bg, 'checked and unchecked rows must not share a fill').not.toBe(rowStyles.off.bg);
     expect(rowStyles.on.border, 'checked and unchecked rows must not share a border').not.toBe(rowStyles.off.border);
     expect(rowStyles.on.shadow, 'the checked row carries the lift').not.toBe('none');
+    // ON brightens, OFF recedes — the app's three-surface cue (css-tokens.md), the direction v19.63
+    // had backwards.
+    expect(rowStyles.on.lum, 'a checked row must be BRIGHTER than an unchecked one, not dimmer')
+        .toBeGreaterThan(rowStyles.off.lum);
+    // And it has to clear the panel by enough to be seen. 0.7% of L was the shipped value; 2% of
+    // 255 is ~5, comfortably under the real gap (white over `--bg-faint`) and comfortably over the
+    // gap that produced the bug.
+    expect(rowStyles.on.lum - rowStyles.panelLum, 'the checked fill must be visible against the panel it sits on')
+        .toBeGreaterThan(5);
 
     await settle(page, '.gen-objectives');
     await expect(page.locator('#generatorCard')).toHaveScreenshot('links-generator.png');
 });
 
 // The same card at a NARROW viewport, where its layout rules actually differ: the shift-time column
-// goes sticky, the objectives stack, and the numeric clause drops onto its own line.
+// goes sticky, the objectives stack, and the numeric clause is squeezed to the width where it broke.
 //
 // NOTE WHAT THIS DOES NOT COVER. `playwright.visual.mjs` runs ONE desktop project, so this is a
 // narrow window on a FINE pointer — the `@media (pointer: coarse)` rules (16px fields, the 20px
@@ -361,6 +395,12 @@ test('links — auto-generator card at a narrow width (390)', async ({ page }) =
 
     await expect(page.locator('.gen-obj')).toHaveCount(5);
     await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(4);
+
+    // The numeric clause's one-line contract is NOT asserted here, and the reason is the note above:
+    // this project is fine-pointer, where the number box is 52×28 and the clause fits whatever you
+    // do to it. The v19.65 fragmentation only happens at 56×40 — the coarse-pointer size. Measured:
+    // deleting the `white-space: nowrap` that fixes it leaves this test green. It lives in
+    // pages.spec.js on mobile-chrome instead, where it fails.
     await settle(page, '.gen-objectives');
     await expect(page.locator('.gen-objectives')).toHaveScreenshot('links-objectives-narrow.png');
 });

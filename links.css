@@ -1435,7 +1435,7 @@ body.auth-ready .container { display: grid; }
     padding: 10px 12px;
     border: 2px solid var(--border-light);
     border-radius: var(--radius-sm);
-    background-color: white;
+    background-color: var(--bg-faint);
     cursor: pointer;
     transition: border-color var(--dur-fast) var(--ease-standard),
                 background-color var(--dur-fast) var(--ease-standard),
@@ -1445,10 +1445,23 @@ body.auth-ready .container { display: grid; }
    it — the same 8px `.bp-mode-toggle` uses. Sibling margin rather than a flex `gap` on the fieldset,
    because a `<legend>` inside a flex container lays out unpredictably across engines. */
 .gen-obj + .gen-obj { margin-top: 8px; }
-/* ON is legible from the whole row, not just a 17px box in the corner of it. */
+/* ON is legible from the whole row, not just a 17px box in the corner of it.
+   THE FILLS RUN ON-IS-BRIGHTER, AND THAT DIRECTION IS THE WHOLE POINT (v19.65). They shipped the
+   other way round at v19.63 — resting `white`, checked `--bg-faint` — copied from paycalc's
+   `.bp-mode-opt` without noticing that the substrate is different. Measured: this panel is
+   `--surface-sunken` (L 96.3%), so a checked row at `--bg-faint` (L 97.0%) sits **0.7% above its own
+   background** and simply dissolves into it, while an unchecked row at white sits 3.7% above. With
+   all five on — the default — every row was panel-coloured inside a navy outline, so the card read
+   as five empty boxes and the ONE state the fill exists to show was the one you could not see.
+   Turning an option ON also made it 3% DIMMER than leaving it off, which inverts the app's own
+   three-surface cue (css-tokens.md: a control brightens to white when it becomes active).
+   Paycalc is left alone deliberately: its options sit on a `--surface` CARD (98%) and are a
+   two-option radio group where exactly one is ever checked, so the border carries the state and the
+   fill is only a whisper. Here there are five independent switches on a sunken panel. If you ever
+   restyle this, check the two lightnesses against the SUBSTRATE, not against each other. */
 .gen-obj:has(input:checked) {
     border-color: var(--primary-blue);
-    background-color: var(--bg-faint);
+    background-color: white;
     box-shadow: var(--shadow-1);
 }
 .gen-obj:has(input:checked) .gen-obj-title { font-weight: 600; }
@@ -1590,9 +1603,26 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-small);
     color: var(--text-mid);
 }
-/* The number belongs to the row it sits in, so it takes the row's fill rather than the page's field
-   grey — on `--bg-faint` a `--field-bg` box reads as a hole rather than a control. */
-.gen-obj-num .gen-input-inline { background-color: white; }
+/* The number box takes the SHARED field styling — no override (v19.65). It used to be forced to
+   `white`, reasoned from the checked row also being `--bg-faint`; with the fills the right way round
+   that premise is gone, and forcing white cost two things. It flattened the row (white field on a
+   white row, so the control had only its hairline border), and it killed the app-wide
+   "field brightens to white on focus" cue described in css-tokens.md — a field already at white
+   cannot brighten. `.gen-input`'s own `--field-bg` resting fill now does both jobs.
+
+   THE NUMBER AND ITS UNIT ARE ONE UNBREAKABLE GROUP. `at most [3] weeks the same` is three flex
+   children in a ~194px column, and it overflowed by ~8px — so it wrapped to THREE lines and left
+   "weeks the same" sitting alone, flush under "at most", reading as a separate statement rather
+   than the tail of the sentence it belongs to. Widening the column is not available (390px is the
+   design target) and shrinking the box is not either (16px/40px is the iOS-zoom + touch-target
+   floor). So the fix is to make the only legal break point the one that still reads: the box and
+   the words that qualify it never separate, and the phrase wraps ahead of them or not at all. */
+.gen-obj-numctl {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
 /* GRID WAS TRIED HERE AND IS WRONG: two of the five labels carry an inline number input, and as a
    grid container every child becomes an item — so the number box left the sentence it belongs to and
    dropped into the checkbox's column on a row of its own ("Vary the shift type, at most" / "3 |

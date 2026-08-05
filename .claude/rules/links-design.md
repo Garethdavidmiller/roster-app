@@ -310,7 +310,7 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   associated writing look unstyled" — they were). They shipped at v19.58 as five native checkboxes
   with text beside them, which is exactly what paycalc's `.bp-mode-opt`/`.hpp-mode-opt` was built to
   replace; that rule's own comment reads *"the design system instead of two bare browser radios
-  floating in space"*. `.gen-obj` now mirrors it: a bordered row on white, navy border + `--bg-faint`
+  floating in space"*. `.gen-obj` now mirrors it: a bordered row, navy border + a brighter fill
   + a subtle lift via `:has(input:checked)`, an 18px `accent-color` box (20px on a coarse pointer),
   and the focus ring on the ROW rather than the box, because the row is what you are choosing. Same
   2px border in both states so toggling one causes no reflow, and `.gen-obj + .gen-obj` spaces them —
@@ -318,11 +318,39 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   inside a flex container lays out unpredictably across engines, so the gap is a sibling margin, not
   a flex `gap` on the fieldset. **Do not re-create a page-local variant of this** — if the option-row
   treatment needs to change, change it with paycalc's.
+- **ON is the BRIGHTER row, and check that against the SUBSTRATE** (v19.65, staff report: "everything
+  doesn't quite look right"). The v19.63 row above shipped its two fills the wrong way round —
+  resting `white`, checked `--bg-faint` — copied from paycalc without noticing the substrate differs.
+  Measured: this fieldset is `--surface-sunken` (L 96.3%), so a checked row at `--bg-faint` (97.0%)
+  sat **0.7% above its own background** and dissolved into it, while an unchecked row at white sat
+  3.7% above. With all five on — the default — every row was panel-coloured inside a navy outline, so
+  the card read as five empty boxes and the one state the fill exists to show was the one you could
+  not see. Switching an option ON also made it 3% **dimmer**, inverting the app's three-surface cue
+  (css-tokens.md: a control brightens to white when it becomes active). Paycalc is deliberately left
+  alone: its options sit on a `--surface` CARD (98%) and are a two-option radio group where exactly
+  one is ever checked, so the border carries the state and the fill is only a whisper. The
+  `.gen-obj-num` field lost its `background-color: white` override in the same pass — that was
+  reasoned from the old checked fill, and it both flattened the row and killed the app-wide
+  "field brightens to white on focus" cue, since a field already at white cannot brighten.
+- **A number and the words that qualify it are ONE unbreakable group** (v19.65). "at most [3] weeks
+  the same" was three loose flex children in a ~190px column and overflowed by ~8px, so at 360px —
+  the reported device — it wrapped and left "weeks the same" alone under "at most", reading as a
+  separate statement. Neither lever that would normally fix it is available: 360px is the design
+  target, and 16px/40px is the iOS-zoom + touch-target floor for the box. So the clause was shortened
+  to "at most [3] weeks" (the noun is in the title directly above) and the box + its unit wrapped in
+  `.gen-obj-numctl`, an `inline-flex` that cannot come apart. Both are belt-and-braces; either alone
+  fixes today's render.
 - **The generator now has pixel coverage** (v19.64): `links-generator.png` (desktop, three objectives
-  on and two off) and `links-objectives-narrow.png` (390px, where the rows stack and the numeric
-  clause drops to its own line). It had none before, because the card is collapsed in the workspace
-  baseline — so four consecutive releases reshaped it with only hand-read screenshots watching, on
-  the surface where this page's layout bugs actually happen.
+  on and two off) and `links-objectives-narrow.png` (390px, where the rows stack). It had none
+  before, because the card is collapsed in the workspace baseline — so four consecutive releases
+  reshaped it with only hand-read screenshots watching, on the surface where this page's layout bugs
+  actually happen. **But note the two things it CANNOT see, both established by measurement**
+  (v19.65): near-white fill changes fall under `threshold: 0.15` (that is what hid the inverted
+  state), and the visual project is FINE-pointer only, so the 56×40 coarse box that caused the clause
+  to fragment never appears in a baseline at all. Both are asserted in code instead — the fill
+  direction beside the desktop shot in `visual.spec.js`, the clause on **mobile-chrome** in
+  `pages.spec.js` at 360px. Do not move the clause test into the visual suite: measured at 390, 360
+  and 300 there, it passes on the broken markup.
   **The checked-row treatment is asserted in COMPUTED STYLE, not left to the pixels**, and that split
   is not belt-and-braces: `--bg-faint` is `oklch(97%)` against white, a 3% step, far under the
   suite's `threshold: 0.15` per-pixel sensitivity — deleting the fill AND the shadow left the
