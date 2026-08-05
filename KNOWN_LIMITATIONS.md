@@ -750,6 +750,14 @@ never contingent on the beta label, and dropping it does not make any of them go
     to "hours in any 7 days". The real total is higher; the panel says so on the row (it did **not**
     until v19.59 — `hoursAreFloor` had been returned "so the UI can say so" since v19.46 and nothing
     read it, so this line described an app that did not exist).
+  - **Coverage is not completeness.** The factors the panel asserts as not-applicable are the
+    night-shift family, and that rests on CEAs working no nights. It flips to live the moment any
+    duty reaches 00:00–05:00 — but the p3 list is a good-practice summary, not the whole of fatigue
+    risk, and nothing here models workload, commute, or individual circumstance.
+  - **The baseline is measured per real cycle, not per 28 lines.** "Today's link" is computed over
+    `weeklyRoster` (20) and `bilingualRoster` (8) separately, because splicing two unrelated
+    rotations end to end reports a longest run of 19 that belongs to the join rather than to either
+    roster. A 28-line figure is only meaningful once the 28 lines genuinely are one rotation.
 
 - **The generator's objectives genuinely conflict, and no default is right for everyone** (v19.60).
   Line ORDER is one scarce resource with several claims on it, and two of them are direct opposites:
@@ -766,14 +774,6 @@ never contingent on the beta label, and dropping it does not make any of them go
   into two fewer long weekends for no gain, since both routes reach a longest block of 3. The
   generator owns the SHAPE, `links-adjacency.js` owns the ORDER. A test fails if the interleave
   returns.
-  - **Coverage is not completeness.** The factors the panel asserts as not-applicable are the
-    night-shift family, and that rests on CEAs working no nights. It flips to live the moment any
-    duty reaches 00:00–05:00 — but the p3 list is a good-practice summary, not the whole of fatigue
-    risk, and nothing here models workload, commute, or individual circumstance.
-  - **The baseline is measured per real cycle, not per 28 lines.** "Today's link" is computed over
-    `weeklyRoster` (20) and `bilingualRoster` (8) separately, because splicing two unrelated
-    rotations end to end reports a longest run of 19 that belongs to the join rather than to either
-    roster. A 28-line figure is only meaningful once the 28 lines genuinely are one rotation.
 
 - **Firefox keyboard editing commits early.** Firefox fires `change` on every
   arrow-key press inside a focused `<select>`, so keyboard-only editing of a shift

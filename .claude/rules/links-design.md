@@ -18,7 +18,7 @@ paths:
 
 ## The module set
 
-The workspace is one coordinator over eight pure/extracted modules. Everything except `links-app.js`
+The workspace is one coordinator over **nine** pure/extracted modules. Everything except `links-app.js`
 is testable without a browser, which is deliberate — the coordinator is where the Firestore and DOM
 state lives, and the rules that have historically produced bugs have been pulled out of it.
 
@@ -443,7 +443,19 @@ unchanged; if it ever fails, the reorder has started moving cells rather than ro
 tool's job is to let you turn each on and SHOW what it cost — `scoreOrder` returns all the figures
 whatever you optimised for, and the generator's status line reports before→after. A blended score
 would hide the trade. Measured on a generated design: gentle-only takes week-to-week movement from
-42 to 9 minutes but drops weekends off from 10 to 9; all four on gives 14 minutes and 12 weekends.
+42 to 9 minutes but drops weekends off from 10 to 9.
+
+> **The all-on figure that used to sit here — "all four on gives 14 minutes and 12 weekends" — is
+> gone** (corrected v19.65). It was measured at v19.58, before `variety` existed, and it contradicted
+> the box above, which measures the shipped default at **95 min / 8 weekends** on the roster seed.
+> Both were presented as "all switches on", so this file said two different things about the one
+> configuration a designer actually gets — and named four switches when there are five.
+>
+> **The 9-minute gentle-only figure is the one to be careful with.** It is real, and it is *not* what
+> the tool does by default: `variety` deliberately spends that step to cap the block length. Quoting
+> it as the delivered FF18 answer would overstate the tool by an order of magnitude, in exactly the
+> conversation where the number matters. If you re-measure, record **which switches were on and on
+> which target set** — a step figure without both cannot be checked or reproduced.
 
 **Everything off means leave it alone** — the order comes back untouched rather than re-sorted by
 whatever was left.
