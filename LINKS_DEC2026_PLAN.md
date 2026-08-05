@@ -436,6 +436,53 @@ if the subject is how much of the morning falls outside the link.
 
 ### 4. Timetable-driven generator targets
 
+### The shape is KEPT; only the numbers grow (owner, Aug 2026)
+
+> *"The new roster largely should follow the existing pattern of shift times/numbers on shift, but
+> expanded numbers to cover the timetable increase, so that the extra load is handled."*
+
+This is the clearest steer the package has had, and it makes it much smaller. **The existing link is
+the starting point and stays the starting point**: the same wave structure, the same start times,
+the same broad distribution. It already covers the posts, the relief and today's trains — that is
+what it was built for and it is why it works. The December 2026 change is an **uplift on top**, not
+a redesign.
+
+Three consequences worth stating, because each closes off something that was live an hour ago:
+
+1. **Not a reshape.** The idea of redistributing staff toward the new peak — holding the total and
+   moving it to where the cars are — is off the table. The shape is kept deliberately.
+2. **Not a rebuild from demand either.** `buildRosterTargets()`'s roster seed is not a placeholder
+   to be replaced by a timetable-driven one. It is the baseline, and the timetable only sizes the
+   ADDITION.
+3. **So the tool's job is a DELTA**, applied to a seed it already produces. That is a far smaller
+   feature than "drive the targets from the service", and it needs no staffing ratio at all.
+
+**And that leaves exactly one thing missing, which is the blocker.** Laid out as a 2×2:
+
+| | today | December 2026 |
+|---|---|---|
+| **service** (trains per hour) | ✗ **not measured** | ✓ measured — package 3 |
+| **staffing** (people per shift) | ✓ `buildRosterTargets()` | ← what we are building |
+
+To expand today's numbers "to cover the timetable increase" you need the increase, and the increase
+is today's service against December's. Three of the four corners are in the tool; the missing one is
+**the current timetable at Marylebone**. Nothing in this document has ever held it — every figure
+here is Dec 2026.
+
+Two ways to fill it, either fine:
+
+- **The current simplifiers** (or equivalent), measured the same way — same ECS exclusion, same
+  `Max CAO` weighting, same two parse traps. Then the uplift is computed per hour and per day class,
+  and the tool can show its working.
+- **A stated uplift** from Nathan or the business — "two extra per hour in the evening peak", or a
+  headcount figure. Cruder, but it is the number that would actually be agreed, and the tool should
+  accept it directly rather than pretend to derive it.
+
+Until one of those exists, package 4 cannot size anything, and building the importer first would be
+building the half that was never the hard part.
+
+---
+
 **Re-scoped Aug 2026 — read "Demand is POSTS, not trains" first.** The original scope below said
 "allow the targets to be driven by the new service", which is wrong for most of the headcount: the
 ticket office, gateline and passenger assist are continuous posts, lost property is daytime Mon–Fri
@@ -559,9 +606,15 @@ Ordered by how much they change if the answer is unexpected.
 
 Recorded so the gaps are visible rather than implied:
 
+- **The CURRENT timetable.** Every service figure in this document is December 2026; today's is not
+  measured anywhere. That is now the single blocker on package 4 — "expand the numbers to cover the
+  timetable increase" needs the increase, and the increase is today's service against December's.
+  See "The shape is KEPT; only the numbers grow".
 - **Whether "coverage vs service" is the business requirement at all.** It is an inference from the
   data available, not something Nathan stated. He said business requirements and fatigue guidelines;
   the fatigue half is documented on p3, the business half is not written down anywhere here.
+  Partly softened by the posts steer above — the requirement is now known to be posts + relief +
+  a train-driven remainder — but nobody has confirmed that is what the proposals will be judged on.
 - ~~**What CEAs actually do at Marylebone hour by hour**~~ — **PARTLY ANSWERED (owner, Aug 2026), and
   it changes the demand model.** See "Demand is POSTS, not trains" below. The remaining unknowns are
   the numbers, not the structure.
