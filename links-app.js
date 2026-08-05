@@ -9,7 +9,7 @@
  *   live in links-design.js — no DOM, no Firebase there.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
+import { CONFIG, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -33,9 +33,10 @@ import {
     normalisePatterns,
     dayClass,
     calcCoverage,
-    generatePatterns,
+    generateLink,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
+import { reorderLines, applyOrder } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
@@ -221,7 +222,7 @@ export function init() {
     // Generator targets
     /** @type {Array<{time:string, weekday:number, sat:number, sun:number}>} */
     let genSlots = [];
-    let genSpare = { weekday: 0, sat: 0, sun: 0 };
+    let genSpareLines = 0;      // whole LINES that are spare weeks (v19.58) — not a per-day count
 
     // Multi-design state
     /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, updatedBy:string}>} */
@@ -1258,26 +1259,37 @@ export function init() {
     // ============================================
 
     /**
-     * Derive generator targets from the current roster: the main 20-week link
-     * plus the two bilingual lines the design uses. Weekday count = the busiest
-     * Mon–Fri day for that time (some shifts only run Tue/Thu/Fri).
+     * Derive generator targets from the current roster.
+     *
+     * ALL 28 REAL LINES — the main 20-week link and the whole 8-week bilingual one (v19.59). It used
+     * to take the main 20 plus only the TWO bilingual weeks the two bilingual members happen to sit
+     * on, then apply that 22-line sample to a 28-line design. Bilingual weeks 1 and 8 are the SPARE
+     * ones and were never sampled, so the seeded spare count came back as 4 when the roster the
+     * design represents has SIX — main 1/7/12/17 plus bilingual 1/8. Two whole lines of standby
+     * cover, missing by default, from a number nobody had reason to re-check.
+     *
+     * The design is 28 lines because that is main + bilingual, so the seed has to be main +
+     * bilingual too. `teamMembers` is no longer read here: which weeks two people are on today is a
+     * fact about staffing, not about the roster's shape.
+     *
+     * Weekday count = the busiest Mon–Fri day for that time (some shifts only run Tue/Thu/Fri). That
+     * is deliberately the MAX and not an average — under-staffing a day is the worse error — but it
+     * does mean a generated design staffs every weekday at the busiest weekday's level, which the
+     * real roster does not. The column header says so.
      */
     function buildRosterTargets() {
         const sources = [];
         const _weeklyRoster = /** @type {Record<number, any>} */ (weeklyRoster);
         const _bilingualRoster = /** @type {Record<number, any>} */ (bilingualRoster);
         for (let w = 1; w <= 20; w++) sources.push(_weeklyRoster[w]);
-        const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
-        for (let i = 0; i < 2; i++) sources.push(_bilingualRoster[blMembers[i]?.currentWeek || (i + 1)]);
+        for (let w = 1; w <= 8; w++) sources.push(_bilingualRoster[w]);
 
         const weekdays = DAYS.filter(d => dayClass(d) === 'weekday');
         const perDay = /** @type {Record<string, any>} */ ({});
-        const spareByDay = /** @type {Record<string, any>} */ (Object.fromEntries(DAYS.map(d => [d, 0])));
         for (const src of sources) {
             for (const d of DAYS) {
                 const s = src?.[d];
-                if (!s || s === 'RD' || s === 'OFF') continue;
-                if (s === 'SPARE') { spareByDay[d]++; continue; }
+                if (!s || s === 'RD' || s === 'OFF' || s === 'SPARE') continue;
                 perDay[s] = perDay[s] || Object.fromEntries(DAYS.map(x => [x, 0]));
                 perDay[s][d]++;
             }
@@ -1288,12 +1300,11 @@ export function init() {
             sat:     perDay[time].sat,
             sun:     perDay[time].sun,
         }));
-        const spare = {
-            weekday: Math.max(...weekdays.map(d => spareByDay[d])),
-            sat:     spareByDay.sat,
-            sun:     spareByDay.sun,
-        };
-        return { slots, spare };
+        // Spare is a whole WEEK in the real roster, so the seed is a count of lines, not a per-day
+        // headcount. Every roster source line that is spare is spare on all seven days, so counting
+        // the fully-spare sources gives the right number directly.
+        const spareLines = sources.filter(src => src && DAYS.every(d => src[d] === 'SPARE')).length;
+        return { slots, spareLines };
     }
 
 
@@ -1317,7 +1328,8 @@ export function init() {
     }
 
     function updateGenTotals() {
-        const tot = /** @type {Record<string, any>} */ ({ weekday: genSpare.weekday, sat: genSpare.sat, sun: genSpare.sun });
+        // The spare LINES cannot carry a timed duty, so they are part of every day's total.
+        const tot = /** @type {Record<string, any>} */ ({ weekday: genSpareLines, sat: genSpareLines, sun: genSpareLines });
         for (const s of genSlots) {
             tot.weekday += s.weekday; tot.sat += s.sat; tot.sun += s.sun;
         }
@@ -1343,7 +1355,7 @@ export function init() {
     /** Persist the current target table for the active design. Silent — losing it is a nuisance,
      *  never a failure worth interrupting a designer for. */
     function saveGenTargets() {
-        try { lsSet(_genTargetsKey(), JSON.stringify({ slots: genSlots, spare: genSpare })); }
+        try { lsSet(_genTargetsKey(), JSON.stringify({ slots: genSlots, spareLines: genSpareLines })); }
         catch { /* quota / private mode — the roster seed remains the fallback */ }
     }
 
@@ -1358,11 +1370,20 @@ export function init() {
             const v = JSON.parse(raw);
             const int = (/** @type {any} */ n) => Number.isInteger(n) && n >= 0;
             const okCounts = (/** @type {any} */ o) => !!o && int(o.weekday) && int(o.sat) && int(o.sun);
-            if (!v || !Array.isArray(v.slots) || !okCounts(v.spare)) return null;
+            if (!v || !Array.isArray(v.slots)) return null;
+            // TWO accepted shapes, and both must stay accepted. v19.58 replaced the per-day `spare`
+            // object with a single `spareLines` count; a validator that demanded only the new one
+            // would reject every table stored before the change, and a validator that demanded only
+            // the old one rejects everything written after it — silently, because the fallback is a
+            // perfectly plausible roster seed. There is no error, just the designer's tuning quietly
+            // gone. Accept either, reject anything that is neither.
+            const legacy = okCounts(v.spare);
+            if (!int(v.spareLines) && !legacy) return null;
             if (!v.slots.every((/** @type {any} */ sl) => sl && typeof sl.time === 'string' && okCounts(sl))) return null;
             return {
                 slots: v.slots.map((/** @type {any} */ sl) => ({ time: sl.time, weekday: sl.weekday, sat: sl.sat, sun: sl.sun })),
-                spare: { weekday: v.spare.weekday, sat: v.spare.sat, sun: v.spare.sun },
+                spareLines: int(v.spareLines) ? v.spareLines : null,
+                spare: legacy ? { weekday: v.spare.weekday, sat: v.spare.sat, sun: v.spare.sun } : null,
             };
         } catch { return null; }
     }
@@ -1370,14 +1391,18 @@ export function init() {
     /** Put a target table on screen (state + the three spare inputs + the rows). */
     function applyGenTargets(/** @type {any} */ t) {
         genSlots = t.slots;
-        genSpare = t.spare;
+        // Remembered targets predating v19.58 hold a per-day `spare` object. Read the largest of the
+        // three as the line count: it is the day that needed the most cover, so it never LOSES
+        // capacity in the migration. Reading only `weekday` would silently shrink a design whose
+        // Saturday carried more.
+        genSpareLines = Number.isInteger(t.spareLines)
+            ? t.spareLines
+            : Math.max(0, ...Object.values(/** @type {any} */ (t.spare) || {}).map(Number).filter(Number.isFinite));
         const set = (/** @type {string} */ id, /** @type {number} */ n) => {
             const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
             if (el) el.value = String(n);
         };
-        set('genSpareWeekday', genSpare.weekday);
-        set('genSpareSat',     genSpare.sat);
-        set('genSpareSun',     genSpare.sun);
+        set('genSpareLines', genSpareLines);
         renderGenTable();
     }
 
@@ -1429,9 +1454,10 @@ export function init() {
             saveGenTargets();
         });
 
-        for (const [id, cls] of [['genSpareWeekday', 'weekday'], ['genSpareSat', 'sat'], ['genSpareSun', 'sun']]) {
+        for (const [id, cls] of [['genSpareLines', 'lines']]) {
             document.getElementById(id)?.addEventListener('input', e => {
-                (/** @type {Record<string, any>} */ (genSpare))[cls] = Math.max(0, parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10) || 0);
+                void cls;
+                genSpareLines = Math.max(0, parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10) || 0);
                 updateGenTotals();
                 saveGenTargets();
             });
@@ -1445,11 +1471,9 @@ export function init() {
 
         document.getElementById('genSeedBtn')?.addEventListener('click', () => {
             // Re-seeding is an explicit "forget my tuning" — persist the roster values over it.
-            ({ slots: genSlots, spare: genSpare } = buildRosterTargets());
+            ({ slots: genSlots, spareLines: genSpareLines } = buildRosterTargets());
             saveGenTargets();
-            /** @type {HTMLInputElement} */ (document.getElementById('genSpareWeekday')).value = String(genSpare.weekday);
-            /** @type {HTMLInputElement} */ (document.getElementById('genSpareSat')).value     = String(genSpare.sat);
-            /** @type {HTMLInputElement} */ (document.getElementById('genSpareSun')).value     = String(genSpare.sun);
+            /** @type {HTMLInputElement} */ (document.getElementById('genSpareLines')).value = String(genSpareLines);
             renderGenTable();
             const errEl = document.getElementById('genError');
             if (errEl) errEl.textContent = '';
@@ -1474,9 +1498,19 @@ export function init() {
                 return;
             }
 
-            const generated = generatePatterns({ slots: genSlots, spare: genSpare, lines: ROTATING_LINES });
+            const built = generateLink({ slots: genSlots, spareLines: genSpareLines, lines: ROTATING_LINES });
+            const generated = built.patterns;
             if (!generated) {
-                if (errEl) errEl.textContent = `Can't generate — check every row has a valid time and whole-number targets.`;
+                // `no-rest` is its own message. It means the targets ask for so much cover that no
+                // arrangement leaves a person a rest day between a late finish and an early start —
+                // a real answer about the targets, not a typo in them, and the generic message would
+                // send the designer hunting for a bad row that does not exist.
+                if (errEl) {
+                    errEl.textContent = built.reason === 'no-rest'
+                        ? `Can't generate — these targets leave no room for rest days, so every line would `
+                          + `finish late and start early the next morning. Reduce a day's headcount or add spare weeks.`
+                        : `Can't generate — check every row has a valid time and whole-number targets.`;
+                }
                 return;
             }
 
@@ -1494,12 +1528,31 @@ export function init() {
                 danger: _hasWork,
             })) return;
 
+            // Tune the ORDER of the lines to whichever objectives are switched on. This is free with
+            // respect to coverage — permuting rows cannot change how many people work shift X on day
+            // D — so it can only ever trade the objectives against each other, and the status line
+            // states what that trade actually was rather than leaving the designer to trust it.
+            //
+            // AFTER the confirm, deliberately: the 2-opt sweep is ~150ms on a desktop and several
+            // times that on the phones this is used from, and run before the dialog that is the
+            // button sitting dead with nothing on screen to explain it.
+            const _chk = (/** @type {string} */ id) =>
+                !!(/** @type {HTMLInputElement|null} */ (document.getElementById(id))?.checked);
+            const _on = {
+                gentle: _chk('objGentle'), weekends: _chk('objWeekends'),
+                longWeekends: _chk('objLongWeekends'), turnarounds: _chk('objTurnarounds'),
+            };
+            const _target = Math.max(0, parseInt(
+                /** @type {HTMLInputElement|null} */ (document.getElementById('objLongTarget'))?.value ?? '4', 10) || 0);
+            const _ord = reorderLines(generated, { on: _on, longWeekendTarget: _target });
+            const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
+
             if (!design) {
                 // No active design yet — load into an unsaved in-memory design
-                design = { id: null, name: 'Design 1', patterns: generated };
+                design = { id: null, name: 'Design 1', patterns: _final };
                 activeDesignId = null;
             } else {
-                design = { ...design, patterns: generated };
+                design = { ...design, patterns: _final };
             }
 
             dirty = true;
@@ -1513,7 +1566,24 @@ export function init() {
             updateSaveBtn();
 
             const status = document.getElementById('linksSaveStatus');
-            if (status) { status.textContent = 'Link generated — review and save when ready.'; status.className = 'links-save-status ok'; }
+            if (status) {
+                // State the trade. A reorder that improved one figure at another's expense must say
+                // so — a bare "generated" would let the designer assume everything got better.
+                const b = _ord.before, a = _ord.after;
+                const bits = _ord.changed
+                    ? [`week-to-week ${b.gentleMean}→${a.gentleMean} min`,
+                        `weekends off ${b.weekends}→${a.weekends}`,
+                        `long ${b.longWeekends}→${a.longWeekends}`]
+                    : [];
+                // Name the construction. The two produce visibly different designs — settled weeks
+                // keep a line inside one wave, the fallback walks it across the whole day — and a
+                // designer who is not told which they got cannot account for the difference.
+                const how = built.mode === 'settled'
+                    ? `Link generated — settled weeks, ${built.waves} wave${built.waves === 1 ? '' : 's'}`
+                    : 'Link generated — rotating weeks (targets would not fit settled ones)';
+                status.textContent = how + (bits.length ? ` — ${bits.join(', ')}.` : '. Review and save when ready.');
+                status.className = 'links-save-status ok';
+            }
         });
     })();
 

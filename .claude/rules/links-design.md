@@ -33,6 +33,7 @@ state lives, and the rules that have historically produced bugs have been pulled
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
 | `links-concurrency.js` | the co-editing rules (three historical silent-overwrite bugs, one test each) |
 | `links-deletion.js` | the soft-delete/restore/purge rules |
+| `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in (v19.58) |
 
 ## Access control
 
@@ -98,7 +99,7 @@ With ≥2 designs, shows two read-only grids side-by-side (≥1024px) or stacked
 Staff names were removed at v12.39 — the design is patterns-only ("Line 1", "Line 2"…); who goes on which line is decided after patterns are agreed. Legacy `meta` in old docs is ignored on load and dropped on next save.
 
 ### Pure-maths module
-All design maths live in `links-design.js` (no DOM, no Firebase; tested by `links-design.test.mjs`) — `classifyShift`, `normaliseCustomShift`, `calcCoverage`, `calcHourlyCoverage`, `generatePatterns`, `runDesignChecks`, `dayClass`, `endMinutesAbs`. `links-app.js` imports these; do not duplicate them back into the app file. The ORR fatigue factors sit alongside in `links-fatigue.js` (v19.46), which imports from here — see the module table above for the full set.
+All design maths live in `links-design.js` (no DOM, no Firebase; tested by `links-design.test.mjs`) — `classifyShift`, `normaliseCustomShift`, `calcCoverage`, `calcHourlyCoverage`, `generateLink`, `generatePatterns`, `groupIntoWaves`, `WAVE_SPAN_MINUTES`, `runDesignChecks`, `dayClass`, `endMinutesAbs`. `links-app.js` imports these; do not duplicate them back into the app file. The ORR fatigue factors sit alongside in `links-fatigue.js` (v19.46), which imports from here — see the module table above for the full set.
 
 ### Save and dirty flag
 Single dirty flag + one `linksSaveBtn` / `saveChanges()`. Grid clicks are **delegated** on `#linksGridBodyRows` — do NOT call `renderGrid()` from inside `saveChanges()`.
@@ -276,14 +277,105 @@ It is computed over `weeklyRoster` (20 lines) and `bilingualRoster` (8) **at the
 splicing them into one 28 reports a longest run of 19, which is a property of the join and not of
 either roster.
 
-### Auto-generator (v12.39, slot-based v12.40)
-**The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus a spare row.
+### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
+**The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
 
-The table is **seeded from the current roster** on page load via `buildRosterTargets()` (main 20 weeks + the 2 BL lines; weekday count = busiest Mon–Fri day); `↺ Reset targets from current roster` re-seeds.
+**SPARE IS A WHOLE WEEK, NOT A SCATTER OF DAYS** (owner, Aug 2026). A spare line is spare on all seven days: you are cover, you work four days of that week, and you can be put on any range of shifts. The real roster is built this way — main lines **1, 7, 12, 17** are `SPARE` on every day, bilingual **1 and 8**, and there is not one scattered spare day anywhere in it.
 
-`generatePatterns({ slots, spare, lines: 28 })` uses a rotating-window construction: window slides forward completing one lap per week; within the window slots are ordered latest-start at front, earliest at back, spare in the middle — so each person's week only moves later (never a late finish then early start; asserted by tests). Daily targets are met exactly; any day-class total > 28 is rejected. Generator writes all 28 lines.
+The previous model took a per-day-class spare HEADCOUNT and fed it to the rotating window as one more segment. Because the window slides daily, that gave each person spare on some days and a timed duty on others. **The daily SP headcount came out right, which is why it went unnoticed** — the total was correct and the distribution was wrong. `spareLines` whole lines are now reserved and spread evenly around the wheel, and the rotation is built over the remainder; daily targets are still met exactly, and every day shows the same SP count, as the real roster does.
+
+Two consequences worth knowing: the targets are validated against the **working** lines (`lines − spareLines`), so a total that fits in 28 can still be refused; and a spare week counts as **7 worked days** in the run-length check although the person works four of them — we do not know which three are rest, and over-reporting a run is the safe direction for a fatigue check.
+
+The table is **seeded from the current roster** on page load via `buildRosterTargets()` — **all 28 real lines: the main 20 weeks AND the whole 8-week bilingual roster** (v19.59). It used to take main 20 plus only the two bilingual weeks the two bilingual members happen to sit on, then apply that 22-line sample to a 28-line design; bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came back as **4** where the real combined roster has **6** (main 1/7/12/17 + bilingual 1/8). Two whole lines of standby cover, missing by default. The design is 28 because that is main + bilingual, so the seed has to be main + bilingual too; which weeks two people sit on today is a fact about staffing, not about the roster's shape. Pinned by an e2e that drives `↺ Reset targets from current roster`, because the seed lives in the coordinator and a unit test would be checking its own copy of it.
+
+Weekday count = the **busiest** Mon–Fri day for that time (some shifts only run Tue/Thu/Fri), and the generator then staffs all five weekdays at that level. Deliberate — under-staffing a day is the worse error — but the real roster varies Mon to Fri, so the column header says `busiest day`.
+
+### The two constructions (v19.59)
+
+`generateLink({ slots, spareLines, lines })` tries **settled weeks** first and falls back to the original **rotating window**. Which one ran is REPORTED in the status line, never silent — they give visibly different designs. `generatePatterns` is the thin wrapper returning patterns only; it keeps the old signature because every existing caller and test is written against it.
+
+**1. Settled weeks (default).** Slots are grouped into WAVES — starts within `WAVE_SPAN_MINUTES` (2h, the same threshold FF19 uses) — each wave gets a contiguous BLOCK of lines sized by the duty it carries, and slides its own window inside that block. **A line therefore never leaves its wave**: its start can move 06:20 → 07:15, never 06:20 → 15:25.
+
+Measured against the real roster, the old construction was giving people a week nobody at Marylebone has ever worked:
+
+| | within-week start spread | lines above 4h | FF19 |
+|---|---|---|---|
+| Real main roster (20 lines) | 3h44 | 7 of 16 | 6 |
+| Generated, rotating (old) | **8h09** | **22 of 22** | **27** |
+| Generated, settled (v19.59) | **1h33** | **0 of 22** | **2** |
+
+The tool reports FF19 and its own generator was the thing inflating it ~5×. Days worked per line now matches the real roster's distribution (3–6, clustered at 5).
+
+Waves rather than exact times, deliberately: per-TIME blocks are infeasible here — the seed produces 28 distinct times over 22 working lines and several are weekend-only — and waves are also what the real roster does (line 3 works 06:20-14:20 midweek and 06:20-14:00 on the Saturday).
+
+Three things that were wrong on the way and are each pinned by a test:
+
+- **A wave too small to fund a line is merged into its nearer neighbour.** The two 08:30 weekend-only slots formed their own wave, so one whole line existed to work Sat and Sun and nothing else — days per line came out 2 to 6 where the old construction ran 3 to 6. A shape improvement paid for with an unfair link is not an improvement. Merging widens a wave past 2h (06:20…08:30 is 2h10) and the panel then counts that movement, which is the right way round.
+- **A lap is spread ACROSS the week, never front-loaded.** `base + (i < rem)` strides lap a 3-line block by Tuesday and then hold the window still to Saturday, so the same lines work all four of those days and one caught two a week. `floor((i+1)·n/7) − floor(i·n/7)` shares it out exactly.
+- **The fairness test is comparative, not an absolute floor.** "Nobody under 3 days" is a fact about the TARGETS, not the construction — it would pass or fail on the fixture.
+
+**2. Rotating window (fallback).** The wheel: a window of consecutive lines slides forward a few lines a day, one lap per week, slots ordered latest-start at front.
+
+Its documented promise — *"a person's week only moves later, never a late finish then an early start; asserted by tests"* — **was not true**. Positions are read mod `working`, so every line wraps front-to-back once a week and that wrap IS the step; it lands on a rest day only while the targets leave lines resting. At full staffing it produced **27** short turnarounds, `15:15-23:55` into `06:20-14:20` — **6h25** rest. The test that "asserted" it staffed 13 of 24 lines, where the wrap always fell on RD.
+
+Strides are no longer near-equal: each day's is capped at `working − (next day's total)`, exactly the condition for a wrapping line to be resting the following day, and the lap is distributed in proportion to those caps. When the caps cannot fund a lap the targets leave under one rest day per line per week — the generator **refuses** (`reason: 'no-rest'`, with its own message) rather than shipping the phantom guarantee. Settled weeks survive those same targets, because a line staying in one wave costs nothing in body-clock movement.
+
+Daily targets are met exactly by both; any day-class total > the working lines is rejected. Generator writes all 28 lines.
 
 **Do not add back** `buildDefaultDesign`, `initFromRosters`, or `resetFromRosters` — those paths were removed at v12.43 because they copied raw 22-line roster patterns leaving lines 23–28 as all-RD blanks. The generator produces a complete 28-line rotation.
+
+### Line ORDER — the four objectives (v19.58)
+
+`links-adjacency.js`, applied by the generator through four switches. A whole class of the design's
+quality lives in which line follows which, because you work line w one week and line w+1 the next:
+the week-to-week movement of your working day (the FF18 question), whether Saturday off is followed
+by Sunday off, whether that extends to three or four days, and whether Saturday's finish runs into
+Sunday's start.
+
+**Reordering is FREE with respect to coverage, and that fact is what makes the feature safe.** Daily
+coverage is "how many lines work shift X on day D"; permuting the rows leaves that multiset
+identical. So these objectives cannot cost a single person's cover — they compete only with EACH
+OTHER, over the one scarce resource of line adjacency. There is a test asserting the multiset is
+unchanged; if it ever fails, the reorder has started moving cells rather than rows.
+
+**Switches, not a formula** (owner, Aug 2026). Turning one on takes freedom from the rest, so the
+tool's job is to let you turn each on and SHOW what it cost — `scoreOrder` returns all the figures
+whatever you optimised for, and the generator's status line reports before→after. A blended score
+would hide the trade. Measured on a generated design: gentle-only takes week-to-week movement from
+42 to 9 minutes but drops weekends off from 10 to 9; all four on gives 14 minutes and 12 weekends.
+
+**Everything off means leave it alone** — the order comes back untouched rather than re-sorted by
+whatever was left.
+
+Two rules that are easy to undo:
+
+- **A spare week must not read as a gentle transition.** A spare line carries no times, so the step
+  across it cannot be measured — and an optimiser scoring "unmeasurable" as "no change" would learn
+  to park spare weeks between the two harshest lines and report a beautiful number. Unmeasurable
+  steps are counted and reported SEPARATELY, never folded into the mean.
+- **Days off and contracted days GIVEN are two different answers.** Sunday is not contracted, so
+  Sat + Sun off is a two-day break but only one contracted day. Rolled into one number, a design
+  that simply never rosters Sundays would score as generous while giving nothing away. `breakLength`
+  returns both; `days` is right for fatigue, `given` is right for judging the design.
+
+**Deterministic** — no randomness. The same design and switches always give the same order, so a
+designer can re-run and get their design back, and two designers comparing notes compare the same
+thing. Greedy nearest-neighbour then a bounded 2-opt; not optimal and does not claim to be.
+
+### Sunday is not contracted, and the generator does not model it
+
+Sundays appear on the roster as agreed **RDW** — overtime by agreement, not contracted hours — but
+`dayClass` returns `'sun'` and that is the entire extent of it. Nothing in the generator,
+`runDesignChecks` or `links-fatigue.js` treats a Sunday duty as voluntary. Mostly harmless (the cover
+still has to be found, and an hour worked is an hour worked for fatigue), but two readings change:
+the Sunday column is cover you HOPE to fill rather than cover you can require, and "weekends off"
+counts a Sunday you were never going to work. The generator table labels the column `RDW` for the
+first; `links-adjacency.js` splits days-off from contracted-days-given for the second.
+
+**A spare week's four days come from Mon–Sat.** The Sunday of a spare week stays RDW if the roster
+clerk gives it, on top of the four — it is not one of them. All seven days are still marked SPARE,
+which is what the real roster does and what "available for cover" means, but a reader should not take
+the four out of seven.
 
 ### Line numbering (full 28-line rotation, v12.42)
 All 28 lines rotate and **every one must carry a real worked pattern** — in the rotation everyone passes through every line, so a "vacancy" is a missing *person*, not a missing *pattern*. `ROTATING_LINES = 28`.

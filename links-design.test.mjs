@@ -14,6 +14,9 @@ import {
     calcCoverage,
     calcHourlyCoverage,
     generatePatterns,
+    generateLink,
+    groupIntoWaves,
+    WAVE_SPAN_MINUTES,
     runDesignChecks,
     dayClass,
     canonicaliseShift,
@@ -109,10 +112,10 @@ const SLOTS = [
     { time: '11:00-19:30', weekday: 2, sat: 1, sun: 1 },
     { time: '15:15-23:55', weekday: 4, sat: 3, sun: 2 },
 ];
-const SPARE = { weekday: 3, sat: 2, sun: 1 };
+const SPARE_LINES = 4;   // whole spare WEEKS (v19.58) — a count of lines, not a per-day headcount
 
 test('generatePatterns meets every day-class target exactly', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
     assert.ok(patterns);
     for (const d of DAYS) {
         const cls = dayClass(d);
@@ -126,12 +129,44 @@ test('generatePatterns meets every day-class target exactly', () => {
         for (const slot of SLOTS) {
             assert.equal(counts[slot.time] || 0, slot[cls], `${slot.time} on ${d}`);
         }
-        assert.equal(spare, SPARE[cls], `spare on ${d}`);
+        // Every day shows the SAME spare headcount, because a spare line is spare all week. That
+        // equality across day classes is the whole change: the per-day model could and did produce
+        // a different figure each day, which the real roster never has.
+        assert.equal(spare, SPARE_LINES, `spare on ${d}`);
     }
 });
 
+test('a spare line is spare on ALL SEVEN DAYS — never a scattered spare day', () => {
+    // The defect this replaced (v19.58, owner): the rotating window slid daily and carried spare as
+    // one more segment, so a person was spare on some days and on a timed duty on others. The daily
+    // SP headcount came out right, which is why it went unnoticed — the total was correct and the
+    // distribution was wrong. The real roster has whole spare weeks only: main lines 1, 7, 12 and 17
+    // are SPARE on every day and there is not one scattered spare day in it.
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+    let full = 0;
+    for (let w = 1; w <= 28; w++) {
+        const days = DAYS.map(d => patterns[String(w)][d]);
+        const n = days.filter(v => v === 'SPARE').length;
+        assert.ok(n === 0 || n === 7, `line ${w} has ${n} spare days — a spare line is a whole WEEK`);
+        if (n === 7) full++;
+    }
+    assert.equal(full, SPARE_LINES);
+});
+
+test('spare weeks are spread around the wheel, not bunched', () => {
+    // The real roster puts them at 1, 7, 12, 17 of 20 — roughly every fifth line. Bunched spare
+    // weeks would give one person two cover weeks back to back and everyone else none for months.
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+    const rows = [];
+    for (let w = 1; w <= 28; w++) if (patterns[String(w)].mon === 'SPARE') rows.push(w);
+    assert.equal(rows.length, SPARE_LINES);
+    const gaps = rows.map((r, i) => (i ? r - rows[i - 1] : r + 28 - rows[rows.length - 1]));
+    const ideal = 28 / SPARE_LINES;
+    for (const g of gaps) assert.ok(Math.abs(g - ideal) <= 1, `gap ${g} against an even ${ideal}`);
+});
+
 test('generatePatterns produces all 28 lines with all 7 days', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
     for (let w = 1; w <= 28; w++) {
         const p = patterns[String(w)];
         assert.ok(p, `line ${w}`);
@@ -140,21 +175,185 @@ test('generatePatterns produces all 28 lines with all 7 days', () => {
 });
 
 test('generatePatterns never produces a short turnaround (forward body-clock rotation)', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 28 });
+    const patterns = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
     const checks = runDesignChecks(patterns, 28);
     assert.equal(checks.turnarounds.length, 0,
         `expected no turnarounds, got: ${JSON.stringify(checks.turnarounds)}`);
 });
 
+// ---------- the settled-week construction (v19.59) ----------
+
+describe('waves', () => {
+    test('slots within the FF19 threshold of each other are one wave', () => {
+        const waves = groupIntoWaves([
+            { time: '06:20-14:20', weekday: 2, sat: 1, sun: 1 },
+            { time: '08:00-16:30', weekday: 2, sat: 1, sun: 1 },
+            { time: '15:15-23:55', weekday: 2, sat: 1, sun: 1 },
+        ]);
+        assert.equal(waves.length, 2);
+        assert.deepEqual(waves[0].map(s => s.time), ['06:20-14:20', '08:00-16:30']);
+        assert.equal(WAVE_SPAN_MINUTES, 120);
+    });
+
+    test('a wave too small to fund one line is merged into its nearer neighbour', () => {
+        // The roster seed produced exactly this: the two 08:30 weekend-only slots sat 30 minutes off
+        // the morning wave and 2h30 off the middles, but 2h10 from the morning wave's FIRST slot —
+        // so the span rule cut them adrift and one whole line existed to work Sat and Sun only.
+        const slots = [
+            { time: '06:20-14:20', weekday: 6, sat: 4, sun: 3 },
+            { time: '08:30-16:30', weekday: 0, sat: 1, sun: 1 },
+            { time: '15:15-23:55', weekday: 6, sat: 4, sun: 3 },
+        ];
+        assert.equal(groupIntoWaves(slots).length, 3, 'the raw span rule strands 08:30');
+        const built = generateLink({ slots, spareLines: 4, lines: 28 });
+        assert.equal(built.mode, 'settled');
+        assert.equal(built.waves, 2, 'the stranded wave is merged, not left to hold a line of its own');
+    });
+});
+
+describe('settled weeks', () => {
+    /** Worked days for each line that is not a spare week. */
+    const workedDays = (/** @type {any} */ p, n = 28) => {
+        const out = [];
+        for (let w = 1; w <= n; w++) {
+            const row = p[String(w)];
+            if (DAYS.every(d => row[d] === 'SPARE')) continue;
+            out.push(DAYS.filter(d => row[d] !== 'RD' && row[d] !== 'OFF').length);
+        }
+        return out;
+    };
+    /** Widest gap between a line's earliest and latest start in one week. */
+    const spreads = (/** @type {any} */ p, n = 28) => {
+        const out = [];
+        for (let w = 1; w <= n; w++) {
+            const st = DAYS.map(d => startMinutes(p[String(w)][d])).filter(v => v !== null);
+            if (st.length >= 2) out.push(Math.max(...st) - Math.min(...st));
+        }
+        return out;
+    };
+
+    test('a line stays inside its wave all week, so its start never moves more than the wave span', () => {
+        // This is the whole point. Measured on the roster seed, the old construction gave a mean
+        // within-week spread of 7h58 with EVERY line above 4h; the real main roster averages 3h44.
+        // Nobody at Marylebone works a week that starts 15:25 on the Sunday and 06:20 on the
+        // Wednesday, and the generator was producing 28 of them.
+        const p = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+        for (const s of spreads(p)) {
+            assert.ok(s <= WAVE_SPAN_MINUTES, `within-week start spread ${s} exceeds one wave`);
+        }
+    });
+
+    test('settled weeks still meet every day-class target exactly', () => {
+        const p = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+        for (const d of DAYS) {
+            const cls = dayClass(d);
+            const counts = {};
+            for (let w = 1; w <= 28; w++) {
+                const v = p[String(w)][d];
+                if (v !== 'RD' && v !== 'SPARE') counts[v] = (counts[v] || 0) + 1;
+            }
+            for (const slot of SLOTS) assert.equal(counts[slot.time] || 0, slot[cls], `${slot.time} on ${d}`);
+        }
+    });
+
+    test('settled weeks cost no fairness — the load spread is no wider than the fallback\'s', () => {
+        // A shape improvement paid for with an unfair link is not an improvement, and the first TWO
+        // attempts at this construction were both less fair than the thing they replaced: one gave a
+        // whole line to a weekend-only wave, the other lapped a small block in three days and then
+        // held the window still for four. Both produced somebody working two days a week.
+        //
+        // The claim is comparative, deliberately. An absolute floor ("nobody under 3 days") is a fact
+        // about the TARGETS — these ones average 3.3 days a line — not about the construction, and it
+        // would pass or fail on the fixture rather than on the code.
+        const s = workedDays(generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 }).patterns);
+        const r = workedDays(generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, settled: false }).patterns);
+        const sum = (/** @type {number[]} */ a) => a.reduce((x, y) => x + y, 0);
+        const span = (/** @type {number[]} */ a) => Math.max(...a) - Math.min(...a);
+        assert.equal(sum(s), sum(r), 'both constructions place exactly the same total duty');
+        assert.ok(span(s) <= span(r), `settled spans ${span(s)} days against the fallback's ${span(r)}`);
+    });
+
+    test('a lap is spread across the week, never front-loaded into the first few days', () => {
+        // n = 3 under the old rule gave strides [1,1,1,0,0,0,0]: the window laps by Tuesday and then
+        // sits still to Saturday, so the same lines work all four of those days.
+        const slots = [{ time: '06:20-14:20', weekday: 2, sat: 1, sun: 1 }];
+        const p = generatePatterns({ slots, spareLines: 0, lines: 3 });
+        const days = [];
+        for (let w = 1; w <= 3; w++) days.push(DAYS.filter(d => p[String(w)][d] !== 'RD').length);
+        assert.deepEqual(days, [4, 4, 4], 'all three lines carry the same load');
+    });
+
+    test('it reports WHICH construction ran — the two give different designs', () => {
+        const settled = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+        const rotating = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, settled: false });
+        assert.equal(settled.mode, 'settled');
+        assert.equal(rotating.mode, 'rotating');
+        assert.notDeepEqual(settled.patterns, rotating.patterns);
+        // generatePatterns keeps its old contract — patterns or null, nothing else.
+        assert.deepEqual(generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 }), settled.patterns);
+    });
+});
+
+describe('the rotating fallback no longer promises rest it cannot give', () => {
+    // Documented for years as "a person's week only moves later, never a late finish then an early
+    // start; asserted by tests". It was not true. Positions are read mod `working`, so every line
+    // wraps from the front of the slot order to the back once a week, and that wrap IS the step —
+    // it lands on a rest day only while the targets leave lines resting. The test that asserted it
+    // staffed 13 of 24 lines, where the wrap always fell on RD.
+    const DENSE = [
+        { time: '06:20-14:20', weekday: 9, sat: 9, sun: 9 },
+        { time: '11:00-19:30', weekday: 9, sat: 9, sun: 9 },
+        { time: '15:15-23:55', weekday: 10, sat: 10, sun: 10 },
+    ];
+
+    test('at full staffing the old construction produced 27 short turnarounds — it now REFUSES', () => {
+        const r = generateLink({ slots: DENSE, spareLines: 0, lines: 28, settled: false });
+        assert.equal(r.patterns, null);
+        assert.equal(r.reason, 'no-rest', 'refused for the real reason, not as a generic bad-input');
+    });
+
+    test('where it CAN run, no line finishes late and starts early the next morning', () => {
+        // Teeth: with near-equal strides this fixture is fine, so the assertion that matters is the
+        // one above. Here we only pin that the capped strides did not break the ordinary case.
+        const r = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, settled: false });
+        assert.equal(r.mode, 'rotating');
+        assert.equal(runDesignChecks(r.patterns, 28).turnarounds.length, 0);
+    });
+
+    test('a settled design survives the same dense targets the fallback refuses', () => {
+        // Each line sits in one wave, so "everybody works seven days" costs nothing in body-clock
+        // movement — which is exactly why settled is tried first.
+        const s = generateLink({ slots: DENSE, spareLines: 0, lines: 28 });
+        assert.equal(s.mode, 'settled');
+        for (let w = 1; w <= 28; w++) {
+            const st = DAYS.map(d => startMinutes(s.patterns[String(w)][d])).filter(v => v !== null);
+            assert.ok(Math.max(...st) - Math.min(...st) <= WAVE_SPAN_MINUTES, `line ${w} leaves its wave`);
+        }
+    });
+});
+
 test('generatePatterns rejects totals over the line count', () => {
     const big = [{ time: '06:20-14:20', weekday: 29, sat: 0, sun: 0 }];
     assert.equal(generatePatterns({ slots: big, lines: 28 }), null);
-    // spare pushes it over
+    // Spare LINES reduce what is left to carry the targets, so a total that would fit in 28 can
+    // still be refused — 26 duties cannot fit in the 25 working lines left by 3 spare weeks.
     assert.equal(generatePatterns({
         slots: [{ time: '06:20-14:20', weekday: 26, sat: 0, sun: 0 }],
-        spare: { weekday: 3, sat: 0, sun: 0 },
+        spareLines: 3,
         lines: 28,
     }), null);
+    // …and it fits with one fewer spare week.
+    assert.ok(generatePatterns({
+        slots: [{ time: '06:20-14:20', weekday: 26, sat: 0, sun: 0 }],
+        spareLines: 2,
+        lines: 28,
+    }));
+});
+
+test('generatePatterns rejects an impossible spare-line count', () => {
+    assert.equal(generatePatterns({ slots: SLOTS, spareLines: 28, lines: 28 }), null);   // nothing left to work
+    assert.equal(generatePatterns({ slots: SLOTS, spareLines: -1, lines: 28 }), null);
+    assert.equal(generatePatterns({ slots: SLOTS, spareLines: 1.5, lines: 28 }), null);
 });
 
 test('generatePatterns rejects invalid input', () => {
@@ -172,7 +371,7 @@ test('generatePatterns accepts a many-slot wave profile (real roster shape)', ()
         '13:30-22:00', '14:00-22:30', '15:00-23:30', '15:15-23:55',
     ].map(time => ({ time, weekday: 1, sat: 1, sun: 1 }));
     waves[2].weekday = 2; // 06:20-14:20 ×2
-    const patterns = generatePatterns({ slots: waves, spare: { weekday: 4, sat: 4, sun: 4 }, lines: 28 });
+    const patterns = generatePatterns({ slots: waves, spareLines: 4, lines: 28 });
     assert.ok(patterns);
     const checks = runDesignChecks(patterns, 28);
     assert.equal(checks.turnarounds.length, 0);

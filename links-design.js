@@ -243,87 +243,410 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
  * each with its own time and per-day-class headcount, rather than a single
  * "early" and "late".
  *
- * How it works ("rotating window"): picture the 28 lines around a wheel. Each
- * day, a window of consecutive lines is "on duty"; the window slides forward
- * a few lines every day, completing exactly one lap per week — which is what
- * makes "everyone moves down one line each week" seamless. Within the window,
- * slots are ordered latest-start at the front and earliest-start at the back
- * (spare in the middle), so as the window slides past a line its week runs
- * earliest → … → latest → rest days: a forward (body-clock-friendly)
- * rotation. Moving your body clock LATER each day is far easier than dragging
- * it earlier, which is why the generator never produces a late shift followed
- * by an early start the next morning.
+ * TWO CONSTRUCTIONS, and the DEFAULT changed at v19.59. `generateLink` tries the
+ * settled-week construction first and falls back to the original rotating window
+ * only when the targets cannot be met that way. Which one ran is REPORTED, never
+ * silent — the two produce visibly different designs.
  *
- * Daily targets are met EXACTLY by construction (the window size equals the
+ * ── 1. SETTLED WEEKS (default, v19.59) ─────────────────────────────────────
+ * Measured against the real roster, the old construction was giving people a week
+ * nobody at Marylebone has ever worked. Within-week start spread averaged 7h58 and
+ * EVERY line exceeded 4h; the real main roster averages 3h44 with 7 of 16 above 4h,
+ * because it hands out WEEKS — week 2 is all lates, week 3 all earlies, week 9 all
+ * 11:00 middles. FF19 (successive starts more than 2h apart) counted 6 on the real
+ * roster and 29 on the generated one. The tool reports FF19, and its own generator
+ * was the thing inflating it.
+ *
+ * So: group the slots into WAVES — start times within `WAVE_SPAN_MINUTES` of each
+ * other, the same 2h threshold FF19 uses — give each wave a contiguous BLOCK of
+ * lines sized by how much duty it carries, and slide a window inside each block to
+ * decide who works which day. A line therefore stays in one wave all week: its exact
+ * time can move between 06:20 and 07:15, never between 06:20 and 15:25.
+ *
+ * Waves rather than exact times, deliberately. Per-TIME blocks are infeasible here —
+ * the roster seed produces 23 distinct times over 24 working lines, and several are
+ * Saturday-only, so a block per time would need more lines than exist. Waves are also
+ * what the real roster does: line 3 works 06:20-14:20 midweek and 06:20-14:00 on the
+ * Saturday. Grouping by the FF19 threshold means the within-week movement this
+ * construction still allows is, by definition, movement FF19 does not count.
+ *
+ * ── 2. ROTATING WINDOW (fallback) ──────────────────────────────────────────
+ * Picture the lines around a wheel. Each day a window of consecutive lines is on duty
+ * and slides forward a few lines, completing exactly one lap per week. Within the
+ * window slots run latest-start at the front, earliest at the back.
+ *
+ * Its documented promise — "a person's week only moves later, never a late finish
+ * then an early start" — was NOT TRUE and is now enforced rather than asserted
+ * (v19.59). Positions are read mod `working`, so every line wraps from the front of
+ * the order to the back exactly once a week; that wrap IS a late-finish-to-early-start
+ * step, and it lands on a rest day only when the day's target leaves enough lines
+ * resting. At high staffing it does not: with all three slots filling all 28 lines
+ * every day the construction produced **27** short turnarounds, `15:15-23:55` into
+ * `06:20-14:20` — 6h25 rest — and the test that "asserted" the promise used a fixture
+ * staffing 13 of 24 lines, where the wrap always landed on RD.
+ *
+ * The strides are no longer near-equal. Each day's stride is capped at
+ * `working − (next day's total)`, which is exactly the condition for every wrapping
+ * line to be resting the following day, and the lap is distributed in proportion to
+ * those caps. When the caps cannot sum to a full lap the targets leave less than one
+ * rest day per line per week; the generator REFUSES rather than shipping the phantom
+ * guarantee (`restFeasible`).
+ *
+ * Daily targets are met EXACTLY by both constructions (the window size equals the
  * target headcount for that day).
+ *
+ * SPARE IS A WHOLE WEEK, NOT A SCATTER OF DAYS (v19.58, owner). A spare line is
+ * spare on all seven days: you are cover, you work four days of that week, and
+ * you can be put on any range of shifts. The real roster is built this way —
+ * main lines 1, 7, 12 and 17 are `SPARE` on every day, and there is not one
+ * scattered spare day anywhere in it.
+ *
+ * The previous model took a per-day-class spare HEADCOUNT and fed it to the
+ * window as one more segment. Because the window slides daily, that gave each
+ * person spare on some days and a timed duty on others — the opposite of a
+ * spare week, and a shape the roster has never had. Daily SP headcount came out
+ * right, which is why it went unnoticed: the total was correct and the
+ * distribution was wrong.
+ *
+ * So `spareLines` whole lines are reserved and spread evenly around the wheel,
+ * and the rotation is built over the REMAINING lines. Daily targets are still
+ * met exactly — the working lines carry them — and every day now shows exactly
+ * `spareLines` on standby, as the real roster does.
+ *
+ * SUNDAY IS NOT CONTRACTED, and the generator does NOT model that (owner, Aug 2026). Sundays appear
+ * on the roster as agreed RDW — overtime by agreement, not contracted hours — but here `sun` is
+ * simply a third day class with its own headcount, exactly like `weekday` and `sat`. Nothing in this
+ * module, `runDesignChecks` or `links-fatigue.js` treats a Sunday duty as voluntary.
+ *
+ * That is mostly harmless — the cover still has to be found, and for FATIGUE purposes an hour worked
+ * is an hour worked however it is paid — but two readings do change:
+ *   · the Sunday column is cover you HOPE to fill, not cover you can require, so a Sunday target the
+ *     generator meets exactly is a plan rather than a commitment;
+ *   · "weekends off" counts Sat-not-worked plus Sun-not-worked, and a Sunday you do not work is the
+ *     DEFAULT. `links-adjacency.js` splits days-off from contracted-days-GIVEN for that reason.
+ *
+ * A SPARE WEEK'S FOUR DAYS COME FROM MON–SAT. The Sunday of a spare week stays RDW if the roster
+ * clerk gives it, on top of the four; it is not one of them. All seven days are still marked SPARE,
+ * which is what the real roster does and what "available for cover" means — but a reader should not
+ * take the four out of seven.
  *
  * @param {Object} opts
  * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
  *   - one entry per distinct shift time, with target headcounts per day class
- * @param {{weekday:number, sat:number, sun:number}} [opts.spare] - standby targets
+ * @param {number} [opts.spareLines=0] - how many WHOLE lines are spare weeks
  * @param {number} [opts.lines=28]
  * @returns {Object|null} patterns for "1".."lines", or null if invalid /
- *   any day-class total exceeds lines
+ *   any day-class total exceeds the working lines
  */
-export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }, lines = ROTATING_LINES }) {
-    if (!Array.isArray(slots) || slots.length === 0) return null;
-    const _spare = /** @type {Record<string, any>} */ (spare);
-    const classes = ['weekday', 'sat', 'sun'];
-    for (const cls of classes) {
-        let total = _spare[cls] ?? 0;
-        if (!Number.isInteger(total) || total < 0) return null;
-        for (const s of /** @type {Array<Record<string, any>>} */ (slots)) {
-            const n = s[cls] ?? 0;
-            if (!Number.isInteger(n) || n < 0) return null;
-            if (startMinutes(s.time) === null) return null;
-            total += n;
+export function generatePatterns(opts) {
+    return generateLink(opts).patterns;
+}
+
+/** Slots whose starts sit within this span are one WAVE — the same threshold FF19 uses, so the
+ *  movement a settled week still allows is by definition movement FF19 does not count. */
+export const WAVE_SPAN_MINUTES = 2 * 60;
+
+const TARGET_CLASSES = ['weekday', 'sat', 'sun'];
+/** How many days of the week carry each day class — the weight a class has in a week's duty total. */
+const CLASS_DAYS = /** @type {Record<string, number>} */ ({ weekday: 5, sat: 1, sun: 1 });
+
+/**
+ * Group slots into waves: each wave holds every slot starting within `span` of its earliest.
+ * Pure and deterministic; slots are read in start-time order, so the wave list is stable.
+ * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} slots
+ * @param {number} [span]
+ * @returns {Array<Array<any>>}
+ */
+export function groupIntoWaves(slots, span = WAVE_SPAN_MINUTES) {
+    const sorted = [...(slots || [])]
+        .filter(s => s && startMinutes(s.time) !== null)
+        .sort((a, b) => /** @type {number} */ (startMinutes(a.time)) - /** @type {number} */ (startMinutes(b.time)));
+    /** @type {Array<Array<any>>} */
+    const waves = [];
+    for (const s of sorted) {
+        const cur = waves[waves.length - 1];
+        const from = cur ? /** @type {number} */ (startMinutes(cur[0].time)) : 0;
+        if (cur && /** @type {number} */ (startMinutes(s.time)) - from <= span) cur.push(s);
+        else waves.push([s]);
+    }
+    return waves;
+}
+
+/** Total headcount a group of slots needs on one day class. */
+const classTotal = (/** @type {Array<any>} */ group, /** @type {string} */ cls) =>
+    group.reduce((a, s) => a + (s[cls] ?? 0), 0);
+
+/** Duties a group of slots generates in a week — the size of the block it has to be given. */
+const waveDuty = (/** @type {Array<any>} */ group) =>
+    TARGET_CLASSES.reduce((a, c) => a + CLASS_DAYS[c] * classTotal(group, c), 0);
+
+/** The widest a wave has to be to hold its busiest day — the floor on its block. */
+const waveNeed = (/** @type {Array<any>} */ group) =>
+    Math.max(...TARGET_CLASSES.map(c => classTotal(group, c)));
+
+/**
+ * Merge away any wave too small to fund the lines it needs, into whichever neighbour is closer in
+ * time. Returns a new wave list; deterministic, and it always terminates because each pass removes
+ * one wave.
+ *
+ * WHY (measured, v19.59). Splitting purely on the 2h span left the roster seed with a wave holding
+ * only the two 08:30 weekend slots — 2 duties, but a floor of 1 line, so one whole line existed to
+ * work Saturday and Sunday and nothing else. Days worked per line came out 2 to 6 where the real
+ * roster runs 3 to 6 clustered at 5, and the old rotating construction — whose single global window
+ * shares the work across every line — was FAIRER. A shape improvement paid for with an unfair link
+ * is not an improvement.
+ *
+ * The real roster solves it the same way: line 3 works 06:20-14:20 midweek and 06:20-14:00 on the
+ * Saturday, so its weekend duty comes from its own wave rather than from a weekend-only line.
+ *
+ * Merging widens a wave past the FF19 threshold (06:20…08:30 is 2h10), so the movement inside it can
+ * be a factor the panel counts. That is the right way round: the panel reports it, and a link where
+ * somebody works two days a week is the worse answer with nothing to report it at all.
+ * @param {Array<Array<any>>} waves
+ * @param {number} working
+ */
+function mergeUnfundedWaves(waves, working) {
+    let cur = waves.map(w => w.slice());
+    for (let guard = 0; cur.length > 1 && guard < waves.length; guard++) {
+        const total = cur.reduce((a, w) => a + waveDuty(w), 0);
+        if (!total) break;
+        const short = cur.findIndex(w => working * waveDuty(w) / total < waveNeed(w));
+        if (short < 0) break;
+        // Nearest neighbour by the gap between the two waves' adjoining start times.
+        const gapBefore = short > 0
+            ? /** @type {number} */ (startMinutes(cur[short][0].time)) - /** @type {number} */ (startMinutes(cur[short - 1][cur[short - 1].length - 1].time))
+            : Infinity;
+        const gapAfter = short < cur.length - 1
+            ? /** @type {number} */ (startMinutes(cur[short + 1][0].time)) - /** @type {number} */ (startMinutes(cur[short][cur[short].length - 1].time))
+            : Infinity;
+        const into = gapBefore <= gapAfter ? short - 1 : short + 1;
+        const merged = into < short ? [...cur[into], ...cur[short]] : [...cur[short], ...cur[into]];
+        cur = cur.filter((_, i) => i !== short && i !== into);
+        cur.splice(Math.min(into, short), 0, merged);
+    }
+    return cur;
+}
+
+/**
+ * Share the working lines out between the waves, in proportion to the duty each carries.
+ *
+ * Two constraints, and the second is the one that decides feasibility: a wave's block can never be
+ * smaller than its busiest day, or the window would have to be wider than the block it slides in.
+ * Largest-remainder for the proportional part, then deficient waves are raised to that floor and the
+ * surplus taken back from whoever has the most slack — deterministic at every step.
+ * @param {Array<Array<any>>} waves
+ * @param {number} working
+ * @returns {number[]|null} lines per wave, or null when the floors cannot fit
+ */
+function allocateWaveLines(waves, working) {
+    const need = waves.map(waveNeed);
+    const duties = waves.map(waveDuty);
+    const totalDuty = duties.reduce((a, b) => a + b, 0);
+    if (totalDuty === 0) return null;
+
+    const raw = duties.map(d => working * d / totalDuty);
+    const out = raw.map(Math.floor);
+    let left = working - out.reduce((a, b) => a + b, 0);
+    const byRemainder = raw
+        .map((v, i) => ({ frac: v - Math.floor(v), i }))
+        .sort((a, b) => b.frac - a.frac || a.i - b.i);
+    for (let k = 0; left > 0; k++, left--) out[byRemainder[k % byRemainder.length].i]++;
+
+    for (let i = 0; i < out.length; i++) if (out[i] < need[i]) out[i] = need[i];
+    let over = out.reduce((a, b) => a + b, 0) - working;
+    while (over > 0) {
+        let best = -1, slack = 0;
+        for (let i = 0; i < out.length; i++) {
+            const s = out[i] - need[i];
+            if (s > slack) { slack = s; best = i; }
         }
-        if (total > lines) return null;
+        if (best < 0) return null;          // every wave is already at its floor — infeasible
+        out[best]--; over--;
     }
+    return out.some(n => n <= 0) ? null : out;
+}
 
-    // Front-to-back window order: latest start first, earliest last, spare in
-    // the middle. A person's position moves front-ward through their week, so
-    // they progress earliest → spare → latest across the days they work.
-    const sorted = [.../** @type {Array<Record<string, any>>} */ (slots)].sort((a, b) => /** @type {number} */ (startMinutes(b.time)) - /** @type {number} */ (startMinutes(a.time)));
-    const mid = Math.floor(sorted.length / 2);
-    const segdefs = [
-        ...sorted.slice(0, mid),
-        { isSpare: true },
-        ...sorted.slice(mid),
-    ];
+/**
+ * Window starts for a block of `n` lines: strides sum to `n`, one lap per week, and the movement is
+ * spread ACROSS the seven days rather than front-loaded into the first few.
+ *
+ * The obvious `base + (i < rem)` form is wrong for a small block and quietly unfair (v19.59). With
+ * n = 3 it gives strides [1,1,1,0,0,0,0], so the window laps in three days and then sits still from
+ * Wednesday to Saturday — the same lines work all four of those days and one line catches almost
+ * nothing. Measured on the roster seed it produced a line working TWO days a week.
+ *
+ * `floor((i+1)·n/7) − floor(i·n/7)` distributes the same total evenly (n = 3 → [0,0,1,0,1,0,1]),
+ * which shares the work out exactly: all three lines get four days instead of 6/4/2.
+ */
+function evenStarts(/** @type {number} */ n) {
+    /** @type {number[]} */ const starts = [];
+    for (let i = 0; i < 7; i++) starts.push(Math.floor(i * n / 7));
+    return starts;
+}
 
-    // Window start positions: strides sum to `lines` across the 7 days so the
-    // wheel completes exactly one lap per week (the rotation is seamless).
-    const base = Math.floor(lines / 7);
-    const rem  = lines - base * 7;
-    /** @type {number[]} */
-    const starts = [];
+/**
+ * Window starts for the ROTATING fallback, capped so a wrapping line is always resting the next day.
+ *
+ * A line's position is read mod `working`, so every line wraps from the front of the slot order
+ * (latest) to the back (earliest) exactly once a week. That wrap is a late-finish-to-early-start
+ * step unless the following day's window has already closed behind it, which is exactly
+ * `stride ≤ working − nextTotal`. Distributed in proportion to those caps.
+ *
+ * Returns null when the caps cannot fund a full lap — the targets then leave under one rest day per
+ * line per week, and no phasing can avoid the step. Refusing beats shipping the old promise.
+ * @param {number} working
+ * @param {number[]} totals - duties on each day, in DAYS order
+ * @returns {number[]|null}
+ */
+function cappedStarts(working, totals) {
+    const cap = totals.map((_, i) => Math.max(0, working - totals[(i + 1) % 7]));
+    const capSum = cap.reduce((a, b) => a + b, 0);
+    if (capSum < working) return null;
+
+    const raw = cap.map(c => working * c / capSum);
+    const stride = raw.map(Math.floor);
+    let left = working - stride.reduce((a, b) => a + b, 0);
+    const byRemainder = raw
+        .map((v, i) => ({ frac: v - Math.floor(v), i }))
+        .sort((a, b) => b.frac - a.frac || a.i - b.i);
+    // Only ever hand a spare unit to a day still under its cap; capSum ≥ working guarantees one exists.
+    for (let guard = 0; left > 0 && guard < 7 * working; guard++) {
+        const { i } = byRemainder[guard % 7];
+        if (stride[i] < cap[i]) { stride[i]++; left--; }
+    }
+    if (left > 0) return null;
+
+    /** @type {number[]} */ const starts = [];
     let acc = 0;
-    for (let i = 0; i < 7; i++) {
-        starts.push(acc);
-        acc += base + (i < rem ? 1 : 0);
-    }
+    for (let i = 0; i < 7; i++) { starts.push(acc); acc += stride[i]; }
+    return starts;
+}
 
+/** Which rows are spare weeks — spread evenly around the wheel so no one gets two cover weeks
+ *  back to back. (The real roster's 1/7/12/17 of 20 is roughly, not exactly, even.) */
+function spareRowSet(/** @type {number} */ spareLines, /** @type {number} */ lines) {
+    const rows = new Set();
+    for (let i = 0; i < spareLines; i++) rows.add(Math.round((i * lines) / spareLines) + 1);
+    return rows;
+}
+
+/**
+ * Walk the `lines` rows, filling spare weeks with SPARE and handing every other row to `dayValue`,
+ * which is given the row's index within the working rotation.
+ * @param {number} lines
+ * @param {Set<any>} spareRows
+ * @param {(wIndex:number, dayIndex:number, day:string) => string} dayValue
+ */
+function layOutRows(lines, spareRows, dayValue) {
     /** @type {Record<string, any>} */
     const patterns = {};
+    let wIndex = 0;
     for (let row = 1; row <= lines; row++) {
         /** @type {Record<string, any>} */
         const p = {};
-        DAYS.forEach((d, i) => {
-            const cls = dayClass(d);
-            const pos = (((row - 1) - starts[i]) % lines + lines) % lines;
-            let cum = 0;
-            let val = 'RD';
-            for (const seg of /** @type {Array<Record<string, any>>} */ (segdefs)) {
-                const n = ('isSpare' in seg) ? (_spare[cls] ?? 0) : (seg[cls] ?? 0);
-                if (pos < cum + n) { val = ('isSpare' in seg) ? 'SPARE' : seg.time; break; }
-                cum += n;
-            }
-            p[d] = val;
-        });
+        if (spareRows.has(row)) {
+            for (const d of DAYS) p[d] = 'SPARE';
+            patterns[String(row)] = p;
+            continue;
+        }
+        DAYS.forEach((d, i) => { p[d] = dayValue(wIndex, i, d); });
         patterns[String(row)] = p;
+        wIndex++;
     }
     return patterns;
+}
+
+/** Pick the slot a position lands on, walking `group` in order against that day class's targets. */
+function slotAt(/** @type {Array<any>} */ group, /** @type {string} */ cls, /** @type {number} */ pos) {
+    let cum = 0;
+    for (const seg of group) {
+        const n = seg[cls] ?? 0;
+        if (pos < cum + n) return seg.time;
+        cum += n;
+    }
+    return 'RD';
+}
+
+/**
+ * Generate a link, reporting WHICH construction produced it.
+ *
+ * `generatePatterns` is the thin wrapper that returns only the patterns; it keeps the older
+ * signature because the docs, tests and every existing caller are written against it. Use this one
+ * where the mode matters — the two constructions give visibly different designs, and a designer who
+ * is not told which they got cannot account for the difference.
+ *
+ * @param {Object} opts
+ * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
+ * @param {number} [opts.spareLines=0]
+ * @param {number} [opts.lines=28]
+ * @param {boolean} [opts.settled=true] - false forces the rotating fallback (for comparison)
+ * @returns {{patterns: Object|null, mode: 'settled'|'rotating'|null, waves: number, reason: string|null}}
+ */
+export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, settled = true }) {
+    const fail = (/** @type {string} */ reason) => ({ patterns: null, mode: null, waves: 0, reason });
+
+    if (!Array.isArray(slots) || slots.length === 0) return fail('no-slots');
+    if (!Number.isInteger(spareLines) || spareLines < 0 || spareLines >= lines) return fail('bad-spare-lines');
+
+    const working = lines - spareLines;
+    /** @type {Record<string, number>} */
+    const totalFor = {};
+    for (const cls of TARGET_CLASSES) {
+        let total = 0;
+        for (const s of /** @type {Array<Record<string, any>>} */ (slots)) {
+            const n = s[cls] ?? 0;
+            if (!Number.isInteger(n) || n < 0) return fail('bad-target');
+            if (startMinutes(s.time) === null) return fail('bad-time');
+            total += n;
+        }
+        // The spare lines cannot carry a timed duty, so the targets have to fit
+        // in what is left. Checked against `working`, not `lines`.
+        if (total > working) return fail('over-capacity');
+        totalFor[cls] = total;
+    }
+
+    const spareRows = spareRowSet(spareLines, lines);
+    // A slot nobody works on any day is dropped before grouping — it would otherwise claim a wave,
+    // and a wave with no duty has no lines to give it.
+    const used = slots.filter(s => TARGET_CLASSES.reduce((a, c) => a + (/** @type {any} */ (s)[c] ?? 0), 0) > 0);
+    const waves = mergeUnfundedWaves(groupIntoWaves(used), working);
+
+    if (settled && waves.length) {
+        const alloc = allocateWaveLines(waves, working);
+        if (alloc) {
+            // Each wave owns a contiguous block of the working rotation, and slides its own window
+            // inside it. A line therefore never leaves its wave, which is what makes the week settled.
+            /** @type {Array<{group:Array<any>, n:number, starts:number[]}>} */
+            const plans = waves.map((w, i) => ({ group: w, n: alloc[i], starts: evenStarts(alloc[i]) }));
+            /** @type {Array<[number, number]>} */
+            const owner = [];
+            plans.forEach((plan, wi) => { for (let k = 0; k < plan.n; k++) owner.push([wi, k]); });
+
+            const patterns = layOutRows(lines, spareRows, (wIndex, i, d) => {
+                const [wi, idx] = owner[wIndex];
+                const plan = plans[wi];
+                const pos = ((idx - plan.starts[i]) % plan.n + plan.n) % plan.n;
+                return slotAt(plan.group, dayClass(d), pos);
+            });
+            return { patterns, mode: 'settled', waves: waves.length, reason: null };
+        }
+    }
+
+    // Fallback: the original rotating window, with the rest-feasible stride caps.
+    const totals = DAYS.map(d => totalFor[dayClass(d)]);
+    const starts = cappedStarts(working, totals);
+    if (!starts) return fail('no-rest');
+
+    // Front-to-back window order: latest start first, earliest last, so a person's position moves
+    // front-ward through their week and their shifts progress earliest → latest.
+    const sorted = [.../** @type {Array<Record<string, any>>} */ (slots)]
+        .sort((a, b) => /** @type {number} */ (startMinutes(b.time)) - /** @type {number} */ (startMinutes(a.time)));
+
+    const patterns = layOutRows(lines, spareRows, (wIndex, i, d) => {
+        const pos = ((wIndex - starts[i]) % working + working) % working;
+        return slotAt(sorted, dayClass(d), pos);
+    });
+    return { patterns, mode: 'rotating', waves: waves.length, reason: null };
 }
 
 /**

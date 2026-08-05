@@ -209,6 +209,26 @@ rotating-window construction. It is not. Given a deliberately twin-peaked target
 against the live link's 15 days and 20%. So the generator is a good starting point for the Dec 2026
 work rather than something to be fought, and no work is needed to make it express the new shape.
 
+**That conclusion was drawn from too few measurements** (corrected v19.59, after comparing the
+generator's output against the live roster rule by rule). The figures above are real, but they are
+the four things `runDesignChecks` happened to count. On the measure the tool had *just* started
+reporting — FF19, successive start times more than 2h apart — the generated design scored **27**
+against the live link's **6**, because the rotating window slid DAILY and walked every person across
+the whole span of shift times inside one week: mean within-week start spread **8h09**, with all 22
+worked lines above 4h, where the real main roster averages 3h44 and only 7 of 16 exceed it. Nobody at
+Marylebone has ever worked a week that starts 15:25 on the Sunday and 06:20 on the Wednesday.
+
+The generator now builds **settled weeks** by default (see `.claude/rules/links-design.md`): 1h33
+mean spread, 0 lines above 4h, **2** FF19 jumps, same exact daily targets, and days-per-line matching
+the real roster's distribution. The original construction remains as a fallback and had a separate
+defect of its own — its documented "never a late finish then an early start" guarantee was untrue at
+high staffing (27 short turnarounds at 6h25 rest), and it now refuses those targets rather than
+claiming it.
+
+The lesson worth keeping for the rest of this plan: **a design scoring well on the checks that exist
+is not the same as a design being good.** Every check added since has found something the previous
+set could not see.
+
 
 ---
 
@@ -403,12 +423,24 @@ Ordered by how much they change if the answer is unexpected.
    demands" above; it moves the weekday peak from 08:00 to 17:00, which is a material change to what
    packages 3 and 4 are built against. Platform occupancy remains uncomputed — a known limitation of
    the curve rather than an open question, since the signal that was going to be settled has been.
-2. **FF18 may be unavoidable by construction, and that needs raising early.** "Rotating pattern of
-   about a week" describes a 28-line link exactly: each person changes line weekly, by design. If it
-   counts, then no proposal can avoid it and it belongs in the justify/minimise/control conversation
-   with Nathan rather than in a checklist — which is a very different conversation to have *before*
-   the proposals are drawn than after. It also means the tool should state it as a property of the
-   link concept, not flag it per design.
+2. **FF18 still needs raising early — but the earlier framing here was wrong** (owner correction,
+   Aug 2026). This plan previously said the factor was "unavoidable by construction" because a
+   28-line link moves everyone one line per week by design. That reads the factor as being about the
+   weekly *cadence*, when the concern it names is the **size of the step**: what makes a weekly
+   rotation hard is your working day jumping, and a rotation where consecutive lines sit close
+   together asks far less of the body clock than one where they do not. The cadence is fixed; the
+   step is a design choice, and a real one.
+
+   Two consequences. First, it is still worth settling with Nathan before the proposals are drawn —
+   if the factor is read as cadence-only then no proposal can avoid it, and that belongs in the
+   justify/minimise/control conversation rather than a checklist. Second, the step is now
+   **measurable and tunable**: `links-adjacency.js` (v19.58) scores the week-to-week movement across
+   the whole rotation and the generator can order the lines to minimise it, behind a switch. On a
+   generated design that took the mean step from 42 minutes to 9.
+
+   Still outstanding: FF18's own row in the fatigue panel reports a **hardcoded** `standing`. The
+   measurement now exists, so that row should read from it — and "never hardcode a status here" is
+   already the module's own rule, broken once before at v19.48 (FF13).
 3. **Does the Sunday finish move?** Five movements fall after 23:25 — and the answer to question 1
    **strengthens** this rather than weakening it. The earlier draft noted the case would drop from
    five movements to two if arrivals needed no CEA; arrivals do count, so all five stand: 23:27 dep,

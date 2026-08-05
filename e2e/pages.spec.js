@@ -475,6 +475,57 @@ test('links: printing opens every collapsed disclosure, and closes it again afte
     await expect.poll(() => rows.count()).toBe(onScreen);
 });
 
+test('links: the line-order switches change the design, and say what each one cost', async ({ page }) => {
+    // Reordering lines is FREE with respect to coverage — permuting rows leaves each day's multiset
+    // identical — so these four objectives compete only with each other. That is exactly why they are
+    // switches with a stated price rather than one blended score, and why the status line has to name
+    // the trade: a bare "generated" would let a designer assume everything improved.
+    async function generate(page, off = []) {
+        await page.setViewportSize({ width: 1280, height: 1400 });
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_links_welcome_seen', '1');
+            const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+        });
+        await page.goto('/links.html');
+        await page.waitForTimeout(600);
+        await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+        for (const id of off) await page.locator('#' + id).uncheck();
+        await page.locator('#genApplyBtn').click({ force: true });
+        const ok = page.locator('.dialog-btn-confirm');
+        if (await ok.count()) await ok.first().click();
+        await expect(page.locator('#linksSaveStatus')).toContainText('Link generated');
+        return (await page.locator('#linksSaveStatus').textContent()).trim();
+    }
+
+    // Switches ON: the reorder runs and reports before→after for each objective.
+    const on = await generate(page);
+    expect(on, 'the status line must state the trade, not just "generated"').toMatch(/week-to-week \d+→\d+ min/);
+    expect(on).toMatch(/weekends off \d+→\d+/);
+});
+
+test('links: every line-order switch OFF leaves the generated order untouched', async ({ page }) => {
+    // Re-sorting by an empty objective set would hand back a different design for no stated reason.
+    await page.setViewportSize({ width: 1280, height: 1400 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await page.waitForTimeout(600);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    for (const id of ['objGentle', 'objWeekends', 'objLongWeekends', 'objTurnarounds']) {
+        await page.locator('#' + id).uncheck();
+    }
+    await page.locator('#genApplyBtn').click({ force: true });
+    const ok = page.locator('.dialog-btn-confirm');
+    if (await ok.count()) await ok.first().click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Review and save when ready');
+    // …and specifically NOT a before→after report, because nothing was reordered.
+    await expect(page.locator('#linksSaveStatus')).not.toContainText('week-to-week');
+});
+
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {
     await openLinksWithDesigns(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });
@@ -1248,14 +1299,69 @@ test('links: generator targets are remembered per design', async ({ page }) => {
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
 
-    const spare = page.locator('#genSpareWeekday');
+    // Spare is a count of whole LINES since v19.58 — a spare week is a full week on cover, not a
+    // per-day slot, so the three per-day boxes became one.
+    const spare = page.locator('#genSpareLines');
     await spare.fill('7');
     await spare.dispatchEvent('input');
 
     await page.reload();
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
     await page.locator('#generatorToggleHeader').click();
-    await expect(page.locator('#genSpareWeekday')).toHaveValue('7');
+    await expect(page.locator('#genSpareLines')).toHaveValue('7');
+});
+
+test('links: the roster seed covers all 28 real lines, not a 22-line sample', async ({ page }) => {
+    // The seed used to read the main 20 weeks plus only the TWO bilingual weeks the two bilingual
+    // members happen to sit on, and then apply that to a 28-line design. Bilingual weeks 1 and 8 are
+    // the SPARE ones and were never sampled, so the default came back as 4 spare lines where the
+    // roster the design represents has SIX — main 1/7/12/17 plus bilingual 1/8. Two whole lines of
+    // standby cover missing by default, from a number nobody had reason to re-check.
+    //
+    // Driven through the real "Reset targets from current roster" button: the seed lives in the
+    // coordinator, so a unit test would have to re-derive it and would then be checking its own copy.
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genSeedBtn').click();
+    await expect(page.locator('#genSpareLines')).toHaveValue('6');
+});
+
+test('links: generating names the construction that produced the design', async ({ page }) => {
+    // Two constructions live behind one button and they give visibly different designs — settled
+    // weeks keep a line inside one wave, the fallback walks it across the whole day. A designer who
+    // is not told which they got cannot account for the difference.
+    await page.setViewportSize({ width: 900, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genApplyBtn').click();
+    await page.locator('.dialog-btn-confirm').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText(/settled weeks, \d+ waves?/);
+});
+
+test('links: a target table stored BEFORE the spare-week change is still read', async ({ page }) => {
+    // The reload test above can only ever exercise the shape the CURRENT code writes, so it cannot
+    // see a stored blob written by an older version — and that is precisely how this broke: v19.58
+    // started writing `spareLines` while the validator still demanded the per-day `spare` object,
+    // so every remembered table was rejected in favour of the roster seed. Silently: the fallback
+    // is a plausible-looking table, nothing throws, and the designer just finds their tuning gone.
+    // The migration reads the LARGEST of the three days — 5 here, not weekday's 2 — because that is
+    // the day that needed the most cover, so no capacity is lost in the move.
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        // Keyed on the design that `openLinks` makes active — targets are remembered per design.
+        localStorage.setItem('myb_links_gen_d1', JSON.stringify({
+            slots: [{ time: '06:20-14:20', weekday: 6, sat: 4, sun: 3 }],
+            spare: { weekday: 2, sat: 5, sun: 1 },
+        }));
+    });
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+    await expect(page.locator('#genSpareLines')).toHaveValue('5');
+    await expect(page.locator('#genSlotRows tr')).toHaveCount(1);
 });
 
 // ── Escape closes only the TOPMOST overlay (v19.53) ───────────────────────────────────────────
@@ -1427,4 +1533,19 @@ test('links window: generating the FIRST design reveals the window editor', asyn
     // than trusted to a reviewer noticing the call site grew a third responsibility.
     await expect(page.locator('#linksSummary .sum-chip')).toHaveCount(3);
     await expect(page.locator('.cov-demand')).toBeVisible();
+
+    // SPARE IS A WHOLE WEEK (v19.58, owner). A spare line is spare on all seven days — you are cover,
+    // you work four days of it, and you can be put on any range of shifts. The previous per-day model
+    // produced the right daily SP HEADCOUNT while scattering those days across different people,
+    // which is a shape the real roster has never had; the correct total is exactly why it went
+    // unnoticed. Asserted on the rendered grid, because that is where the distribution is visible.
+    const spareDays = await page.evaluate(() => [...document.querySelectorAll('#linksGridBodyRows tr')]
+        .map(r => [...r.querySelectorAll('.shift-cell-btn')].filter(b => b.textContent.trim() === 'SP').length));
+    expect(spareDays.every(n => n === 0 || n === 7),
+        `every line is spare all week or not at all — got ${spareDays.join(',')}`).toBe(true);
+    // SIX, not four (v19.59). The seed used to sample the main 20 weeks plus only the two bilingual
+    // weeks the two bilingual members sit on — and bilingual 1 and 8, the spare ones, were never
+    // among them. The real combined roster is main 1/7/12/17 plus bilingual 1/8.
+    expect(spareDays.filter(n => n === 7).length,
+        'the roster seed has six spare weeks — main 1/7/12/17 and bilingual 1/8').toBe(6);
 });
