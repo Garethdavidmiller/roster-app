@@ -238,7 +238,11 @@
                             <thead>
                                 <tr>
                                     <th class="gen-th-time">Shift time</th>
-                                    <th>Mon–Fri</th>
+                                    <!-- The seed takes the BUSIEST Mon–Fri day for each time, and
+                                         the generator then staffs all five weekdays at that level.
+                                         Deliberate — under-staffing a day is the worse error — but
+                                         the real roster varies Mon to Fri, so say which it is. -->
+                                    <th>Mon–Fri<span class="gen-th-note">busiest day</span></th>
                                     <th>Sat</th>
                                     <!-- Sunday is NOT contracted (owner, Aug 2026) — a Sunday duty is
                                          agreed RDW, so this column is cover you hope to fill rather

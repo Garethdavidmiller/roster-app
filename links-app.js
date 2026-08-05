@@ -9,7 +9,7 @@
  *   live in links-design.js — no DOM, no Firebase there.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
+import { CONFIG, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -33,7 +33,7 @@ import {
     normalisePatterns,
     dayClass,
     calcCoverage,
-    generatePatterns,
+    generateLink,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { reorderLines, applyOrder } from './links-adjacency.js';
@@ -1259,26 +1259,37 @@ export function init() {
     // ============================================
 
     /**
-     * Derive generator targets from the current roster: the main 20-week link
-     * plus the two bilingual lines the design uses. Weekday count = the busiest
-     * Mon–Fri day for that time (some shifts only run Tue/Thu/Fri).
+     * Derive generator targets from the current roster.
+     *
+     * ALL 28 REAL LINES — the main 20-week link and the whole 8-week bilingual one (v19.59). It used
+     * to take the main 20 plus only the TWO bilingual weeks the two bilingual members happen to sit
+     * on, then apply that 22-line sample to a 28-line design. Bilingual weeks 1 and 8 are the SPARE
+     * ones and were never sampled, so the seeded spare count came back as 4 when the roster the
+     * design represents has SIX — main 1/7/12/17 plus bilingual 1/8. Two whole lines of standby
+     * cover, missing by default, from a number nobody had reason to re-check.
+     *
+     * The design is 28 lines because that is main + bilingual, so the seed has to be main +
+     * bilingual too. `teamMembers` is no longer read here: which weeks two people are on today is a
+     * fact about staffing, not about the roster's shape.
+     *
+     * Weekday count = the busiest Mon–Fri day for that time (some shifts only run Tue/Thu/Fri). That
+     * is deliberately the MAX and not an average — under-staffing a day is the worse error — but it
+     * does mean a generated design staffs every weekday at the busiest weekday's level, which the
+     * real roster does not. The column header says so.
      */
     function buildRosterTargets() {
         const sources = [];
         const _weeklyRoster = /** @type {Record<number, any>} */ (weeklyRoster);
         const _bilingualRoster = /** @type {Record<number, any>} */ (bilingualRoster);
         for (let w = 1; w <= 20; w++) sources.push(_weeklyRoster[w]);
-        const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
-        for (let i = 0; i < 2; i++) sources.push(_bilingualRoster[blMembers[i]?.currentWeek || (i + 1)]);
+        for (let w = 1; w <= 8; w++) sources.push(_bilingualRoster[w]);
 
         const weekdays = DAYS.filter(d => dayClass(d) === 'weekday');
         const perDay = /** @type {Record<string, any>} */ ({});
-        const spareByDay = /** @type {Record<string, any>} */ (Object.fromEntries(DAYS.map(d => [d, 0])));
         for (const src of sources) {
             for (const d of DAYS) {
                 const s = src?.[d];
-                if (!s || s === 'RD' || s === 'OFF') continue;
-                if (s === 'SPARE') { spareByDay[d]++; continue; }
+                if (!s || s === 'RD' || s === 'OFF' || s === 'SPARE') continue;
                 perDay[s] = perDay[s] || Object.fromEntries(DAYS.map(x => [x, 0]));
                 perDay[s][d]++;
             }
@@ -1487,9 +1498,19 @@ export function init() {
                 return;
             }
 
-            const generated = generatePatterns({ slots: genSlots, spareLines: genSpareLines, lines: ROTATING_LINES });
+            const built = generateLink({ slots: genSlots, spareLines: genSpareLines, lines: ROTATING_LINES });
+            const generated = built.patterns;
             if (!generated) {
-                if (errEl) errEl.textContent = `Can't generate — check every row has a valid time and whole-number targets.`;
+                // `no-rest` is its own message. It means the targets ask for so much cover that no
+                // arrangement leaves a person a rest day between a late finish and an early start —
+                // a real answer about the targets, not a typo in them, and the generic message would
+                // send the designer hunting for a bad row that does not exist.
+                if (errEl) {
+                    errEl.textContent = built.reason === 'no-rest'
+                        ? `Can't generate — these targets leave no room for rest days, so every line would `
+                          + `finish late and start early the next morning. Reduce a day's headcount or add spare weeks.`
+                        : `Can't generate — check every row has a valid time and whole-number targets.`;
+                }
                 return;
             }
 
@@ -1554,7 +1575,13 @@ export function init() {
                         `weekends off ${b.weekends}→${a.weekends}`,
                         `long ${b.longWeekends}→${a.longWeekends}`]
                     : [];
-                status.textContent = 'Link generated' + (bits.length ? ` — ${bits.join(', ')}.` : ' — review and save when ready.');
+                // Name the construction. The two produce visibly different designs — settled weeks
+                // keep a line inside one wave, the fallback walks it across the whole day — and a
+                // designer who is not told which they got cannot account for the difference.
+                const how = built.mode === 'settled'
+                    ? `Link generated — settled weeks, ${built.waves} wave${built.waves === 1 ? '' : 's'}`
+                    : 'Link generated — rotating weeks (targets would not fit settled ones)';
+                status.textContent = how + (bits.length ? ` — ${bits.join(', ')}.` : '. Review and save when ready.');
                 status.className = 'links-save-status ok';
             }
         });

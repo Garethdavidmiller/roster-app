@@ -521,7 +521,7 @@ test('links: every line-order switch OFF leaves the generated order untouched', 
     await page.locator('#genApplyBtn').click({ force: true });
     const ok = page.locator('.dialog-btn-confirm');
     if (await ok.count()) await ok.first().click();
-    await expect(page.locator('#linksSaveStatus')).toContainText('review and save when ready');
+    await expect(page.locator('#linksSaveStatus')).toContainText('Review and save when ready');
     // …and specifically NOT a before→after report, because nothing was reordered.
     await expect(page.locator('#linksSaveStatus')).not.toContainText('week-to-week');
 });
@@ -1311,6 +1311,36 @@ test('links: generator targets are remembered per design', async ({ page }) => {
     await expect(page.locator('#genSpareLines')).toHaveValue('7');
 });
 
+test('links: the roster seed covers all 28 real lines, not a 22-line sample', async ({ page }) => {
+    // The seed used to read the main 20 weeks plus only the TWO bilingual weeks the two bilingual
+    // members happen to sit on, and then apply that to a 28-line design. Bilingual weeks 1 and 8 are
+    // the SPARE ones and were never sampled, so the default came back as 4 spare lines where the
+    // roster the design represents has SIX — main 1/7/12/17 plus bilingual 1/8. Two whole lines of
+    // standby cover missing by default, from a number nobody had reason to re-check.
+    //
+    // Driven through the real "Reset targets from current roster" button: the seed lives in the
+    // coordinator, so a unit test would have to re-derive it and would then be checking its own copy.
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genSeedBtn').click();
+    await expect(page.locator('#genSpareLines')).toHaveValue('6');
+});
+
+test('links: generating names the construction that produced the design', async ({ page }) => {
+    // Two constructions live behind one button and they give visibly different designs — settled
+    // weeks keep a line inside one wave, the fallback walks it across the whole day. A designer who
+    // is not told which they got cannot account for the difference.
+    await page.setViewportSize({ width: 900, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genApplyBtn').click();
+    await page.locator('.dialog-btn-confirm').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText(/settled weeks, \d+ waves?/);
+});
+
 test('links: a target table stored BEFORE the spare-week change is still read', async ({ page }) => {
     // The reload test above can only ever exercise the shape the CURRENT code writes, so it cannot
     // see a stored blob written by an older version — and that is precisely how this broke: v19.58
@@ -1513,6 +1543,9 @@ test('links window: generating the FIRST design reveals the window editor', asyn
         .map(r => [...r.querySelectorAll('.shift-cell-btn')].filter(b => b.textContent.trim() === 'SP').length));
     expect(spareDays.every(n => n === 0 || n === 7),
         `every line is spare all week or not at all — got ${spareDays.join(',')}`).toBe(true);
+    // SIX, not four (v19.59). The seed used to sample the main 20 weeks plus only the two bilingual
+    // weeks the two bilingual members sit on — and bilingual 1 and 8, the spare ones, were never
+    // among them. The real combined roster is main 1/7/12/17 plus bilingual 1/8.
     expect(spareDays.filter(n => n === 7).length,
-        'the roster seed has four spare weeks').toBe(4);
+        'the roster seed has six spare weeks — main 1/7/12/17 and bilingual 1/8').toBe(6);
 });

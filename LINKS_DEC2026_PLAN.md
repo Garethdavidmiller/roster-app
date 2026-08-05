@@ -209,6 +209,26 @@ rotating-window construction. It is not. Given a deliberately twin-peaked target
 against the live link's 15 days and 20%. So the generator is a good starting point for the Dec 2026
 work rather than something to be fought, and no work is needed to make it express the new shape.
 
+**That conclusion was drawn from too few measurements** (corrected v19.59, after comparing the
+generator's output against the live roster rule by rule). The figures above are real, but they are
+the four things `runDesignChecks` happened to count. On the measure the tool had *just* started
+reporting — FF19, successive start times more than 2h apart — the generated design scored **27**
+against the live link's **6**, because the rotating window slid DAILY and walked every person across
+the whole span of shift times inside one week: mean within-week start spread **8h09**, with all 22
+worked lines above 4h, where the real main roster averages 3h44 and only 7 of 16 exceed it. Nobody at
+Marylebone has ever worked a week that starts 15:25 on the Sunday and 06:20 on the Wednesday.
+
+The generator now builds **settled weeks** by default (see `.claude/rules/links-design.md`): 1h33
+mean spread, 0 lines above 4h, **2** FF19 jumps, same exact daily targets, and days-per-line matching
+the real roster's distribution. The original construction remains as a fallback and had a separate
+defect of its own — its documented "never a late finish then an early start" guarantee was untrue at
+high staffing (27 short turnarounds at 6h25 rest), and it now refuses those targets rather than
+claiming it.
+
+The lesson worth keeping for the rest of this plan: **a design scoring well on the checks that exist
+is not the same as a design being good.** Every check added since has found something the previous
+set could not see.
+
 
 ---
 

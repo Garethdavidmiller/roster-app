@@ -14,6 +14,9 @@ import {
     calcCoverage,
     calcHourlyCoverage,
     generatePatterns,
+    generateLink,
+    groupIntoWaves,
+    WAVE_SPAN_MINUTES,
     runDesignChecks,
     dayClass,
     canonicaliseShift,
@@ -176,6 +179,157 @@ test('generatePatterns never produces a short turnaround (forward body-clock rot
     const checks = runDesignChecks(patterns, 28);
     assert.equal(checks.turnarounds.length, 0,
         `expected no turnarounds, got: ${JSON.stringify(checks.turnarounds)}`);
+});
+
+// ---------- the settled-week construction (v19.59) ----------
+
+describe('waves', () => {
+    test('slots within the FF19 threshold of each other are one wave', () => {
+        const waves = groupIntoWaves([
+            { time: '06:20-14:20', weekday: 2, sat: 1, sun: 1 },
+            { time: '08:00-16:30', weekday: 2, sat: 1, sun: 1 },
+            { time: '15:15-23:55', weekday: 2, sat: 1, sun: 1 },
+        ]);
+        assert.equal(waves.length, 2);
+        assert.deepEqual(waves[0].map(s => s.time), ['06:20-14:20', '08:00-16:30']);
+        assert.equal(WAVE_SPAN_MINUTES, 120);
+    });
+
+    test('a wave too small to fund one line is merged into its nearer neighbour', () => {
+        // The roster seed produced exactly this: the two 08:30 weekend-only slots sat 30 minutes off
+        // the morning wave and 2h30 off the middles, but 2h10 from the morning wave's FIRST slot —
+        // so the span rule cut them adrift and one whole line existed to work Sat and Sun only.
+        const slots = [
+            { time: '06:20-14:20', weekday: 6, sat: 4, sun: 3 },
+            { time: '08:30-16:30', weekday: 0, sat: 1, sun: 1 },
+            { time: '15:15-23:55', weekday: 6, sat: 4, sun: 3 },
+        ];
+        assert.equal(groupIntoWaves(slots).length, 3, 'the raw span rule strands 08:30');
+        const built = generateLink({ slots, spareLines: 4, lines: 28 });
+        assert.equal(built.mode, 'settled');
+        assert.equal(built.waves, 2, 'the stranded wave is merged, not left to hold a line of its own');
+    });
+});
+
+describe('settled weeks', () => {
+    /** Worked days for each line that is not a spare week. */
+    const workedDays = (/** @type {any} */ p, n = 28) => {
+        const out = [];
+        for (let w = 1; w <= n; w++) {
+            const row = p[String(w)];
+            if (DAYS.every(d => row[d] === 'SPARE')) continue;
+            out.push(DAYS.filter(d => row[d] !== 'RD' && row[d] !== 'OFF').length);
+        }
+        return out;
+    };
+    /** Widest gap between a line's earliest and latest start in one week. */
+    const spreads = (/** @type {any} */ p, n = 28) => {
+        const out = [];
+        for (let w = 1; w <= n; w++) {
+            const st = DAYS.map(d => startMinutes(p[String(w)][d])).filter(v => v !== null);
+            if (st.length >= 2) out.push(Math.max(...st) - Math.min(...st));
+        }
+        return out;
+    };
+
+    test('a line stays inside its wave all week, so its start never moves more than the wave span', () => {
+        // This is the whole point. Measured on the roster seed, the old construction gave a mean
+        // within-week spread of 7h58 with EVERY line above 4h; the real main roster averages 3h44.
+        // Nobody at Marylebone works a week that starts 15:25 on the Sunday and 06:20 on the
+        // Wednesday, and the generator was producing 28 of them.
+        const p = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+        for (const s of spreads(p)) {
+            assert.ok(s <= WAVE_SPAN_MINUTES, `within-week start spread ${s} exceeds one wave`);
+        }
+    });
+
+    test('settled weeks still meet every day-class target exactly', () => {
+        const p = generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+        for (const d of DAYS) {
+            const cls = dayClass(d);
+            const counts = {};
+            for (let w = 1; w <= 28; w++) {
+                const v = p[String(w)][d];
+                if (v !== 'RD' && v !== 'SPARE') counts[v] = (counts[v] || 0) + 1;
+            }
+            for (const slot of SLOTS) assert.equal(counts[slot.time] || 0, slot[cls], `${slot.time} on ${d}`);
+        }
+    });
+
+    test('settled weeks cost no fairness — the load spread is no wider than the fallback\'s', () => {
+        // A shape improvement paid for with an unfair link is not an improvement, and the first TWO
+        // attempts at this construction were both less fair than the thing they replaced: one gave a
+        // whole line to a weekend-only wave, the other lapped a small block in three days and then
+        // held the window still for four. Both produced somebody working two days a week.
+        //
+        // The claim is comparative, deliberately. An absolute floor ("nobody under 3 days") is a fact
+        // about the TARGETS — these ones average 3.3 days a line — not about the construction, and it
+        // would pass or fail on the fixture rather than on the code.
+        const s = workedDays(generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 }).patterns);
+        const r = workedDays(generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, settled: false }).patterns);
+        const sum = (/** @type {number[]} */ a) => a.reduce((x, y) => x + y, 0);
+        const span = (/** @type {number[]} */ a) => Math.max(...a) - Math.min(...a);
+        assert.equal(sum(s), sum(r), 'both constructions place exactly the same total duty');
+        assert.ok(span(s) <= span(r), `settled spans ${span(s)} days against the fallback's ${span(r)}`);
+    });
+
+    test('a lap is spread across the week, never front-loaded into the first few days', () => {
+        // n = 3 under the old rule gave strides [1,1,1,0,0,0,0]: the window laps by Tuesday and then
+        // sits still to Saturday, so the same lines work all four of those days.
+        const slots = [{ time: '06:20-14:20', weekday: 2, sat: 1, sun: 1 }];
+        const p = generatePatterns({ slots, spareLines: 0, lines: 3 });
+        const days = [];
+        for (let w = 1; w <= 3; w++) days.push(DAYS.filter(d => p[String(w)][d] !== 'RD').length);
+        assert.deepEqual(days, [4, 4, 4], 'all three lines carry the same load');
+    });
+
+    test('it reports WHICH construction ran — the two give different designs', () => {
+        const settled = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 });
+        const rotating = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, settled: false });
+        assert.equal(settled.mode, 'settled');
+        assert.equal(rotating.mode, 'rotating');
+        assert.notDeepEqual(settled.patterns, rotating.patterns);
+        // generatePatterns keeps its old contract — patterns or null, nothing else.
+        assert.deepEqual(generatePatterns({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28 }), settled.patterns);
+    });
+});
+
+describe('the rotating fallback no longer promises rest it cannot give', () => {
+    // Documented for years as "a person's week only moves later, never a late finish then an early
+    // start; asserted by tests". It was not true. Positions are read mod `working`, so every line
+    // wraps from the front of the slot order to the back once a week, and that wrap IS the step —
+    // it lands on a rest day only while the targets leave lines resting. The test that asserted it
+    // staffed 13 of 24 lines, where the wrap always fell on RD.
+    const DENSE = [
+        { time: '06:20-14:20', weekday: 9, sat: 9, sun: 9 },
+        { time: '11:00-19:30', weekday: 9, sat: 9, sun: 9 },
+        { time: '15:15-23:55', weekday: 10, sat: 10, sun: 10 },
+    ];
+
+    test('at full staffing the old construction produced 27 short turnarounds — it now REFUSES', () => {
+        const r = generateLink({ slots: DENSE, spareLines: 0, lines: 28, settled: false });
+        assert.equal(r.patterns, null);
+        assert.equal(r.reason, 'no-rest', 'refused for the real reason, not as a generic bad-input');
+    });
+
+    test('where it CAN run, no line finishes late and starts early the next morning', () => {
+        // Teeth: with near-equal strides this fixture is fine, so the assertion that matters is the
+        // one above. Here we only pin that the capped strides did not break the ordinary case.
+        const r = generateLink({ slots: SLOTS, spareLines: SPARE_LINES, lines: 28, settled: false });
+        assert.equal(r.mode, 'rotating');
+        assert.equal(runDesignChecks(r.patterns, 28).turnarounds.length, 0);
+    });
+
+    test('a settled design survives the same dense targets the fallback refuses', () => {
+        // Each line sits in one wave, so "everybody works seven days" costs nothing in body-clock
+        // movement — which is exactly why settled is tried first.
+        const s = generateLink({ slots: DENSE, spareLines: 0, lines: 28 });
+        assert.equal(s.mode, 'settled');
+        for (let w = 1; w <= 28; w++) {
+            const st = DAYS.map(d => startMinutes(s.patterns[String(w)][d])).filter(v => v !== null);
+            assert.ok(Math.max(...st) - Math.min(...st) <= WAVE_SPAN_MINUTES, `line ${w} leaves its wave`);
+        }
+    });
 });
 
 test('generatePatterns rejects totals over the line count', () => {
