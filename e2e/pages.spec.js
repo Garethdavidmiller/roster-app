@@ -1437,6 +1437,45 @@ test('links: a numeric objective clause does not come apart on a phone', async (
     }
 });
 
+// ── The generator card has ONE left edge on desktop (v19.67) ─────────────────────────────────────
+// v19.66 centred `.generator-form` to split the 440px of dead space beside it, and left the intro
+// prose where it was — so the card ended up with TWO left edges: the intro ran 122→778 while the
+// table, objectives, action links and Generate button all ran 310→970. Nearly the same WIDTH
+// (656 vs 660), 188px apart, which reads as a mistake rather than as hierarchy.
+//
+// A screenshot would not police this reliably: the baseline is a whole-card capture, and a
+// re-baseline records whatever the alignment happens to be. Measuring the left edges does.
+test('links: the generator card lines up on one left edge at desktop width', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile-chrome', 'the shared column only applies at >=1024px');
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/links.html');
+    await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
+    await page.waitForTimeout(250);
+
+    const edges = await page.evaluate(() => {
+        /** @type {Record<string, number>} */
+        const out = {};
+        for (const [name, sel] of [
+            ['intro', '#generatorCard .links-desc'], ['table', '.gen-slot-table'],
+            ['objectives', '.gen-objectives'], ['actions', '.gen-actions'], ['generate', '#genApplyBtn'],
+        ]) {
+            const el = document.querySelector(sel);
+            if (el) out[name] = Math.round(el.getBoundingClientRect().left);
+        }
+        return out;
+    });
+    const names = Object.keys(edges);
+    expect(names.length, 'every part of the generator must be measurable').toBe(5);
+    const [first, ...rest] = names;
+    for (const n of rest) {
+        expect(Math.abs(edges[n] - edges[first]),
+            `"${n}" starts at ${edges[n]} but "${first}" starts at ${edges[first]} — the card has two left edges`)
+            .toBeLessThanOrEqual(1);
+    }
+});
+
 // ── A sticky header is only sticky against the right scroll container (v19.66) ───────────────────
 // The generator's `thead th` carries `position: sticky`, and at ≥768px it works: the wrapper is
 // `overflow-x: visible`, so the sticky offset is the page. Below 768px the wrapper sets

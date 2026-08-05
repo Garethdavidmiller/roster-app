@@ -407,11 +407,17 @@ as three empty boxes rather than a page waiting to be used.
 
 Two more from the same pass, both in-use surfaces:
 
-- **The generator form is CENTRED on desktop, not left-aligned.** The 660px cap is right (measured
-  at v19.61 — a full-width table puts a 90px shift time in a 477px cell), but left-aligning it in
-  the 1100px card dumped the whole remainder on one side: **440px of empty white running 1,794px
-  down** the tallest card on the page, which reads as a rendering fault. Centred, it is 220px of
-  symmetric gutter.
+- **The generator form is CENTRED on desktop, not left-aligned — and the INTRO comes with it.** The
+  660px cap is right (measured at v19.61 — a full-width table puts a 90px shift time in a 477px
+  cell), but left-aligning it in the 1100px card dumped the whole remainder on one side: **440px of
+  empty white running 1,794px down** the tallest card on the page, which reads as a rendering fault.
+  Centred, it is 220px of symmetric gutter.
+  **Centring the form ALONE was a regression, caught by re-screenshotting** (v19.67): the intro
+  prose stayed put, so the card had two left edges — intro 122→778 against table/objectives/actions/
+  Generate all at 310→970. Nearly the same WIDTH (656 vs 660) 188px apart, which reads as a mistake
+  rather than as hierarchy. `#generatorCard .links-desc` now shares the form's cap. **Anything added
+  to this card must join that column too**; an e2e measures all five left edges and names the
+  offender, because a whole-card baseline just re-records whatever the alignment happens to be.
 - **The 28-row target table keeps its column headers — at ≥768px ONLY** (`position: sticky` on
   `thead th`). They scrolled away after the first six rows, leaving three unlabelled number columns
   — and Mon–Fri, Sat and Sun are three different commitments (Sunday is not even contracted), so

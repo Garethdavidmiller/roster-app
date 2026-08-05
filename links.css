@@ -1659,6 +1659,13 @@ body.auth-ready .container { display: grid; }
        Centred, the same space becomes 220px of symmetric gutter and the card looks deliberate.
        Nothing moves on mobile, where the cap does not apply. */
     .generator-form { max-width: 660px; margin-inline: auto; }
+    /* THE INTRO HAS TO COME WITH IT (v19.67). Centring the form alone left the card with TWO left
+       edges — measured at 1280px, the intro ran 122→778 while the table, objectives, action links
+       and Generate button all ran 310→970. They are nearly the same WIDTH (656 vs 660), which is
+       what made it read as a mistake rather than as hierarchy: the same measure, twice, 188px
+       apart. Sharing the form's cap puts both in one column and costs the prose 4px of measure.
+       Scoped to this card — `.links-desc` is used on other cards that are not centred. */
+    #generatorCard .links-desc { max-width: 660px; margin-inline: auto; }
     .gen-th-time, .gen-td-time { width: 46%; }
 }
 
