@@ -1345,6 +1345,49 @@ test('links: generating names the construction that produced the design', async 
     await expect(page.locator('#linksSaveStatus')).toContainText(/settled weeks, \d+ waves?/);
 });
 
+// ── No focusable field may sit under 16px on a touch device (v19.61) ─────────────────────────────
+// iOS force-zooms the page when you focus a field smaller than 16px, and the app has said "never go
+// below 16px on a focusable field" in css-tokens.md since v11.77 — with NOTHING enforcing it.
+//
+// It had already failed twice. `links.css` carried a `@media (pointer: coarse)` block setting the
+// generator's inputs to 16px, with the right comment about iOS, and it did nothing: the base rule is
+// declared ~230 lines LATER at equal specificity, so source order handed the win to 13px. Its
+// neighbour in that same block worked, purely because ITS base rule happened to sit earlier — and
+// nothing in the code said so. `paycalc.css`'s paste textarea was 12px with no guard at all.
+//
+// A static CSS test could not catch either: both are cascade outcomes, not text. This measures the
+// COMPUTED size on a real coarse-pointer device, which is the only thing that answers the question.
+test('no focusable field falls below 16px on a touch device @a11y', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'needs a real coarse pointer');
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+
+    for (const url of ['/', '/admin.html', '/paycalc.html', '/operations.html', '/settings.html', '/links.html']) {
+        await page.goto(url);
+        await page.waitForTimeout(700);
+        // Open every collapsible, or the fields inside a closed card are never measured.
+        await page.evaluate(() => document.querySelectorAll('.card-collapsible-body')
+            .forEach(el => el.classList.add('open')));
+        await page.waitForTimeout(250);
+        const bad = await page.evaluate(() => {
+            const out = [];
+            document.querySelectorAll('input, select, textarea').forEach(el => {
+                const t = /** @type {any} */ (el).type;
+                // Checkboxes and radios carry no text; a file input opens the OS picker rather than a
+                // keyboard, so none of them can trigger the focus zoom this guards.
+                if (t === 'checkbox' || t === 'radio' || t === 'hidden' || t === 'file') return;
+                const r = el.getBoundingClientRect();
+                if (!r.width || !r.height) return;
+                const fs = parseFloat(getComputedStyle(el).fontSize);
+                if (fs < 16) out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} = ${fs}px`);
+            });
+            return [...new Set(out)];
+        });
+        expect(bad, `${url} has fields that will zoom the page on iOS`).toEqual([]);
+    }
+});
+
 test('links: the variety switch is what keeps you off one shift type for months', async ({ page }) => {
     // v19.59 settled each week and then laid the shift waves out in contiguous blocks, so moving one
     // line a week gave 11 straight weeks of mornings and 11 of afternoons — "a bit excessive and

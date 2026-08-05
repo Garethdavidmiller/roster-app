@@ -1564,6 +1564,15 @@
     resize: vertical;
 }
 .pt-paste:focus { background-color: white; }
+/* iOS force-zooms a page whose focused field is under 16px, and this one is a TEXTAREA you paste a
+   long blob into — the worst place to have the viewport jump. 12px monospace is deliberate on
+   desktop (it fits more of the backup on screen), so the bump is scoped to coarse pointers.
+   Declared immediately after the base rule on purpose: the same override in links.css sat ~230 lines
+   BEFORE its base rule and, at equal specificity, silently lost for two versions. Found by the
+   cross-page scan in e2e/pages.spec.js, which now runs on every branch. */
+@media (pointer: coarse) {
+    .pt-paste { font-size: var(--type-medium); }
+}
 /* Status is a live region — it must be readable, not decorative. */
 .pt-status { font-size: var(--type-small); margin: 4px 0 0; color: var(--text-mid); }
 .pt-status--ok   { color: var(--success-text); }
