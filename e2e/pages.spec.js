@@ -1437,6 +1437,47 @@ test('links: a numeric objective clause does not come apart on a phone', async (
     }
 });
 
+// ── A sticky header is only sticky against the right scroll container (v19.66) ───────────────────
+// The generator's `thead th` carries `position: sticky`, and at ≥768px it works: the wrapper is
+// `overflow-x: visible`, so the sticky offset is the page. Below 768px the wrapper sets
+// `overflow-x: auto` to scroll the 443px table inside a 306px card — and per spec, when one
+// overflow axis is not `visible` the other computes to `auto`. So the wrapper becomes a vertical
+// scroll container as tall as its own content, and the header sticks to a box that never scrolls
+// vertically. It reads as correct in the stylesheet and does nothing.
+//
+// This test does not demand it work on mobile — that needs a `max-height` and a nested scrollbox
+// around the primary creation path, which is a UX decision nobody has taken. It pins the two facts
+// that make the situation legible, so the boundary cannot be claimed away: the declaration is
+// there, and the mobile wrapper really is a scroll container in BOTH axes. If someone later makes
+// it work on a phone, the second assertion is what will fail and send them to the note in
+// links.css rather than letting them assume it had been working all along.
+test('links: the generator header is sticky on desktop, and provably not on mobile', async ({ page }, info) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    await page.setViewportSize(info.project.name === 'mobile-chrome' ? { width: 390, height: 844 } : { width: 1280, height: 900 });
+    await page.goto('/links.html');
+    await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
+    await page.waitForTimeout(250);
+
+    const m = await page.evaluate(() => {
+        const wrap = /** @type {Element} */ (document.querySelector('.gen-slot-table-wrap'));
+        const th = /** @type {Element} */ (document.querySelector('.gen-slot-table thead th'));
+        const w = getComputedStyle(wrap);
+        return { pos: getComputedStyle(th).position, ox: w.overflowX, oy: w.overflowY };
+    });
+    expect(m.pos, 'the sticky declaration must be present at every width').toBe('sticky');
+
+    if (info.project.name === 'mobile-chrome') {
+        // The wrapper scrolls horizontally, which forces the vertical axis too — this is WHY the
+        // header cannot stick to the page here.
+        expect(m.ox, 'the narrow wrapper scrolls the table horizontally').toBe('auto');
+        expect(m.oy, 'and so becomes a vertical scroll container — the reason sticky is inert here').toBe('auto');
+    } else {
+        // Not a scroll container ⇒ the sticky offset is the page ⇒ the header actually sticks.
+        expect(m.ox, 'at >=768px the wrapper must not be a scroll container, or sticky breaks').toBe('visible');
+    }
+});
+
 test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
     // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
     // the only way to reach them was the browser menu, which an installed PWA often does not expose.

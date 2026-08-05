@@ -357,6 +357,25 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   screenshot passing (teeth-verified). The baseline catches composition; the style assertion catches
   on-versus-off. Keep both.
 
+### Known MOBILE gaps on this page — measured, not yet decided (v19.66)
+
+The v19.66 review captured desktop and mobile but was **read** desktop-first, and the mobile
+in-use page was not examined until afterwards. Three things it found at 390×844, all measured,
+none fixed — recorded so they are not re-discovered as new:
+
+- **The grid loses its day headers.** `.links-grid-wrapper` is `overflow-x: auto` below 1024px, so
+  by the spec rule above it is a scroll container in both axes and its sticky `thead` is inert —
+  the same trap as the generator table. Scrolling lines 9–27 there is no LINE/SUN/MON header on
+  screen at all, and the grid is **43% off-screen horizontally** (592px of table in a 338px
+  wrapper), so position cannot disambiguate the column either. On the page's primary object this
+  is the most serious of the three.
+- **The sticky save row takes 146px of an 844px viewport — 17%**, permanently: two buttons, a
+  provenance line, and the summary chips wrapped onto two rows.
+- **The brush bar is 239px** — 26 chips over seven rows before the grid begins.
+
+None is a regression; all three predate v19.66. The fixes are not free (the first needs a nested
+scrollbox; the other two need something to give), so they are a conversation rather than a sweep.
+
 ### The blank page, and three fixes that came out of screenshotting it (v19.66)
 
 The page had been polished repeatedly **in use** and never looked at **empty**. Measured at 1280px
@@ -393,10 +412,19 @@ Two more from the same pass, both in-use surfaces:
   the 1100px card dumped the whole remainder on one side: **440px of empty white running 1,794px
   down** the tallest card on the page, which reads as a rendering fault. Centred, it is 220px of
   symmetric gutter.
-- **The 28-row target table keeps its column headers** (`position: sticky` on `thead th`). They
-  scrolled away after the first six rows, leaving three unlabelled number columns — and Mon–Fri,
-  Sat and Sun are three different commitments (Sunday is not even contracted), so typing into the
-  wrong one is a real error with nothing to catch it.
+- **The 28-row target table keeps its column headers — at ≥768px ONLY** (`position: sticky` on
+  `thead th`). They scrolled away after the first six rows, leaving three unlabelled number columns
+  — and Mon–Fri, Sat and Sun are three different commitments (Sunday is not even contracted), so
+  typing into the wrong one is a real error with nothing to catch it.
+  **Below 768px the declaration is inert, and that is a CSS constraint rather than a decision.**
+  `sticky` resolves against the nearest scroll container; the narrow wrapper sets `overflow-x: auto`
+  to scroll the 443px table inside a 306px card, and per spec the other axis then computes to `auto`
+  as well (measured at 390px). The wrapper becomes a vertical scroll container as tall as its own
+  content, so the header sticks to a box that never scrolls. **Do not "fix" it with
+  `overflow-y: visible`** — that is the exact declaration the spec overrides, so it would read as
+  correct and change nothing, which is this file's most frequently repeated failure. Making it work
+  on a phone needs a `max-height` and therefore a nested scrollbox around the primary creation path:
+  a UX decision, not a tidy-up. Both facts are pinned by an e2e that runs at both widths.
 - **The Design-checks status is carried on the LEFT EDGE, not by the fill alone.** At 8–10% of a hue
   against white the four fills land within a couple of percent of each other, so 30 rows rendered as
   one ribbon with the status readable only from a 13px glyph. A 3px edge in the full-strength token

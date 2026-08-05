@@ -1662,12 +1662,26 @@ body.auth-ready .container { display: grid; }
     .gen-th-time, .gen-td-time { width: 46%; }
 }
 
-/* THE 28-ROW TARGET TABLE KEEPS ITS COLUMN HEADERS (v19.66). Seeded from the roster it renders 28
-   rows of near-identical time dropdowns against three unlabelled number columns — and the header
-   row scrolled away after the first six, so for most of the table there was nothing on screen
-   saying which column was Mon–Fri, which Sat and which Sun. They are three different commitments
-   (Sunday is not even contracted), so typing into the wrong one is a real error with nothing to
-   catch it. The wrapper only scrolls horizontally, so the sticky offset is the page.
+/* THE 28-ROW TARGET TABLE KEEPS ITS COLUMN HEADERS — AT ≥768px ONLY (v19.66). Seeded from the
+   roster it renders 28 rows of near-identical time dropdowns against three unlabelled number
+   columns, and the header row scrolled away after the first six, so for most of the table nothing
+   on screen said which column was Mon–Fri, which Sat and which Sun. They are three different
+   commitments (Sunday is not even contracted), so typing into the wrong one is a real error with
+   nothing to catch it.
+
+   ⚠️ THIS IS INERT BELOW 768px, AND THAT IS NOT A CHOICE — IT IS A CSS CONSTRAINT. `position:
+   sticky` resolves against the nearest SCROLL CONTAINER, and below 768px `.gen-slot-table-wrap`
+   sets `overflow-x: auto` (above) so the 443px table scrolls inside a 306px card. Per spec, when
+   one overflow axis is not `visible` the other computes to `auto` too — measured: `overflow-y`
+   reports `auto` at 390px. So the wrapper becomes a vertical scroll container as tall as its own
+   content, the header sticks to a box that never scrolls vertically, and it moves with the page
+   exactly as before. At ≥768px the wrapper is `overflow-x: visible`, it is not a scroll container,
+   and the sticky offset is the page — which is why it works there and only there.
+
+   Making it work on a phone means giving the wrapper a `max-height` so it scrolls vertically too,
+   i.e. a nested scrollbox around the primary creation path on touch. That is a UX decision, not a
+   tidy-up; do not add it without one. Do NOT "fix" this by setting `overflow-y: visible` — that is
+   the declaration the spec overrides, and it will read as correct while changing nothing.
    `z-index` keeps the header above the cells' own backgrounds as they pass under it. */
 .gen-slot-table thead th {
     position: sticky;
