@@ -1388,6 +1388,55 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
     }
 });
 
+// ── The generator's numeric clauses stay in one piece on a phone (v19.65) ───────────────────────
+// Two of the five line-order objectives carry an inline number — "at most [3] weeks", "at least [4]
+// of 28". They were three loose flex children in a ~190px column, and on a COARSE pointer the box is
+// 56×40 (the iOS-zoom + touch-target floor, which is not negotiable), so the row overflowed by ~8px
+// and wrapped: "at most" on one line, then "[3]" and "weeks the same" — the tail landing flush under
+// the lead-in, where it read as a separate statement rather than the end of the sentence. That is
+// what the staff screenshot showed.
+//
+// This belongs on mobile-chrome and NOWHERE ELSE. The visual suite is a single fine-pointer project
+// where the same box is 52×28 and the clause fits regardless — measured: deleting the fix leaves
+// every visual test green. A screenshot could not police it anyway, since re-baselining just records
+// whatever it wrapped to.
+test('links: a numeric objective clause does not come apart on a phone', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'needs a real coarse pointer');
+    // 360, not the suite's usual 390 — that is the reported device (1080px at DPR 3), and it is the
+    // 30px that decided this. The clause fits at 390 and fragments at 360.
+    await page.setViewportSize({ width: 360, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    await page.goto('/links.html');
+    await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
+    await page.waitForTimeout(250);
+
+    // Measured on the RENDERED RESULT, not on the mechanism that produces it. The obvious version of
+    // this test — "the `.gen-obj-numctl` wrapper is no taller than its own input" — is dead code:
+    // the wrapper is an `inline-flex` inside a `flex-wrap: wrap` parent, so the parent always wraps
+    // ahead of it and the group can never come apart while it exists. Measured at 390, 360 and 300,
+    // with the long copy and with the grouping disabled: green every time. It would only ever have
+    // caught the wrapper being DELETED, and it would have reported that as a count mismatch.
+    //
+    // So compare the two things the bug actually separated: the number box, and the words after it.
+    // Same line ⇒ one phrase. Different lines ⇒ the tail is orphaned under the lead-in, which is the
+    // reported render. This holds whatever the fix is implemented with.
+    const clause = await page.evaluate(() => [...document.querySelectorAll('.gen-obj-num input')].map((input) => {
+        const after = input.nextSibling;
+        const r = document.createRange();
+        r.selectNodeContents(/** @type {Node} */ (after));
+        return { input: input.getBoundingClientRect(), tail: r.getBoundingClientRect(), text: after?.textContent };
+    }));
+    expect(clause.length, 'two objectives carry a numeric clause').toBe(2);
+    for (const c of clause) {
+        expect(c.text?.trim(), 'the number is followed by the words it qualifies').toBeTruthy();
+        // Vertical centres within half a line of each other = the same line.
+        const gap = Math.abs((c.tail.top + c.tail.bottom) / 2 - (c.input.top + c.input.bottom) / 2);
+        expect(gap, `"${c.text?.trim()}" must sit beside its number, not on the line below`)
+            .toBeLessThan(10);
+    }
+});
+
 test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
     // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
     // the only way to reach them was the browser menu, which an installed PWA often does not expose.
