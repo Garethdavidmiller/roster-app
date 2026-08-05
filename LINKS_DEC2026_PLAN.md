@@ -112,6 +112,58 @@ settled. The file name stays on screen in `DEC_2026_SOURCE` regardless, because 
 file* is settled — if a later weekday file ever supersedes it, every figure here has to be
 re-measured from that file rather than assumed to carry over.
 
+## Demand is POSTS, not trains (owner, Aug 2026)
+
+**This is the most important correction in this document, and it arrived after packages 2, 3 and 5
+had shipped.** Everything above measures the SERVICE — movements, cars, per hour, per day class —
+and every design decision made from it assumed that service is what drives CEA headcount. It is
+not, or not mostly. The station has to roster **posts**:
+
+| Post | When |
+|------|------|
+| Ticket office | station hours (exact window TBC) |
+| Gateline | station hours |
+| Passenger assist | station hours |
+| Lost property | **daytime, Mon–Fri only** |
+| Break relief | extras on top, so the posts above stay covered through breaks |
+
+**Why that is a different shape from anything measured so far.** A post is a CONTINUOUS commitment:
+the gateline needs someone on it whether the hour carries 23 movements or 5. So a large part of the
+headcount is flat across the operating window and does not follow the train curve at all. Lost
+property is flatter still *and* narrower — daytime and weekdays only, which no curve in this
+document expresses. Break relief is not a post but a MULTIPLIER on the others, and it is the part
+most easily forgotten, because it buys no cover of its own.
+
+**Two things this invalidates.**
+
+1. **"Reshape the targets to the demand curve" is wrong for most of the headcount** — the idea
+   floated when package 4 was being scoped. Moving staff towards the 17:00 car peak is right for
+   dispatch and wrong for the ticket office, which has to be open when it is open. Applied
+   wholesale it would thin the fixed posts to chase a variable load.
+2. **The demand rows on the coverage card are EVIDENCE, not a target.** They already say this in
+   the sense that they never score a design — but the framing throughout this plan has been
+   "cover against service", and the honest framing is "cover against posts, with service explaining
+   the variable part". Do not build package 4 as though the timetable were the requirement.
+
+**What the model should be**, and it fits the tool better than the train curve did:
+
+> **required people in hour H = posts open in H + break relief + the train-driven variable part**
+
+That produces a **required-headcount-per-hour** curve — which is exactly the quantity the coverage
+heat map already renders for the ACTUAL design. Requirement and actual become the same unit, on the
+same axis, so the gap is directly readable instead of being inferred from two different measures.
+It also removes the need for the staffing RATIO that made a timetable-driven seed impossible: posts
+are counted, not derived, and only the variable remainder needs a judgement about trains.
+
+**Still needed before this can be built** — the numbers, not the structure:
+
+- how many people each post takes, and whether that changes by hour (one on the gateline at 06:30
+  and two at 08:00?);
+- the ticket office's actual opening hours, and what "daytime" means for lost property;
+- how break relief is worked out — a fixed extra per shift band, or a ratio of the posts covered;
+- whether the post list differs on Saturday and Sunday (the service does; the posts may not);
+- and whether any post is covered by another grade rather than by the CEA link.
+
 ## The staffed window, and the one boundary that has to move
 
 The CEA operating window is **Mon–Sat 06:20–23:55** and **Sunday 07:15–23:25** (owner, Aug 2026).
@@ -384,9 +436,19 @@ if the subject is how much of the morning falls outside the link.
 
 ### 4. Timetable-driven generator targets
 
-`buildRosterTargets()` seeds from the *current* roster, which is the wrong baseline for a timetable
-change. Allow the targets to be driven by the new service instead — either a pasted per-hour demand
-profile or a simplifier import.
+**Re-scoped Aug 2026 — read "Demand is POSTS, not trains" first.** The original scope below said
+"allow the targets to be driven by the new service", which is wrong for most of the headcount: the
+ticket office, gateline and passenger assist are continuous posts, lost property is daytime Mon–Fri
+only, and break relief sits on top of all of them. The timetable explains the VARIABLE part, not the
+requirement.
+
+So the target is a **required-people-per-hour** curve built from posts + relief + the train-driven
+remainder — the same unit the coverage heat map already draws for the actual design, so requirement
+and actual can sit on one axis. It also sidesteps the staffing ratio that made a purely
+timetable-driven seed impossible: posts are counted, not inferred.
+
+`buildRosterTargets()` still seeds from the *current* roster, which is the right starting point for
+the LEVEL (today's ratio is baked into it) and the wrong one for a timetable change on its own.
 
 **Record which simplifier version the targets came from.** These are "base" files and will be revised;
 `SX` is not even marked final. A design built against a superseded timetable with nothing on it to say
@@ -500,8 +562,9 @@ Recorded so the gaps are visible rather than implied:
 - **Whether "coverage vs service" is the business requirement at all.** It is an inference from the
   data available, not something Nathan stated. He said business requirements and fatigue guidelines;
   the fatigue half is documented on p3, the business half is not written down anywhere here.
-- **What CEAs actually do at Marylebone hour by hour** — dispatch, gateline, assistance, revenue —
-  and therefore which of those the movement profile is even a proxy for.
+- ~~**What CEAs actually do at Marylebone hour by hour**~~ — **PARTLY ANSWERED (owner, Aug 2026), and
+  it changes the demand model.** See "Demand is POSTS, not trains" below. The remaining unknowns are
+  the numbers, not the structure.
 - **Whether other grades cover the window's edges.** The 05:55 first departure and the post-midnight
   last trains sit outside the CEA link; something covers them, and knowing what would settle whether
   the Sunday finish is really a gap.
