@@ -318,6 +318,16 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   inside a flex container lays out unpredictably across engines, so the gap is a sibling margin, not
   a flex `gap` on the fieldset. **Do not re-create a page-local variant of this** — if the option-row
   treatment needs to change, change it with paycalc's.
+- **The generator now has pixel coverage** (v19.64): `links-generator.png` (desktop, three objectives
+  on and two off) and `links-objectives-narrow.png` (390px, where the rows stack and the numeric
+  clause drops to its own line). It had none before, because the card is collapsed in the workspace
+  baseline — so four consecutive releases reshaped it with only hand-read screenshots watching, on
+  the surface where this page's layout bugs actually happen.
+  **The checked-row treatment is asserted in COMPUTED STYLE, not left to the pixels**, and that split
+  is not belt-and-braces: `--bg-faint` is `oklch(97%)` against white, a 3% step, far under the
+  suite's `threshold: 0.15` per-pixel sensitivity — deleting the fill AND the shadow left the
+  screenshot passing (teeth-verified). The baseline catches composition; the style assertion catches
+  on-versus-off. Keep both.
 
 ### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
 **The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
