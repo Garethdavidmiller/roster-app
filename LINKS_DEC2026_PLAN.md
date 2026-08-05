@@ -209,6 +209,20 @@ rotating-window construction. It is not. Given a deliberately twin-peaked target
 against the live link's 15 days and 20%. So the generator is a good starting point for the Dec 2026
 work rather than something to be fought, and no work is needed to make it express the new shape.
 
+> **Those three numbers describe a construction that is no longer the default** (v19.65). They were
+> taken through `generatePatterns` when that meant the ROTATING window; since v19.59 the same call
+> builds **settled weeks**. Re-measured on a reconstruction of the target set described above:
+> rotating **6 days / 0 turnarounds / 8-of-28 weekends**, settled **8 days / 1 turnaround /
+> 10-of-28**. So the headline survives — both beat the live link's 15 days — but two specifics do
+> not: the longest stretch is longer under today's default, and "0 short turnarounds" is not a
+> property you can promise of it.
+>
+> **The exact targets were never written down, which is why this could only be approximated.** The
+> reconstruction above comes from the prose ("heavy 06:20 and 07:00, light middle, heavy 14:00 and
+> 15:25") and does not reproduce the 15/28 weekends, so the absolute figures here are not checkable
+> by anyone, including whoever wrote them. Record the target set beside any measurement you add —
+> the same rule the line-order figures needed.
+
 **That conclusion was drawn from too few measurements** (corrected v19.59, after comparing the
 generator's output against the live roster rule by rule). The figures above are real, but they are
 the four things `runDesignChecks` happened to count. On the measure the tool had *just* started
@@ -358,7 +372,10 @@ rendering the actual page and reading the actual sentence.
 The fix stores movement TIMES rather than hourly buckets — and derives the hourly curve from them,
 so the shading and the boundary check cannot describe different timetables. That also made the
 mirror-image finding visible at the other end of the day: **three weekday trains (06:04, 06:11,
-06:16) run before the 06:20 opening.**
+06:16) run in the hour before the 06:20 opening** — the ones the overlay can mark, since they share
+an hour cell with the opening. A fourth, the 05:55 departure, is earlier still and sits in an hour
+the heat map does not draw at all; the window table above counts all four. Quote four, not three,
+if the subject is how much of the morning falls outside the link.
 
 ### 4. Timetable-driven generator targets
 
@@ -409,10 +426,12 @@ a guess about what the comparison ought to say. (Related, and already recorded a
 both compare columns clip before Saturday, so Saturday cannot be compared without scrolling each
 column on its own.)
 
-**The generator's 25 near-identical rows.** Seeded from the current roster it renders 25 shift rows ×
-3 columns = 75 number fields, around 50 of them zero, so reshaping one part of the day means finding
-one row among 25 similar time dropdowns. Left alone on purpose: package 4 changes where those targets
-come from, and re-designing the table before that lands would mean doing it twice.
+**The generator's 28 near-identical rows.** Seeded from the current roster it renders 28 shift rows ×
+3 columns = 84 number fields, most of them zero, so reshaping one part of the day means finding one
+row among 28 similar time dropdowns. Left alone on purpose: package 4 changes where those targets
+come from, and re-designing the table before that lands would mean doing it twice. (It said 25/75
+until v19.65; the seed takes every distinct worked time across all 28 roster lines, and
+`.claude/rules/links-design.md` already said 28 — the two docs simply disagreed.)
 
 ## Open questions
 
@@ -435,8 +454,16 @@ Ordered by how much they change if the answer is unexpected.
    if the factor is read as cadence-only then no proposal can avoid it, and that belongs in the
    justify/minimise/control conversation rather than a checklist. Second, the step is now
    **measurable and tunable**: `links-adjacency.js` (v19.58) scores the week-to-week movement across
-   the whole rotation and the generator can order the lines to minimise it, behind a switch. On a
-   generated design that took the mean step from 42 minutes to 9.
+   the whole rotation and the generator can order the lines to minimise it, behind a switch.
+
+   **Do not quote a step figure without saying which switches were on** (corrected v19.65). This
+   paragraph said "took the mean step from 42 minutes to 9", which is `gentle` **alone** and is not
+   what the tool does by default. Since v19.60 `variety` is also on, and it deliberately spends that
+   step to cap how long anyone sits on the same shift — the change made after 11-week blocks were
+   judged "excessive and would be unpopular". The delivered default measures **95 min** on the roster
+   seed. Nine minutes is achievable and is a real answer to FF18; it is just not the one the tool
+   gives you unless you turn variety off and accept blocks of 8+. Offering the 9 in the room would
+   overstate the tool by an order of magnitude.
 
    Still outstanding: FF18's own row in the fatigue panel reports a **hardcoded** `standing`. The
    measurement now exists, so that row should read from it — and "never hardcode a status here" is
