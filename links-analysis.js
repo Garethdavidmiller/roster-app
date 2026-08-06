@@ -423,12 +423,19 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             );
         }
 
+        // The 7 is the owner's design target (Aug 2026) and sits well under the LEGAL ceiling of 13
+        // consecutive days on the UK railway — the aim is a link that does not go near it.
         const stretchOk = longestStretch <= 7;
+        const hasSpare = spare > 0;
         rows.push(
             `<div class="check-row ${stretchOk ? 'check-good' : 'check-warn-row'}">` +
             `${stretchOk ? tick : warn}<div class="check-body">` +
             `<strong>Longest run</strong> — ${longestStretch} consecutive working days` +
-            (longestStretch > 7 ? `<div class="check-sub">Over 7 days without a rest — worth reviewing.</div>` : '') +
+            (longestStretch > 7 ? `<div class="check-sub">Over 7 days without a rest — worth reviewing. The legal maximum is 13.</div>` : '') +
+            // Say what the number is once a spare week can affect it. It is the WORST CASE over
+            // every placement of that week's four duties, and a reader who assumes otherwise will
+            // read it as a fact about the design rather than a ceiling on it.
+            (hasSpare ? `<div class="check-sub">A spare week is 4 duties of 7 and they can fall anywhere in it, so this is the worst case.</div>` : '') +
             `</div></div>`
         );
 

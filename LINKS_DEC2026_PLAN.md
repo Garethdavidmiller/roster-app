@@ -185,22 +185,40 @@ pattern scores, and Nathan will inevitably ask. Measured by running `runDesignCh
 
 | Cycle | Lines | Longest worked stretch | FF11 — longest run between 48h breaks | Short turnarounds (<12h) | Weekends off |
 |-------|-------|------------------------|----------------------------------------|--------------------------|--------------|
-| Main | 20 | 15 days | **15 shifts** | **0** | 4/20 (20%) |
-| Bilingual | 8 | 14 days | **15 shifts** | **0** | 0/8 |
+| Main | 20 | **9 days** | **12 shifts** — clear | **0** | 4/20 (20%) |
+| Bilingual | 8 | **8 days** | **15 shifts** — over | **0** | 0/8 |
 
-**Those first two columns are DIFFERENT measures and the bilingual cycle is where they diverge.**
-The first draft of this table had only "longest worked stretch" and the paragraph below it called
-the 15 and 14 an FF11 result. They are not: a single rest day is not a 48h break, so it does not
-reset the FF11 count, and the bilingual cycle's 14-day stretch sits inside a 15-shift FF11 run.
-Corrected Aug 2026 against the shipped rule. Quote the FF11 column when the subject is FF11 — that is
-the one Nathan will be reading against the guidance.
+> **These figures were 15 / 14 / 15 / 15 until v19.79, and they were wrong.** The tool counted a
+> SPARE week as seven worked days. A spare week is **four** duties of seven (owner, Aug 2026) — you
+> are marked spare on all seven because you are available for cover, but four is what you work — so
+> the week always contains a rest day and can never fuse the blocks either side of it. Counting it
+> 7/7 did exactly that, and inflated both cycles by six days.
+>
+> The direction is what makes it serious rather than untidy. **13 consecutive days is a LEGAL
+> ceiling on the UK railway**, so a check reporting 15 was not erring on the safe side: it reported
+> a breach that does not exist, on the roster people are working right now. Anyone who knows the
+> real link would have discounted the row — and the next design that genuinely does go past 13
+> would have been hidden by that discount. Both figures above are now the WORST CASE over every
+> placement of each spare week's four duties, which is the number that can be defended in the room.
+
+**Those first two columns are DIFFERENT measures, and the corrected figures make the gap wider,
+not narrower.** A single rest day is not a 48h break, so it does not reset the FF11 count — the
+main cycle's 9-day worked stretch sits inside a 12-shift FF11 run, and the bilingual's 8-day
+stretch inside a 15-shift one. Quote the **FF11 column** when the subject is FF11; that is the one
+being read against the guidance. Quote the worked-stretch column when the subject is consecutive
+days on duty.
 
 Two things fall out of that, and both matter more than anything else in this document:
 
-1. **The current link already exceeds FF11** (">13 consecutive shifts without a 48h break") on both
-   cycles, at **15 shifts each**. SPARE counts as worked, correctly — a standby day is a duty. So the
-   proposals do not start from a clean sheet, and any FF11 finding in a new design should be read
-   against 15, not against zero. This is the single most useful number to have in the room.
+1. **The BILINGUAL cycle exceeds FF11; the main cycle does not.** 15 shifts against 12. That is a
+   different statement from the one this document carried until v19.79 ("both cycles, at 15 shifts
+   each"), and a more useful one: it names where the problem actually is. A standby day IS a duty
+   and counts, but a spare WEEK is four of them, not seven. Read any FF11 finding in a proposal
+   against 12 for main and 15 for bilingual, never against zero.
+   **The bilingual 15 is a worst case with a structural cause worth knowing:** its two spare weeks
+   are lines 1 and 8 of 8, so they wrap into each other, and a spare week's three rest days need
+   not be adjacent — so in the worst arrangement neither week supplies a 48h break while both still
+   supply duties.
 2. **Zero short turnarounds on either cycle.** The existing link never places a timed late immediately
    before a timed early — the same "start times only move later" principle the generator encodes. The
    FF13 check is therefore silent on live data, which is a good sign for the check rather than a
@@ -223,18 +241,26 @@ and through a construction that stopped being the default at v19.59.
 | | live main roster (20 lines) | generated, settled (default) | generated, rotating (fallback) |
 |---|---|---|---|
 | days per line | 3–7, clustered at 5 | 3–7, clustered at 5 | 3–7, clustered at 5 |
-| longest run | 15 days | 15 days | 13 days |
+| longest run | 9 days | **9 days** | 10 days |
+| FF11 (shifts between 48h breaks) | 12 | **12** | 16 |
 | short turnarounds | 0 | **0** | **0** |
 | weekends off | 4/20 (20%) | 7/28 (25%) | 6/28 (21%) |
 
-*(The 7s are spare weeks — SPARE is not rest, so a spare line counts as seven worked days. The live
-roster has four, the seed six.)*
+*(The 7s in the days-per-line row are spare weeks — a spare line is marked SPARE on all seven days.
+It is four DUTIES, and the run figures above count it that way; the days-per-line row is counting
+marked days, which is a different question. The live roster has four spare weeks, the seed six.)*
 
 **The generator's output is indistinguishable from the real roster on the measures that matter**, and
-matches it exactly on the one that would be dangerous to get wrong: zero short turnarounds. It does
-not IMPROVE the longest run — 15 days, the same as today's link and already past FF11's 13 — which is
-a property of the targets, not of the construction. A proposal that wants to fix that has to change
-the targets or the number of lines.
+matches it exactly on the two that would be dangerous to get wrong: zero short turnarounds, and an
+FF11 of 12 against the live main roster's 12. It does not IMPROVE the longest run — 9 days, the same
+as today's link — which is a property of the targets, not of the construction. Note the fallback
+construction is measurably WORSE on both (10 days, FF11 16), which is one more reason the status
+line names which one produced a design.
+
+**The owner's target is below the legal ceiling, not at it** (Aug 2026): ideally a new base link
+would not carry even **7** consecutive worked days. The live main roster's non-spare blocks reach
+exactly 7; the generator's reach 6. So the aspiration is already within reach of the tool, and the
+9-day worst cases above are entirely made of a spare week's four duties landing against a block.
 
 **Correctness, verified rather than assumed** (v19.75). Against the real seed, both constructions:
 
@@ -431,8 +457,10 @@ for and quietly change the shape the whole package is built on keeping.
 | +25% | 129 | 25 | **1.14** | **21 days** |
 | +50% | — | — | — | **refused: over capacity** |
 
-FF11 flags more than 13 consecutive shifts without a 48h break, and today's link is already at 15.
-At +25% it is 21. **A service increase of any size cannot be absorbed by making the existing lines
+FF11 flags more than 13 consecutive shifts without a 48h break; today's main link is at 12 and the
+bilingual at 15. The uplift table's run figures below are the pre-v19.79 reading and are being
+re-measured — the SHAPE of the finding (every extra duty comes out of a rest day) is unaffected,
+but the absolute numbers in the table overstate by roughly six. **A service increase of any size cannot be absorbed by making the existing lines
 denser — the link has to get bigger, which means more staff.** The generator refuses outright above
 ~+37% (28 people needed on a weekday against 22 working lines), so the tool fails loudly rather than
 quietly producing something unworkable.

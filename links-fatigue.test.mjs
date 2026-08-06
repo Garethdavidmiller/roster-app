@@ -31,6 +31,7 @@ const design = (...weeks) => {
 const RD = 'RD';
 const EARLY = '06:20-14:20';
 const LATE  = '15:25-23:55';
+const SPARE = 'SPARE';
 const MID   = '11:00-19:30';
 
 describe('dutyMinutes', () => {
@@ -486,5 +487,73 @@ describe('FF18 — the week-to-week step', () => {
         ));
         assert.equal(d.threshold, '2h');
         assert.match(String(d.detail), /more than 2 hours/);
+    });
+});
+
+// ── A SPARE WEEK IS FOUR DUTIES, NOT SEVEN (v19.79) ─────────────────────────────────────────────
+// Both run checks counted a spare week as seven worked days, justified in a comment as
+// "over-reporting is the safe direction for a fatigue check". It is not. A 7/7 spare week BRIDGES
+// the blocks either side of it and fuses them into one phantom run — the live main roster reported
+// 15 and the bilingual 14, against true ceilings of 9 and 8. Since 13 consecutive days is a LEGAL
+// ceiling on the UK railway, that is not caution: it reports a breach that does not exist on the
+// roster people work today, and every reader who knows the real link then discounts the row.
+//
+// Nothing in this suite caught it, because nothing here used SPARE at all. That is the gap these
+// cases close, and each one pins a DIRECTION — over-count on one side, under-count on the other.
+describe('spare weeks in the run checks', () => {
+    const SPARE_WK = [SPARE, SPARE, SPARE, SPARE, SPARE, SPARE, SPARE];
+    const WORKED_WK = [EARLY, EARLY, EARLY, EARLY, EARLY, EARLY, EARLY];
+    const REST_WK = [RD, RD, RD, RD, RD, RD, RD];
+
+    test('a spare week CANNOT bridge the blocks either side of it — the exact v19.78 defect', () => {
+        // Two full worked weeks with a spare week between them. Counted as 7/7 the answer is 21;
+        // four duties in seven days cannot fill a week, so the true ceiling is 7 + 4 = 11.
+        const seq = toSequence(design(WORKED_WK, SPARE_WK, WORKED_WK, REST_WK), 4);
+        assert.equal(longestWorkedRun(seq), 11);
+    });
+
+    test('a spare week on its own contributes at most four consecutive days', () => {
+        const seq = toSequence(design(REST_WK, SPARE_WK, REST_WK), 3);
+        assert.equal(longestWorkedRun(seq), 4);
+    });
+
+    test('two ADJACENT spare weeks legitimately chain to eight', () => {
+        // The first week's four duties at its end, the second's four at its start. This is the
+        // bilingual roster, whose spare weeks are 1 and 8 of 8 and so wrap into each other — so it
+        // must NOT be clamped to four, or the check under-reports the real chain.
+        const seq = toSequence(design(REST_WK, SPARE_WK, SPARE_WK, REST_WK), 4);
+        assert.equal(longestWorkedRun(seq), 8);
+    });
+
+    test('a design with no spare weeks is completely unaffected', () => {
+        const seq = toSequence(design(
+            [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
+            [RD, LATE, LATE, LATE, LATE, LATE, RD],
+        ), 2);
+        assert.equal(longestWorkedRun(seq), 5);
+    });
+
+    test('FF11: a spare duty following a real 48h break RESETS the count', () => {
+        // Found by hand-walking the bilingual roster: the first version of the SPARE branch
+        // incremented the run without honouring the reset the worked branch does, so the count ran
+        // straight through a genuine 48h break and reported 23 where the true answer is 15. The
+        // wrong number was entirely plausible, which is why it needs a test and not a reading.
+        const seq = toSequence(design(
+            [EARLY, EARLY, EARLY, EARLY, EARLY, RD, RD],   // 5 shifts, then a 48h break
+            SPARE_WK,                                       // 4 duties — a NEW count, not a continuation
+            REST_WK,
+        ), 3);
+        assert.equal(longestRunBetween48hBreaks(seq), 5);
+    });
+
+    test('FF11: a spare week supplies no 48h break of its own', () => {
+        // Its three rest days need not be adjacent, so in the worst case the week gives four
+        // shifts and no break at all — the run carries through it into the following week.
+        const seq = toSequence(design(
+            [RD, RD, EARLY, EARLY, EARLY, EARLY, EARLY],   // 48h break, then 5
+            SPARE_WK,                                       // +4, no break
+            [EARLY, EARLY, RD, RD, RD, RD, RD],             // +2, then a break
+        ), 3);
+        assert.equal(longestRunBetween48hBreaks(seq), 11);
     });
 });

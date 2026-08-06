@@ -24,6 +24,70 @@ export const ROTATING_LINES = 28;
 export const MIN_REST_MINUTES = 12 * 60;
 
 /**
+ * A spare WEEK is FOUR worked days of seven (owner, Aug 2026) — you are marked SPARE on all seven
+ * because you are available for cover, but four is what you work, unless a Sunday or other RDW is
+ * added on top.
+ */
+export const SPARE_WORKED_DAYS = 4;
+
+/**
+ * The longest run of consecutive worked days a line can be made to carry — the WORST CASE, because
+ * a spare week's four duties can be placed anywhere in its seven days and we do not know where.
+ *
+ * THIS REPLACES COUNTING A SPARE WEEK AS SEVEN WORKED DAYS (v19.79), which is what both run checks
+ * did, and which the comment justified as "over-reporting is the safe direction for a fatigue
+ * check". It is not, and the live roster is the proof: it reported the main cycle at **15** and the
+ * bilingual at **14** when the true ceilings are **9** and **8**. The error is not a rounding — a
+ * spare week that is 7/7 worked BRIDGES the blocks either side of it and fuses them into one long
+ * phantom run. Four duties in seven days cannot bridge anything: there is always a rest day inside
+ * the week, so a run can take at most four of its days and must then stop.
+ *
+ * Why the direction matters more than the size. 13 consecutive days is a LEGAL ceiling on the UK
+ * railway, not a preference — so a check that reports 15 is not being cautious, it is reporting a
+ * breach that does not exist, on the roster people are working today. Every reader who knows the
+ * real link then learns to discount the row, and the next design that genuinely goes past 13 is
+ * hidden by that discount. Over-reporting is only "safe" while nothing is riding on the number.
+ *
+ * The greedy scan is exact for a maximum: each run is free to spend a spare week's four duties
+ * however suits IT, because two different runs never need the same week's allocation at once. Two
+ * ADJACENT spare weeks legitimately chain to eight (the first week's four at its end, the second's
+ * four at its start) — that is the bilingual roster, whose spare weeks are 1 and 8 of 8 and so wrap
+ * into each other.
+ *
+ * @param {Array<{shift: any}>} seq - one person's journey, in day order, SEVEN PER LINE
+ * @returns {number} the most consecutive worked days any arrangement of the spare weeks can produce
+ */
+export function worstCaseWorkedRun(seq) {
+    const N = seq.length;
+    if (!N) return 0;
+    const isRestDay = (/** @type {any} */ s) => !s || s === 'RD' || s === 'OFF';
+    let best = 0;
+    for (let start = 0; start < N; start++) {
+        /** Duties already spent in each spare week by THIS run. @type {Map<number, number>} */
+        const spent = new Map();
+        let run = 0;
+        for (let k = 0; k < N; k++) {
+            const i = (start + k) % N;
+            const s = seq[i].shift;
+            if (s === 'SPARE') {
+                // Which line this day belongs to — the budget is per WEEK, not per day.
+                const line = Math.floor(i / 7);
+                const used = spent.get(line) || 0;
+                if (used >= SPARE_WORKED_DAYS) break;
+                spent.set(line, used + 1);
+                run++;
+            } else if (!isRestDay(s)) {
+                run++;
+            } else {
+                break;
+            }
+        }
+        if (run > best) best = Math.min(run, N);
+    }
+    return best;
+}
+
+/**
  * Classify a shift value into a colour/count class.
  * CEAs do not work nights — 'night' exists only as a defensive catch for
  * legacy or imported data (see CLAUDE.md → Links design model).
@@ -798,23 +862,11 @@ export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
         }
     }
 
-    // Longest run of consecutive worked days (SPARE counts as worked),
-    // measured around the full circular rotation.
-    let longestStretch = 0;
-    if (seq.every(s => isWorked(s.shift))) {
-        longestStretch = N;
-    } else {
-        let run = 0;
-        // Doubling the sequence handles runs that wrap across the cycle end.
-        for (let t = 0; t < N * 2; t++) {
-            if (isWorked(seq[t % N].shift)) {
-                run++;
-                if (run > longestStretch) longestStretch = Math.min(run, N);
-            } else {
-                run = 0;
-            }
-        }
-    }
+    // Longest run of consecutive worked days around the full circular rotation — the WORST CASE a
+    // spare week can be arranged into, NOT a spare week counted as seven worked days. See
+    // worstCaseWorkedRun: the old reading fused the blocks either side of a spare week and reported
+    // the live main roster at 15 against a true ceiling of 9, on a figure whose legal limit is 13.
+    const longestStretch = worstCaseWorkedRun(seq);
 
     // Early/late/spare balance across all worked cells.
     const balance = { early: 0, late: 0, spare: 0, worked: 0 };
