@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -817,12 +817,44 @@ export function init() {
             danger: true,
         })) return;
         try {
-            await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkDesigns, id)));
+            // RE-CHECK ON THE SERVER, INSIDE A TRANSACTION (v19.84, external review P1).
+            //
+            // This used to be a bare `deleteDoc` on the strength of `deletedDesigns` — the list
+            // loaded when the bin was opened. `purgeExpiredDeletions` below has carried a long
+            // comment for several versions explaining why that is unsafe, and this path, which is
+            // the more dangerous of the two, ignored it: a human pressing a button on a stale row
+            // is far likelier than an expiry sweep landing in the same window.
+            //
+            // The race is real in a workspace built for several designers. A opens the bin, B
+            // restores "Old idea", A's row is now stale, A presses Remove for good — and a LIVE
+            // design that someone deliberately rescued is destroyed with no undo. Firestore runs
+            // here with persistentLocalCache, so A's snapshot can also simply be an old read
+            // served from IndexedDB.
+            //
+            // Reading inside the transaction makes the decision and the deletion inseparable.
+            // Offline it fails and nothing is destroyed, which is the right way for a permanent
+            // delete to fail.
+            const ref = doc(db, COLLECTIONS.linkDesigns, id);
+            await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                const snap = await tx.get(ref);
+                if (!snap.exists()) return;                    // already gone — nothing to do
+                if (!isDeleted(snap.data())) throw new Error('design-restored');
+                tx.delete(ref);
+            }));
             deletedDesigns = deletedDesigns.filter(x => x.id !== id);
             renderDesignPicker();
             renderBinList();
             _binStatus(`“${d.name}” removed.`, 'ok');
         } catch (err) {
+            if (err instanceof Error && err.message === 'design-restored') {
+                // Say what happened rather than "couldn't remove": someone put it back on purpose,
+                // and the right next step is to look at it again, not to retry.
+                deletedDesigns = deletedDesigns.filter(x => x.id !== id);
+                renderBinList();
+                await loadDesigns();
+                _binStatus(`“${d.name}” was restored by someone else, so it was not removed.`);
+                return;
+            }
             console.error('[Links] Permanent delete failed:', err);
             _binStatus('Couldn’t remove that design — check your connection and try again.');
         }

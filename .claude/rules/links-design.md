@@ -45,6 +45,16 @@ state lives, and the rules that have historically produced bugs have been pulled
 - **Delete is a soft delete (v19.41).** `✕` writes `deletedAt`/`deletedBy` (a MERGE write — a replace would push the deleting device's copy of `patterns` over the server's) and the design moves to **🗑 Recently deleted**, restorable for `SOFT_DELETE_RETENTION_DAYS` (30), then purged on load. Restore clears both fields with `deleteField()`. All the decisions are pure and tested in `links-deletion.js`; the coordinator owns only the Firestore calls and the panel. Notes that matter when changing this:
   - **`isDeleted` and `isPurgeable` are not mirrors.** An unresolved `deletedAt` — what `serverTimestamp()` reads back as on the writing device — is DELETED but never PURGEABLE. Both directions are load-bearing and both have tests.
   - **A save against a design someone else deleted does not resurrect it.** `saveChanges` detects the deletion in the transaction and offers "Save mine as new" instead — an overwrite there would be one designer undoing another's delete without ever seeing it.
+  - **A hard delete re-reads the server inside a TRANSACTION** (v19.84, external review P1).
+    "Remove for good" used to call `deleteDoc` on the strength of the list loaded when the bin was
+    opened — so if a colleague restored a design in the meantime, pressing that button on the now
+    stale row **permanently destroyed a live design somebody had deliberately rescued**. The
+    auto-expiry sweep two functions away already carried a comment explaining why that is unsafe;
+    the manual path, which is the likelier of the two (a human on a stale list beats a sweep landing
+    in the same window), ignored it. On `design-restored` the bin says so and reloads rather than
+    offering a retry. `firestore.rules` now also requires `deletedAt` to be present for a hard
+    delete, so a future client with the same bug can only fail — the rules test that asserted a
+    designer *could* hard-delete a live design was asserting the hole.
   - The 30 days is a client policy enforced by a load-time purge, not a server rule. See KNOWN_LIMITATIONS.md → Links for the full list of what that does and does not promise.
 
 ## The beta marker — REMOVED v19.50

@@ -231,8 +231,16 @@ service cloud.firestore {
         return request.auth != null &&
           (request.auth.token.linksDesigner == true || request.auth.token.admin == true);
       }
-      // Delete carries no body to validate (v17.02 — Finding #12).
-      allow delete: if isLinksWriter();
+      // Delete carries no body to validate (v17.02 — Finding #12), but it DOES have state to
+      // check (v19.84, external review P1): a hard delete is only ever legitimate against a
+      // design already in the bin. The client purges through a transaction that re-reads the
+      // server copy, so a design somebody restored a moment ago is spared — but that is a client
+      // rule, and this collection is writable by three designers at once. Requiring `deletedAt`
+      // here means a future client carrying the same bug it took a review to find cannot destroy
+      // a LIVE design; it can only fail. Soft-delete itself is an UPDATE and is unaffected.
+      allow delete: if isLinksWriter()
+        && ('deletedAt' in resource.data)
+        && resource.data.deletedAt is timestamp;
       // Create/update are SHAPE-VALIDATED (v17.02 — Finding #12): linkDesigns was the last
       // designer-writable collection with no schema check, so a designer/admin (or a bug on
       // their session) could write an arbitrary/oversized document. hasOnly rejects any field

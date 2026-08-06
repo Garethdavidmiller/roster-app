@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import {
     BACKUP_FORMAT, BACKUP_VERSION,
     selectBackupKeys, summarise, buildBackup, validateBackup, rekeyEntries, backupFilename,
+    applyRestore,
 } from './paycalc-transfer.js';
 
 const PREFIX = 'myb_pc_gmiller_';
@@ -278,5 +279,91 @@ describe('filename', () => {
     });
     test('falls back when there is no member', () => {
         assert.equal(backupFilename('', '2026-07-28T16:40:00.000Z'), 'myb-pay-backup-device-2026-07-28.json');
+    });
+});
+
+// ── applyRestore — the all-or-nothing REPLACE over a storage with no transactions (v19.84) ──────
+// Found by external review. The inline ladder this replaced snapshotted only the keys that ALREADY
+// EXISTED, so a rollback could not undo a key the backup had CREATED: it left that key in place,
+// checked the original keys, found them intact, and told the member "nothing was changed" over a
+// pay history that had silently gained a period.
+//
+// Every case here needs a storage that fails ON DEMAND, which is exactly what a browser will not do
+// to order — and is why the io is injected rather than importing ls.js.
+describe('applyRestore', () => {
+    /** A fake localStorage whose writes/deletes can be made to fail for chosen keys. */
+    function fakeStore(initial = {}, { failWrites = [], failDeletes = [] } = {}) {
+        const map = new Map(Object.entries(initial));
+        return {
+            map,
+            get: (/** @type {string} */ k) => (map.has(k) ? map.get(k) : null),
+            set: (/** @type {string} */ k, /** @type {string} */ v) => { if (!failWrites.includes(k)) map.set(k, v); },
+            del: (/** @type {string} */ k) => { if (!failDeletes.includes(k)) map.delete(k); },
+        };
+    }
+
+    test('the happy path replaces: new keys written, surplus removed', () => {
+        const st = fakeStore({ 'myb_pc_g_miller_p1': 'old', 'myb_pc_g_miller_gone': 'x' });
+        const r = applyRestore({
+            ...st,
+            existing: ['myb_pc_g_miller_p1', 'myb_pc_g_miller_gone'],
+            entries: { 'myb_pc_g_miller_p1': 'new', 'myb_pc_g_miller_p2': 'fresh' },
+        });
+        assert.equal(r.ok, true);
+        assert.equal(st.map.get('myb_pc_g_miller_p1'), 'new');
+        assert.equal(st.map.get('myb_pc_g_miller_p2'), 'fresh');
+        assert.equal(st.map.has('myb_pc_g_miller_gone'), false, 'a key the backup lacks must genuinely disappear');
+    });
+
+    test('THE DEFECT: a key the backup CREATED is removed on rollback', () => {
+        // The exact scenario from the review — first new key lands, second fails.
+        const st = fakeStore({ 'old-period': 'keep' }, { failWrites: ['new-2'] });
+        const r = applyRestore({
+            ...st,
+            existing: ['old-period'],
+            entries: { 'old-period': 'updated', 'new-1': 'a', 'new-2': 'b' },
+        });
+        assert.equal(r.ok, false);
+        assert.equal(r.reason, 'write-failed');
+        assert.equal(st.map.has('new-1'), false, 'a created key must be DELETED on rollback, not left behind');
+        assert.equal(st.map.get('old-period'), 'keep', 'an existing key must be restored byte-for-byte');
+        assert.equal(r.restored, true, 'and with the union whole again, this is a true "nothing was changed"');
+    });
+
+    test('a rollback that cannot put everything back reports restored:false', () => {
+        // NOTE the shape. A write that fails WITHOUT changing the value leaves the device genuinely
+        // intact, so `restored: true` is the honest answer there — the first draft of this test
+        // asserted false and was wrong about the product, not the other way round. The real
+        // not-restored case is a creation that lands and then cannot be deleted again.
+        const st = fakeStore({}, { failWrites: ['new2'], failDeletes: ['new1'] });
+        const r = applyRestore({ ...st, existing: [], entries: { 'new1': 'a', 'new2': 'b' } });
+        assert.equal(r.ok, false);
+        assert.equal(r.restored, false, 'a created key that will not delete means the device was left changed');
+        assert.equal(st.map.get('new1'), 'a');
+    });
+
+    test('a surplus key that will not delete is a FAILED replace, not a success', () => {
+        // Everything the backup carries landed, but the old data would not go — that is a merge.
+        const st = fakeStore({ 'p1': 'old', 'stale': 'y' }, { failDeletes: ['stale'] });
+        const r = applyRestore({ ...st, existing: ['p1', 'stale'], entries: { 'p1': 'new' } });
+        assert.equal(r.ok, false);
+        assert.equal(r.reason, 'surplus-remains');
+        assert.equal(st.map.get('stale'), 'y');
+    });
+
+    test('values survive byte-for-byte — these are pay figures, not approximations', () => {
+        const st = fakeStore({});
+        const v = '{"gross":"1234.56","hrs":"07:30","neg":"-12.00"}';
+        applyRestore({ ...st, existing: [], entries: { 'myb_pc_x_p1': v } });
+        assert.equal(st.map.get('myb_pc_x_p1'), v);
+    });
+
+    test('a prototype-named key does not survive a replace', () => {
+        // `Object.hasOwn`, not `k in entries` — `in` walks the prototype chain, so `constructor`
+        // would report as present and escape the surplus sweep.
+        const st = fakeStore({ 'constructor': 'sneaky' });
+        const r = applyRestore({ ...st, existing: ['constructor'], entries: { 'p1': 'a' } });
+        assert.equal(r.ok, true);
+        assert.equal(st.map.has('constructor'), false);
     });
 });
