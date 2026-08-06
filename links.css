@@ -1492,6 +1492,38 @@ body.auth-ready .container { display: grid; }
 .gen-td-spare .gen-input { margin-right: 8px; }
 .gen-td-spare .gen-td-note { display: inline; }
 
+/* ---- December 2026 uplift (v19.78) ----
+   Sits between the target table and the line-order objectives because that is its scope: it changes
+   WHAT the targets are, the objectives change what ORDER the resulting lines sit in. Reuses
+   `.gen-obj-numctl` so the number and its "%" cannot come apart, and `.btn-text-link` so it reads as
+   the same weight as "↺ Reset targets" — this is a seed-transforming action, not a primary. */
+.gen-uplift {
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    background: var(--surface-sunken);
+    padding: 10px 14px 12px;
+    margin: 0 0 14px;
+}
+.gen-uplift-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: var(--type-label);
+    color: var(--text-dark);
+}
+.gen-uplift-note {
+    font-size: var(--type-badge);
+    color: var(--text-light);
+    line-height: 1.45;
+    margin: 6px 0 0;
+}
+/* The result line, once applied — states before → after per day class so the change is reviewable
+   rather than magic. `--text-mid`, not a success green: this reports, it does not congratulate. */
+.gen-uplift-note.applied { color: var(--text-mid); font-weight: 600; }
+@media print { .gen-uplift { display: none; } }
+
 /* ---- Line-order objectives (v19.58) ----
    Four switches over one scarce resource: which line follows which. They cannot cost coverage
    (permuting rows leaves each day's multiset identical), so they compete only with each other —

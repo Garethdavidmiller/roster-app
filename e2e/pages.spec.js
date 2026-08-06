@@ -1341,6 +1341,32 @@ test('links: the roster seed covers all 28 real lines, not a 22-line sample', as
     await expect(page.locator('#genSpareLines')).toHaveValue('6');
 });
 
+test('links: the December uplift scales the real targets in the table', async ({ page }) => {
+    // `scaleTargets` is unit-tested in links-design.test.mjs; what only a browser can prove is the
+    // WIRING — that Apply reaches the number inputs the generator actually reads, and that the note
+    // states before → after. The uplift is the one control on this page whose whole job is to change
+    // a figure somebody has agreed, so "it said it applied" is not enough: the cells must move.
+    await page.setViewportSize({ width: 900, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genSeedBtn').click();
+
+    const weekdayTotal = () => page.evaluate(() =>
+        [...document.querySelectorAll('#genSlotRows .gen-slot-count[data-class="weekday"]')]
+            .reduce((a, el) => a + (Number(/** @type {HTMLInputElement} */ (el).value) || 0), 0));
+
+    const before = await weekdayTotal();
+    await page.locator('#genUplift').fill('25');
+    await page.locator('#genUpliftApply').click();
+    const after = await weekdayTotal();
+
+    // Rounding is applied to the TOTAL, not per slot, so 25% of the real seed is exact enough to
+    // assert: a per-slot round would land short and that is the defect the algorithm exists to avoid.
+    expect(after).toBe(Math.round(before * 1.25));
+    await expect(page.locator('#genUpliftNote')).toContainText(`Mon–Fri ${before} → ${after}`);
+});
+
 test('links: generating names the construction that produced the design', async ({ page }) => {
     // Two constructions live behind one button and they give visibly different designs — settled
     // weeks keep a line inside one wave, the fallback walks it across the whole day. A designer who
