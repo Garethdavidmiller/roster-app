@@ -423,9 +423,29 @@ risk than the defect):
   the "N of M entered" count and the money disagree. The HPP lump behaves the same way, and
   `paycalc-year-summary.test.mjs` now pins it.
 
-### Firebase App Check — considered and declined (June 2026)
+### Firebase App Check — declined as an immediate action, RETAINED as Track D (reconciled Aug 2026)
+
+> **⚠️ This section and `SECURITY_RELEASE_PLAN.md` → Track D read as contradicting each other, and
+> were written in the SAME COMMIT** (`a7e8bbf`, 16 Jul 2026) — so neither superseded the other; the
+> two framings were inconsistent from birth. "Declined" reads as closed; Track D reads as queued.
+> **The reconciled position: App Check is NOT closed. It was declined as an immediate action and
+> kept in the security plan as Track D, sequenced last.**
+>
+> The two are compatible once read that way, and Track D directly answers the objection below that
+> caused the decline: **monitor-first** (D1 log-only, watch for legitimate-but-unattested traffic,
+> register every domain and debug token, then enforce one product at a time) exists precisely
+> because the silent-failure risk is real. The third objection stands unchanged in both places —
+> App Check gates *which clients* connect, not *what an authenticated client may read*, so it does
+> nothing about the world-readable `overrides`. That is Track E's problem, not this one's.
+>
+> The Aug 2026 external review recommended App Check for the telemetry and reset-request paths,
+> which is the same "defence-in-depth, sequenced last" position rather than a new argument.
+> **`SECURITY_RELEASE_PLAN.md` → Track D is authoritative for whether and when.** What follows is
+> the reasoning for the deferral, which is still the reasoning.
+
 App Check (register the app's hosting domains so only requests from our own pages can reach
-Firestore/Storage) was considered as a defence-in-depth measure and **declined for now**.
+Firestore/Storage) was considered as a defence-in-depth measure and **declined as an immediate
+action**.
 
 **Why declined:**
 - It is **not** a console-only toggle — it requires client-side SDK init in `firebase-client.js`
@@ -459,11 +479,25 @@ was needed.
 The calculator estimates take-home pay from staff-entered data. Actual payslips from
 Chiltern may differ due to arrears, adjustments, and deductions not captured here.
 
-### 2026/27 pay rates not confirmed
-`GRADES` in `paycalc-calc.js` has placeholder 2026/27 rates. Update when the pay
-award is announced. The UI shows a yellow "rate unconfirmed" notice for 2026/27 periods.
-Pay awards at Chiltern are typically not decided until August — do not expect confirmed
-rates before then.
+### 2026/27 pay rates — ✅ CONFIRMED AND SHIPPED (closed Aug 2026)
+
+This entry said the 2026/27 rates were placeholders and that the UI showed a yellow
+"rate unconfirmed" notice. **Both stopped being true and the entry was not updated.** The
+3.6% RMT award was settled (informed Jul 2026) and is applied automatically from the
+**28 Aug 2026 payslip**: `AWARD_RATES` in `paycalc-calc.js` carries CEA **£21.49** / CES
+**£22.60** with the previous rates as `pre`, the `TAX_YEARS` 2026/27 row carries the
+stepped London allowance (£286.10, `londonAllowFrom` 28 Aug 2026), and that row has **no
+`rateUnconfirmed` flag** — so no notice renders. Periods paid before 28 Aug stay on the
+2025/26 rates via `getRateForPeriod`.
+
+**The recurring instruction this entry existed for is now in the code**, next to the thing it
+governs — see the `NEXT award:` comment above `TAX_YEARS`: add the new tax year with
+`rateUnconfirmed: true` until its payslip lands, then set `londonAllow`/`londonAllowPre`/
+`londonAllowFrom` + `AWARD_RATES.rate` and drop the flag. Chiltern awards are typically not
+decided until August, so expect to do that around then.
+
+Left as a closed record rather than deleted, because "the rates are placeholders" is exactly the
+kind of claim a future maintainer would act on.
 
 ### Back pay lump sum vs HPP (v10.73 — SUPERSEDED at v16.89)
 The v10.73 fix fed `calcBackPay()`'s variable-pay portion (`_bpVarAmount`) into `calcHPP()`.

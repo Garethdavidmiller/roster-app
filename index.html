@@ -156,6 +156,25 @@
     </div>
 
     <!-- Annual Leave lightbox — opened by tapping the 🏖️ AL button -->
+    <!-- One-time notice: the surname password is going away (PASSWORD_PLAN.md Track C / C5).
+         The FORCED overlay (password-force.js) already compels anyone who SIGNS IN, so this notice
+         is not for them — it exists for the members who only ever read the roster and therefore
+         never meet that overlay at all. Its real ask is "sign in", with setting a password as the
+         reason to. Wording has to stay true for someone who has ALREADY set one: the calendar has
+         no named session, so it cannot read `passwordStatus` and genuinely does not know. -->
+    <div id="pwNoticeLb" class="lb-overlay" role="dialog" aria-label="Set your own password" aria-modal="true">
+        <div id="pwNoticeContent" class="lb-content notice-lb-content">
+            <button id="pwNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="notice-badge notice-badge--settings">⚙️ Settings</div>
+            <div class="lightbox-app-name">Set your own password</div>
+            <div class="notice-date">Posted 6 Aug 2026</div>
+            <p class="notice-body">Everyone started with the same kind of password — their surname. That means it is not really private: anyone who knows your name can guess it.</p>
+            <p class="notice-body">You can set your own in <strong>Settings &rarr; Password</strong>. If it has been a while since you signed in, you will be asked to sign in first — and you will be prompted to choose a password then anyway, so doing it now just gets it out of the way.</p>
+            <a href="./settings.html#passwordCard" id="pwNoticeGo" class="notice-cta">Set my password &rarr;</a>
+            <button id="pwNoticeLater" class="notice-later" type="button">Not now</button>
+        </div>
+    </div>
+
     <div id="alLightbox" class="lb-overlay" role="dialog" aria-label="Annual Leave balance" aria-modal="true">
         <div id="alLightboxContent" class="lb-content">
         <button id="alLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>

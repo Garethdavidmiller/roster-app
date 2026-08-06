@@ -17,9 +17,9 @@ import { auth, authReady, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, clearSession, reconcileExpiredIdentity } from './session.js';
 import { initTeamView } from './calendar-team-view.js';
-import { initNavPanel } from './nav-panel.js';
+import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
-import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
+import { _pushOverlayState, _clearOverlayHistory, createLightbox, openNoticeIfClear } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -969,3 +969,63 @@ initNavPanel({
     } : null,
 });
 
+
+
+// ── One-time notice: set your own password (v19.89, PASSWORD_PLAN.md Track C) ────────────────────
+//
+// WHO THIS IS FOR, because it is not who you would assume. `password-force.js` already COMPELS any
+// member still on the surname default to choose their own at their next sign-in, and sessions cap at
+// 30 days, so everyone who signs in is handled without a notice. The people it cannot reach are the
+// ones who only ever read the roster and so never sign in anywhere — CLAUDE.md records exactly that
+// as an accepted gap. This notice exists for them, on the one page they do open.
+//
+// So its real ask is "sign in"; setting a password is the reason to. That is also why it does NOT
+// carry the skill template's `if (!getSession()) return` guard — copying that in would hide the
+// notice from its entire target audience, which is everyone WITHOUT a session.
+//
+// It must also stay true for someone who has ALREADY set their own password: the calendar holds no
+// named session, so it cannot read `passwordStatus` and genuinely does not know. Hence "everyone
+// started with…" rather than "your password is…".
+(function () {
+    const NOTICE_ID   = 'pw-own-2026';
+    const NOTICE_DATE = '6 Aug 2026';
+    const DONE_KEY    = 'myb_notice_pw_own_2026_done';
+    const SNOOZE_KEY  = 'myb_notice_pw_own_2026_snooze';
+
+    const overlay = document.getElementById('pwNoticeLb');
+    if (!overlay) return;
+    if (lsGet(DONE_KEY)) return;
+    const snooze = lsGet(SNOOZE_KEY);
+    if (snooze && Date.now() < new Date(snooze).getTime()) return;
+    // 90 days, not the 28-day default: this is a migration that runs until C5 retires the surname
+    // default (gated on ~90% migrated), not an announcement with a news value that decays.
+    if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }
+
+    const _snoozeFor = (/** @type {number} */ days) =>
+        lsSet(SNOOZE_KEY, new Date(Date.now() + days * 86_400_000).toISOString());
+
+    const lb = createLightbox({
+        overlay,
+        content:  /** @type {HTMLElement} */ (document.getElementById('pwNoticeContent')),
+        closeBtn: /** @type {HTMLElement} */ (document.getElementById('pwNoticeClose')),
+        // Archive on OPEN, not on close: this notice has a CTA, so the member may navigate away to
+        // Settings and never fire `onClose`. `archiveNotice` is idempotent.
+        onOpen() {
+            archiveNotice({
+                id: NOTICE_ID, title: 'Set your own password', section: 'Settings',
+                date: NOTICE_DATE,
+                body: 'Everyone started with their surname as their password, which anyone who knows your name can guess. '
+                    + 'Set your own in Settings → Password. You will be asked to sign in first if it has been a while.',
+            });
+        },
+        onClose() { _snoozeFor(7); },
+    });
+
+    document.getElementById('pwNoticeGo')?.addEventListener('click', () => _snoozeFor(1));
+    document.getElementById('pwNoticeLater')?.addEventListener('click', () => lb.close());
+
+    // Deferred so it cannot land on top of the Huddle viewer's auto-open, and opened through
+    // `openNoticeIfClear` rather than `open()` — with two overlays up, one Escape ran both onClose
+    // callbacks and flagged the buried one seen for good (v19.53).
+    setTimeout(() => openNoticeIfClear(lb), 1500);
+}());

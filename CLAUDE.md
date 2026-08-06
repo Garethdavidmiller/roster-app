@@ -513,6 +513,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 |----|------|-------|-------|--------|--------|--------|-------------------|
 | `ytd_2627` | `paycalc.html` | Enter your Year to Date figures | 💷 Pay | 6 Apr 2026 | 90 days | ⛔ **inert since ~5 Jul 2026** — copy is still accurate, but nobody new sees it (see note above) | One-time; `NOTICE_YTD_KEY` set on close |
 | `links-workspace-2026` | `links.html` | Links Workspace | 🔗 Links | 2 Aug 2026 | **14 days** | ✅ live until ~16 Aug 2026 | One-time; `myb_links_welcome_seen` set on close |
+| `pw-own-2026` | `index.html` | Set your own password | ⚙️ Settings | 6 Aug 2026 | **90 days** | ✅ live until ~4 Nov 2026 | CTA + snooze; 7d on close, 1d on CTA; `myb_notice_pw_own_2026_done` |
 
 The retired `links-beta-2026` (posted 9 Jun 2026, 28 days) was replaced at v19.51: the beta chip
 went at v19.50, so its lead paragraph described a page that no longer existed. Only the paragraph
@@ -520,6 +521,12 @@ that was still true survived, joined by the fatigue-checks framing and the share
 note. It took a **new storage key** (`myb_links_welcome_seen`) — reusing the old one would have
 meant every current designer, all of whom closed the beta notice months ago, never saw the
 replacement.
+
+> **`pw-own-2026` comes out when C5 ships, not when it expires.** Its job ends the moment the surname
+> default is retired (SECURITY_RELEASE_PLAN → Track C5, gated on ~90% migrated) — after that it is
+> telling people to fix something that no longer exists. The 90-day window is a backstop, not the plan.
+> It is also the ONLY notice aimed at members who never sign in, so do not "tidy" it by adding a
+> `getSession()` guard: that would hide it from everyone it was written for.
 
 **Monthly cleanup:** on the 1st of each month, remove any notice from the table where `(today − Posted) > 180 days` — delete the HTML block, JS IIFE, and bump the version.
 
