@@ -14,6 +14,7 @@ import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
+import { lsSet } from './ls.js';   // iOS-safe wrapper — never raw localStorage (CLAUDE.md)
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
@@ -420,6 +421,13 @@ export function init() {
             setFeedback(res && res.statusRecorded === false
                 ? '✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)'
                 : '✓ Password updated. Use it the next time you sign in.', 'ok');
+            // The calendar's `pw-own-2026` notice is asking for exactly this, so retire it here —
+            // the skill's "target-page permanent dismiss" step (v19.89). Without it the notice only
+            // ever SNOOZES (1 day after its CTA, 7 on close) and would keep returning to someone who
+            // has already done what it asked, for the full 90-day window. Set on the DEVICE that did
+            // it, which is the same device the notice is showing on. Fire-and-forget: a notice that
+            // reappears is a nuisance, never a reason to fail a password change that has landed.
+            lsSet('myb_notice_pw_own_2026_done', '1');
             curEl.value = newEl.value = confEl.value = '';
             // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
             // reveal state the member chose, so the NEXT password typed into this card — possibly

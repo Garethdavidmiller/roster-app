@@ -204,3 +204,36 @@ test('calendar: a FIRST-RUN device reports no identity, so the default admin can
     const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
     expect(call.identity, 'a first-run device must not be keyed on the default member').toBe(null);
 });
+
+
+// ── The password notice must reach members who have NEVER signed in (v19.89) ─────────────────────
+// That is its entire audience: `password-force.js` already compels anyone who signs in, so the only
+// people a notice can add are the ones who never do. The skill's actionable-notice template opens
+// with `if (!getSession()) return`, and copying that in — which looks like tidying, and would pass
+// review — hides this notice from everybody it was written for while leaving it working for people
+// who did not need it. Hence a test on the SIGNED-OUT case specifically.
+test('calendar: the password notice shows to a member with no session', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedMember(page, 'S. Silva');                 // a chosen member, deliberately NO session
+    await page.goto('/');
+    await expect(page.locator('#pwNoticeLb.visible')).toBeVisible({ timeout: 8000 });
+
+    // Archived on OPEN, not on close: the CTA navigates away, so `onClose` may never fire.
+    const archived = await page.evaluate(() => localStorage.getItem('myb_app_notices') || '');
+    expect(archived, 'must be in App Notices before the member can navigate away').toContain('pw-own-2026');
+
+    await page.locator('#pwNoticeLater').click();
+    await expect(page.locator('#pwNoticeLb.visible')).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_pw_own_2026_snooze')),
+        'closing snoozes rather than dismissing for good').toBeTruthy();
+});
+
+test('calendar: the password notice stays away once dismissed for good', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedMember(page, 'S. Silva');
+    await page.addInitScript(() => localStorage.setItem('myb_notice_pw_own_2026_done', '1'));
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.waitForTimeout(2200);                    // past the 1500ms deferred open
+    await expect(page.locator('#pwNoticeLb.visible')).toBeHidden();
+});
