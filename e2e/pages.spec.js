@@ -1446,6 +1446,54 @@ test('links: a numeric objective clause does not come apart on a phone', async (
     }
 });
 
+// ── The grid keeps its day headers from 768px up (v19.77) ───────────────────────────────────────
+// The wrapper is `overflow-x: auto` below its breakpoint so the 592px table can scroll inside a
+// narrow card — but `overflow-x: auto` makes it a SCROLL CONTAINER whether or not anything
+// overflows, and `position: sticky` resolves against the nearest one. With the breakpoint at 1024
+// the header was therefore inert from 768 to 1023 while scrolling NOTHING: measured, the content
+// fits its box at 768 (684/684), 834 (720/720) and 1000 (876/876).
+//
+// That band is iPad portrait, which is the device this workspace's own first-visit notice
+// recommends — so it is worth a test rather than a comment. Neither project's default viewport
+// lands in it, which is exactly why nothing caught it.
+test('links: the grid day-headers stick from 768px up, where the table already fits', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= 28; i++) {
+            pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: '06:20-14:20',
+                thu: '06:20-14:20', fri: '06:20-14:20', sat: 'RD' };
+        }
+        w.__E2E.docs = [{ id: 'd1', name: 'A', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' }];
+    });
+
+    for (const width of [768, 834, 1024]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/links.html');
+        await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+        const m = await page.evaluate(() => {
+            const wrap = /** @type {Element} */ (document.querySelector('.links-grid-wrapper'));
+            const th = /** @type {Element} */ (document.querySelector('.links-grid thead th'));
+            const before = th.getBoundingClientRect().top;
+            window.scrollTo(0, 400);
+            const after = th.getBoundingClientRect().top;
+            window.scrollTo(0, 0);
+            return {
+                overflowX: getComputedStyle(wrap).overflowX,
+                fits: wrap.scrollWidth <= wrap.clientWidth + 1,
+                movedWithPage: Math.abs((before - after) - 400) < 5,
+            };
+        });
+        // The premise: at these widths there is nothing to scroll horizontally, so making the
+        // wrapper a scroll container buys nothing and costs the header.
+        expect(m.fits, `at ${width}px the table should already fit its wrapper`).toBe(true);
+        expect(m.overflowX, `at ${width}px the wrapper must not be a scroll container`).toBe('visible');
+        expect(m.movedWithPage, `at ${width}px the day header must STICK, not scroll away`).toBe(false);
+    }
+});
+
 // ── Opening a card in code must move the chevron and the ARIA with it (v19.70) ──────────────────
 // `initCardCollapse` only syncs `aria-expanded` on a real click, so anything that opens a card
 // programmatically has to do it by hand. `renderGrid`'s auto-expand did; the v19.66 empty-state

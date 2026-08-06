@@ -516,11 +516,34 @@ body.auth-ready .container { display: grid; }
     margin: 0 -16px;
     padding: 0 16px;
 }
-@media (min-width: 1024px) {
-    /* The table fits without horizontal scroll here. Removing the overflow
-       means the wrapper is no longer a scroll container, so the day-header
-       row's position:sticky finally sticks to the viewport while the
-       28-row grid scrolls. (.card uses overflow:clip for the same reason.) */
+/* 768px, NOT 1024 (corrected v19.77 — measured, and the old value was costing the sticky header
+   across the whole tablet range for nothing).
+
+   The wrapper is `overflow-x: auto` below this so the 592px table can scroll inside a narrow card.
+   But `overflow-x: auto` makes it a SCROLL CONTAINER whether or not anything overflows, and
+   `position: sticky` resolves against the nearest scroll container — so the day-header row stuck to
+   a box that is its own content's height, i.e. never moved, i.e. was inert.
+
+   Measured across the range (scrollWidth / clientWidth of the wrapper):
+
+       390px  338 / 592  overflows — a scroll container is genuinely needed
+       600px  548 / 592  overflows
+       768px  684 / 684  FITS
+       834px  720 / 720  FITS   <- iPad portrait
+      1000px  876 / 876  FITS
+
+   So from 768 to 1023 the wrapper was scrolling nothing and paying the sticky header for it. That
+   band includes iPad portrait, and this workspace's own first-visit notice recommends "a desktop or
+   tablet" — so it was broken on a device the app actively points people at.
+
+   BELOW 768 it stays a scroll container, deliberately: the table really does overflow there, and the
+   only way to give it a sticky header would be a `max-height` — a nested scrollbox around the
+   primary editing surface on touch. That trade was measured and declined; see KNOWN_LIMITATIONS.
+   Do not add `max-height` here without also resetting it at this breakpoint AND in `@media print`,
+   where a clipped 28-line sheet is silent on screen and only shows up on paper.
+
+   (.card uses overflow:clip — not hidden — for the same sticky reason, and is unscoped.) */
+@media (min-width: 768px) {
     .links-grid-wrapper { margin: 0; padding: 0; overflow-x: visible; }
 }
 

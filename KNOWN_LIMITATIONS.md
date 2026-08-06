@@ -781,6 +781,13 @@ never contingent on the beta label, and dropping it does not make any of them go
   generator owns the SHAPE, `links-adjacency.js` owns the ORDER. A test fails if the interleave
   returns.
 
+- **The GRID's header is fixed from 768px up** (v19.77) — it had been broken to 1024px, and the band
+  between was costing the sticky header for nothing. Measured: the wrapper's content fits its box at
+  768/834/900/1000 (684/684, 720/720, …), so `overflow-x: auto` was making it a scroll container with
+  nothing to scroll, and `position: sticky` resolves against the nearest scroll container. That band
+  includes **iPad portrait**, the device this workspace's own first-visit notice recommends. Moving
+  the breakpoint to 768 fixed it with no nested scrolling, no desktop change, and no baseline moving.
+  **Below 768 it stays broken, deliberately** — see the next entry.
 - **The generator and the grid lose their column headers on a PHONE** (measured v19.67, recorded
   here in the v19.70 sweep). Both tables sit in an `overflow-x: auto` wrapper below their breakpoint
   so the table can scroll inside the card — and per spec, when one overflow axis is not `visible`
