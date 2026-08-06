@@ -1772,6 +1772,51 @@ test('links: a target table stored BEFORE the spare-week change is still read', 
 // them all. With two one-time NOTICES up that meant a single keypress archived and permanently
 // flagged the one buried underneath, for someone who never saw it.
 //
+// ── "REMOVE FOR GOOD" MUST NOT DESTROY A DESIGN SOMEBODY RESTORED (v19.87) ──────────────────────
+// The last item on the external review's missing-test list. v19.84 made the manual purge
+// transactional, and the rules now require `deletedAt` for a hard delete — but both of those are
+// the SERVER half. Nothing exercised the client path: transaction sees the design is live, throws
+// `design-restored`, the bin says so, and nothing is deleted. Deleting the `isDeleted` check from
+// the transaction leaves every rules test green, because those assert what the RULES permit and
+// this design is legitimately deletable the moment its `deletedAt` is written.
+//
+// The race, staged exactly as it happens: A opened the bin (so A's `docs` show "Old idea" deleted),
+// B restored it in the meantime (so the server view, `txDocs`, has no `deletedAt`), and A presses
+// the button on a row that is now stale.
+test('links: Remove for good spares a design another designer has restored', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= 28; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        const base = { patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' };
+        // What THIS device loaded when the bin was opened.
+        w.__E2E.docs = [
+            { id: 'live', name: 'Option A', ...base },
+            { id: 'gone', name: 'Old idea', ...base, deletedAt: Date.now() - 2 * 86400000, deletedBy: 'S. Silva' },
+        ];
+        // What the server actually holds now: M. Robson restored it — no deletedAt at all.
+        w.__E2E.txDocs = [
+            { id: 'live', name: 'Option A', ...base },
+            { id: 'gone', name: 'Old idea', ...base, updatedBy: 'M. Robson' },
+        ];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await page.locator('#designBinBtn').click();
+    await page.locator('#designBinList button:has-text("Remove for good")').first().click();
+    await page.locator('.lb-overlay.visible .dialog-btn-confirm').last().click();
+
+    // It says what actually happened — not "couldn't remove", which would invite a retry against a
+    // design somebody deliberately rescued.
+    await expect(page.locator('#designBinStatus')).toContainText(/restored by someone else/i);
+
+    const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
+    expect(deletes, 'a restored design must survive a stale Remove for good').toEqual([]);
+});
+
 // This drives a REAL nested pair — the Recently-deleted bin with its "Remove for good" confirm on
 // top — because `overlay-history.test.mjs` tests the RULE (`_isTopOverlay`) and cannot see the
 // wiring: deleting the guard from `onKey` leaves every one of those unit tests green and only this
