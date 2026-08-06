@@ -408,64 +408,37 @@ an hour cell with the opening. A fourth, the 05:55 departure, is earlier still a
 the heat map does not draw at all; the window table above counts all four. Quote four, not three,
 if the subject is how much of the morning falls outside the link.
 
-### 4. More people, same shape — 🔧 **CONTROL SHIPPED v19.78; still needs the figure**
+### 4. More people, same shape — ❌ **WON'T-DO (owner, Aug 2026: "over complicates it")**
 
-**The new roster keeps the existing pattern** — same start times, same waves, same distribution
-(owner, Aug 2026). December 2026 adds trains, so it adds people. Nothing about the shape changes.
+A control was built at v19.78 — "increase every target by N%" on the generator, scaling the seeded
+target table in place — and **removed at v19.83**. The uplift figure was never supplied, and on
+reflection the tool did not need to own this: the targets are hand-editable, so a designer who knows
+the number can simply type it.
 
-> new target per slot = current target × (1 + uplift)
+**The measurement behind it stands, and it is the part that matters.** It is not a feature request,
+it is the argument to take into the room:
 
-applied to the seed `buildRosterTargets()` already produces, with the target table underneath for
-hand-adjustment. **Still needs one figure: the uplift.** Whether it splits by day class (the three
-curves grow differently) is a detail to settle when it arrives — the control scales all three
-together today, which is what "same shape" means and what the day-class split would replace.
+> 22 working lines × 7 days = **154 day-slots per cycle**. Every extra duty comes out of a rest day.
 
-**The control exists now** (v19.78): "December 2026 uplift" on the generator, above the line-order
-objectives. Type a percentage, press *Apply to targets*, and the table underneath is rewritten in
-place; the note states before → after per day class so the change is reviewable against whatever was
-agreed. `↺ Reset targets from current roster` is the way back.
+| uplift | duties | rest days | rest days per line |
+|---|---|---|---|
+| 0% (today) | 104 | 50 | 2.27 |
+| +20% | 107 | 47 | 2.14 |
+| +25% | 129 | 25 | **1.14** |
+| ~+37% and up | — | — | **refused: over capacity** |
 
-It is an **ACTION, not a mode**, and that is deliberate: the targets stay hand-editable underneath,
-so a persistent "+15%" chip would be a lie the moment somebody typed in a cell. Applying twice
-compounds — that is what "scale what is in the table" means, and the note saying what it just did is
-the guard against doing it by accident. It also restates the over-capacity refusal *at the moment the
-number changes* rather than leaving it for the Generate button, because at the uplifts that matter
-(below) the refusal is the answer.
+**A service increase of any size cannot be absorbed by making the existing lines denser — the link
+has to get bigger, which means more staff.** The generator refuses outright above ~+37% (28 people
+needed on a weekday against 22 working lines), so the tool fails loudly rather than quietly producing
+something unworkable.
 
-**Two things measured while checking the generator, and both change how this must be built:**
+*(The run-length column that used to sit in this table has been dropped: it was measured before
+v19.79 corrected the spare-week reading and overstated by about six. The shape of the finding — every
+extra duty costs a rest day — is unaffected, and is what the table is for.)*
 
-**(a) Rounding per slot silently swallows a small uplift.** The per-slot targets are mostly 1s and
-2s, so `round(1 × 1.15)` is 1 — and measured against the real seed, **every uplift from 0% to 15%
-produces byte-identical output**: 104 duties, unchanged. Then 25% jumps straight to 129. A designer
-typing 10% would see nothing happen and reasonably conclude the control was broken. Apply the uplift
-to the **total** and distribute the remainder (largest-remainder), never `Math.round` each slot on
-its own. `scaleTargets` does exactly that; measured on the real seed it gives 16 → **17** at +5%
-where per-slot rounding gave 16, then 18 / 18 / 19 / 20 at +10 / +15 / +20 / +25%.
+If a percentage control is ever proposed again, `.claude/rules/links-design.md` records the two rules
+it must carry, both of which cost a release to learn.
 
-One rule inside it that is not rounding and must not be tidied into it: **a slot sitting at 0 for a
-day class stays 0.** Zero there does not mean "a small number" — it means that shift does not run
-that day, and a fair-share pass that promoted it to 1 would invent a duty the timetable never asked
-for and quietly change the shape the whole package is built on keeping.
-
-**(b) The 28-line link cannot absorb much, and this is the finding that matters.** 22 working lines
-× 7 days = **154 day-slots per cycle**. Every extra duty comes out of a rest day:
-
-| uplift | duties | rest days | rest days per line | longest run |
-|---|---|---|---|---|
-| 0% (today) | 104 | 50 | 2.27 | 15 days |
-| +20% | 107 | 47 | 2.14 | 15 days |
-| +25% | 129 | 25 | **1.14** | **21 days** |
-| +50% | — | — | — | **refused: over capacity** |
-
-FF11 flags more than 13 consecutive shifts without a 48h break; today's main link is at 12 and the
-bilingual at 15. The uplift table's run figures below are the pre-v19.79 reading and are being
-re-measured — the SHAPE of the finding (every extra duty comes out of a rest day) is unaffected,
-but the absolute numbers in the table overstate by roughly six. **A service increase of any size cannot be absorbed by making the existing lines
-denser — the link has to get bigger, which means more staff.** The generator refuses outright above
-~+37% (28 people needed on a weekday against 22 working lines), so the tool fails loudly rather than
-quietly producing something unworkable.
-
-That is the argument to take into the room, and it is now backed by numbers rather than assertion.
 ### 5. Midnight-crossing guard — ✅ **SHIPPED v19.47**
 
 `endMinutesAbs` in `links-design.js` is now the one reading of a duty that runs past midnight, and
@@ -500,7 +473,7 @@ column on its own.)
 
 **The generator's 28 near-identical rows.** Seeded from the current roster it renders 28 shift rows ×
 3 columns = 84 number fields, most of them zero, so reshaping one part of the day means finding one
-row among 28 similar time dropdowns. Left alone on purpose: package 4 changes where those targets
+row among 28 similar time dropdowns. Left alone on purpose: package 4 would have changed where those targets
 come from, and re-designing the table before that lands would mean doing it twice. (It said 25/75
 until v19.65; the seed takes every distinct worked time across all 28 roster lines, and
 `.claude/rules/links-design.md` already said 28 — the two docs simply disagreed.)
@@ -554,7 +527,7 @@ Ordered by how much they change if the answer is unexpected.
    23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr. Three of those five are arrivals full of people
    getting off at an unstaffed terminus.
 4. ~~**Is the weekday simplifier final?**~~ — **ANSWERED (owner, Aug 2026): yes, all three are final.**
-   The `10_of_13` naming on the weekday file is not a status. This unblocks package 4, which had no
+   The `10_of_13` naming on the weekday file is not a status. This unblocked package 4, which had no
    business being built against a timetable about to be reissued. `DEC_2026_SOURCE.provisional` is
    cleared and the coverage card no longer says "(provisional)".
 5. **Should Saturday's window ever differ from Mon–Fri?** Currently identical; the setting can split

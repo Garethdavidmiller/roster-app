@@ -299,67 +299,6 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
 }
 
 /**
- * Scale a slot-target set by an uplift, keeping the SHAPE and getting the arithmetic right.
- *
- * The December 2026 job is "the existing pattern, with more people to cover the extra trains"
- * (owner, Aug 2026) — so the targets are not rebuilt from a timetable, they are the current ones
- * multiplied up. This is the multiplication.
- *
- * **IT ROUNDS THE TOTAL, NOT EACH SLOT, AND THAT IS THE WHOLE POINT.** Measured against the real
- * roster seed, per-slot `Math.round` makes small uplifts do LITERALLY NOTHING: the targets are
- * mostly 1s and 2s, `round(1 × 1.15)` is 1, and every uplift from 0% to 15% produced byte-identical
- * output — 104 duties — before jumping straight to 129 at 25%. A designer typing 10% would watch
- * nothing happen and reasonably conclude the control was broken. So the class total is scaled and
- * rounded once, then distributed back over the slots by LARGEST REMAINDER, which both hits the new
- * total exactly and keeps each slot's share of it.
- *
- * **A slot that is 0 for a day class stays 0.** Zero there means that shift does not run that day —
- * several are weekend-only or weekday-only — so handing it a person out of the remainder would
- * invent a duty on a day the service does not have one. Only slots already carrying someone can
- * receive.
- *
- * Deterministic: ties in the remainder go to the earlier slot, so the same input always gives the
- * same table and a designer can re-run and get their targets back.
- *
- * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} slots
- * @param {number} pct - uplift as a fraction (0.1 = +10%); 0 returns the totals unchanged
- * @returns {{slots: Array<{time:string, weekday:number, sat:number, sun:number}>,
- *            before: {weekday:number, sat:number, sun:number},
- *            after:  {weekday:number, sat:number, sun:number}}}
- */
-export function scaleTargets(slots, pct) {
-    const CLASSES = /** @type {const} */ (['weekday', 'sat', 'sun']);
-    const rows = (slots || []).map(s => ({ ...s }));
-    const before = /** @type {any} */ ({});
-    const after  = /** @type {any} */ ({});
-
-    for (const cls of CLASSES) {
-        const cur = rows.map(r => Math.max(0, Number(r[cls]) || 0));
-        const total = cur.reduce((a, b) => a + b, 0);
-        before[cls] = total;
-        if (!total) { after[cls] = 0; continue; }
-
-        const target = Math.max(0, Math.round(total * (1 + (Number(pct) || 0))));
-        // Exact shares, then floor; the shortfall is handed out by largest fractional part.
-        const exact = cur.map(n => (n * target) / total);
-        const base  = exact.map(Math.floor);
-        let short   = target - base.reduce((a, b) => a + b, 0);
-
-        const order = exact
-            .map((v, i) => ({ i, frac: v - Math.floor(v) }))
-            // Only a slot that already runs on this day can receive — see the note above.
-            .filter(x => cur[x.i] > 0)
-            .sort((a, b) => (b.frac - a.frac) || (a.i - b.i));
-
-        for (let k = 0; short > 0 && order.length; k++, short--) base[order[k % order.length].i]++;
-
-        rows.forEach((r, i) => { r[cls] = base[i]; });
-        after[cls] = base.reduce((a, b) => a + b, 0);
-    }
-    return { slots: rows, before, after };
-}
-
-/**
  * Auto-generate the rotating link (lines 1..lines) from per-shift staffing targets.
  *
  * The real roster staffs the day in WAVES — opens around 06:20, a morning

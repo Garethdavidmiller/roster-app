@@ -297,33 +297,6 @@
                         <button class="btn-text-link" id="genAddSlotBtn" type="button">+ Add another shift</button>
                         <button class="btn-text-link" id="genSeedBtn" type="button">↺ Reset targets from current roster</button>
                     </div>
-                    <!-- The December 2026 uplift (v19.78). The new roster keeps the existing pattern
-                         and adds people for the extra trains, so this scales the table above rather
-                         than rebuilding it from a timetable. An ACTION, not a live mode: the targets
-                         stay hand-editable underneath, and a mode would be a lie the moment you type
-                         in a cell. Applying twice compounds — which is what "scale what is in the
-                         table" means — and ↺ above is the way back. -->
-                    <div class="gen-uplift">
-                        <span class="field-eyebrow">December 2026 uplift</span>
-                        <div class="gen-uplift-row">
-                            <label for="genUplift">Increase every target by</label>
-                            <span class="gen-obj-numctl">
-                                <!-- The visible "%" sits after the box, so the accessible name has to
-                                     carry the unit itself. It still CONTAINS the visible label text,
-                                     which is what label-in-name requires. -->
-                                <input type="number" id="genUplift" class="gen-input gen-input-inline"
-                                       min="-50" max="200" step="1" value="0"
-                                       aria-label="Increase every target by, percent"> %
-                            </span>
-                            <button type="button" class="btn-text-link" id="genUpliftApply">Apply to targets</button>
-                        </div>
-                        <p class="gen-uplift-note" id="genUpliftNote">Scales the whole table, keeping each shift’s share. Ask for the figure before using it.</p>
-                    </div>
-                    <!-- Line-order objectives (v19.58). These tune WHICH LINE FOLLOWS WHICH, which is
-                         free with respect to coverage — permuting the rows cannot change how many
-                         people work shift X on day D. So they compete only with each other, and each
-                         one you turn on takes freedom from the rest. Switches rather than a formula
-                         precisely so the tool can show you what each one cost. -->
                     <fieldset class="gen-objectives">
                         <legend>Line order — what to tune for</legend>
                         <p class="gen-obj-note">These change the order of the lines, never the cover. Turning one on takes freedom from the others; the result says what each cost.</p>
