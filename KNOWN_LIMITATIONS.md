@@ -782,7 +782,7 @@ never contingent on the beta label, and dropping it does not make any of them go
   returns.
 
 - **The legal-limit check is a WORST CASE on a design, and it enforces nothing** (v19.80). 13
-  consecutive worked days is a legal ceiling on the UK railway, so — unlike the ORR factors beside
+  consecutive worked days is a Chiltern company limit, so — unlike the ORR factors beside
   it — this one does pass or fail, renders red on a breach, and shows whether it passes or fails
   rather than collapsing behind the quiet-rows disclosure. Three things it does not do:
   - **It measures the LINK, not a person's actual roster.** A design is a pattern; what somebody

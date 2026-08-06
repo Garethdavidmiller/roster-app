@@ -449,23 +449,23 @@ test('links: the sticky summary bar carries a live reading of the analysis below
     await expect.poll(() => chips.allTextContents()).not.toEqual(before);
 });
 
-test('links: the legal limit is its own section, above the advisory factors and never collapsed', async ({ page }) => {
-    // 13 consecutive worked days is a legal ceiling, so this row is a different kind of statement
-    // from the 24 below it. The unit tests prove the RULE; what only a browser can prove is that the
+test('links: the company limit is its own section, above the advisory factors and never collapsed', async ({ page }) => {
+    // 13 consecutive worked days is a Chiltern COMPANY limit — not legislation (v19.85) — but it is
+    // still a hard limit, so this row is a different kind of statement from the 24 below it. The unit tests prove the RULE; what only a browser can prove is that the
     // separation actually survives into the DOM — that it is not tallied into the fatigue counts, not
     // wearing the advisory amber, and not hidden behind the quiet-rows disclosure when it passes.
     await openLinksWithDesign(page);
 
-    const legalHead = page.locator('.check-section-head:has-text("Legal limits")');
+    const legalHead = page.locator('.check-section-head:has-text("Company limits")');
     const fatigueHead = page.locator('.check-section-head:has-text("Fatigue factors")');
     await expect(legalHead).toBeVisible();
 
     // Order: the hard limit comes first.
     const order = await page.evaluate(() => {
         const heads = [...document.querySelectorAll('.check-section-head')].map(h => h.textContent || '');
-        return heads.findIndex(t => /Legal limits/.test(t)) < heads.findIndex(t => /Fatigue factors/.test(t));
+        return heads.findIndex(t => /Company limits/.test(t)) < heads.findIndex(t => /Fatigue factors/.test(t));
     });
-    expect(order, 'the legal section must render above the advisory factors').toBe(true);
+    expect(order, 'the hard-limit section must render above the advisory factors').toBe(true);
 
     // Its count is its own — "within limits" / "N breached", never folded into "N present · N clear".
     await expect(legalHead.locator('.check-section-meta')).toHaveText(/within limits|breached|not yet assessable/);

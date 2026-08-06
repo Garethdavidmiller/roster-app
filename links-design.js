@@ -42,8 +42,8 @@ export const SPARE_WORKED_DAYS = 4;
  * phantom run. Four duties in seven days cannot bridge anything: there is always a rest day inside
  * the week, so a run can take at most four of its days and must then stop.
  *
- * Why the direction matters more than the size. 13 consecutive days is a LEGAL ceiling on the UK
- * railway, not a preference — so a check that reports 15 is not being cautious, it is reporting a
+ * Why the direction matters more than the size. 13 consecutive days is a Chiltern company limit,
+ * not a preference — so a check that reports 15 is not being cautious, it is reporting a
  * breach that does not exist, on the roster people are working today. Every reader who knows the
  * real link then learns to discount the row, and the next design that genuinely goes past 13 is
  * hidden by that discount. Over-reporting is only "safe" while nothing is riding on the number.
