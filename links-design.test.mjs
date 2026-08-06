@@ -4,6 +4,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+    worstCaseWorkedRun,
     DAYS,
     classifyShift,
     normaliseCustomShift,
@@ -511,6 +512,45 @@ test('runDesignChecks longest stretch wraps the cycle', () => {
     // Wrap: line2 Sat(RD)… line1 starts cycle. Worked run: line1 sat → line2 sun = 2;
     // line1 sun+mon = 2. Longest = 2.
     assert.equal(runDesignChecks(patterns, 2).longestStretch, 2);
+});
+
+// The live main and bilingual rosters are the regression pin for this: they reported 15 and 14
+// consecutive worked days until v19.79 because a spare week counted as SEVEN. Four duties in seven
+// days cannot fill a week, so a spare week always contains a rest day and can never fuse the blocks
+// either side of it. 13 consecutive days is a LEGAL ceiling on the UK railway, so a check reporting
+// 15 was not being cautious — it reported a breach that does not exist on the roster people work.
+describe('worstCaseWorkedRun — a spare week is four duties, not seven', () => {
+    const wk = (...d) => Object.fromEntries(DAYS.map((k, i) => [k, d[i]]));
+    const W = '06:20-14:20', R = 'RD', S = 'SPARE';
+    const seqOf = (...weeks) => {
+        const out = [];
+        weeks.forEach((w, i) => DAYS.forEach(d => out.push({ shift: w[d] })));
+        return out;
+    };
+
+    test('a spare week does not bridge the blocks either side of it', () => {
+        const worked = wk(W, W, W, W, W, W, W);
+        // 7/7 counting gives 21. The truth is 7 + at most 4 = 11.
+        assert.equal(worstCaseWorkedRun(seqOf(worked, wk(S, S, S, S, S, S, S), worked, wk(R, R, R, R, R, R, R))), 11);
+    });
+
+    test('two adjacent spare weeks chain to eight, and are not clamped to four', () => {
+        const spare = wk(S, S, S, S, S, S, S), rest = wk(R, R, R, R, R, R, R);
+        assert.equal(worstCaseWorkedRun(seqOf(rest, spare, spare, rest)), 8);
+    });
+
+    test('the budget is per WEEK, so one spare week caps at four however you enter it', () => {
+        assert.equal(worstCaseWorkedRun(seqOf(wk(R, R, R, R, R, R, R), wk(S, S, S, S, S, S, S))), 4);
+    });
+
+    test('a design with no spare weeks is untouched by the rule', () => {
+        assert.equal(worstCaseWorkedRun(seqOf(wk(R, W, W, W, W, W, R), wk(R, W, W, W, W, W, R))), 5);
+    });
+
+    test('an all-worked design with no rest anywhere still reports the whole cycle', () => {
+        const worked = wk(W, W, W, W, W, W, W);
+        assert.equal(worstCaseWorkedRun(seqOf(worked, worked)), 14);
+    });
 });
 
 test('runDesignChecks flags lines that are entirely rest days as unfilled', () => {

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: August 2026 — v19.70 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.80 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 

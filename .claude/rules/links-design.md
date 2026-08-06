@@ -268,6 +268,45 @@ block straddling line 28 → line 1 was cut in half and reported as nothing.
 
 Hours totals are a **floor**: SPARE carries no times, so a standby day contributes zero.
 
+**A SPARE WEEK IS FOUR DUTIES OF SEVEN, NOT SEVEN** (v19.79, owner). You are marked SPARE on all
+seven days because you are available for cover; four is what you work, unless a Sunday or another
+RDW is added on top. Both run checks — `runDesignChecks`'s longest worked stretch and FF11 — counted
+all seven, and the comment justified it as "over-reporting is the safe direction for a fatigue
+check".
+
+It is not, and the live roster is the proof. A 7/7 spare week **bridges** the blocks either side of
+it and fuses them into one phantom run, so the main cycle reported **15** consecutive worked days
+against a true ceiling of **9**, and the bilingual **14** against **8**. Four duties cannot fill a
+week, so there is always a rest day inside it and a run can take at most four of its days.
+
+**13 consecutive days is a LEGAL ceiling on the UK railway** — so a check reporting 15 is not
+cautious, it reports a breach that does not exist on the roster people are working today. Anyone
+who knows the real link discounts the row, and the next design that genuinely goes past 13 is
+hidden by that discount. Over-reporting is only "safe" while nothing is riding on the number.
+
+`worstCaseWorkedRun` in `links-design.js` is the ONE reading; `longestWorkedRun` here delegates to
+it. Four things that are easy to get wrong, each with a test:
+
+- **Two ADJACENT spare weeks legitimately chain to eight** — the first week's four duties at its
+  end, the second's four at its start. That is the bilingual roster, whose spare weeks are lines 1
+  and 8 of 8 and so wrap into each other. Do not clamp the answer to four.
+- **FF11 is a different question and needs its own handling.** A spare week's three rest days need
+  not be adjacent, so in the worst case it supplies **no 48h break at all** while still supplying
+  four shifts. Counting the week as a break would deflate the figure; counting seven shifts inflated
+  it. Four, and no reset, is the honest ceiling — which is why the main cycle now reads 12 (clear)
+  and the bilingual 15 (over), where both used to read 15.
+- **A spare duty following a real 48h break must RESET the count.** The first version of the SPARE
+  branch incremented without honouring the reset the worked branch does, and ran straight through a
+  genuine break: bilingual reported 23 against a true 15. It was caught by walking the roster by
+  hand, because the wrong answer was entirely plausible.
+- **The FF11 budget is keyed on the UNMODDED index**, so the second lap gets its own. That lap
+  exists to measure a run wrapping the cycle end, and next time round the wheel it genuinely is a
+  fresh spare week; sharing the budget silently truncates exactly the run the lap is for.
+
+**Owner's design target is below the legal ceiling, not at it:** ideally a new base link would not
+carry even **7** consecutive worked days. The live main roster's non-spare blocks reach exactly 7;
+the generator's reach 6.
+
 **The `clear` and `n/a` rows are collapsed behind a disclosure** (v19.57). The card measured 1,799px —
 24 rows of which 16 said nothing had happened, so the 8 real findings were diluted five to one in a
 card taller than the grid it describes. It is now 1,134px. **This must not be allowed to weaken the

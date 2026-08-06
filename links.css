@@ -810,6 +810,12 @@ body.auth-ready .container { display: grid; }
 /* The section's headline counts, sitting at the far end of its own heading — so the reader gets
    the summary BEFORE the 24 rows, not by tallying icons afterwards. */
 .check-section-meta { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-light); }
+/* The Legal-limits heading count, when a limit is BREACHED (v19.80). The two sections of this panel
+   are structural peers — both are groups of checks — so the heading rank is deliberately the same;
+   what separates them is that a legal row can go RED and an ORR row never may. This is the only
+   place the summary line is allowed to shout, and it shouts only when there is something to shout
+   about: an unbreached legal check reads in the ordinary quiet grey, like everything else. */
+.check-section-meta-breach { color: var(--error-red); font-weight: 800; }
 
 /* The FF number is the panel's scanning key — the whole point is cross-referencing the ORR's own
    p3 list — and it shipped as `.check-note`, the faintest thing in the row, running inline with the
@@ -1707,20 +1713,29 @@ body.auth-ready .container { display: grid; }
        620px table under a 1036px objectives box under a 1036px button — a card reading as three
        unrelated widths. Capping the FORM lines every part of it up, and 660px sits right beside the
        ~72ch the intro prose above is already held to. */
-    /* CENTRED, not left-aligned (v19.66). The 660px cap is right — it was measured, and widening
-       the table just puts a 90px shift time in a 477px cell. But left-aligning it inside the
-       1100px card dumped the whole remainder on one side: 440px of empty white running 1,794px
-       down the tallest card on the page, which reads as a rendering fault rather than as margin.
-       Centred, the same space becomes 220px of symmetric gutter and the card looks deliberate.
-       Nothing moves on mobile, where the cap does not apply. */
-    .generator-form { max-width: 660px; margin-inline: auto; }
-    /* THE INTRO HAS TO COME WITH IT (v19.67). Centring the form alone left the card with TWO left
-       edges — measured at 1280px, the intro ran 122→778 while the table, objectives, action links
-       and Generate button all ran 310→970. They are nearly the same WIDTH (656 vs 660), which is
-       what made it read as a mistake rather than as hierarchy: the same measure, twice, 188px
-       apart. Sharing the form's cap puts both in one column and costs the prose 4px of measure.
-       Scoped to this card — `.links-desc` is used on other cards that are not centred. */
-    #generatorCard .links-desc { max-width: 660px; margin-inline: auto; }
+    /* THE FORM USES THE FULL CARD (v19.82, owner: "still not using the full width"). It was capped
+       at 660px and centred from v19.61, which measured out as 220px of dead gutter on EACH side at
+       every desktop width — 440px, 40% of an 1100px card, with the actual control a narrow strip
+       down the middle of a very large white slab.
+
+       The cap's stated reason was that widening "just puts a 90px shift time in a 477px cell". That
+       reasoning was misapplied: the shift time is not 90px of TEXT sitting in a cell, it is a
+       `<select>` that stretches to fill it. Measured uncapped at 1280px, the cell is 491px and the
+       select is 478px of it — a full-width field, which reads as a control rather than as gap.
+       Rendered side by side, capping the select instead (300px in a 491px cell) looked WORSE than
+       not capping it: 190px of visible void inside a bordered cell is far more obviously wrong than
+       a wide dropdown. The number columns land at ~180px, which is symmetric and reads as ordinary
+       table spacing.
+
+       ⚠️ THE INTRO MUST NOT BE CENTRED WHEN THE FORM IS FULL WIDTH. The v19.67 fix put both in one
+       660px centred column to stop the card having TWO left edges. Removing the cap from the form
+       alone recreates that defect the other way round — measured on the prototype, the prose ran
+       250→790 against a table at 15→1040. So the prose keeps a reading measure and is pinned to the
+       SAME left edge (`margin-inline: 0`), not centred. Both are asserted by the left-edge e2e. */
+    #generatorCard .links-desc { max-width: 72ch; margin-inline: 0; }
+    /* A number box sized for a thumb on a phone looks lost in a 180px desktop cell. Widening the
+       INPUT rather than narrowing the cell: the target grows, which is the right direction. */
+    .gen-slot-table .gen-input { width: 88px; }
     .gen-th-time, .gen-td-time { width: 46%; }
 }
 

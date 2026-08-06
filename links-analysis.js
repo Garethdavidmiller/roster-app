@@ -17,6 +17,7 @@
  */
 import { DAYS, ROTATING_LINES, calcHourlyCoverage, runDesignChecks } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
+import { assessLegalLimits } from './links-legal.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, windowMinutes } from './links-window.js';
 import {
     DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, DAY_CLASSES,
@@ -423,12 +424,19 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             );
         }
 
+        // The 7 is the owner's design target (Aug 2026) and sits well under the LEGAL ceiling of 13
+        // consecutive days on the UK railway — the aim is a link that does not go near it.
         const stretchOk = longestStretch <= 7;
+        const hasSpare = spare > 0;
         rows.push(
             `<div class="check-row ${stretchOk ? 'check-good' : 'check-warn-row'}">` +
             `${stretchOk ? tick : warn}<div class="check-body">` +
             `<strong>Longest run</strong> — ${longestStretch} consecutive working days` +
-            (longestStretch > 7 ? `<div class="check-sub">Over 7 days without a rest — worth reviewing.</div>` : '') +
+            (longestStretch > 7 ? `<div class="check-sub">Over 7 days without a rest — worth reviewing. The legal maximum is 13.</div>` : '') +
+            // Say what the number is once a spare week can affect it. It is the WORST CASE over
+            // every placement of that week's four duties, and a reader who assumes otherwise will
+            // read it as a fact about the design rather than a ceiling on it.
+            (hasSpare ? `<div class="check-sub">A spare week is 4 duties of 7 and they can fall anywhere in it, so this is the worst case.</div>` : '') +
             `</div></div>`
         );
 
@@ -464,6 +472,30 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             fat.confirmNeeded ? `${fat.confirmNeeded} to confirm` : '',
             quietCount ? `${quietCount} clear` : '',
         ].filter(Boolean).join(' · ');
+
+        // ── THE HARD LIMIT, ABOVE THE ADVISORY FACTORS AND VISIBLY NOT ONE OF THEM (v19.80) ──────
+        // 13 consecutive worked days is a LEGAL ceiling on the UK railway, so it is a different kind
+        // of statement from anything below it: a design either meets it or cannot be run. It gets
+        // its own section, its own heading, `.check-bad` RED on a breach (the class the fatigue half
+        // is forbidden from using), and — unlike every advisory row — it renders whether it passes or
+        // fails, because "the legal limit was checked and met" has to be visible on the sheet that
+        // goes to the assessing manager rather than hidden behind a disclosure.
+        // Its counts are deliberately NOT added to the fatigue heading's tally. See links-legal.js.
+        const legal = assessLegalLimits(design.patterns, ROTATING_LINES);
+        const LEGAL_ICON = { ok: tick, breach: `<span class="check-icon check-cross" aria-hidden="true">✕</span>`, unknown: info };
+        const LEGAL_CLS  = { ok: 'check-good', breach: 'check-bad', unknown: 'check-neutral' };
+        fatRows.push(
+            `<div class="check-section-head"><span>Legal limits <span class="check-note">must be met</span></span>` +
+            `<span class="check-section-meta${legal.breaches ? ' check-section-meta-breach' : ''}">` +
+            `${escapeHtml(legal.breaches ? `${legal.breaches} breached` : legal.assessable ? 'within limits' : 'not yet assessable')}</span></div>`,
+            ...legal.checks.map(c =>
+                `<div class="check-row ${LEGAL_CLS[c.status]}">${LEGAL_ICON[c.status]}<div class="check-body">` +
+                `${escapeHtml(c.title)}${c.value === null ? '' : ` — <strong>${escapeHtml(String(c.value))}</strong>`}` +
+                ` <span class="check-note">${escapeHtml(c.basis)}</span>` +
+                `<div class="check-sub">${escapeHtml(c.detail)}</div>` +
+                `</div></div>`
+            ),
+        );
 
         fatRows.push(
             `<div class="check-section-head"><span>Fatigue factors <span class="check-note">ORR good practice, p3</span></span>` +

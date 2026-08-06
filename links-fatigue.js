@@ -35,7 +35,7 @@
  * estimate. `hoursAreFloor` is returned so the UI can say so rather than imply precision.
  */
 
-import { DAYS, ROTATING_LINES, startMinutes, endMinutesAbs, runDesignChecks, MIN_REST_MINUTES } from './links-design.js';
+import { DAYS, ROTATING_LINES, startMinutes, endMinutesAbs, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, SPARE_WORKED_DAYS } from './links-design.js';
 // FF18 is the one factor here whose subject is what happens BETWEEN lines, so it is the one that
 // needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
@@ -140,7 +140,13 @@ export function toSequence(patterns, lines = ROTATING_LINES) {
 export function longestRunBetween48hBreaks(seq) {
     const n = seq.length;
     if (!n) return 0;
-    const workedTotal = seq.filter(x => isWorked(x.shift)).length;
+    // Shifts in the whole cycle. A SPARE week contributes four, not seven — it is the ceiling this
+    // function's answer is capped at, so counting all seven here would let the cap re-admit the
+    // very over-count the body was fixed to remove (v19.79).
+    const spareWeeks = new Set();
+    for (let i = 0; i < n; i++) if (seq[i].shift === 'SPARE') spareWeeks.add(Math.floor(i / 7));
+    const workedTotal = seq.filter(x => isWorked(x.shift) && x.shift !== 'SPARE').length
+        + spareWeeks.size * SPARE_WORKED_DAYS;
 
     // Does a 48h break exist ANYWHERE in the rotation? If not, the person never gets one, and the
     // answer is every worked day in the cycle — recurring forever. Capping at the sequence LENGTH
@@ -153,9 +159,38 @@ export function longestRunBetween48hBreaks(seq) {
     if (!has48) return workedTotal;
 
     let best = 0, run = 0, restRun = 0;
+    // Per-line budget for the spare weeks — see the SPARE note in the doc comment.
+    /** @type {Map<number, number>} */
+    const spent = new Map();
     // Two laps so a run spanning the wrap point is measured whole.
     for (let i = 0; i < n * 2; i++) {
-        const s = seq[i % n].shift;
+        const idx = i % n;
+        const s = seq[idx].shift;
+        if (s === 'SPARE') {
+            // A spare week is FOUR duties, and its three rest days need not be adjacent — so in the
+            // worst case it supplies NO 48h break at all while still adding four shifts. Counting
+            // all seven as shifts (what this did to v19.78) inflated the run; counting the week as
+            // a break would deflate it. Four, and no reset, is the honest ceiling.
+            //
+            // Keyed on the UNMODDED index, so the second lap gets its own budget. That is not a
+            // detail: the second lap exists to measure a run that wraps the cycle end, and on the
+            // next time round the wheel it is genuinely a fresh spare week with four fresh duties.
+            // Sharing the budget would silently truncate exactly the wrapping run the lap is for.
+            const line = Math.floor(i / 7);
+            const used = spent.get(line) || 0;
+            if (used < SPARE_WORKED_DAYS) {
+                // A spare duty is a SHIFT, so it must honour the same reset the worked branch does.
+                // Omitting this line chained the run straight through a real 48h break and put the
+                // bilingual roster at 23 against a true worst case of 15 — caught by walking the
+                // roster by hand, because the wrong answer was still plausible.
+                if (restRun >= 2) run = 0;
+                spent.set(line, used + 1);
+                restRun = 0;
+                run++;
+                if (run > best) best = run;
+            }
+            continue;
+        }
         if (isWorked(s)) {
             if (restRun >= 2) run = 0;      // a 48h break resets the count
             restRun = 0;
@@ -168,15 +203,19 @@ export function longestRunBetween48hBreaks(seq) {
     return Math.min(best, workedTotal);
 }
 
-/** Longest run of consecutive worked days, wrapping. @param {Array<{shift:any}>} seq */
+/**
+ * Longest run of consecutive worked days, wrapping — delegated to `worstCaseWorkedRun` in
+ * links-design.js (v19.79) so there is ONE reading of what a spare week costs a person.
+ *
+ * It used to count a spare week as seven worked days, which fused the blocks either side of it:
+ * the live main roster reported 15 against a true ceiling of 9. Kept as a named export because it
+ * is this module's vocabulary, but it must never grow its own copy of the rule again — the two
+ * checks disagreeing about the same roster is exactly the failure `endMinutesAbs` was extracted to
+ * end.
+ * @param {Array<{shift:any}>} seq
+ */
 export function longestWorkedRun(seq) {
-    const n = seq.length;
-    if (!n) return 0;
-    let best = 0, run = 0;
-    for (let i = 0; i < n * 2; i++) {
-        if (isWorked(seq[i % n].shift)) { run++; if (run > best) best = run; } else run = 0;
-    }
-    return Math.min(best, n);
+    return worstCaseWorkedRun(seq);
 }
 
 /**
@@ -383,7 +422,10 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     const ff11 = longestRunBetween48hBreaks(seq);
     add({ code: 'FF11', family: 'Recovery time', title: 'More than 13 consecutive shifts without a 48h break',
         status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 13,
-        detail: `Longest run between 48-hour breaks is ${ff11} shifts. A single rest day is not a 48h break, so it does not reset this count.` });
+        detail: `Longest run between 48-hour breaks is ${ff11} shifts. A single rest day is not a 48h break, so it does not reset this count.`
+            + (seq.some(x => x.shift === 'SPARE')
+                ? ` A spare week is 4 duties of 7, and its rest days need not fall together — so in the worst case it adds 4 shifts and no break.`
+                : '') });
 
     // ── Cumulative ───────────────────────────────────────────────────────────
     const ff10 = longestRunOf(seq, s => (dutyMinutes(s) ?? 0) > 12 * 60);

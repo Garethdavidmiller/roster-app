@@ -2148,6 +2148,21 @@ button.nav-panel-link--notices {
    shared by every collapsible card (the chevron is the focusable toggle; see initCardCollapse). */
 .card-collapsible-body          { display: none; padding: var(--space-3) var(--space-4); }
 .card-collapsible-body.open     { display: block; }
+/* A `.card-body` NESTED inside a collapsible body applies the same padding a second time (v19.81,
+   staff report: "why is the padding at the edges of links much thicker than every other page?").
+   Measured at 360px: content started at **42px** on links against **26px** on admin — 16px of it
+   from the outer body and 16px from an inner `.card-body` that contributes nothing else, since that
+   class is padding and nothing but padding.
+   Eighteen cards were doubled — 4 on links, 10 on operations, 4 on settings. Admin and paycalc
+   never nested, which is exactly why the difference was visible from the outside: the report
+   compared links against admin.
+   It showed up on LINKS first because that is the page where the padding CLIPS rather than merely
+   frames. Its generator table is 380px inside a 276px wrapper, so the doubled inset spends 32px of
+   a width that is already 104px short and takes a visible column with it; on an operations or
+   settings form the same 32px just reflows text and nobody could see it.
+   Zeroing the inner one rather than deleting ~18 wrapper divs: the class is queried by page JS in
+   places, and this states the rule once where the padding is defined. */
+.card-collapsible-body > .card-body { padding: 0; }
 .collapse-chevron {
     margin-left: auto;
     font-size: var(--type-small);

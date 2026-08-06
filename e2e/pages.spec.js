@@ -449,6 +449,40 @@ test('links: the sticky summary bar carries a live reading of the analysis below
     await expect.poll(() => chips.allTextContents()).not.toEqual(before);
 });
 
+test('links: the legal limit is its own section, above the advisory factors and never collapsed', async ({ page }) => {
+    // 13 consecutive worked days is a legal ceiling, so this row is a different kind of statement
+    // from the 24 below it. The unit tests prove the RULE; what only a browser can prove is that the
+    // separation actually survives into the DOM — that it is not tallied into the fatigue counts, not
+    // wearing the advisory amber, and not hidden behind the quiet-rows disclosure when it passes.
+    await openLinksWithDesign(page);
+
+    const legalHead = page.locator('.check-section-head:has-text("Legal limits")');
+    const fatigueHead = page.locator('.check-section-head:has-text("Fatigue factors")');
+    await expect(legalHead).toBeVisible();
+
+    // Order: the hard limit comes first.
+    const order = await page.evaluate(() => {
+        const heads = [...document.querySelectorAll('.check-section-head')].map(h => h.textContent || '');
+        return heads.findIndex(t => /Legal limits/.test(t)) < heads.findIndex(t => /Fatigue factors/.test(t));
+    });
+    expect(order, 'the legal section must render above the advisory factors').toBe(true);
+
+    // Its count is its own — "within limits" / "N breached", never folded into "N present · N clear".
+    await expect(legalHead.locator('.check-section-meta')).toHaveText(/within limits|breached|not yet assessable/);
+    await expect(fatigueHead.locator('.check-section-meta')).toHaveText(/present/);
+
+    // The row is VISIBLE while passing. Every advisory `clear` row is behind the disclosure at this
+    // point; a legal check that passes must not be, because the printed sheet goes to the assessing
+    // manager and "checked and met" has to be on it.
+    const legalRow = page.locator('#checksContent .check-row', { hasText: 'consecutive days worked' });
+    await expect(legalRow).toBeVisible();
+
+    // And it must not be wearing the advisory amber — that class is the fatigue half's, and a legal
+    // breach has its own red. On the seeded design it passes, so it is green.
+    await expect(legalRow).not.toHaveClass(/check-warn-row/);
+    await expect(legalRow).toHaveClass(/check-good/);
+});
+
 test('links: the fatigue panel collapses its "nothing to report" rows but still counts them', async ({ page }) => {
     await openLinksWithDesign(page);
     const rows = page.locator('#checksContent .check-row:visible');
@@ -457,7 +491,10 @@ test('links: the fatigue panel collapses its "nothing to report" rows but still 
     // The count stays in the always-visible heading — that is what stops the disclosure becoming
     // false assurance. And the two figures must AGREE: they did not at first (the heading said 17
     // while the label said 10, because the night-family rollup sat outside the disclosure).
-    const meta = await page.locator('.check-section-meta').first().textContent();
+    // Select the meta by the section it belongs to, never by position. This read `.first()` until
+    // v19.80, when the Legal-limits section landed above the fatigue one and quietly became "first" —
+    // so the assertion compared the disclosure label against a legal summary line and got NaN.
+    const meta = await page.locator('.check-section-head:has-text("Fatigue factors") .check-section-meta').textContent();
     const clear = Number((meta.match(/(\d+) clear/) || [])[1]);
     const label = await page.locator('.check-quiet-label').textContent();
     expect(Number((label.match(/^(\d+)/) || [])[1]),
