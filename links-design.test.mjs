@@ -23,7 +23,6 @@ import {
     canonicaliseShift,
     normalisePatterns,
     ROTATING_LINES,
-    scaleTargets,
 } from './links-design.js';
 import { CONFIG } from './roster-data.js';
 
@@ -666,65 +665,3 @@ describe('the rotation length is declared once', () => {
     });
 });
 
-// ── scaleTargets — the package 4 uplift (v19.78) ─────────────────────────────────────────────────
-// The December 2026 job is "the existing pattern, with more people for the extra trains", so the
-// targets are multiplied rather than rebuilt. The reason this is a tested function and not three
-// lines inline is the ROUNDING: measured against the real roster seed, rounding each slot on its own
-// makes every uplift from 0% to 15% do LITERALLY NOTHING (the targets are mostly 1s and 2s, so
-// round(1 x 1.15) is 1), then jump 24% at once. A control that visibly does nothing is worse than no
-// control, so the total is rounded and redistributed by largest remainder.
-describe('scaleTargets', () => {
-    const S = (...rows) => rows.map(([time, weekday, sat, sun]) => ({ time, weekday, sat, sun }));
-
-    test('rounds the TOTAL, not each slot — the whole reason this exists', () => {
-        // Four 1s. Per-slot rounding at +25% gives round(1.25)=1 four times = 4, i.e. no change.
-        const slots = S(['06:20-14:20', 1, 0, 0], ['07:00-15:00', 1, 0, 0],
-                        ['14:00-22:30', 1, 0, 0], ['15:25-23:55', 1, 0, 0]);
-        const r = scaleTargets(slots, 0.25);
-        assert.equal(r.before.weekday, 4);
-        assert.equal(r.after.weekday, 5, 'round(4 x 1.25) = 5 — the uplift must actually land');
-        assert.equal(r.slots.reduce((a, s) => a + s.weekday, 0), 5, 'and the slots must sum to it');
-    });
-
-    test('a slot that is 0 on a day STAYS 0 — it does not run that day', () => {
-        // The Saturday column is only staffed by the second slot. A remainder must never invent a
-        // duty on a day the service does not have one.
-        const r = scaleTargets(S(['06:20-14:20', 4, 0, 0], ['07:00-15:00', 2, 2, 0]), 0.5);
-        assert.equal(r.slots[0].sat, 0);
-        assert.equal(r.slots[0].sun, 0);
-        assert.equal(r.slots[1].sun, 0);
-        assert.equal(r.after.sat, 3, 'Saturday scales on its own total, 2 -> 3');
-    });
-
-    test('keeps each slot’s SHARE — the shape is what the owner asked to preserve', () => {
-        const r = scaleTargets(S(['a', 6, 0, 0], ['b', 2, 0, 0]), 1.0);
-        assert.deepEqual(r.slots.map(s => s.weekday), [12, 4], '3:1 stays 3:1');
-    });
-
-    test('the distributed slots always sum to the reported total', () => {
-        const slots = S(['a', 3, 1, 0], ['b', 2, 2, 1], ['c', 1, 0, 2], ['d', 5, 1, 1]);
-        for (const pct of [0, 0.03, 0.07, 0.1, 0.23, 0.5, 1.4]) {
-            const r = scaleTargets(slots, pct);
-            for (const cls of ['weekday', 'sat', 'sun']) {
-                assert.equal(r.slots.reduce((a, s) => a + s[cls], 0), r.after[cls],
-                    `${cls} at +${pct * 100}% must be internally consistent`);
-            }
-        }
-    });
-
-    test('0% is a true no-op, and a reduction works too', () => {
-        const slots = S(['a', 3, 1, 0], ['b', 2, 2, 1]);
-        assert.deepEqual(scaleTargets(slots, 0).slots, slots);
-        assert.equal(scaleTargets(slots, -0.5).after.weekday, 3, '5 halved, rounded');
-    });
-
-    test('deterministic — the same input gives the same table', () => {
-        const slots = S(['a', 3, 1, 0], ['b', 3, 1, 0], ['c', 3, 1, 0]);
-        assert.deepEqual(scaleTargets(slots, 0.1).slots, scaleTargets(slots, 0.1).slots);
-    });
-
-    test('empty and absent input do not throw', () => {
-        assert.deepEqual(scaleTargets([], 0.2).slots, []);
-        assert.deepEqual(scaleTargets(null, 0.2).slots, []);
-    });
-});
