@@ -77,7 +77,7 @@ with two more, chosen for what a first-time visitor could otherwise get **wrong*
 2. The Design checks report which ORR fatigue factors a pattern **features** — they do not pass or
    fail a design and nothing here approves one. (The panel says this too; a designer who reads only
    the first screen should still not be able to mistake a clean panel for an approval.)
-3. Designs are shared, and a deleted one is restorable for 30 days.
+3. Designs are shared, and a deleted one stays in the bin until someone removes it (v19.86 — it used to promise 30 days).
 
 **It took a NEW storage key.** Reusing `myb_links_beta_seen` would have meant every current designer
 — all three of whom closed the beta notice months ago — never saw the replacement, which is the whole

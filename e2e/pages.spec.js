@@ -635,11 +635,15 @@ test('links: the bin button is hidden when nothing has been deleted', async ({ p
     await expect(page.locator('#designBinBtn')).toBeHidden();
 });
 
-// The purge is the ONLY destructive path left in the workspace, so it gets a test that watches
-// both directions at once: the expired design must go, and the one still inside the window must
-// survive the same sweep. A purge that took everything would pass a test that only checked the
-// first half.
-test('links: an expired deletion is purged on load and a recent one is not', async ({ page }) => {
+// AUTOMATIC PERMANENT DELETION IS SUSPENDED (v19.86, external review P2), so this test now pins the
+// opposite of what it used to. `isPurgeable` fails closed on an unresolved or FUTURE `deletedAt`,
+// but nothing can defend a client-side age check against a device clock running more than 30 days
+// FAST: every recent deletion looks expired, the transaction re-checks with the same wrong local
+// time and agrees, and a colleague's design is destroyed. The bin exists so a delete is
+// recoverable, so a path that can silently empty it early defeats the feature it belongs to.
+// Removal is now a deliberate act only. Re-enable expiry on SERVER time, never by restoring the
+// call site.
+test('links: nothing is purged automatically on load, however old the deletion', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -655,24 +659,26 @@ test('links: an expired deletion is purged on load and a recent one is not', asy
     });
     await page.goto('/links.html');
     await expect(page.locator('.design-chip')).toHaveCount(1);
-    await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
+    // BOTH deletions survive — the 40-day-old one as much as the 2-day-old one.
+    await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(2\)/);
 
+    // The assertion that matters: load destroyed nothing. It is a negative, so it has to have had
+    // the chance to happen — the bin count above is only rendered after the load settles.
     const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
-    expect(deletes).toEqual(['linkDesigns/old']);
+    expect(deletes, 'load must never permanently delete anything').toEqual([]);
 
     await page.locator('#designBinBtn').click();
-    await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
-    await expect(page.locator('.bin-row-name')).toHaveText('Just binned');
-    await expect(page.locator('.bin-row-meta')).toHaveText(/Deleted 2 days ago by S. Silva/);
+    await expect(page.locator('#designBinList .bin-row')).toHaveCount(2);
+    // The AGE is still shown — suspending the purge must not also hide how old a deletion is,
+    // because that age is now the only prompt to remove it by hand.
+    await expect(page.locator('.bin-row-meta').first()).toHaveText(/Deleted .* by S\. Silva/);
 });
 
-// The purge re-reads inside a transaction instead of trusting the load snapshot. This is the case
-// that justifies it: Firestore runs with persistentLocalCache, so a load can be served from
-// IndexedDB and be stale — showing a design as deleted-and-expired that a colleague has since
-// restored. Deleting on the strength of that snapshot destroys a LIVE design, which is the exact
-// outcome soft delete exists to prevent. Here the page loads the stale view and the server view
-// (txDocs) says restored.
-test('links: a design restored elsewhere is NOT purged, even if our snapshot says expired', async ({ page }) => {
+// Same guarantee from the other direction, and it still matters with auto-purge suspended: a stale
+// load can show a design as long-deleted that a colleague has since restored. Nothing on load may
+// act on that. (The MANUAL "Remove for good" path re-reads inside a transaction for exactly this
+// reason — v19.84 — so the two destructive routes are now both closed.)
+test('links: a design restored elsewhere survives a load whose snapshot says expired', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -693,11 +699,12 @@ test('links: a design restored elsewhere is NOT purged, even if our snapshot say
     });
     await page.goto('/links.html');
     await expect(page.locator('.design-chip')).toHaveCount(1);
-    // Give the purge transaction time to resolve — the assertion is a NEGATIVE, so it has to be
-    // possible for it to have happened by the time we look.
-    await expect(page.locator('#designBinBtn')).toBeHidden();
+    // The stale row still SHOWS in the bin — this device believes it was deleted, and correcting
+    // that belief is a refresh problem, not a reason to destroy anything. Waiting on the button
+    // also gives any (suspended) purge the chance to have run before the negative below is read.
+    await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
     const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
-    expect(deletes, 'a design the server says is live must survive a stale-snapshot purge').toEqual([]);
+    expect(deletes, 'a design the server says is live must never be destroyed by a load').toEqual([]);
 });
 
 // Zero live designs with a full bin is the state where restore matters most, and it is reachable

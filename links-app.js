@@ -918,8 +918,15 @@ export function init() {
      * links-deletion.js, which fails closed on an unresolved or future `deletedAt` — this runs on
      * whatever the device thinks the time is, so it must never treat "I can't tell how old this
      * is" as "old enough to destroy".
+     *
+     * ⚠️ NOT WIRED UP since v19.86 (external review P2) — hence the underscore. It is kept, rather
+     * than deleted, because the transactional re-check below is the hard-won part and a server-time
+     * expiry will want it verbatim. What is missing is only the CLOCK: a device running more than
+     * 30 days fast makes every recent deletion look expired, and this function would then agree
+     * with itself and destroy a colleague's design. Re-enable only once the age comes from the
+     * server (a scheduled Cloud Function), never by restoring the call site.
      */
-    function purgeExpiredDeletions() {
+    function _purgeExpiredDeletions() {
         const ids = purgeableIds(deletedDesigns, Date.now());
         if (ids.length === 0) return;
         deletedDesigns = deletedDesigns.filter(d => !ids.includes(d.id));
@@ -2022,7 +2029,24 @@ export function init() {
             // Bin: newest deletion first. The ordering rule (incl. the unresolved-timestamp case,
             // which must not go through Infinity - Infinity) is pure and tested.
             deletedDesigns = sortByDeleted(binned);
-            purgeExpiredDeletions();
+            // AUTOMATIC PERMANENT DELETION IS SUSPENDED (v19.86, external review P2).
+            //
+            // `purgeExpiredDeletions` is kept and still correct — it re-reads inside a transaction
+            // and `isPurgeable` fails closed on an unresolved or FUTURE `deletedAt`. What none of
+            // that can defend against is a device clock running more than 30 days FAST: every recent
+            // deletion then looks expired, the transaction re-checks with the same wrong local time
+            // and agrees, and a colleague's design is destroyed for good. The whole point of the bin
+            // is that a delete is recoverable, so a path that can silently empty it early defeats
+            // the feature it belongs to.
+            //
+            // The correct fix is expiry on SERVER time — a scheduled Cloud Function. Until that
+            // exists, nothing here deletes anything automatically: the bin keeps what it has, the
+            // panel shows each design's age, and removal is a deliberate act through "Remove for
+            // good" (which IS transactional, and now re-checks that the design is still deleted).
+            // The cost is a bin that grows; with three designers and a handful of designs that is
+            // nothing against permanently losing somebody's work to a wrong clock.
+            //
+            // Do NOT re-enable this by simply calling it again — it needs a server clock first.
 
             if (designs.length > 0) {
                 // Re-open the design that was active last visit, else the first

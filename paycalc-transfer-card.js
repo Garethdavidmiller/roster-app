@@ -132,7 +132,12 @@ export function initTransferCard() {
         a.remove();
         // Revoking immediately can cancel the download on some Android builds — give it a moment.
         setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        status(`Saved as ${b.name}. Keep it somewhere you can find it.`, 'ok');
+        // SAY WHAT IS IN THE FILE (v19.86, external review P3). "Keep it somewhere you can find it" is
+        // filing advice; this is a readable JSON file containing pay, hours, pension, tax code and
+        // year-to-date figures, and a member who does not know that has no reason to treat it
+        // carefully — emailing it to themselves is the obvious thing to do next.
+        status(`Saved as ${b.name}. It contains your pay figures in readable text — keep it private, `
+             + 'don\u2019t send it to anyone, and delete old copies.', 'ok');
     });
 
     copyBtn?.addEventListener('click', async () => {
@@ -140,7 +145,11 @@ export function initTransferCard() {
         if (!b) { status('There is nothing to save yet.', 'warn'); return; }
         try {
             await navigator.clipboard.writeText(b.text);
-            status('Copied. Paste it into the Restore box on the new web address.', 'ok');
+            // The clipboard deserves the SHARPER warning of the two: clipboard history and
+            // cross-device sync (Windows, Android, iCloud) can retain it well after the paste, on
+            // machines the member never thought about.
+            status('Copied. Paste it into the Restore box on the new web address, then copy something '
+                 + 'else — this is your pay data in readable text and some devices keep clipboard history.', 'ok');
         } catch {
             status("Couldn't copy — use Download backup instead.", 'warn');
         }
