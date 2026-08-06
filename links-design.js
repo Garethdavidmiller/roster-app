@@ -42,8 +42,8 @@ export const SPARE_WORKED_DAYS = 4;
  * phantom run. Four duties in seven days cannot bridge anything: there is always a rest day inside
  * the week, so a run can take at most four of its days and must then stop.
  *
- * Why the direction matters more than the size. 13 consecutive days is a Chiltern company limit,
- * not a preference — so a check that reports 15 is not being cautious, it is reporting a
+ * Why the direction matters more than the size. 13 consecutive days is the Hidden limit (Clapham
+ * Junction, 1988), not a preference — so a check that reports 15 is not being cautious, it is reporting a
  * breach that does not exist, on the roster people are working today. Every reader who knows the
  * real link then learns to discount the row, and the next design that genuinely goes past 13 is
  * hidden by that discount. Over-reporting is only "safe" while nothing is riding on the number.
@@ -804,7 +804,7 @@ export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
     // Longest run of consecutive worked days around the full circular rotation — the WORST CASE a
     // spare week can be arranged into, NOT a spare week counted as seven worked days. See
     // worstCaseWorkedRun: the old reading fused the blocks either side of a spare week and reported
-    // the live main roster at 15 against a true ceiling of 9, on a figure whose legal limit is 13.
+    // the live main roster at 15 against a true ceiling of 9, on a figure whose limit is 13.
     const longestStretch = worstCaseWorkedRun(seq);
 
     // Early/late/spare balance across all worked cells.

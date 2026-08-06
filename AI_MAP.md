@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v19.80 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.90 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -456,12 +456,12 @@ Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).
 
 ### `links-legal.js`
 The HARD limits — the ones a design either meets or cannot be run (v19.80, owner). Pure; tested by `links-legal.test.mjs`.
-- `MAX_CONSECUTIVE_WORKED_DAYS` (13 — the **Chiltern company limit**, not legislation: see v19.85 below) / `assessLegalLimits(patterns, lines)` → `{ checks, breaches, assessable }`
+- `MAX_CONSECUTIVE_WORKED_DAYS` (13 — from the **Hidden report** into the Clapham Junction crash, 1988; an industry limit, not legislation and not a house rule: see v19.90 below) / `assessLegalLimits(patterns, lines)` → `{ checks, breaches, assessable }`
 - **Why it is a separate module from `links-fatigue.js`.** That module's governing rule is that it reports factors PRESENT and **never passes or fails a design**, because the ORR is explicit its p3 factors are not prescriptive limits — hence amber and never red, `standing` counted apart from `present`, "an aid to a conversation, not a fatigue risk assessment". A legal ceiling is the opposite kind of statement. So the separation is **structural, not a label**: different module, different function, a count that is never added to the fatigue tally, its own section ABOVE the ORR factors, `.check-bad` red on a breach (the class the fatigue half is forbidden from using), and it renders whether it passes or fails. Put a hard limit into `assessFatigue`'s `results` array and within a release it is being tallied into "3 present · 2 standing", wearing an amber left edge, and collapsing into the quiet-rows disclosure when it passes — none of which would look wrong on screen. Two tests assert the separation directly.
 - **The answer is the WORST CASE, and that is what makes it a legal check rather than a description.** A spare week is four duties whose placement the roster clerk chooses week by week, so if any placement reaches 14 the LINK PERMITS a breach — it does not matter that it usually works out.
 - **It fails to `unknown`, never to `ok`.** `toSequence` fills a missing line with RD, so an empty design produces a full-length sequence of rest days and a longest run of 0, which reads as a comfortable pass. "No breach found" about a design with nothing in it is the most dangerous sentence this file could produce.
 - **A passing legal check still renders.** The fatigue panel hides `clear` rows behind a disclosure — right for 24 advisory factors, wrong here: the printed sheet goes to the assessing manager, and "the legal limit was checked and met" must be visible on it.
-- Live rosters: main **9**, bilingual **8**, both within the limit. Those read 15 and 14 before v19.79, i.e. the tool reported a legal breach on the roster people are actually working; pinned by a test.
+- Live rosters: main **9**, bilingual **8**, both within the limit. Those read 15 and 14 before v19.79, i.e. the tool reported a breach on the roster people are actually working; pinned by a test.
 
 ### `links-fatigue.js`
 The ORR good-practice **fatigue factors** (Dec 2021 guide, p3 — 24 factors) assessed against a link design (v19.46; `LINKS_DEC2026_PLAN.md` package 2). Pure — no DOM, no Firebase.

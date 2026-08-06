@@ -28,7 +28,7 @@ const design = (...weeks) => {
 const wk = (...d) => d;
 const only = (patterns, lines) => assessLegalLimits(patterns, lines).checks[0];
 
-describe('the 13-consecutive-day company limit', () => {
+describe('the 13-consecutive-day Hidden limit', () => {
     test('the limit is 13 and the row quotes the constant, not a literal', () => {
         assert.equal(MAX_CONSECUTIVE_WORKED_DAYS, 13);
         const c = only(design(wk(W, W, W, W, W, R, R)), 1);
@@ -113,9 +113,9 @@ describe('the answer is the worst case, which is what makes it a legal check', (
 });
 
 describe('the live rosters', () => {
-    test('both are within the company limit, and the figures are the corrected ones', () => {
+    test('both are within the Hidden limit, and the figures are the corrected ones', () => {
         // These read 15 and 14 before v19.79, when a spare week counted as seven worked days — i.e.
-        // the tool reported a legal breach on the roster people are actually working. Pinned here so
+        // the tool reported a breach on the roster people are actually working. Pinned here so
         // that cannot come back silently.
         assert.deepEqual(
             [only(weeklyRoster, 20).value, only(bilingualRoster, 8).value],
@@ -150,23 +150,43 @@ describe('the separation from the advisory ORR factors', () => {
     });
 });
 
-// ── THE CLAIM, NOT JUST THE NUMBER (v19.85, external review P1) ─────────────────────────────────
-// Until v19.85 this module called 13 "the UK railway legal maximum" and printed "cannot be run" in
-// red on a sheet going to an assessing manager, sourced only to "owner, Aug 2026". An external
-// review could not substantiate that, and the ORR's own framing is different again: it treats more
-// than 13 shifts WITHOUT A 48h BREAK as fatigue factor FF11 — a different measurement, which
-// links-fatigue.js does separately — and says its guidelines are not prescriptive limits.
+// ── THE CLAIM, NOT JUST THE NUMBER (v19.85, external review P1; re-sourced v19.90) ──────────────
+// This module has carried three different attributions for the same 13, and that is why the claim
+// is pinned as hard as the number. It first called it "the UK railway legal maximum" and printed
+// "cannot be run" in red on a sheet going to an assessing manager, sourced only to "owner,
+// Aug 2026"; an external review could not substantiate that, so v19.85 reclassified it as a
+// Chiltern company limit. True and safe, but it understated the provenance. The owner then supplied
+// the real source: the **Hidden report** into the Clapham Junction crash of 1988, whose
+// working-hours recommendations the industry adopted.
 //
-// The number was already pinned. Pinning a number does not pin the CLAIM around it, which is why
-// the whole comprehensive suite went on asserting an unsupported premise without a murmur. These
-// assert the classification, so the wording cannot drift back to law.
-describe('the basis is a COMPANY limit and never a legal claim', () => {
+// So there are now TWO things to hold at once, and each has failed once: the row must name a source
+// that can actually be checked, AND it must not present that source as legislation — Hidden is an
+// inquiry report, not statute. The ORR's framing is different again (more than 13 shifts without a
+// 48h BREAK, as advisory factor FF11 — a different measurement, done separately in
+// links-fatigue.js), so the two must not be conflated either.
+//
+// The number was already pinned before any of this. Pinning a number does not pin the CLAIM around
+// it, which is why the whole comprehensive suite went on asserting an unsupported premise without a
+// murmur.
+describe('the basis names the Hidden report and never claims to be law', () => {
     const everyString = (/** @type {any} */ r) => [r.title, r.basis, r.detail].join(' ');
 
-    test('the basis names Chiltern, not legislation', () => {
+    test('the basis cites Hidden, not a house rule and not legislation', () => {
         const c = assessLegalLimits(design(wk(W, W, W, W, W, R, R)), 1).checks[0];
-        assert.match(c.basis, /Chiltern/i);
+        assert.match(c.basis, /Hidden/i);
         assert.doesNotMatch(c.basis, /legal|statut|law|UK railway/i);
+    });
+
+    test('every assessable row quotes the source in its prose too, not only in `basis`', () => {
+        // `basis` renders as a small note beside the title; the detail is the sentence a reader
+        // actually reads on the printed sheet. A pass and a breach build separate strings, so a
+        // re-sourcing that updated only one of them would leave the other quoting the old
+        // attribution — which is exactly how "Chiltern company limit" ended up in three files.
+        for (const patterns of [design(wk(W, W, W, W, W, R, R)),
+                                design(wk(W, W, W, W, W, W, W), wk(W, W, W, W, W, W, W))]) {
+            const c = assessLegalLimits(patterns, 2).checks[0];
+            assert.match(c.detail, /Hidden/i, `a "${c.status}" row must name its source: ${c.detail}`);
+        }
     });
 
     test('no row anywhere claims to be law — in ANY state', () => {

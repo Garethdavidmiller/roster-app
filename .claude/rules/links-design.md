@@ -289,7 +289,8 @@ it and fuses them into one phantom run, so the main cycle reported **15** consec
 against a true ceiling of **9**, and the bilingual **14** against **8**. Four duties cannot fill a
 week, so there is always a rest day inside it and a run can take at most four of its days.
 
-**13 consecutive days is a Chiltern company limit** — so a check reporting 15 is not
+**13 consecutive days is the Hidden limit** (Clapham Junction, 1988 — an industry limit adopted
+from the inquiry's working-hours recommendations, not legislation) — so a check reporting 15 is not
 cautious, it reports a breach that does not exist on the roster people are working today. Anyone
 who knows the real link discounts the row, and the next design that genuinely goes past 13 is
 hidden by that discount. Over-reporting is only "safe" while nothing is riding on the number.
@@ -313,7 +314,7 @@ it. Four things that are easy to get wrong, each with a test:
   exists to measure a run wrapping the cycle end, and next time round the wheel it genuinely is a
   fresh spare week; sharing the budget silently truncates exactly the run the lap is for.
 
-**Owner's design target is below the company limit, not at it:** ideally a new base link would not
+**Owner's design target is below the Hidden limit, not at it:** ideally a new base link would not
 carry even **7** consecutive worked days. The live main roster's non-spare blocks reach exactly 7;
 the generator's reach 6.
 

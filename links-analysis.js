@@ -432,7 +432,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             `<div class="check-row ${stretchOk ? 'check-good' : 'check-warn-row'}">` +
             `${stretchOk ? tick : warn}<div class="check-body">` +
             `<strong>Longest run</strong> — ${longestStretch} consecutive working days` +
-            (longestStretch > 7 ? `<div class="check-sub">Over 7 days without a rest — worth reviewing. The Chiltern company limit is 13.</div>` : '') +
+            (longestStretch > 7 ? `<div class="check-sub">Over 7 days without a rest — worth reviewing. The Hidden limit is 13.</div>` : '') +
             // Say what the number is once a spare week can affect it. It is the WORST CASE over
             // every placement of that week's four duties, and a reader who assumes otherwise will
             // read it as a fact about the design rather than a ceiling on it.
@@ -474,8 +474,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         ].filter(Boolean).join(' · ');
 
         // ── THE HARD LIMIT, ABOVE THE ADVISORY FACTORS AND VISIBLY NOT ONE OF THEM (v19.80) ──────
-        // 13 consecutive worked days is a Chiltern COMPANY limit, so it is a different kind of
-        // statement from anything below it: a design either meets it or cannot be run here. It gets
+        // 13 consecutive worked days comes from the HIDDEN REPORT into the Clapham Junction crash
+        // (v19.90) — an industry limit, not legislation and not a house rule — so it is a different
+        // kind of statement from anything below it: a design either meets it or cannot be run. It gets
         // its own section, its own heading, `.check-bad` RED on a breach (the class the fatigue half
         // is forbidden from using), and — unlike every advisory row — it renders whether it passes or
         // fails, because "the legal limit was checked and met" has to be visible on the sheet that
@@ -485,7 +486,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         const LEGAL_ICON = { ok: tick, breach: `<span class="check-icon check-cross" aria-hidden="true">✕</span>`, unknown: info };
         const LEGAL_CLS  = { ok: 'check-good', breach: 'check-bad', unknown: 'check-neutral' };
         fatRows.push(
-            `<div class="check-section-head"><span>Company limits <span class="check-note">must be met</span></span>` +
+            `<div class="check-section-head"><span>Industry limits <span class="check-note">Hidden report — must be met</span></span>` +
             `<span class="check-section-meta${legal.breaches ? ' check-section-meta-breach' : ''}">` +
             `${escapeHtml(legal.breaches ? `${legal.breaches} breached` : legal.assessable ? 'within limits' : 'not yet assessable')}</span></div>`,
             ...legal.checks.map(c =>
