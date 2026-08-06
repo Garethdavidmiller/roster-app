@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v19.70 · Updated every 0.10 version*
+*Last updated: August 2026 — v19.80 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -780,6 +780,30 @@ never contingent on the beta label, and dropping it does not make any of them go
   into two fewer long weekends for no gain, since both routes reach a longest block of 3. The
   generator owns the SHAPE, `links-adjacency.js` owns the ORDER. A test fails if the interleave
   returns.
+
+- **The legal-limit check is a WORST CASE on a design, and it enforces nothing** (v19.80). 13
+  consecutive worked days is a legal ceiling on the UK railway, so — unlike the ORR factors beside
+  it — this one does pass or fail, renders red on a breach, and shows whether it passes or fails
+  rather than collapsing behind the quiet-rows disclosure. Three things it does not do:
+  - **It measures the LINK, not a person's actual roster.** A design is a pattern; what somebody
+    ends up working is that pattern plus overtime, RDW, cover and swaps, none of which this page
+    can see. A design that passes here can still produce a breach once real weeks are built on it.
+  - **The answer is the worst case, which is a ceiling and not a prediction.** A spare week is four
+    duties whose placement the roster clerk chooses week by week, so the figure is what the link
+    *permits*. That is the right question for a legal limit — if any placement reaches 14 the link
+    allows a breach — but it means the number is usually higher than what anyone works, and it must
+    not be quoted as "our people do 9 days in a row".
+  - **It rests on a spare week being four duties** (owner, Aug 2026). If that ever changes — a
+    different cover model, or a link where spare weeks routinely carry a fifth day — every figure
+    here moves and `SPARE_WORKED_DAYS` has to move with it.
+
+  **This section previously described a breach that did not exist.** Until v19.79 both run checks
+  counted a spare week as SEVEN worked days, which fused the blocks either side of it: the main
+  cycle reported 15 consecutive days and the bilingual 14, against true ceilings of 9 and 8. The
+  comment justifying it said over-reporting was "the safe direction for a fatigue check". It is not,
+  once a number has a legal line under it — a tool that cries breach on the roster people are
+  actually working teaches its readers to discount the row, and the next design that genuinely does
+  breach is hidden by that discount.
 
 - **The GRID's header is fixed from 768px up** (v19.77) — it had been broken to 1024px, and the band
   between was costing the sticky header for nothing. Measured: the wrapper's content fits its box at

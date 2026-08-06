@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '19.79';
+const APP_VERSION = '19.80';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -124,7 +124,7 @@ const NETWORK_FIRST_FILES = [
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
     'admin-al.js', 'admin-sick.js', 'admin-range-booking.js',
-    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'settings-app.js', 'settings-boot.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js',
+    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'settings-app.js', 'settings-boot.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-legal.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js',
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js', 'date-picker.js',
@@ -163,6 +163,7 @@ const CORE_ASSETS = [
     "./links-concurrency.js",
     "./links-deletion.js",
     "./links-fatigue.js",
+    "./links-legal.js",
     "./links-window.js",
     "./links-demand.js",
     "./links-adjacency.js",
