@@ -202,3 +202,86 @@ export function rekeyEntries(entries, fromSlug, toSlug) {
 export function backupFilename(member, isoDate) {
     return `myb-pay-backup-${memberSlug(member) || 'device'}-${isoDate.slice(0, 10)}.json`;
 }
+
+/**
+ * Apply a restore as an all-or-nothing REPLACE over a storage that cannot do transactions.
+ *
+ * ── WHY THIS IS A MODULE AND NOT A LOOP IN THE CARD (v19.84, external review P1) ───────────────
+ *
+ * The previous ladder lived inline in `paycalc-transfer-card.js` and had a hole that its own
+ * comments show it was trying to avoid. It snapshotted only the keys that ALREADY EXISTED, so:
+ *
+ *   device holds        : old-period
+ *   backup contains     : old-period, new-period-1, new-period-2
+ *   storage fills up on : new-period-2
+ *
+ * Rollback restored `old-period` — and left `new-period-1` behind, because a key that did not
+ * exist before was in neither the snapshot nor the rollback. The integrity check then looked at
+ * the same original-keys-only snapshot, found it intact, and told the member **"nothing was
+ * changed"** over a pay history that had just silently gained a period. That is precisely the
+ * half-merged state the card's comments call the worst outcome, produced by the code meant to
+ * prevent it.
+ *
+ * The fix is that the unit of work is the UNION of what is there and what is arriving — never
+ * just one side. Rolling back a creation means DELETING it, not restoring a value it never had.
+ *
+ * ── THE SECOND HALF: A DELETE THAT FAILS IS ALSO A FAILED REPLACE ──────────────────────────────
+ *
+ * Surplus keys — present on the device, absent from the backup — must genuinely disappear, or the
+ * "replace" is a merge wearing a replace's label. `lsDel` swallows storage errors exactly like
+ * `lsSet` does, so the removals have to be READ BACK too. They were not, so a restore could report
+ * success with the member's old periods still sitting underneath the new ones.
+ *
+ * ── DEPENDENCIES ARE INJECTED, DELIBERATELY ────────────────────────────────────────────────────
+ *
+ * `get`/`set`/`del` are passed in rather than imported from ls.js. This is the module that decides
+ * whether somebody's entire pay history is overwritten, so its rules have to be testable against a
+ * storage that FAILS ON DEMAND — which a real browser will not do to order, and which is the only
+ * interesting case here. Every failure path below is exercised in paycalc-transfer.test.mjs.
+ *
+ * Ordering is load-bearing and unchanged from v19.17: WRITE first, verify, then delete the surplus.
+ * The obvious wipe-then-write order makes the common failure catastrophic, because a swallowed
+ * write error on a device that has stopped accepting writes leaves the member wiped and told
+ * "Restored".
+ *
+ * @param {object} io
+ * @param {(k: string) => string|null} io.get
+ * @param {(k: string, v: string) => void} io.set
+ * @param {(k: string) => void} io.del
+ * @param {string[]} io.existing - every pay key currently on the device
+ * @param {Record<string,string>} io.entries - the keys/values to end up with
+ * @returns {{ ok: boolean, reason?: 'write-failed'|'surplus-remains', restored: boolean }}
+ *   `restored` says whether the device was put back exactly as it was; it is meaningful only when
+ *   `ok` is false, and it is what decides between "nothing was changed" and "contact the admin".
+ */
+export function applyRestore({ get, set, del, existing, entries }) {
+    // THE UNION. Everything this operation could touch, from either side.
+    const touched = new Set([...existing, ...Object.keys(entries)]);
+    /** @type {Map<string, string|null>} */
+    const before = new Map([...touched].map(k => [k, get(k)]));
+
+    for (const [k, v] of Object.entries(entries)) set(k, v);
+
+    const failed = Object.entries(entries).filter(([k, v]) => get(k) !== v);
+    if (failed.length) {
+        // Roll the WHOLE union back: restore what had a value, remove what did not exist.
+        for (const [k, v] of before) {
+            if (v === null) del(k);
+            else set(k, v);
+        }
+        const restored = [...before].every(([k, v]) => get(k) === v);
+        return { ok: false, reason: 'write-failed', restored };
+    }
+
+    // Only now remove what the backup does not contain. `Object.hasOwn`, not `k in entries`: `in`
+    // walks the prototype chain, so a key named `constructor` would report as present and survive.
+    const surplus = [...existing].filter(k => !Object.hasOwn(entries, k));
+    for (const k of surplus) del(k);
+
+    // …and verify it. A swallowed delete would otherwise be reported as a successful replace.
+    if (surplus.some(k => get(k) !== null)) {
+        return { ok: false, reason: 'surplus-remains', restored: false };
+    }
+
+    return { ok: true, restored: false };
+}

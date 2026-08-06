@@ -782,7 +782,7 @@ never contingent on the beta label, and dropping it does not make any of them go
   returns.
 
 - **The legal-limit check is a WORST CASE on a design, and it enforces nothing** (v19.80). 13
-  consecutive worked days is a legal ceiling on the UK railway, so — unlike the ORR factors beside
+  consecutive worked days is a Chiltern company limit, so — unlike the ORR factors beside
   it — this one does pass or fail, renders red on a breach, and shows whether it passes or fails
   rather than collapsing behind the quiet-rows disclosure. Three things it does not do:
   - **It measures the LINK, not a person's actual roster.** A design is a pattern; what somebody
@@ -864,21 +864,16 @@ never contingent on the beta label, and dropping it does not make any of them go
   a case per historical bug — three separate silent-overwrite bugs came out of that logic
   while it was inline in the coordinator.
 - **Delete is a SOFT delete (v19.41).** A deleted design carries `deletedAt`/`deletedBy`, drops
-  out of the picker, and is restorable from "🗑 Recently deleted" for 30 days, after which it is
-  purged for good. It stopped being permanent when the trigger recorded at v19.39 fired: the
-  no-archive risk was accepted at two designers, and a third (M. Robson) arrived at v19.40.
-  Remaining limits, all deliberate:
-  - **Still no ownership check** — any designer or admin can delete or restore any design. With
-    three designers on one shared document set, per-owner permissions would be more machinery than
-    the problem justifies; the bin removes the irreversibility, which was the actual risk.
-  - **The 30 days is a CLIENT policy, not a server one.** The purge runs on load from whichever
-    device happens to open the workspace, like every other prune in this app (circulars,
-    newsletters, analytics buckets). Nothing purges if nobody visits, and the rules do not enforce
-    the window. `isPurgeable` fails closed on an unresolved, future or malformed `deletedAt` so a
-    wrong device clock cannot empty the bin, but it is not a guarantee — for a hard guarantee the
-    answer is Firestore PITR, not this.
-  - **"Remove for good" is still one confirm and genuinely permanent.** That is the point of
-    having it; the bin is what makes the ordinary path recoverable.
+  out of the picker, and is restorable from "🗑 Recently deleted" **until somebody removes it by
+  hand** — automatic expiry was suspended at v19.86 (external review P2). `isPurgeable` fails closed
+  on an unresolved or FUTURE `deletedAt`, but no client-side age check can defend against a device
+  clock running more than 30 days FAST: every recent deletion then looks expired, the purge
+  transaction re-checks with the same wrong local time and agrees, and a colleague's design is
+  destroyed. The bin exists so that a delete is recoverable, so a path that can silently empty it
+  early defeats the feature it belongs to. The cost is a bin that grows; with three designers that
+  is nothing against losing somebody's work to a wrong clock. Expiry returns when it can be
+  computed from SERVER time (a scheduled Cloud Function) — `_purgeExpiredDeletions` is kept,
+  unwired, because its transactional re-check is the part worth keeping.
 
 ### Test coverage gaps
 The suite is now broad (76 root test files, ~1926 tests — see CLAUDE.md's file tree for the

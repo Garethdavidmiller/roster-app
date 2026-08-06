@@ -533,9 +533,21 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         const { updatedAt, ...noTs } = DESIGN();
         await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), noTs));
     });
-    test('a designer CAN still delete (no body to validate)', async () => {
+    // A HARD DELETE IS ONLY LEGITIMATE AGAINST A DESIGN ALREADY IN THE BIN (v19.84, external
+    // review P1). This test used to assert the opposite — that a designer could hard-delete a LIVE
+    // design — which is exactly the hole that let a stale "Remove for good" destroy a design a
+    // colleague had just restored. The client now purges through a transaction; this is the
+    // defence in depth beneath it, so a future client with the same bug can only fail.
+    test('a designer CANNOT hard-delete a LIVE design', async () => {
         const id = uid();
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertFails(deleteDoc(doc(designerDb(), 'linkDesigns', id)));
+    });
+    test('a designer CAN hard-delete a design that is in the bin', async () => {
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'G. Miller' }));
         await assertSucceeds(deleteDoc(doc(designerDb(), 'linkDesigns', id)));
     });
     // Soft delete (v19.41). `deletedAt`/`deletedBy` are OPTIONAL — the live documents that

@@ -28,7 +28,7 @@ const design = (...weeks) => {
 const wk = (...d) => d;
 const only = (patterns, lines) => assessLegalLimits(patterns, lines).checks[0];
 
-describe('the 13-consecutive-day legal maximum', () => {
+describe('the 13-consecutive-day company limit', () => {
     test('the limit is 13 and the row quotes the constant, not a literal', () => {
         assert.equal(MAX_CONSECUTIVE_WORKED_DAYS, 13);
         const c = only(design(wk(W, W, W, W, W, R, R)), 1);
@@ -113,7 +113,7 @@ describe('the answer is the worst case, which is what makes it a legal check', (
 });
 
 describe('the live rosters', () => {
-    test('both are within the legal maximum, and the figures are the corrected ones', () => {
+    test('both are within the company limit, and the figures are the corrected ones', () => {
         // These read 15 and 14 before v19.79, when a spare week counted as seven worked days — i.e.
         // the tool reported a legal breach on the roster people are actually working. Pinned here so
         // that cannot come back silently.
@@ -147,5 +147,45 @@ describe('the separation from the advisory ORR factors', () => {
         for (const patterns of [weeklyRoster, bilingualRoster, {}]) {
             for (const c of assessLegalLimits(patterns, 20).checks) assert.ok(statuses.has(c.status));
         }
+    });
+});
+
+// ── THE CLAIM, NOT JUST THE NUMBER (v19.85, external review P1) ─────────────────────────────────
+// Until v19.85 this module called 13 "the UK railway legal maximum" and printed "cannot be run" in
+// red on a sheet going to an assessing manager, sourced only to "owner, Aug 2026". An external
+// review could not substantiate that, and the ORR's own framing is different again: it treats more
+// than 13 shifts WITHOUT A 48h BREAK as fatigue factor FF11 — a different measurement, which
+// links-fatigue.js does separately — and says its guidelines are not prescriptive limits.
+//
+// The number was already pinned. Pinning a number does not pin the CLAIM around it, which is why
+// the whole comprehensive suite went on asserting an unsupported premise without a murmur. These
+// assert the classification, so the wording cannot drift back to law.
+describe('the basis is a COMPANY limit and never a legal claim', () => {
+    const everyString = (/** @type {any} */ r) => [r.title, r.basis, r.detail].join(' ');
+
+    test('the basis names Chiltern, not legislation', () => {
+        const c = assessLegalLimits(design(wk(W, W, W, W, W, R, R)), 1).checks[0];
+        assert.match(c.basis, /Chiltern/i);
+        assert.doesNotMatch(c.basis, /legal|statut|law|UK railway/i);
+    });
+
+    test('no row anywhere claims to be law — in ANY state', () => {
+        // Breach, pass and unknown each build their own strings, so each is checked. A wording
+        // change that only ever fires on a breach would otherwise slip through untested.
+        for (const patterns of [design(wk(W, W, W, W, W, R, R)), {}, design(wk(R, R, R, R, R, R, R))]) {
+            for (const c of assessLegalLimits(patterns, 1).checks) {
+                assert.doesNotMatch(everyString(c), /\blegal\b|\blaw\b|statut|legislation/i,
+                    `a "${c.status}" row must not present itself as law: ${everyString(c)}`);
+            }
+        }
+    });
+
+    test('and it is still a HARD limit — the reclassification must not soften the verdict', () => {
+        // The point of the change is the SOURCE, not the strength. A breach must still be a breach.
+        const long = {};
+        for (let i = 1; i <= 3; i++) long[String(i)] = Object.fromEntries(DAYS.map(d => [d, W]));
+        const r = assessLegalLimits(long, 3);
+        assert.equal(r.checks[0].status, 'breach');
+        assert.equal(r.breaches, 1);
     });
 });

@@ -52,7 +52,8 @@ export function shouldCountMonth(lastCountedMonth, now) {
 /**
  * Should this account be counted toward the rolling window again? Each account
  * self-suppresses for the whole window, so summing the per-day buckets over the
- * window yields a true unique count with each account counted at most once.
+ * window counts each account at most once PER DEVICE AND ADDRESS — not a true headcount (v19.86):
+ * one person on two devices counts twice, and somebody using both addresses appears in both.
  * @param {number} lastCountedMs - epoch ms last recorded for this account on this device (NaN/0 if never)
  * @param {Date} now
  * @param {number} [windowDays]
@@ -168,7 +169,7 @@ export function parseOriginKey(key) {
 /**
  * Roll the per-day origin counters up into the migration picture for the rolling window.
  *
- * `accounts` is a true unique count (each account self-suppresses for the window, so summing the
+ * `accounts` is an account-DEVICE signal, not a headcount (each account self-suppresses for the window per device+address, so summing the
  * days cannot double-count). `installed` is deduped separately and is therefore a subset — but a
  * LOWER BOUND, not an exact one: an account whose only opens in the window were browser tabs is
  * counted in `accounts` and not in `installed`, which is correct, while one that installed midway

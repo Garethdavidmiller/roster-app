@@ -9,11 +9,24 @@
  * about it is built on that: amber and never red, `standing` counted apart from `present`, "this
  * panel is an aid to a conversation, not a fatigue risk assessment".
  *
- * A legal maximum is the opposite kind of statement. **13 consecutive worked days is a ceiling on
- * the UK railway** (owner, Aug 2026), so a design that exceeds it is not "featuring a factor worth
- * justifying" — it is one that cannot be run. Rendering that in the same amber, inside the same
- * "not pass/fail" framing, would understate it exactly as much as recolouring the ORR rows red
- * would overstate them.
+ * A HARD limit is the opposite kind of statement. **13 consecutive worked days is a Chiltern
+ * company limit** (owner, Aug 2026), so a design that exceeds it is not "featuring a factor worth
+ * justifying" — it is one that cannot be run here. Rendering that in the same amber, inside the
+ * same "not pass/fail" framing, would understate it exactly as much as recolouring the ORR rows
+ * red would overstate them.
+ *
+ * ⚠️ **IT IS A COMPANY LIMIT, NOT LEGISLATION, AND THE WORDING MUST NOT DRIFT BACK** (v19.85).
+ * Until then this module called 13 "the UK railway legal maximum" and printed "cannot be run" in
+ * red on a sheet going to an assessing manager, with nothing behind it but "owner, Aug 2026". An
+ * external review could not substantiate that, and it is a claim the app is in no position to
+ * make: the ORR's own framing is different again — it treats more than 13 shifts WITHOUT A 48h
+ * BREAK as fatigue factor FF11 (a different measurement, which `links-fatigue.js` does separately
+ * and correctly) and says its guidelines are not prescriptive limits.
+ *
+ * Overstating a local rule as law is not the safe direction. It invites a manager to believe the
+ * app has checked something statutory, and it makes the row easy to dismiss the moment somebody
+ * who knows the legislation reads it. `basis` is asserted by a test for exactly this reason —
+ * the number alone was already pinned, and pinning a number does not pin the claim around it.
  *
  * So the separation is STRUCTURAL, not a label. A legal check lives in a different module, is
  * returned by a different function, is counted in a different total and is rendered in its own
@@ -44,9 +57,9 @@ import { ROTATING_LINES, worstCaseWorkedRun } from './links-design.js';
 import { toSequence } from './links-fatigue.js';
 
 /**
- * The legal maximum number of consecutive days a person may work on the UK railway (owner,
- * Aug 2026). Named rather than inlined because it is quoted on screen, in the printed sheet and in
- * the tests, and those three must never be able to disagree.
+ * The maximum number of consecutive days a person may work under the Chiltern company limit
+ * (owner, Aug 2026). Named rather than inlined because it is quoted on screen, in the printed
+ * sheet and in the tests, and those three must never be able to disagree.
  */
 export const MAX_CONSECUTIVE_WORKED_DAYS = 13;
 
@@ -86,7 +99,7 @@ export function assessLegalLimits(patterns, lines = ROTATING_LINES) {
             id: 'consecutive-days',
             title: `More than ${MAX_CONSECUTIVE_WORKED_DAYS} consecutive days worked`,
             status: 'unknown', value: null, limit: MAX_CONSECUTIVE_WORKED_DAYS,
-            basis: 'UK railway legal maximum',
+            basis: 'Chiltern company limit',
             detail: 'Nothing to assess yet — this design has no worked days in it.',
         });
         return { checks, breaches: 0, assessable: false };
@@ -100,10 +113,10 @@ export function assessLegalLimits(patterns, lines = ROTATING_LINES) {
         status: breach ? 'breach' : 'ok',
         value: run,
         limit: MAX_CONSECUTIVE_WORKED_DAYS,
-        basis: 'UK railway legal maximum',
+        basis: 'Chiltern company limit',
         detail: (breach
-            ? `This design reaches ${run} consecutive worked days against a legal maximum of ${MAX_CONSECUTIVE_WORKED_DAYS}. It cannot be run as drawn.`
-            : `Longest possible run is ${run} days, within the legal maximum of ${MAX_CONSECUTIVE_WORKED_DAYS}.`)
+            ? `This design reaches ${run} consecutive worked days against the Chiltern company limit of ${MAX_CONSECUTIVE_WORKED_DAYS}. It cannot be run as drawn.`
+            : `Longest possible run is ${run} days, within the Chiltern company limit of ${MAX_CONSECUTIVE_WORKED_DAYS}.`)
             // Stated whenever a spare week could move the answer — the figure is what the link
             // PERMITS, not what a given week produces, and a reader who takes it for the latter
             // will read a pass as a guarantee about something it never measured.

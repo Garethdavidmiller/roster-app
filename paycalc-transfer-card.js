@@ -30,6 +30,7 @@ import { APP_VERSION } from './roster-data.js';
 import { confirmDialog } from './overlay.js';
 import {
     selectBackupKeys, summarise, buildBackup, validateBackup, rekeyEntries, backupFilename,
+    applyRestore as applyStorageRestore,
 } from './paycalc-transfer.js';
 
 /** Wire the card. Safe no-op when the page has no transfer card. */
@@ -131,7 +132,12 @@ export function initTransferCard() {
         a.remove();
         // Revoking immediately can cancel the download on some Android builds — give it a moment.
         setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        status(`Saved as ${b.name}. Keep it somewhere you can find it.`, 'ok');
+        // SAY WHAT IS IN THE FILE (v19.86, external review P3). "Keep it somewhere you can find it" is
+        // filing advice; this is a readable JSON file containing pay, hours, pension, tax code and
+        // year-to-date figures, and a member who does not know that has no reason to treat it
+        // carefully — emailing it to themselves is the obvious thing to do next.
+        status(`Saved as ${b.name}. It contains your pay figures in readable text — keep it private, `
+             + 'don\u2019t send it to anyone, and delete old copies.', 'ok');
     });
 
     copyBtn?.addEventListener('click', async () => {
@@ -139,7 +145,11 @@ export function initTransferCard() {
         if (!b) { status('There is nothing to save yet.', 'warn'); return; }
         try {
             await navigator.clipboard.writeText(b.text);
-            status('Copied. Paste it into the Restore box on the new web address.', 'ok');
+            // The clipboard deserves the SHARPER warning of the two: clipboard history and
+            // cross-device sync (Windows, Android, iCloud) can retain it well after the paste, on
+            // machines the member never thought about.
+            status('Copied. Paste it into the Restore box on the new web address, then copy something '
+                 + 'else — this is your pay data in readable text and some devices keep clipboard history.', 'ok');
         } catch {
             status("Couldn't copy — use Download backup instead.", 'warn');
         }
@@ -189,40 +199,29 @@ export function initTransferCard() {
             if (!ok) { status('Nothing was changed.'); return; }
         }
 
-        // Snapshot BEFORE touching anything: localStorage has no transaction, so this is the only
-        // rollback available.
-        /** @type {Map<string, string|null>} */
-        const before = new Map(existing.map(k => [k, lsGet(k)]));
+        // The whole ladder is `applyRestore` in paycalc-transfer.js (v19.84). It used to be inline
+        // here and snapshotted only the keys that ALREADY EXISTED, so a rollback could not undo a
+        // key the backup had CREATED — leaving a half-merged pay history while telling the member
+        // nothing had changed. The rules now work over the UNION of both sides and are tested
+        // against a storage that fails on demand, which a browser will not do to order.
         const entries = rekeyEntries(res.blob.data, res.blob.slug || '', memberSlug(member));
+        const outcome = applyStorageRestore({ get: lsGet, set: lsSet, del: lsDel, existing, entries });
 
-        // WRITE FIRST, DELETE THE SURPLUS AFTER. The obvious order (wipe, then write) makes the
-        // common failure catastrophic: `lsSet` SWALLOWS a storage error (ls.js, for iOS private
-        // mode), so on a device that has stopped accepting writes the wipe succeeds, the write
-        // silently does nothing, and the member is told "Restored" as their pay history disappears.
-        // Verified in a browser before this was changed (v19.17).
-        for (const [k, v] of Object.entries(entries)) lsSet(k, v);
-
-        // And because lsSet cannot report failure, the only way to know a write landed is to read
-        // it back. A try/catch here would be dead code.
-        const failed = Object.entries(entries).filter(([k, v]) => lsGet(k) !== v);
-        if (failed.length) {
-            for (const [k, v] of before) { if (v !== null) lsSet(k, v); }   // best-effort rollback
-            const intact = [...before].every(([k, v]) => v === null || lsGet(k) === v);
-            status(intact
+        if (!outcome.ok) {
+            if (outcome.reason === 'surplus-remains') {
+                // The new data landed but the old data would not go. That is a MERGE, not the
+                // replace the member agreed to, so it must not be reported as success.
+                status('Your backup was written, but some of the old pay data on this device could not be '
+                     + 'removed, so both are now present. Free up some space and restore again.', 'warn');
+                return;
+            }
+            status(outcome.restored
                 ? "This device's storage refused the restore, so nothing was changed. Free up some space on the "
                   + 'phone and try again — your backup is still fine.'
                 : "This device's storage refused the restore, and some of what was here could not be put back. "
                   + 'Keep your backup and contact the admin.', 'warn');
             return;
         }
-
-        // Only now remove what the backup does not contain. REMOVE, don't blank: a key set to ''
-        // leaves a value the app would later try to parse (an empty period reads as corrupt, not
-        // absent), and a key the backup lacks must genuinely disappear or the restore is a merge
-        // wearing a replace's label.
-        // `Object.hasOwn`, not `k in entries`: `in` walks the prototype chain, so a key named
-        // `constructor` or `toString` would report as present and survive a replace.
-        for (const k of before.keys()) if (!Object.hasOwn(entries, k)) lsDel(k);
 
         status(`Restored ${plural(res.counts.periods, 'payslip')}. Reloading…`, 'ok');
         setTimeout(() => window.location.reload(), 800);

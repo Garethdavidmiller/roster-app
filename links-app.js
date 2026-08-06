@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -817,12 +817,44 @@ export function init() {
             danger: true,
         })) return;
         try {
-            await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.linkDesigns, id)));
+            // RE-CHECK ON THE SERVER, INSIDE A TRANSACTION (v19.84, external review P1).
+            //
+            // This used to be a bare `deleteDoc` on the strength of `deletedDesigns` — the list
+            // loaded when the bin was opened. `purgeExpiredDeletions` below has carried a long
+            // comment for several versions explaining why that is unsafe, and this path, which is
+            // the more dangerous of the two, ignored it: a human pressing a button on a stale row
+            // is far likelier than an expiry sweep landing in the same window.
+            //
+            // The race is real in a workspace built for several designers. A opens the bin, B
+            // restores "Old idea", A's row is now stale, A presses Remove for good — and a LIVE
+            // design that someone deliberately rescued is destroyed with no undo. Firestore runs
+            // here with persistentLocalCache, so A's snapshot can also simply be an old read
+            // served from IndexedDB.
+            //
+            // Reading inside the transaction makes the decision and the deletion inseparable.
+            // Offline it fails and nothing is destroyed, which is the right way for a permanent
+            // delete to fail.
+            const ref = doc(db, COLLECTIONS.linkDesigns, id);
+            await writeWithClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                const snap = await tx.get(ref);
+                if (!snap.exists()) return;                    // already gone — nothing to do
+                if (!isDeleted(snap.data())) throw new Error('design-restored');
+                tx.delete(ref);
+            }));
             deletedDesigns = deletedDesigns.filter(x => x.id !== id);
             renderDesignPicker();
             renderBinList();
             _binStatus(`“${d.name}” removed.`, 'ok');
         } catch (err) {
+            if (err instanceof Error && err.message === 'design-restored') {
+                // Say what happened rather than "couldn't remove": someone put it back on purpose,
+                // and the right next step is to look at it again, not to retry.
+                deletedDesigns = deletedDesigns.filter(x => x.id !== id);
+                renderBinList();
+                await loadDesigns();
+                _binStatus(`“${d.name}” was restored by someone else, so it was not removed.`);
+                return;
+            }
             console.error('[Links] Permanent delete failed:', err);
             _binStatus('Couldn’t remove that design — check your connection and try again.');
         }
@@ -886,8 +918,15 @@ export function init() {
      * links-deletion.js, which fails closed on an unresolved or future `deletedAt` — this runs on
      * whatever the device thinks the time is, so it must never treat "I can't tell how old this
      * is" as "old enough to destroy".
+     *
+     * ⚠️ NOT WIRED UP since v19.86 (external review P2) — hence the underscore. It is kept, rather
+     * than deleted, because the transactional re-check below is the hard-won part and a server-time
+     * expiry will want it verbatim. What is missing is only the CLOCK: a device running more than
+     * 30 days fast makes every recent deletion look expired, and this function would then agree
+     * with itself and destroy a colleague's design. Re-enable only once the age comes from the
+     * server (a scheduled Cloud Function), never by restoring the call site.
      */
-    function purgeExpiredDeletions() {
+    function _purgeExpiredDeletions() {
         const ids = purgeableIds(deletedDesigns, Date.now());
         if (ids.length === 0) return;
         deletedDesigns = deletedDesigns.filter(d => !ids.includes(d.id));
@@ -1990,7 +2029,24 @@ export function init() {
             // Bin: newest deletion first. The ordering rule (incl. the unresolved-timestamp case,
             // which must not go through Infinity - Infinity) is pure and tested.
             deletedDesigns = sortByDeleted(binned);
-            purgeExpiredDeletions();
+            // AUTOMATIC PERMANENT DELETION IS SUSPENDED (v19.86, external review P2).
+            //
+            // `purgeExpiredDeletions` is kept and still correct — it re-reads inside a transaction
+            // and `isPurgeable` fails closed on an unresolved or FUTURE `deletedAt`. What none of
+            // that can defend against is a device clock running more than 30 days FAST: every recent
+            // deletion then looks expired, the transaction re-checks with the same wrong local time
+            // and agrees, and a colleague's design is destroyed for good. The whole point of the bin
+            // is that a delete is recoverable, so a path that can silently empty it early defeats
+            // the feature it belongs to.
+            //
+            // The correct fix is expiry on SERVER time — a scheduled Cloud Function. Until that
+            // exists, nothing here deletes anything automatically: the bin keeps what it has, the
+            // panel shows each design's age, and removal is a deliberate act through "Remove for
+            // good" (which IS transactional, and now re-checks that the design is still deleted).
+            // The cost is a bin that grows; with three designers and a handful of designs that is
+            // nothing against permanently losing somebody's work to a wrong clock.
+            //
+            // Do NOT re-enable this by simply calling it again — it needs a server clock first.
 
             if (designs.length > 0) {
                 // Re-open the design that was active last visit, else the first

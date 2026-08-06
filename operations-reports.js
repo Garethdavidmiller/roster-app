@@ -543,9 +543,16 @@ function _appendOriginSection(content, rows) {
 
     const note = document.createElement('p');
     note.className = 'usage-note';
-    // Kept to the two caveats that change how the number is READ. The rest (admin exclusion, how
-    // dedup works) is true of every figure on this card and is stated once at the foot of it.
-    note.textContent = 'Unique accounts over the last 30 days.';
+    // "Unique accounts" was too strong (v19.86, external review P2) and this figure is the one most
+    // likely to be acted on — it is the evidence for deciding an old address can be retired, and a
+    // count that reads as exact invites retiring one while staff are still on it. Deduplication is
+    // a localStorage flag per identity per origin, so one person on two devices counts twice,
+    // clearing browser data allows another count, a shared device counts each member picked, and
+    // somebody using both addresses appears in both bars — which is what half-migrated looks like
+    // and is exactly why the figure must not claim to be a headcount. The EXACT unique count is a
+    // different measure altogether and sits in its own section below, from Firebase Auth.
+    note.textContent = 'Account-device signals over the last 30 days — directional, not an exact headcount. '
+        + 'One person can count on more than one device or address.';
     sec.appendChild(note);
 }
 

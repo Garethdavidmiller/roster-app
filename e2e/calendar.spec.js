@@ -141,3 +141,66 @@ test('guide: an off-allowlist ?from= leaves the back arrow untouched', async ({ 
     await expect(page.locator('.btn-back')).toHaveAttribute('href', './');
 });
 
+
+
+// ── THE CALENDAR MUST PASS AN IDENTITY THE MIGRATION METRIC CAN USE (v19.86, external review P2) ──
+// `recordUsage`'s third argument does two jobs: exclude the developer's own sessions, and give
+// `_recordOrigin` a dedup key. The calendar passed `getSession()?.name` — right for the first job,
+// null for the second on an ordinary anonymous visitor, so `_recordOrigin` returned immediately and
+// the address-migration metric never saw the population it exists to observe: calendar-only staff,
+// who never sign in anywhere and are exactly the people an old installed PWA strands.
+//
+// This has to drive real page INIT. The unit tests call `recordUsage` directly with an identity
+// handed to them, so they can prove the reporter's rules and can never notice the call site passing
+// the wrong thing — which is precisely how this survived.
+test('calendar: origin telemetry gets the selected member when nobody is signed in', async ({ page }) => {
+    // Rewrite usage-reporter.js so recordUsage records its arguments. A missing anchor THROWS: a
+    // silent no-op here would leave a green test that had stopped testing the wiring.
+    const ANCHOR = 'export function recordUsage(page, member = null, identity = member) {';
+    await page.route('**/usage-reporter.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        if (!src.includes(ANCHOR)) {
+            throw new Error(`calendar: recordUsage anchor no longer matches — "${ANCHOR}". Re-point it.`);
+        }
+        const body = src.replace(ANCHOR, ANCHOR
+            + '\n    (window.__E2E ||= {}).usageCalls = [...(window.__E2E.usageCalls || []), { page, member, identity }];');
+        await route.fulfill({ response: res, body, contentType: 'text/javascript' });
+    });
+
+    // A returning, signed-OUT visitor: a member has been chosen, so this is not first run.
+    await seedMember(page, 'S. Silva');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+
+    await expect.poll(async () => (await page.evaluate(() => window.__E2E?.usageCalls?.length)) || 0)
+        .toBeGreaterThan(0);
+    const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
+    expect(call, 'the calendar must report a page view').toBeTruthy();
+    expect(call.identity, 'the selected member is the origin metric’s dedup key').toBe('S. Silva');
+    // `member` stays null — the calendar deliberately counts a page view, never an active account.
+    expect(call.member).toBe(null);
+});
+
+test('calendar: a FIRST-RUN device reports no identity, so the default admin cannot exclude it', async ({ page }) => {
+    // The guard that makes the fallback above safe. Before anyone picks a name the "selection" is
+    // only CONFIG.DEFAULT_MEMBER_NAME — an admin — so keying on it unguarded would silently drop
+    // every fresh visitor from the usage counts AND from the migration metric.
+    const ANCHOR = 'export function recordUsage(page, member = null, identity = member) {';
+    await page.route('**/usage-reporter.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        if (!src.includes(ANCHOR)) throw new Error(`calendar: recordUsage anchor no longer matches — "${ANCHOR}".`);
+        await route.fulfill({
+            response: res, contentType: 'text/javascript',
+            body: src.replace(ANCHOR, ANCHOR
+                + '\n    (window.__E2E ||= {}).usageCalls = [...(window.__E2E.usageCalls || []), { page, member, identity }];'),
+        });
+    });
+
+    await page.goto('/');                       // no seeded member — first run
+    await expect.poll(async () => (await page.evaluate(() => window.__E2E?.usageCalls?.length)) || 0)
+        .toBeGreaterThan(0);
+    const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
+    expect(call.identity, 'a first-run device must not be keyed on the default member').toBe(null);
+});

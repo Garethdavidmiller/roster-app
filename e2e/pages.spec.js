@@ -449,23 +449,23 @@ test('links: the sticky summary bar carries a live reading of the analysis below
     await expect.poll(() => chips.allTextContents()).not.toEqual(before);
 });
 
-test('links: the legal limit is its own section, above the advisory factors and never collapsed', async ({ page }) => {
-    // 13 consecutive worked days is a legal ceiling, so this row is a different kind of statement
-    // from the 24 below it. The unit tests prove the RULE; what only a browser can prove is that the
+test('links: the company limit is its own section, above the advisory factors and never collapsed', async ({ page }) => {
+    // 13 consecutive worked days is a Chiltern COMPANY limit — not legislation (v19.85) — but it is
+    // still a hard limit, so this row is a different kind of statement from the 24 below it. The unit tests prove the RULE; what only a browser can prove is that the
     // separation actually survives into the DOM — that it is not tallied into the fatigue counts, not
     // wearing the advisory amber, and not hidden behind the quiet-rows disclosure when it passes.
     await openLinksWithDesign(page);
 
-    const legalHead = page.locator('.check-section-head:has-text("Legal limits")');
+    const legalHead = page.locator('.check-section-head:has-text("Company limits")');
     const fatigueHead = page.locator('.check-section-head:has-text("Fatigue factors")');
     await expect(legalHead).toBeVisible();
 
     // Order: the hard limit comes first.
     const order = await page.evaluate(() => {
         const heads = [...document.querySelectorAll('.check-section-head')].map(h => h.textContent || '');
-        return heads.findIndex(t => /Legal limits/.test(t)) < heads.findIndex(t => /Fatigue factors/.test(t));
+        return heads.findIndex(t => /Company limits/.test(t)) < heads.findIndex(t => /Fatigue factors/.test(t));
     });
-    expect(order, 'the legal section must render above the advisory factors').toBe(true);
+    expect(order, 'the hard-limit section must render above the advisory factors').toBe(true);
 
     // Its count is its own — "within limits" / "N breached", never folded into "N present · N clear".
     await expect(legalHead.locator('.check-section-meta')).toHaveText(/within limits|breached|not yet assessable/);
@@ -635,11 +635,15 @@ test('links: the bin button is hidden when nothing has been deleted', async ({ p
     await expect(page.locator('#designBinBtn')).toBeHidden();
 });
 
-// The purge is the ONLY destructive path left in the workspace, so it gets a test that watches
-// both directions at once: the expired design must go, and the one still inside the window must
-// survive the same sweep. A purge that took everything would pass a test that only checked the
-// first half.
-test('links: an expired deletion is purged on load and a recent one is not', async ({ page }) => {
+// AUTOMATIC PERMANENT DELETION IS SUSPENDED (v19.86, external review P2), so this test now pins the
+// opposite of what it used to. `isPurgeable` fails closed on an unresolved or FUTURE `deletedAt`,
+// but nothing can defend a client-side age check against a device clock running more than 30 days
+// FAST: every recent deletion looks expired, the transaction re-checks with the same wrong local
+// time and agrees, and a colleague's design is destroyed. The bin exists so a delete is
+// recoverable, so a path that can silently empty it early defeats the feature it belongs to.
+// Removal is now a deliberate act only. Re-enable expiry on SERVER time, never by restoring the
+// call site.
+test('links: nothing is purged automatically on load, however old the deletion', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -655,24 +659,26 @@ test('links: an expired deletion is purged on load and a recent one is not', asy
     });
     await page.goto('/links.html');
     await expect(page.locator('.design-chip')).toHaveCount(1);
-    await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
+    // BOTH deletions survive — the 40-day-old one as much as the 2-day-old one.
+    await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(2\)/);
 
+    // The assertion that matters: load destroyed nothing. It is a negative, so it has to have had
+    // the chance to happen — the bin count above is only rendered after the load settles.
     const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
-    expect(deletes).toEqual(['linkDesigns/old']);
+    expect(deletes, 'load must never permanently delete anything').toEqual([]);
 
     await page.locator('#designBinBtn').click();
-    await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
-    await expect(page.locator('.bin-row-name')).toHaveText('Just binned');
-    await expect(page.locator('.bin-row-meta')).toHaveText(/Deleted 2 days ago by S. Silva/);
+    await expect(page.locator('#designBinList .bin-row')).toHaveCount(2);
+    // The AGE is still shown — suspending the purge must not also hide how old a deletion is,
+    // because that age is now the only prompt to remove it by hand.
+    await expect(page.locator('.bin-row-meta').first()).toHaveText(/Deleted .* by S\. Silva/);
 });
 
-// The purge re-reads inside a transaction instead of trusting the load snapshot. This is the case
-// that justifies it: Firestore runs with persistentLocalCache, so a load can be served from
-// IndexedDB and be stale — showing a design as deleted-and-expired that a colleague has since
-// restored. Deleting on the strength of that snapshot destroys a LIVE design, which is the exact
-// outcome soft delete exists to prevent. Here the page loads the stale view and the server view
-// (txDocs) says restored.
-test('links: a design restored elsewhere is NOT purged, even if our snapshot says expired', async ({ page }) => {
+// Same guarantee from the other direction, and it still matters with auto-purge suspended: a stale
+// load can show a design as long-deleted that a colleague has since restored. Nothing on load may
+// act on that. (The MANUAL "Remove for good" path re-reads inside a transaction for exactly this
+// reason — v19.84 — so the two destructive routes are now both closed.)
+test('links: a design restored elsewhere survives a load whose snapshot says expired', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -693,11 +699,12 @@ test('links: a design restored elsewhere is NOT purged, even if our snapshot say
     });
     await page.goto('/links.html');
     await expect(page.locator('.design-chip')).toHaveCount(1);
-    // Give the purge transaction time to resolve — the assertion is a NEGATIVE, so it has to be
-    // possible for it to have happened by the time we look.
-    await expect(page.locator('#designBinBtn')).toBeHidden();
+    // The stale row still SHOWS in the bin — this device believes it was deleted, and correcting
+    // that belief is a refresh problem, not a reason to destroy anything. Waiting on the button
+    // also gives any (suspended) purge the chance to have run before the negative below is read.
+    await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
     const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
-    expect(deletes, 'a design the server says is live must survive a stale-snapshot purge').toEqual([]);
+    expect(deletes, 'a design the server says is live must never be destroyed by a load').toEqual([]);
 });
 
 // Zero live designs with a full bin is the state where restore matters most, and it is reachable
@@ -1765,6 +1772,51 @@ test('links: a target table stored BEFORE the spare-week change is still read', 
 // them all. With two one-time NOTICES up that meant a single keypress archived and permanently
 // flagged the one buried underneath, for someone who never saw it.
 //
+// ── "REMOVE FOR GOOD" MUST NOT DESTROY A DESIGN SOMEBODY RESTORED (v19.87) ──────────────────────
+// The last item on the external review's missing-test list. v19.84 made the manual purge
+// transactional, and the rules now require `deletedAt` for a hard delete — but both of those are
+// the SERVER half. Nothing exercised the client path: transaction sees the design is live, throws
+// `design-restored`, the bin says so, and nothing is deleted. Deleting the `isDeleted` check from
+// the transaction leaves every rules test green, because those assert what the RULES permit and
+// this design is legitimately deletable the moment its `deletedAt` is written.
+//
+// The race, staged exactly as it happens: A opened the bin (so A's `docs` show "Old idea" deleted),
+// B restored it in the meantime (so the server view, `txDocs`, has no `deletedAt`), and A presses
+// the button on a row that is now stale.
+test('links: Remove for good spares a design another designer has restored', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= 28; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        const base = { patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' };
+        // What THIS device loaded when the bin was opened.
+        w.__E2E.docs = [
+            { id: 'live', name: 'Option A', ...base },
+            { id: 'gone', name: 'Old idea', ...base, deletedAt: Date.now() - 2 * 86400000, deletedBy: 'S. Silva' },
+        ];
+        // What the server actually holds now: M. Robson restored it — no deletedAt at all.
+        w.__E2E.txDocs = [
+            { id: 'live', name: 'Option A', ...base },
+            { id: 'gone', name: 'Old idea', ...base, updatedBy: 'M. Robson' },
+        ];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await page.locator('#designBinBtn').click();
+    await page.locator('#designBinList button:has-text("Remove for good")').first().click();
+    await page.locator('.lb-overlay.visible .dialog-btn-confirm').last().click();
+
+    // It says what actually happened — not "couldn't remove", which would invite a retry against a
+    // design somebody deliberately rescued.
+    await expect(page.locator('#designBinStatus')).toContainText(/restored by someone else/i);
+
+    const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
+    expect(deletes, 'a restored design must survive a stale Remove for good').toEqual([]);
+});
+
 // This drives a REAL nested pair — the Recently-deleted bin with its "Remove for good" confirm on
 // top — because `overlay-history.test.mjs` tests the RULE (`_isTopOverlay`) and cannot see the
 // wiring: deleting the guard from `onKey` leaves every one of those unit tests green and only this

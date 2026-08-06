@@ -932,7 +932,20 @@ calendarAuthReady.finally(() => {
     // default dropdown selection is an admin (CONFIG.DEFAULT_MEMBER_NAME = 'G. Miller'), so keying on it
     // would wrongly exclude every fresh anonymous visitor. A signed-in admin (the developer) — identified
     // by the shared session, the same signal the authenticated pages use — is the real thing to skip.
-    const _calIdentity = getSession()?.name ?? null;
+    // Falls back to the SELECTED member when nobody is signed in (v19.86, external review P2).
+    // This was `getSession()?.name ?? null`, which is right for admin exclusion and wrong for the
+    // other job the same argument does: `recordUsage` passes it to `_recordOrigin`, whose whole
+    // purpose is to see which ADDRESS each account is on during the migration — and whose own
+    // comment says it keys on "the calendar's selected member" precisely because calendar-only
+    // staff never sign in anywhere. With a session-only identity that is null for them, so
+    // `_recordOrigin` returned immediately and the metric was blind to the exact population it
+    // exists to observe: the people an old installed PWA can strand.
+    //
+    // The `isFirstRun()` guard is what makes the fallback safe, and it is the same one the nav
+    // panel's open counters use ten lines below. Before a member picks anyone the "selection" is
+    // only CONFIG.DEFAULT_MEMBER_NAME — an admin — so keying on it unguarded would silently
+    // exclude every fresh visitor from both the usage counts and the migration metric.
+    const _calIdentity = getSession()?.name || (isFirstRun() ? null : getCurrentMember()?.name) || null;
     recordUsage('calendar', null, _calIdentity);
     recordPageLatency('calendar', _calIdentity);
 });
