@@ -1341,6 +1341,32 @@ test('links: the roster seed covers all 28 real lines, not a 22-line sample', as
     await expect(page.locator('#genSpareLines')).toHaveValue('6');
 });
 
+test('links: the December uplift scales the real targets in the table', async ({ page }) => {
+    // `scaleTargets` is unit-tested in links-design.test.mjs; what only a browser can prove is the
+    // WIRING — that Apply reaches the number inputs the generator actually reads, and that the note
+    // states before → after. The uplift is the one control on this page whose whole job is to change
+    // a figure somebody has agreed, so "it said it applied" is not enough: the cells must move.
+    await page.setViewportSize({ width: 900, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genSeedBtn').click();
+
+    const weekdayTotal = () => page.evaluate(() =>
+        [...document.querySelectorAll('#genSlotRows .gen-slot-count[data-class="weekday"]')]
+            .reduce((a, el) => a + (Number(/** @type {HTMLInputElement} */ (el).value) || 0), 0));
+
+    const before = await weekdayTotal();
+    await page.locator('#genUplift').fill('25');
+    await page.locator('#genUpliftApply').click();
+    const after = await weekdayTotal();
+
+    // Rounding is applied to the TOTAL, not per slot, so 25% of the real seed is exact enough to
+    // assert: a per-slot round would land short and that is the defect the algorithm exists to avoid.
+    expect(after).toBe(Math.round(before * 1.25));
+    await expect(page.locator('#genUpliftNote')).toContainText(`Mon–Fri ${before} → ${after}`);
+});
+
 test('links: generating names the construction that produced the design', async ({ page }) => {
     // Two constructions live behind one button and they give visibly different designs — settled
     // weeks keep a line inside one wave, the fallback walks it across the whole day. A designer who
@@ -1443,6 +1469,54 @@ test('links: a numeric objective clause does not come apart on a phone', async (
         const gap = Math.abs((c.tail.top + c.tail.bottom) / 2 - (c.input.top + c.input.bottom) / 2);
         expect(gap, `"${c.text?.trim()}" must sit beside its number, not on the line below`)
             .toBeLessThan(10);
+    }
+});
+
+// ── The grid keeps its day headers from 768px up (v19.77) ───────────────────────────────────────
+// The wrapper is `overflow-x: auto` below its breakpoint so the 592px table can scroll inside a
+// narrow card — but `overflow-x: auto` makes it a SCROLL CONTAINER whether or not anything
+// overflows, and `position: sticky` resolves against the nearest one. With the breakpoint at 1024
+// the header was therefore inert from 768 to 1023 while scrolling NOTHING: measured, the content
+// fits its box at 768 (684/684), 834 (720/720) and 1000 (876/876).
+//
+// That band is iPad portrait, which is the device this workspace's own first-visit notice
+// recommends — so it is worth a test rather than a comment. Neither project's default viewport
+// lands in it, which is exactly why nothing caught it.
+test('links: the grid day-headers stick from 768px up, where the table already fits', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= 28; i++) {
+            pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: '06:20-14:20',
+                thu: '06:20-14:20', fri: '06:20-14:20', sat: 'RD' };
+        }
+        w.__E2E.docs = [{ id: 'd1', name: 'A', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' }];
+    });
+
+    for (const width of [768, 834, 1024]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/links.html');
+        await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+        const m = await page.evaluate(() => {
+            const wrap = /** @type {Element} */ (document.querySelector('.links-grid-wrapper'));
+            const th = /** @type {Element} */ (document.querySelector('.links-grid thead th'));
+            const before = th.getBoundingClientRect().top;
+            window.scrollTo(0, 400);
+            const after = th.getBoundingClientRect().top;
+            window.scrollTo(0, 0);
+            return {
+                overflowX: getComputedStyle(wrap).overflowX,
+                fits: wrap.scrollWidth <= wrap.clientWidth + 1,
+                movedWithPage: Math.abs((before - after) - 400) < 5,
+            };
+        });
+        // The premise: at these widths there is nothing to scroll horizontally, so making the
+        // wrapper a scroll container buys nothing and costs the header.
+        expect(m.fits, `at ${width}px the table should already fit its wrapper`).toBe(true);
+        expect(m.overflowX, `at ${width}px the wrapper must not be a scroll container`).toBe('visible');
+        expect(m.movedWithPage, `at ${width}px the day header must STICK, not scroll away`).toBe(false);
     }
 });
 

@@ -382,7 +382,7 @@ an hour cell with the opening. A fourth, the 05:55 departure, is earlier still a
 the heat map does not draw at all; the window table above counts all four. Quote four, not three,
 if the subject is how much of the morning falls outside the link.
 
-### 4. More people, same shape
+### 4. More people, same shape — 🔧 **CONTROL SHIPPED v19.78; still needs the figure**
 
 **The new roster keeps the existing pattern** — same start times, same waves, same distribution
 (owner, Aug 2026). December 2026 adds trains, so it adds people. Nothing about the shape changes.
@@ -390,8 +390,21 @@ if the subject is how much of the morning falls outside the link.
 > new target per slot = current target × (1 + uplift)
 
 applied to the seed `buildRosterTargets()` already produces, with the target table underneath for
-hand-adjustment. **Needs one figure: the uplift.** Whether it splits by day class (the three curves
-grow differently) is a detail to settle when it arrives.
+hand-adjustment. **Still needs one figure: the uplift.** Whether it splits by day class (the three
+curves grow differently) is a detail to settle when it arrives — the control scales all three
+together today, which is what "same shape" means and what the day-class split would replace.
+
+**The control exists now** (v19.78): "December 2026 uplift" on the generator, above the line-order
+objectives. Type a percentage, press *Apply to targets*, and the table underneath is rewritten in
+place; the note states before → after per day class so the change is reviewable against whatever was
+agreed. `↺ Reset targets from current roster` is the way back.
+
+It is an **ACTION, not a mode**, and that is deliberate: the targets stay hand-editable underneath,
+so a persistent "+15%" chip would be a lie the moment somebody typed in a cell. Applying twice
+compounds — that is what "scale what is in the table" means, and the note saying what it just did is
+the guard against doing it by accident. It also restates the over-capacity refusal *at the moment the
+number changes* rather than leaving it for the Generate button, because at the uplifts that matter
+(below) the refusal is the answer.
 
 **Two things measured while checking the generator, and both change how this must be built:**
 
@@ -400,7 +413,13 @@ grow differently) is a detail to settle when it arrives.
 produces byte-identical output**: 104 duties, unchanged. Then 25% jumps straight to 129. A designer
 typing 10% would see nothing happen and reasonably conclude the control was broken. Apply the uplift
 to the **total** and distribute the remainder (largest-remainder), never `Math.round` each slot on
-its own.
+its own. `scaleTargets` does exactly that; measured on the real seed it gives 16 → **17** at +5%
+where per-slot rounding gave 16, then 18 / 18 / 19 / 20 at +10 / +15 / +20 / +25%.
+
+One rule inside it that is not rounding and must not be tidied into it: **a slot sitting at 0 for a
+day class stays 0.** Zero there does not mean "a small number" — it means that shift does not run
+that day, and a fair-share pass that promoted it to 1 would invent a duty the timetable never asked
+for and quietly change the shape the whole package is built on keeping.
 
 **(b) The 28-line link cannot absorb much, and this is the finding that matters.** 22 working lines
 × 7 days = **154 day-slots per cycle**. Every extra duty comes out of a rest day:

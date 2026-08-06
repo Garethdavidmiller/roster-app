@@ -34,6 +34,7 @@ import {
     dayClass,
     calcCoverage,
     generateLink,
+    scaleTargets,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { reorderLines, applyOrder, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
@@ -1520,6 +1521,42 @@ export function init() {
             renderGenTable();
             const errEl = document.getElementById('genError');
             if (errEl) errEl.textContent = '';
+        });
+
+        // The December 2026 uplift (v19.78). All the arithmetic is `scaleTargets` in links-design.js
+        // — see its header for why the TOTAL is rounded rather than each slot, which is the
+        // difference between a control that works and one that visibly does nothing below +20%.
+        document.getElementById('genUpliftApply')?.addEventListener('click', () => {
+            const field = /** @type {HTMLInputElement} */ (document.getElementById('genUplift'));
+            const note  = document.getElementById('genUpliftNote');
+            const pct   = Number(field?.value);
+            if (!Number.isFinite(pct) || pct === 0) {
+                if (note) { note.textContent = 'Enter a percentage first — 0 leaves the targets as they are.'; note.classList.remove('applied'); }
+                return;
+            }
+            const { slots, before, after } = scaleTargets(genSlots, pct / 100);
+            genSlots = slots;
+            saveGenTargets();
+            renderGenTable();
+            // State what it DID, per day class, not merely that it happened — the point of an uplift
+            // is the new number, and a designer has to be able to check it against what was agreed.
+            if (note) {
+                note.textContent = `Applied ${pct > 0 ? '+' : ''}${pct}%: Mon–Fri ${before.weekday} → ${after.weekday}, `
+                    + `Sat ${before.sat} → ${after.sat}, Sun ${before.sun} → ${after.sun} on duty. `
+                    + `↺ Reset targets restores the roster figures.`;
+                note.classList.add('applied');
+            }
+            const errEl = document.getElementById('genError');
+            // The generator refuses over-capacity targets, but silently until you press Generate.
+            // Say it here, where the number that caused it is still under the cursor.
+            const working = TOTAL_POS - genSpareLines;
+            const classes = /** @type {Array<'weekday'|'sat'|'sun'>} */ (['weekday', 'sat', 'sun']);
+            const over = classes.filter(c => after[c] > working);
+            if (errEl) {
+                errEl.textContent = over.length
+                    ? `That needs ${Math.max(...over.map(c => after[c]))} people on a day, but only ${working} lines are available once ${genSpareLines} are spare weeks. Generate will refuse until the targets fit.`
+                    : '';
+            }
         });
 
         document.getElementById('genApplyBtn')?.addEventListener('click', async () => {

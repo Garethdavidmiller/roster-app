@@ -464,6 +464,32 @@ The table is **seeded from the current roster** on page load via `buildRosterTar
 
 Weekday count = the **busiest** Mon–Fri day for that time (some shifts only run Tue/Thu/Fri), and the generator then staffs all five weekdays at that level. Deliberate — under-staffing a day is the worse error — but the real roster varies Mon to Fri, so the column header says `busiest day`.
 
+### The December 2026 uplift (v19.78)
+
+`scaleTargets(slots, pct)` in `links-design.js`, driven by the "December 2026 uplift" block on the
+generator. The December 2026 roster **keeps the existing pattern** and adds people for the extra
+trains (owner, Aug 2026), so this scales the target table rather than rebuilding it from a timetable.
+`LINKS_DEC2026_PLAN.md` package 4 carries the project context; three rules live here.
+
+- **It rounds the TOTAL, not each slot.** The per-slot targets are mostly 1s and 2s, so
+  `round(1 × 1.15)` is 1 and — measured against the real roster seed — **every uplift from 0% to 15%
+  produced byte-identical output** under per-slot rounding. A designer typing 10%, seeing nothing
+  move, would rightly conclude the control was broken. Largest-remainder on the day-class total gives
+  16 → 17 at +5%. Do not "simplify" it back to a per-row `Math.round`.
+- **A slot at 0 for a day class stays 0.** Zero is not a small number here, it means that shift does
+  not run that day; promoting it to 1 would invent a duty and change the shape the package exists to
+  preserve. The tie-break is deterministic (largest fraction, then row order) so the same uplift
+  always gives the same table.
+- **An ACTION, not a mode.** The targets stay hand-editable underneath, so a persistent "+15%" chip
+  would be a lie the moment somebody types in a cell. Applying twice compounds; the note stating
+  before → after per day class is what makes that visible, and `↺ Reset targets` is the way back.
+
+The over-capacity refusal is restated **when the number changes**, not left for Generate — because at
+the uplifts that matter the refusal *is* the finding (22 working lines × 7 = 154 day-slots; +25%
+takes rest days to 1.14 per line and the longest run to 21, and above ~+37% the generator refuses).
+The rules are unit-tested in `links-design.test.mjs`; an e2e drives the real button and asserts the
+number inputs moved, because "it said it applied" and "the table changed" are two different passes.
+
 ### The two constructions (v19.59)
 
 `generateLink({ slots, spareLines, lines })` tries **settled weeks** first and falls back to the original **rotating window**. Which one ran is REPORTED in the status line, never silent — they give visibly different designs. `generatePatterns` is the thin wrapper returning patterns only; it keeps the old signature because every existing caller and test is written against it.
