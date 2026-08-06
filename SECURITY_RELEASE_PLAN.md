@@ -212,6 +212,11 @@ Three design points that flow from this and still govern any future rule change:
   does **not** address the world-readable `overrides` exposure (a deliberate design trade-off,
   KNOWN_LIMITATIONS). Per-member write isolation (Track B) was the higher-value work; App Check is
   defence-in-depth, correctly sequenced last.
+- **⚠️ KNOWN_LIMITATIONS carries a section headed "considered and DECLINED", written in the same
+  commit as this one** (`a7e8bbf`, 16 Jul 2026) — so it is not a later reversal, it is an
+  inconsistent framing that sat unreconciled for a month. **This track is authoritative: App Check
+  is deferred and sequenced, not closed.** That section now says so and defers here; if this track
+  is ever genuinely cancelled, close it THERE too rather than leaving two readings again.
 - **D-adjacent hardening — analytics doc size (deferred, App Check is the real fix).** The
   `analytics/activeAccounts` and `analytics/perf_<YYYY-MM>` rules validate that `daily`/`months`/
   `samples` are *maps* but do **not** bound the map-key **count**. So any authenticated session —
