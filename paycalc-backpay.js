@@ -23,6 +23,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
 import { fd, fdShort, fdLong, fdList, fmt } from './paycalc-format.js';
+import { readBpFields, bpFieldWrites, resolveAuthoritativeRates, allRatesOnRecord, resolvePaidInPeriod } from './paycalc-backpay-state.js';
 
 /**
  * The currently OFFERED (but not-yet-confirmed) annual pay award, as a percentage. Pre-fills the
@@ -253,10 +254,13 @@ function _saveBpState() {
     // again (the reason v16.91 had to pin it to one award).
     const awardTy = _bpAwardTaxYear(_backdatedFromPNum());
     const v = /** @param {string} id */ (id) => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
+    // The six text fields come from BP_FIELDS (paycalc-backpay-state.js) rather than being listed
+    // here — save, clear and restore each used to carry their own hand-written copy of that list,
+    // which is how a field could be saved and restored but never cleared (see the module header).
     lsSet(bpKey(awardTy), JSON.stringify({
-      year: awardTy.label, mode: _bpMode(), manual: v('bpManualAmt'),
-      pct:  v('bpRisePct'), oldR: v('oldRate'), newR: v('newRateInput'),
-      oldL: v('oldLondon'), newL: v('newLondon'), paidIn: v('backPayPeriod'),
+      year: awardTy.label, mode: _bpMode(),
+      ...readBpFields(v),
+      paidIn: v('backPayPeriod'),
       inc:  /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'))?.checked ? '1' : '',
     }));
   } catch { /* storage unavailable — card still works, just not persisted */ }
@@ -289,20 +293,17 @@ export function restoreBpState() {
     lsDel(bpKey(awardTy));
   }
   if (!s) return false;
-  const set = /** @param {string} id @param {any} val */ (id, val) => {
-    const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
-    if (el && val != null) el.value = String(val);
-  };
-  // Clean slate FIRST (review finding): a field the blob doesn't carry must end up EMPTY, not keep
-  // the previously-viewed year's value — without this, a year switch left the old year's figures in
-  // any box the new year's blob (or the calcBackPay enforcement) doesn't overwrite, e.g. the
-  // no-recorded-figure CES 2025/26 old-rate box silently inheriting the 2026/27 rate.
-  for (const _id of ['bpRisePct', 'oldRate', 'newRateInput', 'oldLondon', 'newLondon', 'bpManualAmt']) {
-    const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(_id));
-    if (_el) _el.value = '';
+  // ONE pass over BP_FIELDS that blanks and applies together (v19.93). A field the blob doesn't
+  // carry must end up EMPTY, not keep the previously-viewed year's value — without that, a year
+  // switch left the old year's figures in any box the new year's blob (or the calcBackPay
+  // enforcement) doesn't overwrite, e.g. the no-recorded-figure CES 2025/26 old-rate box silently
+  // inheriting the 2026/27 rate. It used to be a clear loop followed by six `set` calls: two
+  // hand-written lists that had to agree, which is the failure above waiting to recur.
+  // `bpFieldWrites` returns an entry for EVERY field, so there is nothing left to keep in step.
+  for (const { id, value } of bpFieldWrites(s)) {
+    const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+    if (_el) _el.value = value;
   }
-  set('bpRisePct', s.pct); set('oldRate', s.oldR); set('newRateInput', s.newR);
-  set('oldLondon', s.oldL); set('newLondon', s.newL); set('bpManualAmt', s.manual);
   const paidSel = document.getElementById('backPayPeriod');
   // Rebuild the paid-in list for THIS award's year before applying the saved selection — the select
   // otherwise still holds the previously-viewed year's periods, so _setSelectPeriod would no-op and
@@ -314,7 +315,17 @@ export function restoreBpState() {
   // bpPNum would be 0 and the lump would silently drop to £0 with no way to fix it.
   if (paidSel && !(/** @type {HTMLSelectElement} */ (paidSel)).value) {
     const _from = awardFromForYear(awardTy.label);
-    const _tgt  = _from ? (paidInPeriodNum(getPeriods(), _from) ?? 0) : todaysPeriodNum();
+    // The ladder lives in resolvePaidInPeriod (v19.93). Note this is a small BEHAVIOUR CHANGE and a
+    // deliberate one: the inline version read `_from ? (paidInPeriodNum(...) ?? 0) : todaysPeriodNum()`,
+    // so a decided award whose payday falls beyond the generated period list produced 0 — and 0 is
+    // exactly the state this safety net exists to prevent, since a decided award hides the selector
+    // and leaves no control to correct it with. It now falls through to today's period.
+    const _tgt = resolvePaidInPeriod({
+      awardDecided:  !!_from,
+      derivedPNum:   _from ? paidInPeriodNum(getPeriods(), _from) : null,
+      savedPNum:     null,
+      fallbackPNum:  todaysPeriodNum(),
+    });
     if (_tgt) _setSelectPeriod(paidSel, _tgt);
   }
   const incTick = /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'));
@@ -467,15 +478,12 @@ export function calcBackPay() {
   // never looks at the box's contents, so typing into it can't trigger a mid-typing lock (review F1:
   // the earlier value!=='' test locked the box on the first keystroke's recompute and persisted the
   // fragment). Runs BEFORE the input reads below so this pass computes with the enforced figures.
-  const _settled = !awardTy?.rateUnconfirmed;
-  const _award   = awardRatesFor(getGrade(), awardTy?.label ?? '');
-  /** @type {Record<string, number|null>} */
-  const _auth = {
-    oldRate:      _settled && _award && _award.pre  != null ? _award.pre  : null,
-    newRateInput: _settled && _award && _award.rate != null ? _award.rate : null,
-    oldLondon:    _settled && awardTy?.londonAllowPre != null ? awardTy.londonAllowPre : null,
-    newLondon:    _settled && awardTy?.londonAllow    != null ? awardTy.londonAllow    : null,
-  };
+  // The which-figures-are-on-record decision is resolveAuthoritativeRates (paycalc-backpay-state.js,
+  // v19.93). Two properties it carries that this loop depends on: the decision never reads the box's
+  // CONTENTS (review F1 — an earlier version locked on non-empty, so a recompute mid-typing froze
+  // the fragment), and a locked box is WRITTEN with the recorded figure (review F2 — otherwise a
+  // stale restored value sits behind a padlock and reads as confirmed).
+  const _auth = resolveAuthoritativeRates(awardTy, awardRatesFor(getGrade(), awardTy?.label ?? ''));
   for (const [_id, _v] of Object.entries(_auth)) {
     const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(_id));
     if (!_el) continue;
@@ -491,7 +499,7 @@ export function calcBackPay() {
   // compact read-only line (v18.48 — the owner's screenshot review: ~300px of boxes nobody can
   // edit, restating figures the hero also carried). The hero basis then shows the period count
   // only, so the rates are stated ONCE. Any figure NOT on record keeps the editable rows.
-  const _allLocked = Object.values(_auth).every(v => v != null);
+  const _allLocked = allRatesOnRecord(_auth);
   for (const _fid of ['bpRateField', 'bpLondonField']) {
     const _f = document.getElementById(_fid);
     if (_f) _f.style.display = _allLocked ? 'none' : '';
@@ -516,7 +524,14 @@ export function calcBackPay() {
   // no control to fix it. restoreBpState restores that stale value, so overriding it here is the
   // single choke point; _saveBpState (below) then heals the persisted blob. (v18.12)
   if (bpSel && _awardDecided) {
-    const _tgt = paidInPeriodNum(getPeriods(), awardFromForYear(awardTy.label)) ?? 0;
+    // Rule 1 of the ladder — a decided award DERIVES and never trusts what was saved. See
+    // resolvePaidInPeriod (v19.93); `savedPNum` is deliberately not passed.
+    const _tgt = resolvePaidInPeriod({
+      awardDecided: true,
+      derivedPNum:  paidInPeriodNum(getPeriods(), awardFromForYear(awardTy.label)),
+      savedPNum:    null,
+      fallbackPNum: null,
+    });
     if (_tgt && +bpSel.value !== _tgt) _setSelectPeriod(bpSel, _tgt);
   }
   const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
