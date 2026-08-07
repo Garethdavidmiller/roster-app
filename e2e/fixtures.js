@@ -141,9 +141,20 @@ export const getDocsFromCache = () => {
   const docs = rows.map(r => ({ id: r.id, data: () => r }));
   return Promise.resolve({ empty: false, size: docs.length, docs, forEach: cb => docs.forEach(cb) });
 };
-export const getDoc = () => (globalThis.__E2E || {}).failGetDoc
-    ? Promise.reject(Object.assign(new Error('e2e'), { code: 'unavailable' }))
-    : Promise.resolve({ exists: () => false, data: () => ({}) });
+// window.__E2E.getDocData seeds what a SINGLE-doc read RESOLVES WITH (v19.91). The default stays
+// "does not exist", which is what every existing spec is written against — notably the Settings
+// password chip, whose whole suite assumes an un-migrated member. Seeding it is how a spec reaches
+// the opposite state: a member who set their password on ANOTHER device, which the server knows
+// about and this device does not. There is no other route to that state, because it is defined
+// entirely by what the server says.
+export const getDoc = () => {
+  const e2e = globalThis.__E2E || {};
+  if (e2e.failGetDoc) return Promise.reject(Object.assign(new Error('e2e'), { code: 'unavailable' }));
+  const seeded = e2e.getDocData;
+  return Promise.resolve(seeded
+    ? { exists: () => true, data: () => seeded }
+    : { exists: () => false, data: () => ({}) });
+};
 export const addDoc = () => Promise.resolve(marker('docRef'));
 // setDoc RECORDS its payload (v19.41), for the same reason writeBatch does: a test that can only
 // see the UI is checking the SUMMARY of a write, not the write. The Links soft delete is exactly

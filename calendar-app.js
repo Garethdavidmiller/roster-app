@@ -15,6 +15,7 @@
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
 import { auth, authReady, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
+import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
 import { getSession, clearSession, reconcileExpiredIdentity } from './session.js';
 import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
@@ -989,7 +990,10 @@ initNavPanel({
 (function () {
     const NOTICE_ID   = 'pw-own-2026';
     const NOTICE_DATE = '6 Aug 2026';
-    const DONE_KEY    = 'myb_notice_pw_own_2026_done';
+    // The DONE key is shared with settings-app.js, which is the only page that can read
+    // `passwordStatus` and therefore the only one that can know the notice has been satisfied — so
+    // it is declared once in storage-keys.js rather than spelled out in both files (v19.91).
+    const DONE_KEY    = NOTICE_PW_OWN_DONE;
     const SNOOZE_KEY  = 'myb_notice_pw_own_2026_snooze';
 
     const overlay = document.getElementById('pwNoticeLb');
@@ -997,9 +1001,11 @@ initNavPanel({
     if (lsGet(DONE_KEY)) return;
     const snooze = lsGet(SNOOZE_KEY);
     if (snooze && Date.now() < new Date(snooze).getTime()) return;
-    // 90 days, not the 28-day default: this is a migration that runs until C5 retires the surname
-    // default (gated on ~90% migrated), not an announcement with a news value that decays.
-    if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }
+    // Longer than the 28-day default: this is a migration that runs until C5 retires the surname
+    // default (gated on ~90% migrated), not an announcement whose news value decays. The window is a
+    // configurable BACKSTOP with a review date — see CONFIG.PASSWORD_NOTICE_DAYS for why it must not
+    // be hardwired here, and what to do when it comes round.
+    if (isNoticeExpired(NOTICE_DATE, CONFIG.PASSWORD_NOTICE_DAYS)) { lsSet(DONE_KEY, '1'); return; }
 
     const _snoozeFor = (/** @type {number} */ days) =>
         lsSet(SNOOZE_KEY, new Date(Date.now() + days * 86_400_000).toISOString());

@@ -18,7 +18,7 @@ paths:
 
 ## The module set
 
-The workspace is one coordinator over **nine** pure/extracted modules. Everything except `links-app.js`
+The workspace is one coordinator over **ten** pure/extracted modules. Everything except `links-app.js`
 is testable without a browser, which is deliberate — the coordinator is where the Firestore and DOM
 state lives, and the rules that have historically produced bugs have been pulled out of it.
 
@@ -26,7 +26,8 @@ state lives, and the rules that have historically produced bugs have been pulled
 |--------|------|
 | `links-app.js` | coordinator: Firestore, grid, paint, picker, save/dirty state (+ `links-boot.js`, the CSP bootstrap) |
 | `links-design.js` | the design maths — classification, coverage, the generator, `runDesignChecks`, `endMinutesAbs` |
-| `links-fatigue.js` | the ORR p3 fatigue factors (v19.46) |
+| `links-fatigue.js` | the ORR p3 fatigue factors — ADVISORY, never pass/fail (v19.46) |
+| `links-limits.js` | the HARD limits — meet them or the design cannot be run (v19.80; named `links-legal.js` until v19.91) |
 | `links-window.js` | the staffed OPERATING WINDOW — when the station is open (v19.54) |
 | `links-demand.js` | the SERVICE that window has to cover — trains per hour (v19.56) |
 | `links-analysis.js` | the two read-only panels — Coverage heat map + Design checks — rendered from those pure results |
@@ -232,6 +233,33 @@ The card has **two halves**. The first is `runDesignChecks(patterns, 28)`:
 - Early/late balance
 
 Renders plain-English traffic-light rows (completeness first); updates live on every cell edit / generate. All 28 lines rotate and are checked.
+
+### Hard limits vs advisory factors — and why the module is no longer called "legal" (v19.91)
+
+`links-limits.js` (`assessHardLimits` → `HardLimitCheck[]`) renders in its own section **above** the
+ORR factors, in red on a breach, and **whether it passes or fails** — the printed sheet goes to the
+assessing manager, so "checked and met" has to be on it.
+
+**The 13-consecutive-day limit comes from the Hidden report** into the Clapham Junction crash of
+12 December 1988 (owner, Aug 2026) — the working-hours limits the industry adopted from that
+inquiry's recommendations. It is **not legislation** and not a house rule, and the module has now
+carried three attributions, each corrected in turn: "the UK railway legal maximum" (v19.80,
+unsubstantiable), "Chiltern company limit" (v19.85, true but understating the source), and the
+Hidden report (v19.90). Tests pin the claim in both directions — the basis must name Hidden, and no
+row in any state may present itself as law.
+
+**The module was renamed from `links-legal.js` at v19.91** (external review): the visible wording had
+been corrected but `LegalCheck` / `assessLegalLimits` / "legal check" comments survived, and a module
+called "legal" invites the next maintainer to put the stronger claim back into the UI. The names are
+now `links-limits.js` / `assessHardLimits` / `HardLimitCheck`.
+
+**Every hard limit must cite evidence, and that is enforced generically** — not just for the one
+limit that exists today. `links-limits.test.mjs` asserts, in every state, that each check's `basis`
+is present, names a SOURCE rather than a person or a placeholder (`owner, Aug 2026` is the literal
+string the rule rejects — it was the real value until v19.90), carries a date or a document noun,
+and that the title quotes the number it was measured against. The lesson behind that generality: all
+three attributions were fixed by editing strings, and every test passed each time, because the suite
+described the limit rather than the standard it had to meet.
 
 ### Fatigue factors — ORR good practice, p3 (v19.46)
 

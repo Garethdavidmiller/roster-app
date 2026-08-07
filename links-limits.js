@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * links-legal.js — HARD limits: the ones a design either meets or does not (v19.80, owner).
+ * links-limits.js — HARD limits: the ones a design either meets or does not (v19.80, owner).
  *
  * ── WHY THIS IS A SEPARATE MODULE FROM links-fatigue.js ────────────────────────────────────────
  *
@@ -40,7 +40,7 @@
  * `links-fatigue.js` does separately and correctly — and says its guidelines are not prescriptive
  * limits. Same number, different question, different kind of answer.
  *
- * So the separation is STRUCTURAL, not a label. A legal check lives in a different module, is
+ * So the separation is STRUCTURAL, not a label. A hard-limit check lives in a different module, is
  * returned by a different function, is counted in a different total and is rendered in its own
  * section. That is deliberate: put a hard limit into `assessFatigue`'s `results` array and within a
  * release it is being tallied into "3 present · 2 standing", carrying an amber left edge, and
@@ -48,7 +48,7 @@
  *
  * ── THREE RULES THAT MUST SURVIVE ANY EDIT ─────────────────────────────────────────────────────
  *
- * 1. **The answer is a WORST CASE, and that is what makes it a legal check rather than a
+ * 1. **The answer is a WORST CASE, and that is what makes it a hard-limit check rather than a
  *    description.** A spare week is four duties whose placement the roster clerk chooses week by
  *    week, so if any placement reaches 14 the LINK PERMITS a breach — it does not matter that it
  *    usually works out. A check that reported the typical case would be answering a question
@@ -59,9 +59,9 @@
  *    sentence this file could produce. Same principle as the fatigue module's insistence that
  *    silence must never be the same shape as compliance — with more riding on it.
  *
- * 3. **A passing legal check still renders.** The fatigue panel hides `clear` rows behind a
+ * 3. **A passing hard-limit check still renders.** The fatigue panel hides `clear` rows behind a
  *    disclosure, which is right for 24 advisory factors and wrong here: the printed sheet goes to
- *    the assessing manager, and "the legal limit was checked and met" is a thing that must be
+ *    the assessing manager, and "the limit was checked and met" is a thing that must be
  *    visible on it, not a thing they have to expand a disclosure to discover.
  */
 
@@ -77,7 +77,7 @@ import { toSequence } from './links-fatigue.js';
 export const MAX_CONSECUTIVE_WORKED_DAYS = 13;
 
 /**
- * @typedef {object} LegalCheck
+ * @typedef {object} HardLimitCheck
  * @property {string} id
  * @property {string} title
  * @property {'ok'|'breach'|'unknown'} status
@@ -92,9 +92,9 @@ export const MAX_CONSECUTIVE_WORKED_DAYS = 13;
  *
  * @param {Record<string, Record<string, any>>} patterns
  * @param {number} [lines=28]
- * @returns {{ checks: LegalCheck[], breaches: number, assessable: boolean }}
+ * @returns {{ checks: HardLimitCheck[], breaches: number, assessable: boolean }}
  */
-export function assessLegalLimits(patterns, lines = ROTATING_LINES) {
+export function assessHardLimits(patterns, lines = ROTATING_LINES) {
     const seq = toSequence(patterns, lines);
 
     // A design is assessable only once it has at least one worked day. `toSequence` fills a missing
@@ -104,7 +104,7 @@ export function assessLegalLimits(patterns, lines = ROTATING_LINES) {
     const anyWorked = seq.some(x => x.shift && x.shift !== 'RD' && x.shift !== 'OFF');
     const hasSpare = seq.some(x => x.shift === 'SPARE');
 
-    /** @type {LegalCheck[]} */
+    /** @type {HardLimitCheck[]} */
     const checks = [];
 
     if (!anyWorked) {

@@ -1026,6 +1026,64 @@ test('settings password card: Show reveals BOTH new and confirm, and toggles bac
     await expect(toggle).toHaveAttribute('aria-pressed', 'false');
 });
 
+// ── SETTINGS: retiring the calendar's password notice ACROSS DEVICES (v19.91) ──────────────────
+// External review, v19.89 P3. The `pw-own-2026` notice on the calendar asks a member to sign in and
+// set their own password, and it is retired permanently by a localStorage flag. That flag used to be
+// written on ONE path only: the device where the password was actually changed.
+//
+// But `passwordStatus` is a property of the ACCOUNT, not of the device. So somebody who set their
+// password on their phone, and then opens Settings on a tablet, is told "✓ your own password" there
+// — the tablet has read the server and KNOWS — while the tablet's flag stays unset and the calendar
+// notice comes back after its snooze, for the rest of the notice window, asking them to do a thing
+// they did weeks ago.
+//
+// It needs the browser: the read, the paint and the localStorage write are three different layers,
+// and a unit test of any one of them would have passed throughout.
+test('settings: a member migrated on ANOTHER device retires the calendar notice here too', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    // The server says migrated; this device has never been told. `toMillis` because that is the
+    // shape isPasswordMigrated reads — a plain Date would silently score 0 and pass for the wrong
+    // reason, reporting un-migrated on a doc that says otherwise.
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.getDocData = { passwordSetAt: { toMillis: () => 1_760_000_000_000 } };
+    });
+    await page.goto('/settings.html');
+
+    // Sentinel: prove the seeded status actually reached the card. Without this the assertion below
+    // could pass on a page that never read anything — and then the test would be green while
+    // covering nothing, which is the failure mode this suite keeps re-learning.
+    await expect(page.locator('#passwordStatusChip')).toHaveText(/your own password/);
+
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_notice_pw_own_2026_done')))
+        .toBe('1');
+});
+
+test('settings: an UN-migrated member is left alone — the notice must still reach them', async ({ page }) => {
+    // The mirror image, and the more important direction: over-eagerly retiring the notice would
+    // silently remove the only channel that reaches roster-only staff, and nothing would report it.
+    // Default fixture `getDoc` resolves "does not exist", i.e. still on the surname default.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_pw_own_2026_done'))).toBeNull();
+});
+
+test('settings: the forced overlay\'s success also retires the calendar notice', async ({ page }) => {
+    // password-force.js dispatches `myb:password-set` when it succeeds, which the card listens for
+    // (v18.94, so the chip stops saying "using surname" without a reload). That path paints migrated
+    // OPTIMISTICALLY — the serverTimestamp has not resolved — so it is a second route to the flag,
+    // and it was the other half of the review finding.
+    await seedSession(page, 'G. Miller');
+    await page.goto('/settings.html');
+    await expect(page.locator('#passwordStatusChip')).toHaveText(/using surname/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_pw_own_2026_done'))).toBeNull();
+
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('myb:password-set')));
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_notice_pw_own_2026_done')))
+        .toBe('1');
+});
+
 test('settings password card: the typed value is not hidden under the Show button', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.goto('/settings.html');

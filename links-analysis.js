@@ -17,7 +17,7 @@
  */
 import { DAYS, ROTATING_LINES, calcHourlyCoverage, runDesignChecks } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
-import { assessLegalLimits } from './links-legal.js';
+import { assessHardLimits } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, windowMinutes } from './links-window.js';
 import {
     DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, DAY_CLASSES,
@@ -479,18 +479,18 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         // kind of statement from anything below it: a design either meets it or cannot be run. It gets
         // its own section, its own heading, `.check-bad` RED on a breach (the class the fatigue half
         // is forbidden from using), and — unlike every advisory row — it renders whether it passes or
-        // fails, because "the legal limit was checked and met" has to be visible on the sheet that
+        // fails, because "the limit was checked and met" has to be visible on the sheet that
         // goes to the assessing manager rather than hidden behind a disclosure.
-        // Its counts are deliberately NOT added to the fatigue heading's tally. See links-legal.js.
-        const legal = assessLegalLimits(design.patterns, ROTATING_LINES);
-        const LEGAL_ICON = { ok: tick, breach: `<span class="check-icon check-cross" aria-hidden="true">✕</span>`, unknown: info };
-        const LEGAL_CLS  = { ok: 'check-good', breach: 'check-bad', unknown: 'check-neutral' };
+        // Its counts are deliberately NOT added to the fatigue heading's tally. See links-limits.js.
+        const limits = assessHardLimits(design.patterns, ROTATING_LINES);
+        const LIMIT_ICON = { ok: tick, breach: `<span class="check-icon check-cross" aria-hidden="true">✕</span>`, unknown: info };
+        const LIMIT_CLS  = { ok: 'check-good', breach: 'check-bad', unknown: 'check-neutral' };
         fatRows.push(
             `<div class="check-section-head"><span>Industry limits <span class="check-note">Hidden report — must be met</span></span>` +
-            `<span class="check-section-meta${legal.breaches ? ' check-section-meta-breach' : ''}">` +
-            `${escapeHtml(legal.breaches ? `${legal.breaches} breached` : legal.assessable ? 'within limits' : 'not yet assessable')}</span></div>`,
-            ...legal.checks.map(c =>
-                `<div class="check-row ${LEGAL_CLS[c.status]}">${LEGAL_ICON[c.status]}<div class="check-body">` +
+            `<span class="check-section-meta${limits.breaches ? ' check-section-meta-breach' : ''}">` +
+            `${escapeHtml(limits.breaches ? `${limits.breaches} breached` : limits.assessable ? 'within limits' : 'not yet assessable')}</span></div>`,
+            ...limits.checks.map(c =>
+                `<div class="check-row ${LIMIT_CLS[c.status]}">${LIMIT_ICON[c.status]}<div class="check-body">` +
                 `${escapeHtml(c.title)}${c.value === null ? '' : ` — <strong>${escapeHtml(String(c.value))}</strong>`}` +
                 ` <span class="check-note">${escapeHtml(c.basis)}</span>` +
                 `<div class="check-sub">${escapeHtml(c.detail)}</div>` +

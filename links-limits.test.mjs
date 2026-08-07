@@ -1,18 +1,18 @@
 /**
- * links-legal.test.mjs — the HARD limits (v19.80).
- * Run: node --test links-legal.test.mjs   (part of `npm run test:hygiene`)
+ * links-limits.test.mjs — the HARD limits (v19.80).
+ * Run: node --test links-limits.test.mjs   (part of `npm run test:hygiene`)
  *
  * WHY THE WEIGHTING HERE IS DIFFERENT FROM links-fatigue.test.mjs. That suite guards a panel that
  * reports advisory factors and never passes or fails a design, so its dangerous failure is a design
  * showing nothing and being read as approved. This one guards a check that DOES pass or fail, against
- * a legal ceiling — so its dangerous failure is narrower and sharper: **saying `ok` when the answer
+ * a hard ceiling — so its dangerous failure is narrower and sharper: **saying `ok` when the answer
  * is not known, or when the design permits a breach it does not always produce.**
  *
  * Every case below is pointed at one of those two.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { assessLegalLimits, MAX_CONSECUTIVE_WORKED_DAYS } from './links-legal.js';
+import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from './links-limits.js';
 import { assessFatigue } from './links-fatigue.js';
 import { weeklyRoster, bilingualRoster } from './roster-cycle-data.js';
 
@@ -26,7 +26,7 @@ const design = (...weeks) => {
     return p;
 };
 const wk = (...d) => d;
-const only = (patterns, lines) => assessLegalLimits(patterns, lines).checks[0];
+const only = (patterns, lines) => assessHardLimits(patterns, lines).checks[0];
 
 describe('the 13-consecutive-day Hidden limit', () => {
     test('the limit is 13 and the row quotes the constant, not a literal', () => {
@@ -60,7 +60,7 @@ describe('the 13-consecutive-day Hidden limit', () => {
         // design with nothing in it. `toSequence` fills a missing line with RD, so an empty design
         // yields a full-length run of rest days and a longest run of 0 — which reads as a
         // comfortable pass unless this is handled explicitly.
-        const a = assessLegalLimits({}, 28);
+        const a = assessHardLimits({}, 28);
         assert.equal(a.checks[0].status, 'unknown');
         assert.equal(a.checks[0].value, null);
         assert.equal(a.assessable, false);
@@ -74,13 +74,13 @@ describe('the 13-consecutive-day Hidden limit', () => {
     test('a part-built design with real duties IS assessed', () => {
         // The unknown guard must not swallow a design that is merely incomplete — otherwise the
         // check goes quiet for the whole time somebody is building, which is when they need it.
-        const a = assessLegalLimits(design(wk(R, W, W, W, W, W, R)), 28);
+        const a = assessHardLimits(design(wk(R, W, W, W, W, W, R)), 28);
         assert.equal(a.assessable, true);
         assert.equal(a.checks[0].status, 'ok');
     });
 });
 
-describe('the answer is the worst case, which is what makes it a legal check', () => {
+describe('the answer is the worst case, which is what makes it a hard-limit check', () => {
     test('a spare week is counted at four duties, not seven', () => {
         // 7 worked + a spare week. At 7/7 the spare week bridges and the answer would be 14 (breach);
         // four duties cannot fill a week, so the real ceiling is 7 + 4 = 11.
@@ -127,8 +127,8 @@ describe('the live rosters', () => {
 });
 
 describe('the separation from the advisory ORR factors', () => {
-    test('a legal check is NOT one of assessFatigue\'s results', () => {
-        // The whole reason this lives in its own module. If a legal limit ever appears in the
+    test('a hard-limit check is NOT one of assessFatigue\'s results', () => {
+        // The whole reason this lives in its own module. If a hard limit ever appears in the
         // fatigue results array it will be tallied into "N present · N standing", wear the amber
         // edge, and collapse into the quiet-rows disclosure when it passes — none of which would
         // look wrong on screen.
@@ -139,13 +139,13 @@ describe('the separation from the advisory ORR factors', () => {
         }
     });
 
-    test('a legal status is never one of the fatigue vocabulary words', () => {
+    test('a hard-limit status is never one of the fatigue vocabulary words', () => {
         // `present` / `standing` / `clear` / `n/a` are advisory words — a hard limit must not borrow
         // them, or a future render could pick up the fatigue module's icon and colour maps by name
         // and quietly turn a breach amber.
         const statuses = new Set(['ok', 'breach', 'unknown']);
         for (const patterns of [weeklyRoster, bilingualRoster, {}]) {
-            for (const c of assessLegalLimits(patterns, 20).checks) assert.ok(statuses.has(c.status));
+            for (const c of assessHardLimits(patterns, 20).checks) assert.ok(statuses.has(c.status));
         }
     });
 });
@@ -172,7 +172,7 @@ describe('the basis names the Hidden report and never claims to be law', () => {
     const everyString = (/** @type {any} */ r) => [r.title, r.basis, r.detail].join(' ');
 
     test('the basis cites Hidden, not a house rule and not legislation', () => {
-        const c = assessLegalLimits(design(wk(W, W, W, W, W, R, R)), 1).checks[0];
+        const c = assessHardLimits(design(wk(W, W, W, W, W, R, R)), 1).checks[0];
         assert.match(c.basis, /Hidden/i);
         assert.doesNotMatch(c.basis, /legal|statut|law|UK railway/i);
     });
@@ -184,7 +184,7 @@ describe('the basis names the Hidden report and never claims to be law', () => {
         // attribution — which is exactly how "Chiltern company limit" ended up in three files.
         for (const patterns of [design(wk(W, W, W, W, W, R, R)),
                                 design(wk(W, W, W, W, W, W, W), wk(W, W, W, W, W, W, W))]) {
-            const c = assessLegalLimits(patterns, 2).checks[0];
+            const c = assessHardLimits(patterns, 2).checks[0];
             assert.match(c.detail, /Hidden/i, `a "${c.status}" row must name its source: ${c.detail}`);
         }
     });
@@ -193,7 +193,7 @@ describe('the basis names the Hidden report and never claims to be law', () => {
         // Breach, pass and unknown each build their own strings, so each is checked. A wording
         // change that only ever fires on a breach would otherwise slip through untested.
         for (const patterns of [design(wk(W, W, W, W, W, R, R)), {}, design(wk(R, R, R, R, R, R, R))]) {
-            for (const c of assessLegalLimits(patterns, 1).checks) {
+            for (const c of assessHardLimits(patterns, 1).checks) {
                 assert.doesNotMatch(everyString(c), /\blegal\b|\blaw\b|statut|legislation/i,
                     `a "${c.status}" row must not present itself as law: ${everyString(c)}`);
             }
@@ -204,8 +204,77 @@ describe('the basis names the Hidden report and never claims to be law', () => {
         // The point of the change is the SOURCE, not the strength. A breach must still be a breach.
         const long = {};
         for (let i = 1; i <= 3; i++) long[String(i)] = Object.fromEntries(DAYS.map(d => [d, W]));
-        const r = assessLegalLimits(long, 3);
+        const r = assessHardLimits(long, 3);
         assert.equal(r.checks[0].status, 'breach');
         assert.equal(r.breaches, 1);
+    });
+});
+
+// ── SOURCE EVIDENCE, FOR EVERY LIMIT — NOT JUST THE ONE THAT EXISTS TODAY ───────────────────────
+// External review, v19.89 P2: a value this app prints in red as something a design "cannot" exceed,
+// on a sheet that goes to an assessing manager, has to say where it came from. At the time that was
+// written the answer was "owner, Aug 2026" — an attribution to a person, which is not a source: it
+// cannot be looked up, it carries no date, and nobody reading the sheet can check it.
+//
+// The block above pins the ONE limit that exists. This one pins the RULE, so the next limit added
+// here cannot arrive without evidence. That distinction is the whole lesson of this module's three
+// attributions: each was fixed by editing the strings, and each time every test still passed,
+// because the tests described the limit rather than the standard it had to meet.
+//
+// Deliberately NOT asserting the word "Hidden" — a second limit may legitimately come from a
+// different document. What it may never do is cite a person, a placeholder, or nothing at all.
+describe('every hard limit carries checkable evidence, whatever it is', () => {
+    const EVERY_STATE = [
+        design(wk(W, W, W, W, W, R, R)),                              // ok
+        design(wk(W, W, W, W, W, W, W), wk(W, W, W, W, W, W, W)),     // breach
+        {},                                                           // unknown
+        design(wk(R, R, R, R, R, R, R)),                              // unknown (all rest)
+        design(wk(W, W, W, R, R, S, S)),                              // spare weeks in play
+    ];
+    const everyCheck = function* () {
+        for (const patterns of EVERY_STATE) {
+            for (const c of assessHardLimits(patterns, 2).checks) yield c;
+        }
+    };
+
+    test('a basis is present, in every state, on every check', () => {
+        let seen = 0;
+        for (const c of everyCheck()) {
+            assert.equal(typeof c.basis, 'string', `${c.id}: basis must be a string`);
+            assert.ok(c.basis.trim().length >= 10,
+                `${c.id} ("${c.status}"): basis "${c.basis}" is too short to identify a source`);
+            seen++;
+        }
+        // Guard the guard: if a refactor ever returns no checks, the loop above passes vacuously.
+        assert.ok(seen >= EVERY_STATE.length, `expected at least one check per state, saw ${seen}`);
+    });
+
+    test('a basis names a SOURCE, never a person and never a placeholder', () => {
+        // "owner, Aug 2026" is the exact string this test exists to reject, so it is listed first.
+        const NOT_A_SOURCE = /\bowner\b|\bgareth\b|\bG\. ?Miller\b|\bme\b|\bTBC\b|\bTODO\b|\bunknown\b|\bassumed\b/i;
+        for (const c of everyCheck()) {
+            assert.doesNotMatch(c.basis, NOT_A_SOURCE,
+                `${c.id}: "${c.basis}" attributes the limit to a person or a placeholder, not to a source`);
+        }
+    });
+
+    test('a basis carries a DATE or a document name — something that can be looked up', () => {
+        // A year is the cheapest thing that makes a citation checkable, and every standard this app
+        // could quote has one. Accepts either a 4-digit year or an explicit "report"/"standard"/
+        // "agreement"/"guideline" noun, so a future limit citing an undated house standard by name
+        // still passes — but a bare adjective like "industry limit" does not.
+        for (const c of everyCheck()) {
+            assert.match(c.basis, /\b(19|20)\d{2}\b|\breport\b|\bstandard\b|\bagreement\b|\bguideline/i,
+                `${c.id}: "${c.basis}" names nothing a reader could go and check`);
+        }
+    });
+
+    test('the limit itself is a number, and the row states it', () => {
+        // A limit rendered without its threshold is an assertion, not a check.
+        for (const c of everyCheck()) {
+            assert.equal(typeof c.limit, 'number', `${c.id}: limit must be numeric`);
+            assert.match(c.title, new RegExp(String(c.limit)),
+                `${c.id}: the title must quote the limit it was measured against`);
+        }
     });
 });

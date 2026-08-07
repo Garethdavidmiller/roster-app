@@ -35,3 +35,17 @@ export const VIEWED_YEAR  = 'myb_roster_year';
  *  overlay to real sign-ins only: without it the compel would ambush a member on an ordinary page
  *  load, which is the v14.77 "Fix 4" defect the work-email check's identical marker exists to stop. */
 export const PW_FORCE_PENDING_PREFIX = 'myb_pw_force_pending_';
+
+/**
+ * The calendar's `pw-own-2026` notice, retired permanently on this device once the member has
+ * their own password — PASSWORD_PLAN.md Track C, notice added v19.89.
+ *
+ * CROSS-FILE, and the reason is the v19.89 review finding it exists to fix. The notice IIFE lives in
+ * `calendar-app.js`; what retires it lives in `settings-app.js`, which is the only page that can
+ * actually read `passwordStatus`. Two files spelling the same 28-character string by hand is the
+ * exact hazard this module's header describes — and a typo here does not error, it just means a
+ * member who has already done what the notice asks keeps being asked for the rest of the window.
+ *
+ * The SNOOZE key stays local to the notice: only the IIFE reads or writes it.
+ */
+export const NOTICE_PW_OWN_DONE = 'myb_notice_pw_own_2026_done';

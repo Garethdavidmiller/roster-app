@@ -15,6 +15,7 @@ import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { lsSet } from './ls.js';   // iOS-safe wrapper — never raw localStorage (CLAUDE.md)
+import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
@@ -388,6 +389,20 @@ export function init() {
         async function refreshStatus(optimisticMigrated = false) {
             if (!member) return;
             const paint = (/** @type {boolean} */ migrated) => {
+                // RETIRE THE CALENDAR NOTICE ON WHATEVER DEVICE LEARNS THE ANSWER (v19.91, external
+                // review). The flag used to be set only by `onWriteConfirmed` — i.e. only on the
+                // device where the password was actually changed. But `passwordStatus` is per
+                // ACCOUNT and this device has just read it, so a member who set their password on
+                // phone A and then signs in to Settings on phone B is confirmed migrated here while
+                // phone B's flag stays unset, and the calendar notice returns after its snooze to
+                // someone who has already done what it asks — for the rest of the window.
+                //
+                // Every path into `paint(true)` is real evidence: either the server says migrated,
+                // or a password write on THIS device just succeeded (`optimisticMigrated`, from the
+                // card's own save and from the forced overlay's `myb:password-set`). No branch
+                // paints migrated on a guess, which is why this can live here rather than at each
+                // call site.
+                if (migrated) lsSet(NOTICE_PW_OWN_DONE, '1');
                 if (chip) chip.textContent = migrated ? '✓ your own password' : 'using surname';
                 if (nudge) {
                     nudge.hidden = migrated;
@@ -424,10 +439,12 @@ export function init() {
             // The calendar's `pw-own-2026` notice is asking for exactly this, so retire it here —
             // the skill's "target-page permanent dismiss" step (v19.89). Without it the notice only
             // ever SNOOZES (1 day after its CTA, 7 on close) and would keep returning to someone who
-            // has already done what it asked, for the full 90-day window. Set on the DEVICE that did
-            // it, which is the same device the notice is showing on. Fire-and-forget: a notice that
-            // reappears is a nuisance, never a reason to fail a password change that has landed.
-            lsSet('myb_notice_pw_own_2026_done', '1');
+            // has already done what it asked, for the whole notice window. Set on the DEVICE that
+            // did it, which is the same device the notice is showing on. Fire-and-forget: a notice
+            // that reappears is a nuisance, never a reason to fail a password change that has
+            // landed. `paint(true)` does this too (v19.91) — kept here as well so this path does not
+            // depend on refreshStatus's `if (!member) return` guard to retire the notice.
+            lsSet(NOTICE_PW_OWN_DONE, '1');
             curEl.value = newEl.value = confEl.value = '';
             // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
             // reveal state the member chose, so the NEXT password typed into this card — possibly
