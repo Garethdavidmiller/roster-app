@@ -18,7 +18,7 @@ paths:
 
 ## The module set
 
-The workspace is one coordinator over **nine** pure/extracted modules. Everything except `links-app.js`
+The workspace is one coordinator over **ten** pure/extracted modules. Everything except `links-app.js`
 is testable without a browser, which is deliberate — the coordinator is where the Firestore and DOM
 state lives, and the rules that have historically produced bugs have been pulled out of it.
 
@@ -26,7 +26,8 @@ state lives, and the rules that have historically produced bugs have been pulled
 |--------|------|
 | `links-app.js` | coordinator: Firestore, grid, paint, picker, save/dirty state (+ `links-boot.js`, the CSP bootstrap) |
 | `links-design.js` | the design maths — classification, coverage, the generator, `runDesignChecks`, `endMinutesAbs` |
-| `links-fatigue.js` | the ORR p3 fatigue factors (v19.46) |
+| `links-fatigue.js` | the ORR p3 fatigue factors — ADVISORY, never pass/fail (v19.46) |
+| `links-limits.js` | the HARD limits — meet them or the design cannot be run (v19.80; named `links-legal.js` until v19.91) |
 | `links-window.js` | the staffed OPERATING WINDOW — when the station is open (v19.54) |
 | `links-demand.js` | the SERVICE that window has to cover — trains per hour (v19.56) |
 | `links-analysis.js` | the two read-only panels — Coverage heat map + Design checks — rendered from those pure results |
@@ -233,6 +234,33 @@ The card has **two halves**. The first is `runDesignChecks(patterns, 28)`:
 
 Renders plain-English traffic-light rows (completeness first); updates live on every cell edit / generate. All 28 lines rotate and are checked.
 
+### Hard limits vs advisory factors — and why the module is no longer called "legal" (v19.91)
+
+`links-limits.js` (`assessHardLimits` → `HardLimitCheck[]`) renders in its own section **above** the
+ORR factors, in red on a breach, and **whether it passes or fails** — the printed sheet goes to the
+assessing manager, so "checked and met" has to be on it.
+
+**The 13-consecutive-day limit comes from the Hidden report** into the Clapham Junction crash of
+12 December 1988 (owner, Aug 2026) — the working-hours limits the industry adopted from that
+inquiry's recommendations. It is **not legislation** and not a house rule, and the module has now
+carried three attributions, each corrected in turn: "the UK railway legal maximum" (v19.80,
+unsubstantiable), "Chiltern company limit" (v19.85, true but understating the source), and the
+Hidden report (v19.90). Tests pin the claim in both directions — the basis must name Hidden, and no
+row in any state may present itself as law.
+
+**The module was renamed from `links-legal.js` at v19.91** (external review): the visible wording had
+been corrected but `LegalCheck` / `assessLegalLimits` / "legal check" comments survived, and a module
+called "legal" invites the next maintainer to put the stronger claim back into the UI. The names are
+now `links-limits.js` / `assessHardLimits` / `HardLimitCheck`.
+
+**Every hard limit must cite evidence, and that is enforced generically** — not just for the one
+limit that exists today. `links-limits.test.mjs` asserts, in every state, that each check's `basis`
+is present, names a SOURCE rather than a person or a placeholder (`owner, Aug 2026` is the literal
+string the rule rejects — it was the real value until v19.90), carries a date or a document noun,
+and that the title quotes the number it was measured against. The lesson behind that generality: all
+three attributions were fixed by editing strings, and every test passed each time, because the suite
+described the limit rather than the standard it had to meet.
+
 ### Fatigue factors — ORR good practice, p3 (v19.46)
 
 The second half of the card, from `links-fatigue.js`. It exists because the December 2026 proposals
@@ -289,7 +317,8 @@ it and fuses them into one phantom run, so the main cycle reported **15** consec
 against a true ceiling of **9**, and the bilingual **14** against **8**. Four duties cannot fill a
 week, so there is always a rest day inside it and a run can take at most four of its days.
 
-**13 consecutive days is a Chiltern company limit** — so a check reporting 15 is not
+**13 consecutive days is the Hidden limit** (Clapham Junction, 1988 — an industry limit adopted
+from the inquiry's working-hours recommendations, not legislation) — so a check reporting 15 is not
 cautious, it reports a breach that does not exist on the roster people are working today. Anyone
 who knows the real link discounts the row, and the next design that genuinely goes past 13 is
 hidden by that discount. Over-reporting is only "safe" while nothing is riding on the number.
@@ -313,7 +342,7 @@ it. Four things that are easy to get wrong, each with a test:
   exists to measure a run wrapping the cycle end, and next time round the wheel it genuinely is a
   fresh spare week; sharing the budget silently truncates exactly the run the lap is for.
 
-**Owner's design target is below the company limit, not at it:** ideally a new base link would not
+**Owner's design target is below the Hidden limit, not at it:** ideally a new base link would not
 carry even **7** consecutive worked days. The live main roster's non-spare blocks reach exactly 7;
 the generator's reach 6.
 

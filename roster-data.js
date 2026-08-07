@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '19.89';
+export const APP_VERSION = '19.91';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -84,6 +84,22 @@ export const CONFIG = {
     // an expired session forces a real typed login, so coverage completes itself inside 30 days and
     // staggers by each member's own expiry rather than landing on everyone at once.
     FORCE_PASSWORD_SET:               true,
+    // How long the calendar's `pw-own-2026` notice keeps showing on a device that has not yet seen
+    // it, in days from its 6 Aug 2026 posting date (calendar-app.js). CONFIGURABLE ON PURPOSE
+    // (v19.91, external review): `isNoticeExpired` marks a notice seen WITHOUT showing it, so on the
+    // day this window closes the notice becomes dead code everywhere it had not already appeared.
+    //
+    // That is right for an announcement and WRONG here, because this notice's job does not end on a
+    // date — it ends when the surname default is retired (SECURITY_RELEASE_PLAN → Track C5, gated on
+    // ~90% migrated). Those two are not the same event, and nothing links them: if adoption is short
+    // of the threshold in early November 2026 the only channel that reaches roster-only staff — the
+    // people who never sign in anywhere, and so are exactly the un-migrated ones — disappears
+    // silently, with the notice table still listing it as live.
+    //
+    // So the window is a BACKSTOP with a review date, not the plan. Extending it is a one-value
+    // change here rather than an edit to page logic. **Review by 4 Nov 2026**: either retire the
+    // notice because C5 has shipped, or raise this number and move the review date with it.
+    PASSWORD_NOTICE_DAYS:             90,
     // The "ask the admin to reset my password" request queue (PASSWORD_PLAN.md — Phase 1 of the request
     // work). Kill switch for the LINK only: setting this to `false` hides it on the login overlay and
     // nobody can file a new request. It does NOT disable the endpoint (that is a functions deploy) or
