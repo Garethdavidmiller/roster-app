@@ -176,6 +176,36 @@ them, and CEAs work no nights, which makes a large part of the list inapplicable
 The gap was the point: Nathan assesses against this list, and the tool covered two of it. Closed at
 v19.46 — see package 2 below for what the building actually found.
 
+### The checks card now has TWO halves, and the difference matters in the room (v19.80–v19.94)
+
+Everything above is the **advisory** half — the ORR's p3 factors, which the ORR is explicit are *not*
+prescriptive limits. That half reports what a design features and never passes or fails it.
+
+Sitting **above** it is a second, smaller section from `links-limits.js`: the **hard limits**, which a
+design either meets or cannot be run. It renders in red on a breach, and it renders whether it passes
+or fails — a passing limit has to be visible on the sheet that goes to Nathan, not hidden behind a
+disclosure. Today it holds one check: **no more than 13 consecutive worked days**.
+
+**Where that 13 comes from, since the question will be asked.** The Hidden report into the Clapham
+Junction crash of 12 December 1988, whose working-hours recommendations the industry adopted as
+standards; at Chiltern they are carried in **company policy** (owner, Aug 2026). It is not
+legislation, and the app is careful never to say it is — that claim was made in error at v19.80 and
+took an external review to unwind.
+
+**Three more Hidden limits exist and the tool does not yet treat them as limits.** They are measured
+already; they are simply rendered as advisory ORR rows:
+
+| Hidden limit | Measured by | Shown today as |
+|---|---|---|
+| Max consecutive days (13) | `assessHardLimits` | **hard limit** |
+| Min rest between turns | the short-turnaround check (12h) | FF13, advisory |
+| Max length of a turn | duty length (12h) | FF5, advisory |
+| Max hours in a rolling week | `maxHoursInAny7Days` | MRSF row at 55h, advisory |
+
+Worth settling before the proposals are drawn, because it changes how a reader weighs those rows: a
+figure in the advisory half invites a justify/minimise/control conversation, while the same figure in
+the hard half ends one. The blocker is the confirmed figures from the policy document, not the code.
+
 ## Baseline: what the CURRENT link scores (review pass)
 
 The first draft proposed fatigue checks without ever running the existing checks against the existing
@@ -194,8 +224,10 @@ pattern scores, and Nathan will inevitably ask. Measured by running `runDesignCh
 > the week always contains a rest day and can never fuse the blocks either side of it. Counting it
 > 7/7 did exactly that, and inflated both cycles by six days.
 >
-> The direction is what makes it serious rather than untidy. **13 consecutive days is a LEGAL
-> ceiling on the UK railway**, so a check reporting 15 was not erring on the safe side: it reported
+> The direction is what makes it serious rather than untidy. **13 consecutive days is the Hidden
+> limit** — from the inquiry into the Clapham Junction crash of 1988, adopted industry-wide and, at
+> Chiltern, carried in company policy (owner, Aug 2026) — so a check reporting 15 was not erring on
+> the safe side: it reported
 > a breach that does not exist, on the roster people are working right now. Anyone who knows the
 > real link would have discounted the row — and the next design that genuinely does go past 13
 > would have been hidden by that discount. Both figures above are now the WORST CASE over every

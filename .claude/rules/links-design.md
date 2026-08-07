@@ -16,6 +16,22 @@ paths:
 > enumerated class list fixed at v19.49 and the `selectBackupKeys` prefix scan: a hand-maintained
 > list stops covering what arrives after it, and nothing says so. `paycalc.md` already globbed.
 
+## What is in this file
+
+810 lines, loaded whole whenever a Links file is edited, so here is the shape of it:
+
+| Where | What |
+|---|---|
+| **The module set · Access control** | the twelve modules, and who may read/write a design |
+| **Design and save model** | the Firestore shape, the grid, paint mode, the operating window, the heat map |
+| **Design checks** | the two halves of the checks card — **hard limits** (meet or cannot run) above **fatigue factors** (advisory, never pass/fail) |
+| **The generator** | what it is, its two constructions, the line-order objectives, the removed uplift control, its layout |
+| **Page-wide review findings** | the v19.66 mobile gaps and blank-page work — about the PAGE, not the generator |
+| **The rest** | line numbering, concurrency, print, sticky headers |
+
+**Read the module header before changing any rule.** Most of what follows is a record of something
+that shipped wrong once, and the reasoning is usually more load-bearing than the code it describes.
+
 ## The module set
 
 The workspace is one coordinator over **twelve** pure/extracted modules. Everything except `links-app.js`
@@ -45,7 +61,7 @@ state lives, and the rules that have historically produced bugs have been pulled
 - To grant access: add name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` — every page derives `isLinksDesigner` from that list. Current designers: `'G. Miller'`, `'S. Silva'`, `'M. Robson'`.
 - **Two more steps, or the new designer can open the page and not save a thing.** The client list only decides what the nav and the page gate show; the `linksDesigner` CLAIM comes from the server-owned `functions/roster-members.json`. So (1) run `npm run generate:roster-members` in the same commit — `sw-asset-check.test.mjs` fails the build if it drifts — and (2) after deploy, run **Operations → Set up accounts**, which is what actually mints the claim. Until then every save permission-denies (`writeWithClaimRetry` refreshes the token, but a refresh can't invent a claim the server never set).
 - **Server-side (the real control):** `linkDesigns` writes require the `linksDesigner` or `admin` claim (H2, v16.29). **Reads require a `name` claim** (v19.39) — a session that has actually signed in as a member. The previous `request.auth != null` was intended as "any signed-in member", but the calendar signs every visitor in anonymously, so it admitted anyone who could open the app URL. Reads are deliberately NOT gated on `linksDesigner`: a designer whose token predates that claim has to be able to LOAD the page for the write self-heal (`writeWithClaimRetry`) to get its chance to run.
-- **Delete is a soft delete (v19.41).** `✕` writes `deletedAt`/`deletedBy` (a MERGE write — a replace would push the deleting device's copy of `patterns` over the server's) and the design moves to **🗑 Recently deleted**, restorable for `SOFT_DELETE_RETENTION_DAYS` (30), then purged on load. Restore clears both fields with `deleteField()`. All the decisions are pure and tested in `links-deletion.js`; the coordinator owns only the Firestore calls and the panel. Notes that matter when changing this:
+- **Delete is a soft delete (v19.41).** `✕` writes `deletedAt`/`deletedBy` (a MERGE write — a replace would push the deleting device's copy of `patterns` over the server's) and the design moves to **🗑 Recently deleted**, where it stays until somebody removes it by hand. `SOFT_DELETE_RETENTION_DAYS` (30) is the **displayed** age policy only — automatic purging was SUSPENDED at v19.86, because no client-side age check survives a device clock running 30 days fast. (This bullet still said "then purged on load" until v19.94, contradicting the first-visit notice two sections below, which had been corrected.) Restore clears both fields with `deleteField()`. All the decisions are pure and tested in `links-deletion.js`; the coordinator owns only the Firestore calls and the panel. Notes that matter when changing this:
   - **`isDeleted` and `isPurgeable` are not mirrors.** An unresolved `deletedAt` — what `serverTimestamp()` reads back as on the writing device — is DELETED but never PURGEABLE. Both directions are load-bearing and both have tests.
   - **A save against a design someone else deleted does not resurrect it.** `saveChanges` detects the deletion in the transaction and offers "Save mine as new" instead — an overwrite there would be one designer undoing another's delete without ever seeing it.
   - **A hard delete re-reads the server inside a TRANSACTION** (v19.84, external review P1).
@@ -141,7 +157,9 @@ With ≥2 designs, shows two read-only grids side-by-side (≥1024px) or stacked
 Staff names were removed at v12.39 — the design is patterns-only ("Line 1", "Line 2"…); who goes on which line is decided after patterns are agreed. Legacy `meta` in old docs is ignored on load and dropped on next save.
 
 ### Pure-maths module
-All design maths live in `links-design.js` (no DOM, no Firebase; tested by `links-design.test.mjs`) — `classifyShift`, `normaliseCustomShift`, `calcCoverage`, `calcHourlyCoverage`, `generateLink`, `generatePatterns`, `groupIntoWaves`, `WAVE_SPAN_MINUTES`, `runDesignChecks`, `dayClass`, `endMinutesAbs`. `links-app.js` imports these; do not duplicate them back into the app file. The ORR fatigue factors sit alongside in `links-fatigue.js` (v19.46), which imports from here — see the module table above for the full set.
+All design maths live in `links-design.js` (no DOM, no Firebase; tested by `links-design.test.mjs`). `links-app.js` imports them; **do not duplicate them back into the app file.**
+
+**The export list lives in `AI_MAP.md`, not here.** This paragraph used to carry its own copy and it had gone stale — missing `worstCaseWorkedRun`, `SPARE_WORKED_DAYS`, `canonicaliseShift`, `normalisePatterns` and `ROTATING_LINES`, all of which are load-bearing and several of which have their own rules further down this file. CLAUDE.md names AI_MAP as the authoritative export list; a second copy in a second file is a list nobody updates and everybody half-trusts.
 
 ### Save and dirty flag
 Single dirty flag + one `linksSaveBtn` / `saveChanges()`. Grid clicks are **delegated** on `#linksGridBodyRows` — do NOT call `renderGrid()` from inside `saveChanges()`.
@@ -279,6 +297,33 @@ unsubstantiable), "Chiltern company limit" (v19.85, true but understating the so
 Hidden report (v19.90). Tests pin the claim in both directions — the basis must name Hidden, and no
 row in any state may present itself as law.
 
+**At Chiltern they are carried in company policy** (owner, Aug 2026). That settles the question the
+three attributions were circling: the limits are neither statute nor a local invention. Hidden is an
+inquiry report; the industry adopted its working-hours recommendations as standards; companies apply
+those standards through their own safety management systems, and Chiltern's policy is where they
+bind here. All three statements are true at once, and the row's `basis` cites the source rather than
+the policy because a source can be checked by a reader who does not have the policy in front of
+them.
+
+**THE OTHER HIDDEN LIMITS ARE NOT IMPLEMENTED YET, AND THE APP ALREADY COMPUTES THEM.** This is the
+most useful thing to know about this section. Hidden is a family — a maximum turn of duty, a minimum
+rest between turns, a weekly ceiling, and the 13 consecutive days — and only the last is rendered as
+a hard limit. The others are measured today but shown as *advisory ORR factors*:
+
+| Hidden limit | Already computed by | Currently rendered as |
+|---|---|---|
+| Max consecutive days (13) | `assessHardLimits` | **hard limit** ✅ |
+| Min rest between turns | `runDesignChecks().turnarounds` (`MIN_REST_MINUTES`, 12h) | FF13, advisory amber |
+| Max length of a turn | `dutyMinutes` (FF5 threshold, 12h) | FF5, advisory amber |
+| Max hours in a rolling week | `maxHoursInAny7Days` | MRSF row at 55h, advisory amber |
+
+Promoting them is a rendering change plus the confirmed figures — the maths exists. **Do not do it
+from recall.** The whole reason this section is three paragraphs long is that a number was once put
+on a sheet for an assessing manager with nothing behind it, and it took an external review to unwind.
+Get the figures from the policy document, then move the rows and let `links-limits.test.mjs`'s
+evidence contract check the citations. Note the weekly row would need its basis deciding too: 55h is
+the MRSF's threshold, which is a different source from Hidden's.
+
 **The module was renamed from `links-legal.js` at v19.91** (external review): the visible wording had
 been corrected but `LegalCheck` / `assessLegalLimits` / "legal check" comments survived, and a module
 called "legal" invites the next maintainer to put the stronger claim back into the UI. The names are
@@ -400,165 +445,11 @@ It is computed over `weeklyRoster` (20 lines) and `bilingualRoster` (8) **at the
 splicing them into one 28 reports a longest run of 19, which is a property of the join and not of
 either roster.
 
-### Generator layout — the v19.61 polish pass
-
-Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug rather than polish:
-
-- **The iOS focus-zoom guard had never worked.** Full account in `css-tokens.md` → "The 16px
-  focusable-field rule is now MEASURED". The override now sits at the END of `links.css`, after the
-  base rule it has to beat, and an e2e measures the computed size on a real coarse pointer.
-- **Touch targets.** On a coarse pointer the fields were 28px, the row ✕ 20px and the two text
-  links 15px. All now ≥40/44px. The app's rule is that density is gated on `pointer: fine` — a wide
-  touch screen still needs the target spacing.
-- **The SHIFT TIME column is sticky on mobile.** At 390px the table is 443px inside a 306px wrapper:
-  131px hidden, which is the whole **Sunday** column and the ✕. Sunday is a required INPUT, so this
-  is not the same call as compare mode's accepted clipping of a read-only view. Sticky identifies the
-  row while you type AND makes the scroll self-evident, and a right-edge shadow (pure CSS,
-  `local`/`scroll` gradients — no scroll listener) says there is more. **Every sticky cell needs an
-  OPAQUE fill:** the spare row's own background is `color-mix(gold 10%, transparent)` — 90%
-  see-through — so the caption sat there with the scrolled column showing through it, which reads as
-  a fault, not a feature. And `white-space: nowrap` had to go: fine in a cell that sizes to content,
-  but in a sticky one it just overflows the fill.
-- **ONE measure on desktop.** The table filled all 1036px of the card, putting a 90px shift time in a
-  477px cell. Capping the table alone then left a 620px table under a 1036px objectives box under a
-  1036px button — a card reading as three unrelated widths. The cap belongs on `.generator-form`, so
-  every part lines up, at 660px beside the ~72ch the intro prose already uses.
-- **The objective labels.** Two of the five carry an inline number, and at 390px the tail wrapped
-  flush with the CHECKBOX, reading as a sixth objective. The label text is now one `<span>` (a flex
-  item) so it wraps as a block, and the numeric clause has its own line — a 40px-tall field cannot
-  sit inside a sentence in a 260px column. **Grid was tried here and is wrong**: every child of a
-  grid container becomes an item, so the number box left its sentence and dropped into the
-  checkbox's column.
-- **The objectives are OPTION ROWS, not bare checkboxes** (v19.63, owner: "the toggle switches and
-  associated writing look unstyled" — they were). They shipped at v19.58 as five native checkboxes
-  with text beside them, which is exactly what paycalc's `.bp-mode-opt`/`.hpp-mode-opt` was built to
-  replace; that rule's own comment reads *"the design system instead of two bare browser radios
-  floating in space"*. `.gen-obj` now mirrors it: a bordered row, navy border + a brighter fill
-  + a subtle lift via `:has(input:checked)`, an 18px `accent-color` box (20px on a coarse pointer),
-  and the focus ring on the ROW rather than the box, because the row is what you are choosing. Same
-  2px border in both states so toggling one causes no reflow, and `.gen-obj + .gen-obj` spaces them —
-  two adjacent checked rows with no gap read as one tall box with a line through it. A `<legend>`
-  inside a flex container lays out unpredictably across engines, so the gap is a sibling margin, not
-  a flex `gap` on the fieldset. **Do not re-create a page-local variant of this** — if the option-row
-  treatment needs to change, change it with paycalc's.
-- **ON is the BRIGHTER row, and check that against the SUBSTRATE** (v19.65, staff report: "everything
-  doesn't quite look right"). The v19.63 row above shipped its two fills the wrong way round —
-  resting `white`, checked `--bg-faint` — copied from paycalc without noticing the substrate differs.
-  Measured: this fieldset is `--surface-sunken` (L 96.3%), so a checked row at `--bg-faint` (97.0%)
-  sat **0.7% above its own background** and dissolved into it, while an unchecked row at white sat
-  3.7% above. With all five on — the default — every row was panel-coloured inside a navy outline, so
-  the card read as five empty boxes and the one state the fill exists to show was the one you could
-  not see. Switching an option ON also made it 3% **dimmer**, inverting the app's three-surface cue
-  (css-tokens.md: a control brightens to white when it becomes active). Paycalc is deliberately left
-  alone: its options sit on a `--surface` CARD (98%) and are a two-option radio group where exactly
-  one is ever checked, so the border carries the state and the fill is only a whisper. The
-  `.gen-obj-num` field lost its `background-color: white` override in the same pass — that was
-  reasoned from the old checked fill, and it both flattened the row and killed the app-wide
-  "field brightens to white on focus" cue, since a field already at white cannot brighten.
-- **A number and the words that qualify it are ONE unbreakable group** (v19.65). "at most [3] weeks
-  the same" was three loose flex children in a ~190px column and overflowed by ~8px, so at 360px —
-  the reported device — it wrapped and left "weeks the same" alone under "at most", reading as a
-  separate statement. Neither lever that would normally fix it is available: 360px is the design
-  target, and 16px/40px is the iOS-zoom + touch-target floor for the box. So the clause was shortened
-  to "at most [3] weeks" (the noun is in the title directly above) and the box + its unit wrapped in
-  `.gen-obj-numctl`, an `inline-flex` that cannot come apart. Both are belt-and-braces; either alone
-  fixes today's render.
-- **The generator now has pixel coverage** (v19.64): `links-generator.png` (desktop, three objectives
-  on and two off) and `links-objectives-narrow.png` (390px, where the rows stack). It had none
-  before, because the card is collapsed in the workspace baseline — so four consecutive releases
-  reshaped it with only hand-read screenshots watching, on the surface where this page's layout bugs
-  actually happen. **But note the two things it CANNOT see, both established by measurement**
-  (v19.65): near-white fill changes fall under `threshold: 0.15` (that is what hid the inverted
-  state), and the visual project is FINE-pointer only, so the 56×40 coarse box that caused the clause
-  to fragment never appears in a baseline at all. Both are asserted in code instead — the fill
-  direction beside the desktop shot in `visual.spec.js`, the clause on **mobile-chrome** in
-  `pages.spec.js` at 360px. Do not move the clause test into the visual suite: measured at 390, 360
-  and 300 there, it passes on the broken markup.
-  **The checked-row treatment is asserted in COMPUTED STYLE, not left to the pixels**, and that split
-  is not belt-and-braces: `--bg-faint` is `oklch(97%)` against white, a 3% step, far under the
-  suite's `threshold: 0.15` per-pixel sensitivity — deleting the fill AND the shadow left the
-  screenshot passing (teeth-verified). The baseline catches composition; the style assertion catches
-  on-versus-off. Keep both.
-
-### Known MOBILE gaps on this page — measured, not yet decided (v19.66)
-
-The v19.66 review captured desktop and mobile but was **read** desktop-first, and the mobile
-in-use page was not examined until afterwards. Three things it found at 390×844, all measured,
-none fixed — recorded so they are not re-discovered as new:
-
-- **The grid loses its day headers.** `.links-grid-wrapper` is `overflow-x: auto` below 1024px, so
-  by the spec rule above it is a scroll container in both axes and its sticky `thead` is inert —
-  the same trap as the generator table. Scrolling lines 9–27 there is no LINE/SUN/MON header on
-  screen at all, and the grid is **43% off-screen horizontally** (592px of table in a 338px
-  wrapper), so position cannot disambiguate the column either. On the page's primary object this
-  is the most serious of the three.
-- **The sticky save row takes 146px of an 844px viewport — 17%**, permanently: two buttons, a
-  provenance line, and the summary chips wrapped onto two rows.
-- **The brush bar is 239px** — 26 chips over seven rows before the grid begins.
-
-None is a regression; all three predate v19.66. The fixes are not free (the first needs a nested
-scrollbox; the other two need something to give), so they are a conversation rather than a sweep.
-
-### The blank page, and three fixes that came out of screenshotting it (v19.66)
-
-The page had been polished repeatedly **in use** and never looked at **empty**. Measured at 1280px
-with no designs saved, the three cards came to **160px / 117px / 117px** — each a white slab holding
-one 12px grey sentence pinned to the left edge. That is what a new designer sees first, and it read
-as three empty boxes rather than a page waiting to be used.
-
-- **An empty card says what it is waiting FOR, and the one that can act carries the action.** The
-  grid card gets a centred icon + title + sentence + a real `.btn-save` primary ("Go to
-  Auto-generate") and a text link ("Start with a blank grid"). Left-aligned, the old sentence sat
-  ~700px from the "+ New" button it was telling you to press. The two analysis cards get
-  `.links-empty-panel` — centred, `min-height: 132px` — because they can offer nothing: there is
-  nothing to analyse.
-- **The primary action SCROLLS; it does not generate.** Firing the generator from an empty card
-  would build against whatever the roster seed happened to hold, which is a design nobody chose.
-- **The empty checks panel must not wear a green tick.** It was `✅` (the card's own emoji) for one
-  iteration — a tick centred in an empty checks card reads as "checks passed", the exact
-  false-assurance failure that card exists to prevent, and it would be claiming it before a single
-  check had run. `📋` instead.
-- **A load FAILURE is not "you have not made one yet".** `renderGrid` swaps the title and hides the
-  actions on `loadFailed`: telling someone whose designs exist but did not load that they have none,
-  and inviting them to generate a new one, is how a connection blip becomes a duplicate design.
-- **The card header hint is state-dependent.** It said "Tap any shift cell to change it. Use the
-  Paint bar…" in a state with no grid and no paint bar on screen. Both strings live in
-  `_setGridHint` so they cannot drift.
-- **`links-analysis.js` must MIRROR the empty-panel markup** its card ships in `links.html` — that
-  branch replaces the whole card body, so the bare `<p>` it used to write silently undid the empty
-  state on the first re-render.
-
-Two more from the same pass, both in-use surfaces:
-
-- **The generator form is CENTRED on desktop, not left-aligned — and the INTRO comes with it.** The
-  660px cap is right (measured at v19.61 — a full-width table puts a 90px shift time in a 477px
-  cell), but left-aligning it in the 1100px card dumped the whole remainder on one side: **440px of
-  empty white running 1,794px down** the tallest card on the page, which reads as a rendering fault.
-  Centred, it is 220px of symmetric gutter.
-  **Centring the form ALONE was a regression, caught by re-screenshotting** (v19.67): the intro
-  prose stayed put, so the card had two left edges — intro 122→778 against table/objectives/actions/
-  Generate all at 310→970. Nearly the same WIDTH (656 vs 660) 188px apart, which reads as a mistake
-  rather than as hierarchy. `#generatorCard .links-desc` now shares the form's cap. **Anything added
-  to this card must join that column too**; an e2e measures all five left edges and names the
-  offender, because a whole-card baseline just re-records whatever the alignment happens to be.
-- **The 28-row target table keeps its column headers — at ≥768px ONLY** (`position: sticky` on
-  `thead th`). They scrolled away after the first six rows, leaving three unlabelled number columns
-  — and Mon–Fri, Sat and Sun are three different commitments (Sunday is not even contracted), so
-  typing into the wrong one is a real error with nothing to catch it.
-  **Below 768px the declaration is inert, and that is a CSS constraint rather than a decision.**
-  `sticky` resolves against the nearest scroll container; the narrow wrapper sets `overflow-x: auto`
-  to scroll the 443px table inside a 306px card, and per spec the other axis then computes to `auto`
-  as well (measured at 390px). The wrapper becomes a vertical scroll container as tall as its own
-  content, so the header sticks to a box that never scrolls. **Do not "fix" it with
-  `overflow-y: visible`** — that is the exact declaration the spec overrides, so it would read as
-  correct and change nothing, which is this file's most frequently repeated failure. Making it work
-  on a phone needs a `max-height` and therefore a nested scrollbox around the primary creation path:
-  a UX decision, not a tidy-up. Both facts are pinned by an e2e that runs at both widths.
-- **The Design-checks status is carried on the LEFT EDGE, not by the fill alone.** At 8–10% of a hue
-  against white the four fills land within a couple of percent of each other, so 30 rows rendered as
-  one ribbon with the status readable only from a 13px glyph. A 3px edge in the full-strength token
-  makes them scannable. **It changes no semantics and must not**: a fatigue factor that is present
-  still wears amber and never the red edge.
+> **Section order (v19.94).** Everything about the auto-generator now sits together: what it is,
+> how it builds, how the lines get ordered, the control that was removed, then how the card looks.
+> The layout notes used to come **160 lines before the generator itself**, with two page-wide review
+> sections in between — so the first thing a reader met about the generator was the polish history of
+> a card they had not been introduced to. Nothing here was rewritten; the blocks were moved.
 
 ### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
 **The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
@@ -567,7 +458,9 @@ Two more from the same pass, both in-use surfaces:
 
 The previous model took a per-day-class spare HEADCOUNT and fed it to the rotating window as one more segment. Because the window slides daily, that gave each person spare on some days and a timed duty on others. **The daily SP headcount came out right, which is why it went unnoticed** — the total was correct and the distribution was wrong. `spareLines` whole lines are now reserved and spread evenly around the wheel, and the rotation is built over the remainder; daily targets are still met exactly, and every day shows the same SP count, as the real roster does.
 
-Two consequences worth knowing: the targets are validated against the **working** lines (`lines − spareLines`), so a total that fits in 28 can still be refused; and a spare week counts as **7 worked days** in the run-length check although the person works four of them — we do not know which three are rest, and over-reporting a run is the safe direction for a fatigue check.
+Two consequences worth knowing. The targets are validated against the **working** lines (`lines − spareLines`), so a total that fits in 28 can still be refused. And a spare week counts as **four** worked days in the run checks, not seven — see *A spare week is four duties of seven* under Design checks.
+
+> **This paragraph said SEVEN until v19.94, and it was the pre-v19.79 rule.** The correction > was made in the Design-checks section and never carried back here, so the file argued with > itself 280 lines apart — and this copy also repeated the reasoning v19.79 specifically > overturned ("over-reporting a run is the safe direction for a fatigue check"). It is not: > a 7/7 spare week fuses the blocks either side of it, which reported the live main roster at > 15 consecutive days against a true 9. A reader arriving at the generator first would have > taken away the rule the tool no longer follows.
 
 The table is **seeded from the current roster** on page load via `buildRosterTargets()` — **all 28 real lines: the main 20 weeks AND the whole 8-week bilingual roster** (v19.59). It used to take main 20 plus only the two bilingual weeks the two bilingual members happen to sit on, then apply that 22-line sample to a 28-line design; bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came back as **4** where the real combined roster has **6** (main 1/7/12/17 + bilingual 1/8). Two whole lines of standby cover, missing by default. The design is 28 because that is main + bilingual, so the seed has to be main + bilingual too; which weeks two people sit on today is a fact about staffing, not about the roster's shape.
 
@@ -718,6 +611,171 @@ first; `links-adjacency.js` splits days-off from contracted-days-given for the s
 clerk gives it, on top of the four — it is not one of them. All seven days are still marked SPARE,
 which is what the real roster does and what "available for cover" means, but a reader should not take
 the four out of seven.
+
+### Generator layout — the v19.61 polish pass
+
+Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug rather than polish:
+
+- **The iOS focus-zoom guard had never worked.** Full account in `css-tokens.md` → "The 16px
+  focusable-field rule is now MEASURED". The override now sits at the END of `links.css`, after the
+  base rule it has to beat, and an e2e measures the computed size on a real coarse pointer.
+- **Touch targets.** On a coarse pointer the fields were 28px, the row ✕ 20px and the two text
+  links 15px. All now ≥40/44px. The app's rule is that density is gated on `pointer: fine` — a wide
+  touch screen still needs the target spacing.
+- **The SHIFT TIME column is sticky on mobile.** At 390px the table is 443px inside a 306px wrapper:
+  131px hidden, which is the whole **Sunday** column and the ✕. Sunday is a required INPUT, so this
+  is not the same call as compare mode's accepted clipping of a read-only view. Sticky identifies the
+  row while you type AND makes the scroll self-evident, and a right-edge shadow (pure CSS,
+  `local`/`scroll` gradients — no scroll listener) says there is more. **Every sticky cell needs an
+  OPAQUE fill:** the spare row's own background is `color-mix(gold 10%, transparent)` — 90%
+  see-through — so the caption sat there with the scrolled column showing through it, which reads as
+  a fault, not a feature. And `white-space: nowrap` had to go: fine in a cell that sizes to content,
+  but in a sticky one it just overflows the fill.
+- **ONE measure on desktop.** The table filled all 1036px of the card, putting a 90px shift time in a
+  477px cell. Capping the table alone then left a 620px table under a 1036px objectives box under a
+  1036px button — a card reading as three unrelated widths. The cap belongs on `.generator-form`, so
+  every part lines up, at 660px beside the ~72ch the intro prose already uses.
+- **The objective labels.** Two of the five carry an inline number, and at 390px the tail wrapped
+  flush with the CHECKBOX, reading as a sixth objective. The label text is now one `<span>` (a flex
+  item) so it wraps as a block, and the numeric clause has its own line — a 40px-tall field cannot
+  sit inside a sentence in a 260px column. **Grid was tried here and is wrong**: every child of a
+  grid container becomes an item, so the number box left its sentence and dropped into the
+  checkbox's column.
+- **The objectives are OPTION ROWS, not bare checkboxes** (v19.63, owner: "the toggle switches and
+  associated writing look unstyled" — they were). They shipped at v19.58 as five native checkboxes
+  with text beside them, which is exactly what paycalc's `.bp-mode-opt`/`.hpp-mode-opt` was built to
+  replace; that rule's own comment reads *"the design system instead of two bare browser radios
+  floating in space"*. `.gen-obj` now mirrors it: a bordered row, navy border + a brighter fill
+  + a subtle lift via `:has(input:checked)`, an 18px `accent-color` box (20px on a coarse pointer),
+  and the focus ring on the ROW rather than the box, because the row is what you are choosing. Same
+  2px border in both states so toggling one causes no reflow, and `.gen-obj + .gen-obj` spaces them —
+  two adjacent checked rows with no gap read as one tall box with a line through it. A `<legend>`
+  inside a flex container lays out unpredictably across engines, so the gap is a sibling margin, not
+  a flex `gap` on the fieldset. **Do not re-create a page-local variant of this** — if the option-row
+  treatment needs to change, change it with paycalc's.
+- **ON is the BRIGHTER row, and check that against the SUBSTRATE** (v19.65, staff report: "everything
+  doesn't quite look right"). The v19.63 row above shipped its two fills the wrong way round —
+  resting `white`, checked `--bg-faint` — copied from paycalc without noticing the substrate differs.
+  Measured: this fieldset is `--surface-sunken` (L 96.3%), so a checked row at `--bg-faint` (97.0%)
+  sat **0.7% above its own background** and dissolved into it, while an unchecked row at white sat
+  3.7% above. With all five on — the default — every row was panel-coloured inside a navy outline, so
+  the card read as five empty boxes and the one state the fill exists to show was the one you could
+  not see. Switching an option ON also made it 3% **dimmer**, inverting the app's three-surface cue
+  (css-tokens.md: a control brightens to white when it becomes active). Paycalc is deliberately left
+  alone: its options sit on a `--surface` CARD (98%) and are a two-option radio group where exactly
+  one is ever checked, so the border carries the state and the fill is only a whisper. The
+  `.gen-obj-num` field lost its `background-color: white` override in the same pass — that was
+  reasoned from the old checked fill, and it both flattened the row and killed the app-wide
+  "field brightens to white on focus" cue, since a field already at white cannot brighten.
+- **A number and the words that qualify it are ONE unbreakable group** (v19.65). "at most [3] weeks
+  the same" was three loose flex children in a ~190px column and overflowed by ~8px, so at 360px —
+  the reported device — it wrapped and left "weeks the same" alone under "at most", reading as a
+  separate statement. Neither lever that would normally fix it is available: 360px is the design
+  target, and 16px/40px is the iOS-zoom + touch-target floor for the box. So the clause was shortened
+  to "at most [3] weeks" (the noun is in the title directly above) and the box + its unit wrapped in
+  `.gen-obj-numctl`, an `inline-flex` that cannot come apart. Both are belt-and-braces; either alone
+  fixes today's render.
+- **The generator now has pixel coverage** (v19.64): `links-generator.png` (desktop, three objectives
+  on and two off) and `links-objectives-narrow.png` (390px, where the rows stack). It had none
+  before, because the card is collapsed in the workspace baseline — so four consecutive releases
+  reshaped it with only hand-read screenshots watching, on the surface where this page's layout bugs
+  actually happen. **But note the two things it CANNOT see, both established by measurement**
+  (v19.65): near-white fill changes fall under `threshold: 0.15` (that is what hid the inverted
+  state), and the visual project is FINE-pointer only, so the 56×40 coarse box that caused the clause
+  to fragment never appears in a baseline at all. Both are asserted in code instead — the fill
+  direction beside the desktop shot in `visual.spec.js`, the clause on **mobile-chrome** in
+  `pages.spec.js` at 360px. Do not move the clause test into the visual suite: measured at 390, 360
+  and 300 there, it passes on the broken markup.
+  **The checked-row treatment is asserted in COMPUTED STYLE, not left to the pixels**, and that split
+  is not belt-and-braces: `--bg-faint` is `oklch(97%)` against white, a 3% step, far under the
+  suite's `threshold: 0.15` per-pixel sensitivity — deleting the fill AND the shadow left the
+  screenshot passing (teeth-verified). The baseline catches composition; the style assertion catches
+  on-versus-off. Keep both.
+
+## Page-wide review findings (v19.66)
+
+Both sections below are about the PAGE, not the generator — they sat between the generator's
+layout notes and the generator itself, which is why neither read as belonging to anything.
+
+### Known MOBILE gaps on this page — measured, not yet decided (v19.66)
+
+The v19.66 review captured desktop and mobile but was **read** desktop-first, and the mobile
+in-use page was not examined until afterwards. Three things it found at 390×844, all measured,
+none fixed — recorded so they are not re-discovered as new:
+
+- **The grid loses its day headers.** `.links-grid-wrapper` is `overflow-x: auto` below 1024px, so
+  by the spec rule above it is a scroll container in both axes and its sticky `thead` is inert —
+  the same trap as the generator table. Scrolling lines 9–27 there is no LINE/SUN/MON header on
+  screen at all, and the grid is **43% off-screen horizontally** (592px of table in a 338px
+  wrapper), so position cannot disambiguate the column either. On the page's primary object this
+  is the most serious of the three.
+- **The sticky save row takes 146px of an 844px viewport — 17%**, permanently: two buttons, a
+  provenance line, and the summary chips wrapped onto two rows.
+- **The brush bar is 239px** — 26 chips over seven rows before the grid begins.
+
+None is a regression; all three predate v19.66. The fixes are not free (the first needs a nested
+scrollbox; the other two need something to give), so they are a conversation rather than a sweep.
+
+### The blank page, and three fixes that came out of screenshotting it (v19.66)
+
+The page had been polished repeatedly **in use** and never looked at **empty**. Measured at 1280px
+with no designs saved, the three cards came to **160px / 117px / 117px** — each a white slab holding
+one 12px grey sentence pinned to the left edge. That is what a new designer sees first, and it read
+as three empty boxes rather than a page waiting to be used.
+
+- **An empty card says what it is waiting FOR, and the one that can act carries the action.** The
+  grid card gets a centred icon + title + sentence + a real `.btn-save` primary ("Go to
+  Auto-generate") and a text link ("Start with a blank grid"). Left-aligned, the old sentence sat
+  ~700px from the "+ New" button it was telling you to press. The two analysis cards get
+  `.links-empty-panel` — centred, `min-height: 132px` — because they can offer nothing: there is
+  nothing to analyse.
+- **The primary action SCROLLS; it does not generate.** Firing the generator from an empty card
+  would build against whatever the roster seed happened to hold, which is a design nobody chose.
+- **The empty checks panel must not wear a green tick.** It was `✅` (the card's own emoji) for one
+  iteration — a tick centred in an empty checks card reads as "checks passed", the exact
+  false-assurance failure that card exists to prevent, and it would be claiming it before a single
+  check had run. `📋` instead.
+- **A load FAILURE is not "you have not made one yet".** `renderGrid` swaps the title and hides the
+  actions on `loadFailed`: telling someone whose designs exist but did not load that they have none,
+  and inviting them to generate a new one, is how a connection blip becomes a duplicate design.
+- **The card header hint is state-dependent.** It said "Tap any shift cell to change it. Use the
+  Paint bar…" in a state with no grid and no paint bar on screen. Both strings live in
+  `_setGridHint` so they cannot drift.
+- **`links-analysis.js` must MIRROR the empty-panel markup** its card ships in `links.html` — that
+  branch replaces the whole card body, so the bare `<p>` it used to write silently undid the empty
+  state on the first re-render.
+
+Two more from the same pass, both in-use surfaces:
+
+- **The generator form is CENTRED on desktop, not left-aligned — and the INTRO comes with it.** The
+  660px cap is right (measured at v19.61 — a full-width table puts a 90px shift time in a 477px
+  cell), but left-aligning it in the 1100px card dumped the whole remainder on one side: **440px of
+  empty white running 1,794px down** the tallest card on the page, which reads as a rendering fault.
+  Centred, it is 220px of symmetric gutter.
+  **Centring the form ALONE was a regression, caught by re-screenshotting** (v19.67): the intro
+  prose stayed put, so the card had two left edges — intro 122→778 against table/objectives/actions/
+  Generate all at 310→970. Nearly the same WIDTH (656 vs 660) 188px apart, which reads as a mistake
+  rather than as hierarchy. `#generatorCard .links-desc` now shares the form's cap. **Anything added
+  to this card must join that column too**; an e2e measures all five left edges and names the
+  offender, because a whole-card baseline just re-records whatever the alignment happens to be.
+- **The 28-row target table keeps its column headers — at ≥768px ONLY** (`position: sticky` on
+  `thead th`). They scrolled away after the first six rows, leaving three unlabelled number columns
+  — and Mon–Fri, Sat and Sun are three different commitments (Sunday is not even contracted), so
+  typing into the wrong one is a real error with nothing to catch it.
+  **Below 768px the declaration is inert, and that is a CSS constraint rather than a decision.**
+  `sticky` resolves against the nearest scroll container; the narrow wrapper sets `overflow-x: auto`
+  to scroll the 443px table inside a 306px card, and per spec the other axis then computes to `auto`
+  as well (measured at 390px). The wrapper becomes a vertical scroll container as tall as its own
+  content, so the header sticks to a box that never scrolls. **Do not "fix" it with
+  `overflow-y: visible`** — that is the exact declaration the spec overrides, so it would read as
+  correct and change nothing, which is this file's most frequently repeated failure. Making it work
+  on a phone needs a `max-height` and therefore a nested scrollbox around the primary creation path:
+  a UX decision, not a tidy-up. Both facts are pinned by an e2e that runs at both widths.
+- **The Design-checks status is carried on the LEFT EDGE, not by the fill alone.** At 8–10% of a hue
+  against white the four fills land within a couple of percent of each other, so 30 rows rendered as
+  one ribbon with the status readable only from a 13px glyph. A 3px edge in the full-strength token
+  makes them scannable. **It changes no semantics and must not**: a fatigue factor that is present
+  still wears amber and never the red edge.
 
 ### Line numbering (full 28-line rotation, v12.42)
 All 28 lines rotate and **every one must carry a real worked pattern** — in the rotation everyone passes through every line, so a "vacancy" is a missing *person*, not a missing *pattern*. `ROTATING_LINES = 28`.
