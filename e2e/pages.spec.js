@@ -1435,7 +1435,8 @@ test('links: the roster seed covers all 28 real lines, not a 22-line sample', as
     // standby cover missing by default, from a number nobody had reason to re-check.
     //
     // Driven through the real "Reset targets from current roster" button: the seed lives in the
-    // coordinator, so a unit test would have to re-derive it and would then be checking its own copy.
+    // coordinator. It now lives in links-seed.js and has its own unit tests (v19.92); this spec stays
+    // because what only a browser can prove is that the BUTTON reaches the seed and repaints the table.
     await page.setViewportSize({ width: 390, height: 1000 });
     await seedSession(page, 'G. Miller');
     await openLinks(page);

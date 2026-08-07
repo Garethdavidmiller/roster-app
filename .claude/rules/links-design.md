@@ -18,7 +18,7 @@ paths:
 
 ## The module set
 
-The workspace is one coordinator over **ten** pure/extracted modules. Everything except `links-app.js`
+The workspace is one coordinator over **twelve** pure/extracted modules. Everything except `links-app.js`
 is testable without a browser, which is deliberate — the coordinator is where the Firestore and DOM
 state lives, and the rules that have historically produced bugs have been pulled out of it.
 
@@ -35,6 +35,8 @@ state lives, and the rules that have historically produced bugs have been pulled
 | `links-concurrency.js` | the co-editing rules (three historical silent-overwrite bugs, one test each) |
 | `links-deletion.js` | the soft-delete/restore/purge rules |
 | `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in (v19.58) |
+| `links-seed.js` | the generator's TARGET SEED — read the real roster, produce the starting targets (v19.92) |
+| `links-design-doc.js` | the SHAPE of a design in memory and in Firestore, and every conversion between (v19.94) |
 
 ## Access control
 
@@ -97,7 +99,36 @@ visible rather than inferred.
 Grid (primary object) → Auto-generator (collapsed by default) → Coverage (hourly heat map) → Design checks. The generator sits directly beneath the grid because it is the only way to create a new design.
 
 ### Firestore model (multi-design, v12.46)
-`linkDesigns` is a **collection** of named design documents `{ name, patterns, updatedAt, updatedBy }` with auto-IDs. The legacy singleton `linkDesigns/combined-28` (no `name` field) is auto-migrated to a named design ("Design 1") on first load and thereafter ignored — never write to it.
+`linkDesigns` is a **collection** of named design documents `{ name, patterns, window, updatedAt, updatedBy }` with auto-IDs. The legacy singleton `linkDesigns/combined-28` (no `name` field) is auto-migrated to a named design ("Design 1") on first load and thereafter ignored — never write to it.
+
+**Every doc ↔ object conversion is `links-design-doc.js`** (v19.94). Eleven sites in the coordinator
+built these by hand in four shapes, two of them near-identical copies of the same write payload, and
+a field left out of one site is not an error — it is a design that quietly loses something. That has
+happened twice:
+
+- **v19.55** — the bin kept `patterns` but not `window`, so a restore handed back a design wearing
+  the app default and the next save wrote that default over the moved boundary it was built to. The
+  proposal still looked fine; it was simply no longer the proposal.
+- **v19.94, found by this extraction** — the `combined-28` migration was the ONLY read path that
+  skipped `normalisePatterns`, into memory *and* into the new document, so an unpadded
+  `"6:00-14:00"` was persisted uncanonicalised: counted in the day totals while `startMinutes`
+  returned null, i.e. invisible in the heat map and exempt from every turnaround check, for good. Of
+  every document in the collection that is the one **guaranteed** to be legacy, and it was the one
+  that skipped the legacy handling. It also wrote no `window`. It survived because it is gated on
+  `named.length === 0` — it runs once, for one document, on a visit nobody watches.
+
+Three rules the module exists to hold:
+
+- **Every shape carries `window`.** It is what the heat map measures gaps against, so a design that
+  loses it is assessed against a span nobody chose.
+- **Everything arriving FROM Firestore is canonicalised; nothing already in memory is re-normalised.**
+  The asymmetry is deliberate and is why this was a design job rather than a sweep.
+- **The working copy DEEP copies its patterns.** The grid writes `patterns[pos][day]`, so a shallow
+  copy would let an edit mutate the `designs[]` entry the concurrency baseline is compared against.
+
+`docPayload` emits exactly the five keys `firestore.rules` allows. An extra key does not warn — every
+save permission-denies, on every device, until the rules catch up, and hosting and rules ship from
+the same push through separate workflows with no ordering guarantee.
 
 A picker strip switches designs: **+ New** (blank), **⎘ Duplicate** (forks the LIVE in-memory patterns, unsaved edits included), **✎ Rename**, **✕ Delete** (disabled on the last design). Designs sort by name; the active design id persists via `lsGet('myb_links_active_design')`. Picker chips are a `<div>` wrapping separate `<button>`s — **buttons must not nest**.
 
@@ -538,7 +569,11 @@ The previous model took a per-day-class spare HEADCOUNT and fed it to the rotati
 
 Two consequences worth knowing: the targets are validated against the **working** lines (`lines − spareLines`), so a total that fits in 28 can still be refused; and a spare week counts as **7 worked days** in the run-length check although the person works four of them — we do not know which three are rest, and over-reporting a run is the safe direction for a fatigue check.
 
-The table is **seeded from the current roster** on page load via `buildRosterTargets()` — **all 28 real lines: the main 20 weeks AND the whole 8-week bilingual roster** (v19.59). It used to take main 20 plus only the two bilingual weeks the two bilingual members happen to sit on, then apply that 22-line sample to a 28-line design; bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came back as **4** where the real combined roster has **6** (main 1/7/12/17 + bilingual 1/8). Two whole lines of standby cover, missing by default. The design is 28 because that is main + bilingual, so the seed has to be main + bilingual too; which weeks two people sit on today is a fact about staffing, not about the roster's shape. Pinned by an e2e that drives `↺ Reset targets from current roster`, because the seed lives in the coordinator and a unit test would be checking its own copy of it.
+The table is **seeded from the current roster** on page load via `buildRosterTargets()` — **all 28 real lines: the main 20 weeks AND the whole 8-week bilingual roster** (v19.59). It used to take main 20 plus only the two bilingual weeks the two bilingual members happen to sit on, then apply that 22-line sample to a 28-line design; bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came back as **4** where the real combined roster has **6** (main 1/7/12/17 + bilingual 1/8). Two whole lines of standby cover, missing by default. The design is 28 because that is main + bilingual, so the seed has to be main + bilingual too; which weeks two people sit on today is a fact about staffing, not about the roster's shape.
+
+**It lives in `links-seed.js` and has unit tests** (v19.92). Until then this paragraph ended: *"Pinned by an e2e that drives `↺ Reset targets from current roster`, because the seed lives in the coordinator and a unit test would be checking its own copy of it."* That was true and entirely self-inflicted — the function was already pure, with no DOM, no Firestore and no coordinator state; it was simply not exported, so there was nothing else for a test to check. Exported, there is. The e2e stays (it proves the BUTTON reaches the seed, which a unit test cannot), but it is no longer the only cover.
+
+Two things the extraction fixed rather than merely moved. The cycle lengths were the literals `20` and `8` while `CONFIG.MAIN_ROSTER_WEEKS`/`BILINGUAL_ROSTER_WEEKS` held the same two numbers — so a roster that changed length would have left the seed reading a **prefix** of it, under-counting slots and spare lines in exactly the v19.59 shape, silently; they are read from CONFIG now and a static assertion bans a bare numeric loop bound coming back. And `buildRosterTargets` takes its sources as an argument **defaulting to `rosterSeedLines()`**, so which-lines-get-sampled is testable separately from what-is-counted while the default remains the real roster — injecting the sources from the call site would have moved the v19.59 bug back out of reach instead of closing it.
 
 Weekday count = the **busiest** Mon–Fri day for that time (some shifts only run Tue/Thu/Fri), and the generator then staffs all five weekdays at that level. Deliberate — under-staffing a day is the worse error — but the real roster varies Mon to Fri, so the column header says `busiest day`.
 

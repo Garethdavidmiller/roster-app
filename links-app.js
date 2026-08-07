@@ -30,12 +30,12 @@ import {
     ROTATING_LINES,
     classifyShift,
     normaliseCustomShift,
-    normalisePatterns,
-    dayClass,
     calcCoverage,
     generateLink,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
+import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom } from './links-design-doc.js';
+import { buildRosterTargets } from './links-seed.js';
 import { reorderLines, applyOrder, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
@@ -399,11 +399,6 @@ export function init() {
      * Deep-copy a patterns object so edits don't mutate the designs array.
      * @param {any} patterns
      */
-    function deepCopyPatterns(patterns) {
-        const copy = /** @type {Record<string, any>} */ ({});
-        for (const [k, v] of Object.entries(patterns || {})) copy[k] = { ...(/** @type {any} */ (v)) };
-        return copy;
-    }
 
     /**
      * Shared HTML options for any shift dropdown.
@@ -593,19 +588,16 @@ export function init() {
         if (!name) return;
         if (_designNameTooLong(name)) return;
         try {
-            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
-                name,
-                patterns:  {},
-                window:    normaliseWindow(null),   // a blank design starts on the app default
-                updatedAt: serverTimestamp(),
-                updatedBy: currentUser,
-            }));
+            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL,
+                // A blank design starts on the app default window — docPayload normalises it.
+                docPayload({ name, patterns: {}, window: null },
+                           { updatedBy: currentUser, updatedAt: serverTimestamp() })));
             // Arm the concurrency baseline: read back the server updatedAt so loadedUpdatedAt
             // is non-null from the first content-save. Without this, a just-created design's
             // guard was bypassed (updatedAt:null) and a concurrent edit was silently clobbered.
             let createdTs = null;
             try { createdTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline — no concurrent editor to guard */ }
-            const d = { id: ref.id, name, patterns: {}, window: normaliseWindow(null), updatedAt: createdTs, updatedBy: currentUser };
+            const d = restoredEntryFrom({ id: ref.id, name, patterns: {}, window: null }, { updatedAt: createdTs, updatedBy: currentUser });
             designs.push(d);
             _sortDesigns();
             _activateDesign(d);
@@ -629,17 +621,13 @@ export function init() {
         // duplicating a moved-boundary proposal is least likely to notice.
         const window = normaliseWindow(design.window);
         try {
-            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
-                name,
-                patterns,
-                window,
-                updatedAt: serverTimestamp(),
-                updatedBy: currentUser,
-            }));
+            const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL,
+                docPayload({ name, patterns, window },
+                           { updatedBy: currentUser, updatedAt: serverTimestamp() })));
             // Arm the concurrency baseline (see createDesign).
             let dupTs = null;
             try { dupTs = (await getDoc(ref)).data()?.updatedAt ?? null; } catch { /* offline */ }
-            const d = { id: ref.id, name, patterns, window, updatedAt: dupTs, updatedBy: currentUser };
+            const d = restoredEntryFrom({ id: ref.id, name, patterns, window }, { updatedAt: dupTs, updatedBy: currentUser });
             designs.push(d);
             _sortDesigns();
             _activateDesign(d);
@@ -735,7 +723,7 @@ export function init() {
             // deletedAt is null until the server resolves it — deliberately kept as null rather
             // than stamped with a client clock, so the row reads "Deleted by X" until the real
             // time is known instead of showing a countdown built from an invented figure.
-            deletedDesigns.unshift({ id: d.id, name: d.name, patterns: d.patterns, window: normaliseWindow(d.window), deletedAt: null, deletedBy: currentUser });
+            deletedDesigns.unshift(binEntryFrom(d, currentUser));
             const newActive = (id === activeDesignId) ? designs[0] : null;
             // Exit compare mode if the compare target was deleted, the delete drops below the 2
             // designs compare needs, OR the newly-promoted active design IS the current compare
@@ -792,7 +780,7 @@ export function init() {
             let restoredTs = null;
             try { restoredTs = (await getDoc(doc(db, COLLECTIONS.linkDesigns, id))).data()?.updatedAt ?? null; }
             catch { /* offline — the unknown-baseline flag covers it */ }
-            designs.push({ id: d.id, name: d.name, patterns: d.patterns, window: normaliseWindow(d.window), updatedAt: restoredTs, updatedBy: currentUser });
+            designs.push(restoredEntryFrom(d, { updatedAt: restoredTs, updatedBy: currentUser }));
             _sortDesigns();
             renderDesignPicker();
             renderBinList();
@@ -971,7 +959,7 @@ export function init() {
         if (!d) return;
         activeDesignId  = d.id;
         lsSet(ACTIVE_KEY, d.id);
-        design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns), window: normaliseWindow(d.window) };
+        design          = workingCopy(d);
         // Derive the baseline through the tested rule rather than hardcoding `baselineUnknown =
         // false` beside a possibly-null timestamp — that pair is precisely the v17.18 bug
         // (neither a known baseline nor a flag saying it is unknown, so conflictOf reads it as
@@ -1359,37 +1347,6 @@ export function init() {
      * does mean a generated design staffs every weekday at the busiest weekday's level, which the
      * real roster does not. The column header says so.
      */
-    function buildRosterTargets() {
-        const sources = [];
-        const _weeklyRoster = /** @type {Record<number, any>} */ (weeklyRoster);
-        const _bilingualRoster = /** @type {Record<number, any>} */ (bilingualRoster);
-        for (let w = 1; w <= 20; w++) sources.push(_weeklyRoster[w]);
-        for (let w = 1; w <= 8; w++) sources.push(_bilingualRoster[w]);
-
-        const weekdays = DAYS.filter(d => dayClass(d) === 'weekday');
-        const perDay = /** @type {Record<string, any>} */ ({});
-        for (const src of sources) {
-            for (const d of DAYS) {
-                const s = src?.[d];
-                if (!s || s === 'RD' || s === 'OFF' || s === 'SPARE') continue;
-                perDay[s] = perDay[s] || Object.fromEntries(DAYS.map(x => [x, 0]));
-                perDay[s][d]++;
-            }
-        }
-        const slots = Object.keys(perDay).sort().map(time => ({
-            time,
-            weekday: Math.max(...weekdays.map(d => perDay[time][d])),
-            sat:     perDay[time].sat,
-            sun:     perDay[time].sun,
-        }));
-        // Spare is a whole WEEK in the real roster, so the seed is a count of lines, not a per-day
-        // headcount. Every roster source line that is spare is spare on all seven days, so counting
-        // the fully-spare sources gives the right number directly.
-        const spareLines = sources.filter(src => src && DAYS.every(d => src[d] === 'SPARE')).length;
-        return { slots, spareLines };
-    }
-
-
     function renderGenTable() {
         const tbody = document.getElementById('genSlotRows');
         if (!tbody) return;
@@ -1779,11 +1736,7 @@ export function init() {
                 // First save of a generator-created design — create the Firestore document
                 const dsn = design; // capture non-null (guarded above) so the retry closure keeps narrowing
                 const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
-                    name:      dsn.name || 'Design 1',
-                    patterns:  dsn.patterns,
-                    window:    normaliseWindow(dsn.window),
-                    updatedAt: serverTimestamp(),
-                    updatedBy: currentUser,
+                    ...docPayload(dsn, { updatedBy: currentUser, updatedAt: serverTimestamp() }),
                 }));
                 activeDesignId = ref.id;
                 design.id = ref.id;
@@ -1799,7 +1752,7 @@ export function init() {
                     // co-editor's intervening write with no conflict prompt.
                     ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(savedAt?.toMillis?.()));
                 } catch { ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(null, false)); }
-                const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), window: normaliseWindow(design.window), updatedAt: savedAt, updatedBy: currentUser };
+                const newEntry = restoredEntryFrom({ ...design, id: ref.id, patterns: deepCopyPatterns(design.patterns) }, { updatedAt: savedAt, updatedBy: currentUser });
                 designs.push(newEntry);
                 _sortDesigns();
                 dirty = false;
@@ -1819,13 +1772,9 @@ export function init() {
             // preserved, never worse than before.
             const designRef = doc(db, COLLECTIONS.linkDesigns, activeDesignId);
             const dsn = design; // capture non-null (guarded above) so the retry closures keep narrowing
-            const buildDoc = () => ({
-                name:      dsn.name || 'Design 1',
-                patterns:  dsn.patterns,
-                window:    normaliseWindow(dsn.window),
-                updatedAt: serverTimestamp(),
-                updatedBy: currentUser,
-            });
+            // ONE payload builder for the transaction and both fallbacks (it already was — the
+            // near-identical copy that used to sit 40 lines above is now the same docPayload too).
+            const buildDoc = () => docPayload(dsn, { updatedBy: currentUser, updatedAt: serverTimestamp() });
             // Server doc vs our load baseline → { by, at } on conflict, else null. Single source used by
             // BOTH the transaction and the offline fallback so they can't drift.
             // The RULE lives in links-concurrency.js (v19.38) — pure and tested, because three silent
@@ -1972,54 +1921,33 @@ export function init() {
                 if (typeof data.name === 'string' && data.name.trim() && isDeleted(data)) {
                     // In the bin (v19.41) — kept in memory WITH its patterns so a restore is a
                     // field-clearing merge and never re-uploads a stale copy of the design.
-                    binned.push({
-                        id:        d.id,
-                        name:      data.name.trim(),
-                        patterns:  normalisePatterns(data.patterns || {}),
-                        // Carry the WINDOW into the bin too (v19.55). Without it a restore handed
-                        // back a design wearing the app default, and the next save wrote that
-                        // default over the moved boundary the design was actually built to.
-                        window:    normaliseWindow(data.window),
-                        deletedAt: data.deletedAt ?? null,
-                        deletedBy: data.deletedBy || '',
-                    });
+                    // Every doc -> object mapping is links-design-doc.js (v19.94): eleven sites
+                    // built these by hand and the one that diverged went unnoticed for releases.
+                    binned.push(binEntryFromDoc(d.id, data));
                 } else if (typeof data.name === 'string' && data.name.trim()) {
-                    named.push({
-                        id:        d.id,
-                        name:      data.name.trim(),
-                        // Canonicalise on the way IN (v19.38) so exactly one time format exists in
-                        // memory. A legacy unpadded "6:00-14:00" classified as a worked early (so it
-                        // counted in the day totals) while startMinutes/endMinutes returned null —
-                        // making it invisible in the coverage heat map and exempt from every
-                        // short-turnaround check. See links-design.js → canonicaliseShift.
-                        patterns:  normalisePatterns(data.patterns || {}),
-                        // The staffed window travels with the design (v19.54). Normalised on the
-                        // way in, so a design saved before the field existed reads as the default
-                        // and nothing already saved changes.
-                        window:    normaliseWindow(data.window),
-                        updatedAt: data.updatedAt,
-                        updatedBy: data.updatedBy || '',
-                    });
-                } else if (d.id === 'combined-28' && data.patterns) {
+                    named.push(designFromDoc(d.id, data));
+                } else if (d.id === LEGACY_DOC_ID && data.patterns) {
                     legacyData = data;
                 }
             }
 
             // One-time migration: convert combined-28 to a named design
             if (named.length === 0 && legacyData) {
-                const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL, {
-                    name:      'Design 1',
-                    patterns:  legacyData.patterns,
-                    updatedAt: legacyData.updatedAt ?? serverTimestamp(),
-                    updatedBy: legacyData.updatedBy ?? currentUser,
-                }));
-                named.push({
-                    id:        ref.id,
-                    name:      'Design 1',
-                    patterns:  legacyData.patterns,
-                    updatedAt: legacyData.updatedAt,
-                    updatedBy: legacyData.updatedBy || currentUser,
-                });
+                // TWO DEFECTS FIXED HERE BY GOING THROUGH THE SHARED MAPPING (v19.94). This was the
+                // ONLY read path that skipped `normalisePatterns` — both into memory and into the
+                // new document, so a legacy unpadded "6:00-14:00" was persisted uncanonicalised and
+                // stayed invisible to the heat map and every turnaround check for good. And it wrote
+                // no `window`, the one field every other path carries (the v19.55 shape). Of every
+                // doc in the collection this is the one GUARANTEED to be legacy, and it was the one
+                // that skipped the legacy handling — because it runs once, for one document, on a
+                // visit nobody is watching.
+                const migrated = designFromDoc('', { ...legacyData, name: 'Design 1' });
+                const ref = await writeWithClaimRetry(() => addDoc(DESIGNS_COL,
+                    docPayload(migrated, {
+                        updatedBy: legacyData.updatedBy ?? currentUser,
+                        updatedAt: legacyData.updatedAt ?? serverTimestamp(),
+                    })));
+                named.push({ ...migrated, id: ref.id, updatedBy: legacyData.updatedBy || currentUser });
             }
 
             // Sort by name — getDocs returns documents in (random) auto-ID order,
@@ -2053,7 +1981,7 @@ export function init() {
                 const d = designs.find(x => x.id === lsGet(ACTIVE_KEY)) || designs[0];
                 activeDesignId  = d.id;
                 lsSet(ACTIVE_KEY, d.id);
-                design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns), window: normaliseWindow(d.window) };
+                design          = workingCopy(d);
                 ({ loadedUpdatedAt, baselineUnknown } = baselineAfterWrite(d.updatedAt?.toMillis?.()));
                 updateLastSaved(d.updatedBy, d.updatedAt);
             } else {
