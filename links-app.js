@@ -31,11 +31,11 @@ import {
     classifyShift,
     normaliseCustomShift,
     normalisePatterns,
-    dayClass,
     calcCoverage,
     generateLink,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
+import { buildRosterTargets } from './links-seed.js';
 import { reorderLines, applyOrder, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
@@ -1359,37 +1359,6 @@ export function init() {
      * does mean a generated design staffs every weekday at the busiest weekday's level, which the
      * real roster does not. The column header says so.
      */
-    function buildRosterTargets() {
-        const sources = [];
-        const _weeklyRoster = /** @type {Record<number, any>} */ (weeklyRoster);
-        const _bilingualRoster = /** @type {Record<number, any>} */ (bilingualRoster);
-        for (let w = 1; w <= 20; w++) sources.push(_weeklyRoster[w]);
-        for (let w = 1; w <= 8; w++) sources.push(_bilingualRoster[w]);
-
-        const weekdays = DAYS.filter(d => dayClass(d) === 'weekday');
-        const perDay = /** @type {Record<string, any>} */ ({});
-        for (const src of sources) {
-            for (const d of DAYS) {
-                const s = src?.[d];
-                if (!s || s === 'RD' || s === 'OFF' || s === 'SPARE') continue;
-                perDay[s] = perDay[s] || Object.fromEntries(DAYS.map(x => [x, 0]));
-                perDay[s][d]++;
-            }
-        }
-        const slots = Object.keys(perDay).sort().map(time => ({
-            time,
-            weekday: Math.max(...weekdays.map(d => perDay[time][d])),
-            sat:     perDay[time].sat,
-            sun:     perDay[time].sun,
-        }));
-        // Spare is a whole WEEK in the real roster, so the seed is a count of lines, not a per-day
-        // headcount. Every roster source line that is spare is spare on all seven days, so counting
-        // the fully-spare sources gives the right number directly.
-        const spareLines = sources.filter(src => src && DAYS.every(d => src[d] === 'SPARE')).length;
-        return { slots, spareLines };
-    }
-
-
     function renderGenTable() {
         const tbody = document.getElementById('genSlotRows');
         if (!tbody) return;
