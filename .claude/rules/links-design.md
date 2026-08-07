@@ -532,14 +532,41 @@ Daily targets are met exactly by both; any day-class total > the working lines i
 > Minimising the week-to-week step, taken to its limit, IS a long block of the same shift — the
 > smallest possible step is no step at all. Between v19.59 and v19.60 the generator settled each week
 > and then laid the waves out contiguously, so a person got **11 straight weeks of mornings and 11 of
-> afternoons**; turning `gentle` on made it 8 even after a reorder. The owner's verdict was "a bit
+> afternoons**; turning `gentle` on did not move it. The owner's verdict was "a bit
 > excessive and would be unpopular", and the live roster's longest run on much the same shift is
 > **3** (bilingual 2), which is `DEFAULT_BLOCK_TARGET`.
 >
 > `variety` is weighted as a **constraint** rather than a preference (excess × 400 against gentle's
 > raw minutes), so the optimiser alternates but alternates by the smallest step available — early →
 > middles → late rather than early → late. Measured on the roster seed: block 3, week-to-week 95 min,
-> 8 weekends off, 0 short turnarounds. With `variety` off: block 8.
+> 8 weekends off, 0 short turnarounds. **With `variety` off: block 11 — the generator's own raw
+> output, unchanged.**
+>
+> **THE BLOCK FIGURE HERE WAS 8, IN BOTH PLACES, AND IT WAS WRONG** (measured and corrected v19.94,
+> in a doc-vs-code audit). Every variety-off configuration gives **11**:
+>
+> | Switches | Longest block |
+> |---|---|
+> | raw generator output, no reorder | 11 |
+> | everything off (leave the order alone) | 11 |
+> | `gentle` only | **11** |
+> | all on EXCEPT `variety` | **11** |
+> | `variety` only | 3 |
+> | `variety` + `gentle` | 3 |
+> | all on — the shipped default | 3 |
+>
+> Two things follow. **`variety` is the only switch with any lever on block length at all** — it goes
+> straight to 3, and nothing else moves the number off the generator's own 11. And **`gentle` alone
+> does not lengthen blocks**, which is a weaker claim than "opposite ends of one dial" implies: the
+> generator's raw output is already the long-block case, so gentle has no headroom to make it worse.
+> The dial framing is still the right way to think about the two — minimising the step, taken to its
+> limit, IS a long block — but the measured evidence for it is the 3-versus-11 gap, not a gentle-only
+> figure.
+>
+> Note where the 8 sat: directly beneath a callout warning **"Do not quote a step figure without
+> saying which switches were on."** That discipline was applied to the STEP figure at v19.65 and not
+> to the BLOCK figure in the same box, which is how an unattributed number survived four releases
+> next to the rule against it.
 >
 > **`blockRuns` treats a SPARE line as transparent** — neither breaking a block nor counting towards
 > one. A cover week interrupts, but it does not change what you go back to; counting it as a break
