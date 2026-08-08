@@ -416,7 +416,7 @@ described the limit rather than the standard it had to meet.
 
 The second half of the card, from `links-fatigue.js`. It exists because the December 2026 proposals
 will be **assessed** against that list (`LINKS_DEC2026_PLAN.md`), and `runDesignChecks` covered two
-of its 24 factors. Read the module header before changing any rule; the four things that govern it:
+of its 24 factors — though **the panel renders 23**, a discrepancy standing since v19.46 and recorded in `KNOWN_LIMITATIONS.md` → Links; check the ORR source before "fixing" either number. Read the module header before changing any rule; the four things that govern it:
 
 - **It reports factors PRESENT. It never passes or fails a design.** The ORR states these are not
   prescriptive limits, so red/green would misrepresent the guidance being quoted. Amber
