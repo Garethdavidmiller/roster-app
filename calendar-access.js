@@ -309,7 +309,12 @@ function showLockPanel() {
                 <button class="btn-action cal-lock-submit" id="calLockSubmit" type="submit" disabled>Unlock Calendar</button>
             </form>
             <p class="cal-lock-msg" id="calLockMsg" role="status" aria-live="polite"></p>
-            <button class="cal-lock-alt" id="calLockSignIn" type="button">MYB member? Sign in instead</button>
+            <!-- "Sign in instead", not "MYB member? Sign in instead" (owner, v20.13). Two reasons and
+                 the second is a rule: the qualifier filters NOBODY, since everyone who could be
+                 looking at this card is Marylebone staff; and "MYB" is not permitted in staff-facing
+                 copy at all (CLAUDE.md → wording conventions — the on-screen name is "Marylebone
+                 Roster", and "MYB" survives only in the iOS home-screen meta and in comments). -->
+            <button class="cal-lock-alt" id="calLockSignIn" type="button">Sign in instead</button>
         </div>`;
     host.appendChild(panel);
     _panel = panel;
