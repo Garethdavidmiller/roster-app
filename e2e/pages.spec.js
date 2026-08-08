@@ -1,5 +1,11 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview } from './helpers.js';
+// The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
+// a module import is not available, so those loops carry the literal 22 — and `links: the rotation
+// length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
+// rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
+// would still pass while quietly testing the legacy-design path rather than the normal one.
+import { ROTATING_LINES } from '../links-design.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -362,7 +368,9 @@ async function openLinksWithDesign(page) {
     await page.addInitScript(() => {
         localStorage.setItem('myb_links_welcome_seen', '1');
         const patterns = /** @type {any} */ ({});
-        for (let i = 1; i <= 28; i++) {
+        // ROTATING_LINES (22). Written out rather than imported: this runs inside the PAGE, where a
+        // module import is not available. It is checked against the constant below.
+        for (let i = 1; i <= 22; i++) {
             patterns[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20',
                 wed: '06:20-14:20', thu: '14:00-22:00', fri: 'RD', sat: 'RD' };
         }
@@ -1286,7 +1294,7 @@ async function openLinks(page) {
         // Suppress the first-visit notice. This helper did NOT do this until v19.51, and the suite
         // passed anyway — because the notice it needed to suppress had been EXPIRED since Jul 2026
         // and never opened. Posting a live one broke ten tests at once. Note which ten: every test
-        // that CLICKS something. "a designer sees all 28 lines" kept passing with a modal over the
+        // that CLICKS something. "a designer sees every line" kept passing with a modal over the
         // page, because text is readable behind an overlay — the same assert-text-vs-drive-the-UI
         // split that has hidden three separate defects this release. Seed it HERE, once, rather
         // than in each test.
@@ -1298,16 +1306,16 @@ async function openLinks(page) {
         }];
     });
     await page.goto('/links.html');
-    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 }
 
-test('links: a designer sees all 28 lines and the saved design', async ({ page }) => {
+test('links: a designer sees every rotating line and the saved design', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');
     await openLinks(page);
     // Line 1 Monday carries the seeded shift; the rest of the rotation is undesigned.
     await expect(page.locator('tr[data-pos="1"] .shift-cell-btn').nth(1)).toContainText('06:20');
-    await expect(page.locator('tr.row-unfilled')).toHaveCount(27);
+    await expect(page.locator('tr.row-unfilled')).toHaveCount(ROTATING_LINES - 1);
 });
 
 test('links: painting a cell marks the design dirty and enables Save', async ({ page }) => {
@@ -1356,7 +1364,7 @@ test('links: saving writes the patterns and clears the dirty state', async ({ pa
     await expect(page.locator('#linksSaveBtn')).toBeDisabled();
 });
 
-test('links: the generator fills all 28 lines and names what it replaces', async ({ page }) => {
+test('links: the generator fills every line and names what it replaces', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 1000 });
     await seedSession(page, 'G. Miller');
     await openLinks(page);
@@ -1365,11 +1373,11 @@ test('links: the generator fills all 28 lines and names what it replaces', async
     await page.locator('#genApplyBtn').click();
 
     // The active design has content, so the confirm must say so rather than the generic wording —
-    // Apply overwrites all 28 lines either way (v19.38).
+    // Apply overwrites every line either way (v19.38).
     const dialog = page.locator('.lb-overlay.visible');
     await expect(dialog).toContainText('Option A');
-    await expect(dialog).toContainText(/replaces all 28 lines/i);
-    await dialog.getByRole('button', { name: /Replace all 28 lines/i }).click();
+    await expect(dialog).toContainText(new RegExp(`replaces all ${ROTATING_LINES} lines`, 'i'));
+    await dialog.getByRole('button', { name: new RegExp(`Replace all ${ROTATING_LINES} lines`, 'i') }).click();
 
     await expect(page.locator('tr.row-unfilled')).toHaveCount(0);   // every line now designed
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();
@@ -1423,27 +1431,75 @@ test('links: generator targets are remembered per design', async ({ page }) => {
     await spare.dispatchEvent('input');
 
     await page.reload();
-    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await page.locator('#generatorToggleHeader').click();
     await expect(page.locator('#genSpareLines')).toHaveValue('7');
 });
 
-test('links: the roster seed covers all 28 real lines, not a 22-line sample', async ({ page }) => {
-    // The seed used to read the main 20 weeks plus only the TWO bilingual weeks the two bilingual
-    // members happen to sit on, and then apply that to a 28-line design. Bilingual weeks 1 and 8 are
-    // the SPARE ones and were never sampled, so the default came back as 4 spare lines where the
-    // roster the design represents has SIX — main 1/7/12/17 plus bilingual 1/8. Two whole lines of
-    // standby cover missing by default, from a number nobody had reason to re-check.
+test('links: the roster seed samples the whole MAIN cycle and nothing else', async ({ page }) => {
+    // The seed has been wrong in both directions and the symptom was the same number either time.
+    // v19.59: main's 20 weeks plus only the TWO bilingual weeks two bilingual members happen to sit
+    // on — bilingual 1 and 8 are the SPARE ones and were never seen, so it read 4 against a then-true
+    // 6. v19.98: the design excludes the bilingual roster entirely, so the true answer is main
+    // 1/7/12/17 — 4 again, for a completely different reason. That coincidence is why the identity
+    // and shift-time checks live in links-seed.test.mjs; this figure alone cannot tell them apart.
     //
-    // Driven through the real "Reset targets from current roster" button: the seed lives in the
-    // coordinator. It now lives in links-seed.js and has its own unit tests (v19.92); this spec stays
-    // because what only a browser can prove is that the BUTTON reaches the seed and repaints the table.
+    // Driven through the real "Reset targets from current roster" button, because what only a browser
+    // can prove is that the BUTTON reaches the seed and repaints the table.
     await page.setViewportSize({ width: 390, height: 1000 });
     await seedSession(page, 'G. Miller');
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
     await page.locator('#genSeedBtn').click();
-    await expect(page.locator('#genSpareLines')).toHaveValue('6');
+    await expect(page.locator('#genSpareLines')).toHaveValue('4');
+});
+
+test('links: the rotation length the in-page fixtures assume', () => {
+    // The fixtures above build their patterns inside `addInitScript`, where a module import is not
+    // available, so they loop to a literal. Tie it to the constant here or the whole Links e2e set
+    // silently changes what it is testing when the rotation moves: a fixture LONGER than the
+    // rotation exercises the legacy-design path (surplus rows, the over-length notice) while every
+    // assertion still passes, and a fixture SHORTER leaves undesigned rows that the "every line
+    // filled" checks would then be wrong about.
+    expect(ROTATING_LINES).toBe(22);
+});
+
+test('links: a design saved against a LONGER rotation says so', async ({ page }) => {
+    // Every 28-line design saved before v19.98 is still in Firestore, and opening one looks entirely
+    // normal: the grid loops to the rotation so lines 23-28 are simply not drawn, every panel reads
+    // the same range, and the working copy deep-copies the whole patterns object so the next save
+    // writes all 28 back. Assessed as one thing, stored as another, with no symptom.
+    //
+    // The data is deliberately left alone — trimming on load would destroy six lines of somebody's
+    // work on a page visit — so the notice IS the whole mitigation. If it stops rendering there is
+    // nothing else between a designer and a proposal that describes a link nobody is building.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= 28; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        w.__E2E.docs = [{ id: 'd1', name: 'Old 28', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+
+    const notice = page.locator('#linksOverLengthNotice');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('28');
+    await expect(notice).toContainText(String(ROTATING_LINES));
+    // The grid still renders the CURRENT rotation — the notice explains the gap, it does not paper
+    // over it by drawing rows the analysis does not count.
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+});
+
+test('links: a design at the current length shows no such notice', async ({ page }) => {
+    // The mirror image, and the one that matters more day to day: a permanently-visible caution on
+    // every normal design would be read past within a week, which is the cry-wolf failure the
+    // fatigue panel's own rules are written around.
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await expect(page.locator('#linksOverLengthNotice')).toBeHidden();
 });
 
 test('links: generating names the construction that produced the design', async ({ page }) => {
@@ -1567,7 +1623,7 @@ test('links: the grid day-headers stick from 768px up, where the table already f
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 28; i++) {
+        for (let i = 1; i <= 22; i++) {
             pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: '06:20-14:20',
                 thu: '06:20-14:20', fri: '06:20-14:20', sat: 'RD' };
         }
@@ -1724,7 +1780,7 @@ test('links: the print button prints, and a work-in-progress sheet says so', asy
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 28; i++) {
+        for (let i = 1; i <= 22; i++) {
             pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD',
                 thu: '15:15-23:55', fri: '15:15-23:55', sat: 'RD' };
         }
@@ -1851,7 +1907,7 @@ test('links: Remove for good spares a design another designer has restored', asy
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 28; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        for (let i = 1; i <= 22; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
         const base = { patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' };
         // What THIS device loaded when the bin was opened.
         w.__E2E.docs = [
@@ -1889,7 +1945,7 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 28; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        for (let i = 1; i <= 22; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
         w.__E2E.docs = [
             { id: 'live', name: 'Option A', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' },
             // Deleted RECENTLY — a 30-day-old deletion is purged on load and the bin button never appears.
@@ -1924,7 +1980,7 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
 const WINDOW_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 function morningOnlyPatterns() {
     /** @type {any} */ const p = {};
-    for (let i = 1; i <= 28; i++) {
+    for (let i = 1; i <= 22; i++) {
         p[String(i)] = {};
         WINDOW_DAYS.forEach(d => { p[String(i)][d] = d === 'sun' ? 'RD' : '06:20-14:20'; });
     }

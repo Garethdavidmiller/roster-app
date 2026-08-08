@@ -23,13 +23,25 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { ROTATING_LINES } from './links-design.js';
+import { CONFIG } from './roster-data.js';
 
-/** Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it. */
+/**
+ * Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it.
+ *
+ * `scope` names the coordinator constants a page's tips strings interpolate. Only Links has any:
+ * four of its entries state the rotation length and one states the main cycle's length, and
+ * `links-rotation-parity.test.mjs` requires the former to be DERIVED rather than typed (the length
+ * went 28 → 22 at v19.98 and left prose behind in fifteen places). So the two guards pull in
+ * opposite directions unless this one supplies the binding — and it supplies the modules' REAL
+ * constants, not stand-ins, so a tips string quoting the wrong number would still have to be wrong
+ * about something else to pass.
+ */
 const PAGES = [
     { js: 'admin-app.js',      html: 'admin.html' },
     { js: 'operations-app.js', html: 'operations.html' },
     { js: 'settings-app.js',   html: 'settings.html' },
-    { js: 'links-app.js',      html: 'links.html' },
+    { js: 'links-app.js',      html: 'links.html', scope: { TOTAL_POS: ROTATING_LINES, CONFIG } },
 ];
 
 /**
@@ -37,8 +49,9 @@ const PAGES = [
  * the defect that prompted this file was a SHAPE error, and a regex for `sections:` would have
  * happily matched the string "sections" anywhere in the entry's HTML.
  * @param {string} file
+ * @param {Record<string, unknown>} [scope] coordinator constants the strings interpolate
  */
-function readCardTips(file) {
+function readCardTips(file, scope = {}) {
     const src = readFileSync(file, 'utf8');
     const at = src.indexOf('CARD_TIPS = {');
     assert.ok(at > -1, `${file}: no CARD_TIPS block found`);
@@ -49,7 +62,13 @@ function readCardTips(file) {
         else if (src[i] === '}' && --depth === 0) { end = i; break; }
     }
     assert.ok(end > -1, `${file}: CARD_TIPS block is not brace-balanced`);
-    return eval('(' + src.slice(start, end + 1) + ')');   // eslint-disable-line no-eval
+    // The scope is passed as real parameters rather than assembled into the source string: a
+    // textual prelude would make an undefined identifier resolve to whatever the harness happened
+    // to have lying about, which is how a guard stops guarding without anyone noticing.
+    const names = Object.keys(scope);
+    // eslint-disable-next-line no-new-func
+    return new Function(...names, 'return (' + src.slice(start, end + 1) + ');')(
+        ...names.map(n => scope[n]));
 }
 
 /** The `data-card` values actually wired to a `?` button. @param {string} file */
@@ -94,9 +113,9 @@ describe('paycalc-help.js — HELP_CONTENT', () => {
     });
 });
 
-for (const { js, html } of PAGES) {
+for (const { js, html, scope } of PAGES) {
     describe(`${js} — tips content`, () => {
-        const tips = readCardTips(js);
+        const tips = readCardTips(js, scope);
 
         test('every entry has a title and a non-empty sections ARRAY', () => {
             const broken = Object.entries(tips)

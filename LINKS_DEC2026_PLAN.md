@@ -20,8 +20,28 @@ and this document had no view that answered "are we ready, and what is stopping 
 **The tool is essentially built. What remains is decisions and a meeting.** Every outstanding row
 below is owned by somebody other than the developer.
 
+> ## ⚠️ THE LINK IS 22 LINES, AND EXCLUDES THE BILINGUAL ROSTER (owner, Aug 2026)
+>
+> The plan changed after most of this document was written. The new link is **22 lines**, and it
+> **does not include the bilingual roster at all** — not its lines, not its shift times, not its
+> work. It is the CEA/main roster **widened from 20 to 22** to increase staffing. Evidence class
+> **C**: "22 is final, we are told", with no document behind it.
+>
+> **Read every 28-line figure below as history.** The `Baseline` and `What the generator produces`
+> sections have been re-measured at 22; anything else quoting 28 describes the superseded design and
+> is left as the record of how the tool was built. `ROTATING_LINES` is 22 (v19.98) and every literal
+> now derives from it.
+>
+> Three things the change does NOT undo, which is most of the value in this document: the ORR factor
+> work, the operating-window and demand features, and the finding that a service increase cannot be
+> absorbed by making existing lines denser. That last one is now the *argument that was won* — 22
+> lines is exactly the "the link has to get bigger" conclusion, arriving from the business rather
+> than from this tool.
+
 | Item | Status | Needed by | Blocker / owner |
 |---|---|---|---|
+| **Rotation length** | ✅ **22, main-only** (owner, Aug 2026) — shipped v19.98. Evidence class C | — | — |
+| **Existing 28-line designs** | ⚠️ **The owner's call.** They still load, are analysed over their first 22 lines, and re-save all 28; the grid says so in an amber notice. Nothing trims them automatically | Before proposals are drawn | **Gareth** — bin them, or keep them as a record |
 | Timetable data (all three simplifiers) | ✅ Final — confirmed not provisional (owner, Aug 2026) | — | — |
 | Existing roster baseline | ✅ Measured (corrected v19.79 — 9 / 8 consecutive days, not 15 / 14) | — | — |
 | Operating-window setting | ✅ Shipped v19.54 | — | — |
@@ -268,8 +288,16 @@ pattern scores, and Nathan will inevitably ask. Measured by running `runDesignCh
 
 | Cycle | Lines | Longest worked stretch | FF11 — longest run between 48h breaks | Short turnarounds (<12h) | Weekends off |
 |-------|-------|------------------------|----------------------------------------|--------------------------|--------------|
-| Main | 20 | **9 days** | **12 shifts** — clear | **0** | 4/20 (20%) |
-| Bilingual | 8 | **8 days** | **15 shifts** — over | **0** | 0/8 |
+| **Main — the comparator** | 20 | **9 days** | **12 shifts** — clear | **0** | 4/20 (20%) |
+| Bilingual — context only | 8 | **8 days** | **15 shifts** — over | **0** | 0/8 |
+
+**The MAIN row is the comparator, and since v19.98 it is the only one.** The 22-line design replaces
+the main 20-line cycle and does not take on the bilingual roster's work, so a bilingual figure is no
+longer a like-for-like anything. The row stays because it is a measured fact about a rotation these
+staff still work, and because its structural cause (below) is the clearest worked example in this
+document of why a spare week is not a 48h break. The workspace's own baseline panel now shows main
+only, with a clause naming what it is a comparator FOR — an unexplained missing row reads as an
+oversight.
 
 > **These figures were 15 / 14 / 15 / 15 until v19.79, and they were wrong.** The tool counted a
 > SPARE week as seven worked days. A spare week is **four** duties of seven (owner, Aug 2026) — you
@@ -277,9 +305,11 @@ pattern scores, and Nathan will inevitably ask. Measured by running `runDesignCh
 > the week always contains a rest day and can never fuse the blocks either side of it. Counting it
 > 7/7 did exactly that, and inflated both cycles by six days.
 >
-> The direction is what makes it serious rather than untidy. **13 consecutive days is the Hidden
-> limit** — from the inquiry into the Clapham Junction crash of 1988, adopted industry-wide and, at
-> Chiltern, carried in company policy (owner, Aug 2026) — so a check reporting 15 was not erring on
+> The direction is what makes it serious rather than untidy. **13 consecutive days is CHILTERN's
+> roster limit**, carried in company policy (owner, Aug 2026); its ORIGIN is the standard the
+> industry adopted after the Hidden report into the 1988 Clapham Junction crash, and **that standard
+> was withdrawn in 2007** — cite it as an origin, never as a current requirement (v19.96, external
+> review). So a check reporting 15 was not erring on
 > the safe side: it reported
 > a breach that does not exist, on the roster people are working right now. Anyone who knows the
 > real link would have discounted the row — and the next design that genuinely does go past 13
@@ -310,37 +340,56 @@ Two things fall out of that, and both matter more than anything else in this doc
    worrying one: it is not crying wolf today, so when it does fire in a proposal it will mean
    something.
 
-**A caution about how that was measured.** Splicing the 20 main lines and the 8 bilingual lines into
-one 28-line sequence returns a longest stretch of **19** — an artefact of joining two unrelated
-rotations end to end, not a property of either. The number above is per real cycle. The tool will
-happily compute a stretch across any 28 lines it is given, so a 28-line design is only meaningful once
-those 28 lines genuinely are one rotation. In the new design they will be; in the baseline they are
-not.
+**A caution about how that was measured, which the v19.98 change makes moot and worth keeping
+anyway.** Splicing the 20 main lines and the 8 bilingual lines into one 28-line sequence returns a
+longest stretch of **19** — an artefact of joining two unrelated rotations end to end, not a property
+of either. The numbers above are per real cycle. The tool will happily compute a stretch across
+however many lines it is given, so a design's figures only mean something once those lines genuinely
+are one rotation. The 22-line design is one rotation by construction; the point survives as the
+general rule.
 
 ## What the generator produces, measured against the real seed
 
-Re-measured v19.75 against the actual roster seed (28 slot rows, 6 spare lines) rather than a
-hand-built target set, because every earlier figure in this section was taken from a reconstruction
-and through a construction that stopped being the default at v19.59.
+**Re-measured at 22 lines (v19.98).** The seed is now the main cycle only — **18 slot rows, 4 spare
+lines** (main 1/7/12/17) — and the design is 22. The previous measurement (v19.75) ran 28 slot rows
+and 6 spare lines against a 28-line design and is superseded; it is not quoted here, because a
+figure from the old shape sitting beside one from the new is how a table stops being readable.
 
-| | live main roster (20 lines) | generated, settled (default) | generated, rotating (fallback) |
+Everything below is the shipped default: settled construction, all five line-order objectives on.
+
+| | live main roster (20 lines) | generated, settled (22, default) | generated, rotating (22, fallback) |
 |---|---|---|---|
-| days per line | 3–7, clustered at 5 | 3–7, clustered at 5 | 3–7, clustered at 5 |
-| longest run | 9 days | **9 days** | 10 days |
-| FF11 (shifts between 48h breaks) | 12 | **12** | 16 |
+| longest worked stretch | 9 days | **8 days** | 8 days |
+| FF11 (shifts between 48h breaks) | 12 | **12** | 13 |
 | short turnarounds | 0 | **0** | **0** |
-| weekends off | 4/20 (20%) | 7/28 (25%) | 6/28 (21%) |
+| weekends off | 4/20 (20%) | **8/22 (36%)** | 7/22 (32%) |
+| longest block on one shift type | 3 | **3** | 4 |
+| week-to-week step, mean / worst | 4h 00m / 8h 46m | **2h 12m / 7h 39m** | 0h 56m / 3h 21m |
+| boundaries over 2h (FF19) | 9 of 20 | **5 of 22** | 1 of 22 |
+| ORR factors present / standing | 4 / 2 | **4 / 2** | 2 / 2 |
+| hard limit — 13 consecutive days | met (9) | **met (8)** | met (8) |
 
-*(The 7s in the days-per-line row are spare weeks — a spare line is marked SPARE on all seven days.
-It is four DUTIES, and the run figures above count it that way; the days-per-line row is counting
-marked days, which is a different question. The live roster has four spare weeks, the seed six.)*
+*(Days per line run 3–7 on all three. The 7s are spare weeks — a spare line is marked SPARE on all
+seven days but works FOUR of them, and the run figures count it that way; days-per-line is counting
+marked days, a different question.)*
 
-**The generator's output is indistinguishable from the real roster on the measures that matter**, and
-matches it exactly on the two that would be dangerous to get wrong: zero short turnarounds, and an
-FF11 of 12 against the live main roster's 12. It does not IMPROVE the longest run — 9 days, the same
-as today's link — which is a property of the targets, not of the construction. Note the fallback
-construction is measurably WORSE on both (10 days, FF11 16), which is one more reason the status
-line names which one produced a design.
+**Widening to 22 improves every measure that moves, and none of them are the ones the design was
+widened for.** The extra two lines carry the same 78 timed duties over 18 working lines instead of
+16, so the longest stretch falls 9 → 8, weekends off nearly double (20% → 36%), and the week-to-week
+step halves. **Rest days on a working line go 2.13 → 2.67.** None of that was the objective; it is
+what two more lines buy at unchanged work, and it is the size of the headroom December's service
+increase will spend.
+
+**The headroom, stated plainly, because this is the number the room will want.** At 18 working lines
+the design supports **+7** duties a week before rest days fall back to today's 2.13, **+12** at 2.00,
+and **+21** at 1.50. That reframes the v19.83 finding rather than retiring it: the link did have to
+get bigger, and it has — what remains is how much of the gain the timetable takes back.
+
+**The generator still matches the real roster on the two measures that would be dangerous to get
+wrong**: zero short turnarounds, and an FF11 of 12 against the live main roster's 12. The fallback
+construction is worse on FF11 (13) and on block length (4) while being gentler on the step — which is
+the trade the switches exist to expose, and one more reason the status line names which construction
+produced a design.
 
 **The owner's target is below the 13-day limit, not at it** (Aug 2026): ideally a new base link
 would not carry even **7** consecutive worked days. The live main roster's non-spare blocks reach
@@ -351,7 +400,7 @@ exactly 7; the generator's reach 6. So the aspiration is already within reach of
 
 - meet every day's total **exactly** — Sun 10, Mon–Fri 16, Sat 14, matching the seed;
 - staff every individual shift TIME at exactly the right level on every day, not merely the totals;
-- fill all 28 lines, none blank;
+- fill every line, none blank;
 - produce **0** short turnarounds;
 - and reordering for the line-order objectives leaves the daily coverage multiset **identical**,
   which is the safety property the whole objectives feature rests on.

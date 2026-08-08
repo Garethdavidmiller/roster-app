@@ -3,6 +3,7 @@
 // render (both grids, headers, diff cells) + the injected-getter seam.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ROTATING_LINES } from './links-design.js';
 
 const els = /** @type {Record<string, any>} */ ({});
 function mkEl() {
@@ -22,9 +23,12 @@ const { initLinksCompare } = await import('./links-compare.js');
 
 const DAYKEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const rest = () => Object.fromEntries(DAYKEYS.map(d => [d, 'RD']));
+// Sized from ROTATING_LINES: compare renders that many rows, and this module held its OWN literal
+// 28 until v19.98 — so a fixture with its own copy would have agreed with the bug rather than
+// catching it.
 function fullPatterns(shift = '06:00-14:00') {
     const p = /** @type {Record<string, any>} */ ({});
-    for (let i = 1; i <= 28; i++) p[String(i)] = { sun: 'RD', mon: shift, tue: shift, wed: shift, thu: shift, fri: shift, sat: 'RD' };
+    for (let i = 1; i <= ROTATING_LINES; i++) p[String(i)] = { sun: 'RD', mon: shift, tue: shift, wed: shift, thu: shift, fri: shift, sat: 'RD' };
     return p;
 }
 

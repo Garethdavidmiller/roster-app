@@ -18,6 +18,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { buildRosterTargets, rosterSeedLines } from './links-seed.js';
+import { ROTATING_LINES } from './links-design.js';
 import { CONFIG, weeklyRoster, bilingualRoster } from './roster-data.js';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -25,35 +26,62 @@ const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const line = (...d) => Object.fromEntries(DAYS.map((k, i) => [k, d[i]]));
 const RD = 'RD', SP = 'SPARE', E = '06:20-14:20', L = '15:15-23:55';
 
-describe('which lines get sampled — the v19.59 bug', () => {
-    test('the seed takes BOTH cycles in full, not a sample of either', () => {
-        // The bug: main's 20 weeks plus only the TWO bilingual weeks the two bilingual members
-        // happen to sit on, applied to a 28-line design. Bilingual 1 and 8 are the spare weeks and
-        // were never seen.
-        assert.equal(rosterSeedLines().length,
-            CONFIG.MAIN_ROSTER_WEEKS + CONFIG.BILINGUAL_ROSTER_WEEKS);
+describe('which lines get sampled — the v19.59 bug, and the v19.98 change of subject', () => {
+    test('the seed takes the WHOLE main cycle — not a sample of it', () => {
+        // v19.59's bug was the sample being too NARROW: main's 20 weeks plus only the TWO bilingual
+        // weeks the two bilingual members happen to sit on. Bilingual 1 and 8 are the spare weeks
+        // and were never seen, so the spare count came back 4 against a then-true 6.
+        assert.equal(rosterSeedLines().length, CONFIG.MAIN_ROSTER_WEEKS);
     });
 
-    test('every line of both rosters is present, by identity', () => {
-        // Length alone would pass on 28 lines drawn from the wrong places. These are the actual
+    test('every main week is present, by identity', () => {
+        // Length alone would pass on 20 lines drawn from the wrong places. These are the actual
         // objects, so a prefix, a duplicate or a substitution all fail.
         const got = rosterSeedLines();
         for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS; w++) {
             assert.ok(got.includes(weeklyRoster[w]), `main week ${w} is missing from the seed`);
         }
+    });
+
+    test('the BILINGUAL roster is not sampled at all — the v19.98 change', () => {
+        // The mirror image of v19.59: the sample being too WIDE. The December 2026 link is 22 lines
+        // of the CEA roster widened and does not take on the bilingual roster's work, so seeding
+        // from it would target shift times no line in the design can legitimately work. This is the
+        // SAME rule as the test above — the seed samples exactly what the design represents — and
+        // both failures are silent, which is why each gets its own case rather than one length
+        // assertion standing in for both.
+        const got = rosterSeedLines();
         for (let w = 1; w <= CONFIG.BILINGUAL_ROSTER_WEEKS; w++) {
-            assert.ok(got.includes(bilingualRoster[w]), `bilingual week ${w} is missing from the seed`);
+            assert.ok(!got.includes(bilingualRoster[w]),
+                `bilingual week ${w} is being sampled into a design that excludes it`);
+        }
+        // And by VALUE, not just identity: a future refactor that copies the lines rather than
+        // referencing them would slip past the check above while seeding the same wrong times.
+        const bilingualOnly = new Set();
+        for (let w = 1; w <= CONFIG.BILINGUAL_ROSTER_WEEKS; w++) {
+            for (const v of Object.values(bilingualRoster[w])) {
+                if (v && v !== 'RD' && v !== 'OFF' && v !== 'SPARE') bilingualOnly.add(v);
+            }
+        }
+        for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS; w++) {
+            for (const v of Object.values(weeklyRoster[w])) bilingualOnly.delete(v);
+        }
+        // Every bilingual time is bilingual-ONLY (measured Aug 2026: 10 of them, zero overlap with
+        // main's 18), so this set is a genuine discriminator rather than a vacuous one.
+        assert.ok(bilingualOnly.size > 0, 'the two rosters now share every time — this check is vacuous');
+        for (const slot of buildRosterTargets().slots) {
+            assert.ok(!bilingualOnly.has(slot.time),
+                `${slot.time} is a bilingual-only shift and must not be seeded`);
         }
     });
 
-    test('the cycle lengths are READ, not written down again', () => {
-        // The coordinator version looped to a literal 20 and 8 while CONFIG held the same two
-        // numbers, so a roster that changed length would have left the seed reading a prefix of it —
-        // the v19.59 shape exactly, silently, again. A behavioural check cannot see this while the
-        // literals still agree with CONFIG, so the source is what gets asserted.
+    test('the cycle length is READ, not written down again', () => {
+        // The coordinator version looped to a literal 20 while CONFIG held the same number, so a
+        // roster that changed length would have left the seed reading a prefix of it — the v19.59
+        // shape exactly, silently, again. A behavioural check cannot see this while the literal
+        // still agrees with CONFIG, so the source is what gets asserted.
         const src = readFileSync(new URL('./links-seed.js', import.meta.url), 'utf8');
         assert.match(src, /CONFIG\.MAIN_ROSTER_WEEKS/);
-        assert.match(src, /CONFIG\.BILINGUAL_ROSTER_WEEKS/);
         // …and no loop bound is a bare number. Comments are stripped first: this file discusses the
         // literals it must not contain, and a naive scan matches its own explanation.
         const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -134,13 +162,14 @@ describe('what is counted from them', () => {
 });
 
 describe('the live roster — the figures the workspace actually seeds from', () => {
-    test('28 lines, 6 spare weeks', () => {
-        // 6 is main 1/7/12/17 plus bilingual 1/8. It read 4 before v19.59, i.e. two whole lines of
-        // standby cover missing from every design that started here. Pinned so it cannot go quiet
-        // again.
+    test('18 slots, 4 spare weeks', () => {
+        // 4 is main lines 1/7/12/17. It was 6 while the bilingual roster was in scope (its 1 and 8),
+        // and 4 for the WRONG reason before v19.59 — the under-sample happened to drop exactly the
+        // two bilingual spare weeks. So this figure has read 4 twice meaning different things, which
+        // is precisely why the identity checks above exist rather than this number alone.
         const { slots, spareLines } = buildRosterTargets();
-        assert.equal(spareLines, 6);
-        assert.equal(slots.length, 28);
+        assert.equal(spareLines, 4);
+        assert.equal(slots.length, 18);
     });
 
     test('every seeded slot is a real time, and the totals fit the design', () => {
@@ -149,8 +178,10 @@ describe('the live roster — the figures the workspace actually seeds from', ()
             assert.match(s.time, /^\d{2}:\d{2}-\d{2}:\d{2}$/, `not a padded time: ${s.time}`);
         }
         // The generator validates targets against the WORKING lines (lines − spareLines), so a seed
-        // that could not fit its own roster would refuse on first use.
-        const working = 28 - spareLines;
+        // that could not fit its own design would refuse on first use. This is the one test that
+        // ties the seed to ROTATING_LINES: a rotation shrunk below what the roster already provides
+        // would make the workspace's default targets unusable on arrival.
+        const working = ROTATING_LINES - spareLines;
         for (const dayClass of ['weekday', 'sat', 'sun']) {
             const total = slots.reduce((n, s) => n + s[dayClass], 0);
             assert.ok(total <= working,

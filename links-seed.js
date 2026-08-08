@@ -21,20 +21,26 @@
  * v19.59: the seed sampled the main roster's 20 weeks plus only the TWO bilingual weeks the two
  * bilingual members happen to sit on, then applied that 22-line sample to a 28-line design.
  * Bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came
- * back as **4** where the real combined roster has **6** — two whole lines of standby cover missing
+ * back as **4** where the then-combined roster had **6** — two whole lines of standby cover missing
  * from every design that started from the seed.
  *
  * It was silent because the part anyone would look at was right: the per-shift daily headcounts all
  * matched the roster. Only the count of whole spare LINES was wrong, and nothing displays that
  * beside its expected value.
  *
+ * **The RULE that fix established is "the seed must sample exactly what the design represents", and
+ * it is untouched by v19.98.** What changed at v19.98 is what a design represents: the December 2026
+ * link is 22 lines of the CEA/main roster WIDENED, and excludes the bilingual roster entirely — not
+ * its lines, not its shift times, not its work (owner, Aug 2026). So the seed reads the main cycle
+ * and nothing else. Adding the bilingual weeks back would seed a 22-line CEA design with ten shift
+ * times no CEA line works, which is the same class of error as v19.59 pointing the other way.
+ *
  * ── THE LATENT REPEAT, NOW FIXABLE ─────────────────────────────────────────────────────────────
  *
- * The coordinator version hardcoded the cycle lengths as `w <= 20` and `w <= 8`, while
- * `CONFIG.MAIN_ROSTER_WEEKS` and `CONFIG.BILINGUAL_ROSTER_WEEKS` sat in `roster-data.js` holding the
- * same two numbers. A roster changing length would have left the seed sampling a prefix of it —
- * under-counting slots and spare lines in exactly the v19.59 shape, silently, again. The lengths are
- * now READ from CONFIG and a test pins that they are.
+ * The coordinator version hardcoded the cycle length as `w <= 20` while `CONFIG.MAIN_ROSTER_WEEKS`
+ * sat in `roster-data.js` holding the same number. A roster changing length would have left the seed
+ * sampling a prefix of it — under-counting slots and spare lines in exactly the v19.59 shape,
+ * silently, again. The length is now READ from CONFIG and a test pins that it is.
  *
  * ── THE ONE DESIGN DECISION ────────────────────────────────────────────────────────────────────
  *
@@ -46,30 +52,29 @@
  * selection back out of reach and reinstate the gap this extraction closes.
  */
 
-import { CONFIG, weeklyRoster, bilingualRoster } from './roster-data.js';
+import { CONFIG, weeklyRoster } from './roster-data.js';
 import { DAYS, dayClass } from './links-design.js';
 
 /** Values that mean "this line is not working a timed duty on this day". */
 const NOT_A_DUTY = new Set(['RD', 'OFF', 'SPARE']);
 
 /**
- * The roster lines the seed samples: the WHOLE main cycle followed by the WHOLE bilingual cycle.
+ * The roster lines the seed samples: the WHOLE main cycle, and only that.
  *
- * Both in full, and that is the v19.59 correction. A 28-line design is 28 because it is main plus
- * bilingual, so the seed has to be main plus bilingual too — which weeks any two people happen to
- * sit on today is a fact about staffing, not about the roster's shape.
+ * In full, which is the v19.59 correction — sampling only the weeks two people happen to sit on
+ * today is a fact about staffing, not about the roster's shape. Main ONLY, which is v19.98: the
+ * design this seeds is 22 lines of the CEA roster widened, with the bilingual roster excluded from
+ * it entirely. The seed samples exactly what the design represents; both changes are that one rule.
  *
- * Lengths come from CONFIG rather than literals, so a cycle that changes length cannot leave this
+ * Length comes from CONFIG rather than a literal, so a cycle that changes length cannot leave this
  * reading a prefix of it.
  *
  * @returns {Array<Record<string, string>|undefined>} one entry per line, in cycle order
  */
 export function rosterSeedLines() {
     const main = /** @type {Record<number, any>} */ (weeklyRoster);
-    const bili = /** @type {Record<number, any>} */ (bilingualRoster);
     const out = [];
     for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS; w++) out.push(main[w]);
-    for (let w = 1; w <= CONFIG.BILINGUAL_ROSTER_WEEKS; w++) out.push(bili[w]);
     return out;
 }
 
