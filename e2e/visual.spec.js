@@ -104,10 +104,20 @@ test('operations — desktop 1280 (signed in)', async ({ page }) => {
     await expect(page).toHaveScreenshot('operations-desktop-1280.png');
 });
 
+// TALL ENOUGH FOR ALL FOUR CARDS (v20.09). At 900px the viewport ended two cards in, so the
+// Notifications and Pay Calculator Data cards were outside the capture entirely — and that is not a
+// hypothetical gap: `.card-explainer` on the Pay Calculator Data card was styled by a stylesheet
+// settings.html does not load, from v19.16 to v20.08, and this baseline could never have seen it.
+// The page is ~1215px at 390 wide with every card open, so 1400 holds it with room for the copy to
+// grow. Same reasoning as paycalc's 2700 — a baseline that stops short is a baseline that quietly
+// stops testing, and the missing part looks identical to a passing one.
 test('settings — mobile 390 (signed in)', async ({ page }) => {
-    await prep(page, { width: 390, height: 900 });
+    await prep(page, { width: 390, height: 1400 });
     await page.goto('/settings.html');
     await settle(page, '.card');
+    // Sentinel: the card that used to fall outside the frame is inside it. Without this, a future
+    // viewport trim silently reverts the coverage and the baseline regenerates as though correct.
+    await expect(page.locator('#payDataCard')).toBeInViewport();
     await expect(page).toHaveScreenshot('settings-mobile-390.png');
 });
 
@@ -604,12 +614,21 @@ test('nav drawer — default state (mobile 390)', async ({ page }) => {
     await page.goto('/');
     await settle(page, '.calendar-day');
     await page.locator('#navMenuBtn').click();
-    // Sentinels before the capture. Reference must be CLOSED and the pills must be one-per-row —
-    // the two decisions this baseline exists to hold. Without them a regression that re-expanded the
-    // section or re-packed the pills would just re-baseline as the new truth on the next
-    // regeneration (the Usage-card lesson, v19.25).
-    await expect(page.locator('#navGuidesToggle')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.locator('#navGuidesList')).toBeHidden();
+    // Sentinels before the capture. Without them a regression that re-packed the pills or flipped
+    // the Reference default would just re-baseline as the new truth on the next regeneration (the
+    // Usage-card lesson, v19.25).
+    //
+    // Reference is EXPANDED by default again (v20.09, owner) — v20.06 closed it on a fold
+    // measurement, and the owner's call is that a collapsed section is one you have to know is
+    // there. Asserted here as a DECISION rather than left to the pixels: the guides must be present
+    // and visible, and the toggle must agree with them. Both halves matter, because
+    // `aria-expanded` and the list's `hidden` were two copies of one state until v20.09 and the
+    // arrow's rotation drifted from exactly that.
+    await expect(page.locator('#navGuidesToggle')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#navGuidesList')).toBeVisible();
+    await expect(page.locator('#navGuidesList a')).toHaveCount(5);
+    // The count chip is the collapsed-state affordance and must not print beside the rows it counts.
+    await expect(page.locator('.nav-panel-guides-count')).toBeHidden();
     const rows = await page.evaluate(() =>
         new Set([...document.querySelectorAll('.nav-panel-pill')]
             .map(el => Math.round(el.getBoundingClientRect().top))).size);

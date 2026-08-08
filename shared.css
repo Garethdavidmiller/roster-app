@@ -1650,7 +1650,18 @@ body.lb-open #stickyTotal { display: none !important; }
     transition: transform 0.2s;
     line-height: 1;
 }
-.nav-panel-guides-toggle.open .nav-panel-guides-arrow { transform: rotate(180deg); }
+/* KEYED ON `aria-expanded`, NOT ON A `.open` CLASS (v20.09). The class was a second copy of a state
+   the button already carries, and expanding the section by default is precisely what made the two
+   disagree: the initial markup said `aria-expanded="true"` with no `.open`, so the arrow pointed
+   DOWN over an open section and stayed that way — the indicator inverted permanently, because the
+   handler only ever toggles from wherever it started. One source of truth cannot drift from itself. */
+.nav-panel-guides-toggle[aria-expanded="true"] .nav-panel-guides-arrow { transform: rotate(180deg); }
+
+/* OPEN, the rows ARE the count — printing it beside them says twice what the reader can already see.
+   It comes back the moment somebody collapses the section, where "Reference ▾" alone reads like a
+   section that failed to render. Hidden in CSS rather than branched in the template, so the count
+   keeps ONE home (see the note beside it in nav-panel.js). */
+.nav-panel-guides-toggle[aria-expanded="true"] .nav-panel-guides-count { display: none; }
 .nav-panel-guides-list { margin-top: 6px; }
 .nav-panel-guides-toggle:active { opacity: 0.6; }
 @media (hover: hover) and (pointer: fine) {
@@ -2263,6 +2274,20 @@ button.nav-panel-link--notices {
     padding: 2px 7px; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .card-year-chip:empty { display: none; }
+
+/* Explanatory paragraph inside a card body — the "here is what this card is for" text that sits
+   above the controls. SHARED since v20.09: it lived in paycalc.css and settings.html had been using
+   it since v19.16 without loading that file, so the Pay Calculator Data card's one paragraph
+   rendered at browser-default size and colour with no line-height. Nothing throws when a class is
+   simply absent — the text is still there and still readable, which is why it survived a release.
+   page-css-parity.test.mjs now fails when one page's HTML uses a class only another page's
+   stylesheet defines. */
+.card-explainer {
+    font-size: var(--type-label);
+    color: var(--text-mid);
+    line-height: 1.55;
+    margin-bottom: 12px;
+}
 
 /* Uppercase micro field label (GRADE, TAX CODE, …) — the app's field-label convention. */
 .field-eyebrow {

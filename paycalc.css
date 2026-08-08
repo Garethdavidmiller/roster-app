@@ -751,9 +751,11 @@
     .disclaimer-extra { display: none; }
     .disclaimer-extra.open { display: inline; }
 
-    .card-explainer {
-      font-size: var(--type-label); color: var(--text-mid); line-height: 1.55; margin-bottom: 12px;
-    }
+    /* .card-explainer MOVED TO shared.css at v20.09 — settings.html had been using it since
+       v19.16 without loading this file, so that paragraph rendered as a bare <p>: browser-default
+       size and colour, no 1.55 line-height, wrong margin. Found by screenshot; now guarded by
+       page-css-parity.test.mjs, which fails when one page's HTML uses a class only another page's
+       stylesheet defines. */
     .hpp-result {
       background: var(--bg-faint); border-radius: var(--radius-md);
       padding: 14px 16px; margin-bottom: 12px; text-align: center;

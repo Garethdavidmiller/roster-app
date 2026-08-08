@@ -98,6 +98,17 @@ h2.section:first-of-type { margin-top: 4px; }
     font-weight: 800;
 }
 
+/* ── A LIST OF THINGS WE HAVE NOT CHECKED MUST NOT WEAR THE "VALID" TICK (v20.09) ────────────────
+   The three reported-but-unwritten-up products reused `.quick-list`, so each arrived with the green
+   ✓ that means "valid on Chiltern" everywhere else on this page and in the key strip at the top —
+   directly under a paragraph saying there is not enough behind them to state a rule. On a page whose
+   entire risk model is not over-claiming, the marker was making the claim the prose refused to.
+   `?` is the same token the block's own heading uses, and amber is the page's "check this" colour. */
+.quick-list--unchecked li::before {
+    content: '?';
+    color: var(--amber);
+}
+
 /* ── Key strip ─────────────────────────────────────────────────────────────── */
 .key {
     display: flex;

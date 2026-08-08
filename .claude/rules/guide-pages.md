@@ -146,3 +146,9 @@ not remove the banner while any card still carries the class — the test will f
   stricter than the railcard guide's two min-fare figures.
 - **The date box gets the `.gotcha`.** It is the only ranger/rover rule a gateline can enforce by
   looking, and the one most likely to be unknown.
+- **A list of things we have NOT checked must not wear the "valid" tick** (`.quick-list--unchecked`,
+  v20.09). The three reported-but-unwritten-up products reused `.quick-list`, which draws a green ✓ —
+  the token the key strip at the top of the page defines as *valid on Chiltern* — directly beneath a
+  paragraph saying there is not enough behind them to state a rule. On a page whose entire risk model
+  is not over-claiming, the marker was making the claim the prose refused to. They now carry an amber
+  `?`, the same token their own heading uses.
