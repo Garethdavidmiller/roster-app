@@ -6,6 +6,44 @@ These are documented decisions, not oversights. Read before filing a bug or sugg
 
 ---
 
+## A failed deploy is now announced — but the gate can still flake (Aug 2026)
+
+**What happened.** The hosting deploy for v19.94 failed its own `npm run check` gate on **one unit
+test out of 1254**, so the workflow exited before deploying. Staff stayed on v19.91 for about two
+hours and nothing said so. It was noticed only because the owner compared the Firebase version
+against the GitHub Pages mirror — which has no test gate at all and had gone straight to v19.94.
+
+**It was a flake, and that is provable rather than assumed.** `e2e.yml`'s `unit` job and
+`deploy-hosting.yml`'s test step run the *identical* `npm run check`. On the same commit the PR's
+job passed and the deploy's failed. A re-run of the same code then went green. Locally it would not
+reproduce in six runs of the unit suite, nor in three more of the six most timing-dependent suites
+under eight CPU spinners.
+
+**The failing test was not identified.** The job log is far too large to retrieve through the API
+and its tail contains only passing lines. If this recurs, pull the log promptly — that is the one
+chance to name it.
+
+**Frequency:** 1 in the last 30 hosting deploys (746 all-time).
+
+### What was fixed, and what was not
+
+Fixed: the SILENCE. All three deploy workflows now open (or comment on) a `deploy-failure` GitHub
+issue via `.github/actions/report-deploy-failure`. Read that action's header for why an issue rather
+than email or push.
+
+NOT fixed: the flake itself, and deliberately. An automatic retry would have hidden this one, but it
+also hands a genuinely intermittent product bug a second chance to reach staff. The gate stays
+single-shot; the notification tells you to re-run when the failure is spurious.
+
+**Two properties of the notification worth preserving.** It never fails the job — every command is
+`|| echo "::warning::…"`, because it only runs when something has already gone wrong and must not
+bury the real error under a second one. And repeated failures COMMENT on the open issue rather than
+opening a second: a run of consecutive failures is one situation, and N issues is how a notification
+channel teaches its reader to ignore it.
+
+**A deploy failure does not fix itself.** `paths-ignore: '**/*.md'` means a documentation-only commit
+will not retry it, so production can stay stale indefinitely until an unrelated change lands.
+
 ## Security
 
 > **Forward plan:** the deferred security work in this section (per-member write isolation,

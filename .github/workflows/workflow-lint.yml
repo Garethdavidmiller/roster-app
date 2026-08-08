@@ -16,6 +16,15 @@ name: Workflow Lint
 # remote scripts" rule. It relied on PyYAML being preinstalled until v19.13 — present
 # today, but not a documented guarantee of a moving runner image.
 #
+# COMPOSITE ACTIONS ARE VALIDATED TOO (added with the first one, Aug 2026). `.github/actions/**`
+# was outside both the trigger and the glob, so an action's YAML was never parsed by anything — and
+# the very first one written had a real error in it: an unquoted `description:` containing the text
+# `issues: write`, whose `: ` YAML reads as a nested mapping. Same shape as every other
+# hand-maintained list in this repo that stopped covering what arrived after it. An action gets its
+# OWN structural checks, not the workflow ones — it has `runs:`, not `on:`/`jobs:` — plus the check
+# that catches the classic composite mistake: a `run:` step with no `shell:`, which GitHub rejects
+# only at call time, i.e. in the middle of whatever the action was supposed to be reporting on.
+#
 # It also enforces `timeout-minutes` on every job (added Jul 2026). No job had one, so each
 # inherited GitHub's 6-HOUR default — a hung runner would have blocked the branch for
 # the rest of the day, and on a required check nothing else could merge either. The
@@ -26,9 +35,11 @@ on:
   push:
     paths:
       - '.github/workflows/**'
+      - '.github/actions/**'
   pull_request:
     paths:
       - '.github/workflows/**'
+      - '.github/actions/**'
   workflow_dispatch:
 
 permissions:
@@ -64,8 +75,18 @@ jobs:
               sys.exit(1)
 
           any_failed = False
-          for path in sorted(glob.glob('.github/workflows/*.yml') +
-                             glob.glob('.github/workflows/*.yaml')):
+          workflows = sorted(glob.glob('.github/workflows/*.yml') +
+                             glob.glob('.github/workflows/*.yaml'))
+          actions   = sorted(glob.glob('.github/actions/*/action.yml') +
+                             glob.glob('.github/actions/*/action.yaml'))
+          if not workflows:
+              # A glob that matches nothing passes vacuously, which is the one way this job could
+              # report success while validating no files at all.
+              print('::error::no workflow files matched — the glob is wrong, nothing was validated')
+              sys.exit(1)
+
+          for path in workflows + actions:
+              is_action = path.startswith('.github/actions/')
               errors = []
               try:
                   with open(path) as f:
@@ -78,6 +99,32 @@ jobs:
               if not isinstance(doc, dict):
                   print(f'::error file={path}::top level is not a mapping')
                   any_failed = True
+                  continue
+
+              if is_action:
+                  runs = doc.get('runs')
+                  if not isinstance(runs, dict):
+                      errors.append('missing or malformed `runs:` block')
+                  else:
+                      if not runs.get('using'):
+                          errors.append('`runs:` has no `using:`')
+                      if runs.get('using') == 'composite':
+                          steps = runs.get('steps')
+                          if not isinstance(steps, list) or not steps:
+                              errors.append('a composite action needs a non-empty `runs.steps:`')
+                          else:
+                              for i, st in enumerate(steps):
+                                  # GitHub rejects a composite `run:` step with no `shell:` — but
+                                  # only when the action is CALLED, which for this one means in the
+                                  # middle of reporting a deploy failure.
+                                  if isinstance(st, dict) and 'run' in st and not st.get('shell'):
+                                      errors.append(f'composite step {i} has `run:` but no `shell:`')
+                  if errors:
+                      any_failed = True
+                      for msg in errors:
+                          print(f'::error file={path}::{msg}')
+                  else:
+                      print(f'ok: {path}')
                   continue
 
               # PyYAML parses the bare `on:` key as Python boolean True (YAML 1.1),

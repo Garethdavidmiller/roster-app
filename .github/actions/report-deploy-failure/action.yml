@@ -1,0 +1,119 @@
+name: Report a failed deploy
+description: >
+  Open (or update) a GitHub issue when a deploy workflow fails, so a stale
+  production is announced rather than discovered.
+
+# ── WHY THIS EXISTS ───────────────────────────────────────────────────────────────────────────
+#
+# A failed deploy used to be SILENT. On 7 Aug 2026 the hosting deploy for v19.94 failed its own
+# test gate on a flaky unit test (1 of 1254 — the identical `npm run check` had passed on the same
+# commit in the PR's own `unit` job minutes earlier, and a re-run of the same code went green).
+# The workflow exited before deploying, so staff stayed on v19.91, and nothing said so.
+#
+# Two things made that invisible rather than merely unlucky:
+#
+#   * The app is offline-first, so every already-installed phone kept launching happily from its
+#     service-worker cache. CLAUDE.md's standing warning — "My phone works is never evidence the
+#     site is up" — is exactly this case.
+#   * `paths-ignore: '**/*.md'` means a documentation-only commit does NOT retry the deploy. That
+#     is correct (docs change nothing served) but it also means a failed deploy is NOT
+#     self-healing: production stays stale until some unrelated non-docs change lands on main.
+#
+# It was caught only because the owner noticed Firebase reading v19.91 while the GitHub Pages
+# mirror — which has no test gate at all — read v19.94. That is too thin a thread to rely on.
+#
+# ── WHY AN ISSUE, RATHER THAN EMAIL OR PUSH ───────────────────────────────────────────────────
+#
+# An issue needs no new secret and no new infrastructure. Email would need a mail relay the project
+# does not have (the same blocker that has PASSWORD_PLAN Track C2 parked). A Web Push would mean
+# handing CI a credential for the app's own notification endpoint — a wider surface than the
+# problem justifies, and `.claude/rules/notifications.md` is a design language for STAFF
+# notifications, whereas this is developer-facing.
+#
+# An issue is also persistent: it survives an unread email and stays open until somebody closes it.
+#
+# ── THE DEDUPE RULE ───────────────────────────────────────────────────────────────────────────
+#
+# Repeated failures COMMENT on the existing open issue rather than opening a second one. A run of
+# consecutive failures is one situation, not N situations, and N issues is how a notification
+# channel teaches its reader to ignore it.
+#
+# ── AND IT NEVER FAILS THE JOB ────────────────────────────────────────────────────────────────
+#
+# Every command is `|| echo "::warning::…"`. This step runs only when something has ALREADY gone
+# wrong; if the notification itself cannot be delivered it must not bury the real error under a
+# second one. A missing notification is bad — a masked root cause is worse.
+
+inputs:
+  target:
+    description: 'What was being deployed (e.g. Firebase Hosting) — used in the issue title.'
+    required: true
+  token:
+    description: 'GITHUB_TOKEN. The calling job needs issues-write permission.'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Open or update the deploy-failure issue
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TARGET: ${{ inputs.target }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SHA: ${{ github.sha }}
+        WORKFLOW: ${{ github.workflow }}
+      run: |
+        set -uo pipefail
+        LABEL="deploy-failure"
+
+        # The app version AT THIS COMMIT — context, not a claim about what is live. The workflow
+        # cannot know what is live (that is whatever the last successful deploy shipped), and
+        # guessing would be worse than saying nothing.
+        VERSION=$(grep -oE "APP_VERSION = '[^']+'" roster-data.js 2>/dev/null | grep -oE "[0-9]+\.[0-9]+" || true)
+        [ -n "${VERSION:-}" ] || VERSION="unknown"
+
+        BODY=$(printf '%s\n' \
+        "**${TARGET} did not deploy.** Production is still running whatever the last successful" \
+        "deploy shipped — this commit did **not** go out." \
+        "" \
+        "| | |" \
+        "|---|---|" \
+        "| Workflow | \`${WORKFLOW}\` |" \
+        "| Commit | \`${SHA}\` |" \
+        "| App version at this commit | \`v${VERSION}\` |" \
+        "| Run | ${RUN_URL} |" \
+        "" \
+        "### Why this needs looking at rather than ignoring" \
+        "" \
+        "The app is offline-first, so **installed phones keep working from cache** and will show no" \
+        "sign of this. Checking your own phone proves nothing — CLAUDE.md → *\"The installed PWA" \
+        "masks live-site breakage\"*." \
+        "" \
+        "It also does **not** fix itself: a documentation-only commit will not retry the deploy" \
+        "(\`paths-ignore: '**/*.md'\`), so production can stay stale indefinitely." \
+        "" \
+        "### What to do" \
+        "" \
+        "1. Open the run above and find the failing step." \
+        "2. **If it is a flaky test** — this has happened (v19.94: one unit test of 1254, passing on" \
+        "   the same commit everywhere else) — re-run the workflow, or dispatch it from the Actions" \
+        "   tab. Both re-run the whole gate, so a genuine failure still cannot slip through." \
+        "3. **If it is a real failure** — fix forward on a branch as usual. Do not weaken the gate." \
+        "4. Close this issue once the live version matches." )
+
+        gh label create "$LABEL" --color B60205 \
+          --description "A deploy workflow failed and production may be stale" 2>/dev/null || true
+
+        EXISTING=$(gh issue list --state open --label "$LABEL" --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)
+
+        if [ -n "${EXISTING:-}" ]; then
+          echo "Commenting on the open deploy-failure issue #$EXISTING"
+          gh issue comment "$EXISTING" --body "$BODY" \
+            || echo "::warning::Could not comment on issue #$EXISTING — the real failure is above."
+        else
+          echo "Opening a deploy-failure issue"
+          gh issue create --title "⚠️ Deploy failed — ${TARGET} did not update" \
+            --label "$LABEL" --body "$BODY" \
+            || echo "::warning::Could not open a deploy-failure issue — the real failure is above."
+        fi
