@@ -44,7 +44,8 @@ import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.j
 // subscription renewal — awaits this so none runs before request.auth is set. Without it,
 // an already-installed PWA re-saved its push subscription with no auth user → the write was
 // rejected by the `request.auth != null` rule → the bell stuck "off-lapsed" with no retry.
-// See ROADMAP → "Deferred security/reliability backlog" (the v14.23–28 push-subscription auth race fix).
+// See ROADMAP_HISTORY.md → "Deferred security/reliability backlog (v14.11 review)"
+// (the v14.23–28 push-subscription auth race fix).
 // reconcileExpiredIdentity() FIRST (Finding #9): if a NAMED Firebase identity was restored from
 // IndexedDB but the local app session has expired, sign it out here — the coordinated teardown the
 // getSession() note prescribes (the calendar is the PWA start_url, so this runs on nearly every

@@ -17,6 +17,9 @@ deferred. Not version-stamped; not a runtime asset.
 
 ## Current auth-flag state
 
+*Track-level status is `SECURITY_RELEASE_PLAN.md`'s canonical table. This table is narrower and is
+what only this file knows: the FLAG VALUES the incident turned on, and why each is where it is.*
+
 | Flag / rule | Value now | Why |
 |-------------|-----------|-----|
 | `CONFIG.ENFORCE_NAMED_SESSION` (B1) | **`true`** (re-enabled v14.98) | Exonerated (freeze persisted with B1 off); re-enabled once login was stable on the v14.75 fix |

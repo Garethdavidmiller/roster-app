@@ -1,18 +1,35 @@
 # PASSWORD_PLAN.md — chosen passwords + admin reset (Track C-lite)
 
-> **STATUS: Phases 0, 1 and 2 SHIPPED (Phase 0+1 v18.63; Phase 2 v18.92).** The decisions table (§10) was confirmed and built —
-> gated dual-attempt sign-in (`credentialCandidatesFor` → `ensureFirebaseSession`), the Settings
-> Password card + `savePasswordSetAt`, the `resetMemberPassword` admin break-glass Cloud Function, the
-> `passwordStatus` collection + rules, and the Operations Account-status table are all live. **Phase 2 (the forced
-> overlay) is live** as `password-force.js`, gated by the `CONFIG.FORCE_PASSWORD_SET` kill switch: any
-> member still on the surname default is compelled at their NEXT SIGN-IN (owner decision, 25 Jul 2026 —
-> "force everyone, but only on the next log in"; nobody is signed out to accelerate it). The
-> **reset-request queue** (§12, v18.93) and its **admin notification** (§14, v18.95) are also live —
-> that is the queue's own two-step phasing, unrelated to the plan's Phase numbers. **Still to
-> come:** C2 (email-based self-service reset, needs an email relay) and C5 (retire the surname default
-> once ≥90% have migrated). Sections below that
-> read in future tense describe the design as it was written *before* the build — treat them as the
-> spec, not a to-do list.
+## Current state
+
+| Phase | What it is | State |
+|---|---|---|
+| **0 — enabler** | Sign-in rework: gated dual-attempt (`credentialCandidatesFor` → `ensureFirebaseSession`), flag-independent credential rejection, page-load re-establishment | ✅ v18.63 |
+| **1 — capability + recovery + visibility** | Settings Password card + `savePasswordSetAt` · `resetMemberPassword` break-glass · `passwordStatus` collection + rules · Operations Account-status table · Settings nudge | ✅ v18.63 |
+| **2 — compel** | Forced set-password overlay (`password-force.js`), kill-switched by `CONFIG.FORCE_PASSWORD_SET` | ✅ v18.92 |
+| **Reset-request queue** | Login overlay "Can't get in?" → `requestPasswordReset` → admin queue (§12), + targeted admin push (§14) | ✅ v18.93 / v18.95 |
+| **C2 — email verification/reset** | The email half, deferred from the start | ⏸ Needs an email relay |
+| **C5 — retire the surname default** | Irreversible. ≥90% migrated | ⏸ Also gated on Track E |
+
+> **Status of record is `SECURITY_RELEASE_PLAN.md` → the canonical track table.** This file owns the
+> DESIGN and the implementation record; it must not restate a stage. The table above is a convenience
+> index into the sections below, not a second source.
+
+**Two things only this file knows, and both are load-bearing:**
+
+- **Phase 2 compels at NEXT SIGN-IN and nobody is signed out to accelerate it** (owner, 25 Jul 2026 —
+  "force everyone, but only on the next log in"). Sessions cap at 30 days absolute / 7 idle, so
+  coverage completes itself inside 30 days and staggers by each member's own expiry rather than
+  landing on everyone at once.
+- **C5 cannot converge on Phase 2 alone.** A member who only ever reads the roster signs in nowhere,
+  so is never compelled — reaching them is Track E. Retiring the surname default is therefore gated
+  on a decision in a different track, which is easy to miss when reading "≥90% migrated".
+
+**Sections written in future tense are the SPEC as designed, not a to-do list.** Everything from §11
+onward is the implementation record — kept because it has demonstrably prevented repeat bugs, but it
+is history, not work.
+
+---
 
 *The agreed design for replacing surname-derived passwords with **user-chosen passwords**, with the
 **admin reset button as the recovery channel** — no email, no security questions. This is
@@ -95,7 +112,7 @@ resolve to identity `'none'` + a re-sign-in prompt **regardless of `ENFORCE_NAME
 anonymous fallback (flag-off behaviour) keeps its original job — resilience to *network* failures —
 and only that. Without this, the documented one-line rollback (flip the flag off) becomes a trap
 once anyone has migrated: surname attempt fails → silent anonymous session → strict B3 rules
-silently deny every write — exactly the v10.94 class. This is also the `ROADMAP.md` Stage-3
+silently deny every write — exactly the v10.94 class. This is also the `ROADMAP_HISTORY.md` Stage-3
 prerequisite ("catch wrong-password… surface a prompt rather than silently falling back"), fully
 implemented rather than only on the fresh-login path.
 
@@ -292,10 +309,24 @@ narrowed and SECURITY_RELEASE_PLAN's deferred-residual section should be read al
 | 4 | Reset button: **admin-only** (not managers) | ✅ Confirmed + shipped v18.63 |
 | 5 | Go/no-go on building Phase 0+1 | ✅ Given — Phase 0+1 built v18.63 |
 
-*Phase 0+1 shipped v18.63 (decisions 1–5 confirmed). Phase 2 (forced set-your-own overlay) remains a
-future decision; C2 (email reset) + C5 (retire surname) are still open — see SECURITY_RELEASE_PLAN.md → Track C.*
+*Phase 0+1 shipped v18.63 (decisions 1–5 confirmed). **Phase 2 shipped v18.92** — see §11. C2 (email
+reset) and C5 (retire the surname) remain open; status lives in SECURITY_RELEASE_PLAN.md → the
+canonical track table.*
+
+> **This line read "Phase 2 … remains a future decision" until v19.97** — three lines above a section
+> headed "Phase 2 as built (v18.92)", and directly below a phasing table (§7) already marked
+> ✅ SHIPPED v18.92. So the file contradicted itself twice over, and it took an external review to
+> notice rather than anyone reading it. That is the argument for the canonical status table: a status
+> restated in four places is a status wrong in at least one.
 
 ---
+
+# ── HISTORICAL IMPLEMENTATION RECORD ────────────────────────────────────────────
+
+*Everything below is what was BUILT and what successive reviews found. It is kept in full — it has
+demonstrably prevented repeat bugs, and several entries are the only record of why a mechanism has
+the shape it does. But it is history: nothing below is outstanding work, and it should not compete
+for attention with the two open items (C2, C5) named at the top of this file.*
 
 ## 11. Phase 2 as built (v18.92)
 

@@ -1,6 +1,7 @@
 # AUTH_PLAN.md — full-app authentication (Track E)
 
-*Not version-stamped; not a runtime asset. Companion to `SECURITY_RELEASE_PLAN.md` → Track E.*
+*Not version-stamped; not a runtime asset. Companion to `SECURITY_RELEASE_PLAN.md` → Track E, whose
+canonical track table owns the STATUS of every phase. This file owns the DESIGN.*
 
 **Which doc owns what.** `SECURITY_RELEASE_PLAN.md` is the *sequencing and risk* master across Tracks
 A–E and keeps the phase list (E0…E6) in the order they may ship. **This file is authoritative for the
@@ -361,6 +362,31 @@ Shipping the soft posture blind means guessing at the hard cutover. `perf-report
 
 Two weeks turns "is a login wall on the home screen acceptable?" from an opinion into a number.
 
+### ⚠️ PRE-REGISTER THE DECISION RULE — before the telemetry starts, not after (v19.97)
+
+Collecting four numbers is only half a decision procedure. This section said what to measure and
+never said **what result means GO to E5 versus STOP and revise E3–E4**, which leaves the choice to be
+made after seeing the figures — and a threshold chosen after the fact is not a threshold, it is a
+rationalisation. The whole reason for measuring is to be bound by the answer.
+
+**The rule: the owner writes the thresholds down BEFORE the E3 telemetry is switched on, and they
+may not be revised once data exists.** Revising them afterwards is allowed exactly once and must be
+recorded here as a change of mind, with the reason, so it is visible rather than silent.
+
+They do not have to be invented today — only before E3 ships. The shape they should take:
+
+| Metric | Pre-registered threshold | Meaning if breached |
+|---|---|---|
+| Login-failure rate at the wall | _to be set_ | The wall is rejecting legitimate staff — revise E3, do not proceed |
+| Grace-mode reliance | _to be set_ | Offline is doing more work than designed; E4 is load-bearing, not a safety net |
+| Launches resolved by an existing session | _to be set_ | If low, the wall is a daily event rather than an occasional one |
+| `neverSignedIn` count at cutover | _to be set_ | The population E5 would lock out with no route back in |
+| Migration percentage (Track C) | ≥90% (already agreed for C5) | — |
+
+**Fill these in before E3, in this table, dated.** An empty cell at E3 ship time is itself a
+stop condition: it means the experiment has no failure criterion, so it can only ever conclude
+"proceed".
+
 ---
 
 ## 7. Owner decisions
@@ -368,6 +394,7 @@ Two weeks turns "is a login wall on the home screen acceptable?" from an opinion
 | Decision | Blocks | Notes |
 |---|---|---|
 | **Which bar — casual, or motivated outsider?** | the gate after E2 | The one answer that decides day-vs-weeks. May be dictated by IT. |
+| **The E3 decision thresholds (§6)** | E3 | Must be written down BEFORE telemetry starts. An empty table at E3 ship time is a stop condition. |
 | Is a login wall on the home screen acceptable? | E3 | The calendar is opened many times a day. |
 | Is grace mode (§4) an acceptable answer to offline? | E4 | If not, the alternative is longer sessions, not "accept the lockout". |
 | Member selector vs identity | E3 | Default to your own roster, or keep a free selector with login as a pure gate? UX, not security. |

@@ -502,7 +502,7 @@ action**.
 **When to revisit:** if the app is advertised more widely or becomes official Chiltern
 infrastructure. Of the deferred security work, per-member write isolation (task #2 above) had
 the higher real value and has now **SHIPPED strict at v16.29** (B3). Its old blocker — the
-Firestore emulator test suite (ROADMAP Phase 7) — was put **in place** (`firestore.rules.test.mjs`
+Firestore emulator test suite (ROADMAP_HISTORY.md → Maintainability roadmap, Phase 7) — was put **in place** (`firestore.rules.test.mjs`
 + `storage.rules.test.mjs`, run via `npm run test:rules`, gating `deploy-rules.yml`), letting the
 rules change be tested before shipping. The old operational-fragility barrier (the multi-step claim
 recovery that caused the v10.94 outage) was resolved by shipping after the CLAIM_EPOCH=2 sweep +
@@ -1003,7 +1003,7 @@ added first.
 dev environment (`/opt/pw-browsers`), giving back the local iteration loop whose
 absence forced the v12.75 removal. The suite (`e2e/`, `npm run test:e2e`) runs in CI
 and gates the hosting deploy; `@playwright/test` is pinned to `1.56.1` to match the
-pre-installed browser revision. Full restoration notes: ROADMAP.md → "E2E smoke tests".
+pre-installed browser revision. Full restoration notes: ROADMAP_HISTORY.md → "Completed phases and everything shipped since" (E2E smoke tests).
 The original removal rationale is preserved below.
 
 Playwright smoke tests were added to verify that each app page loads, the JS module graph
@@ -1034,7 +1034,8 @@ options before committing to Playwright again.** The key questions are:
 - The Firebase CDN stub approach was sound — whatever tool is chosen should reuse that
   pattern or find an equivalent way to eliminate the CDN single point of failure.
 
-See ROADMAP.md → "E2E smoke tests" for the full history and the original test design.
+See ROADMAP_HISTORY.md → "Completed phases and everything shipped since" (E2E smoke tests)
+for the full history and the original test design.
 
 ### Legacy override types still in Firestore
 Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but
@@ -1128,23 +1129,23 @@ appear in DevTools and the Operations Error Log.
 
 ## Time-boxed maintenance (deadlines, not bugs)
 
-Scheduled maintenance with real-world deadlines (rescued from the retired `REVIEW_TODO.md`, v15.06).
-Not defects — things that must be done *before* a future date.
+> **MOVED to `MAINTENANCE_CALENDAR.md` (v19.97).** Every dated obligation now lives there, with a
+> **warning point earlier than its deadline** — "must be done by 6 April" reliably becomes "started
+> on 4 April", and this section had no warning dates at all. It also sat at line ~1,130 of a
+> 1,190-line file about *defects*, which is not where anyone looks for a tax-year rollover.
+>
+> Not duplicated here. This section is a signpost so a reader arriving from a code comment or an
+> old link still finds the work.
 
-- **Paycalc period selector ends ~P62 (≈ March 2027).** Before April 2027, extend `TAX_YEARS` +
-  `FIRST_OFFSET`/`LAST_OFFSET` + the tax thresholds in `paycalc-calc.js` (documented rollover task)
-  so the period selector keeps advancing into 2027/28.
-- **Override collection scale.** Define an archival strategy before the `overrides` collection
-  reaches ~5000 documents (query cost + client cache size). A watch item — no action needed yet.
-- **`MAX_YEAR` 2030 → 2032** before the end of 2028 (update the lunar / bank-holiday data first).
-- **2026/27 pay rates** — see "2026/27 pay rates not confirmed" above (update `GRADES` when the award lands).
-- **A new starter's work email is now only ever entered by hand (v19.30).** The login overlay that
-  used to prompt for it was retired once every existing member was registered, so nothing asks any
-  more. It is a step in the `/new-starter` checklist (Operations → Account status → Set), and the
-  member can add it themselves in Settings → Work Email — but if both are missed the account simply
-  has no email on file and nothing says so. The Account status table's Email column is the only place
-  it shows. Worth a glance after each new starter; if joiners ever become frequent enough that this
-  is missed repeatedly, the fix is a count chip on that card, not a return of the modal.
+What is over there: the **2027/28 paycalc rollover** (hard deadline 6 Apr 2027, warning Feb 2027 —
+the period selector runs out at ≈ P62 and does not warn, it simply stops offering periods),
+**`MAX_YEAR` 2030 → 2032** (end 2028, lunar/bank-holiday data first), the **override-count archive
+trigger** (design at ~4,000, must land before ~5,000), the recurring guide and pay-threshold source
+reviews, and the **after-every-new-starter** checks — including the work email, which since v19.30
+nothing prompts for.
+
+The one item that stays here because it is a *constraint*, not a date: **2026/27 pay rates** — see
+"2026/27 pay rates not confirmed" above (update `GRADES` when the award lands; evidence class B).
 
 ---
 
