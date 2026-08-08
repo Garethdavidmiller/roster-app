@@ -370,7 +370,7 @@ async function openLinksWithDesign(page) {
         const patterns = /** @type {any} */ ({});
         // ROTATING_LINES (22). Written out rather than imported: this runs inside the PAGE, where a
         // module import is not available. It is checked against the constant below.
-        for (let i = 1; i <= 22; i++) {
+        for (let i = 1; i <= 24; i++) {
             patterns[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20',
                 wed: '06:20-14:20', thu: '14:00-22:00', fri: 'RD', sat: 'RD' };
         }
@@ -1459,9 +1459,14 @@ test('links: the roster seed samples the whole MAIN cycle and nothing else', asy
     // The seed has been wrong in both directions and the symptom was the same number either time.
     // v19.59: main's 20 weeks plus only the TWO bilingual weeks two bilingual members happen to sit
     // on — bilingual 1 and 8 are the SPARE ones and were never seen, so it read 4 against a then-true
-    // 6. v19.98: the design excludes the bilingual roster entirely, so the true answer is main
+    // 6. v19.98: the design excludes the bilingual roster entirely, so the MEASURED answer is main
     // 1/7/12/17 — 4 again, for a completely different reason. That coincidence is why the identity
     // and shift-time checks live in links-seed.test.mjs; this figure alone cannot tell them apart.
+    //
+    // FIVE is what the field shows, not four: the measured 4 plus `EXTRA_SPARE_WEEKS`, the cover week
+    // the widened link adds (owner, v20.01). Asserting the SEEDED figure here is the point — the unit
+    // tests already pin the measurement, and what a browser adds is that the button puts the number
+    // the generator will actually use into the box.
     //
     // Driven through the real "Reset targets from current roster" button, because what only a browser
     // can prove is that the BUTTON reaches the seed and repaints the table.
@@ -1470,7 +1475,7 @@ test('links: the roster seed samples the whole MAIN cycle and nothing else', asy
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
     await page.locator('#genSeedBtn').click();
-    await expect(page.locator('#genSpareLines')).toHaveValue('4');
+    await expect(page.locator('#genSpareLines')).toHaveValue('5');
 });
 
 test('links: the rotation length the in-page fixtures assume', () => {
@@ -1480,7 +1485,7 @@ test('links: the rotation length the in-page fixtures assume', () => {
     // rotation exercises the legacy-design path (surplus rows, the over-length notice) while every
     // assertion still passes, and a fixture SHORTER leaves undesigned rows that the "every line
     // filled" checks would then be wrong about.
-    expect(ROTATING_LINES).toBe(22);
+    expect(ROTATING_LINES).toBe(24);
 });
 
 test('links: a design saved against a LONGER rotation says so', async ({ page }) => {
@@ -1646,7 +1651,7 @@ test('links: the grid day-headers stick from 768px up, where the table already f
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 22; i++) {
+        for (let i = 1; i <= 24; i++) {
             pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: '06:20-14:20',
                 thu: '06:20-14:20', fri: '06:20-14:20', sat: 'RD' };
         }
@@ -1803,7 +1808,7 @@ test('links: the print button prints, and a work-in-progress sheet says so', asy
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 22; i++) {
+        for (let i = 1; i <= 24; i++) {
             pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD',
                 thu: '15:15-23:55', fri: '15:15-23:55', sat: 'RD' };
         }
@@ -1930,7 +1935,7 @@ test('links: Remove for good spares a design another designer has restored', asy
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 22; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        for (let i = 1; i <= 24; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
         const base = { patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' };
         // What THIS device loaded when the bin was opened.
         w.__E2E.docs = [
@@ -1968,7 +1973,7 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 22; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        for (let i = 1; i <= 24; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
         w.__E2E.docs = [
             { id: 'live', name: 'Option A', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' },
             // Deleted RECENTLY — a 30-day-old deletion is purged on load and the bin button never appears.
@@ -2003,7 +2008,7 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
 const WINDOW_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 function morningOnlyPatterns() {
     /** @type {any} */ const p = {};
-    for (let i = 1; i <= 22; i++) {
+    for (let i = 1; i <= 24; i++) {
         p[String(i)] = {};
         WINDOW_DAYS.forEach(d => { p[String(i)][d] = d === 'sun' ? 'RD' : '06:20-14:20'; });
     }
@@ -2070,6 +2075,31 @@ test('links window: compare states BOTH windows and flags that they differ', asy
     expect(await page.locator('.compare-window--differs').count()).toBe(2);
 });
 
+test('links: the summary strip names WHICH design it describes, but only in compare mode', async ({ page }) => {
+    // Every figure in the strip comes from the ACTIVE design. With two grids on screen an
+    // unlabelled "22 lines designed · All service covered · N fatigue factors" reads as a verdict on
+    // the COMPARISON, which is the one thing it is not.
+    //
+    // Both halves are asserted, and the second is the one that keeps this honest: labelling the
+    // ordinary single-design view too would be noise, and a chip that is always there says nothing.
+    await openWindowDesign(page, [{
+        id: 'b', name: 'Later Sunday', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva',
+    }]);
+
+    const who = page.locator('#linksSummary .sum-chip--who');
+    await expect(who, 'the ordinary view names no design — there is only one on screen').toHaveCount(0);
+
+    await page.locator('button:has-text("Compare")').first().click();
+    await expect(page.locator('.compare-window').first()).toBeVisible();
+    await expect(who).toHaveCount(1);
+    // It must name the ACTIVE design, not just any of them — a chip carrying the wrong name is
+    // worse than no chip, because it attributes the figures to the design they do not describe.
+    const active = (await page.locator('.design-chip--active').first().textContent() || '').trim();
+    expect(active.length, 'no active design chip to compare against').toBeGreaterThan(0);
+    expect(active).toContain((await who.textContent() || '').trim());
+});
+
 test('links window: the printed sheet states the window it was designed to', async ({ page }) => {
     // A circulated sheet is read away from the app; without this a proposal built to a moved
     // Sunday finish is indistinguishable from one built to the standard hours.
@@ -2131,13 +2161,12 @@ test('links window: generating the FIRST design reveals the window editor', asyn
         .map(r => [...r.querySelectorAll('.shift-cell-btn')].filter(b => b.textContent.trim() === 'SP').length));
     expect(spareDays.every(n => n === 0 || n === 7),
         `every line is spare all week or not at all — got ${spareDays.join(',')}`).toBe(true);
-    // FOUR — main lines 1/7/12/17 (v19.98, main-only seed). It was SIX while the bilingual roster
-    // was in scope (its 1 and 8), and four before v19.59 for the WRONG reason: the under-sample
-    // happened to drop exactly those two bilingual spare weeks. So this figure has read 4 twice
-    // meaning different things, which is why the seed's line IDENTITY and its exclusion of
-    // bilingual-only shift times are pinned in links-seed.test.mjs rather than here. What this
-    // assertion is for is the DISTRIBUTION above — that the count survives the whole generate →
-    // render path with every spare line still whole.
+    // FIVE — the roster's measured four (main 1/7/12/17) plus `EXTRA_SPARE_WEEKS` (owner, v20.01).
+    // The measured half has read 4 twice meaning different things (see the seed test above), which is
+    // why line IDENTITY and the exclusion of bilingual-only shift times are pinned in
+    // links-seed.test.mjs rather than here. What THIS assertion is for is the DISTRIBUTION above —
+    // that the count survives the whole seed → generate → render path with every spare line still
+    // whole, which is the v19.58 per-day model's failure and is invisible to a unit test of the seed.
     expect(spareDays.filter(n => n === 7).length,
-        'the roster seed has four spare weeks — main 1/7/12/17').toBe(4);
+        'the seeded spare weeks must survive to the rendered grid').toBe(5);
 });

@@ -30,6 +30,25 @@ function fullPatterns() {
     return p;
 }
 
+/**
+ * A design whose longest worked run sits BETWEEN the owner's design target (7) and Chiltern's
+ * company limit (13) — the band where the panel reports the same figure amber in one section and
+ * green in the other. Nine consecutive worked days, then two rest days.
+ *
+ * The run is measured across the rotation's wrap, so this only needs one continuous block: line 1
+ * Mon–Sat plus line 2 Sun–Tue is nine, with Wed/Thu rest to close it.
+ */
+function longRunPatterns() {
+    const p = fullPatterns();
+    const W = '06:00-14:00';
+    p['1'] = { sun: 'RD',  mon: W, tue: W, wed: W, thu: W, fri: W, sat: W };
+    p['2'] = { sun: W,     mon: W, tue: W, wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+    for (let i = 3; i <= ROTATING_LINES; i++) {
+        p[String(i)] = { sun: 'RD', mon: W, tue: W, wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+    }
+    return p;
+}
+
 test('empty state (getDesign → null) shows the empty messages and hides the heatmap', () => {
     resetDom();
     const a = initLinksAnalysis({ getDesign: () => null });
@@ -292,4 +311,115 @@ test('every section claiming "must be met" carries a source on its rows', () => 
     assert.equal(asserted, 1,
         `expected exactly one compliance section today, found ${asserted} — if a second has been ` +
         'added, confirm it is sourced and update this count deliberately');
+});
+
+// ── THE CITATION RULE APPLIES TO THE WHOLE PANEL, NOT ONE SECTION (v20.00) ──────────────────────
+// The v19.96 review corrected "Hidden report — must be met" in two places: the `basis` strings in
+// `links-limits.js` and this file's section heading. It missed a THIRD — a `.check-sub` on the
+// "Longest run" row, in this very file, reading *"The Hidden limit is 13."*
+//
+// Neither existing guard could see it, and for a reason worth stating rather than patching around:
+// both were scoped to where the claim was LAST found. `links-limits.test.mjs` reads the objects
+// `assessHardLimits` returns; the test above walks sections whose heading claims something must be
+// met. The stray copy was a plain advisory row making no such claim, so it sat outside both.
+//
+// This one is scoped to the RENDERED PANEL instead. Anywhere the sheet says "Hidden" it must mark
+// the standard historic, because it was withdrawn in 2007 and a manager who checks the citation
+// finds that out — and the 13 must never be attributed to Hidden as though Hidden still imposed it.
+// Chiltern's policy carries the number; Hidden is where it came from.
+//
+// Deliberately not keyed on the word "Longest": the failure was a SECOND COPY appearing somewhere
+// nobody was looking, so a guard aimed at the place it appeared this time would repeat the mistake.
+//
+// WHAT IT DOES NOT CATCH, measured rather than assumed. The unit is a sentence, and one historic
+// marker satisfies every mention inside it — so dropping "historic" from the hard-limit row's detail
+// while its `basis` still says "legacy" passes here (verified). That is the right trade: the row
+// still reads correctly to a human, and tightening to one-marker-per-mention would fail on prose
+// that is perfectly honest. The failure this exists for is a mention with NO marker anywhere near
+// it, which is what a stray second copy looks like, and both that and the all-markers-removed case
+// are teeth-verified.
+test('nothing the panel renders presents the Hidden standard as current', () => {
+    // Both branches of the run row: within the design target, and over it (where the sub-line that
+    // carried the stray citation is the one that renders).
+    for (const [label, patterns] of [['a clean design', fullPatterns()], ['a design over the target', longRunPatterns()]]) {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+
+        for (const m of text.matchAll(/[^.]*\bHidden\b[^.]*\./g)) {
+            const sentence = m[0].trim();
+            assert.match(sentence, /historic|legacy|withdrawn|origin|former/i,
+                `${label}: "${sentence}" names the Hidden standard without marking it historic. It was ` +
+                'withdrawn in 2007; a manager who checks the citation finds a superseded document and ' +
+                'is entitled to discount everything else on the sheet.');
+            assert.doesNotMatch(sentence, /\bthe Hidden limit\b/i,
+                `${label}: "${sentence}" attributes the limit to Hidden. It is Chiltern's policy limit; ` +
+                'Hidden is its origin.');
+        }
+    }
+});
+
+// ── THE SAME NUMBER, TWO STATUSES — EACH ROW STATES ITS OWN THRESHOLD (v20.00) ──────────────────
+// On a design between 8 and 13 consecutive days the panel reports the identical figure twice: amber
+// on "Longest run" (against the owner's design target of 7) and green in the hard-limit section
+// (against Chiltern's 13). That is correct and useful — they are different questions — but only
+// while each row says which figure it was measured against. Unlabelled it reads as the panel
+// contradicting itself, which is exactly the FF13 defect of v19.48 (a hardcoded green tick directly
+// beneath the amber row it duplicated) arriving in a different form.
+test('a run between the design target and the company limit labels both thresholds', () => {
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: longRunPatterns() }) }).renderDesignChecks();
+    const html = els.checksContent.innerHTML;
+    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+
+    // The premise: both rows really are reporting the same figure, or there is nothing to label.
+    assert.match(text, /Longest run/, 'the run row did not render');
+    assert.match(text, /consecutive days worked/, 'the hard-limit row did not render');
+
+    assert.match(text, /design target/i,
+        'the amber run row does not say the 7 is a design AIM rather than a limit, so it reads as a ' +
+        'contradiction of the green row below it');
+    assert.match(text, /limit of 13|13 consecutive/i,
+        'the hard-limit row does not state the figure it was measured against');
+});
+
+// ── THE CODE COLUMN IS FIXED-WIDTH, SO A LONGER CODE MUST FAIL LOUDLY (v20.00) ──────────────────
+// `.check-code` is `width: 52px` rather than `min-width`, because the point is that every tag is
+// the same size — that is what aligns the TITLES after them, not just the tags' own left edges. It
+// was `min-width: 44px` until v20.00 and `MRSF`/`FF8b` overflowed it, so the second column wandered
+// over 20px down a 30-row list.
+//
+// A fixed width buys alignment at the cost of a ceiling, and CSS enforces neither: a five-character
+// code would simply overflow its box and quietly reintroduce the ragged edge it was meant to end.
+// The code set is closed and comes from the ORR's own p3 list, so the ceiling is checkable here.
+test('no fatigue code is wider than the fixed code column can hold', () => {
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
+    const codes = [...els.checksContent.innerHTML.matchAll(/class="check-code">([^<]*)</g)].map(m => m[1]);
+    // 17, not 24: the seven night factors roll up into one `\u00d77` row. The premise that matters is
+    // not the count but that the WIDEST codes are among them — a test over a subset that happened to
+    // exclude MRSF and FF8b would be checking nothing, since those are the two that overflowed 44px.
+    assert.ok(codes.length >= 15, `expected the rendered ORR code set, found ${codes.length}`);
+    for (const widest of ['MRSF', 'FF8b']) {
+        assert.ok(codes.includes(widest), `${widest} did not render — it is one of the two codes this guards`);
+    }
+
+    // 52px at 11px/700 tabular-nums, less 10px of padding, holds 4 characters comfortably. Asserted
+    // on character count rather than measured width because there is no layout engine here — the
+    // number is the CONTRACT with the CSS, and the CSS carries the same note.
+    const MAX = 4;
+    const tooLong = codes.filter(c => c.length > MAX);
+    assert.deepEqual(tooLong, [],
+        `these codes exceed the ${MAX}-character width of .check-code and will overflow it, ` +
+        `un-aligning every title in the column: ${tooLong.join(', ')}. Widen the CSS and this ` +
+        'number together, or the fix is invisible until someone looks at the panel.');
+
+    // …and the width must actually be FIXED. `min-width` looks equivalent and is the thing that was
+    // wrong, so assert the declaration rather than trusting the comment above it.
+    const css = readFileSync(new URL('./links.css', import.meta.url), 'utf8');
+    const rule = css.slice(css.indexOf('.check-code {'), css.indexOf('}', css.indexOf('.check-code {')));
+    assert.match(rule, /\bwidth:\s*52px/, '.check-code must set a fixed width');
+    assert.doesNotMatch(rule, /min-width/,
+        '.check-code is back on min-width, which aligns the tags but not the titles beside them');
 });

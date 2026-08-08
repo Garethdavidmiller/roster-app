@@ -379,6 +379,10 @@ export function init() {
     const { renderCoverageChart, renderDesignChecks, renderSummary } = initLinksAnalysis({
         getDesign: () => design,
         getBaseline: currentLinkBaseline,
+        // A thunk, not a value: `compare` is the single source of truth for compare mode and is
+        // declared further down. Reading it lazily also means the strip cannot go stale — every
+        // path that toggles compare already re-renders the grid, and the grid renders this.
+        isComparing: () => compare.isCompareMode(),
     });
     paintWindowEditor = initWindowEditor();
 

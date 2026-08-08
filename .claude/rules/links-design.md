@@ -174,6 +174,24 @@ Single dirty flag + one `linksSaveBtn` / `saveChanges()`. Grid clicks are **dele
 - **Overlay panels take their surface from an id rule or a modifier class** — `.lb-content` alone is only transform/scroll/cursor. The Recently-deleted panel shipped at v19.41 with the bare class and rendered as a transparent box (heading and prose in navy on the dimmed backdrop). It now joins the compact-dialog family, and `e2e/visual.spec.js` has a baseline for it, because behaviour tests cannot see this.
 - **Row actions reuse `.dialog-btn` + `.dialog-btn-confirm`/`-cancel`** from shared.css rather than a page-local recipe — that brings the 44px touch target and press feedback with them.
 - **The Design checks card is a 30-row list, so it needs structure, not just rows** (v19.49). Three things carry it, and each replaced something that read as noise: `.check-section-head` gains a **hairline rule** and its **headline counts** at the far end (`3 present · 2 standing · 3 to confirm`) — a small uppercase label alone was not enough weight to break a ribbon of same-height rows, and the reader should not have to tally 24 icons to get the summary; `.check-code` is a **fixed-width tag** so the FF numbers align down the left edge (they were `.check-note`, the faintest thing in the row, running inline with the title and vanishing into wrapped prose on mobile — cross-referencing the ORR's own p3 list is the panel's whole job); and `.check-family` names the ORR's **families**, without which the code column read as shuffled. The factors are also ordered by number **within** each family. Counts keep `present` and `standing` separate — an unavoidable characteristic of the operation is not a finding about the design, and one combined total would say it was.
+- **The Design-checks card carries a three-part rhythm, and each part has been broken once**
+  (v20.00 pass). `.check-code` is a **fixed `width`, never `min-width`** — 44px aligned the tags'
+  own left edges while `MRSF` and `FF8b` overflowed it, so the TITLES after them wandered over 20px
+  (measured 221–241px at 1440) down a 30-row list. A fixed width buys alignment at the cost of a
+  ceiling that CSS does not enforce, so `links-analysis.test.mjs` asserts no rendered code exceeds
+  it *and* that the declaration is still `width`. And the "nothing to report" disclosure's body
+  carries a **left rule**: the panel groups by ORR family then splits by status, so three families —
+  Time of day, Recovery time, Cumulative — legitimately render a heading twice, and without a
+  nesting cue the second set reads as a repeat rather than a continuation. The print block resets
+  both the rule and the indent, because print flattens the disclosure entirely.
+- **The sticky summary strip names its design in compare mode, and only there** (v20.00). Every
+  figure in it comes from the ACTIVE design; with two grids on screen an unlabelled
+  "N lines designed · All service covered · N fatigue factors" reads as a verdict on the
+  comparison. `initLinksAnalysis` takes an `isComparing` thunk (the coordinator forwards
+  `compare.isCompareMode()`), and a neutral `.sum-chip--who` leads the row. It carries **no status
+  tint** deliberately — a fourth coloured chip would read as a fourth finding. Naming the design was
+  chosen over hiding the strip: a designer comparing options still wants live analysis of the one
+  they are editing.
 - **Accepted, not fixed:** each compare column keeps `overflow-x: auto` with no scroll affordance, so at 1280px both grids clip mid-column with nothing indicating they scroll. Adding a fade would fight the gold diff outline; the alternative is a narrower cell, which hurts the primary (single-design) view. Revisit only with a real complaint.
 
 ### Paint mode (v12.39)
@@ -317,12 +335,24 @@ Four attributions now, each corrected in turn:
 | v19.90 | "Hidden report", industry limit | right source, **wrong tense** — presented as current |
 | v19.96 | Chiltern policy, Hidden origin | whose limit it is, and where the number came from |
 
-**The tense is now pinned by tests, in three places**, because the v19.90 wording passed every
+**The tense is now pinned by tests, in FOUR places**, because the v19.90 wording passed every
 assertion that existed: it named a real, dated, checkable document. `links-limits.test.mjs` requires
 a row naming Hidden to also mark it historic, and forbids any row claiming the limit is
-industry-wide today. And `links-analysis.test.mjs` pins the **rendered section heading** — which
-made the strongest claim on the page, is written as a separate hardcoded string in a different file
-from the `basis` it is supposed to agree with, and had no test at all.
+industry-wide today. `links-analysis.test.mjs` pins the **rendered section heading** — which made
+the strongest claim on the page, is written as a separate hardcoded string in a different file from
+the `basis` it is supposed to agree with, and had no test at all.
+
+**And the fourth was added at v20.00, after the v19.96 sweep turned out to have missed a copy.**
+A `.check-sub` on the "Longest run" row — in `links-analysis.js` itself, two rows above the corrected
+one — still read *"The Hidden limit is 13."* Neither existing guard could see it, for a reason worth
+stating rather than patching around: **both were scoped to where the claim had last been found.**
+One reads the objects `assessHardLimits` returns; the other walks sections whose heading claims
+something must be met. The stray copy was a plain advisory row making no such claim, so it sat
+outside both. The new guard is scoped to the **whole rendered panel**: anywhere the sheet says
+"Hidden" the sentence must mark the standard historic, and the 13 may never be attributed to Hidden
+as though Hidden still imposed it. Measured limit, recorded in the test: the unit is a sentence, so
+one marker satisfies every mention inside it — what it catches is a mention with no marker anywhere
+near it, which is what a stray second copy looks like.
 
 **"13 consecutive days" vs the historic "13 shifts in 14 days."** The historic formulation is the
 rolling one; this module measures the longest consecutive run. For a one-duty-per-day roster the two
@@ -467,6 +497,16 @@ it. Four things that are easy to get wrong, each with a test:
 carry even **7** consecutive worked days. The live main roster's non-spare blocks reach exactly 7;
 the generator's reach 6.
 
+**Between 8 and 13 the panel reports the SAME figure twice, amber and green — and each row must say
+which threshold it was measured against** (v20.00). `runDesignChecks`'s "Longest run" row is judged
+against the design target of 7; the hard-limit row 60px below is judged against Chiltern's 13. That
+is two different questions and both answers are useful, but unlabelled they read as the panel
+contradicting itself — which is the FF13 defect of v19.48 (a hardcoded green tick directly beneath
+the amber row it duplicated) arriving in a new form. The amber row now carries
+`(design target: no more than 7)` and says in its sub-line that this is an aim rather than a limit;
+the green row already stated its 13 and its source. Pinned by a test using a fixture that lands
+deliberately in that band.
+
 **The `clear` and `n/a` rows are collapsed behind a disclosure** (v19.57). The card measured 1,799px —
 24 rows of which 16 said nothing had happened, so the 8 real findings were diluted five to one in a
 card taller than the grid it describes. It is now 1,134px. **This must not be allowed to weaken the
@@ -510,7 +550,8 @@ Two consequences worth knowing. The targets are validated against the **working*
 The table is **seeded from the current roster** on page load via `buildRosterTargets()`. **One rule governs what it samples: the seed must sample exactly what the design represents.** That rule has now been applied twice, in opposite directions, and both failures were silent.
 
 - **v19.59 — the sample was too NARROW.** It took main's 20 weeks plus only the two bilingual weeks the two bilingual members happen to sit on, then applied that 22-line sample to a 28-line design. Bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came back as **4** where the combined roster had **6** (main 1/7/12/17 + bilingual 1/8) — two whole lines of standby cover missing by default. Fixed by taking both cycles in full: which weeks two people sit on today is a fact about staffing, not about the roster's shape.
-- **v19.98 — the sample became too WIDE.** The design is now 22 lines of the main roster widened and excludes the bilingual roster entirely, so seeding from it would target **ten shift times no line in the design can work** (all ten bilingual times are bilingual-only — zero overlap with main's 18). The seed reads the main cycle and nothing else: **18 slots, 4 spare lines** (main 1/7/12/17).
+- **v19.98 — the sample became too WIDE.** The design is the main roster widened and excludes the bilingual roster entirely, so seeding from it would target **ten shift times no line in the design can work** (all ten bilingual times are bilingual-only — zero overlap with main's 18). The seed reads the main cycle and nothing else: **18 slots**, measuring **4 spare weeks** (main 1/7/12/17).
+- **v20.01 — neither the new length nor the added spare week is visible in the sampling, and that is the design working.** The rotation went 22 → 24 and gained a fifth spare week. The SLOTS are an observation about the roster and do not care how long the design is; the added spare week is a DECISION and lives in `EXTRA_SPARE_WEEKS` rather than inside the count, so `buildRosterTargets` can return the measured 4 and the seeded 5 separately. Named WEEKS not LINES: `links-rotation-parity.test.mjs` flags any `const *LINES* = <number>` in a Links module, which is the shape the 28-in-four-places bug took, and the answer to a false positive there is a better name rather than an exemption.
 
 **The 4 is a coincidence and the tests treat it as one.** It read 4 before v19.59 for the wrong reason — the under-sample happened to drop exactly the two bilingual spare weeks — and reads 4 now for the right one. `links-seed.test.mjs` therefore checks line IDENTITY and asserts no bilingual-only shift time is ever seeded, rather than resting on the figure.
 
@@ -859,13 +900,16 @@ Two more from the same pass, both in-use surfaces:
 Every line rotates and **every one must carry a real worked pattern** — in the rotation everyone
 passes through every line, so a "vacancy" is a missing *person*, not a missing *pattern*.
 
-**`ROTATING_LINES` in `links-design.js` is the ONE declaration of the length, and it is now 22.**
+**`ROTATING_LINES` in `links-design.js` is the ONE declaration of the length, and it is now 24.**
 
 It was 28 = the main 20-week cycle + the bilingual 8, because the design modelled both as one
-rotation. The December 2026 plan changed (owner, Aug 2026): the new link is **22 lines and does not
-include the bilingual roster at all** — not its lines, not its shift times, not its work. It is the
-CEA/main roster **widened** from 20 to 22 to increase staffing. Evidence class **C** (owner-confirmed
-practice): "22 is final, we are told", with no document behind it.
+rotation. The December 2026 plan changed (owner, Aug 2026): the new link **does not include the
+bilingual roster at all** — not its lines, not its shift times, not its work. It is the CEA/main
+roster **widened from 20** to increase staffing, and it carries **5 spare weeks** against the
+roster's 4.
+
+**The length moved twice: 22 at v19.98, corrected to 24 at v20.01** (owner — the earlier figure was
+misremembered). Evidence class **C** for both (owner-confirmed practice, no document behind either).
 
 **Everything derives from the constant — do not write the number down again.** That is not a style
 preference; it is the whole content of the v19.98 change:
@@ -877,12 +921,14 @@ preference; it is the whole content of the v19.98 change:
   entries, the generator's totals, its Apply confirm, `max` attributes in the markup. Every one
   renders perfectly while describing a link that does not exist.
 
-`links-rotation-parity.test.mjs` now fails on both classes, so **moving 22 to 23 is one edit** where
-moving 28 to 22 was a sweep. Static markup that cannot interpolate uses a `.js-rotating-lines` span
-stamped at init.
+**And v20.01 is the proof that it worked.** 28 → 22 was that sweep; 22 → 24 was this one constant,
+four static fallbacks `links-rotation-parity.test.mjs` named on the first run, and a re-measure. If a
+number can change once it can change twice, and the second time is what finds out whether it was
+really centralised. Static markup that cannot interpolate uses a `.js-rotating-lines` span stamped at
+init; the guard fails on a literal even when the literal is right today.
 
 **Designs saved against the OLD length are left exactly as they are.** A 28-line design still in
-Firestore renders its first 22 rows, is analysed over 22, and — because `workingCopy` deep-copies the
+Firestore renders its first 24 rows, is analysed over 24, and — because `workingCopy` deep-copies the
 whole patterns object — saves all 28 back. Trimming on load would destroy six lines of somebody's
 work on a page visit (the v19.84 stale-hard-delete class); trimming on save would do it at the moment
 they least expect it. So the fact is put on screen instead: `#linksOverLengthNotice` names the two
@@ -910,8 +956,13 @@ two pages. That is a measured constraint, not a preference: A4 landscape at 1cm 
 **718px** of printable height, and at the old 26px rows and 28 lines the grid card came to **903px**,
 so it always broke (the CSS comment claimed it fitted "or close to"). Rows are now 21px, the cell
 line-height 1.15, and the grid card's own header is dropped in print — the masthead names the sheet
-— which brings it to **703px**. Re-measure if the cell font or the masthead changes; there is only
-~15px of headroom.
+— which brought 28 lines to **703px**, against 718. **At 24 lines it measures 619px** (v20.01), so
+the headroom is currently ~99px rather than the ~15px the 28-line era had.
+
+**Do not read that as slack.** The 21px row and the dropped header were both bought to fit 28, and
+the budget is ~21px per line: the sheet takes 28 today and 4 fewer is where the room came from. If
+the rotation grows again, or the cell font or the masthead changes, RE-MEASURE — the constraint is
+the 718px, not any of these figures.
 
 **There is a Print button** (`#linksPrintBtn`, v19.62) in the sticky save row beside Save changes —
 outlined, because two filled buttons would compete and saving is the one that matters. All of the

@@ -17,7 +17,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildRosterTargets, rosterSeedLines } from './links-seed.js';
+import { buildRosterTargets, rosterSeedLines, EXTRA_SPARE_WEEKS } from './links-seed.js';
 import { ROTATING_LINES } from './links-design.js';
 import { CONFIG, weeklyRoster, bilingualRoster } from './roster-data.js';
 
@@ -96,7 +96,11 @@ describe('what is counted from them', () => {
             line(E, E, E, E, E, RD, RD),
             line(SP, SP, SP, SP, SP, SP, SP),
         ];
-        assert.equal(buildRosterTargets(sources).spareLines, 2);
+        // `rosterSpareLines`, not `spareLines`: this block is about what the COUNTING does with a
+        // set of lines, and `spareLines` carries the seeded uplift on top of it (EXTRA_SPARE_WEEKS).
+        // Asserting the seeded figure here would make every counting test depend on a decision that
+        // has nothing to do with counting.
+        assert.equal(buildRosterTargets(sources).rosterSpareLines, 2);
     });
 
     test('scattered spare days do NOT add up to a spare line, however many there are', () => {
@@ -108,7 +112,7 @@ describe('what is counted from them', () => {
         // apart, and mine did not until the mutation was tried (teeth-verified).
         const scattered = Array.from({ length: 7 }, (_, i) =>
             line(...DAYS.map((_d, j) => (j === i ? SP : E))));
-        assert.equal(buildRosterTargets(scattered).spareLines, 0);
+        assert.equal(buildRosterTargets(scattered).rosterSpareLines, 0);
     });
 
     test('a line that is spare on only SOME days is not a spare line', () => {
@@ -116,8 +120,8 @@ describe('what is counted from them', () => {
         // the wrong model — the reason it survived review. A partly-spare line is not a spare week,
         // and it must not contribute a timed slot for its SPARE days either.
         const sources = [line(SP, SP, SP, E, E, RD, RD)];
-        const { slots, spareLines } = buildRosterTargets(sources);
-        assert.equal(spareLines, 0);
+        const { slots, rosterSpareLines } = buildRosterTargets(sources);
+        assert.equal(rosterSpareLines, 0);
         assert.deepEqual(slots.map(s => s.time), [E]);
     });
 
@@ -162,14 +166,46 @@ describe('what is counted from them', () => {
 });
 
 describe('the live roster — the figures the workspace actually seeds from', () => {
-    test('18 slots, 4 spare weeks', () => {
-        // 4 is main lines 1/7/12/17. It was 6 while the bilingual roster was in scope (its 1 and 8),
-        // and 4 for the WRONG reason before v19.59 — the under-sample happened to drop exactly the
-        // two bilingual spare weeks. So this figure has read 4 twice meaning different things, which
-        // is precisely why the identity checks above exist rather than this number alone.
-        const { slots, spareLines } = buildRosterTargets();
-        assert.equal(spareLines, 4);
+    test('18 slots; the roster provides 4 spare weeks and the seed targets 5', () => {
+        // 4 is main lines 1/7/12/17 — MEASURED. It was 6 while the bilingual roster was in scope
+        // (its 1 and 8), and 4 for the WRONG reason before v19.59, when the under-sample happened to
+        // drop exactly those two bilingual spare weeks. The figure has therefore read 4 twice meaning
+        // different things, which is precisely why the identity checks above exist rather than this
+        // number alone.
+        //
+        // 5 is what the generator is SEEDED with: the measured 4 plus the cover week the widened link
+        // adds (EXTRA_SPARE_WEEKS, an owner decision at v20.01). Both are asserted, and separately —
+        // if they were one number a reader could not tell which half was observed and which chosen.
+        const { slots, spareLines, rosterSpareLines } = buildRosterTargets();
+        assert.equal(rosterSpareLines, 4, 'the roster itself has four spare weeks');
+        assert.equal(spareLines, rosterSpareLines + EXTRA_SPARE_WEEKS);
         assert.equal(slots.length, 18);
+    });
+
+    test('the extra spare week is ADDED, never baked into the measurement', () => {
+        // The whole point of keeping it a separate constant: with the uplift off, this still answers
+        // "what does this roster provide?" — the question the v19.59 bug got wrong. A future edit
+        // that folded the uplift into the counting loop would pass every other test in this file.
+        const { spareLines, rosterSpareLines } = buildRosterTargets(undefined, { extraSpareLines: 0 });
+        assert.equal(spareLines, rosterSpareLines);
+        assert.equal(spareLines, 4);
+    });
+
+    test('the added spare week comes out of the WORKING lines, and the seed still fits', () => {
+        // An extra spare line does not create capacity, it removes a line from the pool that carries
+        // the duties — so it must still leave room for the work. Measured at 24 lines: 19 working
+        // against 78 timed duties a week, i.e. 2.89 rest days per working line (3.10 without it).
+        // Asserted as a relationship rather than as those numbers, so it survives the next length
+        // change; the figures are recorded in LINKS_DEC2026_PLAN.md, which is where they belong.
+        const { slots, spareLines } = buildRosterTargets();
+        const working = ROTATING_LINES - spareLines;
+        assert.ok(working > 0, 'the spare weeks have eaten the whole rotation');
+        for (const dayClass of ['weekday', 'sat', 'sun']) {
+            const total = slots.reduce((n, s) => n + s[dayClass], 0);
+            assert.ok(total <= working,
+                `${dayClass} seeds ${total} duties into ${working} working lines — the generator ` +
+                'validates against exactly this and would refuse its own seed');
+        }
     });
 
     test('every seeded slot is a real time, and the totals fit the design', () => {

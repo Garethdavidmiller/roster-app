@@ -336,12 +336,13 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
     // Sentinels before the capture — same reasoning as the workspace shot. The target table is
     // SEEDED FROM THE ROSTER, so a regression in `buildRosterTargets` would render a plausible but
     // empty generator, and the next baseline regeneration would lock in a green test covering
-    // nothing. FOUR spare lines is the roster's real figure since v19.98 (main 1/7/12/17); it was
-    // 6 while the bilingual roster was in scope (its 1 and 8). This sentinel caught that change on
-    // the regeneration run, which is exactly what it is for — without it the new figure would have
-    // been baselined as a picture and nobody would have looked at the number.
+    // nothing. FIVE is the seeded figure since v20.01: the roster's measured four (main 1/7/12/17)
+    // plus `EXTRA_SPARE_WEEKS`, the cover week the widened link adds. It was 4 at v19.98 and 6 while
+    // the bilingual roster was in scope (its 1 and 8) — and this sentinel has now caught BOTH of
+    // those changes on the regeneration run, which is exactly what it is for: without it the new
+    // figure is baselined as a picture and nobody ever looks at the number.
     await expect(page.locator('#genSlotRows tr').first()).toBeVisible();
-    await expect(page.locator('#genSpareLines')).toHaveValue('4');
+    await expect(page.locator('#genSpareLines')).toHaveValue('5');
     await expect(page.locator('.gen-obj')).toHaveCount(5);
     await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(3);
 
@@ -437,6 +438,50 @@ test('links — auto-generator card at a narrow width (390)', async ({ page }) =
     // pages.spec.js on mobile-chrome instead, where it fails.
     await settle(page, '.gen-objectives');
     await expect(page.locator('.gen-objectives')).toHaveScreenshot('links-objectives-narrow.png');
+});
+
+// THE DESIGN CHECKS CARD HAD NO PIXEL COVERAGE EITHER, and it is the panel that goes to the
+// assessing manager (v20.00). The workspace baseline above is a 2400px-tall viewport shot and this
+// card starts below it, so the app's most COMPOSED surface — 30 rows, three section heads with
+// right-aligned counts, a fixed-width code column, family sub-headings, a disclosure — was watched
+// by nothing but text assertions. Two v20.00 layout changes landed in it (the code column moved from
+// `min-width: 44px` to a fixed 52px so titles align, and the disclosure body gained a left rule so
+// the second run of family headings reads as nested) and the existing suite did not move a pixel.
+//
+// The fixture puts the longest run in the 8–13 band deliberately: that is where the SAME figure
+// renders amber against the design target and green against the company limit, which is the
+// composition most at risk of reading as a contradiction.
+const CHECKS_DESIGN = (() => {
+    /** @type {Record<string, any>} */ const p = {};
+    const W = '06:00-14:00';
+    for (let i = 1; i <= ROTATING_LINES; i++) p[String(i)] = { sun: 'RD', mon: W, tue: W, wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+    p['1'] = { sun: 'RD', mon: W, tue: W, wed: W, thu: W, fri: W, sat: W };
+    p['2'] = { sun: W, mon: W, tue: W, wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+    return p;
+})();
+
+test('links — design checks panel, disclosure open (desktop 1280)', async ({ page }) => {
+    await page.addInitScript((pats) => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [{
+            id: 'd1', name: 'Option A', updatedBy: 'S. Silva', patterns: pats,
+        }];
+    }, CHECKS_DESIGN);
+    await prep(page, { width: 1280, height: 900 });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await page.evaluate(() => document.querySelectorAll('#checksContent details').forEach((d) => {
+        /** @type {HTMLDetailsElement} */ (d).open = true;
+    }));
+
+    // Sentinels: without them a render that lost the fatigue half still produces a plausible short
+    // card, and the next regeneration would lock that in (the Usage-card lesson, v19.25).
+    await expect(page.locator('#checksContent .check-code').first()).toBeVisible();
+    await expect(page.locator('#checksContent')).toContainText('Longest run');
+    await expect(page.locator('#checksContent')).toContainText('design target');
+    await expect(page.locator('#checksContent')).toContainText('consecutive days worked');
+    await settle(page, '#checksContent');
+    await expect(page.locator('#checksContent')).toHaveScreenshot('links-design-checks.png');
 });
 
 // The "Recently deleted" panel (v19.41) had NO pixel coverage, and it shipped broken because of it:

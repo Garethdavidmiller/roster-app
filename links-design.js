@@ -20,25 +20,27 @@ export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
  * checks window and the generator output are necessarily the SAME number — there is no reading of
  * this app where they differ.
  *
- * ── 28 → 22 (v19.98, owner: the December 2026 plan changed) ────────────────────────────────────
+ * ── 28 → 22 → 24 (v19.98 then v20.01; the December 2026 plan, twice) ───────────────────────────
  *
  * It was **28 = the main 20-week cycle + the bilingual 8**, because the design modelled both as one
- * rotation. That is no longer what is being built. The new link is **22 lines and excludes the
- * bilingual roster entirely** — not its lines, not its shift times, not its work. It is the CEA
- * (main) roster **widened from 20 to 22 to increase staffing levels**; the bilingual roster
- * continues separately and is simply out of scope.
+ * rotation. That is no longer what is being built. The new link **excludes the bilingual roster
+ * entirely** — not its lines, not its shift times, not its work. It is the CEA (main) roster
+ * **widened from 20 to increase staffing levels**; the bilingual roster continues separately and is
+ * simply out of scope.
  *
- * So this number is no longer derived from anything the app can see — it is a business figure
- * (owner, Aug 2026: "22 is final, we are told"). There is **no document behind it**, which makes it
- * evidence class C by ROADMAP.md's scale: fine as a design parameter, and it must NOT be rendered to
- * a manager as a requirement without a source. See KNOWN_LIMITATIONS.md → Links.
+ * The LENGTH then moved again: 22 at v19.98, corrected to **24** at v20.01 (owner — the earlier
+ * figure was misremembered). Both are business figures with **no document behind them**, which makes
+ * this evidence class C by ROADMAP.md's scale: fine as a design parameter, and it must NOT be
+ * rendered to a manager as a requirement without a source. See KNOWN_LIMITATIONS.md → Links.
  *
- * **Everything that used to hardcode 28 now derives from this constant** — the grid height, the
- * generator's `max` and its over-target validation, and every string that names the figure. That is
- * the substance of the change: moving 22 to 23 later is now one edit here, where moving 28 to 22 was
- * a sweep of ~15 literals. Do not re-introduce a literal.
+ * **That second change is the argument for the first one's design.** Moving 28 → 22 was a sweep of
+ * ~15 literals across five files plus a compare-mode copy nobody knew was there; moving 22 → 24 was
+ * this line, four static fallbacks the parity test names for you, and a re-measure. If a number can
+ * change once it can change twice, and the second time is the one that finds out whether it was
+ * really centralised. Do not re-introduce a literal — `links-rotation-parity.test.mjs` fails on one,
+ * including a literal that happens to be right today.
  */
-export const ROTATING_LINES = 22;
+export const ROTATING_LINES = 24;
 
 /** Minimum rest between two timed shifts on consecutive days, in minutes. */
 export const MIN_REST_MINUTES = 12 * 60;
