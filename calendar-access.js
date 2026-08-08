@@ -266,6 +266,11 @@ function setWorkspaceHidden(hidden) {
 
 // ── The unlock panel ────────────────────────────────────────────────────────────────────────────
 
+/** The submit label, declared ONCE. It is written in two places — the initial markup and the
+ *  restore after a failed attempt — and the second copy had already lost the arrow, so a member who
+ *  mistyped got a subtly different button back from the one they pressed. */
+const SUBMIT_LABEL = 'Unlock Calendar →';
+
 /** @type {HTMLElement|null} */ let _panel = null;
 /** @type {any} */ let _backoffTimer = null;
 
@@ -295,26 +300,35 @@ function showLockPanel() {
     panel.id = 'calendarLock';
     panel.className = 'cal-lock';
     panel.setAttribute('aria-labelledby', 'calLockTitle');
+    // Mirrors `#loginCard`'s structure element for element (v20.14) — icon, app name, subtitle,
+    // a left-aligned `.login-field` with its uppercase label and hint, the shared primary button,
+    // the `.login-error` channel, then a quiet text link. Staff meet this exact shape on five other
+    // pages; the PIN card is the sixth page's version of the same moment and should not be a
+    // second, nearly-identical design. The classes are the login family's on purpose, the way
+    // `#pwForceContent` reuses them — see the shared.css comment on the panel recipe.
     panel.innerHTML = `
         <div class="cal-lock-card">
-            <div class="cal-lock-badge"><span aria-hidden="true">📅</span> Calendar</div>
-            <h2 class="cal-lock-title" id="calLockTitle">Enter the staff PIN</h2>
-            <p class="cal-lock-hint">One code for everyone at Marylebone. It opens the live roster — including annual leave, absence and shift changes — for as long as this browser stays open.</p>
-            <form class="cal-lock-form" id="calLockForm" novalidate>
-                <label class="cal-lock-label" for="calLockPin">Staff PIN</label>
-                <input class="cal-lock-pin" id="calLockPin" name="staff-pin" type="password"
-                       inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*"
-                       maxlength="${PIN_LENGTH}" enterkeyhint="go" spellcheck="false"
-                       aria-describedby="calLockMsg" autocapitalize="off">
-                <button class="btn-action cal-lock-submit" id="calLockSubmit" type="submit" disabled>Unlock Calendar</button>
+            <img src="./icon-192.png" alt="" loading="eager">
+            <div class="login-app-name">Marylebone Roster</div>
+            <div class="login-subtitle">Calendar · Staff PIN</div>
+            <form id="calLockForm" novalidate>
+                <div class="login-field">
+                    <label for="calLockPin">Staff PIN</label>
+                    <input class="cal-lock-pin" id="calLockPin" name="staff-pin" type="password"
+                           inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*"
+                           maxlength="${PIN_LENGTH}" enterkeyhint="go" spellcheck="false"
+                           aria-describedby="calLockHint" autocapitalize="off">
+                    <p class="login-hint" id="calLockHint">One code for everyone at Marylebone. It opens the live roster — including annual leave, absence and shift changes — for as long as this browser stays open.</p>
+                </div>
+                <div class="login-error" id="calLockMsg" role="status" aria-live="polite"></div>
+                <button id="calLockSubmit" type="submit" disabled>${SUBMIT_LABEL}</button>
             </form>
-            <p class="cal-lock-msg" id="calLockMsg" role="status" aria-live="polite"></p>
-            <!-- "Sign in instead", not "MYB member? Sign in instead" (owner, v20.13). Two reasons and
-                 the second is a rule: the qualifier filters NOBODY, since everyone who could be
-                 looking at this card is Marylebone staff; and "MYB" is not permitted in staff-facing
-                 copy at all (CLAUDE.md → wording conventions — the on-screen name is "Marylebone
-                 Roster", and "MYB" survives only in the iOS home-screen meta and in comments). -->
-            <button class="cal-lock-alt" id="calLockSignIn" type="button">Sign in instead</button>
+            <button class="login-back cal-lock-alt" id="calLockSignIn" type="button">Sign in instead</button>
+            <!-- The login card's the login card footer, and it answers a real question this screen
+                 otherwise leaves hanging: a new starter opening the app for the first time has no
+                 way to know the code or who holds it. "The admin" per the wording conventions —
+                 access to the app is an app matter, not a rostering one. -->
+            <p class="login-help">Don’t know the PIN? Ask the admin.</p>
         </div>`;
     host.appendChild(panel);
     _panel = panel;
@@ -325,10 +339,15 @@ function showLockPanel() {
     const msg    = /** @type {HTMLElement} */ (panel.querySelector('#calLockMsg'));
     const signIn = /** @type {HTMLButtonElement} */ (panel.querySelector('#calLockSignIn'));
 
-    /** @param {string} text @param {boolean} isError */
+    /** Write the one message channel. It wears `.login-error` — the app's established soft-red box —
+     *  and is HIDDEN when empty (`.visible` is what shows it), so the card has no reserved blank
+     *  line to leave a hole in the layout. A non-error message (the in-flight "Checking…") uses the
+     *  same box in a neutral tint, so there is one live region rather than two competing ones.
+     *  @param {string} text @param {boolean} isError */
     function say(text, isError) {
         msg.textContent = text;
-        msg.classList.toggle('cal-lock-msg--error', !!isError && !!text);
+        msg.classList.toggle('visible', !!text);
+        msg.classList.toggle('cal-lock-msg--info', !!text && !isError);
     }
 
     let _busy = false;
@@ -360,7 +379,7 @@ function showLockPanel() {
 
         _consecutiveFailures++;
         _busy = false;
-        submit.textContent = 'Unlock Calendar';
+        submit.textContent = SUBMIT_LABEL;
         say(result.message, true);
 
         const wait = attemptBackoffMs(_consecutiveFailures);
@@ -414,7 +433,7 @@ export function handleAccessLost() {
     const msg = document.getElementById('calLockMsg');
     if (msg) {
         msg.textContent = 'Calendar access has expired. Enter the staff PIN to carry on.';
-        msg.classList.remove('cal-lock-msg--error');
+        msg.classList.add('visible', 'cal-lock-msg--info');
     }
 }
 
