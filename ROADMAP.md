@@ -125,9 +125,27 @@ all three enforced by `guide-sources.test.mjs`. It ships that way because a staf
 nothing has to guess, and a structured best-available answer that SAYS it is unconfirmed beats a
 guess — the precedent is `links-fatigue.js`, whose FF17/18/19 render with `confirm: true`.
 
-**What is left is verification, and it is not a developer task.** Confirm each of the seven products
-against its register Source *and* the retail system, flip that row to `National`, and drop
-`rr-card--draft` from its card. The banner goes when the last one does.
+**What is left is verification, and it splits into two halves with different owners.**
+
+**Half one — the national rules — is blocked on an environment setting, not on effort.** The session's
+egress policy denies `nationalrail.co.uk` and `chilternrailways.co.uk` (re-tested Aug 2026, still
+`EGRESS_BLOCKED`), and the allowlist is environment config that cannot be changed from inside a
+session — the proxy's own guidance is *"do not retry or route around it — report the blocked host"*.
+**Gareth: add `www.nationalrail.co.uk` and `support.chilternrailways.co.uk` to the network policy on
+this environment (claude.ai/code → environment settings). Name the SUBDOMAINS, not just the bare
+domains** — the Chiltern content is on `support.`, and the product pages are on `www.`. Expect a fresh
+session to be needed before it takes effect. With that open, the five product pages and Chiltern's own
+ranger/rover article can be fetched and quoted verbatim.
+
+**Half two — is it valid on us, and between which stations — is an operator fact and stays with
+Gareth** whatever the egress policy says. The national pages do not answer it. The least certain claim
+on the page is the Oxfordshire Day Ranger's Chiltern boundary (that High Wycombe and Aylesbury are
+outside it) — inferred from a station list, not stated by a source, and exactly the kind of claim that
+refuses somebody travel if it is wrong. Check it in the retail system.
+
+Then per product: flip its `GUIDE_SOURCES.md` row from `Draft` to `National`, and drop
+`rr-card--draft` from its card. The banner goes when the last one does, and `guide-sources.test.mjs`
+fails if it is removed early.
 
 **Why it is blocked, and why that is the right answer.** Every claim on such a page is a rule a
 passenger could be refused travel by, so the Evidence class gate above puts the whole page at **A or

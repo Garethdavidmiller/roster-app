@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink } from './helpers.js';
 
 // ── CALENDAR (index.html) ──────────────────────────────────────────────────
 
@@ -99,8 +99,7 @@ test('calendar: nav drawer opens on burger click', async ({ page }) => {
 test('calendar: a drawer guide link navigates same-tab (no new tab / Custom Tab)', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#teamMemberSelect option').first()).toBeAttached();
-    await page.locator('#navMenuBtn').click();
-    const guide = page.locator('.nav-panel-link--guide', { hasText: 'Staff & Admin Guide' });
+    const guide = await openGuideLink(page, 'Staff & Admin Guide');
     await expect(guide).toBeVisible();
     await expect(guide).not.toHaveAttribute('target', '_blank');
     let popupSeen = false;
@@ -121,8 +120,7 @@ test('calendar: a drawer guide link navigates same-tab (no new tab / Custom Tab)
 test('admin: a drawer guide link comes back to Admin, not the calendar', async ({ page }) => {
     await seedSession(page);
     await page.goto('/admin.html');
-    await page.locator('#navMenuBtn').click();
-    const guide = page.locator('.nav-panel-link--guide', { hasText: 'Railcard Guide' });
+    const guide = await openGuideLink(page, 'Railcard Guide');
     await expect(guide).toBeVisible();
     await guide.click();
     await page.waitForURL(/railcard-guide\.html/, { timeout: 4000 });
@@ -246,8 +244,10 @@ test('nav: each guide records its OWN open id', async ({ page }) => {
         ['Rangers & Rovers',     'guide-rangers'],
     ]) {
         await page.goto('/');
-        await page.locator('#navMenuBtn').click();
-        await page.getByRole('link', { name: label }).click();
+        // Two taps since v20.06 — the guides live in the collapsed Reference section. Driven through
+        // the real drawer rather than by URL, because the id being asserted is stamped onto the LINK
+        // and read off the element; navigating directly would skip the only code path under test.
+        await (await openGuideLink(page, label)).click();
         await page.waitForURL(/guide|fip|rangers/);
         const opens = await page.evaluate(() => {
             const v = sessionStorage.getItem('__opens') || '';

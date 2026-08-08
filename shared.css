@@ -1465,19 +1465,37 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 /* Page navigation pills */
+/* ONE PILL PER ROW, FULL WIDTH (v20.06) — and the reason is arithmetic, not taste.
+   The drawer is 260px wide (`min(260px, 72vw)`), leaving 228px for pills. Measured natural widths:
+   Calendar 135 · Settings 118 · Admin 106 · Links 98 · Ops 89 · Pay 86. So a two-column grid gives
+   each pill 110px and BOTH Calendar and Settings wrap their label onto a second line — and
+   content-width flex-wrap cannot pair Calendar with anything at all (135 + the smallest, 86, is
+   over the 220px budget). That is what made the old row ragged: Calendar forced onto its own line,
+   then pairs, then whichever pill was left over stranded alone. No packing rule fixes it, because
+   the pill count changes with permissions (6 for an admin designer, 5, 4 for a plain member) and
+   every rule leaves an orphan at some count.
+   Full-width rows are tidy at EVERY count, give a gloved thumb the whole drawer width as a target,
+   and put each destination in a fixed position so muscle memory works. They also let the pills share
+   the left-aligned rhythm of the Today rows below, so the drawer reads as one list rather than a
+   block of chips above a list. */
 .nav-panel-pills {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
+    flex-direction: column;
+    gap: 6px;
 }
 
 /* Base pill — on the navy drawer a plain navy fill would be invisible, so the
    default is a raised (white-overlay) chip. The coloured variants below override
    it; this base only shows for a variant-less pill (a safety fallback). */
 .nav-panel-pill {
-    display: inline-flex;
+    /* `flex`, not `inline-flex`, since v20.06 — each pill is its own full-width row now (see
+       `.nav-panel-pills`). Left-aligned rather than centred: a centred label in a 228px pill floats
+       in the middle of nothing, and left alignment puts every pill's text on the SAME x as the Today
+       rows underneath, so the whole drawer reads down one edge. */
+    display: flex;
     align-items: center;
-    padding: 9px 20px;
+    gap: 8px;
+    padding: 9px 16px;
     border-radius: 22px;
     background: var(--nav-raised);
     color: var(--nav-text);
@@ -1536,6 +1554,34 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 @media (hover: hover) and (pointer: fine) {
     .nav-panel-pill--links:hover { background: color-mix(in oklch, var(--purple) 91%, black); }
+}
+
+/* The collapsed Reference count (v20.06) — quiet-status tier (600), the weight css-tokens.md
+   reserves for "a reading, not a label to scan". It must not compete with the heading beside it;
+   its whole job is to say the section has contents. */
+.nav-panel-guides-count {
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: var(--radius-pill);
+    background: var(--nav-raised);
+    color: var(--nav-text-muted);
+    font-size: var(--type-micro);
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+/* Settings joined the pill grid at v20.06 (was a flat link pinned above the footer, the only
+   page-destination in the drawer that did not look like one). It is deliberately the QUIETEST pill:
+   the same raised-chip treatment the Admin pill uses but with plain text rather than gold, so the
+   grid still reads as "work pages first, housekeeping last" and the eye is not pulled to it. It has
+   no colour identity of its own because Settings has no page identity elsewhere in the app —
+   inventing one here would be the drawer asserting something no other surface says. */
+.nav-panel-pill--settings {
+    background: var(--nav-raised);
+    color: var(--nav-text);
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-pill--settings:hover { background: var(--nav-raised-strong); }
 }
 
 /* "You are here" indicator — the current page's pill is inert and shows a dot */
@@ -1892,14 +1938,12 @@ button.nav-panel-link--notices {
 }
 .nav-panel-signout:active { opacity: 0.5; }
 
-/* ---- Nav panel settings link — flat, pinned above footer ---- */
-.nav-panel-settings {
-    padding: 8px 16px;
-    /* Hairline above the pinned shelf (v18.18): head and footer are already delimited by
-       --nav-border, but this zone floated ambiguously between the scrolling body and the footer —
-       now the drawer reads as four cleanly-bounded zones (head / body / shelf / footer). */
-    border-top: 1px solid var(--nav-border);
-}
+/* The pinned Settings shelf was REMOVED at v20.06 — Settings is a pill now (see
+   `.nav-panel-pill--settings`). The drawer is back to three zones (head / body / footer) rather
+   than four, which is what the v18.18 note here was working around: that shelf existed because a
+   page-destination had been rendered as an Information-style row and then needed its own boundary
+   to stop it floating between the body and the footer. Fixing the treatment removed the need for
+   the boundary. Do not re-add a fourth zone without a destination that genuinely is not a page. */
 
 /* Keyboard focus rings for the whole drawer — gold reads clearly on the navy
    surface. Without these, desktop keyboard users got only the browser default
