@@ -35,7 +35,7 @@
  * estimate. `hoursAreFloor` is returned so the UI can say so rather than imply precision.
  */
 
-import { DAYS, ROTATING_LINES, startMinutes, endMinutesAbs, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, SPARE_WORKED_DAYS } from './links-design.js';
+import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, SPARE_WORKED_DAYS } from './links-design.js';
 // FF18 is the one factor here whose subject is what happens BETWEEN lines, so it is the one that
 // needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
@@ -72,12 +72,11 @@ export function isWorked(s) { return !isRest(s); }
  * ignores the case reports a NEGATIVE duty length rather than failing.
  * @param {any} shift
  */
-export function dutyMinutes(shift) {
-    const a = startMinutes(shift);
-    const b = endMinutesAbs(shift);
-    if (a === null || b === null) return null;
-    return b - a;
-}
+// MOVED to links-design.js at v20.04 and re-exported here, so every existing importer and test is
+// untouched. It belongs beside `endMinutesAbs`: `weeklyHours` needs the same reading of a duty's
+// length, that module cannot import this one (this one imports it), and a second copy is precisely
+// the failure `endMinutesAbs` was extracted to end.
+export { dutyMinutes };
 
 /** Does this duty start in the FF2 early window? @param {any} shift */
 export function isEarlyStart(shift) {

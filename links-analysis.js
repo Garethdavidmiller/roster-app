@@ -15,7 +15,8 @@
  * design's findings can be read against what today's roster already scores — without it, a proposal
  * reporting "15 consecutive shifts" reads as something the proposal introduced.
  */
-import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChecks } from './links-design.js';
+import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChecks,
+    weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, windowMinutes } from './links-window.js';
@@ -353,6 +354,31 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             + (fat.present
                 ? chip('warn', '⚠', fat.present, 'fatigue factors')
                 : chip('ok', '✓', 'No', 'fatigue factors'))
+            // HOURS BELONGS IN THE STRIP, not only in the panel (v20.04). This bar exists because
+            // the analysis sits ~1,600px below the fold and an edit's effect was otherwise invisible
+            // without scrolling two screens away and back. "Does this give people a contracted week"
+            // is exactly that kind of figure: it moves the moment a cell changes, and until now it
+            // did not exist anywhere at all. Sundays are out (not contracted) — the panel row below
+            // carries the full explanation; the chip carries the number.
+            //
+            // IT COSTS 34px OF STICKY BAR, MEASURED — the row goes 56px to 90px, because a fourth
+            // chip tips the summary onto its own line. That is not a shortfall to shorten labels
+            // around: at the card's 1068px the line holds Save + Print + the save-meta (min 160px,
+            // itself the fix for a worse v19.62 wrap) + 643px of chips, and a fourth chip needs
+            // ~123px that is not there at any desktop width — the card is capped by
+            // `--content-max-width`, so a wider screen does not help. The two-row bar right-aligns
+            // the chips as a group and reads cleanly; the extra height covers about one more grid
+            // row while scrolling, which resolves itself (see the note in links.css). Taken
+            // deliberately: a figure nobody could see anywhere is worth more than 34px.
+            + (() => {
+                const wh = weeklyHours(design.patterns, TOTAL_POS);
+                if (wh.exSunday === null) return '';
+                const off = wh.exSunday - CONTRACTED_HOURS_PER_WEEK;
+                const h = Math.floor(wh.exSunday);
+                const m = String(Math.round((wh.exSunday % 1) * 60)).padStart(2, '0');
+                return chip(Math.abs(off) <= 0.5 ? 'ok' : 'warn',
+                    Math.abs(off) <= 0.5 ? '✓' : '⚠', `${h}h ${m}m`, 'a week');
+            })()
             + `<a class="sum-jump btn-text-link" href="#coverageCard">Full analysis ↓</a>`;
     }
 
@@ -387,6 +413,24 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         const info  = `<span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>`;
 
         const rows = [];
+
+        // THE FIRST GROUP HAD NO HEADING WHILE THE THREE BELOW IT ALL DID (v20.04).
+        //
+        // The card ran: five bare rows, then `COMPANY LIMITS`, then `FATIGUE FACTORS`, then
+        // `FOR COMPARISON`. So its structure only became legible a third of the way down, and the
+        // opening rows read as loose preamble rather than as a named group with a source of its own
+        // — which matters most here, because these are the ONLY rows on the sheet that are this
+        // app's own opinion. Everything below is attributed (company policy, ORR p3, today's link);
+        // an assessing manager reading the top of the card could not tell where these came from.
+        rows.push(
+            // No modifier class: `.check-section-head:first-child` already drops the top margin and
+            // rule, and `links-analysis.test.mjs` fails on any class this module emits that no
+            // stylesheet defines — which is exactly how ~15 rows once shipped on a `check-info`
+            // class nothing styled.
+            `<div class="check-section-head"><span>This design ` +
+            `<span class="check-note">shape of the week — this app's own checks</span></span>` +
+            `<span class="check-section-meta">${escapeHtml(`${totalWeeks}-line rotation`)}</span></div>`
+        );
 
         if (unfilledLines.length === 0) {
             rows.push(
@@ -487,6 +531,48 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `<span class="check-note"> (${earlyPct}% early, ${latePct}% late)</span>` +
             `</div></div>`
         );
+
+        // ── HOURS A WEEK (v20.04) ────────────────────────────────────────────
+        //
+        // The most basic question anybody asks of a roster — "does it give people their contracted
+        // hours?" — and this panel could not answer it. It reported weekends, rest, run length and
+        // shift balance, all of which are about the SHAPE of the week, and never how much of it is
+        // work. A design can be beautifully shaped and still under-fill everybody.
+        //
+        // SUNDAYS COME OUT. Sunday is not contracted for any grade here, so a Sunday duty sits on
+        // top of the contract; counting it towards 35 would report a design as delivering the
+        // contracted hours using time that is not contracted. It is shown separately instead — it
+        // is real work and real pay, it is just not part of this comparison.
+        //
+        // The cover weeks come out of the DENOMINATOR for a different reason: they carry no times,
+        // so dividing by all 24 lines charges the average with four weeks of zero and reports a
+        // number nobody works. Both exclusions are stated in the row rather than assumed.
+        const wh = weeklyHours(design.patterns, TOTAL_POS);
+        if (wh.exSunday !== null) {
+            // A THRESHOLD IS DEFENSIBLE HERE, unlike the ORR factors — 35 is the contract, not
+            // guidance, so short IS short. Half an hour of slack absorbs the rounding that comes
+            // from duties measured to the minute; the live main roster lands on 35.00 exactly.
+            const off = wh.exSunday - CONTRACTED_HOURS_PER_WEEK;
+            const onTarget = Math.abs(off) <= 0.5;
+            const hm = (/** @type {number} */ h) => `${Math.floor(h)}h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}m`;
+            rows.push(
+                `<div class="check-row ${onTarget ? 'check-good' : 'check-warn-row'}">` +
+                `${onTarget ? tick : warn}<div class="check-body">` +
+                `<strong>Hours a week</strong> — ${hm(wh.exSunday)} on each of the ${wh.workingLines} working lines` +
+                `<span class="check-note"> (contracted: ${CONTRACTED_HOURS_PER_WEEK}h, Sundays excluded)</span>` +
+                (onTarget ? '' :
+                    `<div class="check-sub">${off < 0
+                        ? `<strong>${hm(Math.abs(off))} a week short of contract.</strong> The same work spread over more lines gives each person less of it — adding lines without adding duties does this.`
+                        : `<strong>${hm(off)} a week over contract.</strong> The surplus has to be paid as overtime or absorbed by adding lines.`}</div>`) +
+                `<div class="check-sub">Sundays are not contracted, so they are left out of that figure` +
+                (wh.sundayDuties ? ` — ${wh.sundayDuties} Sunday duties, ${hm(wh.sundayHours)} across the rotation, on top` : '') +
+                `. The ${wh.coverLines} cover week${wh.coverLines === 1 ? '' : 's'} carry no times, so they are not in the average either.</div>` +
+                (wh.unreadable
+                    ? `<div class="check-sub">${wh.unreadable} worked cell${wh.unreadable === 1 ? '' : 's'} could not be read as a time and added no hours — the real figure is higher.</div>`
+                    : '') +
+                `</div></div>`
+            );
+        }
 
         // ── ORR fatigue factors (p3) ─────────────────────────────────────────
         // Reported as factors PRESENT, never as pass/fail: the ORR is explicit that these are not

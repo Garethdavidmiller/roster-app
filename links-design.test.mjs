@@ -23,8 +23,11 @@ import {
     canonicaliseShift,
     normalisePatterns,
     ROTATING_LINES,
+    weeklyHours,
+    dutyMinutes,
+    CONTRACTED_HOURS_PER_WEEK,
 } from './links-design.js';
-import { CONFIG } from './roster-data.js';
+import { CONFIG, weeklyRoster } from './roster-data.js';
 
 // classifyShift hardcodes the Early/Late/Night start-hour boundaries (4/11/21) because links-design.js
 // is DELIBERATELY standalone (imports nothing from roster-data — see .claude/rules/links-design.md). The
@@ -674,3 +677,81 @@ describe('the rotation length is declared once', () => {
     });
 });
 
+
+// ── HOURS A WEEK (v20.04) ────────────────────────────────────────────────────────────────────────
+//
+// Added because the panel could not answer the most basic question anybody asks of a roster — does
+// it give people their contracted hours? — and the answer turned out to matter: the seeded 24-line
+// design comes back six hours a week short, which nothing on the page had ever said.
+//
+// The two exclusions are what these tests are really for. Both are easy to "simplify" away, and
+// each simplification produces a plausible number that is wrong in a specific direction: counting
+// Sundays FLATTERS the design (it reports contracted hours using time that is not contracted), and
+// dividing by all the lines DEFLATES it (it charges the average with cover weeks of zero).
+describe('weeklyHours', () => {
+    const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const rowOf = (o) => Object.fromEntries(DAY_KEYS.map(d => [d, o[d] ?? 'RD']));
+    const SPARE = Object.fromEntries(DAY_KEYS.map(d => [d, 'SPARE']));
+
+    test('THE LIVE MAIN ROSTER COMES TO EXACTLY 35 HOURS — the check on the check', () => {
+        // Not a fixture: the real roster, which is built to the contract. If this drifts, the
+        // measure has gone wrong before any design is judged by it — and a design being judged by a
+        // broken yardstick is worse than having no yardstick, because it looks like an answer.
+        const main = {};
+        for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS; w++) main[String(w)] = weeklyRoster[w];
+        const wh = weeklyHours(main, CONFIG.MAIN_ROSTER_WEEKS);
+        assert.equal(wh.exSunday, CONTRACTED_HOURS_PER_WEEK,
+            `the live roster's working lines must come to the contracted week; got ${wh.exSunday}`);
+        assert.equal(wh.coverLines, 4, 'premise: the main cycle has four spare weeks');
+    });
+
+    test('SUNDAYS ARE EXCLUDED — counting them would flatter every design', () => {
+        // One line: 5 × 7h Mon–Fri = 35 exactly, plus a 7h Sunday on top. Ex-Sunday must stay 35;
+        // an implementation that folds Sunday in reports 42 and calls an over-run a healthy week.
+        const p = { 1: rowOf({ mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00',
+            thu: '09:00-16:00', fri: '09:00-16:00', sun: '09:00-16:00' }) };
+        const wh = weeklyHours(p, 1);
+        assert.equal(wh.exSunday, 35, 'Sunday is not contracted and must not count towards 35');
+        assert.equal(wh.all, 42, 'it is still real work, and is still reported');
+        assert.equal(wh.sundayHours, 7);
+        assert.equal(wh.sundayDuties, 1);
+    });
+
+    test('COVER WEEKS LEAVE THE DENOMINATOR — they carry no times, so they cannot be averaged', () => {
+        // Two identical 35h lines and two cover weeks. The answer is 35 — what a normal week on this
+        // link looks like. Dividing by all four lines gives 17.5, a week nobody works.
+        const line = rowOf({ mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00',
+            thu: '09:00-16:00', fri: '09:00-16:00' });
+        const wh = weeklyHours({ 1: line, 2: line, 3: SPARE, 4: SPARE }, 4);
+        assert.equal(wh.exSunday, 35);
+        assert.equal(wh.workingLines, 2);
+        assert.equal(wh.coverLines, 2);
+        assert.equal(wh.lines, 4, 'the full length is still reported, so the exclusion is visible');
+    });
+
+    test('an empty design is null, never zero', () => {
+        // "0 hours a week" reads as a finding about the design. It is not one — there is no design.
+        const wh = weeklyHours({}, 24);
+        assert.equal(wh.exSunday, null);
+        assert.equal(wh.all, null);
+        assert.equal(wh.workingLines, 0);
+    });
+
+    test('an unreadable duty is COUNTED as unreadable, not silently skipped', () => {
+        // Silently skipping it makes a design full of malformed times report a comfortable low
+        // average with nothing to say why — the panel prints this count so the floor is visible.
+        const p = { 1: rowOf({ mon: '09:00-16:00', tue: 'gibberish', wed: '09:00-16:00' }) };
+        const wh = weeklyHours(p, 1);
+        assert.equal(wh.unreadable, 1);
+        assert.equal(wh.duties, 2);
+        assert.equal(wh.exSunday, 14, 'the readable duties still count');
+    });
+
+    test('rest days and cover days add no hours, and a duty past midnight is not negative', () => {
+        const p = { 1: rowOf({ mon: '22:00-06:00', tue: 'SPARE', wed: 'RD', thu: 'OFF' }) };
+        const wh = weeklyHours(p, 1);
+        assert.equal(dutyMinutes('22:00-06:00'), 8 * 60, 'premise: one reading of a wrapping duty');
+        assert.equal(wh.exSunday, 8);
+        assert.equal(wh.duties, 1, 'SPARE is not a timed duty');
+    });
+});

@@ -441,7 +441,13 @@ test('links: the sticky summary bar carries a live reading of the analysis below
     await page.setViewportSize({ width: 1440, height: 900 });
 
     const chips = page.locator('#linksSummary .sum-chip');
-    await expect(chips).toHaveCount(3);
+    // FOUR since v20.04 — hours a week joined lines-designed, service-covered and fatigue-factors.
+    // The count alone is a weak sentinel (any four chips satisfy it), so the reading this bar exists
+    // for is also asserted by CONTENT: the hours chip is the one figure here that appears nowhere
+    // else above the fold, and a silent regression that dropped it would leave the count intact if
+    // anything else were ever added.
+    await expect(chips).toHaveCount(4);
+    await expect(page.locator('#linksSummary .sum-chip', { hasText: /a week$/ })).toHaveCount(1);
 
     // It must be STICKY and PAINTED mid-grid, not merely present — the v19.55 lesson (a probe read
     // `el.hidden` while the browser rendered the element anyway).
@@ -2152,7 +2158,7 @@ test('links window: generating the FIRST design reveals the window editor', asyn
     // forgot to refresh X" has now been a bug twice — the window editor at v19.55, and this would
     // have been the same shape — so every artefact `renderCoverageCard` owns is pinned here rather
     // than trusted to a reviewer noticing the call site grew a third responsibility.
-    await expect(page.locator('#linksSummary .sum-chip')).toHaveCount(3);
+    await expect(page.locator('#linksSummary .sum-chip')).toHaveCount(4);   // 4 since v20.04 (hours a week)
     await expect(page.locator('.cov-demand')).toBeVisible();
 
     // SPARE IS A WHOLE WEEK (v19.58, owner). A spare line is spare on all seven days — you are cover,

@@ -827,19 +827,28 @@ never contingent on the beta label, and dropping it does not make any of them go
   and the reorder returned gaps 9, 3, 1, 7, 4 with two ADJACENT, which chain into one long run —
   taking FF11 from **9 to 14** on the generator's own output. The v20.01 measurement across lengths
   22–25 was measuring the bug, not the spare count. `spareSpread` is now charged unconditionally in
-  `links-adjacency.js`; on the shipped default (24 lines, 4 spare) FF11 comes back at **10** and the
-  longest run at **7**.
+  `links-adjacency.js` — at weight **3000**, not the 500 it was first written at, which `variety`
+  could still outbid (see `.claude/rules/links-design.md` → the spare spread). On the shipped default
+  (24 lines, 4 spare) the cover weeks come back evenly spaced (gaps 6, 6, 6, 6), FF11 at **11** and
+  the longest run at **8**.
   **The lesson worth keeping: the reorder can make a design worse than the one it was handed**, and
   before v20.02 nothing in it was watching for that. Every other term is a preference; this one
   protects a guarantee.
 
-- **The run cap cannot always reach its target, and says so** (v20.02). The "Most shifts in a row"
-  box defaults to 6. With that switch on alone the reorder reaches 6; with the full objective set on
-  it reaches 8, because shortening a run of worked days and creating a 48-hour break pull against
-  each other — measured, weighting the cap harder takes FF11 from 11 to 14 and drops weekends off
-  from 7 to 4. The generator's status line states the achieved figure and names the shortfall rather
-  than letting the box imply a guarantee. Raising it further is a weighting decision with a real
-  cost, not a bug to fix.
+- **The run cap cannot always reach its target, and says so** (v20.02; justification re-measured
+  v20.03). The "Most shifts in a row" box defaults to 6. With that switch on alone the reorder
+  reaches 6; with the full objective set on it reaches **8**, and the generator's status line states
+  the achieved figure and names the shortfall rather than letting the box imply a guarantee.
+  **The original justification for the weight was partly the spare-spread bug talking** and does not
+  survive re-measurement: it said harder weighting takes FF11 from 11 to 14, i.e. that pushing the
+  cap makes the design worse on the factor the panel reports. With the cover weeks now held evenly,
+  the real trade is **weekends off** — every weight that reaches the 6-day target costs 3–4 full
+  weekends across the rotation (9 of 24 at the shipped weight, 5–6 above it), while FF11 bounces
+  (11, 11, 9, 16, 9, 10) because the 2-opt lands in different local minima, so no figure there is a
+  property of the weight. **This is now an owner decision, not a settled one:** a longest run of 8 is
+  well inside the 13-day company limit, and three more full weekends is something staff feel — but
+  which way that goes is a judgement about conditions, so it is recorded here rather than tuned in
+  code. Raising the weight is a one-line change if the answer is the other way.
 
 - **Designs saved against the OLD 28-line rotation are left exactly as they are.** They still load,
   render their first 24 rows, are analysed over 24 — and, because the working copy deep-copies the

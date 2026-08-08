@@ -24,14 +24,17 @@ below is owned by somebody other than the developer.
 >
 > The plan changed after most of this document was written. The new link **does not include the
 > bilingual roster at all** — not its lines, not its shift times, not its work. It is the CEA/main
-> roster **widened from 20** to increase staffing, and it carries **one more spare week** than the
-> roster does today (5, against the roster's 4).
+> roster **widened from 20** to increase staffing, and it carries the **same four spare weeks** the
+> roster has today. (A fifth was added at v20.01 and reverted at v20.02 — the FF11 finding that
+> motivated it turned out to be the line-order optimiser clustering the cover weeks, not the spare
+> count. See the generator section below.)
 >
 > **The LENGTH has moved twice: 22 at v19.98, corrected to 24 at v20.01** (owner — the earlier figure
 > was misremembered). Evidence class **C** for both: no document behind either.
 >
-> **Read every 28- and 22-line figure below as history.** The `Baseline` and `What the generator
-> produces` sections are re-measured at 24/5; anything else quoting an older length describes a
+> **Read every 28- and 22-line figure below, and every 5-spare-week figure, as history.** The
+> `Baseline` and `What the generator produces` sections are re-measured at **24 lines / 4 spare**
+> (v20.02); anything else quoting an older length or spare count describes a
 > superseded design and is left as the record of how the tool was built. `ROTATING_LINES` is 24 and
 > every literal derives from it — the 22 → 24 move was one constant, four static fallbacks the parity
 > test named, and a re-measure, against ~15 literals across five files for 28 → 22.
@@ -39,14 +42,14 @@ below is owned by somebody other than the developer.
 > Three things the change does NOT undo, which is most of the value in this document: the ORR factor
 > work, the operating-window and demand features, and the finding that a service increase cannot be
 > absorbed by making existing lines denser. That last one is now the *argument that was won* — 22
-> lines is exactly the "the link has to get bigger" conclusion, arriving from the business rather
-> than from this tool.
+> widening to 24 is exactly the "the link has to get bigger" conclusion, arriving from the business
+> rather than from this tool.
 
 | Item | Status | Needed by | Blocker / owner |
 |---|---|---|---|
 | **Rotation length** | ✅ **24, main-only** (owner, Aug 2026) — 22 at v19.98, corrected v20.01. Evidence class C | — | — |
-| **Spare weeks** | ✅ **5** — the roster's 4 plus one added with the widening (owner, v20.01) | — | — |
-| **Existing 28-line designs** | ⚠️ **The owner's call.** They still load, are analysed over their first 22 lines, and re-save all 28; the grid says so in an amber notice. Nothing trims them automatically | Before proposals are drawn | **Gareth** — bin them, or keep them as a record |
+| **Spare weeks** | ✅ **4** — the same as the roster today. A fifth was added v20.01 and reverted v20.02 once its motivating FF11 finding proved to be an optimiser bug (owner) | — | — |
+| **Existing 28-line designs** | ⚠️ **The owner's call.** They still load, are analysed over their first 24 lines, and re-save all 28; the grid says so in an amber notice. Nothing trims them automatically | Before proposals are drawn | **Gareth** — bin them, or keep them as a record |
 | Timetable data (all three simplifiers) | ✅ Final — confirmed not provisional (owner, Aug 2026) | — | — |
 | Existing roster baseline | ✅ Measured (corrected v19.79 — 9 / 8 consecutive days, not 15 / 14) | — | — |
 | Operating-window setting | ✅ Shipped v19.54 | — | — |
@@ -55,6 +58,7 @@ below is owned by somebody other than the developer.
 | Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
 | **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
 | **Sunday operating window** | ⚠️ **Decision needed** — five Dec-26 movements fall after the 23:25 finish, three of them arrivals | **Before proposals are frozen** | **Nathan** |
+| **Contracted hours — the design is 6h a week short** | ⚠️ **Decision needed** (v20.04). Seeded from today's duties, 24 lines gives **28h 51m** a week against a 35h contract; the live 20-line roster gives exactly 35h. Either the Dec-26 service fills the gap — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before proposals are drawn** | **Management / Nathan** |
 | **Business staffing requirement** | ⚠️ **Never formally stated.** "Coverage vs service" is an inference from the data, not something anyone said | **Before the final design** | **Management** |
 | **FF18 reading — cadence or step?** | ⚠️ Unsettled; changes whether any proposal can clear it | **Before proposals are drawn** | **Nathan** (see Open question 2) |
 | **Proposals A / B** | ❌ Not started | T−8 weeks | The four decisions above |
@@ -234,7 +238,7 @@ proposals should answer it deliberately instead of inheriting it.
 > inapplicable ones. It is left here because the argument for the work is more useful than a table
 > of ticks, and because the "Applies to a CEA rotating link?" column is still the live judgement.
 
-P3 lists **24 factors** in five families. `runDesignChecks` tested two things that map to
+P3 lists **24 factors** in five families (the shipped panel renders **23** — see `KNOWN_LIMITATIONS.md` → Links; unresolved). `runDesignChecks` tested two things that map to
 them, and CEAs work no nights, which makes a large part of the list inapplicable:
 
 | Factor | Applies to a CEA rotating link? | Checked today? |
@@ -380,6 +384,34 @@ Both columns were re-measured together after the v20.02 spare-spread fix, so not
 figure from an older shape sitting beside a newer one. The row previously labelled FF19 is corrected
 to **FF18** — the between-lines factor those numbers have always come from.
 
+### The design is six hours a week short of contract, and nothing showed it until v20.04
+
+**The measurement.** Excluding Sundays — which are not contracted for any grade here — and averaged
+over the lines that carry a timed duty:
+
+| | working lines | hours a week each |
+|---|---|---|
+| live main roster (20 lines / 4 cover) | 16 | **35h 00m** — exactly the contract |
+| generated 24 lines / 4 cover | 20 | **28h 51m** |
+
+The live roster landing on 35.00 to the minute is the check on the measure: the roster is built to the
+contract, so anything else would mean the yardstick was wrong before any design was judged by it.
+
+**The gap is arithmetic, not a fault in the design.** The seed is today's duties — 18 shift rows, 78
+timed duties a week — and widening the link from 20 lines to 24 spreads them over 20 working lines
+instead of 16. Same work, more people, less each. It is the same counter-intuitive effect as the cover
+weeks below, one step further on.
+
+**So it is a question for the room, and a sharp one.** Either the December 2026 service adds enough
+work to fill six hours a week per person — in which case the targets should be seeded from the new
+timetable rather than from today's roster — or the widened link does not fill a contracted week and
+something has to give. The tool now states the figure on screen and on the printed sheet; it does not
+answer which.
+
+Sundays are reported separately rather than hidden: **8 Sunday duties, 68h 15m across the rotation**,
+on top of the figures above. They are real work and real pay; they are simply not part of a comparison
+against a contracted week.
+
 ### A spare week does not add capacity — it takes a line out of the pool
 
 Worth taking into the room, because it is counter-intuitive. **A spare week removes a line from the
@@ -394,7 +426,7 @@ cover week is paid for in rest days on everyone else:
 | **24 lines / 4 spare (chosen)** | **20** | **3.90** | **3.10** |
 
 So the widening to 24 is a large gain on today's roster: **2.13 → 3.10 rest days** per working line
-and weekends off from 20% to 29%. The v20.01 fifth cover week would have spent about **0.2 of a rest
+and weekends off from 20% to 38%. The v20.01 fifth cover week would have spent about **0.2 of a rest
 day per working line** to buy one more standby week — a legitimate trade, taken and then reverted
 once its motivating finding turned out to be a bug (below).
 
@@ -411,12 +443,26 @@ doing. That is the failure mode this workspace's rules are written around, arriv
 direction nobody had guarded — the reorder was assumed to only ever make things better, because
 every objective in it was a preference. It can make a design worse than the one it was handed.
 
-**The run cap does not always reach its target, deliberately.** The new "Most shifts in a row" box
-defaults to 6. With that switch on alone the reorder reaches 6; with the full set on it reaches 8,
-and the status line says so. Weighting it harder was measured: it gets to 7 but takes FF11 to 14 and
-drops weekends off from 7 to 4 — shortening a run of worked days and creating a 48-hour break are
-not the same thing and pull against each other. **That is a trade to take into the room, not a
-number to tune until it looks right.**
+**The run cap does not always reach its target, and the reason is a decision for the room.** The
+"Most shifts in a row" box defaults to **6**. With that switch on alone the reorder reaches 6; with
+the full set on it reaches **8**, and the status line says so rather than letting the box imply a
+guarantee.
+
+It could be made to reach 6 with the full set on. Re-measured after the spare-spread fix — the
+earlier figures here were partly that bug talking:
+
+| weight on the run cap | longest run | full weekends off |
+|---|---|---|
+| **40 (shipped)** | **8** | **9 of 24** |
+| 100 | 7 | 7 |
+| 150 / 200 / 300 / 600 | 6 | 5–6 |
+
+**The cost of reaching 6 is three to four full weekends off across the rotation.** A longest run of 8
+sits well inside the 13-day company limit, so 40 is kept — but that is a judgement about what staff
+would rather have, not a technical finding, and it is exactly the kind of thing to put in front of
+the room rather than settle in code. (FF11 across those weights reads 11, 11, 9, 16, 9, 10 — a
+heuristic optimiser landing in different local minima, so no FF11 figure there is a property of the
+weight and none is quoted as one.)
 
 **Correctness, verified rather than assumed** (v19.75). Against the real seed, both constructions:
 

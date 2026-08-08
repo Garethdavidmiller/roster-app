@@ -244,11 +244,21 @@ test('the hard-limit section heading names a company limit, not a current indust
     initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
     const html = els.checksContent.innerHTML;
 
-    const head = html.match(/<div class="check-section-head"><span>([^<]*)<span class="check-note">([^<]*)</);
-    assert.ok(head, 'the hard-limit section heading did not render');
-    const [, title, note] = head;
-    assert.match(`${title} ${note}`, /must be met/i,
-        'the first section is expected to be the hard limits — has the panel been reordered?');
+    // SELECTED BY ITS CLAIM, NOT BY ITS POSITION (v20.04). This used to take the FIRST section
+    // heading and assert it said "must be met" — which was true only while the hard limits happened
+    // to lead the panel, and stopped being true the moment a section was added above them. Position
+    // was never what this test is about: it polices whatever section makes the must-be-met claim,
+    // wherever it sits. Scanning for the claim is both more faithful and immune to a reorder.
+    const heads = [...html.matchAll(/<div class="check-section-head"><span>([^<]*)<span class="check-note">([^<]*)</g)]
+        .map(m => ({ title: m[1], note: m[2] }));
+    assert.ok(heads.length, 'no section headings rendered at all');
+    const head = heads.find(h => /must be met/i.test(`${h.title} ${h.note}`));
+    // Fails LOUD rather than vacuously: a panel that stopped claiming a hard limit anywhere would
+    // otherwise make every assertion below unreachable and this test silently meaningless.
+    assert.ok(head, `no section claims "must be met" — the hard-limit section is the point of this ` +
+        `test, so its absence is a failure, not a pass. Headings found: ` +
+        heads.map(h => `"${h.title}${h.note}"`).join(', '));
+    const { title, note } = head;
 
     assert.doesNotMatch(`${title} ${note}`, /\bindustry\b/i,
         `the heading claims the limit is industry-wide: "${title}${note}". It is Chiltern's policy; ` +

@@ -393,11 +393,28 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
     // Only the EXCESS over the target costs, so the optimiser has no reason to trade anything away
     // once the cap is met — the aim is "no more than N", not "as few as possible", and treating it
     // as the latter would spend the other objectives' freedom on a number nobody asked to minimise.
-    // WEIGHT CHOSEN BY MEASUREMENT, not by feel, and the measurement says something worth keeping.
-    // On the live seed with everything else on: 40 gives run 8 / FF11 11 / 7 weekends off; 100, 150
-    // and 300 all give run 7 but take FF11 to 14 and weekends down to 5, then 4. Pushing the cap
-    // harder makes the design WORSE on the factor the panel actually reports, because shortening a
-    // run of worked days is not the same thing as creating a 48-hour break — they pull apart.
+    // WEIGHT CHOSEN BY MEASUREMENT — AND THE MEASUREMENT WAS RE-TAKEN, because the first one was
+    // partly the spare-spread bug talking.
+    //
+    // 40 was originally justified as: 100/150/300 reach run 7 but take FF11 to 14 and weekends down
+    // to 4, so pushing the cap harder makes the design worse on the factor the panel reports. With
+    // the cover weeks now held evenly (above), that is no longer what happens. Re-measured on the
+    // live seed, everything else on:
+    //
+    //     w= 40  run 8 · FF11 11 · 9 weekends off      w=200  run 6 · FF11 16 · 6 weekends
+    //     w=100  run 7 · FF11 11 · 7 weekends          w=300  run 6 · FF11  9 · 6 weekends
+    //     w=150  run 6 · FF11  9 · 5 weekends          w=600  run 6 · FF11 10 · 6 weekends
+    //
+    // READ THE FF11 COLUMN AS NOISE, NOT AS A CURVE. It goes 11, 11, 9, 16, 9, 10 — this is a
+    // heuristic 2-opt landing in different local minima, so no single FF11 figure there is a
+    // property of the weight, and quoting one as a consequence would be over-claiming from a search
+    // that bounces. The stable finding is the WEEKENDS column: every weight that reaches the 6-day
+    // target costs 3–4 full weekends off across the rotation.
+    //
+    // 40 is kept on that trade — a longest run of 8 sits well inside the 13-day company limit, and
+    // three or four more full weekends is a thing staff actually feel. It is an OWNER decision
+    // rather than a tuning exercise, which is why the alternative is written down here instead of
+    // being quietly adopted. See LINKS_DEC2026_PLAN.md → the run cap.
     //
     // So this is deliberately a firm PREFERENCE rather than the near-absolute weight `variety`
     // carries. With the switch on alone it reaches the 6 target; with the full set on it reaches 8,

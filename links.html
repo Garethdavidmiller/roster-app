@@ -258,7 +258,21 @@
         </div>
         <div class="card-collapsible-body" id="generatorBody">
             <div class="card-body">
-                <p class="links-desc">List the shifts you need and how many people on each — the station is staffed in waves through the day (opens, mid-morning, middles, afternoons, closes), so add a row for every distinct start time. Weekday, Saturday, and Sunday targets are separate because the roster genuinely differs on those days. The generator builds a fair rotation where start times only move <em>later</em> through each person's week — never a late finish followed by an early start.</p>
+                <p class="links-desc">List the shifts you need and how many people on each — the station is staffed in waves through the day (opens, mid-morning, middles, afternoons, closes), so add a row for every distinct start time. Weekday, Saturday, and Sunday targets are separate because the roster genuinely differs on those days. The generator keeps each line inside one wave, so a person's week stays on much the same sort of shift; the Design checks below say what the result actually came to.</p>
+                <!-- THIS SENTENCE USED TO PROMISE SOMETHING THE TOOL DOES NOT DO (v20.04). It read
+                     "start times only move later through each person's week — never a late finish
+                     followed by an early start". That was written for the ROTATING construction, was
+                     found to be FALSE at v19.59 (positions are read mod `working`, so every line
+                     wraps front-to-back once a week — 27 short turnarounds at full staffing), and
+                     the generator was changed to REFUSE rather than ship the guarantee. The default
+                     construction has not been that one since v19.59 either.
+                     The copy survived all of it, and the page contradicted itself in two places at
+                     once: this paragraph promised start times only move later while the Design
+                     checks card below reported "Backward rotating pattern — 25 backward / 7 forward"
+                     on the very design it had just produced. A designer who believed the promise had
+                     no reason to read the row. Describe what the generator DOES and point at the
+                     checks for what it achieved — never restate a guarantee here. -->
+
                 <div class="generator-form">
                     <div class="gen-slot-table-wrap">
                         <table class="gen-slot-table">
@@ -296,6 +310,19 @@
                                     <td id="genTotWeekday">0</td>
                                     <td id="genTotSat">0</td>
                                     <td id="genTotSun">0</td>
+                                    <td></td>
+                                </tr>
+                                <!-- HOURS A WEEK (v20.04). The table totalled PEOPLE and never TIME,
+                                     so the one question these targets exist to answer — does this add
+                                     up to a contracted week? — could not be asked until after
+                                     generating, and even then nothing on the page answered it. It sits
+                                     HERE rather than only in Design checks because this is where the
+                                     numbers are being typed: a target that comes to 28h is worth
+                                     knowing about before you build a rotation out of it.
+                                     Sundays are excluded because Sunday is not contracted. -->
+                                <tr class="gen-hours-row">
+                                    <td class="gen-td-label">Hours a week<span class="gen-td-note">Mon–Sat; Sunday is not contracted</span></td>
+                                    <td colspan="3" class="gen-td-hours"><span id="genHoursValue">—</span><span class="gen-td-note" id="genHoursNote"></span></td>
                                     <td></td>
                                 </tr>
                             </tfoot>
@@ -406,7 +433,12 @@
         <div class="card-header card-header-toggle" id="checksToggleHeader">
             <div>
                 <h2><span aria-hidden="true">✅</span> Design checks</h2>
-                <span class="hint">Quality checks on the rotating link — weekends, rest time, run lengths, balance</span>
+                <!-- Names the four SECTIONS the card actually has, in order, rather than listing a
+                     few of the first section's rows (v20.04). The old text — "weekends, rest time,
+                     run lengths, balance" — described the top group only, and had not mentioned the
+                     company limits or the ORR factors since they were added, though between them
+                     they are most of the card. -->
+                <span class="hint">Hours, shape of the week, company limits, and the ORR fatigue factors</span>
             </div>
             <div class="card-header-actions">
                 <button type="button" class="btn-card-tips" data-card="links-checks" aria-label="Tips for design checks" title="Tips for design checks">?</button>
