@@ -1176,10 +1176,15 @@ test('operations usage: a failed sign-in-stats call leaves the rest of the card 
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
 
-    await expect(page.locator('#usageContent')).toContainText('accounts this month');
-    await expect(page.locator('#usageContent')).toContainText('Page popularity');
     // The empty wrapper removes itself rather than leaving a stray divider rule.
     await expect(page.locator('.usage-signin')).toHaveCount(0);
+    // ASSERTED STRUCTURALLY, NOT ON THE LABEL (v20.08). This read `toContainText('accounts this
+    // month')` and broke when that block was renamed — the string was never the subject. `.usage-stats`
+    // is emitted by exactly two blocks, the trend one and the sign-in one, so with `.usage-signin`
+    // proven absent above, a count of 1 says precisely what this test is about: the section that
+    // failed cost us that section and nothing else.
+    await expect(page.locator('#usageContent .usage-stats')).toHaveCount(1);
+    await expect(page.locator('#usageContent')).toContainText('Page popularity');
     // And no "Couldn't load usage" retry state — the card itself did not fail.
     await expect(page.locator('#usageContent')).not.toContainText('Couldn’t load usage');
 });
