@@ -347,18 +347,20 @@ export const CONTRACTED_HOURS_PER_WEEK = 35;
  * @param {number} [rotatingLines]
  * @returns {{exSunday: number|null, all: number|null, sundayHours: number, totalHours: number,
  *            exSundayHours: number, workingLines: number, coverLines: number, lines: number,
- *            duties: number, sundayDuties: number, unreadable: number, target: number}}
+ *            duties: number, sundayDuties: number, unreadable: number, unreadableLines: number,
+ *            complete: boolean, target: number}}
  */
 export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
     let totalMin = 0, sundayMin = 0, duties = 0, sundayDuties = 0, unreadable = 0;
-    let workingLines = 0, coverLines = 0;
+    let workingLines = 0, coverLines = 0, unreadableLines = 0;
 
     for (let w = 1; w <= rotatingLines; w++) {
         const row = /** @type {Record<string, any>} */ (patterns)?.[String(w)] || {};
-        let lineIsTimed = false;
+        let lineIsTimed = false, lineHasWork = false;
         for (const d of DAYS) {
             const s = row[d];
             if (!s || s === 'RD' || s === 'OFF' || s === 'SPARE') continue;
+            lineHasWork = true;
             const m = dutyMinutes(s);
             // A worked cell we cannot read is COUNTED as unreadable rather than silently skipped —
             // otherwise a design full of malformed times reports a comfortable low average and
@@ -370,6 +372,16 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
         }
         if (DAYS.every(d => row[d] === 'SPARE')) coverLines++;
         else if (lineIsTimed) workingLines++;
+        // ── A WHOLE LINE NOBODY COULD READ (v20.08, external review P2) ──────────────────────────
+        // A line with worked cells but NOT ONE readable time contributes zero minutes AND drops out
+        // of `workingLines`, so it leaves the average completely undisturbed. That is the worst
+        // available failure for this figure: 20 readable lines averaging exactly 35.00 while a
+        // twenty-first line — somebody's actual working week — was never measured at all, and the
+        // row reads as a clean tick. `unreadable` counts CELLS, which does not surface it either: a
+        // handful of stray cells scattered across otherwise-fine lines and one entirely unmeasured
+        // line can produce the identical count. So the LINE is counted separately, and the panel
+        // refuses to call the figure on-target while any exist.
+        else if (lineHasWork) unreadableLines++;
     }
 
     const exSundayMin = totalMin - sundayMin;
@@ -381,7 +393,10 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
         all:      workingLines ? hrs(totalMin / workingLines) : null,
         totalHours: hrs(totalMin), exSundayHours: hrs(exSundayMin), sundayHours: hrs(sundayMin),
         workingLines, coverLines, lines: rotatingLines,
-        duties, sundayDuties, unreadable,
+        duties, sundayDuties, unreadable, unreadableLines,
+        // The figure covers only the lines it could measure. `false` is what lets the renderer show
+        // a number without endorsing it — see the note beside `unreadableLines` above.
+        complete: unreadableLines === 0,
         target: CONTRACTED_HOURS_PER_WEEK,
     };
 }

@@ -1176,10 +1176,15 @@ test('operations usage: a failed sign-in-stats call leaves the rest of the card 
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
 
-    await expect(page.locator('#usageContent')).toContainText('accounts this month');
-    await expect(page.locator('#usageContent')).toContainText('Page popularity');
     // The empty wrapper removes itself rather than leaving a stray divider rule.
     await expect(page.locator('.usage-signin')).toHaveCount(0);
+    // ASSERTED STRUCTURALLY, NOT ON THE LABEL (v20.08). This read `toContainText('accounts this
+    // month')` and broke when that block was renamed — the string was never the subject. `.usage-stats`
+    // is emitted by exactly two blocks, the trend one and the sign-in one, so with `.usage-signin`
+    // proven absent above, a count of 1 says precisely what this test is about: the section that
+    // failed cost us that section and nothing else.
+    await expect(page.locator('#usageContent .usage-stats')).toHaveCount(1);
+    await expect(page.locator('#usageContent')).toContainText('Page popularity');
     // And no "Couldn't load usage" retry state — the card itself did not fail.
     await expect(page.locator('#usageContent')).not.toContainText('Couldn’t load usage');
 });
@@ -2120,7 +2125,7 @@ test('links window: compare states BOTH windows and flags that they differ', asy
 
 test('links: the summary strip names WHICH design it describes, but only in compare mode', async ({ page }) => {
     // Every figure in the strip comes from the ACTIVE design. With two grids on screen an
-    // unlabelled "22 lines designed · All service covered · N fatigue factors" reads as a verdict on
+    // unlabelled "24 lines designed · All service covered · N fatigue factors" reads as a verdict on
     // the COMPARISON, which is the one thing it is not.
     //
     // Both halves are asserted, and the second is the one that keeps this honest: labelling the

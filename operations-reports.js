@@ -283,22 +283,32 @@ async function initUsageCard() {
         const stats = await withClaimRetry(getUsageStats);
         content.innerHTML = '';
 
-        // Active-account headline numbers. These are the DEVICE-deduped trend: a member using a
+        // Active-use headline numbers. These are the DEVICE-deduped trend: a member using a
         // phone and a laptop counts twice, which is the price of the server never learning who was
         // active. The exact unique count is the separate section below.
         // The card used to OPEN on two hero numbers with no heading, then hit a second set under
         // "Accounts that have signed in" — five big numbers, only one block labelled, so nothing said
         // how they related or which was authoritative. Both blocks are now headed and paired.
+        //
+        // ── WHY THIS IS NOT CALLED "ACCOUNTS ACTIVE" ANY MORE (v20.08, external review P2) ───────
+        // It said that from v14.14 to v20.07, sitting directly above a block headed "Accounts that
+        // have signed in" — so the two read as the same measure at different precisions, and the
+        // upper one as the authoritative headcount. It is neither. The unit is a MEMBER ON A DEVICE
+        // (a phone and a laptop are two), and since v19.95 the identity for a calendar-only visitor
+        // is the member SELECTED on that device, which on a shared phone need not be the person
+        // holding it. Every one of those caveats was already written down in the ? panel; what was
+        // missing was a label that did not contradict them at a glance. "Accounts" is the word this
+        // app uses for a provisioned Firebase identity, which is precisely what this is not counting.
         const accountsLabel = document.createElement('p');
         accountsLabel.className = 'usage-section-label';
-        accountsLabel.innerHTML = '<span aria-hidden="true">\u{1F465}</span> Accounts active';
+        accountsLabel.innerHTML = '<span aria-hidden="true">\u{1F465}</span> Roster in use — by member and device';
         content.appendChild(accountsLabel);
 
         const accounts = document.createElement('div');
         accounts.className = 'usage-stats';
         accounts.innerHTML =
             `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsThisMonth}</span>` +
-            `<span class="usage-stat-lbl"><span aria-hidden="true">👥</span> accounts this month</span></div>` +
+            `<span class="usage-stat-lbl"><span aria-hidden="true">👥</span> member-devices this month</span></div>` +
             `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsLast30}</span>` +
             `<span class="usage-stat-lbl"><span aria-hidden="true">📅</span> active in last 30 days</span></div>`;
         content.appendChild(accounts);

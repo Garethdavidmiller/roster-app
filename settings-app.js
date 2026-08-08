@@ -340,6 +340,24 @@ export function init() {
                     ]},
                 ],
             },
+            // ADDED v20.09. This card was the only one of the four with no `?`, which reads as a
+            // control that failed to render rather than as a card too simple to need one — and it is
+            // not too simple: it is the one place in the app where something does NOT follow your
+            // account, which is the opposite of every expectation the rest of the app sets.
+            'pay-data': {
+                title: 'Pay Calculator Data',
+                sections: [
+                    { heading: 'Why this card exists', items: [
+                        { icon: '💾', html: 'Your pay calculator figures are saved <strong>on this device</strong>, not to your account — so they do not follow you to a new phone, and they do not appear at a different web address.' },
+                        { icon: '🔒', html: 'That is deliberate: <strong>pay data is never sent to the server</strong>. The trade is that moving it is something you have to do yourself.' },
+                    ]},
+                    { heading: 'Moving it', items: [
+                        { icon: '📄', html: 'The button opens the <strong>pay calculator</strong>, where you can download a backup or copy it as text — the controls live there because that is where the data is.' },
+                        { icon: '⚠️', html: 'Restoring <strong>replaces</strong> what is on the device — it does not merge. Take a backup of the new device first if it already has figures on it.' },
+                        { icon: '🙋', html: 'A backup belongs to the member who made it. Restoring somebody else\'s is refused, because staff share devices.' },
+                    ]},
+                ],
+            },
     };
     initTipsLightbox(CARD_TIPS);
 

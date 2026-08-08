@@ -588,9 +588,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     const guidesToggle = document.getElementById('navGuidesToggle');
     const guidesList   = document.getElementById('navGuidesList');
     guidesToggle?.addEventListener('click', () => {
+        // aria-expanded is the ONLY state (v20.09). It used to also toggle an `.open` class that
+        // the arrow's rotation was keyed on — two copies of one boolean, which held together only
+        // while the initial markup happened to agree with both. See the CSS note in shared.css.
         const isOpen = guidesToggle.getAttribute('aria-expanded') === 'true';
         guidesToggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
-        guidesToggle.classList.toggle('open', !isOpen);
         if (guidesList) guidesList.hidden = isOpen;
     });
 
@@ -1013,26 +1015,39 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                     ${infoGroups}
                 </div>
                 <div class="nav-panel-section">
-                    <!-- COLLAPSED BY DEFAULT (v20.06, owner). Six rows of reference material were
-                         expanded on every open — the largest block in the drawer, wearing the body's
-                         only gold accent, for the content opened least. Measured at 360x640 it put
-                         three of the five guides below the fold while Settings and the footer were
-                         pinned. Closed, the drawer fits without scrolling and the things staff use
-                         on a shift are what is on screen. -->
+                    <!-- EXPANDED BY DEFAULT AGAIN (v20.09, owner) — reverting the one v20.06 change
+                         that was a judgement rather than a structural fix.
+                         v20.06 closed it on a fold measurement: six rows expanded put three of the
+                         five guides below 640px on a 360-wide phone. That measurement was right and
+                         it was not the whole question. A collapsed section is not a smaller version
+                         of an open one — it is a section you have to know is there, and the guides
+                         are exactly the content a reader does not know to look for. The drawer's
+                         three-zone structure (pills / Today / Reference), which is what "cluttered"
+                         actually meant, is untouched and stays.
+                         The rest of the v20.06 pass survives on its own evidence: the pills are one
+                         per row by arithmetic (260px drawer, Calendar needs 135), Settings is a pill
+                         because it is a page, and App Notices left Workplace because it is a
+                         changelog and not a document you open on a shift.
+                         It is still a real toggle, so anyone who wants the short drawer can close
+                         it — the state simply is not the default any more. -->
                     <button type="button" class="nav-panel-guides-toggle" id="navGuidesToggle"
-                            aria-expanded="false" aria-controls="navGuidesList">
+                            aria-expanded="true" aria-controls="navGuidesList">
                         <span class="nav-panel-guides-heading">Reference</span>
                         <!-- A COUNT ON A COLLAPSED HEADER is an established convention here
                              (css-tokens.md: "chips are added only where a card is often COLLAPSED
-                             and has one clear datum"). Closed by default, "Reference ▾" alone is a
-                             heading floating above nothing — it reads like a section that failed to
-                             render rather than one holding six things. The number is what makes it
-                             legible as a container. Derived, never typed: a guide added to
-                             NAV_GUIDES must not leave a stale count behind it. -->
+                             and has one clear datum"): closed, "Reference ▾" alone reads like a
+                             section that failed to render rather than one holding six things.
+                             OPEN, the rows ARE the count, and printing it beside them states twice
+                             what the reader can already see — so the CSS hides it while expanded and
+                             brings it back the moment somebody collapses the section. Rendered in
+                             both states rather than branched in JS, because the toggle handler only
+                             flips aria-expanded; deriving the markup from the state would give the
+                             count a second home. Derived, never typed: a guide added to NAV_GUIDES
+                             must not leave a stale number behind it. -->
                         <span class="nav-panel-guides-count" aria-hidden="true">${NAV_GUIDES.length + 1}</span>
                         <span class="nav-panel-guides-arrow" aria-hidden="true">▾</span>
                     </button>
-                    <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList" hidden>
+                    <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList">
                         ${guideLinks}
                     </ul>
                 </div>

@@ -12,7 +12,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from './links-limits.js';
+import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { assessFatigue } from './links-fatigue.js';
 import { weeklyRoster, bilingualRoster } from './roster-cycle-data.js';
 
@@ -318,6 +318,37 @@ describe('every hard limit carries checkable evidence, whatever it is', () => {
                     `${c.id}: ${field} cites Hidden as current — "${text}". That standard was withdrawn in 2007; ` +
                     `cite it as the ORIGIN of the company limit, not as the limit itself`);
             }
+        }
+    });
+
+    // ── AND AN UNPRODUCED CITATION IS A STATE, NOT A COMMENT (v20.08, external review P1) ───────
+    // Every rule above is satisfied by a basis that names Chiltern policy and marks Hidden historic
+    // — and the v20.07 strings did all of that while the policy itself had never been produced.
+    // What the row could not say was that difference, so the sheet read as sourced. The evidence
+    // state now lives in `POLICY_SOURCE_CONFIRMED` and every string is derived from it; these two
+    // assertions are the pair that make the flag load-bearing rather than decorative, and they fail
+    // in BOTH directions so the day the citation lands is a test failure, not a forgotten edit.
+    test('the basis discloses an outstanding citation, and stops once it is not', () => {
+        for (const c of everyCheck()) {
+            if (POLICY_SOURCE_CONFIRMED) {
+                assert.doesNotMatch(c.basis, /outstanding|unconfirmed|to be confirmed/i,
+                    `${c.id}: the policy source is confirmed, so "${c.basis}" should cite it, not hedge`);
+            } else {
+                assert.match(c.basis, /outstanding|unconfirmed|not confirmed|to be confirmed/i,
+                    `${c.id}: "${c.basis}" reads as a sourced limit, but the policy document has never ` +
+                    'been produced. ROADMAP.md class C cannot be rendered as though it were A or B');
+            }
+        }
+    });
+
+    test('an unconfirmed limit reports the measurement, never the verdict', () => {
+        // "It cannot be run as drawn." is a CONSEQUENCE, and a consequence needs the rule behind it.
+        // Until then the row may say what the design reaches and what to go and check — which is
+        // still actionable, and is the honest form of the same finding.
+        if (POLICY_SOURCE_CONFIRMED) return;
+        for (const c of everyCheck()) {
+            assert.doesNotMatch(c.detail, /cannot be run|must not be run|is not permitted/i,
+                `${c.id}: "${c.detail}" states a verdict on an unconfirmed limit`);
         }
     });
 

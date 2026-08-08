@@ -305,7 +305,12 @@
         <div class="card-header card-header-toggle" id="usageToggleHeader">
             <div>
                 <h2><span aria-hidden="true">📊</span> Usage</h2>
-                <span class="hint">Anonymous usage — how many accounts are active, how many have signed in, and which pages get used</span>
+                <!-- "how many accounts are active" was the same over-claim as the section label
+                     below it (v20.08, external review P2): the upper block counts a member on a
+                     device, not an account. Fixing the label and leaving the card's own subtitle
+                     saying "accounts" would have left the contradiction in the more prominent of the
+                     two. -->
+                <span class="hint">Anonymous usage — how much the roster is used, how many accounts have signed in, and which pages get opened</span>
             </div>
             <div class="card-header-actions">
                 <button type="button" class="btn-card-tips" data-card="usage" aria-label="Tips for Usage" title="Tips for Usage">?</button>

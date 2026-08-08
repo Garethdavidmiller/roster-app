@@ -44,8 +44,8 @@ describe('which lines get sampled — the v19.59 bug, and the v19.98 change of s
     });
 
     test('the BILINGUAL roster is not sampled at all — the v19.98 change', () => {
-        // The mirror image of v19.59: the sample being too WIDE. The December 2026 link is 22 lines
-        // of the CEA roster widened and does not take on the bilingual roster's work, so seeding
+        // The mirror image of v19.59: the sample being too WIDE. The December 2026 link is the CEA
+        // roster WIDENED (20 → 24 lines) and does not take on the bilingual roster's work, so seeding
         // from it would target shift times no line in the design can legitimately work. This is the
         // SAME rule as the test above — the seed samples exactly what the design represents — and
         // both failures are silent, which is why each gets its own case rather than one length

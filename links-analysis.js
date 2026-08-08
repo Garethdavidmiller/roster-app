@@ -18,7 +18,7 @@
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChecks,
     weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
-import { assessHardLimits } from './links-limits.js';
+import { assessHardLimits, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, windowMinutes } from './links-window.js';
 import {
     DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, DAY_CLASSES,
@@ -333,7 +333,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         //
         // Every figure in this strip comes from `getDesign()`, the ACTIVE design. In single-design
         // view that is the only thing on screen and saying so would be noise. In COMPARE mode there
-        // are two grids up, and an unlabelled "22 lines designed · All service covered · 3 fatigue
+        // are two grids up, and an unlabelled "24 lines designed · All service covered · 3 fatigue
         // factors" reads as a verdict on the comparison — which is the one thing it is not.
         //
         // Naming the design is the smaller change than hiding the strip: a designer comparing two
@@ -376,8 +376,12 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 const off = wh.exSunday - CONTRACTED_HOURS_PER_WEEK;
                 const h = Math.floor(wh.exSunday);
                 const m = String(Math.round((wh.exSunday % 1) * 60)).padStart(2, '0');
-                return chip(Math.abs(off) <= 0.5 ? 'ok' : 'warn',
-                    Math.abs(off) <= 0.5 ? '✓' : '⚠', `${h}h ${m}m`, 'a week');
+                // Same gate as the full row below (v20.08): the chip is the only version of this
+                // figure most edits ever see, so a partial average must not wear the tick HERE
+                // either — that is the copy that would go on being trusted.
+                const ok = Math.abs(off) <= 0.5 && wh.complete;
+                return chip(ok ? 'ok' : 'warn', ok ? '✓' : '⚠',
+                    `${h}h ${m}m${wh.complete ? '' : '*'}`, 'a week');
             })()
             + `<a class="sum-jump btn-text-link" href="#coverageCard">Full analysis ↓</a>`;
     }
@@ -553,12 +557,16 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // guidance, so short IS short. Half an hour of slack absorbs the rounding that comes
             // from duties measured to the minute; the live main roster lands on 35.00 exactly.
             const off = wh.exSunday - CONTRACTED_HOURS_PER_WEEK;
-            const onTarget = Math.abs(off) <= 0.5;
+            // `complete` gates the TICK, not the number. A design with a whole line nobody could
+            // read still deserves its figure — what it must not get is the green tick, because the
+            // figure was computed over a smaller rotation than the one on screen (v20.08).
+            const onTarget = Math.abs(off) <= 0.5 && wh.complete;
             const hm = (/** @type {number} */ h) => `${Math.floor(h)}h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}m`;
             rows.push(
                 `<div class="check-row ${onTarget ? 'check-good' : 'check-warn-row'}">` +
                 `${onTarget ? tick : warn}<div class="check-body">` +
                 `<strong>Hours a week</strong> — ${hm(wh.exSunday)} on each of the ${wh.workingLines} working lines` +
+                (wh.complete ? '' : ` <strong>(partial)</strong>`) +
                 `<span class="check-note"> (contracted: ${CONTRACTED_HOURS_PER_WEEK}h, Sundays excluded)</span>` +
                 (onTarget ? '' :
                     `<div class="check-sub">${off < 0
@@ -568,7 +576,11 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 (wh.sundayDuties ? ` — ${wh.sundayDuties} Sunday duties, ${hm(wh.sundayHours)} across the rotation, on top` : '') +
                 `. The ${wh.coverLines} cover week${wh.coverLines === 1 ? '' : 's'} carry no times, so they are not in the average either.</div>` +
                 (wh.unreadable
-                    ? `<div class="check-sub">${wh.unreadable} worked cell${wh.unreadable === 1 ? '' : 's'} could not be read as a time and added no hours — the real figure is higher.</div>`
+                    ? `<div class="check-sub">${wh.unreadable} worked cell${wh.unreadable === 1 ? '' : 's'} could not be read as a time and added no hours — the real figure is higher.` +
+                      (wh.unreadableLines
+                          ? ` <strong>${wh.unreadableLines} whole line${wh.unreadableLines === 1 ? ' has' : 's have'} no readable time at all, so ${wh.unreadableLines === 1 ? 'it is' : 'they are'} not in the average and this figure is partial.</strong>`
+                          : '') +
+                      `</div>`
                     : '') +
                 `</div></div>`
             );
@@ -608,8 +620,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // would then reasonably have discounted everything else on the sheet. Full history and the
         // 13-in-14 equivalence argument: links-limits.js.
         //
-        // It is still a different KIND of statement from anything below it: a design either meets it
-        // or cannot be run. The reclassification is about whose limit it is, never its strength. It gets
+        // It is still a different KIND of statement from anything below it: a design either meets the
+        // configured figure or it does not. Neither correction — v19.96's, about whose limit it is,
+        // nor v20.08's, about how well sourced it is — touches that structure. It gets
         // its own section, its own heading, `.check-bad` RED on a breach (the class the fatigue half
         // is forbidden from using), and — unlike every advisory row — it renders whether it passes or
         // fails, because "the limit was checked and met" has to be visible on the sheet that
@@ -618,8 +631,19 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         const limits = assessHardLimits(design.patterns, ROTATING_LINES);
         const LIMIT_ICON = { ok: tick, breach: `<span class="check-icon check-cross" aria-hidden="true">✕</span>`, unknown: info };
         const LIMIT_CLS  = { ok: 'check-good', breach: 'check-bad', unknown: 'check-neutral' };
+        // ── THE CLAIM'S STRENGTH IS DERIVED, NEVER TYPED (v20.08, external review P1) ────────────
+        // This heading said "Chiltern roster policy — must be met" from v19.96 to v20.07 over a limit
+        // whose evidence is class C (the owner's account of practice), while ROADMAP.md's own gate
+        // requires class A or B for exactly that phrase. It now reads from `POLICY_SOURCE_CONFIRMED`
+        // in links-limits.js, which is the single home of that judgement — so the heading, the row's
+        // `basis` and its prose cannot end up disagreeing, which is how all four previous
+        // attributions went wrong. `data-claim="limit"` is the tests' anchor: it survives a rename of
+        // the section, which a hardcoded "Company limits" string does not.
+        const limitClaim = POLICY_SOURCE_CONFIRMED
+            ? 'Chiltern roster policy — must be met'
+            : 'Configured Chiltern limit — policy source outstanding';
         fatRows.push(
-            `<div class="check-section-head"><span>Company limits <span class="check-note">Chiltern roster policy — must be met</span></span>` +
+            `<div class="check-section-head" data-claim="limit"><span>Company limits <span class="check-note">${escapeHtml(limitClaim)}</span></span>` +
             `<span class="check-section-meta${limits.breaches ? ' check-section-meta-breach' : ''}">` +
             `${escapeHtml(limits.breaches ? `${limits.breaches} breached` : limits.assessable ? 'within limits' : 'not yet assessable')}</span></div>`,
             ...limits.checks.map(c =>

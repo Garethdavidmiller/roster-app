@@ -445,6 +445,24 @@ file inputs are excluded — none opens a keyboard, so none can trigger the zoom
 specificity) and let the test confirm it, rather than trusting the cascade to have gone the way it
 reads.
 
+## A page may only use classes its own stylesheets define (v20.09)
+
+`settings.html` carried `<p class="card-explainer">` from v19.16 to v20.08. That class was defined in
+**paycalc.css** — which settings.html does not load — so the Pay Calculator Data card's one
+explanatory paragraph rendered at browser-default size and colour with no line-height, for nine
+releases. It is now in `shared.css`, where a class used by two pages belongs.
+
+**Nothing could have caught it.** An absent class does not throw, does not warn and does not fail a
+behavioural test: the paragraph is present and readable, just unstyled. It was found by looking at a
+screenshot — the same way the v19.48 `check-info` rows were, and the same failure one level up
+(there, a class no stylesheet defined at all; here, one the *wrong* stylesheet defines).
+
+`page-css-parity.test.mjs` now fails when one page's HTML uses a class defined only in another
+page's stylesheet. It is deliberately **not** a general "every class exists somewhere" check: state
+classes are added by JS (`.open`, `.visible`) and some classes are pure hooks, so that version needs
+an allowlist long enough to hide the one case that matters. The case it does check is always a
+mistake — either the rule belongs in `shared.css`, or the markup belongs on the other page.
+
 **A button under a field matches the field.** Settings capped `.btn-action` at 280px on desktop —
 exactly half the 536px field above it and sharing its left edge, so every card ended with a 256px
 gutter. Full width is what the login overlay and the mobile layout already do.

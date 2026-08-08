@@ -4,11 +4,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ROTATING_LINES } from './links-design.js';
+import { POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 
 // Minimal DOM: getElementById returns a per-id stub element with { innerHTML, style }.
 const els = /** @type {Record<string, any>} */ ({});
 const el = () => ({ innerHTML: '', style: {} });
-function resetDom() { for (const id of ['coverageHeatmap', 'coverageEmptyMsg', 'checksContent']) els[id] = el(); }
+function resetDom() { for (const id of ['coverageHeatmap', 'coverageEmptyMsg', 'checksContent', 'linksSummary']) els[id] = el(); }
 resetDom();
 global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => els[id] || null });
 
@@ -244,19 +245,19 @@ test('the hard-limit section heading names a company limit, not a current indust
     initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
     const html = els.checksContent.innerHTML;
 
-    // SELECTED BY ITS CLAIM, NOT BY ITS POSITION (v20.04). This used to take the FIRST section
-    // heading and assert it said "must be met" — which was true only while the hard limits happened
-    // to lead the panel, and stopped being true the moment a section was added above them. Position
-    // was never what this test is about: it polices whatever section makes the must-be-met claim,
-    // wherever it sits. Scanning for the claim is both more faithful and immune to a reorder.
-    const heads = [...html.matchAll(/<div class="check-section-head"><span>([^<]*)<span class="check-note">([^<]*)</g)]
-        .map(m => ({ title: m[1], note: m[2] }));
+    // SELECTED BY ITS `data-claim`, NOT BY ITS POSITION AND NOT BY ITS WORDING (v20.08). It was
+    // position until v20.04 (broke the moment a section was added above), then the phrase "must be
+    // met" — which stopped existing at v20.08 when that phrase turned out to be the finding. Both
+    // anchors shared a fault: they were the thing under test. The renderer now DECLARES which
+    // section asserts a limit, so this test can police what it says without depending on it.
+    const heads = [...html.matchAll(/<div class="check-section-head"([^>]*)><span>([^<]*)<span class="check-note">([^<]*)</g)]
+        .map(m => ({ attrs: m[1], title: m[2], note: m[3] }));
     assert.ok(heads.length, 'no section headings rendered at all');
-    const head = heads.find(h => /must be met/i.test(`${h.title} ${h.note}`));
-    // Fails LOUD rather than vacuously: a panel that stopped claiming a hard limit anywhere would
+    const head = heads.find(h => /data-claim="limit"/.test(h.attrs));
+    // Fails LOUD rather than vacuously: a panel that stopped asserting a hard limit anywhere would
     // otherwise make every assertion below unreachable and this test silently meaningless.
-    assert.ok(head, `no section claims "must be met" — the hard-limit section is the point of this ` +
-        `test, so its absence is a failure, not a pass. Headings found: ` +
+    assert.ok(head, `no section declares data-claim="limit" — the hard-limit section is the point ` +
+        `of this test, so its absence is a failure, not a pass. Headings found: ` +
         heads.map(h => `"${h.title}${h.note}"`).join(', '));
     const { title, note } = head;
 
@@ -265,12 +266,114 @@ test('the hard-limit section heading names a company limit, not a current indust
         'the standard the number came from was withdrawn in 2007');
     assert.match(`${title} ${note}`, /chiltern|company|policy/i,
         `the heading states a hard limit without saying whose it is: "${title}${note}"`);
+});
 
-    // …and it must still assert the limit. The correction is about WHOSE rule it is, never its
-    // strength — a reclassification that quietly downgraded it to advice would be the opposite
-    // failure, and this panel's whole structure depends on the hard half not reading like the
-    // advisory half below it.
-    assert.match(`${title} ${note}`, /must be met/i, 'the hard-limit heading must still state that it is a limit');
+// ── THE CLAIM MAY ONLY BE AS STRONG AS THE EVIDENCE, IN BOTH DIRECTIONS (v20.08, review P1) ──────
+// ROADMAP.md's gate: anything rendered to a manager as *must be met* needs class A or B evidence.
+// This limit has class C — the owner's account of Chiltern practice — and the panel said "must be
+// met" anyway, over a row printing "It cannot be run as drawn." in red. The app was breaking its own
+// rule in the loudest place it has.
+//
+// The wording is now derived from `POLICY_SOURCE_CONFIRMED`, and this test reads the SAME flag, so
+// it fails in BOTH directions and that is the point of it existing at all:
+//
+//   flag false, heading says "must be met"     → the v20.07 violation, back again
+//   flag true,  heading still hedges           → the citation arrived and the sheet never said so
+//
+// A test that only checked the current wording would have to be edited on the day the citation
+// lands, which is precisely the edit that has been forgotten four times in this file's history.
+test('the strength of the limit claim matches whether its source is confirmed', () => {
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
+    const html = els.checksContent.innerHTML;
+    const section = html.split(/<div class="check-section-head"[^>]*data-claim="limit"/)[1];
+    assert.ok(section, 'the limit section did not render');
+    const head = section.slice(0, section.indexOf('</div>'));
+
+    if (POLICY_SOURCE_CONFIRMED) {
+        assert.match(head, /must be met/i,
+            'the policy source is confirmed, so the sheet must say the limit has to be met: ' + head);
+        assert.doesNotMatch(head, /outstanding|unconfirmed|to be confirmed/i,
+            'the source is confirmed but the heading still hedges: ' + head);
+    } else {
+        assert.doesNotMatch(head, /must be met|mandatory|cannot be run/i,
+            `the heading asserts the limit must be met, but POLICY_SOURCE_CONFIRMED is false — the ` +
+            `evidence is the owner's account of practice (class C), and ROADMAP.md requires A or B ` +
+            `for that phrase: ${head}`);
+        assert.match(head, /outstanding|unconfirmed|not confirmed|to be confirmed/i,
+            `the heading neither claims nor disclaims: with the source unconfirmed it must say so, ` +
+            `or a reader takes a bare "Company limits" as settled: ${head}`);
+    }
+});
+
+// The same rule applied to the PROSE, which is what actually gets read on the printed sheet. The
+// heading and the row build separate strings in separate files, which is how "Chiltern company
+// limit" once ended up in three places and stale in one.
+test('no row states a consequence the evidence does not support', () => {
+    for (const [label, patterns] of [['a clean design', fullPatterns()], ['a design over the limit', longRunPatterns()]]) {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const text = els.checksContent.innerHTML.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+        if (POLICY_SOURCE_CONFIRMED) continue;
+        assert.doesNotMatch(text, /cannot be run|must not be run|is not permitted/i,
+            `${label}: the panel states the design cannot be run, on a limit whose policy source is ` +
+            'not confirmed. Report the measurement and what to check, not the verdict.');
+    }
+});
+
+// ── A PARTIAL HOURS FIGURE MUST NOT WEAR THE TICK (v20.08, external review P2) ──────────────────
+// A line whose worked cells are all unreadable leaves the average arithmetically untouched — see
+// links-design.test.mjs for why that is the worst shape this figure can fail in. The maths now
+// reports it as `complete: false`; this is the half that matters to a reader, because a green tick
+// beside "35h 00m" is what a designer actually takes away from the panel. Both places the figure
+// appears are checked: the row, and the summary chip in the sticky save bar — which is the copy most
+// edits ever see, and would otherwise have gone on saying ✓ while the row below it said "partial".
+test('an unmeasurable working line downgrades the hours figure in BOTH places it appears', () => {
+    const good = { sun: 'RD', mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00',
+        thu: '09:00-16:00', fri: '09:00-16:00', sat: 'RD' };
+    const opaque = { sun: 'RD', mon: 'gibberish', tue: 'gibberish', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+    const withOpaque = /** @type {Record<string, any>} */ ({});
+    for (let i = 1; i <= ROTATING_LINES; i++) withOpaque[String(i)] = i === ROTATING_LINES ? opaque : good;
+
+    // The premise, asserted rather than assumed: the readable lines land exactly on contract, so
+    // without the `complete` gate this design earns a genuine green tick.
+    const clean = /** @type {Record<string, any>} */ ({});
+    for (let i = 1; i <= ROTATING_LINES; i++) clean[String(i)] = good;
+    resetDom();
+    const api = initLinksAnalysis({ getDesign: () => ({ patterns: clean }) });
+    api.renderDesignChecks();
+    assert.match(els.checksContent.innerHTML, /Hours a week/, 'the hours row did not render');
+    const cleanRow = els.checksContent.innerHTML.split('Hours a week')[0];
+    assert.match(cleanRow.slice(-260), /check-good/, 'premise: the clean design really does tick');
+
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: withOpaque }) }).renderDesignChecks();
+    const html = els.checksContent.innerHTML;
+    const before = html.split('Hours a week')[0].slice(-260);
+    assert.doesNotMatch(before, /check-good/,
+        'a design with a whole unmeasured line still ticks "Hours a week" — the average was computed ' +
+        'over fewer lines than the design has, and the tick was earned by the lines it could read');
+    assert.match(html, /partial/i, 'the row does not say the figure is partial');
+    assert.match(html, /whole line/i, 'the row does not say a whole line went unmeasured');
+
+    // …and the chip in the sticky save bar, rendered by a separate code path into its own element.
+    // `renderSummary` returns void, so reading a return value here would skip this half silently —
+    // the vacuous-guard failure. It is read out of the element, and the clean case is asserted first
+    // so a strip that stopped rendering the chip at all cannot pass as "not on-target".
+    for (const [label, patterns, expectOk] of /** @type {[string, any, boolean][]} */ ([
+        ['the clean design', clean, true],
+        ['the design with an unmeasured line', withOpaque, false],
+    ])) {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderSummary();
+        const strip = els.linksSummary.innerHTML;
+        const idx = strip.indexOf('a week');
+        assert.ok(idx > 0, `${label}: the hours chip did not render in the summary strip`);
+        const chipHtml = strip.slice(0, idx);
+        assert.equal(/sum-chip--ok(?![\w-])/.test(chipHtml.slice(chipHtml.lastIndexOf('<span class="sum-chip'))), expectOk,
+            `${label}: the summary chip's on-target state is wrong — it is the copy most edits ever ` +
+            'see, so a partial average wearing ✓ here outlives the row that says "partial"');
+    }
 });
 
 // ── RECOMMENDATION 5: ANYTHING RENDERED AS "MUST BE MET" CARRIES EVIDENCE (v19.96) ──────────────
@@ -286,20 +389,22 @@ test('the hard-limit section heading names a company limit, not a current indust
 // then cannot arrive as an unsourced assertion in red.
 //
 // It is deliberately NOT keyed on the string "Company limits": a section that renamed itself would
-// slip a hardcoded-list check while making exactly the same claim.
-test('every section claiming "must be met" carries a source on its rows', () => {
+// slip a hardcoded-list check while making exactly the same claim. Since v20.08 the trigger is the
+// renderer's own `data-claim="limit"` marker OR any of the assertion phrases — either is enough, so
+// a section that asserts a limit without declaring itself is still caught.
+test('every section asserting a limit carries a source on its rows', () => {
     resetDom();
     initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
     const html = els.checksContent.innerHTML;
 
     // Split the panel into sections at each heading, so each claim is judged against its OWN rows.
-    const parts = html.split(/<div class="check-section-head">/).slice(1);
+    const parts = html.split(/<div class="check-section-head"/).slice(1);
     assert.ok(parts.length >= 2, `expected at least the two sections, found ${parts.length}`);
 
     let asserted = 0;
     for (const part of parts) {
         const head = part.slice(0, part.indexOf('</div>'));
-        if (!/must be met|cannot be run|required|mandatory/i.test(head)) continue;
+        if (!/data-claim="limit"|must be met|cannot be run|required|mandatory/i.test(head)) continue;
         asserted++;
 
         // The heading says whose requirement it is…

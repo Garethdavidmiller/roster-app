@@ -368,9 +368,39 @@ limits in the table below are already computed and waiting to be promoted, and e
 land as a bare number in red on a manager's sheet.
 
 ⚠️ **The exact policy citation is still OUTSTANDING** — title, clause, which staff group it covers,
-and its effective/review date. `basis` names the policy so a manager knows what to ask for, which is
-the minimum bar; a row that says "must be met" ought to be able to say where. See
-KNOWN_LIMITATIONS.md → Links.
+and its effective/review date. See KNOWN_LIMITATIONS.md → Links.
+
+### And until it arrives, the sheet says so — `POLICY_SOURCE_CONFIRMED` (v20.08, external review P1)
+
+The fifth correction, and the first one that is not about the wording. ROADMAP.md's evidence gate:
+*anything rendered to a manager as "must be met" requires class A or B*. This limit is class **C** —
+the owner's account of practice — and the panel said "must be met" over a row printing *"It cannot
+be run as drawn."* in red. The app was breaking its own rule in the loudest place it has.
+
+**What changed is the CLAIM, not the check.** The number, the separate module, the section above the
+ORR factors, the red on a breach and the render-when-passing are all untouched — demoting any of
+those would be answering a sourcing problem with a safety one. What the sheet now says is what is
+actually known:
+
+| | Unconfirmed (today) | Confirmed |
+|---|---|---|
+| Heading | `Configured Chiltern limit — policy source outstanding` | `Chiltern roster policy — must be met` |
+| Prose on a breach | reaches N, above the 13 configured here — *confirm the policy before treating that as a decision* | …*It cannot be run as drawn.* |
+| `basis` | `Chiltern roster policy, citation outstanding — …` | `Chiltern roster policy — …` |
+
+**`POLICY_SOURCE_CONFIRMED` in `links-limits.js` is the one home of that judgement, and every string
+above is DERIVED from it.** That is the structural half, and it is the lesson of the four
+attributions in the table earlier: each was corrected by editing prose in two or three files, and
+each left a copy behind somewhere nobody was looking. Tests in `links-limits.test.mjs` and
+`links-analysis.test.mjs` read the same flag and fail in **both** directions — flag false with the
+heading asserting, and flag true with the heading still hedging — so **the day the citation arrives
+is a test failure, not an edit somebody has to remember**. Closing it is: put the reference in
+`CONFIRMED_BASIS`, flip the flag, run `npm test`.
+
+`data-claim="limit"` on the section head is the tests' anchor. The guard has been re-anchored twice
+now — position (broke when a section was added above it, v20.04) and then the phrase "must be met"
+(which stopped existing at v20.08, because that phrase was the finding) — and both times the anchor
+was the thing under test. A declared marker is not.
 
 **THE OTHER LIMITS IN THAT FAMILY ARE NOT IMPLEMENTED YET, AND THE APP ALREADY COMPUTES THEM.**
 This is the most useful thing to know about this section. The post-Clapham set was a family — a

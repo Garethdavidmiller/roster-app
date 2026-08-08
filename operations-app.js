@@ -781,7 +781,8 @@ export function init() {
                 title: 'Usage',
                 sections: [
                     { heading: 'What it shows', items: [
-                        { icon: '👥', html: '<strong>Accounts active</strong> — how many individual staff accounts <strong>used the app</strong> this calendar month and over the last 30 days. Simply opening the app counts, <strong>including just looking at the roster without signing in</strong>' },
+                        { icon: '👥', html: '<strong>Roster in use</strong> — how many <strong>member-and-device pairs</strong> opened the app this calendar month and over the last 30 days. Simply opening the app counts, <strong>including just looking at the roster without signing in</strong>' },
+                        { icon: '🧮', html: 'It is not a headcount of people, which is why it is no longer labelled "accounts". One person on a phone <em>and</em> a laptop counts <strong>twice</strong>; on a shared device it follows <strong>whichever member is selected</strong>, who need not be the person holding it. For the exact count of distinct accounts, see the block below' },
                         { icon: '📈', html: 'That last part changed in <strong>August 2026</strong>. Before then this counted only people who opened a page you must sign in for, so it missed anyone who just reads their shifts — most of the staff. Expect a <strong>step up</strong> from that point; figures either side of it aren\'t comparable' },
                         { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened this month, and how many times each document and guide has been opened' },
                     ]},

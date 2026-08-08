@@ -169,13 +169,11 @@ export async function openRosterReview(page) {
 /**
  * Open the drawer and expand its "Reference" section, then return the named guide link.
  *
- * The expand step is REAL, not test scaffolding: the guides are collapsed by default since v20.06,
- * because six rows of reference material were the largest block in the drawer and put three of the
- * five guides below the fold on a 360x640 phone. So reaching a guide genuinely is two taps now, and
- * every spec that reaches one has to do what a member does.
- *
- * Written once because four specs needed it and four inline copies is how the next collapse-state
- * change becomes a four-file edit.
+ * Written once because four specs needed it, and four inline copies is how a collapse-state change
+ * becomes a four-file edit. That paid off immediately: the section was collapsed by default at
+ * v20.06 and expanded again at v20.09, and because `openReference` only clicks when it finds the
+ * section CLOSED, neither change touched a spec. A helper that clicked unconditionally would have
+ * closed the section at v20.09 and failed all four.
  *
  * @param {import('@playwright/test').Page} page
  * @param {string} label - the guide's visible label, e.g. 'Railcard Guide'
@@ -189,8 +187,10 @@ export async function openGuideLink(page, label) {
  * Open the drawer and expand its "Reference" section — the guides AND App Notices live there.
  *
  * Split out from `openGuideLink` because App Notices is not a guide link but is behind the same
- * collapse, and the visual suite needs it. Idempotent: only expands when closed, so a caller that
- * already opened the section does not collapse it again.
+ * collapse, and the visual suite needs it. **Idempotent, and that is load-bearing rather than
+ * tidy:** it expands only when it finds the section closed, so it is correct whichever way the
+ * default currently points (collapsed v20.06, expanded again v20.09) and a caller that already
+ * opened the section does not collapse it again.
  *
  * @param {import('@playwright/test').Page} page
  */

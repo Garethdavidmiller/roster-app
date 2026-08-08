@@ -105,27 +105,64 @@ stripe (green = any time, amber = a morning bar), the `⊘` token, the card/row 
 Chiltern callout mean here exactly what they mean there. The two pages are read by the same people
 minutes apart; a second vocabulary would slow both down.
 
-**It ships as a DRAFT, and that is a structural state, not a caveat.** Every claim on it is a rule a
-passenger could be refused travel by, which ROADMAP.md's Evidence class puts at A or B — and the
-content was assembled from public summaries because the official pages are unreachable from the build
-environment. So the unverified state is carried in three places at once, and all three are enforced:
+**Its evidence state is PER PRODUCT, and there are three of them** (v20.10, owner). It shipped at
+v20.05 entirely Draft — content assembled from public summaries, because the National Rail pages are
+unreachable from the build environment. The owner has since checked the products directly against
+the live pages (Aug 2026), and keeping the page-wide banner after that was misleading in the *other*
+direction: eight well-sourced products and two contradictory ones presented as equally uncertain, so
+a reader could no longer tell which was which.
 
-- a permanent `.draft-banner` above the fold, which also prints;
-- a `to confirm` pill on **every** card, so the state survives a screenshot, a print, or a reader who
-  scrolled past the banner;
-- a `Draft` class on each `GUIDE_SOURCES.md` row, with `guide-sources.test.mjs` asserting that a
-  Draft row's page shows the banner **and** that every block anchored to a Draft row carries the
-  per-card marker.
+| Status | Pill | Card marker | Register class |
+|---|---|---|---|
+| Read at source, states what the source states | `✓ National Rail checked · Aug 2026` (green) | — | `National` |
+| Read at source, and the source will not settle it | `⚠ Source conflict · check retail system` (red) | `.rr-card--conflict` | `Conflict` |
+| Not yet read at source | `Draft · source not yet verified` (amber) | `.rr-card--draft` | `Draft` |
 
-**To confirm a product:** check it against its register Source *and* the retail system, flip that row
-to `National`, and drop `rr-card--draft` from its card. The banner goes when the last one does. Do
-not remove the banner while any card still carries the class — the test will fail, which is the point.
+**A Conflict is not a stronger Draft, and they must never share a marker.** Draft means nobody has
+looked; Conflict means somebody did and the publisher contradicts itself. Re-reading fixes the first
+and cannot fix the second — a staff member sent back to a page that has already been read learns
+nothing and loses time at a gateline. Conflict takes RED because red is already this page's *stop*
+token (the near-miss stripe, `.tok-no`), which is right for *stop and check* and wrong for *nobody
+has looked yet*.
+
+**Never resolve a conflict by picking the likelier reading.** Both live cases refuse somebody either
+way: Shakespeare Explorer's break of journey (National Rail's description permits it, the detailed
+conditions on the same page do not) and Thames Rover **7 Day** (the current 7-Day promotion lists
+Chiltern; the older TR3/TR7 formal page says GWR only — and the 3-Day promotion lists GWR only, so
+the two durations must never be merged into one card). Report both readings and say what to do
+meanwhile.
+
+**The `✓ checked` pill's green is DARKER than the page's `--green` token, and that is measured.**
+The token on its own 10% tint comes to **4.49:1** — under the AA floor by 0.01. The axe gate caught
+it; nobody reviewing the page would have. It is the clearest case for keeping that gate blocking:
+a contrast miss this small is invisible and just as failing as a large one. Re-measure if either
+value moves.
+
+`guide-sources.test.mjs` enforces all of it: the class set, a per-class card marker on every anchored
+block, a banner that names every state actually present, and — because a classification with no
+reasoning is unactionable — that every Conflict row's claim text describes **both** readings.
+
+**To settle a product:** re-check it at source *and* in the retail system, then flip its row and drop
+its marker. The banner goes when the last provisional row does.
 
 **Design decisions, argued in `RANGERS_ROVERS_PLAN.md`:**
 
-- **It leads with "usually no".** ~90 products exist nationally and a handful touch Chiltern. A page
-  that opens with a long list makes the common case slow and the rare case ambiguous — a staff member
-  who cannot find the ticket in their hand cannot tell *not valid* from *not listed*.
+- **It leads with "usually no" — but the five are a SHORTLIST, never a rule of exclusion** (v20.08,
+  external review). ~90 products exist nationally and a handful touch Chiltern, so a page that opens
+  with a long list makes the common case slow and the rare case ambiguous — a staff member who cannot
+  find the ticket in their hand cannot tell *not valid* from *not listed*. That is still the right
+  layout. What shipped with it was an inference: "if it is not one of these five, the answer is
+  almost certainly no", and the review named three more products reported to reach us. Of the two
+  failures available at a gateline, refusing a valid pass is the worse one and the only one this page
+  can cause. **Not on the list means CHECK.** Step 1 of "How to check one" routes there, and the
+  three reported products are named under `#rr-reported` with **no rules attached** — a card states
+  days, area, time bars and break of journey, and each is a rule a passenger could be refused travel
+  by, i.e. exactly what the A/B evidence gate covers.
+- **An unresolved rule is rendered as unresolved, and it does not wear the amber Chiltern callout**
+  (`.rr-unresolved`, red). Amber means "here is the local answer no national page gives" — something
+  to act on. A rule whose published wording contradicts itself is the opposite. Two live cases: the
+  Shakespeare Explorer break of journey, and which operators the Cotswolds Discoverer names (the
+  Chiltern answer there does not depend on it, so the refusal stands and the list is not quoted).
 - **The near-misses section is the point of the page**, not an appendix. Cotswolds Discoverer and
   Freedom of Severn & Solent both reach stations on our map and are not valid on us; saying so quickly
   is the answer no national page gives.
@@ -133,3 +170,9 @@ not remove the banner while any card still carries the class — the test will f
   stricter than the railcard guide's two min-fare figures.
 - **The date box gets the `.gotcha`.** It is the only ranger/rover rule a gateline can enforce by
   looking, and the one most likely to be unknown.
+- **A list of things we have NOT checked must not wear the "valid" tick** (`.quick-list--unchecked`,
+  v20.09). The three reported-but-unwritten-up products reused `.quick-list`, which draws a green ✓ —
+  the token the key strip at the top of the page defines as *valid on Chiltern* — directly beneath a
+  paragraph saying there is not enough behind them to state a rule. On a page whose entire risk model
+  is not over-claiming, the marker was making the claim the prose refused to. They now carry an amber
+  `?`, the same token their own heading uses.

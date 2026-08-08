@@ -4,10 +4,17 @@
 `.claude/rules/guide-pages.md` (how guide pages are built) and `GUIDE_SOURCES.md` (how their claims
 are governed).*
 
-**Status: BUILT AND SHIPPED AS A DRAFT (v20.05).** The page exists, is wired into every contract in
-§6, and states on its own face that it has not been verified. §1 is therefore no longer a reason to
-wait — it is the description of the work that remains, and that work is verification, not building.
-WP0–WP1 below are still owned by Gareth; WP2–WP5 are done.
+**Status: SHIPPED, AND SOURCE-CHECKED PER PRODUCT (v20.05 built; v20.10 checked).** The page exists
+and is wired into every contract in §6. The owner has checked its products against the live National
+Rail pages (Aug 2026) — see §9c — so the page is **no longer uniformly Draft**: most products are
+`National`, and two carry the new `Conflict` class because National Rail's own pages disagree with
+themselves. WP2–WP5 are done; what remains is settling those two conflicts through Chiltern/retail
+guidance, and capturing four product-page URLs (§9c).
+
+⚠️ **§1 below is the record of why the page shipped Draft, and it is still true about THIS
+environment** — `nationalrail.co.uk` remains unreachable from here, so nothing on the page has been
+read at source *by me*. What changed at v20.10 is the route, not the standard: the evidence came from
+the owner. Read §1 as the constraint on automated verification, not as the current state of the page.
 
 ---
 
@@ -276,6 +283,70 @@ fluency is not the check.
 
 **Useful non-authoritative index:** `railrover.org` maintains per-product pages and was the most
 complete third-party listing found. Good for *finding* products; never a source for a claim.
+
+### 9c. v20.10 — the owner checked the sources, and the governance changed shape
+
+§1 said the whole page had to be Draft because the official pages are unreachable from the build
+environment. That was right about the *environment* and wrong to conclude from it that the page must
+stay uniformly unverified: the constraint is on **this environment's reach**, not on whether the
+evidence can be obtained. The owner checked the products against the live National Rail pages
+(Aug 2026) and supplied the findings, which is class-A evidence arriving by a different route.
+
+**What that revealed is that a page-wide banner cannot express what we now know.** Eight products
+read cleanly; two came back with the source contradicting itself. Presented under one "Draft"
+banner, those are indistinguishable — and the reader loses precisely the thing the banner was for.
+
+So the register gained a **`Conflict`** class (checked, and the source will not settle it) and the
+page gained a status per product. The two unresolved ones are unresolved for opposite-shaped
+reasons, and neither is closer to being fixed by looking again:
+
+- **Shakespeare Explorer** — National Rail's own page permits break of journey in its description
+  and forbids it in the detailed outward/return conditions. One page, two answers.
+- **Thames Rover 7 Day** — the current 7-Day promotion lists Chiltern (with Banbury and Bicester
+  Village); the older TR3/TR7 formal page says GWR only. Two pages, two answers. **And the duration
+  is load-bearing**: the 3-Day promotion lists GWR only, so a card headed "Thames Rover" would carry
+  the 7-Day finding onto a product the current source says is not ours.
+
+Three products moved from *named without rules* (§9b) to full cards: Thames Rover 7 Day, West
+Midlands Family Day Ranger, and **Chiltern Friends & Family** — which turns out to be the most
+gateline-relevant of the lot, being ours, and whose e-ticket deliberately does not open the barriers.
+
+**Still outstanding:** the product-page URLs for Chiltern Friends & Family, the West Midlands Family
+Day Ranger, and the two conflicting Thames pages. Their register rows cite the parent/landing page
+and say so explicitly, rather than carrying a URL pattern-guessed from the others — a fabricated
+citation in a source register is the exact failure the register exists to prevent, and it would look
+more authoritative than the honest gap.
+
+### 9b. What the v20.08 external review changed — and the one lesson worth carrying
+
+A review of the shipped page (Aug 2026) returned five corrections. Four were **over-claims**, and
+every one was fixed by claiming less rather than by asserting something new: All Line Rover's area
+("all of Great Britain" → the National Rail network, with the exclusions named), its purchase window
+(a flat 3 days → 3 at a station, reported 5 via telesales/online), the Shakespeare break-of-journey
+permission (→ unresolved; National Rail's own page contradicts itself), and the Cotswolds operator
+list (→ unresolved; the refusal stands, the list stops being quoted). None needed a source I could
+not reach, because **removing a claim needs no evidence**.
+
+The fifth is the one that mattered most and is not about any product. The page said a ticket outside
+its five "almost certainly" does not cover Chiltern — **a shortlist doing duty as a rule of
+exclusion** — and the review named three more products reported to reach us. That framing produces
+the worse of the two available failures: refusing a valid pass to a passenger who is right and
+cannot argue it. §3's scoping decision (lead with the five, answer the rest by exclusion) is still
+correct as *layout*; what was wrong was letting it become an *inference*. Not on the list now means
+CHECK, and step 1 of "How to check one" routes there rather than to a no.
+
+**The three reported products are named on the page and given no rules** (`#rr-reported`). That is
+deliberate and is the whole distinction this plan is built on: a card states days, area, time bars
+and break of journey, and each of those is a rule a passenger could be refused travel by — §1's
+class A/B gate. A third party's summary is class C at best, and is precisely the sourcing behind the
+v17.45 railcard errors. What IS supportable, and is also what a gateline needs, is: these exist, do
+not refuse one. Writing them up is WP1 work once task #36 opens the sources:
+
+| Reported | What it needs before it can become a card |
+|---|---|
+| **Thames Rover (7 Day)** | Area, whether our Marylebone corridor is in it, the time bar |
+| **West Midlands Family Day Ranger** | Same as the Day Ranger already carded, plus the group composition rule |
+| **Chiltern Friends & Family** | **Ours, if it exists** — so it needs the retail system, not just a national page. Highest priority of the three |
 
 ---
 

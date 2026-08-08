@@ -41,17 +41,18 @@ main {
              max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
 }
 
-/* ── The draft banner ────────────────────────────────────────────────────────
+/* ── The source banner ───────────────────────────────────────────────────────
    Sits ABOVE the chip bar and outside <main> so it cannot be scrolled past before the first card,
-   and so it prints. Amber, not red: the page is unconfirmed, not wrong, and a red banner would
-   teach staff to disregard the page rather than to check it. Remove only when the last
-   `.rr-card--draft` goes. */
-.draft-banner {
+   and so it prints. Amber, not red: nothing here is WRONG, and a red banner would teach staff to
+   disregard the page rather than to check it — the opposite of what it is for. Remove only when the
+   last `.rr-card--draft` / `.rr-card--conflict` goes. Renamed from `.draft-banner` at v20.10, when
+   the page stopped being uniformly draft: it now summarises a mix of states. */
+.source-banner {
     background: var(--amber-bg);
     border-bottom: 2px solid var(--amber);
     padding: 12px max(16px, env(safe-area-inset-left));
 }
-.draft-banner > * { max-width: 760px; margin-left: auto; margin-right: auto; }
+.source-banner > * { max-width: 760px; margin-left: auto; margin-right: auto; }
 .draft-title {
     font-weight: 800;
     color: var(--amber);
@@ -59,7 +60,7 @@ main {
     letter-spacing: 0.2px;
     margin-bottom: 4px;
 }
-.draft-banner p { font-size: 13px; color: var(--text); }
+.source-banner p { font-size: 13px; color: var(--text); }
 
 h2.section {
     font-size: 12px;
@@ -98,6 +99,17 @@ h2.section:first-of-type { margin-top: 4px; }
     font-weight: 800;
 }
 
+/* ── A LIST OF THINGS WE HAVE NOT CHECKED MUST NOT WEAR THE "VALID" TICK (v20.09) ────────────────
+   The three reported-but-unwritten-up products reused `.quick-list`, so each arrived with the green
+   ✓ that means "valid on Chiltern" everywhere else on this page and in the key strip at the top —
+   directly under a paragraph saying there is not enough behind them to state a rule. On a page whose
+   entire risk model is not over-claiming, the marker was making the claim the prose refused to.
+   `?` is the same token the block's own heading uses, and amber is the page's "check this" colour. */
+.quick-list--unchecked li::before {
+    content: '?';
+    color: var(--amber);
+}
+
 /* ── Key strip ─────────────────────────────────────────────────────────────── */
 .key {
     display: flex;
@@ -132,8 +144,34 @@ h2.section:first-of-type { margin-top: 4px; }
     color: var(--amber);
     border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
 }
+/* ── THE THREE PER-PRODUCT STATUSES (v20.10) ─────────────────────────────────
+   Checked is GREEN and quiet — it is the ordinary case and must not compete with the finding rows
+   inside the card. Conflict is RED, and that is the one colour decision here worth arguing: red is
+   otherwise this page's "not valid on us" token (`.tok-no`, the near-miss stripe), so it is already
+   read as *stop*. That is exactly right for a conflict — stop and check — and wrong for a draft,
+   which means only "nobody has looked yet". Amber stays with Draft for the same reason.
+   `.pill` sets `white-space: nowrap`; these strings are long, so `.rr-top` wraps instead (below). */
+.pill-checked {
+    background: color-mix(in srgb, var(--green) 10%, white);
+    /* DARKER THAN `--green`, and measured rather than eyeballed. The token on its own 10% tint comes
+       to 4.49:1 — under the 4.5 floor by 0.01, which the axe gate caught and nobody would have seen.
+       That is the whole argument for keeping that gate blocking: a contrast miss this small is
+       invisible to review and just as failing as a large one. 85% green / 15% black clears it at
+       ~5.8:1 on the same tint. Re-measure if either value moves. */
+    color: color-mix(in srgb, var(--green) 85%, black);
+    border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
+}
+.pill-conflict {
+    background: color-mix(in srgb, var(--red) 8%, white);
+    color: var(--red);
+    border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+}
 
 /* ── Product cards ─────────────────────────────────────────────────────────── */
+/* `.rr-top` wraps since v20.10: the status strings ("✓ National Rail checked · Aug 2026") are far
+   longer than the old "to confirm", and a nowrap pill beside a nowrap-ish product name would either
+   squeeze the name to two lines or overflow the card. Wrapping drops the status onto its own line on
+   a narrow phone and keeps it inline everywhere else. */
 .rr-card {
     background: var(--white);
     border: 1px solid var(--border);
@@ -150,6 +188,11 @@ h2.section:first-of-type { margin-top: 4px; }
 /* An unconfirmed card is marked on the CARD, not only in the page banner, so the state survives
    being screenshotted, printed, or read after scrolling past the banner. */
 .rr-card--draft { background: linear-gradient(0deg, var(--amber-bg) 0%, var(--white) 26%); }
+/* A conflict card is tinted from the RED family, not the amber one — see the pill note above. It is
+   a wash rather than a stripe, because the stripe down the left edge already carries the product's
+   own green/amber time rule and must keep doing so: the conflict is about the SOURCE, not about
+   whether the ticket is valid on us. */
+.rr-card--conflict { background: linear-gradient(0deg, color-mix(in srgb, var(--red) 6%, white) 0%, var(--white) 26%); }
 /* The tint is for WHITE cards. The gotcha is already amber and the notes block carries its own
    fill, so they take the marker class (the register test requires it on every Draft-anchored
    block) but keep their own background — their `to confirm` pill is what carries the state. */
@@ -202,6 +245,18 @@ h2.section:first-of-type { margin-top: 4px; }
 }
 .ct-label { font-weight: 800; color: var(--amber); margin-right: 5px; }
 
+/* An UNRESOLVED rule is not an amber Chiltern note (v20.08, external review). The amber banner
+   means "here is the local answer no national page gives" — a thing you can act on. A rule whose
+   published wording contradicts itself is the opposite: the one thing to do is not act on it. It
+   takes the red edge for that reason, and its label goes red with it, so a reader scanning card
+   callouts cannot mistake "we cannot tell you" for "here is the answer". */
+.rr-chiltern.rr-unresolved {
+    background: #fdecea;
+    border-left: 4px solid var(--red);
+    padding-left: 8px;
+}
+.rr-unresolved .ct-label { color: var(--red); }
+
 /* ── Near misses ───────────────────────────────────────────────────────────── */
 .rr-nolist { display: flex; flex-direction: column; gap: 8px; }
 .rr-no-item {
@@ -211,6 +266,9 @@ h2.section:first-of-type { margin-top: 4px; }
     border-radius: 8px;
     padding: 10px 14px;
 }
+/* Wraps since v20.10, for the same reason `.rr-top` does: the status pill is much longer than the
+   glyph it used to sit beside, and on a 390px phone an unwrapped row breaks the product NAME across
+   two lines instead of dropping the status to its own. The name is what a reader is scanning for. */
 .rr-no-name {
     font-weight: 800;
     color: var(--navy);
@@ -218,7 +276,8 @@ h2.section:first-of-type { margin-top: 4px; }
     margin-bottom: 3px;
     display: flex;
     align-items: baseline;
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 4px 6px;
 }
 .rr-no-item p { font-size: 13px; color: var(--mid); }
 
@@ -303,13 +362,13 @@ h2.section:first-of-type { margin-top: 4px; }
     body { background: #fff; font-size: 10.5pt; }
     main { max-width: none; padding: 0 8mm 8mm; }
     .chip-bar, .guide-back-link { display: none !important; }
-    .draft-banner { border-bottom: 2pt solid var(--amber); print-color-adjust: exact; }
+    .source-banner { border-bottom: 2pt solid var(--amber); print-color-adjust: exact; }
     .rr-card, .rr-no-item, .check-item, .gotcha, .quick, .rr-notes {
         break-inside: avoid;
         print-color-adjust: exact;
     }
     /* The gradient does not reproduce reliably on every printer, and a card that loses its draft
        tint on paper would read as confirmed. The pill carries it instead, which is text. */
-    .rr-card--draft { background: #fff; }
+    .rr-card--draft, .rr-card--conflict { background: #fff; }
     h2.section { break-after: avoid; }
 }
