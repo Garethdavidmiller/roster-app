@@ -18,7 +18,13 @@ import { readFileSync } from 'node:fs';
 
 const SRC = readFileSync(new URL('./GUIDE_SOURCES.md', import.meta.url), 'utf8');
 
-const CLASSES = new Set(['National', 'Local', 'Tip', 'Fact', 'Contact']);
+// `Draft` (v20.05) means RECORDED BUT NOT VERIFIED — the source is identified and the claim is
+// written down, but nobody has read it at that source. It exists because the Rangers & Rovers guide
+// had to be built from public summaries (the official pages are unreachable from this environment),
+// and the alternative was worse in both directions: classify those rows `National` and the register
+// certifies something nobody checked, or leave them out and the guide's riskiest claims have no rows
+// at all. A named class makes the gap countable, and the test below makes it visible on the page.
+const CLASSES = new Set(['National', 'Local', 'Tip', 'Fact', 'Contact', 'Draft']);
 const COLS = ['ID', 'Guide', 'Section', 'Class', 'Reviewed', 'Next', 'Source'];
 
 /**
@@ -84,7 +90,7 @@ test('every Class is one of the allowed values', () => {
 // would silently exempt a high-risk row from BOTH the block-anchoring requirement and orphan
 // detection below (those checks only iterate the known guides) — reopening the exact
 // "wrong claim, un-cross-referenced source" gap the linkage checks exist to close.
-const GUIDES = new Set(['railcard', 'fip', 'paycalc']);
+const GUIDES = new Set(['railcard', 'fip', 'paycalc', 'rangers']);
 test('every Guide is one of the allowed guides', () => {
     for (const row of rows) {
         assert.ok(GUIDES.has(row.Guide), `row ${row.ID}: guide "${row.Guide}" is not one of ${[...GUIDES].join('/')}`);
@@ -163,7 +169,7 @@ test('the railcard time-rule cards flagged in the audit are present and classifi
 
 // Which guide file each Guide value lives in. Rows in other guides (paycalc) are exempt from
 // the HTML-block requirement — they render on a different surface with no data-guide-source blocks.
-const GUIDE_FILES = { railcard: 'railcard-guide.html', fip: 'fip.html' };
+const GUIDE_FILES = { railcard: 'railcard-guide.html', fip: 'fip.html', rangers: 'rangers-guide.html' };
 
 /**
  * Pull every `data-guide-source="a b c"` value out of an HTML file, space-splitting so one
@@ -307,4 +313,40 @@ test('review-cadence reminder (never fails; logs overdue high-risk rows)', () =>
         for (const r of overdue) console.warn(`   • ${r.ID} (${r.Guide}) — Next was ${r.Next}`);
     }
     assert.ok(true); // always passes — this is a reminder, not a gate
+});
+
+// ── A DRAFT ROW MUST BE VISIBLE ON THE PAGE IT CERTIFIES (v20.05) ───────────────────────────────
+//
+// The register knowing a claim is unverified is worth nothing if the staff member reading the guide
+// cannot tell. This is the `links-deletion.js` lesson in a different file: the bin promised a 30-day
+// countdown for ten versions after the purge was switched off, and what that cost was not the
+// countdown — it was the reason to believe the next thing the panel said.
+//
+// So: every guide with a `Draft` row must carry a visible draft banner, and every block anchored to
+// a Draft row must carry the per-card marker. The banner alone is not enough — it scrolls away, and
+// a printed or screenshotted card outlives it.
+test('a Draft register row is declared on the page it certifies', () => {
+    const draftIds = new Set(rows.filter(r => r.Class === 'Draft').map(r => r.ID));
+    if (draftIds.size === 0) return;   // nothing to police — every row has been verified
+
+    const guidesWithDrafts = new Set(rows.filter(r => draftIds.has(r.ID)).map(r => r.Guide));
+    for (const guide of guidesWithDrafts) {
+        const file = GUIDE_FILES[guide];
+        if (!file) continue;           // paycalc renders elsewhere — same exemption as the linkage checks
+        const html = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+        assert.match(html, /class="draft-banner"/,
+            `${file} certifies ${[...draftIds].length} unverified (Draft) claims but shows no draft banner — ` +
+            'a reader has no way to know. Add the banner, or verify the rows and reclassify them.');
+
+        // Every element carrying a Draft ref must also carry the per-card marker. Matched on the
+        // element's own attribute string, so an anchor that lost its marker is named individually
+        // rather than the file passing on the strength of some OTHER card having one.
+        for (const m of html.matchAll(/<[^>]*data-guide-source="([^"]+)"[^>]*>/g)) {
+            const ids = m[1].trim().split(/\s+/);
+            if (!ids.some(id => draftIds.has(id))) continue;
+            assert.match(m[0], /rr-card--draft/,
+                `${file}: the block citing ${ids.join(' ')} is certified by an unverified (Draft) row ` +
+                `but carries no per-card draft marker:\n  ${m[0].slice(0, 120)}…`);
+        }
+    }
 });

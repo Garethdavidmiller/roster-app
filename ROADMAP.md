@@ -116,10 +116,18 @@ two-month warning, because "must be done by April" reliably becomes "started in 
 ## NEXT — likely, but a trigger is required
 
 ### Rangers & Rovers guide
-**Status:** Planned — `RANGERS_ROVERS_PLAN.md` · **Owner:** Gareth (the blocking half) · **Trigger:** a class-A/B source route
+**Status:** **SHIPPED AS A DRAFT v20.05** — `RANGERS_ROVERS_PLAN.md` · **Owner:** Gareth (verification) · **Trigger:** confirm each product against the retail system
 
 A fifth guide page, for the ranger and rover area passes staff have to accept or refuse at the
-gateline. The design work is done and written up; **the plan deliberately stops before any content**.
+gateline. **Built and shipped, and every claim on it is marked unverified** — the page carries a
+printing draft banner, a `to confirm` pill on each card, and a `Draft` class on each register row,
+all three enforced by `guide-sources.test.mjs`. It ships that way because a staff member with
+nothing has to guess, and a structured best-available answer that SAYS it is unconfirmed beats a
+guess — the precedent is `links-fatigue.js`, whose FF17/18/19 render with `confirm: true`.
+
+**What is left is verification, and it is not a developer task.** Confirm each of the seven products
+against its register Source *and* the retail system, flip that row to `National`, and drop
+`rr-card--draft` from its card. The banner goes when the last one does.
 
 **Why it is blocked, and why that is the right answer.** Every claim on such a page is a rule a
 passenger could be refused travel by, so the Evidence class gate above puts the whole page at **A or

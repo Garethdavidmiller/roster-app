@@ -51,6 +51,7 @@ belongs.
 | `Tip` | Practical guidance — how staff apply the rule day-to-day. |
 | `Fact` | A fixed figure or datum (fare, rate, threshold, phone number). |
 | `Contact` | A booking/enquiry contact point (agency phone, booking site) whose accuracy matters but which is neither a rule nor a fixed figure. |
+| `Draft` | **Recorded, source identified, NOT yet verified against it.** Introduced v20.05 for the Rangers & Rovers guide, whose content was assembled from public summaries because the official pages are unreachable from the build environment. A `Draft` row is a promise to check, not a certification — and the page it certifies must SAY so where staff can see it (enforced below). Reviewed/Next mark when it was *recorded* and when it must be *verified*, not a completed review. |
 
 ## Register
 
@@ -61,6 +62,15 @@ belongs.
 
 | ID | Guide | Section | Class | Reviewed | Next | Source |
 |----|-------|---------|-------|----------|------|--------|
+| rr-shakespeare | rangers | Shakespeare Explorer — 1 or 4 day return, Marylebone to Leamington Spa/Warwick/Warwick Parkway and all stations to Stratford-upon-Avon; unlimited travel Leamington Spa–Stratford; break of journey allowed Marylebone–Leamington Spa; not valid for return trains due into Marylebone before 10:00 Mon–Fri | Draft | 2026-08 | 2026-11 | https://www.nationalrail.co.uk/ticket-types/tickets/sh1/ |
+| rr-heart-england | rangers | Heart of England Rover — 3-in-7 or 7 consecutive days; valid after 09:00 Mon–Fri, any time Sat/Sun/BH; Chiltern named among the valid operators | Draft | 2026-08 | 2026-11 | https://www.nationalrail.co.uk/ticket-types/tickets/he7/ |
+| rr-west-midlands | rangers | West Midlands Day Ranger — 1 day; not valid before 09:00 Mon–Fri, any train Sat/Sun/BH; boundary includes Leamington Spa, Stratford-upon-Avon, Birmingham Snow Hill and Moor Street | Draft | 2026-08 | 2026-11 | https://www.nationalrail.co.uk/tickets-railcards-offers/promotions/west-midlands-day-ranger/ |
+| rr-oxfordshire | rangers | Oxfordshire Day Ranger — 1 day; after 09:30 Mon–Fri, any time Sat/Sun/BH; includes Bicester Village, Islip, Oxford, Heyford, Banbury and Kings Sutton | Draft | 2026-08 | 2026-11 | https://www.nationalrail.co.uk/tickets-railcards-offers/promotions/oxfordshire-day-ranger/ |
+| rr-all-line | rangers | All Line Rover — 7 or 14 consecutive days, whole GB network; sold at any staffed station and only within 3 days of the start date; a before-10:00 Mon–Fri bar applies on some long-distance operators | Draft | 2026-08 | 2026-11 | https://www.nationalrail.co.uk/ticket-types/tickets/r07/ |
+| rr-cotswolds | rangers | Cotswolds Discoverer — NOT valid on Chiltern; CrossCountry, GWR and Transport for Wales only, though its area includes Oxford, Kingham, Charlbury and Moreton-in-Marsh | Draft | 2026-08 | 2026-11 | https://www.nationalrail.co.uk/ticket-types/tickets/ce1/ |
+| rr-severn-solent | rangers | Freedom of Severn & Solent Rover — NOT valid on Chiltern; TfW, GWR, South Western and CrossCountry, area reaching Worcester and Great Malvern | Draft | 2026-08 | 2026-11 | https://www.nationalrail.co.uk/ticket-types/tickets/s37/ |
+| rr-two-together | rangers | A Ranger/Rover bought with a Two Together Railcard discount cannot be used before 09:30 Mon–Fri, even where the product itself allows 09:00 | Draft | 2026-08 | 2026-11 | https://www.nationalrail.co.uk/tickets-railcards-and-offers/ticket-types/ranger-tickets-and-rover-tickets/ |
+| rr-date-box | rangers | Flexi Rover — the holder writes the travel date in the next box themselves before travelling, in ink and numerals only (e.g. 07 09); an undated box mid-journey is the fault | Draft | 2026-08 | 2026-11 | https://www.nationalrail.co.uk/tickets-railcards-and-offers/ticket-types/ranger-tickets-and-rover-tickets/ |
 | rc-forces | railcard | HM Forces — no 2nd-adult discount; up to 4 children 5–15 at 81% off (£1 min); holder ⅓ off; spouse/partner own card | National | 2026-07 | 2027-05 | https://www.hmforces-railcard.co.uk/terms-and-conditions |
 | rc-ff-peak | railcard | Family & Friends — no discount in the weekday morning peak for journeys wholly within the Network area; off-peak start varies by route | National | 2026-07 | 2027-05 | https://www.familyandfriends-railcard.co.uk/help/railcard-terms-conditions/ |
 | rc-ff-under5 | railcard | Family & Friends — where every child is under 5, buy one child ticket to unlock the adult discount | National | 2026-07 | 2027-05 | https://www.familyandfriends-railcard.co.uk/help/faqs/my-child-is-under-five-can-i-still-use-a-family-friends-railcard/ |
@@ -105,5 +115,13 @@ belongs.
   (lower-use) country cards stay under the sampled, high-churn `fip-carrier-accept` row. Either way,
   treat the country cards in `fip.html` as "check before travel", not gospel — each sourced card now
   shows its own "Checked" date to make that freshness visible.
+- **THE WHOLE RANGERS & ROVERS GUIDE** (`rr-*`) is `Draft`. Its content was triangulated across
+  independent public summaries of the National Rail product pages — those pages are unreachable
+  from the build environment (network egress policy), so **nothing in it has been read at its
+  source**. That is evidence class D on ROADMAP.md's scale, and the guide is a page of rules a
+  passenger could be refused travel by, which needs A or B. It ships with a permanent draft
+  banner and a per-card `to confirm` pill for exactly that reason. Verify a product against the
+  Source below **and** the retail system, then flip its row to `National` and drop
+  `rr-card--draft` from its card. The banner goes when the last one does.
 - **Pay award rates** (`pay-rates`) are the internal Chiltern figures from the payslip / pay award,
   not public T&Cs; their evidence is the payslip, kept device-local (see ARCHITECTURE_PLAN.md).

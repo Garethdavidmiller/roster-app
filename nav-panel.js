@@ -74,6 +74,7 @@ const NAV_GUIDES = [
     { icon: '📘', label: 'Staff & Admin Guide',  url: './guide.html',          openId: 'guide-staff'    },
     { icon: '💷', label: 'Pay Calculator Guide', url: './paycalc-guide.html',  openId: 'guide-paycalc'  },
     { icon: '🎫', label: 'Railcard Guide',       url: './railcard-guide.html', openId: 'guide-railcard' },
+    { icon: '🗺️', label: 'Rangers & Rovers',    url: './rangers-guide.html',  openId: 'guide-rangers'  },
     { icon: '🇪🇺', label: 'FIP Travel Guide',     url: './fip.html',            openId: 'guide-fip'      },
 ];
 

@@ -4,7 +4,10 @@
 `.claude/rules/guide-pages.md` (how guide pages are built) and `GUIDE_SOURCES.md` (how their claims
 are governed).*
 
-**Status: PLANNING. No page has been written and none should be until §1 is resolved.**
+**Status: BUILT AND SHIPPED AS A DRAFT (v20.05).** The page exists, is wired into every contract in
+§6, and states on its own face that it has not been verified. §1 is therefore no longer a reason to
+wait — it is the description of the work that remains, and that work is verification, not building.
+WP0–WP1 below are still owned by Gareth; WP2–WP5 are done.
 
 ---
 

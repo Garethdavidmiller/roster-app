@@ -43,6 +43,7 @@ const OPEN_META = {
     'guide-paycalc':  { emoji: '💷', label: 'Pay Calculator Guide' },
     'guide-railcard': { emoji: '🎫', label: 'Railcard Guide' },
     'guide-fip':      { emoji: '🇪🇺', label: 'FIP Travel Guide' },
+    'guide-rangers':  { emoji: '🗺️', label: 'Rangers & Rovers' },
 };
 
 /**
