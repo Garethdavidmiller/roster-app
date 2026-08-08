@@ -74,7 +74,10 @@ describe('the rotation length is declared exactly once', () => {
         assert.deepEqual(offenders, [],
             'a Links module has written the rotation length down again instead of importing '
             + 'ROTATING_LINES — this is exactly how links-compare.js came to render 28 rows beside a '
-            + `22-row grid:\n  ${offenders.join('\n  ')}`);
+            + '22-row grid. Note the match is on the NAME: a constant holding some other number but '
+            + 'called `*_LINES` is flagged too, deliberately, and the answer is to name it for what '
+            + 'it is (`EXTRA_SPARE_WEEKS`, not `EXTRA_SPARE_LINES`) rather than to exempt it:'
+            + `\n  ${offenders.join('\n  ')}`);
     });
 
     test('every module that needs the length imports it', () => {

@@ -801,16 +801,38 @@ The Links workspace (`links.html`) no longer carries a beta marker (removed v19.
 the December 2026 proposals are built in). The constraints below are unchanged by that; they were
 never contingent on the beta label, and dropping it does not make any of them go away:
 
-- **The rotation is 22 lines, on evidence class C (v19.98).** The December 2026 link is 22 lines of
-  the CEA/main roster widened from 20, and excludes the bilingual roster entirely — not its lines,
-  not its shift times, not its work. The whole of that is **owner-relayed** (Aug 2026): *"22 is
-  final, we are told"*, with **no document behind it**. That is class C on ROADMAP.md's scale —
-  fine for building against, and not something to put in front of an assessing manager as a
-  requirement. It is recorded here rather than left implicit because the number now shapes every
-  figure the tool produces, and "why 22?" is a question a proposal will be asked.
+- **The rotation is 24 lines with 5 spare weeks, on evidence class C (v19.98, corrected v20.01).**
+  The December 2026 link is the CEA/main roster widened from 20, excludes the bilingual roster
+  entirely — not its lines, not its shift times, not its work — and carries one more spare week than
+  the roster does today. All of it is **owner-relayed** (Aug 2026), with **no document behind it**;
+  the length was given as 22 at v19.98 and corrected to 24 at v20.01. That is class C on ROADMAP.md's
+  scale — fine for building against, and not something to put in front of an assessing manager as a
+  requirement. It is recorded here rather than left implicit because the number shapes every figure
+  the tool produces, and "why 24?" is a question a proposal will be asked.
+
+- **The docs say the panel covers "24 fatigue factors"; it renders 23** (measured v20.01, during a
+  regression sweep — pre-existing, not introduced by the v20.01 change; `main` returns 23 too).
+  `assessFatigue` returns 20 numbered `FF*` rows plus `FF8b` plus **two** rows attributed to MRSF
+  ("more than 55 hours in any 7-day period" and "more than 12 consecutive day shifts"), which is 23.
+  The section heading's own counts add to 23 as well, so nothing on screen claims 24 — the figure
+  appears only in internal docs (`.claude/rules/links-design.md`, `LINKS_DEC2026_PLAN.md`,
+  `CLAUDE.md`). Recorded rather than corrected because settling it needs the ORR p3 list itself: the
+  right fix is either a 24th factor that was never implemented, or a doc that has been saying 24
+  since v19.46 for no reason. **Check against the source before changing either.**
+
+- **The seeded default trips FF11, and the spare count is why** (v20.01). Measured across rotation
+  lengths 22–25 at 4, 5 and 6 spare weeks: **every configuration with 5 reports FF11 over 13**, while
+  4 and 6 clear it. Not a placement artefact — at 24/5 the spare weeks land on lines 1, 6, 11, 15, 20
+  with none adjacent. The mechanism is that a spare week supplies four duties and, since its three
+  rest days need not fall together, **no guaranteed 48-hour break**; taking a line out of the working
+  pool therefore makes 48h breaks rarer on the lines that remain, and costs ~0.2 rest days per
+  working line. The panel is advisory and is reporting a real property of the shape — today's main
+  roster sits at 12 against the same threshold — but a designer pressing Generate now gets a design
+  carrying an FF11 finding, so the justification needs to exist before the management review.
+  Figures and the full table: `LINKS_DEC2026_PLAN.md`.
 
 - **Designs saved against the OLD 28-line rotation are left exactly as they are.** They still load,
-  render their first 22 rows, are analysed over 22 — and, because the working copy deep-copies the
+  render their first 24 rows, are analysed over 24 — and, because the working copy deep-copies the
   whole patterns object, **save all 28 back**. Nothing trims them, deliberately: doing it on load
   would destroy six lines of somebody's work on a page visit (the v19.84 stale-hard-delete class),
   and doing it on save would do it at the moment they least expect it. `#linksOverLengthNotice`
@@ -850,9 +872,9 @@ never contingent on the beta label, and dropping it does not make any of them go
     duty reaches 00:00–05:00 — but the p3 list is a good-practice summary, not the whole of fatigue
     risk, and nothing here models workload, commute, or individual circumstance.
   - **The baseline is measured on the MAIN cycle at its own length** (main-only since v19.98).
-    "Today's link" is computed over `weeklyRoster` (20 lines) — the rotation the 22-line design
+    "Today's link" is computed over `weeklyRoster` (20 lines) — the rotation the new design
     replaces. The bilingual row was dropped rather than left as an unexplained gap: the panel's
-    summary now names the comparator ("the main 20-line cycle, which this 22-line design replaces"),
+    summary now names the comparator ("the main 20-line cycle, which this 24-line design replaces"),
     because a missing row reads as an oversight. The underlying rule survives and still binds any
     future pairing: splicing two unrelated rotations end to end reports a longest run of 19 that
     belongs to the join rather than to either roster, so a design's figures only mean anything once

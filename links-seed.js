@@ -29,11 +29,16 @@
  * beside its expected value.
  *
  * **The RULE that fix established is "the seed must sample exactly what the design represents", and
- * it is untouched by v19.98.** What changed at v19.98 is what a design represents: the December 2026
- * link is 22 lines of the CEA/main roster WIDENED, and excludes the bilingual roster entirely — not
- * its lines, not its shift times, not its work (owner, Aug 2026). So the seed reads the main cycle
- * and nothing else. Adding the bilingual weeks back would seed a 22-line CEA design with ten shift
+ * neither later change touched it.** What changed at v19.98 is what a design REPRESENTS: the
+ * December 2026 link is the CEA/main roster WIDENED, and excludes the bilingual roster entirely —
+ * not its lines, not its shift times, not its work (owner, Aug 2026). So the seed reads the main
+ * cycle and nothing else. Adding the bilingual weeks back would seed a CEA design with ten shift
  * times no CEA line works, which is the same class of error as v19.59 pointing the other way.
+ *
+ * v20.01 then moved the length again (22 → 24, owner: the earlier figure was misremembered) and
+ * added a cover week. **Neither is visible here**, and that is the design working: the SLOTS are an
+ * observation about the roster and do not care how many lines the design has, while the added spare
+ * week is a decision and lives in its own constant below rather than inside the count.
  *
  * ── THE LATENT REPEAT, NOW FIXABLE ─────────────────────────────────────────────────────────────
  *
@@ -63,8 +68,8 @@ const NOT_A_DUTY = new Set(['RD', 'OFF', 'SPARE']);
  *
  * In full, which is the v19.59 correction — sampling only the weeks two people happen to sit on
  * today is a fact about staffing, not about the roster's shape. Main ONLY, which is v19.98: the
- * design this seeds is 22 lines of the CEA roster widened, with the bilingual roster excluded from
- * it entirely. The seed samples exactly what the design represents; both changes are that one rule.
+ * design this seeds is the CEA roster widened, with the bilingual roster excluded from it entirely.
+ * The seed samples exactly what the design represents; both changes are that one rule.
  *
  * Length comes from CONFIG rather than a literal, so a cycle that changes length cannot leave this
  * reading a prefix of it.
@@ -77,6 +82,29 @@ export function rosterSeedLines() {
     for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS; w++) out.push(main[w]);
     return out;
 }
+
+/**
+ * The extra cover week the WIDENED link carries, over and above what the roster already provides
+ * (owner, Aug 2026 — decided alongside the move to 24 lines).
+ *
+ * It is a NUMBER THE ROSTER CANNOT TELL YOU, and that is why it is here as its own constant rather
+ * than folded into the count below. Everything else in this table is an observation: these are the
+ * shift times worked and this is how many lines are spare, read off the roster people are on today.
+ * The extra spare week is a DECISION about the new link — the point of adding lines is to buy back
+ * cover, and one of the four added lines is being spent on standby rather than on duties.
+ *
+ * NAMED "WEEKS", NOT "LINES", for two reasons that happen to agree. It matches what the generator's
+ * own field says ("Spare weeks") and what every doc calls it. And `links-rotation-parity.test.mjs`
+ * flags any `const *LINES* = <number>` in a Links module, deliberately — that is the exact shape the
+ * 28-in-four-places bug took — so a constant here that is NOT the rotation length should not be
+ * wearing its name.
+ *
+ * Keeping the two apart means `buildRosterTargets(sources, { extraSpareLines: 0 })` still answers
+ * "what does this roster provide?", which is the question the v19.59 bug was a wrong answer to and
+ * the one its tests ask. Merged into one figure, a future reader could not tell which part was
+ * measured and which part was chosen — and would have no way to re-derive either.
+ */
+export const EXTRA_SPARE_WEEKS = 1;
 
 /**
  * Build the generator's target table from roster lines.
@@ -97,9 +125,11 @@ export function rosterSeedLines() {
  * precisely how the v19.58 per-day spare headcount survived review.
  *
  * @param {Array<Record<string, string>|undefined>} [sources] roster lines; defaults to the real roster
- * @returns {{ slots: Array<{time: string, weekday: number, sat: number, sun: number}>, spareLines: number }}
+ * @param {object} [opts]
+ * @param {number} [opts.extraSpareLines] cover weeks the widened link adds; see EXTRA_SPARE_WEEKS
+ * @returns {{ slots: Array<{time: string, weekday: number, sat: number, sun: number}>, spareLines: number, rosterSpareLines: number }}
  */
-export function buildRosterTargets(sources = rosterSeedLines()) {
+export function buildRosterTargets(sources = rosterSeedLines(), { extraSpareLines = EXTRA_SPARE_WEEKS } = {}) {
     const weekdays = DAYS.filter(d => dayClass(d) === 'weekday');
 
     /** @type {Record<string, Record<string, number>>} */
@@ -122,7 +152,10 @@ export function buildRosterTargets(sources = rosterSeedLines()) {
     }));
 
     // Every fully-spare source line is one spare WEEK, so counting them gives the number directly.
-    const spareLines = sources.filter(src => src && DAYS.every(d => src[d] === 'SPARE')).length;
+    const rosterSpareLines = sources.filter(src => src && DAYS.every(d => src[d] === 'SPARE')).length;
 
-    return { slots, spareLines };
+    // Both are returned. `spareLines` is what the generator should target; `rosterSpareLines` is what
+    // was actually MEASURED, so a reader (or a test) can always separate the observation from the
+    // decision added to it — which is the whole reason EXTRA_SPARE_WEEKS is its own constant.
+    return { slots, spareLines: rosterSpareLines + extraSpareLines, rosterSpareLines };
 }

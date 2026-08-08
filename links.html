@@ -104,8 +104,8 @@
             <div>
                 <!-- The line count is STAMPED FROM `ROTATING_LINES` at init (v19.98). The static
                      value is only what renders before the module runs; the rotation length has
-                     changed once (28 → 22) and left prose behind in fifteen places when it did. -->
-                <h2><span aria-hidden="true">🗓️</span> Link design — <span class="js-rotating-lines">22</span> lines</h2>
+                     changed twice (28 → 22 → 24) and left prose behind in fifteen places the first time. -->
+                <h2><span aria-hidden="true">🗓️</span> Link design — <span class="js-rotating-lines">24</span> lines</h2>
                 <!-- Swapped in the empty state (v19.66): this text tells you to tap a shift cell and
                      use the Paint bar, and in the empty state there is no grid and no Paint bar on
                      screen — a card header describing controls that are not there. `linksGridHint`
@@ -147,7 +147,7 @@
                 <div id="linksEmptyState" class="links-empty-state">
                     <span class="links-empty-icon" aria-hidden="true">🔗</span>
                     <p class="links-empty-title">No designs yet</p>
-                    <p class="links-empty-msg" id="linksEmptyMsg">Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty <span class="js-rotating-lines">22</span>-line grid.</p>
+                    <p class="links-empty-msg" id="linksEmptyMsg">Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty <span class="js-rotating-lines">24</span>-line grid.</p>
                     <div class="links-empty-actions">
                         <button type="button" class="btn-save" id="linksEmptyGenerate">Go to Auto-generate</button>
                         <button type="button" class="btn-text-link" id="linksEmptyNew">Start with a blank grid</button>
@@ -288,7 +288,7 @@
                                      1, 7, 12 and 17 are SPARE on all seven days. -->
                                 <tr class="gen-spare-row">
                                     <td class="gen-td-label">Spare weeks<span class="gen-td-note">whole lines; 4 days worked Mon–Sat</span></td>
-                                    <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="21" value="0" aria-label="How many whole lines are spare weeks"><span class="gen-td-note">of <span class="js-rotating-lines">22</span> lines</span></td>
+                                    <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="23" value="0" aria-label="How many whole lines are spare weeks"><span class="gen-td-note">of <span class="js-rotating-lines">24</span> lines</span></td>
                                     <td></td>
                                 </tr>
                                 <tr class="gen-total-row">
@@ -321,7 +321,7 @@
                              phrase elsewhere on the card. The comment lives OUT here, not between the
                              input and the span: `e2e/pages.spec.js`'s clause test measures the tail by
                              `input.nextSibling`, and a comment node there is not what renders. -->
-                        <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Long weekends</span><span class="gen-obj-num">at least <span class="gen-obj-numctl"><input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="22" value="4"><span>of <span class="js-rotating-lines">22</span></span></span></span><span class="gen-obj-hint">Three or four days off across the week boundary</span></span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Long weekends</span><span class="gen-obj-num">at least <span class="gen-obj-numctl"><input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="24" value="4"><span>of <span class="js-rotating-lines">24</span></span></span></span><span class="gen-obj-hint">Three or four days off across the week boundary</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objTurnarounds" checked><span class="gen-obj-text"><span class="gen-obj-title">Rest across the week boundary</span><span class="gen-obj-hint">Saturday's finish into Sunday's start — the one turnaround a single line cannot show</span></span></label>
                     </fieldset>
                     <div id="genError" class="gen-error" aria-live="polite"></div>
@@ -333,8 +333,8 @@
                         the one thing that could see it: every behavioural assertion on this button
                         matches by role and name, and `getByRole('button', {name: /Generate/})` is
                         happy either way.
-                     --><span>Generate link (all <span class="js-rotating-lines">22</span> lines)</span></button>
-                    <p class="gen-note">Each day's total can't exceed <span class="js-rotating-lines">22</span> — the remaining lines become rest days.</p>
+                     --><span>Generate link (all <span class="js-rotating-lines">24</span> lines)</span></button>
+                    <p class="gen-note">Each day's total can't exceed <span class="js-rotating-lines">24</span> — the remaining lines become rest days.</p>
                 </div>
             </div>
         </div>

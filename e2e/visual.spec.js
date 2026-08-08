@@ -336,12 +336,13 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
     // Sentinels before the capture — same reasoning as the workspace shot. The target table is
     // SEEDED FROM THE ROSTER, so a regression in `buildRosterTargets` would render a plausible but
     // empty generator, and the next baseline regeneration would lock in a green test covering
-    // nothing. FOUR spare lines is the roster's real figure since v19.98 (main 1/7/12/17); it was
-    // 6 while the bilingual roster was in scope (its 1 and 8). This sentinel caught that change on
-    // the regeneration run, which is exactly what it is for — without it the new figure would have
-    // been baselined as a picture and nobody would have looked at the number.
+    // nothing. FIVE is the seeded figure since v20.01: the roster's measured four (main 1/7/12/17)
+    // plus `EXTRA_SPARE_WEEKS`, the cover week the widened link adds. It was 4 at v19.98 and 6 while
+    // the bilingual roster was in scope (its 1 and 8) — and this sentinel has now caught BOTH of
+    // those changes on the regeneration run, which is exactly what it is for: without it the new
+    // figure is baselined as a picture and nobody ever looks at the number.
     await expect(page.locator('#genSlotRows tr').first()).toBeVisible();
-    await expect(page.locator('#genSpareLines')).toHaveValue('4');
+    await expect(page.locator('#genSpareLines')).toHaveValue('5');
     await expect(page.locator('.gen-obj')).toHaveCount(5);
     await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(3);
 
