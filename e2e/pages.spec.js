@@ -2070,6 +2070,31 @@ test('links window: compare states BOTH windows and flags that they differ', asy
     expect(await page.locator('.compare-window--differs').count()).toBe(2);
 });
 
+test('links: the summary strip names WHICH design it describes, but only in compare mode', async ({ page }) => {
+    // Every figure in the strip comes from the ACTIVE design. With two grids on screen an
+    // unlabelled "22 lines designed · All service covered · N fatigue factors" reads as a verdict on
+    // the COMPARISON, which is the one thing it is not.
+    //
+    // Both halves are asserted, and the second is the one that keeps this honest: labelling the
+    // ordinary single-design view too would be noise, and a chip that is always there says nothing.
+    await openWindowDesign(page, [{
+        id: 'b', name: 'Later Sunday', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva',
+    }]);
+
+    const who = page.locator('#linksSummary .sum-chip--who');
+    await expect(who, 'the ordinary view names no design — there is only one on screen').toHaveCount(0);
+
+    await page.locator('button:has-text("Compare")').first().click();
+    await expect(page.locator('.compare-window').first()).toBeVisible();
+    await expect(who).toHaveCount(1);
+    // It must name the ACTIVE design, not just any of them — a chip carrying the wrong name is
+    // worse than no chip, because it attributes the figures to the design they do not describe.
+    const active = (await page.locator('.design-chip--active').first().textContent() || '').trim();
+    expect(active.length, 'no active design chip to compare against').toBeGreaterThan(0);
+    expect(active).toContain((await who.textContent() || '').trim());
+});
+
 test('links window: the printed sheet states the window it was designed to', async ({ page }) => {
     // A circulated sheet is read away from the app; without this a proposal built to a moved
     // Sunday finish is indistinguishable from one built to the standard hours.

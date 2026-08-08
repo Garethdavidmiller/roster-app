@@ -174,6 +174,24 @@ Single dirty flag + one `linksSaveBtn` / `saveChanges()`. Grid clicks are **dele
 - **Overlay panels take their surface from an id rule or a modifier class** — `.lb-content` alone is only transform/scroll/cursor. The Recently-deleted panel shipped at v19.41 with the bare class and rendered as a transparent box (heading and prose in navy on the dimmed backdrop). It now joins the compact-dialog family, and `e2e/visual.spec.js` has a baseline for it, because behaviour tests cannot see this.
 - **Row actions reuse `.dialog-btn` + `.dialog-btn-confirm`/`-cancel`** from shared.css rather than a page-local recipe — that brings the 44px touch target and press feedback with them.
 - **The Design checks card is a 30-row list, so it needs structure, not just rows** (v19.49). Three things carry it, and each replaced something that read as noise: `.check-section-head` gains a **hairline rule** and its **headline counts** at the far end (`3 present · 2 standing · 3 to confirm`) — a small uppercase label alone was not enough weight to break a ribbon of same-height rows, and the reader should not have to tally 24 icons to get the summary; `.check-code` is a **fixed-width tag** so the FF numbers align down the left edge (they were `.check-note`, the faintest thing in the row, running inline with the title and vanishing into wrapped prose on mobile — cross-referencing the ORR's own p3 list is the panel's whole job); and `.check-family` names the ORR's **families**, without which the code column read as shuffled. The factors are also ordered by number **within** each family. Counts keep `present` and `standing` separate — an unavoidable characteristic of the operation is not a finding about the design, and one combined total would say it was.
+- **The Design-checks card carries a three-part rhythm, and each part has been broken once**
+  (v20.00 pass). `.check-code` is a **fixed `width`, never `min-width`** — 44px aligned the tags'
+  own left edges while `MRSF` and `FF8b` overflowed it, so the TITLES after them wandered over 20px
+  (measured 221–241px at 1440) down a 30-row list. A fixed width buys alignment at the cost of a
+  ceiling that CSS does not enforce, so `links-analysis.test.mjs` asserts no rendered code exceeds
+  it *and* that the declaration is still `width`. And the "nothing to report" disclosure's body
+  carries a **left rule**: the panel groups by ORR family then splits by status, so three families —
+  Time of day, Recovery time, Cumulative — legitimately render a heading twice, and without a
+  nesting cue the second set reads as a repeat rather than a continuation. The print block resets
+  both the rule and the indent, because print flattens the disclosure entirely.
+- **The sticky summary strip names its design in compare mode, and only there** (v20.00). Every
+  figure in it comes from the ACTIVE design; with two grids on screen an unlabelled
+  "22 lines designed · All service covered · N fatigue factors" reads as a verdict on the
+  comparison. `initLinksAnalysis` takes an `isComparing` thunk (the coordinator forwards
+  `compare.isCompareMode()`), and a neutral `.sum-chip--who` leads the row. It carries **no status
+  tint** deliberately — a fourth coloured chip would read as a fourth finding. Naming the design was
+  chosen over hiding the strip: a designer comparing options still wants live analysis of the one
+  they are editing.
 - **Accepted, not fixed:** each compare column keeps `overflow-x: auto` with no scroll affordance, so at 1280px both grids clip mid-column with nothing indicating they scroll. Adding a fade would fight the gold diff outline; the alternative is a narrower cell, which hurts the primary (single-design) view. Revisit only with a real complaint.
 
 ### Paint mode (v12.39)
@@ -317,12 +335,24 @@ Four attributions now, each corrected in turn:
 | v19.90 | "Hidden report", industry limit | right source, **wrong tense** — presented as current |
 | v19.96 | Chiltern policy, Hidden origin | whose limit it is, and where the number came from |
 
-**The tense is now pinned by tests, in three places**, because the v19.90 wording passed every
+**The tense is now pinned by tests, in FOUR places**, because the v19.90 wording passed every
 assertion that existed: it named a real, dated, checkable document. `links-limits.test.mjs` requires
 a row naming Hidden to also mark it historic, and forbids any row claiming the limit is
-industry-wide today. And `links-analysis.test.mjs` pins the **rendered section heading** — which
-made the strongest claim on the page, is written as a separate hardcoded string in a different file
-from the `basis` it is supposed to agree with, and had no test at all.
+industry-wide today. `links-analysis.test.mjs` pins the **rendered section heading** — which made
+the strongest claim on the page, is written as a separate hardcoded string in a different file from
+the `basis` it is supposed to agree with, and had no test at all.
+
+**And the fourth was added at v20.00, after the v19.96 sweep turned out to have missed a copy.**
+A `.check-sub` on the "Longest run" row — in `links-analysis.js` itself, two rows above the corrected
+one — still read *"The Hidden limit is 13."* Neither existing guard could see it, for a reason worth
+stating rather than patching around: **both were scoped to where the claim had last been found.**
+One reads the objects `assessHardLimits` returns; the other walks sections whose heading claims
+something must be met. The stray copy was a plain advisory row making no such claim, so it sat
+outside both. The new guard is scoped to the **whole rendered panel**: anywhere the sheet says
+"Hidden" the sentence must mark the standard historic, and the 13 may never be attributed to Hidden
+as though Hidden still imposed it. Measured limit, recorded in the test: the unit is a sentence, so
+one marker satisfies every mention inside it — what it catches is a mention with no marker anywhere
+near it, which is what a stray second copy looks like.
 
 **"13 consecutive days" vs the historic "13 shifts in 14 days."** The historic formulation is the
 rolling one; this module measures the longest consecutive run. For a one-duty-per-day roster the two
@@ -466,6 +496,16 @@ it. Four things that are easy to get wrong, each with a test:
 **Owner's design target is below the 13-day limit, not at it:** ideally a new base link would not
 carry even **7** consecutive worked days. The live main roster's non-spare blocks reach exactly 7;
 the generator's reach 6.
+
+**Between 8 and 13 the panel reports the SAME figure twice, amber and green — and each row must say
+which threshold it was measured against** (v20.00). `runDesignChecks`'s "Longest run" row is judged
+against the design target of 7; the hard-limit row 60px below is judged against Chiltern's 13. That
+is two different questions and both answers are useful, but unlabelled they read as the panel
+contradicting itself — which is the FF13 defect of v19.48 (a hardcoded green tick directly beneath
+the amber row it duplicated) arriving in a new form. The amber row now carries
+`(design target: no more than 7)` and says in its sub-line that this is an aim rather than a limit;
+the green row already stated its 13 and its source. Pinned by a test using a fixture that lands
+deliberately in that band.
 
 **The `clear` and `n/a` rows are collapsed behind a disclosure** (v19.57). The card measured 1,799px —
 24 rows of which 16 said nothing had happened, so the 8 real findings were diluted five to one in a

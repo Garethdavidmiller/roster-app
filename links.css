@@ -251,6 +251,16 @@ body.auth-ready .container { display: grid; }
 .sum-chip--warn strong { color: color-mix(in srgb, var(--warning-amber) 55%, black); }
 .sum-chip--bad   { background: color-mix(in srgb, var(--error-red) 10%, white); }
 .sum-chip--bad strong { color: color-mix(in srgb, var(--error-red) 80%, black); }
+/* WHO the figures describe, shown only in compare mode (v20.00) — see `renderSummary`. It carries
+   no STATUS, so it deliberately takes none of the three tints above: a fourth coloured chip would
+   read as a fourth finding. Navy on the page's own sunken surface, which is the same "this is a
+   label, not a result" treatment `.check-family` uses in the panel below. */
+.sum-chip--who {
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    color: var(--text-dark);
+    font-weight: 800;
+}
 .sum-jump { font-size: var(--type-badge); white-space: nowrap; }
 
 @media (max-width: 767px) {
@@ -847,9 +857,20 @@ body.auth-ready .container { display: grid; }
     color: var(--text-light);
     margin: 8px 0 -2px 2px;
 }
+/* The code tag aligns the FF numbers down the left edge — and, since v20.00, the TITLES after them
+   too. It was `min-width: 44px`, which aligns only the tag's own left edge: `MRSF` and `FF8b` are
+   wider than 44px, so the title beside them started further right and the second column wandered
+   over 20px (measured 221–241px at 1440). In a 30-row list that ragged edge is most of what makes
+   it read as a list rather than a table.
+
+   A fixed `width` rather than `min-width`, because the whole point is that every tag is the same
+   size; `box-sizing: border-box` is inherited from the app reset, so the padding sits inside it.
+   The code set is closed and known (FF1–FF20, FF8b, MRSF — longest is 4 characters), and
+   `links-analysis.test.mjs` asserts no code exceeds what this width can hold, so a longer code
+   added later fails loudly instead of silently pushing its own title out of line. */
 .check-code {
     display: inline-block;
-    min-width: 44px;
+    width: 52px;
     padding: 1px 5px;
     margin-right: 5px;
     border-radius: var(--radius-xs);
@@ -1477,12 +1498,32 @@ body.auth-ready .container { display: grid; }
 @media (prefers-reduced-motion: reduce) { .check-quiet-summary::before { transition: none; } }
 .check-quiet-summary:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: var(--radius); }
 .check-quiet-label { font-weight: 700; color: var(--text-dark); }
-.check-quiet-body { padding: 0 8px 8px; }
+/* THE FAMILY HEADINGS APPEAR TWICE IN THIS CARD, AND THAT IS BY DESIGN (v20.00). The panel groups
+   by ORR family and then splits by status, so a family with both a finding and a clear factor —
+   Time of day, Recovery time and Cumulative all do — renders a heading above the fold and again
+   inside this disclosure. Measured: three of them, every time.
+   The grouping is right (it is what makes the code column read as deliberate rather than shuffled),
+   so the fix is to make the NESTING legible instead. A left rule is the ordinary idiom for it and
+   costs nothing semantically: everything inside visibly hangs off the row that opened it, and the
+   second "Recovery time" reads as a continuation rather than a repeat.
+   The print block below already relied on the summary LABEL to carry this on paper — it says so in
+   its own comment. On screen the label alone was not enough, because the reader arrives at the
+   headings by scrolling past it rather than reading it first. */
+.check-quiet-body {
+    padding: 0 8px 8px 10px;
+    margin-left: 10px;
+    border-left: 2px solid var(--border-light);
+}
 /* On paper the panel is a record, so every factor prints — a collapsed disclosure would silently
    drop 14 checks from a sheet somebody is assessing a proposal against. */
 @media print {
     .check-quiet { border: none; background: none; margin: 0; display: block; }
-    .check-quiet-body { padding: 0; display: block !important; }
+    /* The screen's nesting rule is reset here, not inherited. Print deliberately FLATTENS the
+       disclosure — no border, no fill, every factor open — so a left rule and an indent would be
+       the one piece of the collapsed-on-screen treatment surviving onto a sheet that has no
+       collapsed state, and the sheet is width-tight already. On paper the summary LABEL carries the
+       second run of family headings, exactly as the comment below says. */
+    .check-quiet-body { padding: 0; margin-left: 0; border-left: none; display: block !important; }
     /* The LABEL stays — it is the only thing introducing the second run of family headings, and
        without it the printed panel reads as though Time of day / Cumulative / Circadian had each
        been printed twice for no reason. Only the chevron and the on-screen hint go. */

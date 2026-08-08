@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v19.90 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.00 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -454,6 +454,17 @@ Pure link-design maths (no DOM, no Firebase; tested by `links-design.test.mjs`).
 - **`worstCaseWorkedRun(seq)` / `SPARE_WORKED_DAYS` — a spare WEEK is FOUR duties of seven** (v19.79, owner). You are marked SPARE on all seven days because you are available for cover; four is what you work. Both run checks counted all seven, justified as "over-reporting is the safe direction for a fatigue check" — and it is not: a 7/7 spare week **bridges** the blocks either side of it and fuses them into one phantom run, so the live main roster reported **15** consecutive worked days against a true ceiling of **9** and the bilingual **14** against **8**. 13 consecutive days is **Chiltern's roster limit**, derived from the post-Clapham Hidden standard (see `links-limits.js`; this line said "a LEGAL ceiling on the UK railway" until v19.92 and "the Hidden limit" until v19.96 — the sweep has now missed it twice), so reporting 15 is not caution — it claims a breach that does not exist on the roster people are working, and every reader who knows the real link then discounts the row, hiding the next design that genuinely does breach it. The greedy scan is exact for a maximum (two runs never need the same week's four duties at once); two ADJACENT spare weeks legitimately chain to **8**, which is the bilingual roster wrapping lines 8→1. `links-fatigue.js`'s `longestWorkedRun` delegates here rather than keeping a second copy.
 - **`endMinutesAbs` is the ONE reading of a duty that runs past midnight** (v19.47, `LINKS_DEC2026_PLAN.md` package 5). Two callers each had their own inline expression and both erred the same way — towards *safer than the truth*: `calcHourlyCoverage` clamped the end to 24:00, so the post-midnight hours vanished from the very artefact used to spot gaps, and `runDesignChecks` computed `(1440 − end) + start`, so a 00:30 finish before an 06:20 start reported ~26h of rest instead of 5h50 — the most dangerous turnaround the module can express was the one it called compliant. The heat map now counts a wrapping duty on BOTH days (Sat spills to Sun); `links-fatigue.js`'s `dutyMinutes` delegates here rather than keeping a third copy. Unreachable from the CEA link (duties finish 23:55, and `normaliseCustomShift` refuses a wrapping value) — **keep that input-boundary ban; it is the first line of defence, not a duplicate of this.**
 
+### `links-design-doc.js`
+
+The **SHAPE of a link design** — in memory and in Firestore — and every conversion between the two (v19.94). Pure; tested by `links-design-doc.test.mjs`.
+
+- `designFromDoc(id, data)` / `binEntryFromDoc(id, data)` — Firestore → memory (live design, bin entry). Both canonicalise via `normalisePatterns`.
+- `docPayload(design, member)` — memory → Firestore. Emits **exactly** the five keys `firestore.rules` allows; an extra one does not warn, it permission-denies every save on every device until the rules catch up.
+- `workingCopy(design)` / `binEntryFrom(design, member)` / `restoredEntryFrom(entry)` — memory → memory.
+- `deepCopyPatterns(patterns)`, `LEGACY_DOC_ID` (`'combined-28'` — a Firestore document id, not a length).
+- **Why it exists.** Eleven sites in `links-app.js` built these by hand in FOUR shapes, two of them near-identical copies of the same write payload, and the failure mode is silent: a field left out of one site is not an error, it is a design that quietly loses something. It has happened twice — v19.55 (the bin kept `patterns` but not `window`, so a restore handed back a design wearing the app default and the next save wrote that default over the moved boundary it was built to) and v19.94, found BY the extraction (the one-time `combined-28` migration was the ONLY read path that skipped `normalisePatterns`, persisting an unpadded `"6:00-14:00"` that counted in day totals while being invisible to the heat map and exempt from every turnaround check).
+- **Three rules:** every shape carries `window`; everything arriving FROM Firestore is canonicalised and nothing already in memory is re-normalised (the asymmetry is deliberate — that is why this is a design job, not a sweep); and the working copy DEEP copies its patterns, since the grid writes `patterns[pos][day]` and a shallow copy would let an edit mutate the `designs[]` entry the concurrency baseline is compared against.
+
 ### `links-seed.js`
 
 The generator's **target seed** (v19.92) — read the roster people actually work, produce the shift-slot targets the auto-generator starts from. Extracted from `links-app.js`.
@@ -805,6 +816,14 @@ The DOM-pure form-field input helpers extracted from `paycalc-app.js`'s `init()`
 - `clampMins(mId)` — clamp an out-of-range minutes field into [0, 59], rewriting ONLY when out of range (preserves a typed "05")
 - `_decHintEl(hId, make)` — find (or lazily create when `make`) the `.hhmm-dec-hint` element under an hours field's `.hhmm-wrap`; null when the markup is absent
 - `decPreview(hId)` — write the live "= Nh Mm" hint while a decimal is being typed, hide it for a whole number
+
+### `paycalc-backpay-state.js`
+
+Which **FIGURE** ends up in which back-pay box, and which of them the member may change (v19.93). Pure; tested by `paycalc-backpay-state.test.mjs`.
+
+- `BP_FIELDS` (the saved-state schema — DOM id ↔ blob key), `readBpFields` / `bpFieldWrites` (the round trip), `resolveAuthoritativeRates`, `allRatesOnRecord`, `resolvePaidInPeriod`.
+- **Why it exists.** `paycalc-backpay.js` was the ONLY module in the paycalc family with no test file of its own — four of its ten exports untested, including `calcBackPay`, which produces the lump sum. The per-period accrual was covered; the ASSEMBLY around it was not, and all five of its recorded defects live there. **Every one is the same shape: a money figure comes out wrong and nothing says so.**
+- **Three rules that must survive an edit.** `bpFieldWrites` returns an entry for EVERY field — a blob silent about a field must BLANK it, not leave the last year's number (that is the clear-then-apply pair collapsed into one pass, so there is nothing left to keep in step). The lock decision never reads a box's contents, and a locked box is WRITTEN with its figure. And `resolvePaidInPeriod` must not return 0 while any candidate exists — the ORDER of its ladder is a judgement, never-zero is the safety property.
 
 ### `paycalc-transfer.js`
 The pay-data **backup format and import rules** (v19.16). Every function is pure — no localStorage, no files, no clipboard — because the import path decides whether to overwrite a member's entire pay history, so its rules have to be testable without a browser. The DOM half lives in `paycalc-transfer-card.js`.

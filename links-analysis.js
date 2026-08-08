@@ -62,11 +62,12 @@ const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0'
 
 /**
  * @param {object} deps
- * @param {() => ({ patterns: Record<string, any>, window?: any } | null)} deps.getDesign - the live active design, or null
+ * @param {() => ({ name?: string, patterns: Record<string, any>, window?: any } | null)} deps.getDesign - the live active design, or null
  * @param {() => ({ summary: string, detail: string } | null)} [deps.getBaseline] - the current link's profile
+ * @param {() => boolean} [deps.isComparing] - true while compare mode shows TWO designs (v20.00)
  * @returns {{ renderCoverageChart: () => void, renderDesignChecks: () => void, renderSummary: () => void }}
  */
-export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
+export function initLinksAnalysis({ getDesign, getBaseline = () => null, isComparing = () => false }) {
     /** Hourly on-duty heat map for the active design (or the empty-state message). */
     function renderCoverageChart() {
         const design = getDesign();
@@ -327,9 +328,23 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             `<span class="sum-chip sum-chip--${state}"><span aria-hidden="true">${icon}</span>` +
             `<strong>${escapeHtml(String(value))}</strong> ${escapeHtml(label)}</span>`;
 
+        // WHOSE FIGURES THESE ARE — stated only when it is ambiguous (v20.00).
+        //
+        // Every figure in this strip comes from `getDesign()`, the ACTIVE design. In single-design
+        // view that is the only thing on screen and saying so would be noise. In COMPARE mode there
+        // are two grids up, and an unlabelled "22 lines designed · All service covered · 3 fatigue
+        // factors" reads as a verdict on the comparison — which is the one thing it is not.
+        //
+        // Naming the design is the smaller change than hiding the strip: a designer comparing two
+        // options still wants the live analysis of the one they are editing, and hiding it would
+        // take that away to fix a labelling problem. The chip is dropped entirely when not
+        // comparing, so the ordinary view is unchanged.
         const unfilled = checks.unfilledLines.length;
         el.innerHTML =
-            (unfilled
+            (isComparing() && design.name
+                ? `<span class="sum-chip sum-chip--who">${escapeHtml(design.name)}</span>`
+                : '')
+            + (unfilled
                 ? chip('bad', '✗', unfilled, unfilled === 1 ? 'line undesigned' : 'lines undesigned')
                 : chip('ok', '✓', ROTATING_LINES, 'lines designed'))
             + (sum.uncovered.length
@@ -425,15 +440,35 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             );
         }
 
-        // The 7 is the owner's design target (Aug 2026) and sits well under the Chiltern company
-        // limit of 13 consecutive days — the aim is a link that does not go near it.
+        // The 7 is the owner's DESIGN TARGET (Aug 2026), not a limit anybody imposes — the aim is a
+        // link that does not go near Chiltern's 13. Two things about this row are load-bearing:
+        //
+        // **It must say WHICH figure it is measured against.** The hard-limit section below reports
+        // the SAME number against 13, so on a design between 8 and 13 the panel shows the identical
+        // figure amber here and green there. That is correct — they are different questions — but
+        // only if each row states its own threshold. Unlabelled it reads as a contradiction, which
+        // is the FF13 mistake of v19.48 (a green tick beneath the amber row it duplicated) in a new
+        // place.
+        //
+        // **It must NOT quote the 13, and must never attribute it to Hidden.** It said "The Hidden
+        // limit is 13" until v20.00 — the exact claim the v19.96 external review unwound one row
+        // below, surviving here because both evidence guards are scoped elsewhere
+        // (`links-limits.test.mjs` reads `assessHardLimits`'s output; `links-analysis.test.mjs`
+        // polices headings that claim a limit must be met, and this row makes no such claim). The
+        // limit is CHILTERN's, carried in company policy; Hidden is its origin and that standard was
+        // WITHDRAWN IN 2007. One row owns that citation and states it properly. A second, looser
+        // copy is how the wrong tense got back onto a manager's sheet once already.
         const stretchOk = longestStretch <= 7;
         const hasSpare = spare > 0;
         rows.push(
             `<div class="check-row ${stretchOk ? 'check-good' : 'check-warn-row'}">` +
             `${stretchOk ? tick : warn}<div class="check-body">` +
             `<strong>Longest run</strong> — ${longestStretch} consecutive working days` +
-            (longestStretch > 7 ? `<div class="check-sub">Over 7 days without a rest — worth reviewing. The Hidden limit is 13.</div>` : '') +
+            `<span class="check-note"> (design target: no more than 7)</span>` +
+            (longestStretch > 7
+                ? `<div class="check-sub">Over the 7-day design target — worth reviewing. `
+                  + `This is an aim, not a limit; the company limit is checked separately below.</div>`
+                : '') +
             // Say what the number is once a spare week can affect it. It is the WORST CASE over
             // every placement of that week's four duties, and a reader who assumes otherwise will
             // read it as a fact about the design rather than a ceiling on it.
