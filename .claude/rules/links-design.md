@@ -728,6 +728,51 @@ spread survives, which catches the behaviour. The first is necessary and **not s
 switches accumulate without limit, so no fixed margin proves the spread always wins, and 1500 passes
 it while still leaving designs uneven.
 
+### Hours a week — the totals the panel did not have (v20.04)
+
+The Design-checks card reported weekends off, rest between shifts, longest run and shift balance —
+every one of which describes the SHAPE of a week, and none of which says how much of it is work. So
+the most basic question anybody asks of a roster, *does it give people their contracted hours?*, had
+no answer anywhere in the tool. `weeklyHours` in `links-design.js` answers it, and it is rendered in
+three places: the Design-checks row, the generator's totals row (where the targets are being typed,
+which is where you want to know), and the sticky summary chip.
+
+**Two exclusions, and each one "simplifies" into a plausible wrong answer:**
+
+- **Sundays come out.** Sunday is not contracted for any grade here — the rule is enforced in five
+  places across the app. A Sunday duty is therefore work sitting on top of the contract, and folding
+  it into the weekly figure reports a design as delivering contracted hours using time that is not
+  contracted. It **flatters**. Both figures are returned; only `exSunday` is comparable to 35.
+- **The denominator is the WORKING lines.** A cover week carries no times, so dividing by all the
+  lines charges the average with weeks of zero and reports a week nobody works. It **deflates**.
+
+**The measure is validated against the roster itself**: the live main cycle's 16 working lines come
+to **exactly 35.00** hours a week. That is the check on the check, and it is a test — a design judged
+by a broken yardstick is worse than one judged by none, because it looks like an answer.
+
+**What it found immediately.** The seeded 24-line design comes to **28h 51m** — six hours a week
+short — because the same duties are spread over 20 working lines instead of 16. That is the
+arithmetic consequence of widening a link without adding work, it is the central fact about the
+December 2026 proposal, and nothing on the page had ever shown it. Whether the new timetable's extra
+service fills the gap is the question to take into the room.
+
+A threshold IS defensible here, unlike the ORR factors: 35 is the contract, not guidance, so short is
+short. Half an hour of slack absorbs minute-level rounding. Never render it red — a target that does
+not yet total 35h is a work in progress.
+
+### The generator intro must not restate a guarantee (v20.04)
+
+The card's opening paragraph promised *"start times only move later through each person's week —
+never a late finish followed by an early start"*. That was written for the rotating construction, was
+found FALSE at v19.59 (positions are read mod `working`, so every line wraps front-to-back once a
+week — 27 short turnarounds at full staffing), and the generator was changed to **refuse** rather than
+ship it. The default has not been that construction since v19.59 either. The copy survived all of it,
+and the page contradicted itself in two places at once: the paragraph promised start times only move
+later while the Design-checks card below reported **"Backward rotating pattern — 25 backward /
+7 forward"** on the very design it had just produced. A designer who believed the promise had no
+reason to read the row. **Describe what the generator does and point at the checks for what it
+achieved.**
+
 ### The sixth switch: most shifts in a row (v20.02)
 
 A box on the objectives, default **6** — `DEFAULT_MAX_RUN` in `links-design.js`, which the Design

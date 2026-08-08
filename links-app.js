@@ -33,6 +33,8 @@ import {
     normaliseCustomShift,
     calcCoverage,
     generateLink,
+    dutyMinutes,
+    CONTRACTED_HOURS_PER_WEEK,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom } from './links-design-doc.js';
@@ -1432,7 +1434,62 @@ export function init() {
             el.textContent = `${tot[cls]} / ${TOTAL_POS}`;
             el.classList.toggle('gen-total-over', tot[cls] > TOTAL_POS);
         }
+        _updateGenHours();
         return tot;
+    }
+
+    /**
+     * What a week on these targets actually comes to, in hours (v20.04).
+     *
+     * The table above totals PEOPLE. It has never totalled TIME, so the question the targets exist
+     * to answer — is this a contracted week? — had no answer anywhere on the page, before or after
+     * generating. Measured: the live main roster's working lines come to exactly 35h 00m, and the
+     * seeded 24-line design to 28h 51m, because the same duties spread over 20 working lines
+     * instead of 16. That is a six-hour hole and nothing showed it.
+     *
+     * SUNDAYS ARE EXCLUDED — Sunday is not contracted for any grade here, so counting it towards 35
+     * would report a target as contracted using time that is not. The Sunday column is untouched;
+     * it simply is not part of this comparison.
+     *
+     * The DENOMINATOR is the working lines, not all of them: a spare line carries no timed duty, so
+     * dividing by all 24 would charge the average with cover weeks of zero and report a week nobody
+     * works. Both exclusions are named in the row.
+     */
+    function _updateGenHours() {
+        const valEl = document.getElementById('genHoursValue');
+        const noteEl = document.getElementById('genHoursNote');
+        if (!valEl || !noteEl) return;
+
+        const working = TOTAL_POS - genSpareLines;
+        // Mon–Fri counts five times, Saturday once. Sunday is deliberately absent.
+        let minutes = 0, unreadable = 0;
+        for (const s of genSlots) {
+            const m = dutyMinutes(s.time);
+            if (m === null) { if (s.weekday || s.sat) unreadable++; continue; }
+            minutes += m * (s.weekday * 5 + s.sat);
+        }
+
+        if (working <= 0 || minutes === 0) {
+            // Never "0h 00m" — a zero here reads as a finding about the targets rather than as an
+            // empty table, which is the same mistake `weeklyHours` returns null to avoid.
+            valEl.textContent = '—';
+            valEl.className = '';
+            noteEl.textContent = working <= 0 ? 'every line is a spare week' : 'add a shift to see this';
+            return;
+        }
+
+        const hours = minutes / 60 / working;
+        const off = hours - CONTRACTED_HOURS_PER_WEEK;
+        const hm = (/** @type {number} */ h) => `${Math.floor(h)}h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}m`;
+        const onTarget = Math.abs(off) <= 0.5;
+
+        valEl.textContent = `${hm(hours)} each`;
+        valEl.className = onTarget ? 'gen-hours-ok' : 'gen-hours-off';
+        noteEl.textContent = (onTarget
+            ? `on target (${CONTRACTED_HOURS_PER_WEEK}h)`
+            : `${hm(Math.abs(off))} ${off < 0 ? 'under' : 'over'} the ${CONTRACTED_HOURS_PER_WEEK}h contract`)
+            + ` · over ${working} working line${working === 1 ? '' : 's'}`
+            + (unreadable ? ` · ${unreadable} shift${unreadable === 1 ? '' : 's'} not counted (unreadable time)` : '');
     }
 
     // ── Generator targets: remembered per design (v19.38) ──────────────────────────────────────

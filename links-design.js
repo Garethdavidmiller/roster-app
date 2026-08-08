@@ -293,6 +293,100 @@ export function endMinutesAbs(shift) {
 }
 
 /**
+ * How long a duty lasts, in minutes, or null when it carries no readable time.
+ *
+ * Lives HERE, beside `endMinutesAbs`, rather than in `links-fatigue.js` where it was first written
+ * (which re-exports it, so nothing that imported it there had to change). The reason is the rule
+ * `endMinutesAbs` already exists for: there must be exactly ONE reading of a duty's length, because
+ * the two hand-rolled copies it replaced both erred towards *safer than the truth*. `weeklyHours`
+ * below needs the same reading, and `links-fatigue.js` imports this module — so writing a second
+ * copy here was the only alternative, and a second copy is the whole failure mode.
+ *
+ * @param {any} shift
+ * @returns {number|null}
+ */
+export function dutyMinutes(shift) {
+    const a = startMinutes(shift);
+    const b = endMinutesAbs(shift);
+    if (a === null || b === null) return null;
+    return b - a;
+}
+
+/** Contracted hours a week, Sundays excluded — 140 hours per four-week period. */
+export const CONTRACTED_HOURS_PER_WEEK = 35;
+
+/**
+ * How many hours a week this design actually gives somebody — the question the panel could not
+ * answer until v20.04, and the most basic one anybody asks of a roster.
+ *
+ * ── SUNDAYS COME OUT, AND THAT IS NOT A DETAIL ────────────────────────────────────────────────
+ *
+ * Sunday is **not contracted** for any grade here (the rule is enforced in five places across the
+ * app — no AL, no absence, ever, on a Sunday). So a Sunday duty is overtime-shaped work sitting on
+ * top of the contract, and folding it into the weekly average would flatter the design: it would
+ * report a link as delivering the contracted hours when a chunk of what it counted is not
+ * contracted time at all. Both figures are returned; only `exSunday` is comparable to 35.
+ *
+ * ── THE DENOMINATOR IS THE WORKING LINES, AND THAT IS ALSO NOT A DETAIL ───────────────────────
+ *
+ * A cover week carries no times, so its hours are unknowable from the design. Dividing by ALL the
+ * lines would therefore charge the average with four weeks of zero and report a number nobody
+ * works. Dividing by the WORKING lines answers "what does a normal week on this link look like",
+ * which is the question, and matches how the live roster is built: measured, the main cycle's 16
+ * working lines come to **35.00** hours a week each, exactly the contract. `coverLines` is returned
+ * beside it so the exclusion is visible rather than assumed.
+ *
+ * That measurement is also why this is worth having at all. The seeded 24-line design comes back at
+ * **28.85** — the same duties spread over 20 working lines instead of 16 — so widening the link
+ * without adding work under-fills everybody by about six hours a week. Nothing on the page said so.
+ *
+ * Every total is a FLOOR for the same reason `assessFatigue` reports one: a duty the parser cannot
+ * read contributes nothing.
+ *
+ * @param {Record<string, any>} patterns
+ * @param {number} [rotatingLines]
+ * @returns {{exSunday: number|null, all: number|null, sundayHours: number, totalHours: number,
+ *            exSundayHours: number, workingLines: number, coverLines: number, lines: number,
+ *            duties: number, sundayDuties: number, unreadable: number, target: number}}
+ */
+export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
+    let totalMin = 0, sundayMin = 0, duties = 0, sundayDuties = 0, unreadable = 0;
+    let workingLines = 0, coverLines = 0;
+
+    for (let w = 1; w <= rotatingLines; w++) {
+        const row = /** @type {Record<string, any>} */ (patterns)?.[String(w)] || {};
+        let lineIsTimed = false;
+        for (const d of DAYS) {
+            const s = row[d];
+            if (!s || s === 'RD' || s === 'OFF' || s === 'SPARE') continue;
+            const m = dutyMinutes(s);
+            // A worked cell we cannot read is COUNTED as unreadable rather than silently skipped —
+            // otherwise a design full of malformed times reports a comfortable low average and
+            // nothing says why. The panel prints this count when it is non-zero.
+            if (m === null) { unreadable++; continue; }
+            lineIsTimed = true;
+            duties++; totalMin += m;
+            if (d === 'sun') { sundayDuties++; sundayMin += m; }
+        }
+        if (DAYS.every(d => row[d] === 'SPARE')) coverLines++;
+        else if (lineIsTimed) workingLines++;
+    }
+
+    const exSundayMin = totalMin - sundayMin;
+    const hrs = (/** @type {number} */ m) => Math.round((m / 60) * 100) / 100;
+    return {
+        // null, never 0, when there is nothing to average — "0 hours a week" about an empty design
+        // is a sentence that reads as a finding, and it is not one.
+        exSunday: workingLines ? hrs(exSundayMin / workingLines) : null,
+        all:      workingLines ? hrs(totalMin / workingLines) : null,
+        totalHours: hrs(totalMin), exSundayHours: hrs(exSundayMin), sundayHours: hrs(sundayMin),
+        workingLines, coverLines, lines: rotatingLines,
+        duties, sundayDuties, unreadable,
+        target: CONTRACTED_HOURS_PER_WEEK,
+    };
+}
+
+/**
  * Count early/late/spare/night/rd per day across all positions.
  * @param {Object} patterns - { "1".."N": { sun..sat } }
  * @param {number} totalPos

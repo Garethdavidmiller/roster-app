@@ -205,8 +205,17 @@ body.auth-ready .container { display: grid; }
    live reading of the three figures that decide whether the edit was any good.
 
    `sticky` needs no scroll container here: the card uses `overflow: clip` at >=1024px (chosen for the
-   sticky thead precisely because it does NOT create one). The element keeps its place in flow, so it
-   can never cover the last grid row. */
+   sticky thead precisely because it does NOT create one).
+
+   THE CLAIM THAT USED TO FOLLOW — "the element keeps its place in flow, so it can never cover the
+   last grid row" — IS FALSE, and was measured false at v20.04. A sticky element only keeps its flow
+   position once it comes to REST; while the card extends past the fold the bar is pinned to the
+   viewport and draws over whatever is behind it, which at 1280×800 is the last two lines of a
+   24-line grid. What is true is weaker and worth stating accurately: the occlusion is TRANSIENT —
+   line 24 reaches its full height unobstructed at a different scroll position (measured), so nothing
+   is permanently unreadable and no bottom padding is warranted. Adding one would open a visible gap
+   above the bar at rest to fix a problem that resolves itself by scrolling. Do not "fix" this; do
+   not restore the guarantee either. */
 .links-save-row {
     position: sticky;
     bottom: 0;
@@ -1005,6 +1014,24 @@ body.auth-ready .container { display: grid; }
     color: var(--text-dark);
 }
 .gen-total-row td.gen-total-over { color: var(--error-red); }
+/* HOURS A WEEK (v20.04) — the answer to "does this add up to a contracted week?", which the table
+   could not give while it only ever totalled people. Reads as the row BELOW the totals: same sunken
+   fill, but left-aligned like the spare row above it, because it is a sentence rather than three
+   column figures. */
+.gen-hours-row td {
+    background: var(--surface-sunken);
+    font-size: var(--type-small);
+    color: var(--text-dark);
+    border-top: 1px solid var(--border-light);
+}
+.gen-td-hours { text-align: left; }
+.gen-td-hours .gen-td-note { display: inline; margin-left: 8px; }
+/* On target is a QUIET green, not a badge: hitting the contract is the expected state and does not
+   need celebrating. Off target is the app's amber — the same weight the Design-checks panel gives
+   the same finding, so the two surfaces do not disagree about how serious it is. Never red: a target
+   that does not yet total 35h is a work in progress, not an error. */
+.gen-hours-ok  { font-weight: 700; color: color-mix(in srgb, var(--success-green) 80%, black); }
+.gen-hours-off { font-weight: 700; color: var(--orange-text); }
 .gen-input, .gen-select {
     padding: 5px 6px;
     border: 1px solid var(--border-light);

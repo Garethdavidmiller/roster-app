@@ -58,6 +58,7 @@ below is owned by somebody other than the developer.
 | Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
 | **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
 | **Sunday operating window** | ⚠️ **Decision needed** — five Dec-26 movements fall after the 23:25 finish, three of them arrivals | **Before proposals are frozen** | **Nathan** |
+| **Contracted hours — the design is 6h a week short** | ⚠️ **Decision needed** (v20.04). Seeded from today's duties, 24 lines gives **28h 51m** a week against a 35h contract; the live 20-line roster gives exactly 35h. Either the Dec-26 service fills the gap — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before proposals are drawn** | **Management / Nathan** |
 | **Business staffing requirement** | ⚠️ **Never formally stated.** "Coverage vs service" is an inference from the data, not something anyone said | **Before the final design** | **Management** |
 | **FF18 reading — cadence or step?** | ⚠️ Unsettled; changes whether any proposal can clear it | **Before proposals are drawn** | **Nathan** (see Open question 2) |
 | **Proposals A / B** | ❌ Not started | T−8 weeks | The four decisions above |
@@ -382,6 +383,34 @@ Everything below is the shipped default: settled construction, all **six** line-
 Both columns were re-measured together after the v20.02 spare-spread fix, so nothing here is a
 figure from an older shape sitting beside a newer one. The row previously labelled FF19 is corrected
 to **FF18** — the between-lines factor those numbers have always come from.
+
+### The design is six hours a week short of contract, and nothing showed it until v20.04
+
+**The measurement.** Excluding Sundays — which are not contracted for any grade here — and averaged
+over the lines that carry a timed duty:
+
+| | working lines | hours a week each |
+|---|---|---|
+| live main roster (20 lines / 4 cover) | 16 | **35h 00m** — exactly the contract |
+| generated 24 lines / 4 cover | 20 | **28h 51m** |
+
+The live roster landing on 35.00 to the minute is the check on the measure: the roster is built to the
+contract, so anything else would mean the yardstick was wrong before any design was judged by it.
+
+**The gap is arithmetic, not a fault in the design.** The seed is today's duties — 18 shift rows, 78
+timed duties a week — and widening the link from 20 lines to 24 spreads them over 20 working lines
+instead of 16. Same work, more people, less each. It is the same counter-intuitive effect as the cover
+weeks below, one step further on.
+
+**So it is a question for the room, and a sharp one.** Either the December 2026 service adds enough
+work to fill six hours a week per person — in which case the targets should be seeded from the new
+timetable rather than from today's roster — or the widened link does not fill a contracted week and
+something has to give. The tool now states the figure on screen and on the printed sheet; it does not
+answer which.
+
+Sundays are reported separately rather than hidden: **8 Sunday duties, 68h 15m across the rotation**,
+on top of the figures above. They are real work and real pay; they are simply not part of a comparison
+against a contracted week.
 
 ### A spare week does not add capacity — it takes a line out of the pool
 
