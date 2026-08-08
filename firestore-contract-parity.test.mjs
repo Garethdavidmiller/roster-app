@@ -70,7 +70,10 @@ test('every guide in the nav drawer has an open counter, and every guide counter
     assert.ok(g, 'NAV_GUIDES not found in nav-panel.js');
     /** One entry per line: assert on the LINE, so a url with no openId is a named failure. */
     const entries = g[1].split('\n').filter(l => l.includes('url:'));
-    assert.equal(entries.length, 4, `expected the four guides, found ${entries.length}`);
+    // FIVE since v20.05 (Rangers & Rovers). The literal is the tripwire — it is what forces a
+    // sixth guide through this test rather than past it, which is how the openId, OPEN_META and
+    // firestore.rules ends get wired at the same time instead of one release apart.
+    assert.equal(entries.length, 5, `expected the five guides, found ${entries.length}`);
     const navIds = new Set();
     for (const line of entries) {
         const id = line.match(/openId:\s*'([a-z-]+)'/)?.[1];

@@ -4,20 +4,23 @@ paths:
   - "paycalc-guide.html"
   - "railcard-guide.html"
   - "fip.html"
+  - "rangers-guide.html"
   - "guide-shell.css"
   - "guide.css"
   - "guide-doc.css"
   - "paycalc-guide.css"
   - "railcard-guide.css"
   - "fip.css"
+  - "rangers-guide.css"
   - "guide-print.js"
   - "railcard-guide.js"
   - "fip.js"
+  - "rangers-guide.js"
 ---
 
 # Guide pages — full reference
 
-## Shared rules (all four guide pages)
+## Shared rules (all FIVE guide pages)
 
 - Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't use). All four share `guide-shell.css`; the two **document-style** guides (`guide.html`, `paycalc-guide.html`) additionally load `guide-doc.css` (the shared two-column print layout + 760px content wrapper) between the shell and their own CSS. Each page then has its own external CSS file (`guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip.css`) — extracted from inline `<style>` blocks at v12.04. Do not add a `shared.css` import to any guide.
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP (`script-src 'self'`) blocks them. All guide JS is in external files: `railcard-guide.js` (v10.84), `guide-print.js` (v10.84, shared by `guide.html`, `paycalc-guide.html` and `fip.html`), `fip.js` (v16.59, opens the target country `<details>` on jump/deep-link), and `guide-back.js` (v18.84, loaded by ALL FOUR — the back-arrow retarget). Do not add inline scripts or `onclick` attributes.
@@ -92,3 +95,41 @@ gap the v17.45 audit flagged can't silently reopen.
 ## FIP guide
 
 `fip.html` is a low-frequency educational reference — not a core workflow. Judge it as an article-like reference page. Do not flag reference-page format as a design defect. Care about: factual accuracy, "last checked" date, source links, mobile layout, navy/gold palette.
+
+
+## Rangers & Rovers guide (v20.05)
+
+`rangers-guide.html` — the ranger and rover area passes staff accept or refuse at the gateline. A
+sibling of the railcard guide and deliberately a **dialect of it**, not a new language: the colour
+stripe (green = any time, amber = a morning bar), the `⊘` token, the card/row rhythm and the amber
+Chiltern callout mean here exactly what they mean there. The two pages are read by the same people
+minutes apart; a second vocabulary would slow both down.
+
+**It ships as a DRAFT, and that is a structural state, not a caveat.** Every claim on it is a rule a
+passenger could be refused travel by, which ROADMAP.md's Evidence class puts at A or B — and the
+content was assembled from public summaries because the official pages are unreachable from the build
+environment. So the unverified state is carried in three places at once, and all three are enforced:
+
+- a permanent `.draft-banner` above the fold, which also prints;
+- a `to confirm` pill on **every** card, so the state survives a screenshot, a print, or a reader who
+  scrolled past the banner;
+- a `Draft` class on each `GUIDE_SOURCES.md` row, with `guide-sources.test.mjs` asserting that a
+  Draft row's page shows the banner **and** that every block anchored to a Draft row carries the
+  per-card marker.
+
+**To confirm a product:** check it against its register Source *and* the retail system, flip that row
+to `National`, and drop `rr-card--draft` from its card. The banner goes when the last one does. Do
+not remove the banner while any card still carries the class — the test will fail, which is the point.
+
+**Design decisions, argued in `RANGERS_ROVERS_PLAN.md`:**
+
+- **It leads with "usually no".** ~90 products exist nationally and a handful touch Chiltern. A page
+  that opens with a long list makes the common case slow and the rare case ambiguous — a staff member
+  who cannot find the ticket in their hand cannot tell *not valid* from *not listed*.
+- **The near-misses section is the point of the page**, not an appendix. Cotswolds Discoverer and
+  Freedom of Severn & Solent both reach stations on our map and are not valid on us; saying so quickly
+  is the answer no national page gives.
+- **No prices, ever.** Re-set annually and three-way variable; a stale one is a mis-sell. Deliberately
+  stricter than the railcard guide's two min-fare figures.
+- **The date box gets the `.gotcha`.** It is the only ranger/rover rule a gateline can enforce by
+  looking, and the one most likely to be unknown.

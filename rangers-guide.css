@@ -1,0 +1,315 @@
+/* MYB Roster — Rangers & Rovers Guide page styles. Linked by rangers-guide.html after
+   guide-shell.css.
+
+   DELIBERATELY A DIALECT OF railcard-guide.css, NOT A NEW LANGUAGE. The two pages are read by the
+   same people at the same gateline, often minutes apart, so the colour stripe (green = any time,
+   amber = a morning bar), the ⊘ token, the card/row rhythm and the amber Chiltern callout all mean
+   here exactly what they mean there. A second vocabulary for the same job would make both slower to
+   read. Where a value is repeated from that file it is repeated on purpose — the guides are
+   deliberately independent stylesheets (see .claude/rules/guide-pages.md), which is why
+   guide-colour-parity.test.mjs polices the shared tokens rather than the page-level ones. */
+
+:root {
+    /* --navy / --gold / --font-sans defined in guide-shell.css */
+    --text:     #1a1a2e;
+    --mid:      #555;
+    --light:    #6b6b6b;
+    --border:   #dde1e8;
+    --bg:       #f4f5f8;
+    --white:    #fff;
+    --green:    #2e7d32;
+    --amber:    #b45000;
+    --amber-bg: #fff8e1;
+    --red:      #c62828;
+    --navy-bg:  #eef1f6;
+}
+
+/* Shell chrome (* reset, .page-header, .btn-back, .btn-pdf, .chip-bar, print)
+   lives in guide-shell.css. Page-specific styles only below. */
+body {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+}
+
+main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 18px max(16px, env(safe-area-inset-left))
+             max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
+}
+
+/* ── The draft banner ────────────────────────────────────────────────────────
+   Sits ABOVE the chip bar and outside <main> so it cannot be scrolled past before the first card,
+   and so it prints. Amber, not red: the page is unconfirmed, not wrong, and a red banner would
+   teach staff to disregard the page rather than to check it. Remove only when the last
+   `.rr-card--draft` goes. */
+.draft-banner {
+    background: var(--amber-bg);
+    border-bottom: 2px solid var(--amber);
+    padding: 12px max(16px, env(safe-area-inset-left));
+}
+.draft-banner > * { max-width: 760px; margin-left: auto; margin-right: auto; }
+.draft-title {
+    font-weight: 800;
+    color: var(--amber);
+    font-size: 13px;
+    letter-spacing: 0.2px;
+    margin-bottom: 4px;
+}
+.draft-banner p { font-size: 13px; color: var(--text); }
+
+h2.section {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--light);
+    font-weight: 800;
+    margin: 26px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+h2.section:first-of-type { margin-top: 4px; }
+
+/* ── The quick answer ──────────────────────────────────────────────────────── */
+.quick {
+    background: var(--navy-bg);
+    border-left: 4px solid var(--navy);
+    border-radius: 6px;
+    padding: 12px 14px;
+}
+.quick p { margin-bottom: 8px; }
+.quick p:last-child { margin-bottom: 0; }
+.quick-list { list-style: none; margin-top: 4px; }
+.quick-list li {
+    padding: 4px 0 4px 18px;
+    position: relative;
+    font-size: 13px;
+    border-top: 1px solid rgb(0 0 0 / 0.06);
+}
+.quick-list li:first-child { border-top: 0; }
+.quick-list li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--green);
+    font-weight: 800;
+}
+
+/* ── Key strip ─────────────────────────────────────────────────────────────── */
+.key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 12px 0 0;
+    padding: 8px 10px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--mid);
+}
+.key-item { display: inline-flex; align-items: center; gap: 5px; }
+
+/* The two tokens carry meaning and must stay distinguishable without colour — the glyph is the
+   signal, the colour is reinforcement (WCAG 1.4.1, the same rule the app's badges follow). */
+.tok { font-weight: 800; }
+.tok-ok { color: var(--green); }
+.tok-no { color: var(--red); }
+
+.pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.pill-draft {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+}
+
+/* ── Product cards ─────────────────────────────────────────────────────────── */
+.rr-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-left-width: 5px;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+}
+/* The stripe is the Mon–Fri time rule and nothing else — same contract as the railcard guide.
+   Do not repurpose it for "is it valid on us", which is what the On us? row is for. */
+.rr-green { border-left-color: var(--green); }
+.rr-amber { border-left-color: var(--amber); }
+
+/* An unconfirmed card is marked on the CARD, not only in the page banner, so the state survives
+   being screenshotted, printed, or read after scrolling past the banner. */
+.rr-card--draft { background: linear-gradient(0deg, var(--amber-bg) 0%, var(--white) 26%); }
+/* The tint is for WHITE cards. The gotcha is already amber and the notes block carries its own
+   fill, so they take the marker class (the register test requires it on every Draft-anchored
+   block) but keep their own background — their `to confirm` pill is what carries the state. */
+.gotcha.rr-card--draft, .rr-notes.rr-card--draft { background: var(--amber-bg); }
+.rr-notes.rr-card--draft { background: var(--white); }
+
+.rr-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 2px;
+}
+.rr-name { font-size: 16px; font-weight: 800; color: var(--navy); }
+.rr-who { font-size: 12px; color: var(--light); margin-bottom: 8px; }
+
+.rr-facts { display: flex; flex-direction: column; gap: 6px; }
+.rr-row {
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 13px;
+}
+.rr-lbl {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    color: var(--light);
+}
+.rr-val { color: var(--text); }
+.rr-val.ok { color: var(--green); font-weight: 600; }
+.rr-cutoff { display: block; font-weight: 600; }
+.rr-cutoff.no { color: var(--red); }
+.rr-cutoff.ok { color: var(--green); }
+.rr-sub { display: block; font-size: 12px; color: var(--light); font-weight: 400; margin-top: 2px; }
+
+/* The Chiltern callout — the highest-value line on any card, because it is the part no national
+   source states. Amber banner inside the card, exactly as `.rc-chiltern` does on the railcard
+   guide. */
+.rr-chiltern {
+    margin-top: 10px;
+    padding: 8px 10px;
+    background: var(--amber-bg);
+    border-radius: 5px;
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+.ct-label { font-weight: 800; color: var(--amber); margin-right: 5px; }
+
+/* ── Near misses ───────────────────────────────────────────────────────────── */
+.rr-nolist { display: flex; flex-direction: column; gap: 8px; }
+.rr-no-item {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--red);
+    border-radius: 8px;
+    padding: 10px 14px;
+}
+.rr-no-name {
+    font-weight: 800;
+    color: var(--navy);
+    font-size: 14px;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+.rr-no-item p { font-size: 13px; color: var(--mid); }
+
+/* ── Gotcha + steps (same shapes as the railcard guide) ────────────────────── */
+.gotcha {
+    background: var(--amber-bg);
+    border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+.gotcha-title { font-weight: 800; color: var(--amber); margin-bottom: 6px; }
+.gotcha p { font-size: 13px; margin-bottom: 6px; }
+.gotcha p:last-child { margin-bottom: 0; }
+.gotcha code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: rgb(0 0 0 / 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.check-steps { display: flex; flex-direction: column; gap: 8px; }
+.check-item {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 10px;
+    align-items: start;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+}
+.check-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: #fff;
+    font-weight: 800;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rr-notes {
+    margin-top: 16px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+.rr-notes h3 { font-size: 13px; font-weight: 800; color: var(--navy); margin-bottom: 8px; }
+.rr-notes p { font-size: 13px; margin-bottom: 8px; }
+.rr-notes p:last-child { margin-bottom: 0; }
+
+.foot {
+    margin-top: 22px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--light);
+    line-height: 1.6;
+}
+
+.guide-back-link {
+    display: inline-block;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--navy);
+    font-weight: 600;
+}
+.guide-back-link:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; border-radius: 3px; }
+
+/* ── Print ──────────────────────────────────────────────────────────────────
+   The sticky header prints as the title banner (guide-shell.css). The chip bar is navigation and
+   goes. The draft banner STAYS — a printed sheet is the copy most likely to be read months later,
+   detached from the app, by someone who never saw the page; it is the one place the caveat matters
+   most. */
+@media print {
+    body { background: #fff; font-size: 10.5pt; }
+    main { max-width: none; padding: 0 8mm 8mm; }
+    .chip-bar, .guide-back-link { display: none !important; }
+    .draft-banner { border-bottom: 2pt solid var(--amber); print-color-adjust: exact; }
+    .rr-card, .rr-no-item, .check-item, .gotcha, .quick, .rr-notes {
+        break-inside: avoid;
+        print-color-adjust: exact;
+    }
+    /* The gradient does not reproduce reliably on every printer, and a card that loses its draft
+       tint on paper would read as confirmed. The pill carries it instead, which is text. */
+    .rr-card--draft { background: #fff; }
+    h2.section { break-after: avoid; }
+}

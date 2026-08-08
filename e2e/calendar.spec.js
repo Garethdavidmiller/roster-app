@@ -243,11 +243,12 @@ test('nav: each guide records its OWN open id', async ({ page }) => {
         ['Pay Calculator Guide', 'guide-paycalc'],
         ['Railcard Guide',       'guide-railcard'],
         ['FIP Travel Guide',     'guide-fip'],
+        ['Rangers & Rovers',     'guide-rangers'],
     ]) {
         await page.goto('/');
         await page.locator('#navMenuBtn').click();
         await page.getByRole('link', { name: label }).click();
-        await page.waitForURL(/guide|fip/);
+        await page.waitForURL(/guide|fip|rangers/);
         const opens = await page.evaluate(() => {
             const v = sessionStorage.getItem('__opens') || '';
             sessionStorage.removeItem('__opens');

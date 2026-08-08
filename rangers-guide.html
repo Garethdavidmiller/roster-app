@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<!-- MYB Roster — Rangers & Rovers Guide | At-work reference sheet. -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://apis.google.com; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://apis.google.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src https://myb-roster.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="only light">
+    <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
+         firebase.json, and is the ONLY noindex signal the GitHub Pages mirror gets (it cannot serve
+         headers). Rationale in robots.txt; enforced by sw-asset-check.test.mjs. -->
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Rangers &amp; Rovers">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
+    <title>Rangers &amp; Rovers Guide — Marylebone Roster</title>
+    <link rel="stylesheet" href="./guide-shell.css">
+    <link rel="stylesheet" href="./rangers-guide.css">
+</head>
+<body>
+
+<header class="page-header">
+    <a href="./" class="btn-back" aria-label="Back to roster">←</a>
+    <div>
+        <h1><span aria-hidden="true">🗺️</span> Rangers &amp; Rovers</h1>
+        <div class="sub">At-work reference · area passes, and whether they work on us</div>
+    </div>
+    <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
+</header>
+
+<!--
+    THE DRAFT BANNER IS THE MOST IMPORTANT ELEMENT ON THIS PAGE, AND IT IS NOT DECORATION.
+
+    ROADMAP.md → Evidence class: anything shown to staff as a rule they could refuse travel by needs
+    class A (authoritative external) or B (controlled internal). Every claim on this page is exactly
+    that. The content below was triangulated across independent public summaries of the National Rail
+    product pages — those pages themselves are unreachable from the build environment (egress policy),
+    so nothing here has been read from the source. That is evidence class D.
+
+    The page ships anyway because a staff member with nothing has to guess, and a structured
+    best-available answer that SAYS it is unconfirmed beats a guess. But it must never read as
+    settled. The precedent is `links-fatigue.js`, whose FF17/FF18/FF19 rows render with
+    `confirm: true` because their interpretation is unsettled — visible, useful, and honest about
+    their own standing.
+
+    Do NOT soften or remove this banner while any card still carries `.rr-card--draft`. When a
+    product is confirmed against the retail system, drop that class from ITS card and update its
+    GUIDE_SOURCES.md row; the banner goes when the last one does.
+-->
+<div class="draft-banner" role="note">
+    <div class="draft-title"><span aria-hidden="true">⚠</span> Draft — not yet confirmed against National Rail</div>
+    <p>Everything below was put together from public summaries, <strong>not</strong> from the official
+    product pages or the retail system. It is a starting point, not an authority.
+    <strong>Before you refuse anyone travel, check the ticket in the retail system.</strong></p>
+</div>
+
+<nav class="chip-bar" aria-label="Jump to section">
+    <button class="chip" type="button" data-target="rr-quick">Quick answer</button>
+    <button class="chip" type="button" data-target="rr-yes">Works on us</button>
+    <button class="chip" type="button" data-target="rr-no">Not on us</button>
+    <button class="chip" type="button" data-target="rr-checks">How to check</button>
+</nav>
+
+<main>
+
+    <!--
+        THE QUICK ANSWER LEADS, AND IT LEADS WITH "USUALLY NO".
+
+        There are ~90 Ranger and Rover products in Great Britain and only a handful touch Chiltern.
+        A guide that opens with a long list makes the common case slow and the rare case ambiguous:
+        a staff member who cannot find the ticket in their hand cannot tell "not valid" from "not
+        listed", and absence and silence must not look the same. Naming the five that DO work makes
+        every other ticket answerable by exclusion — which is the answer most of the time.
+    -->
+    <h2 class="section" id="rr-quick">The quick answer</h2>
+
+    <div class="quick">
+        <p><strong>Most Rangers and Rovers are not valid on Chiltern.</strong> They are area passes
+        sold by other operators for other parts of the country, and ours is a narrow corridor out of
+        Marylebone.</p>
+        <p><strong>Five are worth knowing.</strong> If the ticket in your hand is not one of these
+        five, the answer is almost certainly no — check it in the retail system before refusing.</p>
+        <ul class="quick-list">
+            <li><strong>Shakespeare Explorer</strong> — ours, from Marylebone</li>
+            <li><strong>Heart of England Rover</strong> — Chiltern is a named operator</li>
+            <li><strong>West Midlands Day Ranger</strong> — our Birmingham end</li>
+            <li><strong>Oxfordshire Day Ranger</strong> — our Bicester/Oxford branch</li>
+            <li><strong>All Line Rover</strong> — valid on everything, everywhere</li>
+        </ul>
+    </div>
+
+    <div class="key" aria-label="Key to symbols">
+        <span class="key-item"><span class="tok tok-ok">✓</span> valid on Chiltern</span>
+        <span class="key-item"><span class="tok tok-no">⊘</span> not before the time shown</span>
+        <span class="key-item"><span class="pill pill-draft">to confirm</span> not yet checked at source</span>
+    </div>
+
+    <h2 class="section" id="rr-yes">Works on us</h2>
+
+    <!-- SHAKESPEARE EXPLORER — first, because it is the only one that starts at Marylebone, so it is
+         the one most likely to be presented at our own gateline. -->
+    <div class="rr-card rr-green rr-card--draft" id="rr-shakespeare" data-guide-source="rr-shakespeare">
+        <div class="rr-top">
+            <span class="rr-name">Shakespeare Explorer</span>
+            <span class="pill pill-draft">to confirm</span>
+        </div>
+        <div class="rr-who">A Chiltern product — starts at Marylebone</div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 or 4 days · return</span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Marylebone to Leamington Spa, Warwick, Warwick Parkway and all stations to <strong>Stratford-upon-Avon</strong>, plus unlimited travel between Leamington Spa and Stratford</span></div>
+            <div class="rr-row">
+                <span class="rr-lbl">When</span>
+                <span class="rr-val">
+                    <span class="rr-cutoff no"><span class="tok tok-no">⊘</span> return to London on trains due into Marylebone before <strong>10:00</strong> Mon&ndash;Fri</span>
+                </span>
+            </div>
+            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes — Chiltern, GWR and London Northwestern</span></div>
+        </div>
+        <div class="rr-chiltern">
+            <span class="ct-label">Break of journey:</span> allowed between <strong>Marylebone and Leamington Spa</strong> when travelling to or from the Rover area — so Bicester Village is a legitimate stop-off, not a fare evasion.
+        </div>
+    </div>
+
+    <div class="rr-card rr-amber rr-card--draft" id="rr-heart" data-guide-source="rr-heart-england">
+        <div class="rr-top">
+            <span class="rr-name">Heart of England Rover</span>
+            <span class="pill pill-draft">to confirm</span>
+        </div>
+        <div class="rr-who">Midlands and Central England — Chiltern is a named operator</div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">3 days in 7, or 7 consecutive — <strong>flexi: they date the box themselves</strong></span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Reaches Banbury, Stratford-upon-Avon, Birmingham and Oxford. Area map on the ticket</span></div>
+            <div class="rr-row">
+                <span class="rr-lbl">When</span>
+                <span class="rr-val">
+                    <span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:00</strong> Mon&ndash;Fri</span>
+                    <span class="rr-sub">Any time Sat, Sun and Bank Holidays</span>
+                </span>
+            </div>
+            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes — Chiltern is named alongside Avanti, CrossCountry, EMR, GWR, LNR, Northern, TfW and WMR</span></div>
+        </div>
+    </div>
+
+    <div class="rr-card rr-amber rr-card--draft" id="rr-wmdr" data-guide-source="rr-west-midlands">
+        <div class="rr-top">
+            <span class="rr-name">West Midlands Day Ranger</span>
+            <span class="pill pill-draft">to confirm</span>
+        </div>
+        <div class="rr-who">The Birmingham end of our route</div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 day</span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Network West Midlands, out to Crewe, Stafford, Stoke, Nuneaton, Northampton, <strong>Leamington Spa</strong>, Stratford-upon-Avon, Redditch, Hereford and Gobowen</span></div>
+            <div class="rr-row">
+                <span class="rr-lbl">When</span>
+                <span class="rr-val">
+                    <span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:00</strong> Mon&ndash;Fri</span>
+                    <span class="rr-sub">Any train Sat, Sun and Bank Holidays</span>
+                </span>
+            </div>
+            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes — includes Birmingham Snow Hill and Moor Street</span></div>
+        </div>
+        <div class="rr-chiltern">
+            <span class="ct-label">Chiltern:</span> the area stops at <strong>Leamington Spa</strong>. It is <strong>not</strong> a ticket to London — anyone travelling south of Leamington needs a separate fare.
+        </div>
+    </div>
+
+    <div class="rr-card rr-amber rr-card--draft" id="rr-oxon" data-guide-source="rr-oxfordshire">
+        <div class="rr-top">
+            <span class="rr-name">Oxfordshire Day Ranger</span>
+            <span class="pill pill-draft">to confirm</span>
+        </div>
+        <div class="rr-who">Our Bicester and Oxford branch</div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 day</span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Oxfordshire — includes <strong>Bicester Village</strong>, Islip, Oxford, Heyford, <strong>Banbury</strong> and <strong>Kings Sutton</strong></span></div>
+            <div class="rr-row">
+                <span class="rr-lbl">When</span>
+                <span class="rr-val">
+                    <span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:30</strong> Mon&ndash;Fri</span>
+                    <span class="rr-sub">Any time Sat, Sun and Bank Holidays</span>
+                </span>
+            </div>
+            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes on our Oxford line stations</span></div>
+        </div>
+        <div class="rr-chiltern">
+            <span class="ct-label">Chiltern:</span> it covers our stations from <strong>Kings Sutton</strong> and <strong>Banbury</strong> down to <strong>Oxford</strong> and <strong>Bicester Village</strong> — but <strong>not</strong> the run south to Marylebone. High Wycombe and Aylesbury are outside it.
+        </div>
+    </div>
+
+    <div class="rr-card rr-green rr-card--draft" id="rr-allline" data-guide-source="rr-all-line">
+        <div class="rr-top">
+            <span class="rr-name">All Line Rover</span>
+            <span class="pill pill-draft">to confirm</span>
+        </div>
+        <div class="rr-who">The whole national network — so, us too</div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">7 or 14 consecutive days</span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">All of Great Britain</span></div>
+            <div class="rr-row">
+                <span class="rr-lbl">When</span>
+                <span class="rr-val">
+                    <span class="rr-cutoff ok"><span class="tok tok-ok">✓</span> Any time on Chiltern</span>
+                    <span class="rr-sub">A before-10:00 Mon&ndash;Fri bar applies on some long-distance operators, not on us</span>
+                </span>
+            </div>
+            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes</span></div>
+        </div>
+        <div class="rr-chiltern">
+            <span class="ct-label">Selling it:</span> available from any staffed station, and it can only be bought <strong>within 3 days</strong> of the start date.
+        </div>
+    </div>
+
+    <!--
+        TIER 2 IS THE POINT OF THE PAGE. Every product here reaches somewhere on our map — Oxford,
+        Moreton-in-Marsh, Worcester — so a passenger can reasonably believe it covers us. Saying "no"
+        quickly, and saying what they need instead, is the answer no national page gives.
+    -->
+    <h2 class="section" id="rr-no">Near misses — NOT valid on us</h2>
+
+    <div class="rr-nolist">
+        <div class="rr-no-item rr-card--draft" data-guide-source="rr-cotswolds">
+            <div class="rr-no-name"><span class="tok tok-no">⊘</span> Cotswolds Discoverer</div>
+            <p>Covers Oxford, Kingham, Moreton-in-Marsh, Charlbury — stations on <em>a</em> line to Oxford, but the ticket is <strong>CrossCountry, GWR and Transport for Wales only</strong>. Not us, even where the station is shared.</p>
+        </div>
+        <div class="rr-no-item rr-card--draft" data-guide-source="rr-severn-solent">
+            <div class="rr-no-name"><span class="tok tok-no">⊘</span> Freedom of Severn &amp; Solent Rover</div>
+            <p>Reaches Worcester and Great Malvern in the north. <strong>TfW, GWR, South Western and CrossCountry</strong> — not Chiltern.</p>
+        </div>
+        <div class="rr-no-item">
+            <div class="rr-no-name"><span class="tok tok-no">⊘</span> Anything else</div>
+            <p>If it is not one of the five above, assume it does not cover Chiltern and check the retail system. This page deliberately lists only what turns up at Marylebone — <strong>a ticket missing from this page is out of scope, not automatically invalid</strong>.</p>
+        </div>
+    </div>
+
+    <h2 class="section" id="rr-checks">How to check one</h2>
+
+    <!-- The date-box rule earns a callout of its own: it is the only ranger/rover rule a gateline can
+         actually ENFORCE by looking, and it is the one most likely to be unknown to staff who have
+         never handled a flexi product. Same treatment the railcard guide gives the minimum-fare
+         mechanic — a selling/checking essential lives in a gotcha, not in a card row. -->
+    <div class="gotcha rr-card--draft" data-guide-source="rr-date-box">
+        <div class="gotcha-title">The date box — the check you can actually do <span class="pill pill-draft">to confirm</span></div>
+        <p>On a <strong>flexi</strong> Rover (3 days in 7, 8 in 15 and so on) the passenger writes the
+        date in the next empty box <strong>themselves, before they travel</strong>. Numbers only, and
+        in ink — <code>07 09</code> for the 7th of September.</p>
+        <p><strong>An undated box on a journey in progress is the fault</strong> — the ticket has not
+        been validated for today. A box dated in pencil, or dated after you asked, is the same thing.</p>
+        <p>This is the one rule on this page you can enforce by looking. Everything else needs the
+        retail system.</p>
+    </div>
+
+    <div class="check-steps">
+        <div class="check-item"><div class="check-num">1</div><div><strong>Is it one of the five?</strong> If not, it almost certainly does not cover us.</div></div>
+        <div class="check-item"><div class="check-num">2</div><div><strong>Is today inside it?</strong> Day rangers are one date. Flexi rovers need today's box dated.</div></div>
+        <div class="check-item"><div class="check-num">3</div><div><strong>Is it too early?</strong> Most carry a 09:00 or 09:30 Mon&ndash;Fri bar. Weekends and Bank Holidays are usually clear.</div></div>
+        <div class="check-item"><div class="check-num">4</div><div><strong>Are we inside the area?</strong> The boundary is a <em>station</em>, not a region — Leamington Spa and Banbury are the two that matter to us.</div></div>
+        <div class="check-item"><div class="check-num">5</div><div><strong>Still unsure?</strong> Check it in the retail system before refusing. Refusing a valid pass is the worse mistake.</div></div>
+    </div>
+
+    <div class="rr-notes rr-card--draft" data-guide-source="rr-two-together">
+        <h3>Two things that catch people out <span class="pill pill-draft">to confirm</span></h3>
+        <p><strong>A Two Together Railcard discount adds its own time bar.</strong> Where a Ranger or
+        Rover has been bought with a Two Together discount, it cannot be used before <strong>09:30
+        Mon&ndash;Fri</strong> — even if the product itself would allow 09:00.</p>
+        <p><strong>No prices on this page, deliberately.</strong> Ranger and Rover fares are re-set
+        every year and vary three ways (adult, child, railcard). A stale price here would be a
+        mis-sell. The retail system is the price.</p>
+    </div>
+
+    <div class="foot">
+        <strong>Draft — sourced from public summaries, not from National Rail.</strong>
+        Confirm anything on this page before you rely on it.<br>
+        For staff reference only. If in doubt, ask your supervisor.
+    </div>
+
+    <a href="./" class="guide-back-link">← Back to calendar</a>
+
+</main>
+
+<script src="./guide-back.js" defer></script>
+<script src="./rangers-guide.js" defer></script>
+
+</body>
+</html>

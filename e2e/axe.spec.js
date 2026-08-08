@@ -239,7 +239,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     });
 
     // Static guide pages — no auth, no async state.
-    for (const guide of ['guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html']) {
+    for (const guide of ['guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html', 'rangers-guide.html']) {
         test(`guide (${guide})`, async ({ page }) => {
             await page.goto(`/${guide}`);
             await expect(page.locator('h1').first()).toBeVisible();

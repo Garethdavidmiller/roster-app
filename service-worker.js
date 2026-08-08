@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '20.04';
+const APP_VERSION = '20.05';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -136,9 +136,9 @@ const NETWORK_FIRST_FILES = [
     'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-hpp-schedule.js', 'paycalc-backpay.js', 'paycalc-backpay-state.js', 'paycalc-year-summary.js',
     'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-guide.html',
     'fip.html', 'guide.html',
-    'railcard-guide.html',
-    'railcard-guide.js', 'guide-print.js', 'guide-back.js', 'fip.js', 'guide-shell.css',
-    'guide.css', 'paycalc-guide.css', 'railcard-guide.css', 'fip.css', 'guide-doc.css',
+    'railcard-guide.html', 'rangers-guide.html',
+    'railcard-guide.js', 'rangers-guide.js', 'guide-print.js', 'guide-back.js', 'fip.js', 'guide-shell.css',
+    'guide.css', 'paycalc-guide.css', 'railcard-guide.css', 'rangers-guide.css', 'fip.css', 'guide-doc.css',
     'purify.es.mjs',
 ];
 
@@ -261,7 +261,9 @@ const SUPPLEMENTARY_ASSETS = [
     "./fip.html",
     "./guide.html",
     "./railcard-guide.html",
+    "./rangers-guide.html",
     "./railcard-guide.js",
+    "./rangers-guide.js",
     "./guide-print.js",
     "./guide-back.js",
     "./fip.js",
@@ -269,6 +271,7 @@ const SUPPLEMENTARY_ASSETS = [
     "./guide.css",
     "./paycalc-guide.css",
     "./railcard-guide.css",
+    "./rangers-guide.css",
     "./fip.css",
     "./guide-doc.css",
     "./purify.es.mjs",

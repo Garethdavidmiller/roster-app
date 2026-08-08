@@ -514,7 +514,7 @@ service cloud.firestore {
            // guide-paycalc added v19.95, completing the four guides in NAV_GUIDES).
            request.resource.data.counts.keys().hasOnly(['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links',
                                                         'huddle', 'circular', 'newsletter',
-                                                        'guide-staff', 'guide-paycalc', 'guide-railcard', 'guide-fip']) &&
+                                                        'guide-staff', 'guide-paycalc', 'guide-railcard', 'guide-fip', 'guide-rangers']) &&
            (!('calendar'   in request.resource.data.counts) || request.resource.data.counts.calendar   is int) &&
            (!('admin'      in request.resource.data.counts) || request.resource.data.counts.admin      is int) &&
            (!('paycalc'    in request.resource.data.counts) || request.resource.data.counts.paycalc    is int) &&
@@ -528,6 +528,7 @@ service cloud.firestore {
            (!('guide-paycalc'  in request.resource.data.counts) || request.resource.data.counts['guide-paycalc']  is int) &&
            (!('guide-railcard' in request.resource.data.counts) || request.resource.data.counts['guide-railcard'] is int) &&
            (!('guide-fip'      in request.resource.data.counts) || request.resource.data.counts['guide-fip']      is int) &&
+           (!('guide-rangers'  in request.resource.data.counts) || request.resource.data.counts['guide-rangers']  is int) &&
            (resource == null || request.auth.token.admin == true ||
             request.resource.data.counts.keys().hasAll(resource.data.counts.keys()))) ||
           // Active-account counters: analytics/activeAccounts = { months?: {…}, daily?: {…} }

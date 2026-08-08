@@ -115,6 +115,40 @@ two-month warning, because "must be done by April" reliably becomes "started in 
 
 ## NEXT — likely, but a trigger is required
 
+### Rangers & Rovers guide
+**Status:** **SHIPPED AS A DRAFT v20.05** — `RANGERS_ROVERS_PLAN.md` · **Owner:** Gareth (verification) · **Trigger:** confirm each product against the retail system
+
+A fifth guide page, for the ranger and rover area passes staff have to accept or refuse at the
+gateline. **Built and shipped, and every claim on it is marked unverified** — the page carries a
+printing draft banner, a `to confirm` pill on each card, and a `Draft` class on each register row,
+all three enforced by `guide-sources.test.mjs`. It ships that way because a staff member with
+nothing has to guess, and a structured best-available answer that SAYS it is unconfirmed beats a
+guess — the precedent is `links-fatigue.js`, whose FF17/18/19 render with `confirm: true`.
+
+**What is left is verification, and it is not a developer task.** Confirm each of the seven products
+against its register Source *and* the retail system, flip that row to `National`, and drop
+`rr-card--draft` from its card. The banner goes when the last one does.
+
+**Why it is blocked, and why that is the right answer.** Every claim on such a page is a rule a
+passenger could be refused travel by, so the Evidence class gate above puts the whole page at **A or
+B** — and this environment's network policy blocks `nationalrail.co.uk` and `chilternrailways.co.uk`
+outright, so nothing class-A can be reached from here. Web search returns third-party summaries, which
+is precisely the sourcing `GUIDE_SOURCES.md` warns is not counter-final, and precisely how the v17.45
+railcard errors happened. Writing it anyway would produce a fluent, plausible, unverifiable page —
+worse than not having one, because nobody at a gateline knows off-hand whether a given rover is valid
+to Banbury.
+
+**Two unblocks, and one of them is needed either way:** widen the environment's egress to the rail
+domains (removes the dependence on being handed the national half), and/or Gareth supplies the
+retail-system listing. The second is required regardless — *is it valid on us, and between which
+stations* is an operator fact no public page states, and it is the only thing this guide would offer
+that National Rail does not already do better.
+
+**The one design decision worth knowing without reading the plan:** the guide leads with the products
+that are **not** valid on Chiltern. That is the answer staff cannot get quickly anywhere else, and a
+page listing all ~90 national products would be unusable at a gateline — a staff member who fails to
+find the ticket in their hand cannot tell whether that means *not valid* or *not listed*.
+
 ### Address migration campaign
 **Status:** Planned, sequenced after the password work · **Owner:** Gareth · **Trigger:** password migration substantially complete
 

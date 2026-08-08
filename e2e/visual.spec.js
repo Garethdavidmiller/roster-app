@@ -528,6 +528,21 @@ test('guide — railcard mobile 390', async ({ page }) => {
     await expect(page).toHaveScreenshot('railcard-guide-mobile-390.png');
 });
 
+// Baselined at MOBILE, like its sibling the railcard guide: this is a gateline page, read on a phone.
+// The composition worth locking is the card stack + the draft banner — and the banner especially,
+// because it is the one element whose disappearance would change what the page CLAIMS rather than
+// how it looks, and no behavioural test asserts a background.
+test('guide — rangers & rovers mobile 390', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 4400 });
+    await page.goto('/rangers-guide.html');
+    // Sentinel before the capture: a page that lost its draft treatment would still screenshot
+    // perfectly and the next regeneration would lock in the un-caveated version as the new truth.
+    await expect(page.locator('.draft-banner')).toBeVisible();
+    await expect(page.locator('.rr-card--draft')).toHaveCount(9);
+    await guideSettle(page, '.chip-bar, .rr-card');
+    await expect(page).toHaveScreenshot('rangers-guide-mobile-390.png');
+});
+
 test('guide — fip mobile 390', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 6200 });
     await page.goto('/fip.html');
