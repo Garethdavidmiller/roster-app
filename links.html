@@ -316,12 +316,12 @@
                         <label class="gen-obj"><input type="checkbox" id="objVariety" checked><span class="gen-obj-text"><span class="gen-obj-title">Vary the shift type</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objBlockTarget" class="gen-input gen-input-inline" min="1" max="14" value="3"> weeks</span></span><span class="gen-obj-hint">Stops long blocks of earlies or lates — the live roster's longest is 3</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objGentle" checked><span class="gen-obj-text"><span class="gen-obj-title">Gentle week-to-week change</span><span class="gen-obj-hint">Keeps your working day from jumping when you move line</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Full weekends off</span><span class="gen-obj-hint">Saturday rest followed by Sunday rest</span></span></label>
-                        <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Long weekends</span><span class="gen-obj-num">at least <span class="gen-obj-numctl"><input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="22" value="4"><!--
-                            One span, for the same reason as the Generate button below: `.gen-obj-numctl`
-                            is inline-flex WITH a 6px gap, so "of" and the count would be two items and
-                            the gap would apply between them — a wider space here than the identical
-                            phrase elsewhere on the card, for no reason a reader could see.
-                        --><span>of <span class="js-rotating-lines">22</span></span></span></span><span class="gen-obj-hint">Three or four days off across the week boundary</span></span></label>
+                        <!-- "of N" is ONE span (v19.98). `.gen-obj-numctl` is inline-flex with a 6px
+                             gap, so "of" and the count as two items would space wider than the same
+                             phrase elsewhere on the card. The comment lives OUT here, not between the
+                             input and the span: `e2e/pages.spec.js`'s clause test measures the tail by
+                             `input.nextSibling`, and a comment node there is not what renders. -->
+                        <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Long weekends</span><span class="gen-obj-num">at least <span class="gen-obj-numctl"><input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="22" value="4"><span>of <span class="js-rotating-lines">22</span></span></span></span><span class="gen-obj-hint">Three or four days off across the week boundary</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objTurnarounds" checked><span class="gen-obj-text"><span class="gen-obj-title">Rest across the week boundary</span><span class="gen-obj-hint">Saturday's finish into Sunday's start — the one turnaround a single line cannot show</span></span></label>
                     </fieldset>
                     <div id="genError" class="gen-error" aria-live="polite"></div>

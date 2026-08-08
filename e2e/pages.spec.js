@@ -445,7 +445,26 @@ test('links: the sticky summary bar carries a live reading of the analysis below
 
     // It must be STICKY and PAINTED mid-grid, not merely present — the v19.55 lesson (a probe read
     // `el.hidden` while the browser rendered the element anyway).
-    await page.evaluate(() => window.scrollTo(0, 500));
+    //
+    // The scroll offset is DERIVED, not the magic 500 it used to be. Sticky pins only while the
+    // card's BOTTOM is still below the viewport bottom, so a hardcoded offset silently stops asking
+    // the question the moment the card gets shorter — which is what happened when the rotation went
+    // 28 to 22 and the grid lost six rows (measured: card 1144px, so 500 already put its bottom at
+    // 750, above the fold, and the bar was correctly unpinned). Landing 100px short of that boundary
+    // asks it at whatever length the rotation happens to be.
+    const geom = await page.evaluate(() => {
+        const box = /** @type {HTMLElement} */ (document.getElementById('linksGridCard'))
+            .getBoundingClientRect();
+        const top = box.top + window.scrollY;
+        const y = Math.round(top + box.height - window.innerHeight - 100);
+        window.scrollTo(0, y);
+        return { top, height: box.height, y };
+    });
+    // Two premises, both of which a shorter card could quietly break — and each would leave the
+    // assertion below passing or failing for a reason that has nothing to do with stickiness.
+    expect(geom.height, 'the card must be taller than the viewport, or sticky has nothing to do')
+        .toBeGreaterThan(900);
+    expect(geom.y, 'the scroll must land INSIDE the card, not above it').toBeGreaterThan(geom.top);
     const box = await page.locator('#linksSaveRow').boundingBox();
     expect(Math.round(box.y + box.height), 'the bar must sit at the viewport bottom while the grid is on screen')
         .toBe(900);
@@ -1592,7 +1611,11 @@ test('links: a numeric objective clause does not come apart on a phone', async (
     // Same line ⇒ one phrase. Different lines ⇒ the tail is orphaned under the lead-in, which is the
     // reported render. This holds whatever the fix is implemented with.
     const clause = await page.evaluate(() => [...document.querySelectorAll('.gen-obj-num input')].map((input) => {
-        const after = input.nextSibling;
+        // The next thing that RENDERS — skipping comments, which occupy no space but do occupy
+        // `nextSibling`. A markup comment placed between the input and its tail made this probe
+        // measure an empty range and report the clause as broken when it was not (v19.98).
+        let after = input.nextSibling;
+        while (after && after.nodeType === Node.COMMENT_NODE) after = after.nextSibling;
         const r = document.createRange();
         r.selectNodeContents(/** @type {Node} */ (after));
         return { input: input.getBoundingClientRect(), tail: r.getBoundingClientRect(), text: after?.textContent };
@@ -1633,7 +1656,7 @@ test('links: the grid day-headers stick from 768px up, where the table already f
     for (const width of [768, 834, 1024]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto('/links.html');
-        await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+        await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
         const m = await page.evaluate(() => {
             const wrap = /** @type {Element} */ (document.querySelector('.links-grid-wrapper'));
             const th = /** @type {Element} */ (document.querySelector('.links-grid thead th'));
@@ -1792,7 +1815,7 @@ test('links: the print button prints, and a work-in-progress sheet says so', asy
         window.print = () => { w.__printed++; window.dispatchEvent(new Event('beforeprint')); };
     });
     await page.goto('/links.html');
-    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 
     const btn = page.locator('#linksPrintBtn');
     await expect(btn).toBeVisible();
@@ -1921,7 +1944,7 @@ test('links: Remove for good spares a design another designer has restored', asy
         ];
     });
     await page.goto('/links.html');
-    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await page.locator('#designBinBtn').click();
     await page.locator('#designBinList button:has-text("Remove for good")').first().click();
     await page.locator('.lb-overlay.visible .dialog-btn-confirm').last().click();
@@ -1954,7 +1977,7 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
         ];
     });
     await page.goto('/links.html');
-    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await page.locator('#designBinBtn').click();
     await expect(page.locator('#designBinLightbox.visible')).toBeVisible();
     await page.locator('#designBinList button:has-text("Remove for good")').first().click();
@@ -1995,7 +2018,7 @@ async function openWindowDesign(page, extraDocs = []) {
         w.__E2E.docs = [{ id: 'd1', name: 'Morning heavy', patterns, updatedAt: 1750000000000, updatedBy: 'S. Silva' }, ...extra];
     }, [morningOnlyPatterns(), extraDocs]);
     await page.goto('/links.html');
-    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 }
 
 test('links window: an unstaffed evening is flagged, where the old span hid it', async ({ page }) => {
@@ -2108,9 +2131,13 @@ test('links window: generating the FIRST design reveals the window editor', asyn
         .map(r => [...r.querySelectorAll('.shift-cell-btn')].filter(b => b.textContent.trim() === 'SP').length));
     expect(spareDays.every(n => n === 0 || n === 7),
         `every line is spare all week or not at all — got ${spareDays.join(',')}`).toBe(true);
-    // SIX, not four (v19.59). The seed used to sample the main 20 weeks plus only the two bilingual
-    // weeks the two bilingual members sit on — and bilingual 1 and 8, the spare ones, were never
-    // among them. The real combined roster is main 1/7/12/17 plus bilingual 1/8.
+    // FOUR — main lines 1/7/12/17 (v19.98, main-only seed). It was SIX while the bilingual roster
+    // was in scope (its 1 and 8), and four before v19.59 for the WRONG reason: the under-sample
+    // happened to drop exactly those two bilingual spare weeks. So this figure has read 4 twice
+    // meaning different things, which is why the seed's line IDENTITY and its exclusion of
+    // bilingual-only shift times are pinned in links-seed.test.mjs rather than here. What this
+    // assertion is for is the DISTRIBUTION above — that the count survives the whole generate →
+    // render path with every spare line still whole.
     expect(spareDays.filter(n => n === 7).length,
-        'the roster seed has six spare weeks — main 1/7/12/17 and bilingual 1/8').toBe(6);
+        'the roster seed has four spare weeks — main 1/7/12/17').toBe(4);
 });
