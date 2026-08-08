@@ -165,3 +165,37 @@ export async function openRosterReview(page) {
     await expect(page.locator('.roster-change-row').first()).toBeVisible({ timeout: 15000 });
     return { wasParseCalled: () => called };
 }
+
+/**
+ * Open the drawer and expand its "Reference" section, then return the named guide link.
+ *
+ * The expand step is REAL, not test scaffolding: the guides are collapsed by default since v20.06,
+ * because six rows of reference material were the largest block in the drawer and put three of the
+ * five guides below the fold on a 360x640 phone. So reaching a guide genuinely is two taps now, and
+ * every spec that reaches one has to do what a member does.
+ *
+ * Written once because four specs needed it and four inline copies is how the next collapse-state
+ * change becomes a four-file edit.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} label - the guide's visible label, e.g. 'Railcard Guide'
+ */
+export async function openGuideLink(page, label) {
+    await openReference(page);
+    return page.locator('.nav-panel-link--guide', { hasText: label });
+}
+
+/**
+ * Open the drawer and expand its "Reference" section — the guides AND App Notices live there.
+ *
+ * Split out from `openGuideLink` because App Notices is not a guide link but is behind the same
+ * collapse, and the visual suite needs it. Idempotent: only expands when closed, so a caller that
+ * already opened the section does not collapse it again.
+ *
+ * @param {import('@playwright/test').Page} page
+ */
+export async function openReference(page) {
+    await page.locator('#navMenuBtn').click();
+    const toggle = page.locator('#navGuidesToggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+}

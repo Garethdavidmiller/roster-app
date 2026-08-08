@@ -1,5 +1,5 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink} from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -273,9 +273,9 @@ test('links: a guide link (same-tab) routes through the unsaved-changes guard', 
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     await expect(page.locator('#linksSaveRow')).toBeVisible();              // design now loaded (unsaved)
 
-    // Open the drawer and click a guide link (same-tab since v18.81).
-    await page.locator('#navMenuBtn').click();
-    const guide = page.locator('.nav-panel-link--guide').first();
+    // Open the drawer, expand Reference (collapsed by default since v20.06), click a guide link
+    // (same-tab since v18.81).
+    const guide = await openGuideLink(page, 'Staff & Admin Guide');
     await expect(guide).toBeVisible();
     await guide.click();
 

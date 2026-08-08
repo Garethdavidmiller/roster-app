@@ -24,7 +24,10 @@ import { lsGet, lsSet } from './ls.js';
 import { recordOpen } from './usage-reporter.js';
 
 /**
- * Page navigation destinations. The current page is omitted from the pill row.
+ * Page navigation destinations. The current page is NOT omitted — it renders as an inert
+ * `aria-current` pill (see `_inject`), so the row is the same shape on every page and the
+ * drawer doubles as a map rather than a list of exits. This comment said "omitted" from
+ * v10.57 to v20.06 while the code did the opposite.
  * colorClass mirrors the equivalent quick-action button on the calendar page:
  *   calendar → gold (matches Today button)
  *   admin    → navy + gold text (matches Admin button)
@@ -36,6 +39,13 @@ const NAV_PAGES = [
     { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay'        },
     { id: 'operations', label: '🔧 Ops',          url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
     { id: 'links',      label: '🔗 Links',         url: './links.html',      colorClass: 'nav-panel-pill--links',      linksDesignerOnly: true },
+    // SETTINGS IS A PAGE, SO IT IS A PILL (v20.06). It used to be a flat link pinned above the
+    // footer, styled like the Information rows — which made it the only page-destination in the
+    // drawer that did not look like one, and meant "where do I go" had two answers in two places
+    // with two treatments. Folding it in removes a whole visual idiom and leaves the pill grid as
+    // the single, complete answer. It keeps its own quiet colour so it does not compete with the
+    // work pages above it.
+    { id: 'settings',   label: '⚙️ Settings',      url: './settings.html',   colorClass: 'nav-panel-pill--settings'   },
 ];
 
 /**
@@ -51,7 +61,10 @@ const NAV_INFORMATION = [
             { icon: '📋', label: 'Daily Huddle',           url: './#huddle' },
             { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No circular has been uploaded yet — it\'s usually available on Friday.' },
             { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No newsletter has been uploaded yet — check back soon.' },
-            { icon: '📣', label: 'App Notices', notices: true },
+            // App Notices MOVED OUT at v20.06 — it sat here beside three live workplace documents
+            // while being a changelog for the app itself. Wrong group, and it diluted the one thing
+            // this section is for: the documents staff open on a shift. It now lives with the guides
+            // under "Reference", which is where you go to look something up rather than to work.
         ],
     },
 ];
@@ -934,20 +947,12 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // what the new-tab open used to buy us, without the extra browser chrome.
     const guideLinks = NAV_GUIDES
         .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide" data-open-id="${g.openId}"><span aria-hidden="true">${g.icon}</span> ${g.label}</a></li>`)
-        .join('');
+        .join('')
+        // App Notices joins the guides (v20.06): both are "look something up", neither is a document
+        // you open on a shift. It goes LAST — it is the rarest thing in the drawer.
+        + `<li><button type="button" class="nav-panel-link nav-panel-link--notices"><span aria-hidden="true">📣</span> App Notices</button></li>`;
 
-    // Settings link — always visible except on the settings page itself.
-    // Uses the same nav-panel-link / nav-panel-links / nav-panel-group-heading classes
-    // as the INFORMATION section so it is visually identical to the info links.
-    // Settings has its own login overlay, so unsigned-in users are handled there.
-    // No "Preferences" heading over a single Settings link — a heading-over-one-item reads as
-    // more structure than there is (A5).
-    const settingsHtml = (currentPage !== 'settings') ? `
-        <div class="nav-panel-settings">
-            <ul class="nav-panel-links">
-                <li><a href="./settings.html" class="nav-panel-link"><span aria-hidden="true">⚙️</span> Settings</a></li>
-            </ul>
-        </div>` : '';
+    // Settings is a PILL now (v20.06) — see NAV_PAGES. Nothing renders here.
 
     // Footer is only rendered when a sign-out callback is supplied.
     // Member name is set via textContent (not innerHTML) after injection to avoid XSS.
@@ -1000,21 +1005,38 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
             <div class="nav-panel-body">
                 <div class="nav-panel-pills">${pills}</div>
                 <div class="nav-panel-section">
-                    <p class="nav-panel-section-heading">Information</p>
+                    <!-- "Today" says what the group IS. It replaced "Information" at v20.06, which
+                         classified nothing — every drawer item is information, and the model's
+                         per-group "Workplace" heading was suppressed as a duplicate of it, so the
+                         section carried two headings' worth of markup and one heading's meaning. -->
+                    <p class="nav-panel-section-heading">Today</p>
                     ${infoGroups}
                 </div>
                 <div class="nav-panel-section">
-                    <button type="button" class="nav-panel-guides-toggle open" id="navGuidesToggle"
-                            aria-expanded="true" aria-controls="navGuidesList">
-                        <span class="nav-panel-guides-heading">Guides</span>
+                    <!-- COLLAPSED BY DEFAULT (v20.06, owner). Six rows of reference material were
+                         expanded on every open — the largest block in the drawer, wearing the body's
+                         only gold accent, for the content opened least. Measured at 360x640 it put
+                         three of the five guides below the fold while Settings and the footer were
+                         pinned. Closed, the drawer fits without scrolling and the things staff use
+                         on a shift are what is on screen. -->
+                    <button type="button" class="nav-panel-guides-toggle" id="navGuidesToggle"
+                            aria-expanded="false" aria-controls="navGuidesList">
+                        <span class="nav-panel-guides-heading">Reference</span>
+                        <!-- A COUNT ON A COLLAPSED HEADER is an established convention here
+                             (css-tokens.md: "chips are added only where a card is often COLLAPSED
+                             and has one clear datum"). Closed by default, "Reference ▾" alone is a
+                             heading floating above nothing — it reads like a section that failed to
+                             render rather than one holding six things. The number is what makes it
+                             legible as a container. Derived, never typed: a guide added to
+                             NAV_GUIDES must not leave a stale count behind it. -->
+                        <span class="nav-panel-guides-count" aria-hidden="true">${NAV_GUIDES.length + 1}</span>
                         <span class="nav-panel-guides-arrow" aria-hidden="true">▾</span>
                     </button>
-                    <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList">
+                    <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList" hidden>
                         ${guideLinks}
                     </ul>
                 </div>
             </div>
-            ${settingsHtml}
             ${footerHtml}
         </div>
         <div id="navComingSoonLightbox" class="lb-overlay" role="dialog"

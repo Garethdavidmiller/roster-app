@@ -24,7 +24,7 @@
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
 import { test, expect } from './fixtures.js';
-import { seedSession, seedMember, openRosterReview } from './helpers.js';
+import { seedSession, seedMember, openRosterReview, openReference} from './helpers.js';
 import { ROTATING_LINES } from '../links-design.js';
 
 // A Wednesday inside G. Miller's rendered roster window — gives a stable "Today" cell and a
@@ -590,11 +590,41 @@ test('overlay — About lightbox (calendar, desktop 1280)', async ({ page }) => 
     await expect(page).toHaveScreenshot('overlay-about-desktop-1280.png');
 });
 
+// THE NAV DRAWER HAD NO PIXEL COVERAGE AT ALL (added v20.06), which is how it drifted into five
+// competing visual treatments before anybody called it cluttered. It is the app's most-shared
+// component — one module rendering on all six pages — so a regression here is a regression
+// everywhere, and none of the other baselines can see it because they are all captured with the
+// drawer CLOSED.
+//
+// Captured at 390 MOBILE, where the constraint actually bites: the drawer is `min(260px, 72vw)`, and
+// 260px is what makes a two-column pill grid impossible (Calendar needs 135px of a 110px column).
+// A desktop shot would never show that.
+test('nav drawer — default state (mobile 390)', async ({ page }) => {
+    await prep(page, { width: 390, height: 844 });
+    await page.goto('/');
+    await settle(page, '.calendar-day');
+    await page.locator('#navMenuBtn').click();
+    // Sentinels before the capture. Reference must be CLOSED and the pills must be one-per-row —
+    // the two decisions this baseline exists to hold. Without them a regression that re-expanded the
+    // section or re-packed the pills would just re-baseline as the new truth on the next
+    // regeneration (the Usage-card lesson, v19.25).
+    await expect(page.locator('#navGuidesToggle')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#navGuidesList')).toBeHidden();
+    const rows = await page.evaluate(() =>
+        new Set([...document.querySelectorAll('.nav-panel-pill')]
+            .map(el => Math.round(el.getBoundingClientRect().top))).size);
+    const pills = await page.locator('.nav-panel-pill').count();
+    expect(rows, 'every pill must be on its own row — see .nav-panel-pills').toBe(pills);
+    await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
+    await expect(page).toHaveScreenshot('nav-drawer-mobile-390.png');
+});
+
 test('overlay — App Notices (calendar, desktop 1280)', async ({ page }) => {
     await prep(page, { width: 1280, height: 900 });
     await page.goto('/');
     await settle(page, '.calendar-day');
-    await page.locator('#navMenuBtn').click();
+    // App Notices sits in the collapsed Reference section since v20.06.
+    await openReference(page);
     await page.locator('.nav-panel-link--notices').first().click();
     await expect(page.locator('#navNoticesLightbox')).toBeVisible();
     await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
