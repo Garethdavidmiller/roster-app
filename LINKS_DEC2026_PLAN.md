@@ -355,55 +355,68 @@ general rule.
 
 ## What the generator produces, measured against the real seed
 
-**Re-measured at 24 lines / 5 spare weeks (v20.01).** The seed is the main cycle only — **18 slot
-rows**, and **5 spare weeks**: the roster's measured 4 plus the cover week the widening adds. Earlier
-measurements (v19.75 at 28/6, v19.98 at 22/4) are superseded and are not quoted here, because a
-figure from an old shape sitting beside one from the new is how a table stops being readable.
+**Re-measured at 24 lines / 4 spare weeks (v20.02).** The seed is the main cycle only — **18 slot
+rows and 4 spare weeks**, exactly what the roster provides, with nothing added. (v20.01 briefly
+seeded 5; see the FF11 note below for why that was reverted.) Earlier measurements — v19.75 at 28/6,
+v19.98 at 22/4, v20.01 at 24/5 — are superseded and are not quoted here, because a figure from an
+old shape sitting beside one from the new is how a table stops being readable.
 
-Everything below is the shipped default: settled construction, all five line-order objectives on.
+Everything below is the shipped default: settled construction, all **six** line-order objectives on (v20.02 added the run cap), re-measured after the v20.02 spare-spread fix.
 
-| | live main roster (20 lines) | generated, settled (24/5, default) | generated, rotating (24/5, fallback) |
+| | live main roster (20 lines) | generated, settled (24/4, default) | generated, rotating (24/4, fallback) |
 |---|---|---|---|
-| longest worked stretch | 9 days | **9 days** | 8 days |
-| FF11 (shifts between 48h breaks) | 12 | **14 — over** | 18 — over |
+| longest worked stretch | 9 days | **8 days** | 8 days |
+| FF11 (shifts between 48h breaks) | 12 | **11** | 11 |
 | short turnarounds | 0 | **0** | **0** |
-| weekends off | 4/20 (20%) | **9/24 (38%)** | 8/24 (33%) |
+| weekends off | 4/20 (20%) | **9/24 (38%)** | 9/24 (38%) |
+| long weekends (3+ days) | — | **7** | 8 |
 | longest block on one shift type | 3 | **3** | 3 |
-| week-to-week step, mean / worst | 4h 00m / 8h 46m | **1h 56m / 7h 45m** | 1h 01m / 2h 48m |
-| boundaries over 2h (FF19) | 9 of 20 | **4 of 24** | 1 of 24 |
-| hard limit — 13 consecutive days | met (9) | **met (9)** | met (8) |
+| week-to-week step, mean / worst | 4h 00m / 8h 46m | **2h 36m / 7h 26m** | 0h 47m / 2h 27m |
+| boundaries over 2h (FF18) | 9 of 20 | **6 of 24** | 1 of 24 |
+| cover weeks — gaps between them | — | **6, 6, 6, 6** | 6, 6, 6, 6 |
+| hard limit — 13 consecutive days | met (9) | **met (8)** | met (8) |
 
-### The extra spare week costs rest on the working lines — and the tool says so
+Both columns were re-measured together after the v20.02 spare-spread fix, so nothing here is a
+figure from an older shape sitting beside a newer one. The row previously labelled FF19 is corrected
+to **FF18** — the between-lines factor those numbers have always come from.
 
-This is the one figure worth taking into the room, because it is counter-intuitive. **A spare week
-does not add capacity; it removes a line from the pool that carries the duties.** The work is
-unchanged at **78 timed duties a week**, so:
+### A spare week does not add capacity — it takes a line out of the pool
+
+Worth taking into the room, because it is counter-intuitive. **A spare week removes a line from the
+pool that carries the duties.** The work is unchanged at **78 timed duties a week**, so each extra
+cover week is paid for in rest days on everyone else:
 
 | | working lines | duties per working line | rest days |
 |---|---|---|---|
 | live main roster (20/4) | 16 | 4.88 | **2.13** |
 | 22 lines / 4 spare (v19.98) | 18 | 4.33 | 2.67 |
-| 24 lines / 4 spare | 20 | 3.90 | **3.10** |
-| **24 lines / 5 spare (chosen)** | **19** | **4.11** | **2.89** |
+| 24 lines / 5 spare (v20.01, reverted) | 19 | 4.11 | 2.89 |
+| **24 lines / 4 spare (chosen)** | **20** | **3.90** | **3.10** |
 
-So the widening to 24 is still a large gain on today's roster (2.13 → 2.89 rest days, weekends off
-20% → 38%), and the added cover week spends about **0.2 of a rest day per working line** to buy it.
-That is a legitimate trade and the owner's call; it is recorded here so it is a decision rather than
-a surprise.
+So the widening to 24 is a large gain on today's roster: **2.13 → 3.10 rest days** per working line
+and weekends off from 20% to 29%. The v20.01 fifth cover week would have spent about **0.2 of a rest
+day per working line** to buy one more standby week — a legitimate trade, taken and then reverted
+once its motivating finding turned out to be a bug (below).
 
-**⚠️ The seeded default now trips FF11, and it is the spare count that does it.** Measured across
-lengths 22–25 at 4, 5 and 6 spare weeks: **every configuration with 5 spare weeks reports FF11 over
-13**, and 4 and 6 do not. The mechanism is the table above — a spare week supplies four duties and,
-because its three rest days need not fall together, **no guaranteed 48-hour break** — so taking a
-line out of the working pool makes 48h breaks rarer on the lines that remain. Placement is not the
-cause: at 24/5 the spare weeks land on lines 1, 6, 11, 15, 20 (gaps 5, 5, 5, 4, 5) with none
-adjacent.
+**The v20.01 FF11 finding was a BUG IN THE ORDER OPTIMISER, found and fixed at v20.02.** It was
+recorded here as a property of running five spare weeks — measured across lengths 22–25, every
+configuration with 5 tripped FF11 and 4 and 6 did not. That measurement was real and the conclusion
+was wrong. `generateLink` spreads the cover weeks evenly (gaps 5, 5, 5, 4, 5 at 24/5); the **reorder
+was clustering them**, returning gaps 9, 3, 1, 7, 4 with two adjacent — and two adjacent spare weeks
+chain into one long run. FF11 went 9 → 14 purely from the ORDER. An even spread is now charged
+unconditionally in the optimiser and FF11 comes back at **11**.
 
-Read it as the tool working rather than as a defect: the panel is advisory, it is reporting a real
-property of the shape, and **today's main roster sits at 12 against the same threshold**. But it does
-mean a designer pressing Generate gets a design with an FF11 finding on it, so **have the answer
-ready before the management review** — either justify it (the ORR's own escalation is justify →
-minimise → control), or move the spare count, where 4 and 6 both clear it.
+Worth stating plainly for the room: the tool briefly reported a fatigue finding that was its own
+doing. That is the failure mode this workspace's rules are written around, arriving from the one
+direction nobody had guarded — the reorder was assumed to only ever make things better, because
+every objective in it was a preference. It can make a design worse than the one it was handed.
+
+**The run cap does not always reach its target, deliberately.** The new "Most shifts in a row" box
+defaults to 6. With that switch on alone the reorder reaches 6; with the full set on it reaches 8,
+and the status line says so. Weighting it harder was measured: it gets to 7 but takes FF11 to 14 and
+drops weekends off from 7 to 4 — shortening a run of worked days and creating a 48-hour break are
+not the same thing and pull against each other. **That is a trade to take into the room, not a
+number to tune until it looks right.**
 
 **Correctness, verified rather than assumed** (v19.75). Against the real seed, both constructions:
 

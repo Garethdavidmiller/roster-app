@@ -551,7 +551,7 @@ The table is **seeded from the current roster** on page load via `buildRosterTar
 
 - **v19.59 — the sample was too NARROW.** It took main's 20 weeks plus only the two bilingual weeks the two bilingual members happen to sit on, then applied that 22-line sample to a 28-line design. Bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came back as **4** where the combined roster had **6** (main 1/7/12/17 + bilingual 1/8) — two whole lines of standby cover missing by default. Fixed by taking both cycles in full: which weeks two people sit on today is a fact about staffing, not about the roster's shape.
 - **v19.98 — the sample became too WIDE.** The design is the main roster widened and excludes the bilingual roster entirely, so seeding from it would target **ten shift times no line in the design can work** (all ten bilingual times are bilingual-only — zero overlap with main's 18). The seed reads the main cycle and nothing else: **18 slots**, measuring **4 spare weeks** (main 1/7/12/17).
-- **v20.01 — neither the new length nor the added spare week is visible in the sampling, and that is the design working.** The rotation went 22 → 24 and gained a fifth spare week. The SLOTS are an observation about the roster and do not care how long the design is; the added spare week is a DECISION and lives in `EXTRA_SPARE_WEEKS` rather than inside the count, so `buildRosterTargets` can return the measured 4 and the seeded 5 separately. Named WEEKS not LINES: `links-rotation-parity.test.mjs` flags any `const *LINES* = <number>` in a Links module, which is the shape the 28-in-four-places bug took, and the answer to a false positive there is a better name rather than an exemption.
+- **v20.01/02 — the length change is not visible in the sampling, and that is the design working.** The rotation went 22 → 24; the SLOTS are an observation about the roster and do not care how long the design is. A fifth spare week WAS added to the seed at v20.01 (`EXTRA_SPARE_WEEKS`) and removed at v20.02: the FF11 finding it was meant to relieve turned out to be the line-order optimiser clustering the cover weeks (below), so the reason went and the uplift went with it. The constant was deleted rather than set to zero — a knob that drives nothing is the `SOFT_DELETE_RETENTION_DAYS` mistake — and a designer who wants five types 5 into the box. **The seed reports what it measures, and nothing else.**
 
 **The 4 is a coincidence and the tests treat it as one.** It read 4 before v19.59 for the wrong reason — the under-sample happened to drop exactly the two bilingual spare weeks — and reads 4 now for the right one. `links-seed.test.mjs` therefore checks line IDENTITY and asserts no bilingual-only shift time is ever seeded, rather than resting on the figure.
 
@@ -617,7 +617,7 @@ Daily targets are met exactly by both; any day-class total > the working lines i
 
 **Do not add back** `buildDefaultDesign`, `initFromRosters`, or `resetFromRosters` — those paths were removed at v12.43 because they copied raw roster patterns verbatim, leaving the lines past the roster's own length as all-RD blanks. The generator produces a complete rotation.
 
-### Line ORDER — the five objectives (v19.58; `variety` added v19.60)
+### Line ORDER — the six objectives (v19.58; `variety` added v19.60, `maxRun` v20.02)
 
 > **`variety` and `gentle` are opposite ends of one dial, and `variety` must stay ON by default.**
 > Minimising the week-to-week step, taken to its limit, IS a long block of the same shift — the
@@ -667,7 +667,87 @@ Daily targets are met exactly by both; any day-class total > the working lines i
 > the numbers in `links-design.js`'s own comment. It fixes the raw block length but introduces short
 > turnarounds and costs two long weekends. The generator owns the SHAPE; this module owns the ORDER.
 
-`links-adjacency.js`, applied by the generator through five switches. A whole class of the design's
+### The spare spread is a CONSTRAINT, not a switch (v20.02)
+
+`generateLink` reserves whole spare lines and **spreads them evenly around the wheel**. The reorder
+then ran over the top of that with no objective that cared — and clustering cover weeks *helped* the
+objectives it did care about, so it clustered them. Measured on the live seed at 24 lines / 5 spare:
+the generator placed them at 1, 6, 11, 15, 20 (gaps 5, 5, 5, 4, 5) and the reorder returned
+1, 4, 5, 12, 16 (gaps 9, 3, 1, 7, 4) with **two adjacent**.
+
+Two adjacent spare weeks chain — the first week's four duties at its end, the second's four at its
+start — so this took **FF11 from 9 to 14** on the generator's own output, past the threshold the
+fatigue panel reports against, with nothing on screen to say the ORDER had done it. The v20.01 note
+that "every configuration with 5 spare weeks trips FF11" was measuring this bug, not the spare count.
+
+`spareSpread` is therefore charged **unconditionally**. Every other term here is a preference a
+designer may not want; an even spread of cover is a property the generator already guarantees, and no
+one asks for a design that clusters it. It is the only term that can make the result **worse than
+what the reorder was handed**, rather than merely less good.
+
+**It was first written at the wrong weight, and the reason is worth carrying** — caught before release, in the same version, so 500 never reached a device. It was chosen as
+"above `variety`'s 400" — true per unit, and not the question. These terms *accumulate*: two units of
+block excess bid 800, so `variety` won, and the default came back with cover-week gaps of
+7, 6, 5, 6 where 6, 6, 6, 6 was available. The unit test asserting the priority compared one unit
+against one unit and passed throughout. **Comparing rates between terms that accumulate at different
+rates is the mistake**, and writing the assertion that way is what made it look settled.
+
+The weight is now **3000**, chosen by measuring 16 design shapes (20/22/24/28 lines × 3/4/5/6 cover
+weeks), each reordered with every switch on and with `variety` alone — 32 runs, total excess against
+a perfect spread:
+
+| w=500 | w=800 | w=1200 | w=1500 | w=2000 | w=3000 | w=5000 |
+|---|---|---|---|---|---|---|
+| 10 | 7 | 8 | 7 | **0** | **0** | **0** |
+
+The dominating plateau begins at 2000 and nothing above it behaves differently; 3000 sits one step
+inside rather than on its edge. Everything below is a local outcome, not a rule — 800 and 1200 look
+almost as good in total and still leave whole shapes uneven. The cost is real and small: 273
+worked-day run-length across those 32 runs against 267 at w=500, about a fifth of a day per design.
+
+Two properties that make this safe to treat as a constraint at all:
+
+- **Excess 0 is always reachable**, because `spareSpread` targets `floor(lines / spares)` — gaps as
+  equal as the rotation allows are then always at or above it. A dominating weight over an
+  *unreachable* target would set the optimiser chasing a residual it can never clear.
+- **The chaining harm was already prevented at 500** — zero adjacencies in all 32 runs, at every
+  weight tried. What the higher weight buys is the last of the evenness, which is what was asked for.
+
+Two tests, and neither replaces the other: one asserts 3000 outweighs all six switches slipping a
+unit each (1060 in total, read back through `cost` rather than restated), which catches a
+re-weighting; the other drives a **real generated design** through the real optimiser and asserts the
+spread survives, which catches the behaviour. The first is necessary and **not sufficient** — the
+switches accumulate without limit, so no fixed margin proves the spread always wins, and 1500 passes
+it while still leaving designs uneven.
+
+### The sixth switch: most shifts in a row (v20.02)
+
+A box on the objectives, default **6** — `DEFAULT_MAX_RUN` in `links-design.js`, which the Design
+checks panel reads too, so the generator's aim and the panel's threshold are one number. They were 6
+and 7 in different files until v20.02.
+
+Three things that are easy to get wrong, each with a test:
+
+- **A spare week counts as FOUR worked days.** `longestRunFor` delegates to `worstCaseWorkedRun`
+  rather than re-deriving it. Counting seven is what reported the live main roster at 15 consecutive
+  days against a true 9, and it is the mistake anything measuring runs repeats first.
+- **The gradient sums excess over every START; it does not penalise the maximum.** A maximum is a
+  plateau — almost every pair swap leaves it unchanged — and measured, the optimiser stalled at 8
+  where a random search found 6. Summing makes a long run cost many times over (a 14 also shows up
+  as a 13, a 12, …), which is the same shape `blockExcess` already uses. **`runExcess` is a gradient,
+  never a statistic** — do not report it or any total derived from it.
+- **The weight was chosen by measurement and the measurement is the interesting part.** With
+  everything else on: 40 gives run 8 / FF11 11 / 7 weekends; 100, 150 and 300 all give run 7 but take
+  FF11 to **14** and weekends down to 5, then 4. Pushing the cap harder makes the design worse on the
+  factor the panel actually reports, because shortening a run of worked days and creating a 48-hour
+  break are not the same thing. So it is a firm preference, not a near-absolute like `variety`.
+
+**With the switch on alone the reorder reaches 6; with the full set on it reaches 8, and the status
+line says so.** A box that names a target the design silently misses is the phantom guarantee this
+module has already shipped once — the rotating construction's documented "a person's week only moves
+later", which was untrue for a year.
+
+`links-adjacency.js`, applied by the generator through six switches. A whole class of the design's
 quality lives in which line follows which, because you work line w one week and line w+1 the next:
 the week-to-week movement of your working day (the FF18 question), whether Saturday off is followed
 by Sunday off, whether that extends to three or four days, and whether Saturday's finish runs into

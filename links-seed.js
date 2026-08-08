@@ -35,10 +35,9 @@
  * cycle and nothing else. Adding the bilingual weeks back would seed a CEA design with ten shift
  * times no CEA line works, which is the same class of error as v19.59 pointing the other way.
  *
- * v20.01 then moved the length again (22 → 24, owner: the earlier figure was misremembered) and
- * added a cover week. **Neither is visible here**, and that is the design working: the SLOTS are an
- * observation about the roster and do not care how many lines the design has, while the added spare
- * week is a decision and lives in its own constant below rather than inside the count.
+ * v20.01 then moved the length again (22 → 24, owner: the earlier figure was misremembered).
+ * **That is not visible here**, and that is the design working: the SLOTS are an observation about
+ * the roster and do not care how many lines the design has.
  *
  * ── THE LATENT REPEAT, NOW FIXABLE ─────────────────────────────────────────────────────────────
  *
@@ -84,29 +83,6 @@ export function rosterSeedLines() {
 }
 
 /**
- * The extra cover week the WIDENED link carries, over and above what the roster already provides
- * (owner, Aug 2026 — decided alongside the move to 24 lines).
- *
- * It is a NUMBER THE ROSTER CANNOT TELL YOU, and that is why it is here as its own constant rather
- * than folded into the count below. Everything else in this table is an observation: these are the
- * shift times worked and this is how many lines are spare, read off the roster people are on today.
- * The extra spare week is a DECISION about the new link — the point of adding lines is to buy back
- * cover, and one of the four added lines is being spent on standby rather than on duties.
- *
- * NAMED "WEEKS", NOT "LINES", for two reasons that happen to agree. It matches what the generator's
- * own field says ("Spare weeks") and what every doc calls it. And `links-rotation-parity.test.mjs`
- * flags any `const *LINES* = <number>` in a Links module, deliberately — that is the exact shape the
- * 28-in-four-places bug took — so a constant here that is NOT the rotation length should not be
- * wearing its name.
- *
- * Keeping the two apart means `buildRosterTargets(sources, { extraSpareLines: 0 })` still answers
- * "what does this roster provide?", which is the question the v19.59 bug was a wrong answer to and
- * the one its tests ask. Merged into one figure, a future reader could not tell which part was
- * measured and which part was chosen — and would have no way to re-derive either.
- */
-export const EXTRA_SPARE_WEEKS = 1;
-
-/**
  * Build the generator's target table from roster lines.
  *
  * One slot per distinct start time, carrying separate Mon–Fri / Sat / Sun headcounts, plus the count
@@ -124,12 +100,19 @@ export const EXTRA_SPARE_WEEKS = 1;
  * Counting spare days and dividing would produce the right total from the wrong model, which is
  * precisely how the v19.58 per-day spare headcount survived review.
  *
+ * **The seed carries no uplift, and that is a REVERSAL worth knowing about.** v20.01 added an extra
+ * cover week on top of the measured count (`EXTRA_SPARE_WEEKS = 1`, so the table seeded 5 where the
+ * roster has 4), because the panel was reporting an FF11 finding that more standby cover appeared to
+ * relieve. v20.02 found the actual cause — the line-order optimiser was CLUSTERING the cover weeks,
+ * which chains two spare weeks into one long run — and with that fixed the reason for the uplift went
+ * with it (owner, Aug 2026: back to 4). The constant and its option are gone rather than left at
+ * zero: a dormant knob that drives nothing is the `SOFT_DELETE_RETENTION_DAYS` mistake, and a
+ * designer who wants five spare weeks can type 5 into the box.
+ *
  * @param {Array<Record<string, string>|undefined>} [sources] roster lines; defaults to the real roster
- * @param {object} [opts]
- * @param {number} [opts.extraSpareLines] cover weeks the widened link adds; see EXTRA_SPARE_WEEKS
- * @returns {{ slots: Array<{time: string, weekday: number, sat: number, sun: number}>, spareLines: number, rosterSpareLines: number }}
+ * @returns {{ slots: Array<{time: string, weekday: number, sat: number, sun: number}>, spareLines: number }}
  */
-export function buildRosterTargets(sources = rosterSeedLines(), { extraSpareLines = EXTRA_SPARE_WEEKS } = {}) {
+export function buildRosterTargets(sources = rosterSeedLines()) {
     const weekdays = DAYS.filter(d => dayClass(d) === 'weekday');
 
     /** @type {Record<string, Record<string, number>>} */
@@ -152,10 +135,7 @@ export function buildRosterTargets(sources = rosterSeedLines(), { extraSpareLine
     }));
 
     // Every fully-spare source line is one spare WEEK, so counting them gives the number directly.
-    const rosterSpareLines = sources.filter(src => src && DAYS.every(d => src[d] === 'SPARE')).length;
+    const spareLines = sources.filter(src => src && DAYS.every(d => src[d] === 'SPARE')).length;
 
-    // Both are returned. `spareLines` is what the generator should target; `rosterSpareLines` is what
-    // was actually MEASURED, so a reader (or a test) can always separate the observation from the
-    // decision added to it — which is the whole reason EXTRA_SPARE_WEEKS is its own constant.
-    return { slots, spareLines: rosterSpareLines + extraSpareLines, rosterSpareLines };
+    return { slots, spareLines };
 }

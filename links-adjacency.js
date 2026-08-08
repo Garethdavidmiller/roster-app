@@ -29,11 +29,12 @@
  * assurance `links-fatigue.js` exists to avoid. Unmeasurable steps are counted and reported
  * SEPARATELY, never folded into the mean.
  */
-import { DAYS, startMinutes, endMinutesAbs } from './links-design.js';
+import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN } from './links-design.js';
 
-/** The five things the order can be tuned for. Order matters — it is the display order too. */
+/** The six things the order can be tuned for. Order matters — it is the display order too. */
 export const OBJECTIVES = Object.freeze([
     { key: 'variety',      label: 'Vary the shift type week to week' },
+    { key: 'maxRun',       label: 'Cap the shifts in a row' },
     { key: 'gentle',       label: 'Gentle week-to-week change' },
     { key: 'weekends',     label: 'Full weekends off' },
     { key: 'longWeekends', label: 'Long weekends' },
@@ -177,13 +178,105 @@ export function blockExcess(/** @type {number[]} */ runs, /** @type {number} */ 
     return runs.reduce((a, n) => a + Math.max(0, n - target), 0);
 }
 
+
+/**
+ * How far the SPARE weeks have been clustered, for a given order — 0 when they are spread as evenly
+ * as the rotation allows.
+ *
+ * ── WHY THE OPTIMISER NEEDS TO BE TOLD THIS (v20.02) ───────────────────────────────────────────
+ *
+ * `generateLink` reserves whole spare lines and **spreads them evenly around the wheel** — measured
+ * on the live seed at 24 lines / 5 spare it places them at 1, 6, 11, 15, 20 (gaps 5, 5, 5, 4, 5).
+ * The reorder then ran over the top of that with no objective that cared, and clustering spare weeks
+ * happened to help the ones it did care about: the same design came back at 1, 4, 5, 12, 16 — gaps
+ * 9, 3, 1, 7, 4, with two spare weeks ADJACENT.
+ *
+ * That is not cosmetic. Two adjacent spare weeks chain (the first week's four duties at its end, the
+ * second's four at its start — `worstCaseWorkedRun` documents exactly this), so the reorder was
+ * taking FF11 from **9 to 14** on the generator's own output and pushing it past the threshold the
+ * panel reports against. The generator got it right and the optimiser undid it, silently, because
+ * the objectives it was given had nothing to say about spare weeks.
+ *
+ * It is a CONSTRAINT, not a switch. Every other objective here is a preference a designer may not
+ * want; an even spread of cover is a property the generator already guarantees, and the reorder's
+ * job is to improve the order without destroying what it was handed. There is no "cluster the spare
+ * weeks" design anyone would ask for.
+ *
+ * The measure is the shortfall against the largest gap that always fits — `floor(lines / spares)` —
+ * summed over the cyclic gaps, so an adjacency (gap 1) is punished far harder than a gap one short.
+ * Returns 0 when there are fewer than two spare weeks: nothing to spread.
+ *
+ * @param {Record<string, any>} patterns
+ * @param {string[]} order
+ * @returns {{ excess: number, gaps: number[], minGap: number }}
+ */
+export function spareSpread(patterns, order) {
+    /** @type {number[]} */ const at = [];
+    order.forEach((k, i) => {
+        const row = patterns[k];
+        if (row && DAYS.every(d => row[d] === 'SPARE')) at.push(i);
+    });
+    if (at.length < 2) return { excess: 0, gaps: [], minGap: order.length };
+    const gaps = at.map((v, i) => (i ? v - at[i - 1] : v - at[at.length - 1] + order.length));
+    const target = Math.floor(order.length / at.length);
+    return {
+        excess: gaps.reduce((a, g) => a + Math.max(0, target - g), 0),
+        gaps,
+        minGap: Math.min(...gaps),
+    };
+}
+
+/**
+ * The longest run of consecutive worked days this order produces, across line boundaries.
+ *
+ * Delegates to `worstCaseWorkedRun`, which is the ONE reading of a run in this app — so a SPARE week
+ * counts as **four** duties of seven and not seven (owner: you are marked spare all week because you
+ * are available for cover, but four is what you work, plus possibly an RDW Sunday on top). Counting
+ * seven is what reported the live main roster at 15 consecutive days against a true 9, and it is the
+ * mistake most easily repeated by anything that measures runs. Do not re-derive it here.
+ *
+ * @param {Record<string, any>} patterns
+ * @param {string[]} order
+ */
+export function longestRunFor(patterns, order) {
+    return worstCaseWorkedRun(runSequence(patterns, order));
+}
+
+/** One person's journey through the rotation in this order, seven days per line. */
+function runSequence(/** @type {Record<string, any>} */ patterns, /** @type {string[]} */ order) {
+    /** @type {Array<{shift: any}>} */ const seq = [];
+    for (const k of order) {
+        const row = patterns[k] || {};
+        for (const d of DAYS) seq.push({ shift: row[d] });
+    }
+    return seq;
+}
+
+/**
+ * The optimiser's GRADIENT for the run cap — total excess over the target across every starting day.
+ *
+ * Not a statistic, and deliberately not reported: a run of 8 shows up again as a 7 from the next day
+ * and a 6 from the one after, so long runs count many times over. That multiplicity is the point —
+ * it is what makes the surface climbable. Penalising the MAXIMUM instead leaves almost every pair
+ * swap scoring identically, and the optimiser stalled at 8 on the live seed where a random search
+ * found 6 (measured, at 6 and 30 passes). `blockExcess` sums for the same reason.
+ *
+ * @param {Record<string, any>} patterns
+ * @param {string[]} order
+ * @param {number} target
+ */
+export function runExcess(patterns, order, target) {
+    return workedRunLengths(runSequence(patterns, order))
+        .reduce((a, n) => a + Math.max(0, n - target), 0);
+}
+
 /**
  * Score one ordering of the lines. Returns every figure regardless of what was optimised for, so
  * the cost of an objective is always visible beside its benefit.
  *
  * @param {Record<string, any>} patterns
  * @param {string[]} order - line keys, in rotation order
- * @param {{minRestMinutes?: number}} [opts]
+ * @param {{minRestMinutes?: number, maxRunTarget?: number}} [opts]
  */
 export function scoreOrder(patterns, order, opts = {}) {
     const minRest = opts.minRestMinutes ?? 12 * 60;
@@ -201,6 +294,7 @@ export function scoreOrder(patterns, order, opts = {}) {
 
     const runs = blockRuns(patterns, order, GENTLE_THRESHOLD_MINUTES);
     const abs = steps.map(Math.abs);
+    const spare = spareSpread(patterns, order);
     return {
         // How long you stay on much the same shift. The live roster's longest is 3.
         blocks: runs,
@@ -217,6 +311,15 @@ export function scoreOrder(patterns, order, opts = {}) {
         // What the design actually GAVE, Sundays excluded — see breakLength.
         contractedDaysGiven: breaks.reduce((a, n) => a + n.given, 0),
         shortBoundary,
+        // Consecutive worked days across line boundaries — a spare week counts as FOUR (see
+        // longestRunFor). Reported whatever was optimised for, like every other figure here.
+        longestRun: longestRunFor(patterns, order),
+        // The optimiser's gradient for that cap. NOT for display — see runExcess.
+        runExcess: runExcess(patterns, order, opts.maxRunTarget ?? DEFAULT_MAX_RUN),
+        // How evenly the cover weeks are spread. 0 excess = as even as the rotation allows.
+        spareExcess: spare.excess,
+        spareMinGap: spare.minGap,
+        spareGaps: spare.gaps,
     };
 }
 
@@ -230,15 +333,78 @@ export function scoreOrder(patterns, order, opts = {}) {
  * @param {Record<string, boolean>} on
  * @param {number} [longWeekendTarget]
  * @param {number} [blockTarget] - weeks in a row on much the same shift before it costs
+ *
+ * NOTE the run cap takes NO target here, unlike the other two, and the asymmetry is real rather than
+ * an oversight. `blocks` and `longWeekends` are reported as arrays and counts, so their shortfall
+ * against a target can be worked out afterwards from what `scoreOrder` returned. The run gradient
+ * cannot: it is a reduction over ~170 per-day run lengths that are deliberately NOT reported (see
+ * `runExcess` on why), so the target has to be applied while the sequence is being walked.
+ * `scoreOrder` therefore takes `maxRunTarget` and this function reads the result.
  */
 export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_TARGET) {
     let c = 0;
-    // Variety is deliberately the HEAVIEST term, because it works as a constraint rather than a
+    // AN EVEN SPREAD OF COVER IS NOT A SWITCH — it is charged unconditionally, and heavily.
+    //
+    // Every other term here is a preference a designer may reasonably not want. This one protects a
+    // property the GENERATOR already established: it reserves whole spare lines and spreads them
+    // around the wheel, and before v20.02 the reorder cheerfully undid that because clustering them
+    // helped the objectives it was told about. Two adjacent spare weeks chain into one long run, so
+    // the reorder was taking FF11 from 9 to 14 on the generator's own output — past the threshold
+    // the panel reports against — with nothing on screen to say the order had done it.
+    //
+    // THE WEIGHT HAS TO DOMINATE, NOT MERELY LEAD — and the first attempt did not.
+    //
+    // It was written at 500, with a comment claiming it was "weighted above `variety`, the previous
+    // heaviest". Per unit it was. But these terms ACCUMULATE at different rates: two units of block
+    // excess bid 800, so `variety` simply outbid it, and the default (every switch on) came back with
+    // gaps of 7,6,5,6 where 6,6,6,6 was available. Comparing per-unit weights between terms that
+    // accumulate differently is the mistake; the comment read as though the question had been settled.
+    // Caught before release, in this same version — 500 never reached a device.
+    //
+    // Measured across 16 design shapes (20/22/24/28 lines × 3/4/5/6 cover weeks), each reordered with
+    // every switch on and with `variety` alone — 32 runs, total excess against a perfect spread:
+    //
+    //     w=500  10      w=1500  7      w=2000  0      w=3000  0      w=5000  0
+    //     w=800   7      w=1200  8
+    //
+    // The dominating plateau begins at 2000 and nothing above it behaves differently, so this sits
+    // one step inside rather than on its edge. Everything below is a local outcome, not a rule: 800
+    // and 1200 look almost as good in total and still leave whole shapes uneven.
+    //
+    // The cost of dominating is real and small: 273 worked-day run-length across those 32 runs
+    // against 267 at w=500, i.e. about a fifth of a day per design. Say that out loud rather than
+    // presenting the constraint as free.
+    //
+    // What makes it SAFE to treat as a constraint at all is that `spareSpread` targets
+    // `floor(lines / spares)`. Gaps as equal as the rotation allows are then always ≥ target, so
+    // excess 0 is reachable for every shape — the optimiser can never be told to chase a residual it
+    // cannot clear, which is what a dominating weight over an unreachable target would do.
+    //
+    // NOTE the harm this term was written for — two adjacent cover weeks chaining into one long run —
+    // was already prevented at 500 (zero adjacencies in all 32 runs, at every weight tried). What the
+    // weight buys is the last of the evenness, which is what was actually asked for.
+    c += (s.spareExcess ?? 0) * 3000;
+    // Variety is the heaviest of the SWITCHES, because it works as a constraint rather than a
     // preference: keep the blocks short, and let the other objectives arrange things inside that.
     // Gentle pulls the opposite way — minimising the week-to-week step, taken to its limit, IS a
     // block — so with both on the optimiser alternates, but alternates by the smallest step it can
     // (early → middles → late rather than early → late), which is the answer that serves both.
     if (on.variety)      c += blockExcess(s.blocks, blockTarget) * 400;
+    // Only the EXCESS over the target costs, so the optimiser has no reason to trade anything away
+    // once the cap is met — the aim is "no more than N", not "as few as possible", and treating it
+    // as the latter would spend the other objectives' freedom on a number nobody asked to minimise.
+    // WEIGHT CHOSEN BY MEASUREMENT, not by feel, and the measurement says something worth keeping.
+    // On the live seed with everything else on: 40 gives run 8 / FF11 11 / 7 weekends off; 100, 150
+    // and 300 all give run 7 but take FF11 to 14 and weekends down to 5, then 4. Pushing the cap
+    // harder makes the design WORSE on the factor the panel actually reports, because shortening a
+    // run of worked days is not the same thing as creating a 48-hour break — they pull apart.
+    //
+    // So this is deliberately a firm PREFERENCE rather than the near-absolute weight `variety`
+    // carries. With the switch on alone it reaches the 6 target; with the full set on it reaches 8,
+    // and the status line says so rather than letting the box imply a guarantee it did not deliver
+    // (the rotating fallback's phantom "never a late finish then an early start" is what that
+    // mistake looks like when nobody checks).
+    if (on.maxRun)       c += (s.runExcess ?? 0) * 40;
     if (on.gentle)       c += s.gentleMean + s.gentleOver * 60;
     if (on.weekends)     c += -s.weekends * 120;
     // Only the SHORTFALL is penalised. Rewarding every long weekend without limit would spend the
@@ -265,18 +431,24 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
  * @param {Record<string, boolean>} [opts.on] - which objectives are enabled
  * @param {number} [opts.longWeekendTarget]
  * @param {number} [opts.blockTarget] - weeks in a row on much the same shift before it costs
+ * @param {number} [opts.maxRunTarget] - consecutive worked days before it costs
  * @param {number} [opts.passes] - improvement sweeps
  * @returns {{order: string[], before: ReturnType<typeof scoreOrder>, after: ReturnType<typeof scoreOrder>, changed: boolean}}
  */
-export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_TARGET, passes = 6 } = {}) {
+export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_TARGET,
+    maxRunTarget = DEFAULT_MAX_RUN, passes = 6 } = {}) {
     const keys = Object.keys(patterns || {}).sort((a, b) => Number(a) - Number(b));
-    const before = scoreOrder(patterns, keys);
+    // Measured against the CHOSEN run target, not the default. Nothing on screen reads `runExcess`
+    // today, so this changes no visible figure — but a scorecard handed back to the caller measured
+    // against a target the caller did not ask for is a trap set for whoever displays it next.
+    const before = scoreOrder(patterns, keys, { maxRunTarget });
     const anyOn = OBJECTIVES.some(o => on[o.key]);
     // Everything off means leave it alone. Re-sorting by an empty objective set would hand back a
     // different design for no stated reason, which is worse than doing nothing.
     if (!anyOn || keys.length < 3) return { order: keys, before, after: before, changed: false };
 
-    const scoreOf = (/** @type {string[]} */ ord) => cost(scoreOrder(patterns, ord), on, longWeekendTarget, blockTarget);
+    const scoreOf = (/** @type {string[]} */ ord) =>
+        cost(scoreOrder(patterns, ord, { maxRunTarget }), on, longWeekendTarget, blockTarget);
 
     // Greedy: keep the first line where it is and repeatedly take whichever remaining line makes the
     // best next step. Starting from line 1 rather than the best possible start keeps it stable.
@@ -307,7 +479,7 @@ export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTa
         if (!improved) break;
     }
 
-    const after = scoreOrder(patterns, order);
+    const after = scoreOrder(patterns, order, { maxRunTarget });
     return { order, before, after, changed: order.some((k, i) => k !== keys[i]) };
 }
 
