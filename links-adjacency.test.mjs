@@ -520,3 +520,52 @@ describe('maxRun', () => {
             `expected no worse, got ${before} → ${r.after.longestRun}`);
     });
 });
+
+// ── ATTEMPTS — deterministic per press, not per se (v20.07) ─────────────────────────────────────
+//
+// The reorder was flatly deterministic, which made the Generate button a dead end: pressing it
+// again returned the identical design (the owner's report). Attempts keep what the determinism was
+// FOR — reproducibility — while letting repeat presses explore: the seed is the attempt number,
+// never the clock or Math.random, so "design 3" is the same design on every device.
+describe('reorderLines attempts', () => {
+    const { slots } = buildRosterTargets();
+    const real = generateLink({ slots, lines: ROTATING_LINES, spareLines: 4 }).patterns;
+    const every = Object.fromEntries(OBJECTIVES.map(o => [o.key, true]));
+    const run = (attempt) => reorderLines(real, { on: every, maxRunTarget: DEFAULT_MAX_RUN, attempt });
+
+    test('the same attempt always returns the same order — a variant is recoverable', () => {
+        for (const a of [0, 2, 5]) {
+            assert.deepEqual(run(a).order, run(a).order, `attempt ${a} must be reproducible`);
+        }
+    });
+
+    test('an omitted attempt is attempt 0, the canonical design every doc figure was measured on', () => {
+        assert.deepEqual(
+            reorderLines(real, { on: every, maxRunTarget: DEFAULT_MAX_RUN }).order,
+            run(0).order);
+    });
+
+    test('advancing the attempt actually explores — different designs, not the same one renumbered', () => {
+        // Measured on the live seed before pinning: attempts 0–4 produce five distinct orders.
+        // ≥ 4 is asserted rather than 5 to leave room for the constraint filter's legitimate
+        // fallback (attempt 6 on this seed collapses to design 1, and says so in the UI) without
+        // ever letting "explore" degrade to renumbering one design.
+        const seen = new Set([0, 1, 2, 3, 4].map(a => run(a).order.join(',')));
+        assert.ok(seen.size >= 4, `expected ≥4 distinct orders across attempts 0–4, got ${seen.size}`);
+    });
+
+    test('NO attempt may break the even cover spread — a candidate that does is not a candidate', () => {
+        // The teeth for the filter, and it is not hypothetical: before the filter existed, attempt
+        // 6's three seeded starts all converged into minima with gaps 6,7,6,5 — the w=3000 weight
+        // made unevenness expensive, but a local search can only pay a price it can find a path
+        // away from. The filter drops such candidates and falls back to the canonical design; this
+        // sweep covers attempt 6 specifically so removing the filter fails here, not on a phone.
+        for (let a = 0; a <= 7; a++) {
+            const r = run(a);
+            const p = applyOrder(real, r.order);
+            const sp = spareSpread(p, r.order.map((_, i) => String(i + 1)));
+            assert.equal(sp.excess, 0, `attempt ${a}: cover weeks uneven — gaps ${sp.gaps.join(',')}`);
+            assert.ok(sp.minGap > 1, `attempt ${a}: two cover weeks adjacent`);
+        }
+    });
+});

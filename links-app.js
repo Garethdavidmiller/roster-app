@@ -39,7 +39,7 @@ import {
 import { initLinksAnalysis } from './links-analysis.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom } from './links-design-doc.js';
 import { buildRosterTargets } from './links-seed.js';
-import { reorderLines, applyOrder, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
+import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
@@ -1629,6 +1629,15 @@ export function init() {
             if (errEl) errEl.textContent = '';
         });
 
+        // Attempt state for the explore loop (v20.07). Session-scoped on purpose: reloading and
+        // pressing Generate k times replays the same k designs, so a variant is recoverable, and
+        // two designers who count their presses are looking at the same design.
+        let _genFingerprint = '';
+        let _genAttempt = 0;
+        /** @type {{c: number, n: number}|null} best-so-far on the ticked objectives */
+        let _genBest = null;
+        let _genLastOrder = '';
+
         document.getElementById('genApplyBtn')?.addEventListener('click', async () => {
             const errEl = document.getElementById('genError');
             if (errEl) errEl.textContent = '';
@@ -1698,9 +1707,17 @@ export function init() {
             const _target = _num('objLongTarget', 4);
             const _blockTarget = _num('objBlockTarget', DEFAULT_BLOCK_TARGET, 1);
             const _maxRunTarget = _num('objMaxRunTarget', DEFAULT_MAX_RUN, 1);
+            // PRESSING GENERATE AGAIN EXPLORES (v20.07 — owner: "you press generate and it gives
+            // you the same design each time"). Same targets and switches → the attempt counter
+            // advances and reorderLines starts its search somewhere else; any input change → back
+            // to attempt 0, the canonical design. The fingerprint is the whole input surface, so a
+            // designer who nudges one headcount is not silently handed variant 4 of the new targets.
+            const _fp = JSON.stringify([genSlots, genSpareLines, _on, _target, _blockTarget, _maxRunTarget]);
+            if (_fp === _genFingerprint) { _genAttempt += 1; } else { _genAttempt = 0; _genBest = null; _genLastOrder = ''; }
+            _genFingerprint = _fp;
             const _ord = reorderLines(generated, {
                 on: _on, longWeekendTarget: _target, blockTarget: _blockTarget,
-                maxRunTarget: _maxRunTarget,
+                maxRunTarget: _maxRunTarget, attempt: _genAttempt,
             });
             const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
 
@@ -1750,7 +1767,32 @@ export function init() {
                 const how = built.mode === 'settled'
                     ? `Link generated — settled weeks, ${built.waves} wave${built.waves === 1 ? '' : 's'}`
                     : 'Link generated — rotating weeks (targets would not fit settled ones)';
-                status.textContent = how + (bits.length ? ` — ${bits.join(', ')}.` : '. Review and save when ready.') + _missed;
+
+                // THE EXPLORE LOOP'S VOICE (v20.07). Three sentences it has to be able to say, and
+                // each earns its place: which design this is (attempt counter — "design 3" means
+                // the same design on every device, since attempts are seeded); whether pressing
+                // again is worth it (the best-so-far note is what turns cycling into IMPROVING —
+                // without it the designer is comparing five status lines from memory); and the
+                // honest dead-end (the constraint filter can fall back to design 1, and a repeat
+                // wearing a new number would read as the tool pretending to explore).
+                const _orderKey = _ord.order.join(',');
+                const _c = cost(_ord.after, _on, _target, _blockTarget);
+                let _explore;
+                if (_genAttempt === 0) {
+                    _genBest = { c: _c, n: 1 };
+                    _explore = ' Generate again for a different line order — same cover, different arrangement.';
+                } else if (_orderKey === _genLastOrder) {
+                    _explore = ` Same arrangement as design ${_genAttempt} — generate again to keep exploring.`;
+                } else if (!_genBest || _c < _genBest.c) {
+                    _genBest = { c: _c, n: _genAttempt + 1 };
+                    _explore = ' The best arrangement so far on the ticked objectives.';
+                } else {
+                    _explore = ` Design ${_genBest.n} scored better on the ticked objectives — reload and generate ${_genBest.n} time${_genBest.n === 1 ? '' : 's'} to get it back.`;
+                }
+                _genLastOrder = _orderKey;
+
+                const _label = _genAttempt > 0 ? `Design ${_genAttempt + 1} — ` : '';
+                status.textContent = _label + how + (bits.length ? ` — ${bits.join(', ')}.` : '. Review and save when ready.') + _missed + _explore;
                 status.className = 'links-save-status ok';
             }
         });

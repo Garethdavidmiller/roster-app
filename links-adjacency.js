@@ -433,14 +433,42 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
 }
 
 /**
+ * A tiny seeded PRNG (mulberry32). Exists so ATTEMPTS below are reproducible: the same attempt
+ * number always shuffles the same way, on every device. `Math.random` here would quietly convert
+ * "deterministic per attempt" into "random per press", which is precisely the property being
+ * protected — two designers on attempt 3 must be looking at the same design.
+ * @param {number} seed
+ */
+function mulberry32(seed) {
+    let a = seed | 0;
+    return function () {
+        a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+/**
  * Reorder the lines to suit the objectives that are switched on.
  *
- * DETERMINISTIC — no randomness anywhere. The same design and the same switches always give the same
- * order, so a designer can re-run it and get their design back rather than a different one, and two
- * designers comparing notes are comparing the same thing.
+ * DETERMINISTIC PER ATTEMPT (v20.07 — was flatly deterministic, which made the Generate button a
+ * dead end: pressing it again returned the identical design, so a designer could never ask "is
+ * there another arrangement?" without changing a target they did not want to change — the owner's
+ * report). The 2-opt is a local search, and a local search's result is a function of where it
+ * STARTS: attempt 0 starts from the greedy order exactly as before (byte-identical output, so every
+ * measured figure in the docs still describes the first press), and attempt N ≥ 1 starts from three
+ * seeded shuffles instead, keeping the best of the three by cost. Different attempts land in
+ * different local minima — different designs, same coverage.
  *
- * A greedy nearest-neighbour pass followed by repeated pair swaps (a bounded 2-opt). Exact ordering
- * is a travelling-salesman problem over 28 nodes; this is not optimal and does not pretend to be —
+ * What was deliberately KEPT from the old rule is reproducibility, because that was always the
+ * point of the determinism: the same design, switches and attempt number give the same order on any
+ * device, so a designer can get a variant back by pressing Generate the same number of times, and
+ * two designers comparing "design 3" are comparing the same thing. The seed comes from the attempt
+ * counter, never from `Math.random` or the clock.
+ *
+ * A greedy nearest-neighbour pass (attempt 0) followed by repeated pair swaps (a bounded 2-opt).
+ * Exact ordering is a travelling-salesman problem; this is not optimal and does not pretend to be —
  * it is a large improvement on an arbitrary order, which is what the designs actually start from.
  *
  * @param {Record<string, any>} patterns
@@ -450,10 +478,11 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
  * @param {number} [opts.blockTarget] - weeks in a row on much the same shift before it costs
  * @param {number} [opts.maxRunTarget] - consecutive worked days before it costs
  * @param {number} [opts.passes] - improvement sweeps
- * @returns {{order: string[], before: ReturnType<typeof scoreOrder>, after: ReturnType<typeof scoreOrder>, changed: boolean}}
+ * @param {number} [opts.attempt] - 0 = the canonical greedy-start design; N ≥ 1 = the Nth seeded variant
+ * @returns {{order: string[], before: ReturnType<typeof scoreOrder>, after: ReturnType<typeof scoreOrder>, changed: boolean, attempt: number}}
  */
 export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_TARGET,
-    maxRunTarget = DEFAULT_MAX_RUN, passes = 6 } = {}) {
+    maxRunTarget = DEFAULT_MAX_RUN, passes = 6, attempt = 0 } = {}) {
     const keys = Object.keys(patterns || {}).sort((a, b) => Number(a) - Number(b));
     // Measured against the CHOSEN run target, not the default. Nothing on screen reads `runExcess`
     // today, so this changes no visible figure — but a scorecard handed back to the caller measured
@@ -462,42 +491,93 @@ export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTa
     const anyOn = OBJECTIVES.some(o => on[o.key]);
     // Everything off means leave it alone. Re-sorting by an empty objective set would hand back a
     // different design for no stated reason, which is worse than doing nothing.
-    if (!anyOn || keys.length < 3) return { order: keys, before, after: before, changed: false };
+    if (!anyOn || keys.length < 3) return { order: keys, before, after: before, changed: false, attempt };
 
     const scoreOf = (/** @type {string[]} */ ord) =>
         cost(scoreOrder(patterns, ord, { maxRunTarget }), on, longWeekendTarget, blockTarget);
 
-    // Greedy: keep the first line where it is and repeatedly take whichever remaining line makes the
-    // best next step. Starting from line 1 rather than the best possible start keeps it stable.
-    const remaining = keys.slice(1);
-    const order = [keys[0]];
-    while (remaining.length) {
-        let bestI = 0, bestC = Infinity;
-        for (let i = 0; i < remaining.length; i++) {
-            const trial = [...order, remaining[i], ...remaining.filter((_, j) => j !== i)];
-            const c = scoreOf(trial);
-            if (c < bestC) { bestC = c; bestI = i; }
+    // Bounded 2-opt from a given start: swap pairs while it helps. Fixed sweep count, so runtime is
+    // predictable. Mutates and returns its input — callers hand it a fresh array.
+    const twoOpt = (/** @type {string[]} */ order) => {
+        let current = scoreOf(order);
+        for (let pass = 0; pass < passes; pass++) {
+            let improved = false;
+            for (let i = 0; i < order.length - 1; i++) {
+                for (let j = i + 1; j < order.length; j++) {
+                    const trial = order.slice();
+                    [trial[i], trial[j]] = [trial[j], trial[i]];
+                    const c = scoreOf(trial);
+                    if (c < current) { order.splice(0, order.length, ...trial); current = c; improved = true; }
+                }
+            }
+            if (!improved) break;
         }
-        order.push(remaining.splice(bestI, 1)[0]);
+        return { order, cost: current };
+    };
+
+    /** @type {string[][]} */
+    let starts;
+    if (attempt === 0) {
+        // Greedy: keep the first line where it is and repeatedly take whichever remaining line makes
+        // the best next step. Starting from line 1 rather than the best possible start keeps it
+        // stable. This is the ORIGINAL path, untouched — attempt 0 must keep producing the exact
+        // design every doc figure was measured on.
+        const remaining = keys.slice(1);
+        const order = [keys[0]];
+        while (remaining.length) {
+            let bestI = 0, bestC = Infinity;
+            for (let i = 0; i < remaining.length; i++) {
+                const trial = [...order, remaining[i], ...remaining.filter((_, j) => j !== i)];
+                const c = scoreOf(trial);
+                if (c < bestC) { bestC = c; bestI = i; }
+            }
+            order.push(remaining.splice(bestI, 1)[0]);
+        }
+        starts = [order];
+    } else {
+        // Three seeded shuffles per attempt, best-of by cost. Three rather than one because a single
+        // shuffled start can land in a markedly poor minimum, and rather than many because each
+        // start pays a full 2-opt; three keeps a press comfortably fast while smoothing the floor.
+        // The seed mixes attempt and restart index with large odd constants so consecutive attempts
+        // do not walk near-identical shuffles.
+        const RESTARTS = 3;
+        starts = [];
+        for (let r = 0; r < RESTARTS; r++) {
+            const rand = mulberry32((attempt * 0x9E3779B1 + r * 0x85EBCA77) | 0);
+            const s = keys.slice();
+            for (let i = s.length - 1; i > 0; i--) {
+                const j = Math.floor(rand() * (i + 1));
+                [s[i], s[j]] = [s[j], s[i]];
+            }
+            starts.push(s);
+        }
     }
 
-    // Bounded 2-opt: swap pairs while it helps. Fixed sweep count, so runtime is predictable.
-    let current = scoreOf(order);
-    for (let pass = 0; pass < passes; pass++) {
-        let improved = false;
-        for (let i = 0; i < order.length - 1; i++) {
-            for (let j = i + 1; j < order.length; j++) {
-                const trial = order.slice();
-                [trial[i], trial[j]] = [trial[j], trial[i]];
-                const c = scoreOf(trial);
-                if (c < current) { order.splice(0, order.length, ...trial); current = c; improved = true; }
-            }
-        }
-        if (!improved) break;
+    // THE SPARE SPREAD IS A FILTER HERE, NOT JUST A WEIGHT — found by measurement before this
+    // shipped. On the live seed, attempt 6's three shuffled starts all converged into minima the
+    // 2-opt could not climb out of, and the best of them carried cover-week gaps 6,7,6,5: the
+    // w=3000 weight made it EXPENSIVE, but a local search can only pay a price it can find a path
+    // away from. An even cover spread is the one property v20.02 promised the reorder can never
+    // undo, so a candidate that breaks it is not a worse candidate — it is not a candidate.
+    // If every start fails (never observed, but a shuffle owes no guarantees), fall back to the
+    // canonical greedy design, whose spread the 128-configuration sweep holds: a duplicate of
+    // design 1 is a dull answer, an uneven one is a broken promise.
+    const scored = starts.map(s => {
+        const r = twoOpt(s);
+        return { ...r, spareExcess: scoreOrder(patterns, r.order, { maxRunTarget }).spareExcess ?? 0 };
+    });
+    let best = null;
+    for (const c of scored.filter(c => c.spareExcess === 0)) {
+        if (!best || c.cost < best.cost) best = c;
     }
+    if (!best && attempt !== 0) {
+        return reorderLines(patterns, { on, longWeekendTarget, blockTarget, maxRunTarget, passes, attempt: 0 });
+    }
+    if (!best) best = scored[0];   // attempt 0 itself failed the filter — ship it anyway, see above
+    const order = best.order;
 
     const after = scoreOrder(patterns, order, { maxRunTarget });
-    return { order, before, after, changed: order.some((k, i) => k !== keys[i]) };
+    return { order, before, after, changed: order.some((k, i) => k !== keys[i]), attempt };
 }
 
 /**
