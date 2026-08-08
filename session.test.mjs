@@ -13,6 +13,8 @@ import assert from 'node:assert/strict';
 // In-memory store backing the ls.js mock.
 const store = new Map();
 let _signOutCalled = false;
+/** Ordered log of member-persistence restores (see the mock below). */
+let _persistenceRestores = [];
 
 // Controllable Firebase Auth mock state for the ensureFirebaseSession tests below.
 // onAuthStateChanged yields _existingUser; each sign-in fn resolves when its behavior is
@@ -49,6 +51,11 @@ mock.module('./firebase-client.js', {
         createUserWithEmailAndPassword: async () => { _createCalled = true; if (_createBehavior !== 'ok') _authThrow(_createBehavior); },
         signInAnonymously:              async () => { _anonCalled = true; if (_anonBehavior !== 'ok') _authThrow(_anonBehavior); },
         signOut:                        async () => { _signOutCalled = true; mockAuth.currentUser = null; },
+        // v20.12: `shedCalendarViewer` re-arms the long-lived MEMBER persistence chain after
+        // dropping a shared Calendar viewer. Recorded rather than ignored so the ORDER (sign out,
+        // THEN restore persistence) is assertable — reversing it would migrate the shared viewer
+        // into IndexedDB, where it survives the browser closing.
+        restoreMemberPersistence:       async () => { _persistenceRestores.push('member'); },
     },
 });
 

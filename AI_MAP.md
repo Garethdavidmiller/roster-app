@@ -144,6 +144,31 @@ Keyboard navigation and hover tooltip for `index.html` — extracted from `calen
 - `initCalendarKeyboard({ navigateToPaycalc, openDayDetail })` — arrow-key cell navigation (roving tabindex), PageUp/Down month jump, Enter/Space cell activation (payday → paycalc, cutoff → paycalc, other → day-detail lightbox)
 - Imports: `calendar-swipe.js` (isSwipeCooldown), `roster-data.js` (paydayForCutoff, formatISO)
 
+### `calendar-access.js`
+
+The Calendar's **access gate** (v20.12) — decide at boot, ask for the staff PIN, hold the shared viewer session.
+
+- `initCalendarAccess({ onGranted })` — the bootstrap. Resolves what this browser holds and either starts the Calendar or shows the unlock card. `onGranted` runs ONCE and is how `calendar-app.js` defers every piece of Calendar initialisation.
+- `calendarAccessReady` — resolves the first time access is granted, and NEVER rejects (every consumer uses it as a gate; one missing catch would be an unhandled rejection on the app's start page). Access that never comes simply never resolves, and the unlock card is the visible half of that.
+- `unlockWithPin(pin)` → `{ok:true}` or `{ok:false, kind, message}`. POSTs to `unlockCalendarViewer`, switches Firebase to session-only persistence, signs in with the custom token, then VERIFIES the claim arrived.
+- `getAccessType()` → `'named'|'viewer'|'none'` · `isViewerMode()` · `lockCalendar()` (the nav drawer's action) · `handleAccessLost()` (a read refused because the session went, not because the network is poor).
+- **Why `overrides` could finally stop being world-readable.** Staff glance at the roster on shared office PCs where a corporate Windows sign-in means a fresh browser every time, so a full member login for a thirty-second look was never going to be accepted — and that was the standing reason the collection stayed public. A server-validated shared code is low enough friction for that use and real enough to hang a rule on.
+- **The gate is STRUCTURAL, not cosmetic.** While access is `none` the Calendar is not initialised at all: no member dropdown, no grid, no Team View, no fetch. Not hidden — absent. `calendar-overrides.js` independently refuses the reads (`setOverrideAccess`), because the dangerous path is the LOCAL Firestore cache: rules are evaluated server-side, so `getDocsFromCache` never consults them and a browser that unlocked yesterday still holds everything it saw.
+- **Two orderings are the security properties.** Sign the old identity out BEFORE switching persistence (`setPersistence` migrates the current user, so the reverse order moves the shared viewer into IndexedDB, where it outlives the browser session). And verify the claim BEFORE granting — a token without it signs in perfectly and then has every read denied, leaving an unlocked-looking Calendar with no shifts on it and no error anywhere.
+- **It is deliberately NOT a lightbox.** No backdrop, no focus trap, no Escape: there is nothing behind it to return to, and a trap on a one-field screen is a cage. It is a card in the place the Calendar will appear, which is also what makes unlocking read as the page filling in.
+- Full operational detail (setting the secret, rotation, diagnosis): OPERATIONS_REFERENCE.md → "Staff PIN access for the Calendar".
+
+### `calendar-access-core.js`
+
+The **pure** half — no DOM, no Firebase, no storage, so it loads in Node. Same split, and the same reason, as `auth-state-core.js` vs `auth-state.js`. Tested by `calendar-access-core.test.mjs`.
+
+- `CALENDAR_VIEWER_UID` (`'calendar-viewer'`) · `CALENDAR_VIEWER_CLAIM` (`'calendarViewer'`) · `PIN_LENGTH`.
+- `isViewerUser(user)` — uid match AND non-anonymous. `session.js` imports THIS rather than keeping a second copy, because it is the predicate deciding which identities survive `reconcileExpiredIdentity`.
+- `decideAccess({ session, firebaseUser })` → `'named'|'viewer'|'none'`. Named beats viewer; anything missing resolves to `none`.
+- `normalisePin` / `isCompletePin` — shape only. **The PIN is never compared here or in any client file**: four digits is 10,000 candidates, so a verifier in the browser is an offline brute force that needs no network and leaves no trace.
+- `classifyUnlockFailure` — the words a member reads. Offline beats any status; a sign-in failure after a correct PIN never says "not recognised"; no branch reveals a rate-limit number.
+- `attemptBackoffMs` — a UX brake, NOT a security control. Trivially bypassed, and nothing depends on it; the real limit is the server's.
+
 ### `calendar-overrides.js`
 Firestore override cache for `index.html` — extracted from `calendar-app.js` at v13.82.
 - `rosterOverridesCache` — exported `Map` keyed `"memberName|YYYY-MM-DD"`; imported by `calendar-renderer.js` for cell rendering and by the coordinator

@@ -2528,3 +2528,182 @@
 
 
 
+
+        /* ── Staff PIN access card (v20.12, calendar-access.js) ──────────────────────────────
+           Shown INSTEAD of the calendar workspace, never over it — while this is on screen the
+           calendar has not been built, so there is nothing underneath to obscure.
+
+           It is a CARD on the navy canvas, not a lightbox: the app's modal grammar carries a
+           backdrop, a focus trap and an Escape route, and every one of those is wrong for a screen
+           with no page behind it. Being a card is also what makes unlocking feel like the page
+           filling in rather than a dialog being satisfied.
+
+           Deliberately COMPACT on desktop (max-width below). A wide, centred, full-height panel is
+           what a corporate login portal looks like, and this is not one — it is a doorway. */
+        .cal-lock {
+            display: flex;
+            justify-content: center;
+            /* Sits toward the top of the space the calendar would fill, not vertically centred:
+               centring on a tall desktop viewport pushes it below the fold on a short laptop, and
+               makes it jump vertically as the message line appears and disappears. */
+            padding: 24px 0 48px;
+        }
+
+        .cal-lock-card {
+            width: 100%;
+            max-width: 420px;
+            background: var(--surface);
+            border-radius: var(--radius-xl);
+            padding: 28px 24px 24px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+            text-align: center;
+        }
+
+        .cal-lock-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border-radius: var(--radius-pill);
+            padding: 4px 12px;
+            font-size: var(--type-micro);
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .cal-lock-title {
+            margin: 14px 0 6px;
+            font-size: var(--type-large);
+            font-weight: 700;
+            color: var(--primary-blue);
+        }
+
+        .cal-lock-hint {
+            margin: 0 0 20px;
+            font-size: var(--type-label);
+            line-height: 1.5;
+            color: var(--text-mid);
+        }
+
+        .cal-lock-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+        }
+
+        /* The label is visible, not visually-hidden. On a screen whose entire content is one field,
+           a floating box with no caption is a guessing game — and "Staff PIN" is also the answer to
+           "which PIN?", which a member arriving from a different system genuinely may not know. */
+        .cal-lock-label {
+            font-size: var(--type-micro);
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-mid);
+        }
+
+        /* ONE field, not four PIN cells. Four cells look sharper and cost real robustness: they need
+           per-cell focus juggling, they fight paste and autofill, and screen readers announce four
+           unlabelled boxes. A single field styled AS a PIN — wide tracking, centred, large — reads
+           the same way and behaves like the input it is. */
+        .cal-lock-pin {
+            width: 100%;
+            max-width: 200px;
+            /* --type-xl (24px), comfortably over the 16px iOS focus-zoom floor. A focusable field
+               below 16px makes Safari zoom the whole page on focus, which on the app's front door
+               would land a first-time user in a half-scrolled layout (css-tokens.md → the 16px
+               rule). Through the token, not the literal: a repeated raw size is how the scale
+               stopped meaning anything (type-scale-parity.test.mjs). */
+            font-size: var(--type-xl);
+            font-weight: 700;
+            /* Tracking wide enough that four masked dots read as four separate characters. The
+               padding-left compensates for the trailing letter-space, which would otherwise push
+               the visual centre left of the box's centre. */
+            letter-spacing: 0.5em;
+            padding: 12px 12px 12px 22px;
+            text-align: center;
+            border: 1.5px solid var(--border-mid);
+            border-radius: var(--radius-button);
+            background-color: var(--field-bg);
+            color: var(--primary-blue);
+        }
+
+        /* Brightens to white on focus — the app-wide "this field is live" cue (three-surface model).
+           The longhand background-color is deliberate: the shorthand would drop other background
+           properties the token family may set. */
+        .cal-lock-pin:focus-visible {
+            outline: var(--focus-outline);
+            outline-offset: 2px;
+            background-color: white;
+            box-shadow: var(--focus-ring);
+        }
+
+        .cal-lock-submit { max-width: 260px; }
+
+        .cal-lock-msg {
+            margin: 12px 0 0;
+            min-height: 1.2em;   /* reserve the line so the card does not jump when a message lands */
+            font-size: var(--type-label);
+            line-height: 1.45;
+            color: var(--text-mid);
+        }
+
+        .cal-lock-msg--error {
+            color: var(--error-banner);
+            font-weight: 600;
+        }
+
+        /* A quiet text button, not a second action. The PIN is the primary route for the case this
+           feature exists for; signing in is the alternative for somebody who would rather. */
+        /* Tight against the reserved message line ON PURPOSE. The message keeps a blank line so the
+           card cannot jump when an error arrives, and at 16px on top of that the sign-in link
+           floated in a void that read as a missing element rather than as a quiet alternative. */
+        .cal-lock-alt {
+            margin-top: 2px;
+            background: none;
+            border: none;
+            padding: 8px;
+            min-height: 44px;
+            font-size: var(--type-label);
+            font-weight: 600;
+            color: var(--primary-blue);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .cal-lock-alt:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+        @media (min-width: 1024px) {
+            /* Slightly more breathing room on desktop, but the SAME card. Growing it to fill the
+               column is what would make it read as a portal. */
+            .cal-lock { padding-top: 40px; }
+            .cal-lock-card { padding: 32px 28px 28px; }
+        }
+
+        /* The lock card is not part of a printed roster, and a printed page cannot be unlocked. */
+        @media print {
+            .cal-lock { display: none !important; }
+        }
+
+        /* ── The workspace gate has to BEAT the author display rules (v20.12) ───────────────────
+           `hidden` is a UA `display: none`, and any author `display` rule beats it — `.controls`
+           is `display: flex`, so `nav.controls[hidden]` rendered in full. This is the same trap
+           `.win-editor[hidden]` hit on the links page, and here it is load-bearing rather than
+           cosmetic: these six elements are the Calendar workspace, and `calendar-access.js` hides
+           them before the access decision resolves.
+
+           They contain nothing while locked (the workspace is never built), so this is the second
+           layer rather than the only one — but a gate that works only because the thing behind it
+           happens to be empty is one refactor away from not being a gate.
+
+           `!important` because two of them (#notifPrompt, #swipeHint) carry an inline `display`,
+           which nothing else can outrank. */
+        #calendarControls[hidden],
+        #notifPrompt[hidden],
+        #payPeriodStrip[hidden],
+        #swipeHint[hidden],
+        #calendarDisplay[hidden],
+        #calendarLegend[hidden] { display: none !important; }

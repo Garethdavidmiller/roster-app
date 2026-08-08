@@ -60,6 +60,8 @@
     <link rel="modulepreload" href="./auth-identity.js">
     <link rel="modulepreload" href="./auth-state-core.js">
     <link rel="modulepreload" href="./auth-state.js">
+    <link rel="modulepreload" href="./calendar-access.js">
+    <link rel="modulepreload" href="./calendar-access-core.js">
     <link rel="modulepreload" href="./calendar-al-lightbox.js">
     <link rel="modulepreload" href="./calendar-app.js">
     <link rel="modulepreload" href="./calendar-doc-viewer.js">
@@ -296,7 +298,7 @@
             <div class="header-right"></div>
         </header>
 
-        <nav class="controls" aria-label="Calendar navigation">
+        <nav class="controls" id="calendarControls" aria-label="Calendar navigation">
             <div class="controls-row" id="navRow">
                 <div class="control-group">
                     <button type="button" id="prevMonth" aria-label="Previous month">← Prev</button>
@@ -339,7 +341,7 @@
 
         <main id="calendarDisplay" aria-label="Monthly roster calendar"></main>
 
-        <div class="legend" role="group" aria-label="Colour legend">
+        <div class="legend" id="calendarLegend" role="group" aria-label="Colour legend">
             <div class="legend-row">
                 <div class="legend-item"><div class="legend-color rest"></div><span class="legend-text">Rest</span></div>
                 <div class="legend-item"><div class="legend-color early"></div><span class="legend-text">Early</span></div>

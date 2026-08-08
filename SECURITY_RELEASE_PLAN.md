@@ -30,8 +30,8 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never sign in, so the metric cannot converge | ≥90% migrated **and** a proven recovery route for the remainder |
 | **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
-| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 | **E2** — first phase that changes what is protected | Owner decision on the security/privacy bar | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
-| **Deferred residual** | Held on purpose | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
+| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ is closed, v20.12** (staff PIN — `overrides` needs a `name` claim or `calendarViewer`; anonymous denied) | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
+| **Deferred residual** | Held on purpose. The CALENDAR's anonymous bootstrap is gone (v20.12); `signInAnonymously` remains only as `session.js`'s soft fallback | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
 
 **Two things this table is deliberately explicit about**, because both were previously implied and
 misread: **E1 is client preparation, not protection** — E2 is where the boundary moves — and **C5 is
@@ -260,7 +260,7 @@ Three design points that flow from this and still govern any future rule change:
   un-attested write path entirely. **If tightened before App Check:** add a key-count cap to the
   `activeAccounts` + `perf_` create/update conditions and a matching `assertFails`. (v17.43 audit.)
 
-### Track E — full-app authentication (put the calendar behind login) — E0+E1 SHIPPED, REST UNDECIDED
+### Track E — full-app authentication — E0+E1 SHIPPED · **the READ is CLOSED (v20.12)** · individual auth UNDECIDED
 
 > **📄 `AUTH_PLAN.md` is the authoritative DESIGN doc for this track** (what "behind authentication" can
 > and cannot mean here, the per-phase build detail, the offline grace-mode answer, what to measure, the
@@ -268,16 +268,32 @@ Three design points that flow from this and still govern any future rule change:
 > `PASSWORD_PLAN.md` relates to Track C. Keep each to its half — the v19.00 sweep found these two files
 > already contradicting each other once (the "≈ zero cost" claim below, since corrected).
 
-> **Status: undecided — may or may not ever be built.** Recorded as a *considered option*, not a
-> committed plan. The most likely trigger is **external**: if the app becomes (or is being assessed as)
-> official Chiltern infrastructure, **Chiltern IT may require** the sensitive roster data to sit behind
-> authentication rather than a public URL. Until such a requirement lands (or the owner independently
-> decides), the deliberate public-calendar design stands and Track E is dormant.
+> **Status: the READ is closed; INDIVIDUAL authentication is undecided** (updated v20.12 — this
+> blockquote read "undecided, may or may not ever be built" and "the deliberate public-calendar design
+> stands" until then, which is now false in its first clause and false in its second).
+>
+> The roster data no longer sits behind a public URL: `overrides` reads require a member `name` claim
+> or the shared staff-PIN `calendarViewer` capability (v20.12). What is still a *considered option,
+> not a committed plan* is putting the whole app behind an INDIVIDUAL login. The most likely trigger
+> for that remains **external**: if the app becomes (or is being assessed as) official Chiltern
+> infrastructure, **Chiltern IT may require** each person to authenticate rather than a station to
+> share a code. Until such a requirement lands (or the owner independently decides), the staff-PIN
+> design stands and E3/E4/E5 are dormant.
 
-Today five of six pages sit behind a named login; the **calendar (`index.html`) is deliberately
-public** — it runs an *anonymous* Firebase session and reads `overrides`/`huddles`/`circulars`/
-`newsletters` with open (`allow read;`) rules. "Put the whole app behind login" means making the
-calendar require a session too, closing the external review's **"public absence/AL data"** finding.
+**⚠️ THE PARAGRAPH BELOW DESCRIBED THE WORLD UNTIL v20.12 AND NO LONGER DOES.** The external
+review's **"public absence/AL data"** finding is CLOSED: `overrides` reads now require a member
+`name` claim or the shared staff-PIN `calendarViewer` capability, and the calendar's anonymous
+bootstrap is gone. What is NOT closed is *individual* authentication — the PIN is one code for the
+whole station. See `AUTH_PLAN.md` → E2 for how a server-validated shared credential answered the
+decision gate in a way the phase list did not contain, and for the list of what it deliberately
+leaves open. The `huddles`/`circulars`/`newsletters` reads stay OPEN by design (notification taps
+have no session).
+
+> *Historic, kept for the reasoning:* Today five of six pages sit behind a named login; the
+> **calendar (`index.html`) is deliberately public** — it runs an *anonymous* Firebase session and
+> reads `overrides`/`huddles`/`circulars`/`newsletters` with open (`allow read;`) rules. "Put the
+> whole app behind login" means making the calendar require a session too, closing the external
+> review's **"public absence/AL data"** finding.
 
 **Two different bars, wildly different costs:**
 

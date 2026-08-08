@@ -57,8 +57,14 @@ const {
     rosterOverridesCache, _initialFetchInProgress,
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
     monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache,
-    ensureOverridesCached, getShiftTypesInMonth,
+    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess,
 } = await import('./calendar-overrides.js');
+
+// Open the Calendar access gate for this whole file (v20.12). Every read here refuses to run
+// without it — that is the point of the gate, and this suite is about what the reads DO once they
+// are permitted, not about whether they are. The gate itself is `calendar-access-gate.test.mjs`,
+// which asserts the opposite direction: that nothing gets through while it is shut.
+setOverrideAccess(true);
 
 // ── monthKey ──────────────────────────────────────────────────────────────────
 

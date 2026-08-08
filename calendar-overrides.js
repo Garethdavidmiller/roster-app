@@ -17,6 +17,37 @@ import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, i
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();
 
+// ── THE ACCESS GATE (v20.12) ────────────────────────────────────────────────────────────────────
+//
+// Every read in this module refuses to run until Calendar access has been established. That is a
+// SECOND gate — `calendar-app.js` does not even initialise the Calendar while locked, so in the
+// shipped call order nothing here is reachable — and the duplication is the point, because the two
+// gates fail in different ways. The coordinator's gate is a property of the call ORDER, which any
+// future edit can quietly break with no test failing. This one is a refusal at the source.
+//
+// The read it exists for is `getDocsFromCache`. Firestore security rules are evaluated on the
+// SERVER, so a local IndexedDB cache hit never consults them: a browser that unlocked yesterday
+// still holds every override it saw, and tightening the rule does nothing about that. Painting it
+// before the PIN would hand the next person at a shared PC exactly the data the PIN exists to
+// gate — the annual leave and absence of fifty colleagues — with no network request to notice.
+//
+// Deliberately NOT wired to `calendarAccessReady`, and this is the important half: importing the
+// access module here would make the gate depend on the very promise a bypass would be trying to
+// avoid, and would add a Firebase-importing dependency to a module the tests load in Node. The
+// coordinator PUSHES the fact in. Default false, so anything that forgets to push it reads nothing.
+let _accessGranted = false;
+
+/**
+ * Open the override reads. Called by the Calendar coordinator once — and only once — access is
+ * confirmed. There is no way to pass a "kind" of access here on purpose: named and viewer both read
+ * the same data, so a second parameter would only be a second thing to get wrong.
+ * @param {boolean} granted
+ */
+export function setOverrideAccess(granted) { _accessGranted = granted === true; }
+
+/** @returns {boolean} whether override reads are currently permitted. */
+export function hasOverrideAccess() { return _accessGranted; }
+
 const fetchedMonths        = new Set();
 // Memoised getShiftTypesInMonth() results. Key: "memberName|year|month".
 // Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
@@ -66,6 +97,12 @@ export function monthKey(year, month) {
  * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
  */
 export async function fetchOverridesForRange(startStr, endStr) {
+    // THROWS, where the cache read below returns false. The difference is deliberate: this is the
+    // AUTHORITATIVE read, so a caller that reaches it without access has a real ordering bug, and
+    // the sync chip's error path is the visible, retryable place for that to surface. Silently
+    // resolving would leave the Calendar showing the base roster as though it were current — the one
+    // outcome this whole feature exists to prevent.
+    if (!_accessGranted) throw new Error('calendar-access-required');
     const q = query(
         collection(db, COLLECTIONS.overrides),
         where('date', '>=', startStr),
@@ -88,11 +125,17 @@ export async function fetchOverridesForRange(startStr, endStr) {
 }
 
 /**
- * Paint from the LOCAL Firestore cache only — no network, no auth, no rule evaluation (rules are
- * evaluated server-side, so a cache hit is never gated). This is phase 1 of the calendar's two-phase
- * initial load (AUTH_PLAN.md → E1): it lets the roster appear instantly on a returning device, and
- * keeps appearing once reads require a session, WITHOUT putting a `signInAnonymously` round-trip in
- * front of data the device already holds.
+ * Paint from the LOCAL Firestore cache — no network. This is phase 1 of the calendar's two-phase
+ * initial load (AUTH_PLAN.md → E1): it lets the roster appear instantly on a returning device,
+ * without putting a sign-in round-trip in front of data the device already holds.
+ *
+ * **It is no longer "no auth", and that changed at v20.12.** Firestore rules are evaluated on the
+ * SERVER, so a cache hit genuinely never consults them — which used to be stated here as a harmless
+ * property of an open collection and became the feature's single biggest hole the moment override
+ * reads required access. The read is now gated on `_accessGranted` (see the module header): the
+ * rules stop the NETWORK read, and that check stops this one. Phase 1 still runs before any network
+ * or token work, so the instant-paint property survives; it simply runs after the access DECISION,
+ * which on a returning member is a local one.
  *
  * **Merged additively — never authoritative.** A cache snapshot is a possibly-stale SUBSET, so an
  * absent key is not a delete. Only the server read (`fetchOverridesForRange`) may evict. See the
@@ -106,6 +149,11 @@ export async function fetchOverridesForRange(startStr, endStr) {
  * @returns {Promise<boolean>} true if the cache produced anything that changed the display
  */
 export async function fetchOverridesForRangeFromCache(startStr, endStr) {
+    // THE ONE THAT MATTERS. A cache hit never reaches a security rule, so this line — not
+    // firestore.rules — is what stops yesterday's overrides painting before today's PIN. Returns
+    // false (paints nothing) rather than throwing, because "no access yet" is indistinguishable to
+    // every caller from "no cache yet", which is already this function's normal empty state.
+    if (!_accessGranted) return false;
     try {
         const q = query(
             collection(db, COLLECTIONS.overrides),
@@ -134,6 +182,10 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr) {
  * @param {Function} [renderFn]
  */
 export async function ensureOverridesCached(year, month, renderFn) {
+    // Month navigation and the Team Week View both arrive here, so the gate covers them too — and
+    // it returns BEFORE claiming the month, or a navigation made while locked would mark the month
+    // fetched and the real read after unlocking would be skipped for the rest of the session.
+    if (!_accessGranted) return;
     const key = monthKey(year, month);
     if (fetchedMonths.has(key)) return;
     fetchedMonths.add(key);

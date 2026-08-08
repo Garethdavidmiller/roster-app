@@ -239,7 +239,10 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any> }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
+ *   onLockCalendar (v20.12, calendar only) — the shared-PIN viewer's way to lock the roster before
+ *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
+ *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
  *   authReady — resolves once a Firebase session exists; awaited before the Circular/Newsletter
  *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the five
  *   authenticated pages: `sessionReady`). Defaults to already-resolved.
@@ -247,7 +250,7 @@ export function resetNavPanel() {
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve() } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion (v18.20): the signed-in name by
     // default; the calendar passes its SELECTED member (its session is optional — same precedent
     // as recordUsage's identity there). Never stored — only compared against CONFIG.ADMIN_NAMES.
@@ -260,7 +263,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     burger.setAttribute('aria-controls', 'navPanel');
     burger.setAttribute('aria-expanded', 'false');
 
-    _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner);
+    _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, onLockCalendar);
 
     const panel    = /** @type {HTMLElement} */ (document.getElementById('navPanel'));
     const overlay  = /** @type {HTMLElement} */ (document.getElementById('navPanelOverlay'));
@@ -282,6 +285,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // Permission/subscription can change between opens (toggled in admin, or
         // at OS level), so re-read the bell state every time the panel opens.
         _refreshBell();
+        _refreshLock();
         // Delay focus so the CSS transition has started — screen readers
         // announce the dialog heading rather than the close button label alone.
         setTimeout(() => closeBtn?.focus(), 60);
@@ -562,6 +566,27 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             return;
         }
     });
+
+    // Lock Calendar (viewer mode only). Both the button and the footer label are refreshed on every
+    // drawer open — see _refreshLock, called from openPanel beside _refreshBell.
+    const lockBtn = document.getElementById('navLockCalendarBtn');
+    lockBtn?.addEventListener('click', () => {
+        closePanelForNavigation();
+        onLockCalendar?.lock?.();
+    });
+
+    /** Reveal the lock button (and name the mode) when this browser is on the shared staff PIN. */
+    function _refreshLock() {
+        if (!onLockCalendar) return;
+        // Fail CLOSED on a thrown thunk — hiding a button costs a walk to the browser menu, whereas
+        // showing "Lock Calendar" to a signed-in member offers them an action that does nothing to
+        // their session and reads as though it did.
+        let viewer;
+        try { viewer = onLockCalendar.isViewer() === true; } catch { viewer = false; }
+        if (lockBtn) { if (viewer) lockBtn.removeAttribute('hidden'); else lockBtn.setAttribute('hidden', ''); }
+        const label = document.getElementById('navPanelMember');
+        if (viewer && label && !label.textContent) label.textContent = 'Staff PIN access';
+    }
 
     // Sign-out footer button
     const signOutBtn = document.getElementById('navSignOutBtn');
@@ -913,10 +938,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
  * @param {any} currentPage
  * @param {any} memberName
  * @param {any} onSignOut
+ * @param {any} onLockCalendar
  * @param {any} isAdmin
  * @param {any} isLinksDesigner
  */
-function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
+function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, onLockCalendar) {
     // Render every permitted destination. The current page is shown too — as an
     // inert "you are here" pill (aria-current) rather than being filtered out —
     // so the drawer doubles as a map, not just a list of exits.
@@ -974,7 +1000,16 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                             data-notif-state="loading">
                         <span id="navNotifIcon" aria-hidden="true">🔄</span>
                     </button>` : '';
-    const footerHtml = onSignOut ? `
+    // "Lock Calendar" — shown ONLY while the Calendar is open through the shared staff PIN (v20.12).
+    // Rendered hidden and revealed on drawer open, because access resolves after this markup is
+    // built. It sits where Sign out sits for a member, which is the same idea in the same place:
+    // the thing you press before you walk away.
+    const lockHtml = onLockCalendar ? `
+                    <button class="nav-panel-signout nav-panel-lock" id="navLockCalendarBtn" type="button" hidden>Lock Calendar</button>` : '';
+    // The footer exists for a member (name + bell + sign out) OR for a viewer (the lock button).
+    // Before v20.12 it was `onSignOut ?` alone, which is why a viewer — who has no session and so no
+    // sign-out — would otherwise have no footer to put this in.
+    const footerHtml = (onSignOut || onLockCalendar) ? `
         <div class="nav-panel-footer">
             <div class="nav-panel-footer-row">
                 <div class="nav-panel-member-wrap">
@@ -983,7 +1018,8 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                 </div>
                 <div class="nav-panel-footer-actions">
                     ${bellHtml}
-                    <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
+                    ${lockHtml}
+                    ${onSignOut ? '<button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>' : ''}
                 </div>
             </div>
         </div>` : '';
@@ -1078,6 +1114,12 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     while (tmp.firstChild) document.body.appendChild(tmp.firstChild);
 
     // Set member name safely via textContent (XSS-safe — no innerHTML for user data)
+    if (!memberName) {
+        // No member: a viewer footer, which has a lock button but nobody to name. Drop the avatar
+        // entirely rather than leaving an initial-less coloured circle — an empty badge beside empty
+        // text reads as a rendering fault, and there is no identity here to represent.
+        document.getElementById('navPanelAvatar')?.remove();
+    }
     if (memberName) {
         const memberEl = document.getElementById('navPanelMember');
         if (memberEl) memberEl.textContent = memberName;

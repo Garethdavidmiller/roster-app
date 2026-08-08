@@ -1,5 +1,17 @@
 import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess } from './helpers.js';
+
+// ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
+// Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
+// simply loads index.html now gets the unlock card and none of the roster. Every test in this file
+// is about what the Calendar DOES once it is open, not about the gate, so each page starts with a
+// viewer session already in place — the state an unlocked shared office PC is in, and the closest
+// match to what these tests were implicitly written against (roster on screen, `getSession()` null).
+// The gate itself is covered end-to-end in calendar-pin.spec.js.
+// A test that also seeds a member session still gets the member: the stub ranks them that way,
+// exactly as `decideAccess` does.
+test.beforeEach(async ({ page }) => { await seedViewerAccess(page); });
+
 
 // ── CALENDAR (index.html) ──────────────────────────────────────────────────
 

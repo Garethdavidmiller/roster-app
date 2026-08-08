@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '20.11';
+export const APP_VERSION = '20.12';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -84,6 +84,17 @@ export const CONFIG = {
     // an expired session forces a real typed login, so coverage completes itself inside 30 days and
     // staggers by each member's own expiry rather than landing on everyone at once.
     FORCE_PASSWORD_SET:               true,
+    // ── Staff PIN access for the Calendar (v20.12) ──────────────────────────────────────────────
+    // The Calendar opens for a named member session OR the shared staff PIN. This flag is a CLIENT
+    // kill switch for the PIN half only: set false and the unlock panel is still shown (there is
+    // nothing else to show) but the failure is logged as deliberate rather than as a fault.
+    //
+    // Read what it does NOT do before reaching for it in an incident. It cannot re-open the
+    // Calendar to everybody, because override reads are a SERVER decision — `firestore.rules` now
+    // requires a `name` claim or the `calendarViewer` capability, and no client flag can talk it out
+    // of that. If the PIN exchange itself is broken in production, the availability rollback is the
+    // rules one (RECOVERY_RUNBOOK.md → "Calendar PIN"), not this.
+    CALENDAR_PIN_ACCESS:              true,
     // How long the calendar's `pw-own-2026` notice keeps showing on a device that has not yet seen
     // it, in days from its 6 Aug 2026 posting date (calendar-app.js). CONFIGURABLE ON PURPOSE
     // (v19.91, external review): `isNoticeExpired` marks a notice seen WITHOUT showing it, so on the

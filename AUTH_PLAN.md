@@ -23,7 +23,10 @@ that reads uniformly confident invites someone to start at the wrong end:
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
 | §5 documents (E6) | **A sketch.** The Office-viewer dependency invalidates the cheapest option. |
 
-**Status: UNDECIDED past the gate.** **E0 shipped v19.00** (search engines excluded) and **E1 shipped
+**Status: the READ is closed (v20.12); INDIVIDUAL authentication is still undecided.** `overrides`
+reads require a member `name` claim or the shared staff-PIN `calendarViewer` capability — see E2
+below, which records how that superseded the phase as designed and what it does NOT close.
+**E0 shipped v19.00** (search engines excluded) and **E1 shipped
 v19.01** (the cache-first, auth-aware client preparation) — both were deliberately chosen as the two
 phases needing no decision. **E2 is the first phase that is a security boundary at all**, and nothing
 from E2 onward is committed. The most likely trigger is external: if the app
@@ -192,17 +195,42 @@ Firebase at the network layer, so it could neither gate this nor observe real ca
 
 **Behaviour under today's rules is unchanged** — both reads succeed; the cache paint just arrives sooner.
 
-### E2 — Level 1 rules: `request.auth != null`
-On `overrides` + the three document collections, only after E1 has soaked. Blocks unauthenticated REST
-scraping and casual URL sharing. ~6 of the 199 tests in `firestore.rules.test.mjs` flip (`anon can read`
-→ `assertFails`, plus new authenticated-anon cases). Keep the Anonymous auth provider **enabled**.
+### E2 — Level 1 rules: `request.auth != null` — SUPERSEDED, and by something STRICTER (v20.12)
 
-### ⟨ DECISION GATE ⟩ — is Level 1 enough?
+**Not built as designed, and it should not be.** E2's whole content was "require *any* Firebase
+session for `overrides` reads", with the Anonymous provider deliberately left enabled — which meant
+the barrier was one `signInAnonymously()` call, i.e. no barrier at all to anyone willing to script
+it. The decision gate below existed precisely to ask whether that was enough.
+
+**v20.12 answered the gate a third way the phase list did not contain: a server-validated SHARED
+credential.** `overrides` reads now require a member `name` claim **or** the `calendarViewer`
+capability, minted by the `unlockCalendarViewer` Cloud Function in exchange for a four-digit staff
+PIN. Anonymous is DENIED outright.
+
+Why this is not merely E2 with extra steps:
+
+- **It clears the E5 bar for the read, not the E2 bar.** A motivated outsider cannot script their way
+  in with an anonymous sign-in; they need a code held by station staff. That is the E5 property,
+  reached without E3's front-door cost.
+- **It sidesteps the gate's dilemma.** The gate framed the choice as "weak but free" versus "strong
+  but expensive at the front door". The expensive half was always the *individual* login in front of
+  a thirty-second glance on a shared office PC. A shared code is strong on the read and costs four
+  digits at the door.
+- **It does not close E3/E4/E5.** Those are about the app *shell* and about *individual* identity;
+  the PIN is neither.
+
+### ⟨ DECISION GATE ⟩ — is Level 1 enough? — **ANSWERED v20.12, for the READ only**
 Binary, and it decides whether this is a day or several weeks.
 
-- **Casual exposure** (indexing, a shared link, idle curiosity) → E0+E2 are sufficient. **Stop here.**
-- **A motivated outsider** willing to script an anonymous sign-in → you need named-only (E5), and you
-  buy the front-door cost that E3/E4 exist to manage.
+- **Casual exposure** (indexing, a shared link, idle curiosity) → E0 + the v20.12 read rule are
+  sufficient. **Stop here** — and that is where the app now stands.
+- **A motivated outsider** willing to script an anonymous sign-in → no longer relevant to the read:
+  anonymous is denied. What remains is a person who has been *told the code*, which is a different
+  and much narrower threat, and one no rule can address.
+- **What is still open, and must not be quietly counted as closed:** the PIN is *shared*, so nothing
+  about it attributes an action to a person, revokes access for one person, or survives the code
+  becoming widely known. If a future requirement is "each individual authenticates" — the likeliest
+  form of a Chiltern IT mandate — that is E3/E4/E5, and none of it has been built.
 
 Everything past this gate touches the app's front door, opened many times a day.
 

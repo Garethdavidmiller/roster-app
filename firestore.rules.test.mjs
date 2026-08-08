@@ -52,6 +52,10 @@ function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid
 function managerDb(name, uid = 'uid_mgr') { return testEnv.authenticatedContext(uid, { manager: true, name }).firestore(); }
 /** Authenticated links designer (linksDesigner + name claims) — writes linkDesigns (H2). */
 function designerDb(name = 'S. Silva', uid = 'uid_designer') { return testEnv.authenticatedContext(uid, { name, linksDesigner: true }).firestore(); }
+/** The shared staff Calendar viewer (v20.12) — the identity the four-digit PIN mints. Exactly one
+ *  claim, no `name`: it is a CAPABILITY ("may read the Calendar"), not a person. Modelled with the
+ *  real uid so a rule that ever keyed on the uid rather than the claim would be caught here too. */
+function viewerDb() { return testEnv.authenticatedContext('calendar-viewer', { calendarViewer: true }).firestore(); }
 
 // ── Data builders ─────────────────────────────────────────────────────────────
 
@@ -103,12 +107,37 @@ function uid() { return `doc_${++_seq}`; }
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('overrides', () => {
-    test('anon can read the collection', async () => {
-        await assertSucceeds(getDocs(collection(anonDb(), 'overrides')));
+    // ── READ (v20.12): a real member OR the shared staff-PIN viewer. Nobody else. ─────────────
+    //
+    // This collection was `allow read;` — no auth at all — until v20.12. These four tests are the
+    // proof that the door is shut, and the anonymous one is the substance of it: the Calendar used
+    // to sign every visitor in anonymously, so a rule written as `request.auth != null` would look
+    // closed and admit exactly the people it was meant to exclude (the trap linkDesigns fell into
+    // until v19.39).
+    test('UNAUTHENTICATED cannot read the collection', async () => {
+        await assertFails(getDocs(collection(anonDb(), 'overrides')));
     });
 
-    test('anon can read a specific document', async () => {
-        await assertSucceeds(getDoc(doc(anonDb(), 'overrides', uid())));
+    test('UNAUTHENTICATED cannot read a specific document', async () => {
+        await assertFails(getDoc(doc(anonDb(), 'overrides', uid())));
+    });
+
+    test('ANONYMOUS auth cannot read — a session with no claims grants nothing', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'overrides')));
+        await assertFails(getDoc(doc(staffDb(), 'overrides', uid())));
+    });
+
+    test('a NAMED member can read', async () => {
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'overrides')));
+    });
+
+    test('the CALENDAR VIEWER can read', async () => {
+        await assertSucceeds(getDocs(collection(viewerDb(), 'overrides')));
+        await assertSucceeds(getDoc(doc(viewerDb(), 'overrides', uid())));
+    });
+
+    test('an ADMIN can read', async () => {
+        await assertSucceeds(getDocs(collection(adminDb(), 'overrides')));
     });
 
     test('anon cannot create', async () => {
@@ -1413,5 +1442,144 @@ describe('analytics', () => {
             { months: { '2026-06': increment(1) } },
             { merge: true },
         ));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Calendar viewer — privilege isolation (v20.12)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// A new authenticated identity widens every `request.auth != null` in the rules file at once, so
+// this block walks the whole surface rather than only the collection the feature is about. The
+// question at each one is the same: does the viewer get something that was meant for members?
+//
+// The viewer is a CAPABILITY — one claim, no `name` — and everything below is an assertion about
+// what a capability is not. If any of these ever flips to `assertSucceeds`, a shared code known to
+// the whole station has become a member credential.
+describe('calendar viewer — read-only, and only the Calendar', () => {
+
+    test('it CANNOT create an override', async () => {
+        await assertFails(setDoc(doc(viewerDb(), 'overrides', uid()), VALID_OVERRIDE()));
+    });
+
+    test('it CANNOT update an existing override', async () => {
+        const id = uid();
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'overrides', id), VALID_OVERRIDE());
+        });
+        await assertFails(setDoc(doc(viewerDb(), 'overrides', id), { ...VALID_OVERRIDE(), value: 'SICK', type: 'sick' }));
+    });
+
+    test('it CANNOT delete an override', async () => {
+        const id = uid();
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'overrides', id), VALID_OVERRIDE());
+        });
+        await assertFails(deleteDoc(doc(viewerDb(), 'overrides', id)));
+    });
+
+    test('it CANNOT write on behalf of a named member', async () => {
+        // The on-behalf path is the manager/admin bypass. A viewer reaching it would mean anyone
+        // with the staff code could book somebody else's leave.
+        await assertFails(setDoc(doc(viewerDb(), 'overrides', uid()),
+            { ...VALID_OVERRIDE(), memberName: 'S. Silva' }));
+    });
+
+    test('it CANNOT read a work email — its own, or anybody\'s', async () => {
+        const name = 'G. Miller';
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'staffContact', name), VALID_CONTACT(name));
+        });
+        await assertFails(getDoc(doc(viewerDb(), 'staffContact', name)));
+        await assertFails(getDocs(collection(viewerDb(), 'staffContact')));
+    });
+
+    test('it CANNOT write a work email', async () => {
+        await assertFails(setDoc(doc(viewerDb(), 'staffContact', 'G. Miller'), VALID_CONTACT('G. Miller')));
+    });
+
+    test('it CANNOT read or write password status', async () => {
+        await assertFails(getDoc(doc(viewerDb(), 'passwordStatus', 'G. Miller')));
+        await assertFails(setDoc(doc(viewerDb(), 'passwordStatus', 'G. Miller'),
+            { memberName: 'G. Miller', passwordSetAt: serverTimestamp() }));
+    });
+
+    test('it CANNOT read link designs — the v19.39 `name`-claim rule holds against it', async () => {
+        // linkDesigns read was tightened from `request.auth != null` to a `name` claim precisely
+        // because the anonymous calendar session satisfied the old rule. The viewer is the new
+        // identity in that shape, so this is the same test re-run against it.
+        await assertFails(getDocs(collection(viewerDb(), 'linkDesigns')));
+    });
+
+    test('it CANNOT write a link design', async () => {
+        await assertFails(setDoc(doc(viewerDb(), 'linkDesigns', uid()),
+            { name: 'Proposal', patterns: {}, updatedAt: serverTimestamp(), updatedBy: 'x' }));
+    });
+
+    test('it CANNOT read reset requests', async () => {
+        await assertFails(getDocs(collection(viewerDb(), 'resetRequests')));
+    });
+
+    test('it CANNOT read the error log, only add to it', async () => {
+        // Deliberate asymmetry: an office PC that hits a bug should still be able to report it, and
+        // the log is admin-read. So write succeeds and read fails, and both halves are the design.
+        await assertSucceeds(setDoc(doc(viewerDb(), 'clientErrors', uid()), VALID_ERROR()));
+        await assertFails(getDocs(collection(viewerDb(), 'clientErrors')));
+    });
+
+    test('it CANNOT read usage analytics, only increment them', async () => {
+        // Same asymmetry, same reason: usage from a shared PC is real usage, the counters carry no
+        // identity, and reading them is an admin surface.
+        await assertSucceeds(setDoc(doc(viewerDb(), 'analytics', 'pv_2026-08'),
+            { month: '2026-08', counts: { calendar: increment(1) } }, { merge: true }));
+        await assertFails(getDoc(doc(viewerDb(), 'analytics', 'pv_2026-08')));
+    });
+
+    test('it CANNOT write a push subscription — every office PC shares this uid', async () => {
+        // The one rule TIGHTENED for this feature rather than merely audited. A subscription written
+        // here would be `owner`ed by an identity fifty people share: any of them could delete any
+        // other's, and it would sit on a shared machine pushing one person's Huddle for ever.
+        await assertFails(setDoc(doc(viewerDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+        await assertFails(setDoc(doc(viewerDb(), 'pushSubscriptions', uid()),
+            { ...VALID_SUB(), owner: 'calendar-viewer' }));
+    });
+
+    test('it CANNOT delete a push subscription', async () => {
+        const id = uid();
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'pushSubscriptions', id), VALID_SUB());
+        });
+        await assertFails(deleteDoc(doc(viewerDb(), 'pushSubscriptions', id)));
+    });
+
+    test('an ordinary authenticated session can still write a push subscription', async () => {
+        // The tightening is `calendarViewer != true`, NOT a `name` requirement — so a stale cached
+        // client still running the old anonymous bootstrap keeps renewing through the mixed-version
+        // window. If this ever fails, that window has been closed by accident.
+        await assertSucceeds(setDoc(doc(staffDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    });
+
+    test('it CANNOT upload or alter a Huddle, Circular or Newsletter', async () => {
+        await assertFails(setDoc(doc(viewerDb(), 'huddles', '2026-08-12'), VALID_HUDDLE()));
+        await assertFails(setDoc(doc(viewerDb(), 'circulars', '2026-08-12'), VALID_CIRCULAR('2026-08-12')));
+        await assertFails(setDoc(doc(viewerDb(), 'newsletters', '2026-08-12'), VALID_CIRCULAR('2026-08-12')));
+    });
+
+    test('it CANNOT read or write the PIN throttle store', async () => {
+        // A client that can READ this learns how close a source is to being blocked, which is how an
+        // automated traversal paces itself under the limit; one that can WRITE it clears its own
+        // failure count between guesses, which removes the limit altogether.
+        await assertFails(getDoc(doc(viewerDb(), 'viewerAttempts', 'abc')));
+        await assertFails(setDoc(doc(viewerDb(), 'viewerAttempts', 'abc'), { failures: 0 }));
+        await assertFails(getDoc(doc(adminDb(), 'viewerAttempts', 'abc')));
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'viewerAttempts', 'abc'), { failures: 0 }));
+    });
+
+    test('a member is unaffected — the isolation rules still work exactly as before', async () => {
+        // Guard the guard. Every assertion above is a `assertFails`, and a rules file that denied
+        // everything to everybody would satisfy all of them.
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), VALID_OVERRIDE()));
+        await assertSucceeds(getDocs(collection(namedDb('G. Miller'), 'overrides')));
+        await assertSucceeds(setDoc(doc(managerDb('S. Silva'), 'overrides', uid()), VALID_OVERRIDE()));
     });
 });

@@ -66,6 +66,10 @@ async function prep(page, { width, height }) {
     await page.setViewportSize({ width, height });
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
+    // The Calendar needs a restorable Firebase identity as well as a local session since v20.12 —
+    // `decideAccess` requires BOTH, so a baseline seeded with only the session would capture the
+    // staff-PIN card on every calendar surface instead of the roster.
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authUser: true }); });
     await dismissOneTimeOverlays(page);
 }
 
@@ -692,4 +696,27 @@ test('overlay — Tips panel (settings, desktop 1280)', async ({ page }) => {
     await expect(page.locator('#tipsLightbox')).toBeVisible();
     await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
     await expect(page).toHaveScreenshot('overlay-tips-desktop-1280.png');
+});
+
+// ── The staff PIN unlock card (v20.12) ──────────────────────────────────────────────────────────
+//
+// Baselined because it is the app's front door for anybody who is not signed in, it is composed of
+// nothing the rest of the suite covers, and the behavioural specs provably cannot see it: they
+// assert the field exists, is labelled and is 16px+, none of which would notice the card losing its
+// padding, its badge, or its surface — the exact way the links "Recently deleted" panel shipped as
+// a transparent box at v19.41 with every behavioural test green.
+test('calendar — staff PIN unlock card @1280', async ({ page }) => {
+    await page.clock.setFixedTime(FIXED_TIME);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/index.html');
+    await settle(page, '#calLockPin');
+    await expect(page).toHaveScreenshot('calendar-lock-desktop-1280.png');
+});
+
+test('calendar — staff PIN unlock card @390', async ({ page }) => {
+    await page.clock.setFixedTime(FIXED_TIME);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/index.html');
+    await settle(page, '#calLockPin');
+    await expect(page).toHaveScreenshot('calendar-lock-mobile-390.png');
 });

@@ -319,3 +319,54 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 - `SECURITY_RELEASE_PLAN.md` — WIF deploy identity, claim model, the deferred security work.
 - `KNOWN_LIMITATIONS.md` — "The installed PWA masks live-site breakage" (why you must verify
   in a fresh window).
+
+---
+
+## The Calendar PIN — deployment order, and breaking glass
+
+### Deploying it (the order is the whole safety story)
+
+**Never deploy the rules first.** The old client signs in anonymously and reads `overrides`
+directly; tightening the rule ahead of the client that can satisfy it means every staff phone shows
+the base roster with a "Couldn't update" chip — a roster that is *wrong*, not obviously broken.
+
+1. **Secret.** `firebase functions:secrets:set CALENDAR_VIEWER_PIN`. Nothing else works without it.
+2. **Function.** Deploy `unlockCalendarViewer` and prove it from the production origin. Rules are
+   still permissive at this point, so nothing staff-facing depends on it yet.
+3. **Client.** Deploy hosting. The new Calendar now asks for the PIN and mints a viewer session —
+   and because the rule is still permissive, a stale cached client keeps working. Let this soak.
+4. **Rules.** Only now change `overrides` read. From this moment an old cached client cannot read
+   overrides.
+5. **Verify in production**, in a fresh private window: PIN → roster → reload → still unlocked →
+   Team View → month navigation → Admin (must demand a member sign-in) → close the browser →
+   PIN again. Then on a phone, and at an office-desktop width.
+
+**The mixed-version window at step 4** is one page load wide: the service worker claims immediately
+on activate and reloads the page, so a device is on the new client by its next open. Within that one
+load an old client shows the base roster plus the sync chip's "Couldn't update — tap to retry". That
+is visible and recoverable, and step 3's soak is what keeps the window to a single load rather than
+a deploy cycle.
+
+### If viewer authentication fails in production
+
+**Restore availability first.** An unreadable Calendar is obvious; a Calendar quietly showing the
+base roster without overrides shows somebody a shift they are not working, and they will act on it.
+
+1. In `firestore.rules`, replace the `overrides` read rule with `allow read;` and deploy rules.
+   The Calendar is public again and correct again. Say so to staff — it is a real, if temporary,
+   loss of the protection.
+2. Diagnose from the Cloud Function logs (`unlockCalendarViewer`). A locked Calendar has no Firebase
+   identity, so **nothing appears in the Operations Error Log** — do not read its silence as health.
+   The usual causes are an unset or un-redeployed secret (`503`, or every PIN rejected) and a
+   claim/uid mismatch between the function and the rules (unlock succeeds, no shifts appear).
+3. Fix, redeploy the function, confirm from a fresh private window, then re-tighten the rule.
+
+Do **not** leave it half-working: a Calendar that renders without its overrides is the one outcome
+worse than a Calendar that will not open.
+
+### If the PIN gets out
+
+Rotation needs no client release — OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN". Set the new
+secret, redeploy the function, tell staff. Existing unlocked sessions keep working until their
+browsers close; to kill those too, revoke the shared account's refresh tokens
+(`admin.auth().revokeRefreshTokens('calendar-viewer')`). Member sessions are untouched either way.

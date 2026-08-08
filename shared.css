@@ -1926,6 +1926,12 @@ button.nav-panel-link--notices {
     min-width: 0;
 }
 
+/* Lock Calendar is rendered hidden and revealed on drawer open (viewer mode only). `.nav-panel-signout`
+   sets a display, which beats the `hidden` attribute's UA rule — so without this the button shows to
+   every signed-in member and offers them an action that does nothing. Same trap as the calendar
+   workspace gate in index.css. */
+.nav-panel-lock[hidden] { display: none !important; }
+
 .nav-panel-signout {
     background: none;
     border: none;
