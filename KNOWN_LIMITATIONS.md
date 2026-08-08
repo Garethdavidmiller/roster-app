@@ -1001,19 +1001,28 @@ never contingent on the beta label, and dropping it does not make any of them go
   The concurrency RULES themselves are the pure `links-concurrency.js` (v19.38), tested with
   a case per historical bug — three separate silent-overwrite bugs came out of that logic
   while it was inline in the coordinator.
-- **The 13-day hard limit has no document citation yet** (v19.96, external review P1). The Links
-  Design-checks panel prints, in red on a sheet that goes to an assessing manager, that a design
-  breaching 13 consecutive worked days "cannot be run as drawn". That is Chiltern's roster limit
+- **The 13-day hard limit has no document citation yet, and the panel now SAYS so** (v19.96 →
+  v20.08, external review P1 twice). Until v20.08 the Links Design-checks panel printed, in red on a
+  sheet that goes to an assessing manager, that a design breaching 13 consecutive worked days
+  "cannot be run as drawn", under a heading reading "must be met". ROADMAP.md's own evidence gate
+  requires class A or B for exactly that phrase and this limit is class **C** — the owner's account
+  of practice — so the app was breaking its own rule in the loudest place it has.
+  **The number, the separation and the red are unchanged; only the CLAIM was demoted.** The heading
+  reads "Configured Chiltern limit — policy source outstanding", and the row reports the measurement
+  plus what to go and check instead of the verdict. `POLICY_SOURCE_CONFIRMED` in `links-limits.js`
+  is the single home of that judgement — the heading, the row's `basis` and its prose are all
+  derived from it, and tests in both files fail in BOTH directions, so **the day the citation
+  arrives is a test failure rather than a forgotten edit**. To close this: get the policy reference,
+  put it in `CONFIRMED_BASIS`, flip the flag, run `npm test`.
+  The limit itself is Chiltern's roster limit
   (owner, Aug 2026), historically derived from the working-hours standard the industry adopted after
   the Hidden report into Clapham Junction — **and that standard was withdrawn in 2007**, so the row
   must cite Hidden as an origin and never as a current industry requirement. It did the latter from
   v19.90 to v19.95, under the heading "Industry limits · Hidden report — must be met"; the tense is
   now pinned by tests in three places, including the rendered heading, which had none.
   **What is still missing is the policy itself:** title, clause, which staff group it covers, and its
-  effective/review date. `basis` names the policy so a manager knows what to ask for, which is the
-  minimum bar and not the right one — a row asserting something "must be met" ought to be able to say
-  where it is written. Ask the owner for the reference and put it in `basis`; the evidence contract in
-  `links-limits.test.mjs` will then be checking a real citation rather than a plausible one.
+  effective/review date. The evidence contract in `links-limits.test.mjs` will then be checking a
+  real citation rather than a plausible one.
   Related: the other limits in that family (max turn length, minimum rest between turns, the weekly
   ceiling) are ALREADY COMPUTED and rendered as advisory ORR rows — promoting them is a rendering
   change plus the confirmed figures. Do not do it from recall; see `.claude/rules/links-design.md`.

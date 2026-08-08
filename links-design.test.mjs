@@ -747,6 +747,44 @@ describe('weeklyHours', () => {
         assert.equal(wh.exSunday, 14, 'the readable duties still count');
     });
 
+    // ── A WHOLE LINE NOBODY COULD READ IS THE DANGEROUS ONE (v20.08, external review P2) ────────
+    // The case above — a stray unreadable cell on an otherwise-readable line — is visible: the line
+    // stays in the denominator, its average drops, and `unreadable` says why. A line where EVERY
+    // worked cell is unreadable behaves completely differently and looks identical in that count: it
+    // contributes no minutes and is excluded from `workingLines`, so it leaves the average
+    // arithmetically untouched. Twenty good lines averaging exactly 35.00 beside one line that was
+    // never measured is the worst thing this figure can do, because the tick is earned honestly by
+    // the lines it did read.
+    test('a line with NO readable time is counted as unmeasured, not quietly dropped', () => {
+        const good = rowOf({ mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00',
+            thu: '09:00-16:00', fri: '09:00-16:00' });            // exactly 35
+        const opaque = rowOf({ mon: 'gibberish', tue: 'gibberish' });
+        const wh = weeklyHours({ 1: good, 2: good, 3: opaque }, 3);
+
+        // The trap, stated as an assertion: the average is untouched and would read as a clean pass.
+        assert.equal(wh.exSunday, 35, 'premise: the readable lines really do come to the contract');
+        assert.equal(wh.workingLines, 2, 'the opaque line is not one of the lines that was measured');
+
+        assert.equal(wh.unreadableLines, 1, 'the unmeasured LINE must be counted, not just its cells');
+        assert.equal(wh.complete, false, 'a figure computed over fewer lines than the design has is partial');
+    });
+
+    test('`complete` is true for every design that could be fully measured', () => {
+        // The mirror image, and the one that keeps the flag useful: if it were false in ordinary
+        // cases the panel would wear a permanent asterisk and the real one would mean nothing.
+        const good = rowOf({ mon: '09:00-16:00', fri: '09:00-16:00' });
+        for (const [label, p, lines] of /** @type {[string, any, number][]} */ ([
+            ['a plain design', { 1: good, 2: good }, 2],
+            ['a design with cover weeks', { 1: good, 2: SPARE }, 2],
+            ['a design with one stray bad cell on a readable line',
+                { 1: rowOf({ mon: '09:00-16:00', tue: 'gibberish' }) }, 1],
+            ['an empty design', {}, 4],
+        ])) {
+            assert.equal(weeklyHours(p, lines).complete, true, label);
+            assert.equal(weeklyHours(p, lines).unreadableLines, 0, label);
+        }
+    });
+
     test('rest days and cover days add no hours, and a duty past midnight is not negative', () => {
         const p = { 1: rowOf({ mon: '22:00-06:00', tue: 'SPARE', wed: 'RD', thu: 'OFF' }) };
         const wh = weeklyHours(p, 1);

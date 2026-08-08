@@ -123,9 +123,22 @@ not remove the banner while any card still carries the class — the test will f
 
 **Design decisions, argued in `RANGERS_ROVERS_PLAN.md`:**
 
-- **It leads with "usually no".** ~90 products exist nationally and a handful touch Chiltern. A page
-  that opens with a long list makes the common case slow and the rare case ambiguous — a staff member
-  who cannot find the ticket in their hand cannot tell *not valid* from *not listed*.
+- **It leads with "usually no" — but the five are a SHORTLIST, never a rule of exclusion** (v20.08,
+  external review). ~90 products exist nationally and a handful touch Chiltern, so a page that opens
+  with a long list makes the common case slow and the rare case ambiguous — a staff member who cannot
+  find the ticket in their hand cannot tell *not valid* from *not listed*. That is still the right
+  layout. What shipped with it was an inference: "if it is not one of these five, the answer is
+  almost certainly no", and the review named three more products reported to reach us. Of the two
+  failures available at a gateline, refusing a valid pass is the worse one and the only one this page
+  can cause. **Not on the list means CHECK.** Step 1 of "How to check one" routes there, and the
+  three reported products are named under `#rr-reported` with **no rules attached** — a card states
+  days, area, time bars and break of journey, and each is a rule a passenger could be refused travel
+  by, i.e. exactly what the A/B evidence gate covers.
+- **An unresolved rule is rendered as unresolved, and it does not wear the amber Chiltern callout**
+  (`.rr-unresolved`, red). Amber means "here is the local answer no national page gives" — something
+  to act on. A rule whose published wording contradicts itself is the opposite. Two live cases: the
+  Shakespeare Explorer break of journey, and which operators the Cotswolds Discoverer names (the
+  Chiltern answer there does not depend on it, so the refusal stands and the list is not quoted).
 - **The near-misses section is the point of the page**, not an appendix. Cotswolds Discoverer and
   Freedom of Severn & Solent both reach stations on our map and are not valid on us; saying so quickly
   is the answer no national page gives.

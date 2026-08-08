@@ -68,6 +68,26 @@
  * which is the minimum bar; a row that says "must be met" ought to be able to say *where*. See
  * KNOWN_LIMITATIONS.md → Links.
  *
+ * ── AND UNTIL IT IS IN HAND, THE SHEET SAYS SO (v20.08, external review P1) ─────────────────────
+ *
+ * ROADMAP.md's evidence gate is explicit: *anything rendered to a manager as "must be met" requires
+ * class A or B evidence* — an authoritative external source, or a controlled internal document. What
+ * this limit actually has is class **C**: the owner's account of Chiltern practice. So from v19.96
+ * to v20.07 the panel was breaking the app's own rule, in its loudest place — a section headed
+ * "must be met" over a row that printed *"It cannot be run as drawn."* in red.
+ *
+ * The fix is NOT to soften the number, the separation, or the red. It is to say what is known: the
+ * limit is **configured here** from Chiltern practice, and its policy source is **outstanding**. A
+ * manager reading that can still act on it — and can see exactly what to ask for.
+ *
+ * ⚠️ **`POLICY_SOURCE_CONFIRMED` IS THE SWITCH, AND THE WORDING IS DERIVED FROM IT — never edited
+ * to match.** That is the structural half of this fix, and it is the lesson of the four attributions
+ * above: every one of them was corrected by editing strings in two or three files, and every one of
+ * them left a copy behind somewhere nobody was looking. The claim's STRENGTH now has exactly one
+ * home. When the citation arrives, flip the flag, put the document in `basis`, and the heading, the
+ * note and the prose all move together; a test fails if the wording and the flag ever disagree in
+ * either direction.
+ *
  * So the separation is STRUCTURAL, not a label. A hard-limit check lives in a different module, is
  * returned by a different function, is counted in a different total and is rendered in its own
  * section. That is deliberate: put a hard limit into `assessFatigue`'s `results` array and within a
@@ -106,6 +126,27 @@ import { toSequence } from './links-fatigue.js';
 export const MAX_CONSECUTIVE_WORKED_DAYS = 13;
 
 /**
+ * Has the Chiltern policy that carries {@link MAX_CONSECUTIVE_WORKED_DAYS} actually been produced —
+ * title, clause, staff group, effective date — rather than described from memory?
+ *
+ * **`false` today.** See the module header: the evidence is class C (owner's account of practice),
+ * and ROADMAP.md's gate requires A or B before anything renders to a manager as *must be met*.
+ *
+ * Flipping this to `true` is the ENTIRE change: the row's `basis`, its prose and the panel's section
+ * heading are all derived from it, so the sheet cannot end up half-updated the way the four previous
+ * attributions did. Put the document's name in {@link CONFIRMED_BASIS} in the same edit.
+ */
+export const POLICY_SOURCE_CONFIRMED = false;
+
+/** What the row cites once the policy document is in hand. */
+const CONFIRMED_BASIS = 'Chiltern roster policy — legacy Hidden 13-in-14 standard';
+
+/** What it cites until then: the same origin, plus the fact that the citation is missing. */
+const UNCONFIRMED_BASIS = 'Chiltern roster policy, citation outstanding — legacy Hidden 13-in-14 standard';
+
+const BASIS = POLICY_SOURCE_CONFIRMED ? CONFIRMED_BASIS : UNCONFIRMED_BASIS;
+
+/**
  * @typedef {object} HardLimitCheck
  * @property {string} id
  * @property {string} title
@@ -141,7 +182,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
             id: 'consecutive-days',
             title: `More than ${MAX_CONSECUTIVE_WORKED_DAYS} consecutive days worked`,
             status: 'unknown', value: null, limit: MAX_CONSECUTIVE_WORKED_DAYS,
-            basis: 'Chiltern roster policy — legacy Hidden 13-in-14 standard',
+            basis: BASIS,
             detail: 'Nothing to assess yet — this design has no worked days in it.',
         });
         return { checks, breaches: 0, assessable: false };
@@ -155,10 +196,17 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
         status: breach ? 'breach' : 'ok',
         value: run,
         limit: MAX_CONSECUTIVE_WORKED_DAYS,
-        basis: 'Chiltern roster policy — legacy Hidden 13-in-14 standard',
-        detail: (breach
-            ? `This design reaches ${run} consecutive worked days against Chiltern's limit of ${MAX_CONSECUTIVE_WORKED_DAYS} (the historic Hidden standard). It cannot be run as drawn.`
-            : `Longest possible run is ${run} days, within Chiltern's limit of ${MAX_CONSECUTIVE_WORKED_DAYS} (the historic Hidden standard).`)
+        basis: BASIS,
+        // Both branches are derived from the same flag. A breach is still a breach and still prints
+        // red — what changes with the evidence is whether the sheet may state the CONSEQUENCE
+        // ("cannot be run") or only the measurement plus what has to be checked.
+        detail: (POLICY_SOURCE_CONFIRMED
+            ? (breach
+                ? `This design reaches ${run} consecutive worked days against Chiltern's limit of ${MAX_CONSECUTIVE_WORKED_DAYS} (origin: the legacy Hidden standard). It cannot be run as drawn.`
+                : `Longest possible run is ${run} days, within Chiltern's limit of ${MAX_CONSECUTIVE_WORKED_DAYS} (origin: the legacy Hidden standard).`)
+            : (breach
+                ? `This design reaches ${run} consecutive worked days, above the ${MAX_CONSECUTIVE_WORKED_DAYS} configured here from Chiltern practice (origin: the legacy Hidden standard). Confirm the policy before treating that as a decision.`
+                : `Longest possible run is ${run} days, within the ${MAX_CONSECUTIVE_WORKED_DAYS} configured here from Chiltern practice (origin: the legacy Hidden standard).`))
             // Stated whenever a spare week could move the answer — the figure is what the link
             // PERMITS, not what a given week produces, and a reader who takes it for the latter
             // will read a pass as a guarantee about something it never measured.

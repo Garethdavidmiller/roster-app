@@ -183,8 +183,8 @@ export function init() {
 
     // Shift option lists derived from actual roster data so they always match real shifts.
     //
-    // The MAIN roster only, since v19.98. The December 2026 link is 22 lines of the CEA roster
-    // widened and does not take on the bilingual roster's work, so offering the bilingual times
+    // The MAIN roster only, since v19.98. The December 2026 link is the CEA roster WIDENED (20 → 24
+    // lines at v20.01) and does not take on the bilingual roster's work, so offering the bilingual times
     // would put ten shifts in the brush bar and the cell dropdown that no line in this design can
     // legitimately work. All ten are bilingual-only — there is zero overlap with main's 18 — so
     // this removes exactly those and nothing a designer needs.
@@ -255,9 +255,10 @@ export function init() {
      * reason for measuring each separately, and it still applies to any future pairing.
      *
      * **The bilingual row is gone, and the summary says why rather than leaving a hole.** A design
-     * is now 22 lines of the main roster widened and excludes the bilingual roster entirely, so a
+     * is now the main roster WIDENED (20 → 24 lines) and excludes the bilingual roster entirely, so a
      * bilingual figure would be a comparison against a rotation the proposal does not replace. The
-     * summary names the comparator — "the main 20-line cycle, which this 22-line design replaces" —
+     * summary names the comparator — the main 20-line cycle, which the design replaces — and reads
+     * the length from `ROTATING_LINES` rather than restating it,
      * so its absence reads as a decision and not as a missing number.
      */
     function currentLinkBaseline() {
@@ -1119,10 +1120,11 @@ export function init() {
     /**
      * A design holding MORE lines than the rotation is now — and why it cannot be silent (v19.98).
      *
-     * The rotation went 28 → 22, and every 28-line design saved before that is still in Firestore.
+     * The rotation went 28 → 22 (v19.98) and then 22 → 24 (v20.01), and every design saved at an
+     * older length is still in Firestore.
      * Nothing about opening one LOOKS wrong: the grid loops `1..TOTAL_POS`, so lines 23–28 simply
      * are not drawn; every analysis (`toSequence`, coverage, the checks, the fatigue factors) reads
-     * the same range and therefore reports on 22 lines; and `workingCopy` DEEP COPIES the whole
+     * the same range and therefore reports on the CURRENT length; and `workingCopy` DEEP COPIES the whole
      * patterns object, so the next save writes all 28 back. The result is a design that is assessed
      * as one thing and stored as another, indefinitely, with no symptom.
      *
@@ -1130,7 +1132,7 @@ export function init() {
      * somebody's work on a page visit — the same class of failure as the v19.84 stale hard-delete —
      * and dropping it on SAVE would do it at the moment the designer is least expecting it. So the
      * data is left exactly as it is and the fact is put on screen: the rows are dormant, the panels
-     * below describe 22 lines, and deleting the design is the designer's call to make deliberately.
+     * below describe the current length, and deleting the design is the designer's call to make deliberately.
      *
      * Deliberately not a `confirm()`: it is a statement about the design, not a decision to take now.
      */
@@ -1391,7 +1393,7 @@ export function init() {
      * v19.59 applied it to the sample being too NARROW — main 20 plus only the two bilingual weeks
      * two bilingual members happen to sit on, so bilingual 1 and 8 (the SPARE ones) were never seen
      * and the seeded spare count came back as 4 against the then-correct 6. v19.98 applies it to the
-     * sample being too WIDE: the design is now 22 lines of the CEA roster widened and excludes the
+     * sample being too WIDE: the design is the CEA roster widened (20 → 24 lines) and excludes the
      * bilingual roster entirely, so seeding from it would target ten shift times no line in this
      * design works. Main-only seeds 18 slots and 4 spare lines (main 1/7/12/17).
      *

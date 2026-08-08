@@ -277,6 +277,37 @@ fluency is not the check.
 **Useful non-authoritative index:** `railrover.org` maintains per-product pages and was the most
 complete third-party listing found. Good for *finding* products; never a source for a claim.
 
+### 9b. What the v20.08 external review changed — and the one lesson worth carrying
+
+A review of the shipped page (Aug 2026) returned five corrections. Four were **over-claims**, and
+every one was fixed by claiming less rather than by asserting something new: All Line Rover's area
+("all of Great Britain" → the National Rail network, with the exclusions named), its purchase window
+(a flat 3 days → 3 at a station, reported 5 via telesales/online), the Shakespeare break-of-journey
+permission (→ unresolved; National Rail's own page contradicts itself), and the Cotswolds operator
+list (→ unresolved; the refusal stands, the list stops being quoted). None needed a source I could
+not reach, because **removing a claim needs no evidence**.
+
+The fifth is the one that mattered most and is not about any product. The page said a ticket outside
+its five "almost certainly" does not cover Chiltern — **a shortlist doing duty as a rule of
+exclusion** — and the review named three more products reported to reach us. That framing produces
+the worse of the two available failures: refusing a valid pass to a passenger who is right and
+cannot argue it. §3's scoping decision (lead with the five, answer the rest by exclusion) is still
+correct as *layout*; what was wrong was letting it become an *inference*. Not on the list now means
+CHECK, and step 1 of "How to check one" routes there rather than to a no.
+
+**The three reported products are named on the page and given no rules** (`#rr-reported`). That is
+deliberate and is the whole distinction this plan is built on: a card states days, area, time bars
+and break of journey, and each of those is a rule a passenger could be refused travel by — §1's
+class A/B gate. A third party's summary is class C at best, and is precisely the sourcing behind the
+v17.45 railcard errors. What IS supportable, and is also what a gateline needs, is: these exist, do
+not refuse one. Writing them up is WP1 work once task #36 opens the sources:
+
+| Reported | What it needs before it can become a card |
+|---|---|
+| **Thames Rover (7 Day)** | Area, whether our Marylebone corridor is in it, the time bar |
+| **West Midlands Family Day Ranger** | Same as the Day Ranger already carded, plus the group composition rule |
+| **Chiltern Friends & Family** | **Ours, if it exists** — so it needs the retail system, not just a national page. Highest priority of the three |
+
 ---
 
 ## 10. Won't-do

@@ -2120,7 +2120,7 @@ test('links window: compare states BOTH windows and flags that they differ', asy
 
 test('links: the summary strip names WHICH design it describes, but only in compare mode', async ({ page }) => {
     // Every figure in the strip comes from the ACTIVE design. With two grids on screen an
-    // unlabelled "22 lines designed · All service covered · N fatigue factors" reads as a verdict on
+    // unlabelled "24 lines designed · All service covered · N fatigue factors" reads as a verdict on
     // the COMPARISON, which is the one thing it is not.
     //
     // Both halves are asserted, and the second is the one that keeps this honest: labelling the

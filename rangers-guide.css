@@ -202,6 +202,18 @@ h2.section:first-of-type { margin-top: 4px; }
 }
 .ct-label { font-weight: 800; color: var(--amber); margin-right: 5px; }
 
+/* An UNRESOLVED rule is not an amber Chiltern note (v20.08, external review). The amber banner
+   means "here is the local answer no national page gives" — a thing you can act on. A rule whose
+   published wording contradicts itself is the opposite: the one thing to do is not act on it. It
+   takes the red edge for that reason, and its label goes red with it, so a reader scanning card
+   callouts cannot mistake "we cannot tell you" for "here is the answer". */
+.rr-chiltern.rr-unresolved {
+    background: #fdecea;
+    border-left: 4px solid var(--red);
+    padding-left: 8px;
+}
+.rr-unresolved .ct-label { color: var(--red); }
+
 /* ── Near misses ───────────────────────────────────────────────────────────── */
 .rr-nolist { display: flex; flex-direction: column; gap: 8px; }
 .rr-no-item {
