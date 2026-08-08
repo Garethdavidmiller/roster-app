@@ -330,6 +330,13 @@ are equivalent in both directions (a maximum run of 13 forces a rest day into ev
 14 consecutive worked days is 14 shifts in 14 days), and Marylebone CEAs work at most one duty a
 day. It is written down because it is an ASSUMPTION, not an identity, and it would fail silently.
 
+**Anything else rendered as "must be met" needs evidence too, and that is now enforced generically**
+(v19.97, external review recommendation 5). `links-analysis.test.mjs` requires every section heading
+claiming a limit must be met to name whose requirement it is, and every row under it to carry a
+source. It is applied to what the panel RENDERS, not to the one section that exists — the three
+limits in the table below are already computed and waiting to be promoted, and each could otherwise
+land as a bare number in red on a manager's sheet.
+
 ⚠️ **The exact policy citation is still OUTSTANDING** — title, clause, which staff group it covers,
 and its effective/review date. `basis` names the policy so a manager knows what to ask for, which is
 the minimum bar; a row that says "must be met" ought to be able to say where. See
