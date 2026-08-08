@@ -15,7 +15,7 @@
  * design's findings can be read against what today's roster already scores — without it, a proposal
  * reporting "15 consecutive shifts" reads as something the proposal introduced.
  */
-import { DAYS, ROTATING_LINES, calcHourlyCoverage, runDesignChecks } from './links-design.js';
+import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChecks } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, windowMinutes } from './links-window.js';
@@ -440,8 +440,11 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             );
         }
 
-        // The 7 is the owner's DESIGN TARGET (Aug 2026), not a limit anybody imposes — the aim is a
-        // link that does not go near Chiltern's 13. Two things about this row are load-bearing:
+        // The target is the owner's DESIGN AIM, not a limit anybody imposes — the aim is a link that
+        // does not go near Chiltern's 13. It is `DEFAULT_MAX_RUN` (6 since v20.02, 7 before it) and
+        // it is IMPORTED, because the generator builds to the same number: two copies meant a design
+        // could satisfy the generator's aim and still be told something different here. Two more
+        // things about this row are load-bearing:
         //
         // **It must say WHICH figure it is measured against.** The hard-limit section below reports
         // the SAME number against 13, so on a design between 8 and 13 the panel shows the identical
@@ -458,15 +461,15 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // limit is CHILTERN's, carried in company policy; Hidden is its origin and that standard was
         // WITHDRAWN IN 2007. One row owns that citation and states it properly. A second, looser
         // copy is how the wrong tense got back onto a manager's sheet once already.
-        const stretchOk = longestStretch <= 7;
+        const stretchOk = longestStretch <= DEFAULT_MAX_RUN;
         const hasSpare = spare > 0;
         rows.push(
             `<div class="check-row ${stretchOk ? 'check-good' : 'check-warn-row'}">` +
             `${stretchOk ? tick : warn}<div class="check-body">` +
             `<strong>Longest run</strong> — ${longestStretch} consecutive working days` +
-            `<span class="check-note"> (design target: no more than 7)</span>` +
+            `<span class="check-note"> (design target: no more than ${DEFAULT_MAX_RUN})</span>` +
             (longestStretch > 7
-                ? `<div class="check-sub">Over the 7-day design target — worth reviewing. `
+                ? `<div class="check-sub">Over the ${DEFAULT_MAX_RUN}-day design target — worth reviewing. `
                   + `This is an aim, not a limit; the company limit is checked separately below.</div>`
                 : '') +
             // Say what the number is once a spare week can affect it. It is the WORST CASE over

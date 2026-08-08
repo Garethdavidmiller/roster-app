@@ -53,6 +53,23 @@ export const MIN_REST_MINUTES = 12 * 60;
 export const SPARE_WORKED_DAYS = 4;
 
 /**
+ * The most consecutive worked days a link should ask anyone to do — the owner's DESIGN TARGET
+ * (Aug 2026), not a limit anybody imposes.
+ *
+ * **One number, read in two places**, and that is the point of it being here. The generator builds
+ * to it (the "Most shifts in a row" box on the line-order objectives) and the Design-checks panel
+ * reports against it. Until v20.02 those were 6 and 7 respectively, in different files — so a design
+ * built to the generator's aim could still be handed to the checks panel and told it was fine, and a
+ * reader had two numbers for one idea. That is the same defect v20.00 fixed between the design
+ * target and the company limit, one level down.
+ *
+ * It sits well under Chiltern's hard limit of 13 (`links-limits.js`) and is a different KIND of
+ * statement: an aim the tool optimises towards, never a rule the design has to clear. The panel
+ * labels it that way and must go on doing so.
+ */
+export const DEFAULT_MAX_RUN = 6;
+
+/**
  * The longest run of consecutive worked days a line can be made to carry — the WORST CASE, because
  * a spare week's four duties can be placed anywhere in its seven days and we do not know where.
  *
@@ -81,10 +98,32 @@ export const SPARE_WORKED_DAYS = 4;
  * @returns {number} the most consecutive worked days any arrangement of the spare weeks can produce
  */
 export function worstCaseWorkedRun(seq) {
+    const lengths = workedRunLengths(seq);
+    return lengths.length ? Math.max(...lengths) : 0;
+}
+
+/**
+ * The worst-case run reachable from EVERY starting day, not just the longest of them.
+ *
+ * `worstCaseWorkedRun` is the max of this, and remains the number anyone reads — the array is for
+ * the ORDER OPTIMISER (`links-adjacency.js`) and nothing else. It exists because a maximum is a
+ * terrible thing for a local search to climb: almost every pair swap leaves it unchanged, so the
+ * whole space is a plateau with no gradient, and the optimiser stalled at 8 where a random search
+ * found 6 (measured v20.02, at 30 passes as well as 6). Summing the excess over all starts gives it
+ * something to follow, which is exactly the shape `blockExcess` already uses for shift blocks.
+ *
+ * **Do not report this, or any total derived from it.** A run of 8 also appears as a 7 from the next
+ * day, a 6 from the one after, and so on, so long runs are counted many times over — which is what
+ * makes it a good gradient and a meaningless statistic.
+ *
+ * @param {Array<{shift: any}>} seq - one person's journey, in day order, SEVEN PER LINE
+ * @returns {number[]} one worst-case run length per starting day
+ */
+export function workedRunLengths(seq) {
     const N = seq.length;
-    if (!N) return 0;
+    if (!N) return [];
     const isRestDay = (/** @type {any} */ s) => !s || s === 'RD' || s === 'OFF';
-    let best = 0;
+    /** @type {number[]} */ const out = [];
     for (let start = 0; start < N; start++) {
         /** Duties already spent in each spare week by THIS run. @type {Map<number, number>} */
         const spent = new Map();
@@ -105,9 +144,9 @@ export function worstCaseWorkedRun(seq) {
                 break;
             }
         }
-        if (run > best) best = Math.min(run, N);
+        out.push(Math.min(run, N));
     }
-    return best;
+    return out;
 }
 
 /**

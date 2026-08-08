@@ -336,15 +336,15 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
     // Sentinels before the capture — same reasoning as the workspace shot. The target table is
     // SEEDED FROM THE ROSTER, so a regression in `buildRosterTargets` would render a plausible but
     // empty generator, and the next baseline regeneration would lock in a green test covering
-    // nothing. FIVE is the seeded figure since v20.01: the roster's measured four (main 1/7/12/17)
-    // plus `EXTRA_SPARE_WEEKS`, the cover week the widened link adds. It was 4 at v19.98 and 6 while
-    // the bilingual roster was in scope (its 1 and 8) — and this sentinel has now caught BOTH of
-    // those changes on the regeneration run, which is exactly what it is for: without it the new
-    // figure is baselined as a picture and nobody ever looks at the number.
+    // nothing. FOUR is the seeded figure — main 1/7/12/17, with the seed adding nothing to it. It
+    // was 6 while the bilingual roster was in scope (its 1 and 8) and briefly 5 at v20.01, and this
+    // sentinel has caught every one of those changes on the regeneration run, which is exactly what
+    // it is for: without it the new figure is baselined as a picture and nobody looks at the number.
+    // The objective COUNT is asserted for the same reason — the run cap made it six at v20.02.
     await expect(page.locator('#genSlotRows tr').first()).toBeVisible();
-    await expect(page.locator('#genSpareLines')).toHaveValue('5');
-    await expect(page.locator('.gen-obj')).toHaveCount(5);
-    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(3);
+    await expect(page.locator('#genSpareLines')).toHaveValue('4');
+    await expect(page.locator('.gen-obj')).toHaveCount(6);
+    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(4);   // 6 total, 2 unchecked above
 
     // THE CHECKED TREATMENT IS ASSERTED IN COMPUTED STYLE, NOT LEFT TO THE PIXELS — and that split
     // is deliberate, because the pixels genuinely cannot see it. `--bg-faint` is oklch(97%) against
@@ -428,8 +428,8 @@ test('links — auto-generator card at a narrow width (390)', async ({ page }) =
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
     await page.locator('#objWeekends').uncheck();
 
-    await expect(page.locator('.gen-obj')).toHaveCount(5);
-    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(4);
+    await expect(page.locator('.gen-obj')).toHaveCount(6);   // the run cap joined at v20.02
+    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(5);
 
     // The numeric clause's one-line contract is NOT asserted here, and the reason is the note above:
     // this project is fine-pointer, where the number box is 52×28 and the clause fits whatever you

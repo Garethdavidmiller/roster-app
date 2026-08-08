@@ -801,11 +801,12 @@ The Links workspace (`links.html`) no longer carries a beta marker (removed v19.
 the December 2026 proposals are built in). The constraints below are unchanged by that; they were
 never contingent on the beta label, and dropping it does not make any of them go away:
 
-- **The rotation is 24 lines with 5 spare weeks, on evidence class C (v19.98, corrected v20.01).**
-  The December 2026 link is the CEA/main roster widened from 20, excludes the bilingual roster
-  entirely — not its lines, not its shift times, not its work — and carries one more spare week than
-  the roster does today. All of it is **owner-relayed** (Aug 2026), with **no document behind it**;
-  the length was given as 22 at v19.98 and corrected to 24 at v20.01. That is class C on ROADMAP.md's
+- **The rotation is 24 lines with 4 spare weeks, on evidence class C (v19.98, corrected v20.01/02).**
+  The December 2026 link is the CEA/main roster widened from 20 and excludes the bilingual roster
+  entirely — not its lines, not its shift times, not its work. All of it is **owner-relayed**
+  (Aug 2026), with **no document behind it**; the length was given as 22 at v19.98 and corrected to
+  24 at v20.01, and a fifth spare week was added at v20.01 and reverted at v20.02 once the finding
+  that motivated it turned out to be a bug (below). That is class C on ROADMAP.md's
   scale — fine for building against, and not something to put in front of an assessing manager as a
   requirement. It is recorded here rather than left implicit because the number shapes every figure
   the tool produces, and "why 24?" is a question a proposal will be asked.
@@ -820,16 +821,25 @@ never contingent on the beta label, and dropping it does not make any of them go
   right fix is either a 24th factor that was never implemented, or a doc that has been saying 24
   since v19.46 for no reason. **Check against the source before changing either.**
 
-- **The seeded default trips FF11, and the spare count is why** (v20.01). Measured across rotation
-  lengths 22–25 at 4, 5 and 6 spare weeks: **every configuration with 5 reports FF11 over 13**, while
-  4 and 6 clear it. Not a placement artefact — at 24/5 the spare weeks land on lines 1, 6, 11, 15, 20
-  with none adjacent. The mechanism is that a spare week supplies four duties and, since its three
-  rest days need not fall together, **no guaranteed 48-hour break**; taking a line out of the working
-  pool therefore makes 48h breaks rarer on the lines that remain, and costs ~0.2 rest days per
-  working line. The panel is advisory and is reporting a real property of the shape — today's main
-  roster sits at 12 against the same threshold — but a designer pressing Generate now gets a design
-  carrying an FF11 finding, so the justification needs to exist before the management review.
-  Figures and the full table: `LINKS_DEC2026_PLAN.md`.
+- **~~The seeded default trips FF11, and the spare count is why~~ — CAUSE FOUND AND FIXED (v20.02).**
+  Recorded at v20.01 as a property of running 5 spare weeks. It was not: the **line-order optimiser
+  was clustering the cover weeks**. `generateLink` spreads them evenly (gaps 5, 5, 5, 4, 5 at 24/5)
+  and the reorder returned gaps 9, 3, 1, 7, 4 with two ADJACENT, which chain into one long run —
+  taking FF11 from **9 to 14** on the generator's own output. The v20.01 measurement across lengths
+  22–25 was measuring the bug, not the spare count. `spareSpread` is now charged unconditionally in
+  `links-adjacency.js`; on the shipped default (24 lines, 4 spare) FF11 comes back at **10** and the
+  longest run at **7**.
+  **The lesson worth keeping: the reorder can make a design worse than the one it was handed**, and
+  before v20.02 nothing in it was watching for that. Every other term is a preference; this one
+  protects a guarantee.
+
+- **The run cap cannot always reach its target, and says so** (v20.02). The "Most shifts in a row"
+  box defaults to 6. With that switch on alone the reorder reaches 6; with the full objective set on
+  it reaches 8, because shortening a run of worked days and creating a 48-hour break pull against
+  each other — measured, weighting the cap harder takes FF11 from 11 to 14 and drops weekends off
+  from 7 to 4. The generator's status line states the achieved figure and names the shortfall rather
+  than letting the box imply a guarantee. Raising it further is a weighting decision with a real
+  cost, not a bug to fix.
 
 - **Designs saved against the OLD 28-line rotation are left exactly as they are.** They still load,
   render their first 24 rows, are analysed over 24 — and, because the working copy deep-copies the

@@ -1463,10 +1463,9 @@ test('links: the roster seed samples the whole MAIN cycle and nothing else', asy
     // 1/7/12/17 — 4 again, for a completely different reason. That coincidence is why the identity
     // and shift-time checks live in links-seed.test.mjs; this figure alone cannot tell them apart.
     //
-    // FIVE is what the field shows, not four: the measured 4 plus `EXTRA_SPARE_WEEKS`, the cover week
-    // the widened link adds (owner, v20.01). Asserting the SEEDED figure here is the point — the unit
-    // tests already pin the measurement, and what a browser adds is that the button puts the number
-    // the generator will actually use into the box.
+    // FOUR, and the seed adds nothing to it. v20.01 briefly seeded five (`EXTRA_SPARE_WEEKS`) to
+    // relieve an FF11 finding that turned out at v20.02 to be the line-order optimiser clustering the
+    // cover weeks; cause fixed, uplift reverted (owner).
     //
     // Driven through the real "Reset targets from current roster" button, because what only a browser
     // can prove is that the BUTTON reaches the seed and repaints the table.
@@ -1475,7 +1474,7 @@ test('links: the roster seed samples the whole MAIN cycle and nothing else', asy
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
     await page.locator('#genSeedBtn').click();
-    await expect(page.locator('#genSpareLines')).toHaveValue('5');
+    await expect(page.locator('#genSpareLines')).toHaveValue('4');
 });
 
 test('links: the rotation length the in-page fixtures assume', () => {
@@ -1625,7 +1624,11 @@ test('links: a numeric objective clause does not come apart on a phone', async (
         r.selectNodeContents(/** @type {Node} */ (after));
         return { input: input.getBoundingClientRect(), tail: r.getBoundingClientRect(), text: after?.textContent };
     }));
-    expect(clause.length, 'two objectives carry a numeric clause').toBe(2);
+    // THREE since v20.02 (the run cap joined variety and long weekends). Asserted as a count rather
+    // than a floor so that adding a fourth numeric objective lands HERE — the loop below is the only
+    // thing checking that a number and the words qualifying it stay on one line at 360px, and a new
+    // one arriving unchecked is exactly how the v19.65 fragmentation shipped.
+    expect(clause.length, 'every numeric objective clause must be measured').toBe(3);
     for (const c of clause) {
         expect(c.text?.trim(), 'the number is followed by the words it qualifies').toBeTruthy();
         // Vertical centres within half a line of each other = the same line.
@@ -2161,12 +2164,12 @@ test('links window: generating the FIRST design reveals the window editor', asyn
         .map(r => [...r.querySelectorAll('.shift-cell-btn')].filter(b => b.textContent.trim() === 'SP').length));
     expect(spareDays.every(n => n === 0 || n === 7),
         `every line is spare all week or not at all — got ${spareDays.join(',')}`).toBe(true);
-    // FIVE — the roster's measured four (main 1/7/12/17) plus `EXTRA_SPARE_WEEKS` (owner, v20.01).
-    // The measured half has read 4 twice meaning different things (see the seed test above), which is
-    // why line IDENTITY and the exclusion of bilingual-only shift times are pinned in
-    // links-seed.test.mjs rather than here. What THIS assertion is for is the DISTRIBUTION above —
-    // that the count survives the whole seed → generate → render path with every spare line still
-    // whole, which is the v19.58 per-day model's failure and is invisible to a unit test of the seed.
+    // FOUR — main lines 1/7/12/17, with the seed adding nothing. That figure has meant different
+    // things at different times (see the seed test), which is why line IDENTITY and the exclusion of
+    // bilingual-only shift times are pinned in links-seed.test.mjs rather than here. What THIS
+    // assertion is for is the DISTRIBUTION above — that the count survives the whole seed → generate
+    // → render path with every spare line still WHOLE, which is the v19.58 per-day model's failure
+    // and is invisible to a unit test of the seed.
     expect(spareDays.filter(n => n === 7).length,
-        'the seeded spare weeks must survive to the rendered grid').toBe(5);
+        'the seeded spare weeks must survive to the rendered grid').toBe(4);
 });

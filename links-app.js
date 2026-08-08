@@ -28,6 +28,7 @@ import { lsGet, lsSet } from './ls.js';
 import {
     DAYS,
     ROTATING_LINES,
+    DEFAULT_MAX_RUN,
     classifyShift,
     normaliseCustomShift,
     calcCoverage,
@@ -1631,15 +1632,18 @@ export function init() {
             const _chk = (/** @type {string} */ id) =>
                 !!(/** @type {HTMLInputElement|null} */ (document.getElementById(id))?.checked);
             const _on = {
-                variety: _chk('objVariety'), gentle: _chk('objGentle'), weekends: _chk('objWeekends'),
-                longWeekends: _chk('objLongWeekends'), turnarounds: _chk('objTurnarounds'),
+                variety: _chk('objVariety'), maxRun: _chk('objMaxRun'), gentle: _chk('objGentle'),
+                weekends: _chk('objWeekends'), longWeekends: _chk('objLongWeekends'),
+                turnarounds: _chk('objTurnarounds'),
             };
             const _num = (/** @type {string} */ id, /** @type {number} */ dflt, min = 0) => Math.max(min, parseInt(
                 /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? String(dflt), 10) || dflt);
             const _target = _num('objLongTarget', 4);
             const _blockTarget = _num('objBlockTarget', DEFAULT_BLOCK_TARGET, 1);
+            const _maxRunTarget = _num('objMaxRunTarget', DEFAULT_MAX_RUN, 1);
             const _ord = reorderLines(generated, {
                 on: _on, longWeekendTarget: _target, blockTarget: _blockTarget,
+                maxRunTarget: _maxRunTarget,
             });
             const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
 
@@ -1668,17 +1672,28 @@ export function init() {
                 const b = _ord.before, a = _ord.after;
                 const bits = _ord.changed
                     ? [`longest block ${b.longestBlock}→${a.longestBlock} weeks`,
+                        `shifts in a row ${b.longestRun}→${a.longestRun}`,
                         `week-to-week ${b.gentleMean}→${a.gentleMean} min`,
                         `weekends off ${b.weekends}→${a.weekends}`,
                         `long ${b.longWeekends}→${a.longWeekends}`]
                     : [];
+                // SAY SO WHEN THE CAP WAS NOT MET. The box names a target, and a target the design
+                // silently misses is the phantom guarantee this module has already shipped once —
+                // the rotating construction's "a person's week only moves later", documented and
+                // untrue. Measured on the live seed: with the switch on alone the reorder reaches 6;
+                // with the whole set on it reaches 8, because shortening runs and creating 48-hour
+                // breaks pull against each other. That is a real trade and it belongs on screen.
+                const _missed = _on.maxRun && _ord.changed && a.longestRun > _maxRunTarget
+                    ? ` Shifts in a row could not be brought below ${a.longestRun} (target ${_maxRunTarget}) `
+                      + `without giving up more elsewhere — turn other objectives off to push it further.`
+                    : '';
                 // Name the construction. The two produce visibly different designs — settled weeks
                 // keep a line inside one wave, the fallback walks it across the whole day — and a
                 // designer who is not told which they got cannot account for the difference.
                 const how = built.mode === 'settled'
                     ? `Link generated — settled weeks, ${built.waves} wave${built.waves === 1 ? '' : 's'}`
                     : 'Link generated — rotating weeks (targets would not fit settled ones)';
-                status.textContent = how + (bits.length ? ` — ${bits.join(', ')}.` : '. Review and save when ready.');
+                status.textContent = how + (bits.length ? ` — ${bits.join(', ')}.` : '. Review and save when ready.') + _missed;
                 status.className = 'links-save-status ok';
             }
         });
