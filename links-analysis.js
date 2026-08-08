@@ -474,9 +474,17 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         ].filter(Boolean).join(' · ');
 
         // ── THE HARD LIMIT, ABOVE THE ADVISORY FACTORS AND VISIBLY NOT ONE OF THEM (v19.80) ──────
-        // 13 consecutive worked days comes from the HIDDEN REPORT into the Clapham Junction crash
-        // (v19.90) — an industry limit, not legislation and not a house rule — so it is a different
-        // kind of statement from anything below it: a design either meets it or cannot be run. It gets
+        // 13 consecutive worked days is CHILTERN's roster limit, historically derived from the
+        // post-Clapham Hidden standard (v19.96) — a company limit, not legislation and not a
+        // current industry-wide rule: the group standard that carried it was withdrawn in 2007 and
+        // the ORR now expects a risk-based fatigue management system instead. This heading said
+        // "Industry limits · Hidden report — must be met" from v19.90 to v19.95, which an assessing
+        // manager who checked the citation would have found to be nineteen years out of date — and
+        // would then reasonably have discounted everything else on the sheet. Full history and the
+        // 13-in-14 equivalence argument: links-limits.js.
+        //
+        // It is still a different KIND of statement from anything below it: a design either meets it
+        // or cannot be run. The reclassification is about whose limit it is, never its strength. It gets
         // its own section, its own heading, `.check-bad` RED on a breach (the class the fatigue half
         // is forbidden from using), and — unlike every advisory row — it renders whether it passes or
         // fails, because "the limit was checked and met" has to be visible on the sheet that
@@ -486,7 +494,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
         const LIMIT_ICON = { ok: tick, breach: `<span class="check-icon check-cross" aria-hidden="true">✕</span>`, unknown: info };
         const LIMIT_CLS  = { ok: 'check-good', breach: 'check-bad', unknown: 'check-neutral' };
         fatRows.push(
-            `<div class="check-section-head"><span>Industry limits <span class="check-note">Hidden report — must be met</span></span>` +
+            `<div class="check-section-head"><span>Company limits <span class="check-note">Chiltern roster policy — must be met</span></span>` +
             `<span class="check-section-meta${limits.breaches ? ' check-section-meta-breach' : ''}">` +
             `${escapeHtml(limits.breaches ? `${limits.breaches} breached` : limits.assessable ? 'within limits' : 'not yet assessable')}</span></div>`,
             ...limits.checks.map(c =>

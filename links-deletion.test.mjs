@@ -120,21 +120,36 @@ describe('daysLeft', () => {
 });
 
 describe('deletedLabel — the staff-facing line', () => {
-    test('names who and when, and how long is left', () => {
-        assert.equal(deletedLabel(binned(0), NOW),
-            `Deleted today by S. Silva · removed for good in ${SOFT_DELETE_RETENTION_DAYS} days`);
-        assert.equal(deletedLabel(binned(1), NOW),
-            `Deleted yesterday by S. Silva · removed for good in ${SOFT_DELETE_RETENTION_DAYS - 1} days`);
-        assert.equal(deletedLabel(binned(4), NOW),
-            `Deleted 4 days ago by S. Silva · removed for good in ${SOFT_DELETE_RETENTION_DAYS - 4} days`);
+    // ── IT MUST NOT PROMISE A REMOVAL DATE (v19.96, external review P2) ─────────────────────────
+    // These cases asserted the countdown — "· removed for good in 30 days" — right up to here, and
+    // went on passing for ten versions after v19.86 switched OFF the thing that would have done it.
+    // The tests were pinning the SENTENCE, and the sentence was still being produced correctly; what
+    // had changed was whether it was true. Nothing in the suite was asking that.
+    //
+    // The contradiction was visible on one screen: the bin's intro says "kept here until someone
+    // removes it for good. Nothing is deleted automatically", and every row underneath it counted
+    // down to an automatic removal. Now the row states only what is known.
+    test('names who and when — and promises nothing about removal', () => {
+        assert.equal(deletedLabel(binned(0), NOW), 'Deleted today by S. Silva');
+        assert.equal(deletedLabel(binned(1), NOW), 'Deleted yesterday by S. Silva');
+        assert.equal(deletedLabel(binned(4), NOW), 'Deleted 4 days ago by S. Silva');
     });
-    test('singular tomorrow / today at the end of the window', () => {
-        assert.match(deletedLabel(binned(SOFT_DELETE_RETENTION_DAYS - 1), NOW), /removed for good tomorrow$/);
-        assert.match(deletedLabel(binned(SOFT_DELETE_RETENTION_DAYS), NOW), /removed for good today$/);
+    test('an OLD deletion reads exactly the same — age is not expiry', () => {
+        // The rows that used to say "removed for good today". Nothing removes them, so the line
+        // must not imply anything is about to happen; it just keeps counting up.
+        assert.equal(deletedLabel(binned(SOFT_DELETE_RETENTION_DAYS), NOW),
+            `Deleted ${SOFT_DELETE_RETENTION_DAYS} days ago by S. Silva`);
+        assert.equal(deletedLabel(binned(400), NOW), 'Deleted 400 days ago by S. Silva');
+    });
+    test('no row anywhere counts down, at any age', () => {
+        // The generic form, so a countdown cannot come back through a branch these cases miss.
+        for (const d of [binned(0), binned(1), binned(29), binned(30), binned(31), binned(365), UNRESOLVED]) {
+            assert.doesNotMatch(deletedLabel(d, NOW), /removed|deleted in|days left|expire/i,
+                `the bin promises an automatic removal that does not happen: "${deletedLabel(d, NOW)}"`);
+        }
     });
     test('drops the name when nobody is recorded', () => {
-        assert.equal(deletedLabel({ deletedAt: ts(NOW - DAY) }, NOW),
-            `Deleted yesterday · removed for good in ${SOFT_DELETE_RETENTION_DAYS - 1} days`);
+        assert.equal(deletedLabel({ deletedAt: ts(NOW - DAY) }, NOW), 'Deleted yesterday');
     });
     test('says only what it knows when the timestamp has not resolved', () => {
         assert.equal(deletedLabel(UNRESOLVED, NOW), 'Deleted by S. Silva');

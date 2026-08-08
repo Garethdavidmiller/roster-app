@@ -28,7 +28,7 @@ const design = (...weeks) => {
 const wk = (...d) => d;
 const only = (patterns, lines) => assessHardLimits(patterns, lines).checks[0];
 
-describe('the 13-consecutive-day Hidden limit', () => {
+describe('the 13-consecutive-day limit', () => {
     test('the limit is 13 and the row quotes the constant, not a literal', () => {
         assert.equal(MAX_CONSECUTIVE_WORKED_DAYS, 13);
         const c = only(design(wk(W, W, W, W, W, R, R)), 1);
@@ -113,7 +113,7 @@ describe('the answer is the worst case, which is what makes it a hard-limit chec
 });
 
 describe('the live rosters', () => {
-    test('both are within the Hidden limit, and the figures are the corrected ones', () => {
+    test('both are within the 13-day limit, and the figures are the corrected ones', () => {
         // These read 15 and 14 before v19.79, when a spare week counted as seven worked days — i.e.
         // the tool reported a breach on the roster people are actually working. Pinned here so
         // that cannot come back silently.
@@ -275,6 +275,63 @@ describe('every hard limit carries checkable evidence, whatever it is', () => {
             assert.equal(typeof c.limit, 'number', `${c.id}: limit must be numeric`);
             assert.match(c.title, new RegExp(String(c.limit)),
                 `${c.id}: the title must quote the limit it was measured against`);
+        }
+    });
+
+    // ── AND THE SOURCE MUST BE CITED IN THE RIGHT TENSE (v19.96, external review P1) ────────────
+    // The two rules below are what the v19.90 attribution broke, and neither of the ones above
+    // could see it: the basis named a real, dated, checkable document — the Hidden report — and
+    // passed every assertion in this block. What it got wrong was the TENSE. It presented a
+    // standard withdrawn in 2007 as the current industry limit, under a heading reading
+    // "Industry limits · Hidden report — must be met".
+    //
+    // That is worse than a vague citation, because it fails in the one place it is meant to work:
+    // an assessing manager who takes the invitation to go and check finds a nineteen-year-old
+    // withdrawn standard, and is then entitled to discount every other number on the sheet.
+
+    test('a row that says "must be met" names WHOSE limit it is', () => {
+        // A hard limit is somebody's rule. "13 is the limit" prompts "says who?"; "Chiltern's
+        // roster policy sets 13" can be actioned — the manager knows which document to ask for.
+        // Accepts any duty holder or instrument, not Chiltern specifically: a limit that genuinely
+        // came from a live national standard would name that instead.
+        for (const c of everyCheck()) {
+            assert.match(c.basis, /chiltern|company|policy|agreement|regulation/i,
+                `${c.id}: "${c.basis}" states a limit without saying whose it is`);
+        }
+    });
+
+    test('a WITHDRAWN standard is never cited as if it were current', () => {
+        // The Hidden working-hours limits were carried by a group standard withdrawn in 2007; the
+        // ORR now expects a risk-based fatigue management system, and RAIB describes them as
+        // historic and superseded. Citing Hidden is right — it is where the number came from and it
+        // is what Chiltern's policy is derived from — but it has to be marked as an ORIGIN.
+        //
+        // Keyed on the citation rather than on a blocklist of present-tense phrasings: any row
+        // naming Hidden must also carry a word placing it in the past, in every string a reader
+        // sees. That fails on "the Hidden limit of 13" (v19.90's wording) and passes on "the
+        // historic Hidden standard", which is the distinction that actually matters.
+        const HISTORIC = /legacy|historic|former|withdrawn|derived from/i;
+        for (const c of everyCheck()) {
+            for (const [field, text] of [['basis', c.basis], ['detail', c.detail]]) {
+                if (!/hidden/i.test(String(text))) continue;
+                assert.match(String(text), HISTORIC,
+                    `${c.id}: ${field} cites Hidden as current — "${text}". That standard was withdrawn in 2007; ` +
+                    `cite it as the ORIGIN of the company limit, not as the limit itself`);
+            }
+        }
+    });
+
+    test('and no row claims the limit is industry-wide TODAY', () => {
+        // The complement of the rule above, for the phrasing that does not mention Hidden at all.
+        // "an industry limit" was true in 1990 and is not true now; on a sheet with no date on it,
+        // an unqualified present-tense claim reads as current.
+        for (const c of everyCheck()) {
+            const text = [c.title, c.basis, c.detail].join(' ');
+            const m = text.match(/\b(industry|national|railway)[- ](limit|standard|maximum|rule)s?\b/i);
+            if (!m) continue;
+            const before = text.slice(Math.max(0, m.index - 40), m.index);
+            assert.match(before, /legacy|historic|former|withdrawn/i,
+                `${c.id}: "${m[0]}" presents the limit as currently industry-wide: ${text}`);
         }
     });
 });

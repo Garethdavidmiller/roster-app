@@ -494,7 +494,7 @@ describe('FF18 — the week-to-week step', () => {
 // Both run checks counted a spare week as seven worked days, justified in a comment as
 // "over-reporting is the safe direction for a fatigue check". It is not. A 7/7 spare week BRIDGES
 // the blocks either side of it and fuses them into one phantom run — the live main roster reported
-// 15 and the bilingual 14, against true ceilings of 9 and 8. Since 13 consecutive days is a LEGAL
+// 15 and the bilingual 14, against true ceilings of 9 and 8. Since 13 consecutive days is a HARD
 // ceiling on the UK railway, that is not caution: it reports a breach that does not exist on the
 // roster people work today, and every reader who knows the real link then discounts the row.
 //

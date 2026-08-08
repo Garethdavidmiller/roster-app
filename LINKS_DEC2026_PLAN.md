@@ -192,10 +192,10 @@ standards; at Chiltern they are carried in **company policy** (owner, Aug 2026).
 legislation, and the app is careful never to say it is — that claim was made in error at v19.80 and
 took an external review to unwind.
 
-**Three more Hidden limits exist and the tool does not yet treat them as limits.** They are measured
+**Three more limits in that family exist and the tool does not yet treat them as limits.** They are measured
 already; they are simply rendered as advisory ORR rows:
 
-| Hidden limit | Measured by | Shown today as |
+| Limit in the Hidden family | Measured by | Shown today as |
 |---|---|---|
 | Max consecutive days (13) | `assessHardLimits` | **hard limit** |
 | Min rest between turns | the short-turnaround check (12h) | FF13, advisory |
@@ -289,7 +289,7 @@ as today's link — which is a property of the targets, not of the construction.
 construction is measurably WORSE on both (10 days, FF11 16), which is one more reason the status
 line names which one produced a design.
 
-**The owner's target is below the Hidden limit, not at it** (Aug 2026): ideally a new base link
+**The owner's target is below the 13-day limit, not at it** (Aug 2026): ideally a new base link
 would not carry even **7** consecutive worked days. The live main roster's non-spare blocks reach
 exactly 7; the generator's reach 6. So the aspiration is already within reach of the tool, and the
 9-day worst cases above are entirely made of a spare week's four duties landing against a block.
