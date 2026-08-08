@@ -516,7 +516,7 @@ test('runDesignChecks longest stretch wraps the cycle', () => {
 // The live main and bilingual rosters are the regression pin for this: they reported 15 and 14
 // consecutive worked days until v19.79 because a spare week counted as SEVEN. Four duties in seven
 // days cannot fill a week, so a spare week always contains a rest day and can never fuse the blocks
-// either side of it. 13 consecutive days is a LEGAL ceiling on the UK railway, so a check reporting
+// either side of it. 13 consecutive days is Chiltern's roster limit, so a check reporting
 // 15 was not being cautious — it reported a breach that does not exist on the roster people work.
 describe('worstCaseWorkedRun — a spare week is four duties, not seven', () => {
     const wk = (...d) => Object.fromEntries(DAYS.map((k, i) => [k, d[i]]));

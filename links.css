@@ -810,11 +810,12 @@ body.auth-ready .container { display: grid; }
 /* The section's headline counts, sitting at the far end of its own heading — so the reader gets
    the summary BEFORE the 24 rows, not by tallying icons afterwards. */
 .check-section-meta { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-light); }
-/* The Legal-limits heading count, when a limit is BREACHED (v19.80). The two sections of this panel
+/* The hard-limits heading count, when a limit is BREACHED (v19.80). The two sections of this panel
    are structural peers — both are groups of checks — so the heading rank is deliberately the same;
-   what separates them is that a legal row can go RED and an ORR row never may. This is the only
-   place the summary line is allowed to shout, and it shouts only when there is something to shout
-   about: an unbreached legal check reads in the ordinary quiet grey, like everything else. */
+   what separates them is that a hard-limit row can go RED and an ORR row never may. This is the
+   only place the summary line is allowed to shout, and it shouts only when there is something to
+   shout about: an unbreached hard-limit check reads in the ordinary quiet grey, like everything
+   else. */
 .check-section-meta-breach { color: var(--error-red); font-weight: 800; }
 
 /* The FF number is the panel's scanning key — the whole point is cross-referencing the ORR's own

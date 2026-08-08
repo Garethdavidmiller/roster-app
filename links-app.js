@@ -42,7 +42,7 @@ import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
 import { conflictOf as _conflictOf, baselineAfterWrite, canAdvanceBaseline } from './links-concurrency.js';
 import {
-    SOFT_DELETE_RETENTION_DAYS, isDeleted, isPurgeable, purgeableIds, deletedLabel, canSoftDelete, sortByDeleted,
+    isDeleted, isPurgeable, purgeableIds, deletedLabel, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
 
 
@@ -698,8 +698,9 @@ export function init() {
     }
 
     /**
-     * Delete a design — a SOFT delete since v19.41: it moves to "Recently deleted" for
-     * SOFT_DELETE_RETENTION_DAYS and can be restored, instead of being destroyed on the spot.
+     * Delete a design — a SOFT delete since v19.41: it moves to "Recently deleted", where it can be
+     * restored, instead of being destroyed on the spot. It stays there until a designer removes it
+     * for good; nothing expires it (v19.86 suspended the purge — see `SOFT_DELETE_RETENTION_DAYS`).
      * The last LIVE design can't be deleted — the ✕ button is disabled in that state, so this
      * guard is just a backstop.
      * @param {any} id
@@ -710,7 +711,10 @@ export function init() {
         if (!d) return;
         if (!await confirmDialog({
             title: 'Delete design',
-            message: `Delete "${d.name}"?\n\nIt moves to Recently deleted, where you can restore it for the next ${SOFT_DELETE_RETENTION_DAYS} days.`,
+            // States what actually happens (v19.96). It promised "the next 30 days" while nothing
+            // has expired a design since v19.86 — an under-promise, but the bin's own intro says
+            // the opposite two taps later, and a designer who believes a deadline may hurry.
+            message: `Delete "${d.name}"?\n\nIt moves to Recently deleted, where it stays until someone restores it or removes it for good.`,
             confirmLabel: 'Delete',
             danger: true,
         })) return;
@@ -2117,7 +2121,7 @@ export function init() {
                     { heading: 'Multiple designs', items: [
                         { icon: '➕', html: '<strong>+ New</strong> starts a fresh blank design. <strong>⎘ Duplicate</strong> copies the current one so you can try a variation.' },
                         { icon: '⇔', html: '<strong>Compare</strong> shows two designs side-by-side — cells that differ are highlighted in gold. Only available when you have at least two designs.' },
-                        { icon: '🗑', html: 'Deleting a design does not destroy it — it moves to <strong>Recently deleted</strong>, where you can restore it for 30 days. The button only appears when something is in there.' },
+                        { icon: '🗑', html: 'Deleting a design does not destroy it — it moves to <strong>Recently deleted</strong>, where it stays until someone restores it or removes it for good. Nothing is removed automatically. The button only appears when something is in there.' },
                     ]},
                     { heading: 'Filling the lines', items: [
                         { icon: '⬜', html: 'A line shown as <strong>all rest days</strong> is <em>not yet designed</em> — its line number turns amber. Fill it manually or with the generator. The Design checks card lists any that are still empty.' },
@@ -2208,7 +2212,7 @@ export function init() {
                     title:   'Links Workspace',
                     section: 'Links',
                     date:    NOTICE_DATE,
-                    body:    'Changes in the Links workspace only affect the link-design document, never the live roster. The Design checks report which ORR fatigue factors a pattern features — they do not pass or fail a design. Designs are shared, and a deleted one is restorable for 30 days.',
+                    body:    'Changes in the Links workspace only affect the link-design document, never the live roster. The Design checks report which ORR fatigue factors a pattern features — they do not pass or fail a design. Designs are shared, and a deleted one stays in Recently deleted until someone removes it for good.',
                 });
             },
         });

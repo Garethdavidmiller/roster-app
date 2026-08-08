@@ -7,9 +7,10 @@
  * tool had two designers; a third arrived at v19.40 and the agreed trigger to revisit fired.
  *
  * The model is a soft delete: a `deletedAt` timestamp (+ `deletedBy`) on the document. A design
- * carrying one is hidden from the picker, kept for SOFT_DELETE_RETENTION_DAYS, and then removed
- * for good. No DOM, no Firebase — because the two directions of this decision are wildly
- * asymmetric and both need pinning:
+ * carrying one is hidden from the picker and kept until a designer deliberately removes it for
+ * good. **Automatic expiry is SUSPENDED** (v19.86) — see `SOFT_DELETE_RETENTION_DAYS`. No DOM, no
+ * Firebase — because the two directions of this decision are wildly asymmetric and both need
+ * pinning:
  *
  *   · Reading a deleted design as LIVE is a visible nuisance — it reappears in the picker.
  *   · Reading a live design as PURGEABLE destroys someone's work permanently, which is the
@@ -19,7 +20,20 @@
  * one specific state, and that disagreement is the point — see `isPurgeable`.
  */
 
-/** How long a deleted design is recoverable before it is removed for good. */
+/**
+ * How long a deleted design WOULD be recoverable, if anything expired it.
+ *
+ * ⚠️ **DORMANT — nothing in the app acts on this, and nothing says it to a user** (v19.86 suspended
+ * the purge; v19.96 removed the last visible copy that still quoted it). It is kept because a
+ * server-time sweep will want the number and the transactional re-check around it, both of which
+ * were hard-won. What no client-side check can survive is a device clock running 30 days fast: every
+ * recent deletion then looks expired, the re-check agrees with the same wrong clock, and a
+ * colleague's design is destroyed.
+ *
+ * **Do not reconnect it to visible copy until the age comes from the server.** A countdown is a
+ * promise, and this one was still being displayed for ten versions after the thing that would have
+ * honoured it was switched off.
+ */
 export const SOFT_DELETE_RETENTION_DAYS = 30;
 
 const DAY_MS = 86_400_000;
@@ -97,10 +111,15 @@ export function purgeableIds(entries, nowMs, retentionDays = SOFT_DELETE_RETENTI
 }
 
 /**
- * Whole days left before a deleted design is removed for good — null when that can't be known
- * (unresolved timestamp), so the UI can say so rather than invent a number.
+ * Whole days left before a deleted design would be removed for good — null when that can't be
+ * known (unresolved timestamp), so a caller can say so rather than invent a number.
  *
  * Rounds UP, so a design with any time left never reads "0 days".
+ *
+ * ⚠️ **DORMANT, like the constant it reads.** It has no caller in the app: `deletedLabel` stopped
+ * using it at v19.96 because nothing expires a design, so the number it returns describes an event
+ * that does not occur. Kept for the eventual server-time sweep, and tested so it still works when
+ * that arrives.
  *
  * @param {any} data
  * @param {number} nowMs
@@ -117,27 +136,37 @@ export function daysLeft(data, nowMs, retentionDays = SOFT_DELETE_RETENTION_DAYS
 /**
  * The staff-facing line under a deleted design's name.
  *
- * Calm and factual per the wording conventions — it states who and when, and how long is left,
- * with no exclamation and no alarm.
+ * Calm and factual per the wording conventions — it states who and when, with no exclamation and
+ * no alarm.
+ *
+ * ⚠️ **IT NO LONGER PROMISES A REMOVAL DATE, AND MUST NOT AGAIN** (v19.96, external review P2).
+ * It used to append "· removed for good in N days", which was written when the load-time purge was
+ * live. That purge was suspended at v19.86 — no client-side age check survives a device clock
+ * running 30 days fast — so from then on the countdown was describing something that does not
+ * happen. Worse, it said so **in the same dialog** as the panel's own intro line, which correctly
+ * reads "kept here until someone removes it for good. Nothing is deleted automatically". One
+ * reader, one screen, two mutually exclusive explanations.
+ *
+ * The actual behaviour is SAFER than the promise was, which is what makes this a trust problem
+ * rather than a data-loss one: nothing is destroyed until a designer chooses "Remove for good". But
+ * a designer who believed the countdown might reasonably have hurried, or written the work off.
+ *
+ * `daysLeft` and `SOFT_DELETE_RETENTION_DAYS` are deliberately kept — see their own notes. They are
+ * dormant, and must not drive visible copy again until a SERVER-time sweep exists to make the
+ * promise true.
  *
  * @param {any} data - the Firestore document data ({deletedAt, deletedBy})
  * @param {number} nowMs
- * @param {number} [retentionDays=SOFT_DELETE_RETENTION_DAYS]
  * @returns {string}
  */
-export function deletedLabel(data, nowMs, retentionDays = SOFT_DELETE_RETENTION_DAYS) {
+export function deletedLabel(data, nowMs) {
     const by   = (data?.deletedBy || '').trim();
     const at   = tsMillis(data?.deletedAt);
     const who  = by ? ` by ${by}` : '';
     if (at === null) return `Deleted${who}`;
     const ageDays = Math.floor(Math.max(0, nowMs - at) / DAY_MS);
     const when = ageDays === 0 ? 'today' : ageDays === 1 ? 'yesterday' : `${ageDays} days ago`;
-    const left = daysLeft(data, nowMs, retentionDays);
-    const tail = left === null ? ''
-        : left === 0 ? ' · removed for good today'
-        : left === 1 ? ' · removed for good tomorrow'
-        : ` · removed for good in ${left} days`;
-    return `Deleted ${when}${who}${tail}`;
+    return `Deleted ${when}${who}`;
 }
 
 /**

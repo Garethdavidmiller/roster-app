@@ -12,6 +12,33 @@ lessons**, everything still **open**, and the sections code points at.*
 
 ---
 
+## ⭐ CANONICAL TRACK STATUS — this table is the single source of truth
+
+**Every other document owns DESIGN; this table owns STATUS.** Added at v19.97 after an external
+review pointed out that the current stage of Tracks C/D/E had to be reconciled across five files —
+ROADMAP.md, PASSWORD_PLAN.md, AUTH_PLAN.md, KNOWN_LIMITATIONS.md and this one — and that
+`auth-plan-parity.test.mjs` exists because two of them had already drifted.
+
+**If you are updating a status, update it HERE and nowhere else.** A detailed plan may say "see
+SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
+
+| Track | Current stage | Next stage | Blocking decision | Exit condition |
+|---|---|---|---|---|
+| **A — infra** | ✅ Complete (A1 · A2 · A3) | — | — | WIF live, no standing deploy key; `npm audit --omit=dev` clean |
+| **B — write isolation** | ✅ Complete (B0–B4, H2; strict since v16.29) | — | — | Strict `overrides` rules live, no lockout, self-heal proven |
+| **A5 — push subscriptions** | ✅ Complete (v17.76, extended v18.74) | — | — | Per-owner create/update/delete enforced |
+| **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never sign in, so the metric cannot converge | ≥90% migrated **and** a proven recovery route for the remainder |
+| **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it |
+| **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
+| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 | **E2** — first phase that changes what is protected | Owner decision on the security/privacy bar | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
+| **Deferred residual** | Held on purpose | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
+
+**Two things this table is deliberately explicit about**, because both were previously implied and
+misread: **E1 is client preparation, not protection** — E2 is where the boundary moves — and **C5 is
+gated on a decision in a different track**, so it is further away than "≥90% migrated" suggests.
+
+---
+
 ## Current state
 
 **Shipped** — the live `firestore.rules` + `firestore.rules.test.mjs` are the source of truth for the
@@ -48,18 +75,22 @@ rule text and gate cases:
   and reverted** (it broke the CI `csp` job — the SDK reaches more `*.googleapis.com` hosts on a real
   network than the four listed; the wildcard stays — KNOWN_LIMITATIONS).
 
-**Open** (in dependency order):
+**Open** — *stages are in the canonical table above; these bullets carry only what the table cannot:*
 
-- [~] **Track C — password release:** **C3 (self-service change) + C4′ (admin reset) SHIPPED v18.63**
-  (the "C-lite" plan in `PASSWORD_PLAN.md` → Phase 0+1: gated dual-attempt sign-in, Settings Password
-  card, `resetMemberPassword` break-glass, `passwordStatus` migration flags). **Still open:** C2 email
-  verification (deferred until an email relay exists) and C5 retire the surname default (irreversible,
-  ≥90% migrated — track via the `passwordStatus` collection).
-- [ ] **Track D — App Check:** D1 monitor-first → D2 enforce (Firestore → Storage → Functions) + the
-  analytics doc-size key-count cap.
-- [ ] **Track E — full-app auth** (calendar behind login) — **UNDECIDED**; most likely trigger is a
-  Chiltern-IT requirement if the app becomes official infrastructure.
-- [ ] **Deferred residual** — retire the anonymous fallback + the `ENFORCE_NAMED_SESSION` kill-switch
+- **Track C — password release.** The shipped shape is the "C-lite" plan in `PASSWORD_PLAN.md`
+  (gated dual-attempt sign-in, Settings Password card, `resetMemberPassword` break-glass,
+  `passwordStatus` migration flags, forced overlay, reset-request queue). What remains is **C2**
+  (email verification — deferred until an email relay exists) and **C5** (retire the surname default
+  — irreversible; the ≥90% metric is tracked via the `passwordStatus` collection and rendered on the
+  Operations Account-status card).
+- **Track D — App Check.** D1 monitor-first → D2 enforce, in the order Firestore → Storage →
+  Functions, plus the analytics doc-size key-count cap. Monitor mode exists to learn what legitimate
+  traffic looks like; enforcing before that is how you lock out your own staff.
+- **Track E — full-app auth.** Design is `AUTH_PLAN.md`; the phase list below is the sequencing half
+  and the two are kept in step by `auth-plan-parity.test.mjs`. The most likely external trigger is a
+  Chiltern-IT requirement if the app becomes official infrastructure — see ROADMAP.md → the
+  governance gate.
+- **Deferred residual** — retire the anonymous fallback + the `ENFORCE_NAMED_SESSION` kill-switch
   (held on purpose while the B release soaks — see the section at the foot).
 
 ---
@@ -126,7 +157,7 @@ Three design points that flow from this and still govern any future rule change:
 ## Remaining work
 
 ### Track C — password release (C2 → C4 → C3 → C5)
-- **Goal & detail:** the 5-stage plan in ROADMAP → "Password security improvements".
+- **Goal & detail:** the 5-stage plan in ROADMAP_HISTORY.md → "Password security — the original five-stage design".
 - **Agreed interim shape (Jul 2026) — `PASSWORD_PLAN.md` ("C-lite"):** chosen passwords + the admin
   reset as the recovery channel, deferring C2 (email) until a relay exists. It honours this track's
   ordering (reset path ships before/with the change flow) and carries the two deep-review-critical

@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      issues: write    # open/update the deploy-failure issue (see the last step)
       id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -126,3 +127,15 @@ jobs:
           # version can briefly lag a Firebase deploy — a hard version-match would flake. Warn only.
           mcode=$(curl -sS -o /dev/null -w '%{http_code}' https://garethdavidmiller.github.io/roster-app/ || echo 000)
           if [ "$mcode" = "200" ]; then echo "OK: Pages mirror live (200)"; else echo "::warning::Pages mirror returned $mcode — check the mirror build"; fi
+
+      # ── A FAILED DEPLOY MUST NOT BE SILENT ────────────────────────────────────────────────────
+      # Added after the v19.94 hosting deploy failed its own gate on a flaky test and nobody was
+      # told: staff sat on v19.91 while the Pages mirror (which has no gate) went to v19.94. The
+      # rationale, and why an issue rather than email or push, is in the action itself.
+      # `if: failure()` covers EVERY step above — tests, e2e, CSP, auth and the deploy itself.
+      - name: Report the failure
+        if: failure()
+        uses: ./.github/actions/report-deploy-failure
+        with:
+          target: 'Firebase Hosting'
+          token: ${{ github.token }}

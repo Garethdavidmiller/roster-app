@@ -11,6 +11,59 @@ authoritative for how the workspace is built.*
 
 ---
 
+# 🗓 DECEMBER 2026 READINESS — read this first
+
+*Added v19.97 (external review). Everything below this dashboard is the research and the
+implementation record, and it is worth reading — but December 2026 is now a real approaching event,
+and this document had no view that answered "are we ready, and what is stopping us?"*
+
+**The tool is essentially built. What remains is decisions and a meeting.** Every outstanding row
+below is owned by somebody other than the developer.
+
+| Item | Status | Needed by | Blocker / owner |
+|---|---|---|---|
+| Timetable data (all three simplifiers) | ✅ Final — confirmed not provisional (owner, Aug 2026) | — | — |
+| Existing roster baseline | ✅ Measured (corrected v19.79 — 9 / 8 consecutive days, not 15 / 14) | — | — |
+| Operating-window setting | ✅ Shipped v19.54 | — | — |
+| ORR fatigue factors (p3, 24 factors) | ✅ Shipped v19.46 (+ v19.48 / v19.69 corrections) | — | — |
+| Demand overlay | ✅ Shipped v19.56 | — | — |
+| Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
+| **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
+| **Sunday operating window** | ⚠️ **Decision needed** — five Dec-26 movements fall after the 23:25 finish, three of them arrivals | **Before proposals are frozen** | **Nathan** |
+| **Business staffing requirement** | ⚠️ **Never formally stated.** "Coverage vs service" is an inference from the data, not something anyone said | **Before the final design** | **Management** |
+| **FF18 reading — cadence or step?** | ⚠️ Unsettled; changes whether any proposal can clear it | **Before proposals are drawn** | **Nathan** (see Open question 2) |
+| **Proposals A / B** | ❌ Not started | T−8 weeks | The four decisions above |
+| **Management review meeting** | ❌ Not scheduled | T−6 weeks | **A date.** See below |
+
+## The backwards plan — because the only immovable deadline is outside this repository
+
+This document previously admitted *"the timing … is not known"*, and that was reasonable when it was
+written. It is now **August 2026**, the target is **December 2026**, and a very sophisticated
+technical project can still be rushed because nobody worked backwards from the date.
+
+**T = the December 2026 timetable change date.** Pin T first — everything below is relative to it,
+and T is a published industry date, not something to estimate.
+
+| Milestone | Latest safe | For a mid-December T, that is roughly |
+|---|---|---|
+| Timetable source frozen | T−12 weeks | mid-September 2026 ✅ *(already done)* |
+| The four decisions above settled | T−10 weeks | late September |
+| First viable proposals | T−8 weeks | mid-October |
+| Management review | T−6 weeks | end October |
+| Adjusted proposals | T−4 weeks | mid-November |
+| Operational sign-off | T−2 weeks | end November |
+| Tool / data freeze | T−1 week | early December |
+
+**These intervals are a starting proposal, not a commitment** — Gareth and Nathan should set the
+real ones. The point is that a backwards plan exists at all: without one, the first hard date anyone
+meets is the timetable change itself.
+
+**If the room is booked before everything lands**, the useful minimum is unchanged: the baseline
+table below, printed alongside the current link. That alone answers "where are we starting from",
+which is the question a proposal is unreadable without.
+
+---
+
 ## Why this exists
 
 Nathan Sobers (Regional Manager, London Area) issued the three base simplifiers for the December 2026
@@ -192,10 +245,10 @@ standards; at Chiltern they are carried in **company policy** (owner, Aug 2026).
 legislation, and the app is careful never to say it is — that claim was made in error at v19.80 and
 took an external review to unwind.
 
-**Three more Hidden limits exist and the tool does not yet treat them as limits.** They are measured
+**Three more limits in that family exist and the tool does not yet treat them as limits.** They are measured
 already; they are simply rendered as advisory ORR rows:
 
-| Hidden limit | Measured by | Shown today as |
+| Limit in the Hidden family | Measured by | Shown today as |
 |---|---|---|
 | Max consecutive days (13) | `assessHardLimits` | **hard limit** |
 | Min rest between turns | the short-turnaround check (12h) | FF13, advisory |
@@ -289,7 +342,7 @@ as today's link — which is a property of the targets, not of the construction.
 construction is measurably WORSE on both (10 days, FF11 16), which is one more reason the status
 line names which one produced a design.
 
-**The owner's target is below the Hidden limit, not at it** (Aug 2026): ideally a new base link
+**The owner's target is below the 13-day limit, not at it** (Aug 2026): ideally a new base link
 would not carry even **7** consecutive worked days. The live main roster's non-spare blocks reach
 exactly 7; the generator's reach 6. So the aspiration is already within reach of the tool, and the
 9-day worst cases above are entirely made of a spare week's four duties landing against a block.
@@ -584,6 +637,9 @@ Recorded so the gaps are visible rather than implied:
 - **Whether other grades cover the window's edges.** The 05:55 first departure and the post-midnight
   last trains sit outside the CEA link; something covers them, and knowing what would settle whether
   the Sunday finish is really a gap.
-- **The timing.** No package here is sized against the "See Nathan" days, because their date is not
-  known. If the room is booked before package 2 lands, the useful minimum is the baseline table above
-  printed alongside the current link — that alone answers "where are we starting from".
+- **The timing — now partly addressed.** No package here was sized against the "See Nathan" days,
+  because their date is not known. That is still true of the MEETING date, but the readiness
+  dashboard at the top of this file now carries a backwards plan from the timetable change itself
+  (T−12 … T−1), so the absence of one fixed date no longer means the absence of any dates. **Pin T,
+  then set the real intervals with Nathan.** If the room is booked before everything lands, the
+  useful minimum is unchanged: the baseline table above printed alongside the current link.

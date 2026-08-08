@@ -252,17 +252,43 @@ test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed da
 
 // The FIP country finder also states a GUIDE-LEVEL review date, because the 16 lower-use country
 // cards carry no date of their own (they sit under the sampled `fip-carrier-accept` row). Same
-// hazard, same guard: it must equal the newest Reviewed date across the fip rows, so it can never
-// claim the guide is fresher than any review behind it.
+// hazard, same guard: it must equal the newest Reviewed date across the rows that back the COUNTRY
+// cards, so it can never claim the guide is fresher than any review behind it.
+//
+// ── WHY "COUNTRY CARDS" AND NOT "EVERY fip ROW" (v19.96) ────────────────────────────────────────
+// It was every fip row, and that made the guard demand a false statement. Reviewing the FERRY cards
+// (fip-stena, corrected Aug 2026) pushed the newest fip row forward, so the test then required
+// fip.html to say the COUNTRY cards had been reviewed in August — which nobody had done. A guard
+// against over-claiming a freshness date must not itself force one.
+//
+// Which rows back the country cards is derived from the HTML rather than listed here: a row counts
+// if any block citing it is not a `ferry-*` details. A list would need editing every time a section
+// is added, and would go stale in the direction of over-claiming again.
 test('the FIP country-finder note states a review date backed by the register', () => {
     const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
     const m = html.match(/country cards were last reviewed ([A-Z][a-z]{2}) (\d{4})/);
     assert.ok(m, 'the cf-note guide-level review date is missing from fip.html');
     const shown = `${m[2]}-${String(MONTHS.indexOf(m[1]) + 1).padStart(2, '0')}`;
-    const newest = rows.filter(r => r.Guide === 'fip').map(r => r.Reviewed).sort().pop();
+
+    /** Ids cited ONLY by ferry blocks — they say nothing about the country cards. */
+    const ferryOnly = new Set();
+    const nonFerry  = new Set();
+    for (const mm of html.matchAll(/<details id="([^"]+)"[^>]*data-guide-source="([^"]+)"/g)) {
+        for (const id of mm[2].trim().split(/\s+/)) {
+            (mm[1].startsWith('ferry-') ? ferryOnly : nonFerry).add(id);
+        }
+    }
+    // A cross-cutting row cited by a non-details block (a card, a list item) counts too.
+    for (const mm of html.matchAll(/data-guide-source="([^"]+)"/g)) {
+        for (const id of mm[1].trim().split(/\s+/)) if (!ferryOnly.has(id)) nonFerry.add(id);
+    }
+
+    const backing = rows.filter(r => r.Guide === 'fip' && !(ferryOnly.has(r.ID) && !nonFerry.has(r.ID)));
+    assert.ok(backing.length >= 9, `expected the country-card rows, found ${backing.length}`);
+    const newest = backing.map(r => r.Reviewed).sort().pop();
     assert.equal(shown, newest,
-        `fip.html says the country cards were reviewed ${shown}, but the newest fip register row is ` +
-        `${newest} — the guide-level date must never outrun the reviews behind it`);
+        `fip.html says the country cards were reviewed ${shown}, but the newest country-card register ` +
+        `row is ${newest} — the guide-level date must never outrun the reviews behind it`);
 });
 
 // Non-failing diagnostic: surface rows whose manual review is overdue. Deliberately NOT an

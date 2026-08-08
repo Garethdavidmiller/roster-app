@@ -457,4 +457,4 @@ per-origin. The counters are how you tell whether that has happened yet.
 
 The `@myb-roster.local` domain is synthetic — not real email addresses. Firebase Auth accepts them as valid email format.
 
-Migration history (v7.61 → v7.94) is in `ROADMAP.md` → Phase 2.
+Migration history (v7.61 → v7.94) is in `ROADMAP_HISTORY.md` → Completed phases.

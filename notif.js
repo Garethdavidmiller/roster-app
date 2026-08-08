@@ -126,7 +126,7 @@ export async function getNotifState() {
             // fingerprint is never recorded, and the migration retries on every state
             // check — leaving the bell stuck. If subscribe() now fails after the
             // unsubscribe, getSubscription() returns null next time → 'off-lapsed', and
-            // the user can re-enable (no infinite retry). See ROADMAP "VAPID rotation".
+            // the user can re-enable (no infinite retry). See ROADMAP_HISTORY.md "VAPID rotation".
             await sub.unsubscribe().catch(e => console.warn('[Notifications] Old sub cleanup failed (non-fatal):', /** @type {any} */ (e).message));
             sub = await subscribe();
         } else {

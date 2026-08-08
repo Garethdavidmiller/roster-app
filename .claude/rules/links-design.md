@@ -61,7 +61,7 @@ state lives, and the rules that have historically produced bugs have been pulled
 - To grant access: add name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` — every page derives `isLinksDesigner` from that list. Current designers: `'G. Miller'`, `'S. Silva'`, `'M. Robson'`.
 - **Two more steps, or the new designer can open the page and not save a thing.** The client list only decides what the nav and the page gate show; the `linksDesigner` CLAIM comes from the server-owned `functions/roster-members.json`. So (1) run `npm run generate:roster-members` in the same commit — `sw-asset-check.test.mjs` fails the build if it drifts — and (2) after deploy, run **Operations → Set up accounts**, which is what actually mints the claim. Until then every save permission-denies (`writeWithClaimRetry` refreshes the token, but a refresh can't invent a claim the server never set).
 - **Server-side (the real control):** `linkDesigns` writes require the `linksDesigner` or `admin` claim (H2, v16.29). **Reads require a `name` claim** (v19.39) — a session that has actually signed in as a member. The previous `request.auth != null` was intended as "any signed-in member", but the calendar signs every visitor in anonymously, so it admitted anyone who could open the app URL. Reads are deliberately NOT gated on `linksDesigner`: a designer whose token predates that claim has to be able to LOAD the page for the write self-heal (`writeWithClaimRetry`) to get its chance to run.
-- **Delete is a soft delete (v19.41).** `✕` writes `deletedAt`/`deletedBy` (a MERGE write — a replace would push the deleting device's copy of `patterns` over the server's) and the design moves to **🗑 Recently deleted**, where it stays until somebody removes it by hand. `SOFT_DELETE_RETENTION_DAYS` (30) is the **displayed** age policy only — automatic purging was SUSPENDED at v19.86, because no client-side age check survives a device clock running 30 days fast. (This bullet still said "then purged on load" until v19.94, contradicting the first-visit notice two sections below, which had been corrected.) Restore clears both fields with `deleteField()`. All the decisions are pure and tested in `links-deletion.js`; the coordinator owns only the Firestore calls and the panel. Notes that matter when changing this:
+- **Delete is a soft delete (v19.41).** `✕` writes `deletedAt`/`deletedBy` (a MERGE write — a replace would push the deleting device's copy of `patterns` over the server's) and the design moves to **🗑 Recently deleted**, where it stays until somebody removes it by hand. `SOFT_DELETE_RETENTION_DAYS` (30) is now **DORMANT — it drives nothing, and nothing says it to a user**. Automatic purging was suspended at v19.86 (no client-side age check survives a device clock running 30 days fast), and at **v19.96** the last visible copy quoting it went too: the row label counted down to "removed for good in N days" **in the same dialog** as the panel intro reading "Nothing is deleted automatically" — one screen, two mutually exclusive explanations (external review P2). The real behaviour is SAFER than the promise was, which makes it a trust problem rather than a data-loss one; a designer who believed the countdown might reasonably have hurried, or written the work off. (This bullet said "then purged on load" until v19.94, contradicting the first-visit notice two sections below.) Restore clears both fields with `deleteField()`. All the decisions are pure and tested in `links-deletion.js`; the coordinator owns only the Firestore calls and the panel. Notes that matter when changing this:
   - **`isDeleted` and `isPurgeable` are not mirrors.** An unresolved `deletedAt` — what `serverTimestamp()` reads back as on the writing device — is DELETED but never PURGEABLE. Both directions are load-bearing and both have tests.
   - **A save against a design someone else deleted does not resurrect it.** `saveChanges` detects the deletion in the transaction and offers "Save mine as new" instead — an overwrite there would be one designer undoing another's delete without ever seeing it.
   - **A hard delete re-reads the server inside a TRANSACTION** (v19.84, external review P1).
@@ -74,7 +74,7 @@ state lives, and the rules that have historically produced bugs have been pulled
     offering a retry. `firestore.rules` now also requires `deletedAt` to be present for a hard
     delete, so a future client with the same bug can only fail — the rules test that asserted a
     designer *could* hard-delete a live design was asserting the hole.
-  - The 30 days is a client policy enforced by a load-time purge, not a server rule. See KNOWN_LIMITATIONS.md → Links for the full list of what that does and does not promise.
+  - **Do not reconnect the 30 days to visible copy until the age comes from the SERVER** (a scheduled Cloud Function). A countdown is a promise, and this one went on being displayed for ten versions after the thing that would have honoured it was switched off. See KNOWN_LIMITATIONS.md → Links.
 
 ## The beta marker — REMOVED v19.50
 
@@ -96,7 +96,7 @@ with two more, chosen for what a first-time visitor could otherwise get **wrong*
 2. The Design checks report which ORR fatigue factors a pattern **features** — they do not pass or
    fail a design and nothing here approves one. (The panel says this too; a designer who reads only
    the first screen should still not be able to mistake a clean panel for an approval.)
-3. Designs are shared, and a deleted one stays in the bin until someone removes it (v19.86 — it used to promise 30 days).
+3. Designs are shared, and a deleted one stays in the bin until someone removes it (v19.86 — it used to promise 30 days; the row labels stopped promising it at v19.96).
 
 **It took a NEW storage key.** Reusing `myb_links_beta_seen` would have meant every current designer
 — all three of whom closed the beta notice months ago — never saw the replacement, which is the whole
@@ -289,28 +289,65 @@ Renders plain-English traffic-light rows (completeness first); updates live on e
 ORR factors, in red on a breach, and **whether it passes or fails** — the printed sheet goes to the
 assessing manager, so "checked and met" has to be on it.
 
-**The 13-consecutive-day limit comes from the Hidden report** into the Clapham Junction crash of
-12 December 1988 (owner, Aug 2026) — the working-hours limits the industry adopted from that
-inquiry's recommendations. It is **not legislation** and not a house rule, and the module has now
-carried three attributions, each corrected in turn: "the UK railway legal maximum" (v19.80,
-unsubstantiable), "Chiltern company limit" (v19.85, true but understating the source), and the
-Hidden report (v19.90). Tests pin the claim in both directions — the basis must name Hidden, and no
-row in any state may present itself as law.
+**The 13-consecutive-day limit is CHILTERN's, carried in company policy** (owner, Aug 2026). Its
+ORIGIN is the working-hours standard the industry adopted after the **Hidden report** into the
+Clapham Junction crash of 12 December 1988.
 
-**At Chiltern they are carried in company policy** (owner, Aug 2026). That settles the question the
-three attributions were circling: the limits are neither statute nor a local invention. Hidden is an
-inquiry report; the industry adopted its working-hours recommendations as standards; companies apply
-those standards through their own safety management systems, and Chiltern's policy is where they
-bind here. All three statements are true at once, and the row's `basis` cites the source rather than
-the policy because a source can be checked by a reader who does not have the policy in front of
-them.
+**And that industry standard was WITHDRAWN in 2007** (v19.96, external review P1). The ORR's current
+fatigue guidance says the post-Clapham limits were based heavily on what was operationally
+achievable at the time rather than on fatigue science, that the group standard carrying them was
+withdrawn, and that it now expects duty holders to run a risk-based fatigue management system and
+set their own company standards. RAIB's London Bridge report says the same — historic, superseded,
+retained only where an individual operator chooses to keep them alongside legal requirements and
+local agreements.
 
-**THE OTHER HIDDEN LIMITS ARE NOT IMPLEMENTED YET, AND THE APP ALREADY COMPUTES THEM.** This is the
-most useful thing to know about this section. Hidden is a family — a maximum turn of duty, a minimum
-rest between turns, a weekly ceiling, and the 13 consecutive days — and only the last is rendered as
-a hard limit. The others are measured today but shown as *advisory ORR factors*:
+Chiltern is such an operator, which is what makes the row defensible: **a company limit with a named
+historic origin**. What it is NOT is "the current industry limit" — the claim the panel made from
+v19.90 to v19.95 under the heading "Industry limits · Hidden report — must be met". That is the one
+failure mode a citation is meant to prevent. A manager who takes the invitation and goes to check it
+finds a nineteen-year-old withdrawn standard, and is then entitled to discount every other number on
+the sheet.
 
-| Hidden limit | Already computed by | Currently rendered as |
+Four attributions now, each corrected in turn:
+
+| | Said | Wrong because |
+|---|---|---|
+| v19.80 | "the UK railway legal maximum" | unsubstantiable; printed "cannot be run" in red |
+| v19.85 | "Chiltern company limit" | true and safe, but understated the provenance |
+| v19.90 | "Hidden report", industry limit | right source, **wrong tense** — presented as current |
+| v19.96 | Chiltern policy, Hidden origin | whose limit it is, and where the number came from |
+
+**The tense is now pinned by tests, in three places**, because the v19.90 wording passed every
+assertion that existed: it named a real, dated, checkable document. `links-limits.test.mjs` requires
+a row naming Hidden to also mark it historic, and forbids any row claiming the limit is
+industry-wide today. And `links-analysis.test.mjs` pins the **rendered section heading** — which
+made the strongest claim on the page, is written as a separate hardcoded string in a different file
+from the `basis` it is supposed to agree with, and had no test at all.
+
+**"13 consecutive days" vs the historic "13 shifts in 14 days."** The historic formulation is the
+rolling one; this module measures the longest consecutive run. For a one-duty-per-day roster the two
+are equivalent in both directions (a maximum run of 13 forces a rest day into every 14-day window;
+14 consecutive worked days is 14 shifts in 14 days), and Marylebone CEAs work at most one duty a
+day. It is written down because it is an ASSUMPTION, not an identity, and it would fail silently.
+
+**Anything else rendered as "must be met" needs evidence too, and that is now enforced generically**
+(v19.97, external review recommendation 5). `links-analysis.test.mjs` requires every section heading
+claiming a limit must be met to name whose requirement it is, and every row under it to carry a
+source. It is applied to what the panel RENDERS, not to the one section that exists — the three
+limits in the table below are already computed and waiting to be promoted, and each could otherwise
+land as a bare number in red on a manager's sheet.
+
+⚠️ **The exact policy citation is still OUTSTANDING** — title, clause, which staff group it covers,
+and its effective/review date. `basis` names the policy so a manager knows what to ask for, which is
+the minimum bar; a row that says "must be met" ought to be able to say where. See
+KNOWN_LIMITATIONS.md → Links.
+
+**THE OTHER LIMITS IN THAT FAMILY ARE NOT IMPLEMENTED YET, AND THE APP ALREADY COMPUTES THEM.**
+This is the most useful thing to know about this section. The post-Clapham set was a family — a
+maximum turn of duty, a minimum rest between turns, a weekly ceiling, and the 13 consecutive days —
+and only the last is rendered as a hard limit. The others are measured today but shown as *advisory ORR factors*:
+
+| Limit in the Hidden family | Already computed by | Currently rendered as |
 |---|---|---|
 | Max consecutive days (13) | `assessHardLimits` | **hard limit** ✅ |
 | Min rest between turns | `runDesignChecks().turnarounds` (`MIN_REST_MINUTES`, 12h) | FF13, advisory amber |
@@ -328,6 +365,14 @@ the MRSF's threshold, which is a different source from Hidden's.
 been corrected but `LegalCheck` / `assessLegalLimits` / "legal check" comments survived, and a module
 called "legal" invites the next maintainer to put the stronger claim back into the UI. The names are
 now `links-limits.js` / `assessHardLimits` / `HardLimitCheck`.
+
+**And the rest of that terminology went at v19.96** — the rename had left "legal ceiling" / "legal
+check" / "a LEGAL ceiling on the UK railway" in test prose, CSS comments, e2e variable names and
+four documents including this one. That matters more than tidiness for exactly the reason the rename
+happened: someone grepping the codebase would have found a dozen assertions that the rule is legal,
+and reasonably restored the stronger UI wording. The words that remain here are quoted history, and
+are labelled as such. The word "legal" survives elsewhere in the repo in unrelated senses (legal
+characters in a key, an override that is legal on a Sunday) — those are correct and stay.
 
 **Every hard limit must cite evidence, and that is enforced generically** — not just for the one
 limit that exists today. `links-limits.test.mjs` asserts, in every state, that each check's `basis`
@@ -393,8 +438,8 @@ it and fuses them into one phantom run, so the main cycle reported **15** consec
 against a true ceiling of **9**, and the bilingual **14** against **8**. Four duties cannot fill a
 week, so there is always a rest day inside it and a run can take at most four of its days.
 
-**13 consecutive days is the Hidden limit** (Clapham Junction, 1988 — an industry limit adopted
-from the inquiry's working-hours recommendations, not legislation) — so a check reporting 15 is not
+**13 consecutive days is Chiltern's roster limit** (derived from the post-Clapham Hidden standard,
+which was itself withdrawn in 2007 — see the hard-limits section above) — so a check reporting 15 is not
 cautious, it reports a breach that does not exist on the roster people are working today. Anyone
 who knows the real link discounts the row, and the next design that genuinely goes past 13 is
 hidden by that discount. Over-reporting is only "safe" while nothing is riding on the number.
@@ -418,7 +463,7 @@ it. Four things that are easy to get wrong, each with a test:
   exists to measure a run wrapping the cycle end, and next time round the wheel it genuinely is a
   fresh spare week; sharing the budget silently truncates exactly the run the lap is for.
 
-**Owner's design target is below the Hidden limit, not at it:** ideally a new base link would not
+**Owner's design target is below the 13-day limit, not at it:** ideally a new base link would not
 carry even **7** consecutive worked days. The live main roster's non-spare blocks reach exactly 7;
 the generator's reach 6.
 

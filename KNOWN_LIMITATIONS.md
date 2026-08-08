@@ -6,6 +6,44 @@ These are documented decisions, not oversights. Read before filing a bug or sugg
 
 ---
 
+## A failed deploy is now announced — but the gate can still flake (Aug 2026)
+
+**What happened.** The hosting deploy for v19.94 failed its own `npm run check` gate on **one unit
+test out of 1254**, so the workflow exited before deploying. Staff stayed on v19.91 for about two
+hours and nothing said so. It was noticed only because the owner compared the Firebase version
+against the GitHub Pages mirror — which has no test gate at all and had gone straight to v19.94.
+
+**It was a flake, and that is provable rather than assumed.** `e2e.yml`'s `unit` job and
+`deploy-hosting.yml`'s test step run the *identical* `npm run check`. On the same commit the PR's
+job passed and the deploy's failed. A re-run of the same code then went green. Locally it would not
+reproduce in six runs of the unit suite, nor in three more of the six most timing-dependent suites
+under eight CPU spinners.
+
+**The failing test was not identified.** The job log is far too large to retrieve through the API
+and its tail contains only passing lines. If this recurs, pull the log promptly — that is the one
+chance to name it.
+
+**Frequency:** 1 in the last 30 hosting deploys (746 all-time).
+
+### What was fixed, and what was not
+
+Fixed: the SILENCE. All three deploy workflows now open (or comment on) a `deploy-failure` GitHub
+issue via `.github/actions/report-deploy-failure`. Read that action's header for why an issue rather
+than email or push.
+
+NOT fixed: the flake itself, and deliberately. An automatic retry would have hidden this one, but it
+also hands a genuinely intermittent product bug a second chance to reach staff. The gate stays
+single-shot; the notification tells you to re-run when the failure is spurious.
+
+**Two properties of the notification worth preserving.** It never fails the job — every command is
+`|| echo "::warning::…"`, because it only runs when something has already gone wrong and must not
+bury the real error under a second one. And repeated failures COMMENT on the open issue rather than
+opening a second: a run of consecutive failures is one situation, and N issues is how a notification
+channel teaches its reader to ignore it.
+
+**A deploy failure does not fix itself.** `paths-ignore: '**/*.md'` means a documentation-only commit
+will not retry it, so production can stay stale indefinitely until an unrelated change lands.
+
 ## Security
 
 > **Forward plan:** the deferred security work in this section (per-member write isolation,
@@ -464,7 +502,7 @@ action**.
 **When to revisit:** if the app is advertised more widely or becomes official Chiltern
 infrastructure. Of the deferred security work, per-member write isolation (task #2 above) had
 the higher real value and has now **SHIPPED strict at v16.29** (B3). Its old blocker — the
-Firestore emulator test suite (ROADMAP Phase 7) — was put **in place** (`firestore.rules.test.mjs`
+Firestore emulator test suite (ROADMAP_HISTORY.md → Maintainability roadmap, Phase 7) — was put **in place** (`firestore.rules.test.mjs`
 + `storage.rules.test.mjs`, run via `npm run test:rules`, gating `deploy-rules.yml`), letting the
 rules change be tested before shipping. The old operational-fragility barrier (the multi-step claim
 recovery that caused the v10.94 outage) was resolved by shipping after the CLAIM_EPOCH=2 sweep +
@@ -816,9 +854,11 @@ never contingent on the beta label, and dropping it does not make any of them go
   returns.
 
 - **The hard-limit check is a WORST CASE on a design, and it enforces nothing** (v19.80;
-  re-sourced v19.90). 13 consecutive worked days comes from the **Hidden report** into the Clapham
-  Junction crash of 1988 — an industry limit adopted from its working-hours recommendations, not
-  legislation and not a house rule — so, unlike the ORR factors beside it, this one does pass or
+  re-sourced v19.90, re-tensed v19.96). 13 consecutive worked days is **Chiltern's roster limit**,
+  carried in company policy; its origin is the working-hours standard the industry adopted after the
+  **Hidden report** into the Clapham Junction crash of 1988, and that standard was itself withdrawn
+  in 2007 — so the row cites Hidden as an origin, never as a current industry requirement. It is not
+  legislation. Unlike the ORR factors beside it, this one does pass or
   fail, renders red on a breach, and shows whether it passes or fails rather than collapsing behind
   the quiet-rows disclosure. Three things it does not do:
   - **It measures the LINK, not a person's actual roster.** A design is a pattern; what somebody
@@ -837,7 +877,7 @@ never contingent on the beta label, and dropping it does not make any of them go
   counted a spare week as SEVEN worked days, which fused the blocks either side of it: the main
   cycle reported 15 consecutive days and the bilingual 14, against true ceilings of 9 and 8. The
   comment justifying it said over-reporting was "the safe direction for a fatigue check". It is not,
-  once a number has a legal line under it — a tool that cries breach on the roster people are
+  once a number has a hard limit under it — a tool that cries breach on the roster people are
   actually working teaches its readers to discount the row, and the next design that genuinely does
   breach is hidden by that discount.
 
@@ -899,6 +939,22 @@ never contingent on the beta label, and dropping it does not make any of them go
   The concurrency RULES themselves are the pure `links-concurrency.js` (v19.38), tested with
   a case per historical bug — three separate silent-overwrite bugs came out of that logic
   while it was inline in the coordinator.
+- **The 13-day hard limit has no document citation yet** (v19.96, external review P1). The Links
+  Design-checks panel prints, in red on a sheet that goes to an assessing manager, that a design
+  breaching 13 consecutive worked days "cannot be run as drawn". That is Chiltern's roster limit
+  (owner, Aug 2026), historically derived from the working-hours standard the industry adopted after
+  the Hidden report into Clapham Junction — **and that standard was withdrawn in 2007**, so the row
+  must cite Hidden as an origin and never as a current industry requirement. It did the latter from
+  v19.90 to v19.95, under the heading "Industry limits · Hidden report — must be met"; the tense is
+  now pinned by tests in three places, including the rendered heading, which had none.
+  **What is still missing is the policy itself:** title, clause, which staff group it covers, and its
+  effective/review date. `basis` names the policy so a manager knows what to ask for, which is the
+  minimum bar and not the right one — a row asserting something "must be met" ought to be able to say
+  where it is written. Ask the owner for the reference and put it in `basis`; the evidence contract in
+  `links-limits.test.mjs` will then be checking a real citation rather than a plausible one.
+  Related: the other limits in that family (max turn length, minimum rest between turns, the weekly
+  ceiling) are ALREADY COMPUTED and rendered as advisory ORR rows — promoting them is a rendering
+  change plus the confirmed figures. Do not do it from recall; see `.claude/rules/links-design.md`.
 - **Delete is a SOFT delete (v19.41).** A deleted design carries `deletedAt`/`deletedBy`, drops
   out of the picker, and is restorable from "🗑 Recently deleted" **until somebody removes it by
   hand** — automatic expiry was suspended at v19.86 (external review P2). `isPurgeable` fails closed
@@ -910,6 +966,16 @@ never contingent on the beta label, and dropping it does not make any of them go
   is nothing against losing somebody's work to a wrong clock. Expiry returns when it can be
   computed from SERVER time (a scheduled Cloud Function) — `_purgeExpiredDeletions` is kept,
   unwired, because its transactional re-check is the part worth keeping.
+
+  **And the UI went on promising the expiry for ten more versions** (fixed v19.96, external review
+  P2). Suspending the purge left `deletedLabel` still appending "· removed for good in N days" to
+  every row, and the delete confirm and the tips still saying 30 days — while the bin's own intro
+  line, two inches above the rows, correctly read "Nothing is deleted automatically". One dialog,
+  two mutually exclusive explanations. The behaviour was SAFER than the promise, so nothing was
+  lost; what was damaged is the reason to believe the next thing the panel says, and a designer
+  who took the countdown seriously might have hurried or written the work off. `daysLeft` and
+  `SOFT_DELETE_RETENTION_DAYS` are now explicitly DORMANT and must not drive visible copy again
+  until the age comes from the server.
 
 ### Test coverage gaps
 The suite is now broad (76 root test files, ~1926 tests — see CLAUDE.md's file tree for the
@@ -937,7 +1003,7 @@ added first.
 dev environment (`/opt/pw-browsers`), giving back the local iteration loop whose
 absence forced the v12.75 removal. The suite (`e2e/`, `npm run test:e2e`) runs in CI
 and gates the hosting deploy; `@playwright/test` is pinned to `1.56.1` to match the
-pre-installed browser revision. Full restoration notes: ROADMAP.md → "E2E smoke tests".
+pre-installed browser revision. Full restoration notes: ROADMAP_HISTORY.md → "Completed phases and everything shipped since" (E2E smoke tests).
 The original removal rationale is preserved below.
 
 Playwright smoke tests were added to verify that each app page loads, the JS module graph
@@ -968,7 +1034,8 @@ options before committing to Playwright again.** The key questions are:
 - The Firebase CDN stub approach was sound — whatever tool is chosen should reuse that
   pattern or find an equivalent way to eliminate the CDN single point of failure.
 
-See ROADMAP.md → "E2E smoke tests" for the full history and the original test design.
+See ROADMAP_HISTORY.md → "Completed phases and everything shipped since" (E2E smoke tests)
+for the full history and the original test design.
 
 ### Legacy override types still in Firestore
 Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but
@@ -1062,23 +1129,23 @@ appear in DevTools and the Operations Error Log.
 
 ## Time-boxed maintenance (deadlines, not bugs)
 
-Scheduled maintenance with real-world deadlines (rescued from the retired `REVIEW_TODO.md`, v15.06).
-Not defects — things that must be done *before* a future date.
+> **MOVED to `MAINTENANCE_CALENDAR.md` (v19.97).** Every dated obligation now lives there, with a
+> **warning point earlier than its deadline** — "must be done by 6 April" reliably becomes "started
+> on 4 April", and this section had no warning dates at all. It also sat at line ~1,130 of a
+> 1,190-line file about *defects*, which is not where anyone looks for a tax-year rollover.
+>
+> Not duplicated here. This section is a signpost so a reader arriving from a code comment or an
+> old link still finds the work.
 
-- **Paycalc period selector ends ~P62 (≈ March 2027).** Before April 2027, extend `TAX_YEARS` +
-  `FIRST_OFFSET`/`LAST_OFFSET` + the tax thresholds in `paycalc-calc.js` (documented rollover task)
-  so the period selector keeps advancing into 2027/28.
-- **Override collection scale.** Define an archival strategy before the `overrides` collection
-  reaches ~5000 documents (query cost + client cache size). A watch item — no action needed yet.
-- **`MAX_YEAR` 2030 → 2032** before the end of 2028 (update the lunar / bank-holiday data first).
-- **2026/27 pay rates** — see "2026/27 pay rates not confirmed" above (update `GRADES` when the award lands).
-- **A new starter's work email is now only ever entered by hand (v19.30).** The login overlay that
-  used to prompt for it was retired once every existing member was registered, so nothing asks any
-  more. It is a step in the `/new-starter` checklist (Operations → Account status → Set), and the
-  member can add it themselves in Settings → Work Email — but if both are missed the account simply
-  has no email on file and nothing says so. The Account status table's Email column is the only place
-  it shows. Worth a glance after each new starter; if joiners ever become frequent enough that this
-  is missed repeatedly, the fix is a count chip on that card, not a return of the modal.
+What is over there: the **2027/28 paycalc rollover** (hard deadline 6 Apr 2027, warning Feb 2027 —
+the period selector runs out at ≈ P62 and does not warn, it simply stops offering periods),
+**`MAX_YEAR` 2030 → 2032** (end 2028, lunar/bank-holiday data first), the **override-count archive
+trigger** (design at ~4,000, must land before ~5,000), the recurring guide and pay-threshold source
+reviews, and the **after-every-new-starter** checks — including the work email, which since v19.30
+nothing prompts for.
+
+The one item that stays here because it is a *constraint*, not a date: **2026/27 pay rates** — see
+"2026/27 pay rates not confirmed" above (update `GRADES` when the award lands; evidence class B).
 
 ---
 

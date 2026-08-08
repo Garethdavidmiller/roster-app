@@ -1217,17 +1217,21 @@ describe('analytics', () => {
         await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), VALID_PV()));
     });
 
-    test('auth can write the five document/guide OPEN counters (v18.20)', async () => {
-        // Huddle/Circular/Newsletter opens + the two reference-guide opens share the pv_ counts map.
+    test('auth can write the seven document/guide OPEN counters (v18.20; all four guides v19.95)', async () => {
+        // Huddle/Circular/Newsletter opens + all four guide opens share the pv_ counts map.
         await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-07'), {
             month: '2026-07',
-            counts: { huddle: 1, circular: 2, newsletter: 3, 'guide-railcard': 4, 'guide-fip': 5 },
+            counts: { huddle: 1, circular: 2, newsletter: 3,
+                      'guide-staff': 4, 'guide-paycalc': 5, 'guide-railcard': 6, 'guide-fip': 7 },
         }));
     });
 
     test('an UNKNOWN counts key is still rejected (open-id allowlist has teeth)', async () => {
+        // This used 'guide-staff' until v19.95, when that became a real id — a teeth test whose
+        // example is promoted to legal quietly stops having teeth, and would have gone green here
+        // for the wrong reason. The key below is deliberately not on any roadmap.
         await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-08'), {
-            month: '2026-08', counts: { 'guide-staff': 1 },
+            month: '2026-08', counts: { 'guide-nonexistent': 1 },
         }));
     });
 

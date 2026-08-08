@@ -9,36 +9,64 @@
  * about it is built on that: amber and never red, `standing` counted apart from `present`, "this
  * panel is an aid to a conversation, not a fatigue risk assessment".
  *
- * A HARD limit is the opposite kind of statement. **13 consecutive worked days comes from the
- * Hidden report** (owner, Aug 2026) — Anthony Hidden QC's inquiry into the Clapham Junction crash
- * of 12 December 1988, in which 35 people died. Excessive working hours were among its findings:
- * the technician whose wiring error caused the crash had worked thirteen consecutive weeks without
- * a rest day. The working-hours limits the railway industry adopted from its recommendations are
- * known as the Hidden limits, and a design that exceeds one is not "featuring a factor worth
- * justifying" — it is one that cannot be run. Rendering that in the same amber, inside the same
- * "not pass/fail" framing, would understate it exactly as much as recolouring the ORR rows red
- * would overstate them.
+ * A HARD limit is the opposite kind of statement: a design that exceeds one is not "featuring a
+ * factor worth justifying" — it is one that cannot be run. Rendering that in the same amber, inside
+ * the same "not pass/fail" framing, would understate it exactly as much as recolouring the ORR rows
+ * red would overstate them.
  *
- * ⚠️ **IT IS NOT LEGISLATION, AND THE WORDING MUST NOT DRIFT THERE** (v19.85, re-sourced v19.90).
- * This module has now had three attributions and the history is the reason the current one is
- * pinned by tests. It first called 13 "the UK railway legal maximum" and printed "cannot be run"
- * in red on a sheet going to an assessing manager, sourced to nothing but "owner, Aug 2026"; an
- * external review could not substantiate that, so v19.85 reclassified it as a Chiltern company
- * limit. That was true and safe, but it understated the provenance — it left the number looking
- * local and arbitrary, and invited the reply "says who?". Hidden is an INQUIRY REPORT whose
- * recommendations the industry adopted as standards and which companies apply through their own
- * safety management systems: stronger than a house rule, still not statute.
+ * ── WHOSE LIMIT IT IS (v19.96 — the fourth and, one hopes, final attribution) ───────────────────
  *
- * Naming the real source is what makes the row survivable. "Hidden report" is a citation an
- * assessing manager can check, and it explains why the number is thirteen rather than any other
- * number. `basis` is asserted by a test in BOTH directions — it must name Hidden, and no row in
- * any state may present itself as law — because the number alone was already pinned before v19.85,
- * and pinning a number does not pin the claim around it.
+ * **It is CHILTERN's roster limit** (owner, Aug 2026: at Chiltern these limits are carried in
+ * company policy). Its ORIGIN is the working-hours standard the industry adopted after the **Hidden
+ * report** — Anthony Hidden QC's inquiry into the Clapham Junction crash of 12 December 1988, in
+ * which 35 people died; excessive working hours were among its findings, the technician whose
+ * wiring error caused the crash having worked thirteen consecutive weeks without a rest day.
  *
- * Note the ORR's framing is different again, and the two must not be conflated: it treats more
- * than 13 shifts WITHOUT A 48h BREAK as fatigue factor FF11 — a different measurement, which
- * `links-fatigue.js` does separately and correctly — and says its guidelines are not prescriptive
- * limits. Same number, different question, different kind of answer.
+ * **But that industry standard was WITHDRAWN in 2007, and this row must not imply otherwise.** The
+ * ORR's current fatigue guidance says the post-Clapham limits were based heavily on what was
+ * operationally achievable at the time rather than on fatigue science, that the group standard
+ * carrying them was withdrawn, and that it now expects duty holders to run a risk-based fatigue
+ * management system and set their own suitable company standards. RAIB's London Bridge report
+ * describes the "Hidden limits" the same way — historic, superseded by a risk-based approach, and
+ * retained by an individual operator only where that operator chooses to keep them alongside legal
+ * requirements and local agreements.
+ *
+ * Which is precisely the situation here: Chiltern is such an operator. So the row is defensible as
+ * **a company limit with a named historic origin**, and indefensible as *"the current industry
+ * limit"* — the claim it made from v19.90 to v19.95, when the section was headed "Industry limits ·
+ * Hidden report — must be met". An external review could not substantiate that, and it was right
+ * not to: an assessing manager who checked the citation would have found a standard withdrawn
+ * nineteen years ago and reasonably discounted everything else on the sheet.
+ *
+ * ⚠️ **IT IS NOT LEGISLATION, AND THE WORDING MUST NOT DRIFT THERE.** Four attributions now, each
+ * corrected in turn, which is why the claim is pinned by tests as hard as the number is:
+ *
+ *   v19.80  "the UK railway legal maximum"     — unsubstantiable; printed "cannot be run" in red
+ *   v19.85  "Chiltern company limit"           — true and safe, but understated the provenance
+ *   v19.90  "Hidden report", industry limit    — right source, wrong tense: presented as current
+ *   v19.96  Chiltern policy, Hidden origin     — whose limit it is, and where the number came from
+ *
+ * Note the ORR's own use of the same number is different again, and the two must not be conflated:
+ * it treats more than 13 shifts WITHOUT A 48h BREAK as advisory fatigue factor FF11 — a different
+ * measurement, which `links-fatigue.js` does separately and correctly. Same number, different
+ * question, different kind of answer.
+ *
+ * ── "13 CONSECUTIVE DAYS" vs THE HISTORIC "13 SHIFTS IN 14 DAYS" ───────────────────────────────
+ *
+ * The historic formulation is *no more than 13 shifts in any 14 consecutive days*. This module
+ * measures the longest run of consecutive worked days. **For a one-duty-per-day roster the two are
+ * equivalent**, in both directions: a maximum run of 13 forces at least one rest day into every
+ * 14-day window (so at most 13 shifts in it), and conversely 14 consecutive worked days is 14
+ * shifts in 14 days. Marylebone CEAs work at most one duty a day, so the substitution holds here.
+ *
+ * It is written down because it is an ASSUMPTION, not an identity — it would stop holding the day
+ * anyone works two duties in a day, and the failure would be silent: the run check would still pass
+ * a design that the rolling formulation refuses.
+ *
+ * ⚠️ **THE EXACT POLICY CITATION IS STILL OUTSTANDING** — title, clause, which staff group it
+ * covers, and its effective/review date. `basis` names the policy so a manager can ask for it,
+ * which is the minimum bar; a row that says "must be met" ought to be able to say *where*. See
+ * KNOWN_LIMITATIONS.md → Links.
  *
  * So the separation is STRUCTURAL, not a label. A hard-limit check lives in a different module, is
  * returned by a different function, is counted in a different total and is rendered in its own
@@ -69,8 +97,9 @@ import { ROTATING_LINES, worstCaseWorkedRun } from './links-design.js';
 import { toSequence } from './links-fatigue.js';
 
 /**
- * The maximum number of consecutive days a person may work, from the working-hours limits the
- * industry adopted after the Hidden report into the Clapham Junction crash (owner, Aug 2026).
+ * The maximum number of consecutive days a person may work: **Chiltern's roster limit**, carried in
+ * company policy (owner, Aug 2026), historically derived from the post-Clapham Hidden standard —
+ * see the attribution history in the module header before changing this or the wording round it.
  * Named rather than inlined because it is quoted on screen, in the printed sheet and in the tests,
  * and those three must never be able to disagree.
  */
@@ -112,7 +141,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
             id: 'consecutive-days',
             title: `More than ${MAX_CONSECUTIVE_WORKED_DAYS} consecutive days worked`,
             status: 'unknown', value: null, limit: MAX_CONSECUTIVE_WORKED_DAYS,
-            basis: 'Hidden report (Clapham Junction, 1988)',
+            basis: 'Chiltern roster policy — legacy Hidden 13-in-14 standard',
             detail: 'Nothing to assess yet — this design has no worked days in it.',
         });
         return { checks, breaches: 0, assessable: false };
@@ -126,10 +155,10 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
         status: breach ? 'breach' : 'ok',
         value: run,
         limit: MAX_CONSECUTIVE_WORKED_DAYS,
-        basis: 'Hidden report (Clapham Junction, 1988)',
+        basis: 'Chiltern roster policy — legacy Hidden 13-in-14 standard',
         detail: (breach
-            ? `This design reaches ${run} consecutive worked days against the Hidden limit of ${MAX_CONSECUTIVE_WORKED_DAYS}. It cannot be run as drawn.`
-            : `Longest possible run is ${run} days, within the Hidden limit of ${MAX_CONSECUTIVE_WORKED_DAYS}.`)
+            ? `This design reaches ${run} consecutive worked days against Chiltern's limit of ${MAX_CONSECUTIVE_WORKED_DAYS} (the historic Hidden standard). It cannot be run as drawn.`
+            : `Longest possible run is ${run} days, within Chiltern's limit of ${MAX_CONSECUTIVE_WORKED_DAYS} (the historic Hidden standard).`)
             // Stated whenever a spare week could move the answer — the figure is what the link
             // PERMITS, not what a given week produces, and a reader who takes it for the latter
             // will read a pass as a guarantee about something it never measured.

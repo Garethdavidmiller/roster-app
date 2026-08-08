@@ -92,3 +92,63 @@ describe('every workflow job is bounded', () => {
         });
     }
 });
+
+// ── COMPOSITE ACTIONS MUST STAY INSIDE THE LINTER'S REACH (Aug 2026) ───────────────────────────
+// `.github/actions/**` was outside both workflow-lint's trigger and its glob when the first
+// composite action was written — so nothing parsed its YAML, and the first one written had a real
+// error in it (an unquoted `description:` containing `issues: write`, whose `: ` YAML reads as a
+// nested mapping). It was caught by hand, which is not a mechanism.
+//
+// This lives HERE for the same reason the toolchain checks above do: workflow-lint cannot guard its
+// OWN coverage. Drop `.github/actions/**` from its trigger or its glob and the linter still runs,
+// still passes, and silently stops looking at actions — which is precisely how the gap opened in
+// the first place. This suite runs on every branch regardless of which files moved.
+describe('workflow-lint reaches composite actions', () => {
+    const ACTIONS_DIR = '.github/actions';
+    /** @type {string[]} */
+    let actionDirs = [];
+    try { actionDirs = readdirSync(ACTIONS_DIR, { withFileTypes: true })
+        .filter(d => d.isDirectory()).map(d => d.name); } catch { /* none yet */ }
+
+    test('the trigger fires on a change to an action', () => {
+        if (!actionDirs.length) return;    // nothing to cover yet
+        // Split on the `jobs:` KEY at column 0 — a bare `.split('jobs:')` cuts at the header
+        // comment's "a missing `jobs:` key" instead, landing before the trigger block entirely
+        // (which is how the first version of this test failed against a correct workflow).
+        const triggers = lintSrc.split(/^jobs:/m)[0];
+        assert.match(triggers, /['"]\.github\/actions\/\*\*['"]/,
+            'workflow-lint does not TRIGGER on .github/actions/** — an action-only change gets no CI');
+    });
+
+    test('the validator actually globs action files', () => {
+        if (!actionDirs.length) return;
+        assert.match(lintSrc, /glob\.glob\(['"]\.github\/actions\/\*\/action\.ya?ml['"]\)/,
+            'workflow-lint does not GLOB .github/actions/*/action.yml — actions are never parsed');
+    });
+
+    test('it checks what an action actually has, not what a workflow has', () => {
+        if (!actionDirs.length) return;
+        // An action has `runs:`, not `on:`/`jobs:`. Running the workflow checks against it would
+        // fail every action for missing keys it is not supposed to have — which someone would then
+        // "fix" by removing the coverage.
+        assert.match(lintSrc, /runs/, 'no `runs:` check for actions');
+        assert.match(lintSrc, /shell/,
+            'no check that a composite `run:` step declares `shell:` — GitHub rejects that only at '
+            + 'call time, i.e. in the middle of whatever the action was meant to be doing');
+    });
+
+    test('every composite action on disk declares a shell for each run step', () => {
+        // The static half of the same rule, so it holds even if workflow-lint never fires.
+        for (const dir of actionDirs) {
+            let src;
+            try { src = readFileSync(join(ACTIONS_DIR, dir, 'action.yml'), 'utf8'); } catch { continue; }
+            const steps = src.split(/^\s*- /m).slice(1);
+            for (const st of steps) {
+                if (/\n\s*run:/.test(st) || /^\s*run:/.test(st)) {
+                    assert.match(st, /shell:/,
+                        `${dir}/action.yml has a step with \`run:\` and no \`shell:\``);
+                }
+            }
+        }
+    });
+});
