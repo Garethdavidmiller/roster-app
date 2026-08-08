@@ -713,6 +713,14 @@ Two properties that make this safe to treat as a constraint at all:
 - **The chaining harm was already prevented at 500** — zero adjacencies in all 32 runs, at every
   weight tried. What the higher weight buys is the last of the evenness, which is what was asked for.
 
+**It has no checkbox, so the objectives note has to say it** (v20.03). Every other term on that card
+is a trade the designer chooses and the status line prices; this one is applied on their behalf and
+moves rows for a reason nothing on screen explains. A card whose whole argument is "the result says
+what each cost" cannot carry an unnamed term. The sentence in `.gen-obj-note` — *"Cover weeks are
+always kept evenly spaced around the rotation — that one is not optional, because two cover weeks
+side by side run into one long stretch"* — is load-bearing copy, not filler; do not trim it as
+redundant with this file, which designers do not read.
+
 Two tests, and neither replaces the other: one asserts 3000 outweighs all six switches slipping a
 unit each (1060 in total, read back through `cost` rather than restated), which catches a
 re-weighting; the other drives a **real generated design** through the real optimiser and asserts the
