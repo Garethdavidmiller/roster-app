@@ -801,6 +801,23 @@ The Links workspace (`links.html`) no longer carries a beta marker (removed v19.
 the December 2026 proposals are built in). The constraints below are unchanged by that; they were
 never contingent on the beta label, and dropping it does not make any of them go away:
 
+- **The rotation is 22 lines, on evidence class C (v19.98).** The December 2026 link is 22 lines of
+  the CEA/main roster widened from 20, and excludes the bilingual roster entirely — not its lines,
+  not its shift times, not its work. The whole of that is **owner-relayed** (Aug 2026): *"22 is
+  final, we are told"*, with **no document behind it**. That is class C on ROADMAP.md's scale —
+  fine for building against, and not something to put in front of an assessing manager as a
+  requirement. It is recorded here rather than left implicit because the number now shapes every
+  figure the tool produces, and "why 22?" is a question a proposal will be asked.
+
+- **Designs saved against the OLD 28-line rotation are left exactly as they are.** They still load,
+  render their first 22 rows, are analysed over 22 — and, because the working copy deep-copies the
+  whole patterns object, **save all 28 back**. Nothing trims them, deliberately: doing it on load
+  would destroy six lines of somebody's work on a page visit (the v19.84 stale-hard-delete class),
+  and doing it on save would do it at the moment they least expect it. `#linksOverLengthNotice`
+  states the two lengths and that the surplus rows are neither shown nor counted but are still
+  stored. **Binning them is the owner's call**, and until it is made a designer can open one and
+  work on a proposal that describes a link nobody is building.
+
 - **The fatigue-factor panel is an AID, not a fatigue risk assessment (v19.46).** This is the
   limitation that matters most on this page, because the failure mode is not a wrong number — it is
   a design showing few findings and being read as approved. The panel reports which of the ORR's p3
@@ -811,7 +828,7 @@ never contingent on the beta label, and dropping it does not make any of them go
     the cycle's net direction?), FF19 (are start-time jumps counted across rest days?) and FF18
     ("a rotating pattern of about a week"). They render as "(definition to confirm)" and the numbers
     should not be quoted without settling them. **FF18's framing here was wrong until v19.60** and is
-    worth stating properly: this doc used to call it unavoidable because a 28-line link moves everyone
+    worth stating properly: this doc used to call it unavoidable because a rotating link moves everyone
     one line a week by construction. That reads the factor as being about the weekly *cadence*, when
     the concern is the **size of the step** — a rotation whose consecutive lines sit close together
     asks far less of the body clock than one where they do not. The cadence is fixed; the step is a
@@ -832,10 +849,14 @@ never contingent on the beta label, and dropping it does not make any of them go
     night-shift family, and that rests on CEAs working no nights. It flips to live the moment any
     duty reaches 00:00–05:00 — but the p3 list is a good-practice summary, not the whole of fatigue
     risk, and nothing here models workload, commute, or individual circumstance.
-  - **The baseline is measured per real cycle, not per 28 lines.** "Today's link" is computed over
-    `weeklyRoster` (20) and `bilingualRoster` (8) separately, because splicing two unrelated
-    rotations end to end reports a longest run of 19 that belongs to the join rather than to either
-    roster. A 28-line figure is only meaningful once the 28 lines genuinely are one rotation.
+  - **The baseline is measured on the MAIN cycle at its own length** (main-only since v19.98).
+    "Today's link" is computed over `weeklyRoster` (20 lines) — the rotation the 22-line design
+    replaces. The bilingual row was dropped rather than left as an unexplained gap: the panel's
+    summary now names the comparator ("the main 20-line cycle, which this 22-line design replaces"),
+    because a missing row reads as an oversight. The underlying rule survives and still binds any
+    future pairing: splicing two unrelated rotations end to end reports a longest run of 19 that
+    belongs to the join rather than to either roster, so a design's figures only mean anything once
+    its lines genuinely are one rotation.
 
 - **The generator's objectives genuinely conflict, and no default is right for everyone** (v19.60).
   Line ORDER is one scarce resource with several claims on it, and two of them are direct opposites:

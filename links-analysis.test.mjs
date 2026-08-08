@@ -3,6 +3,7 @@
 // The pure maths is covered by links-design.test.mjs; here we prove the RENDER + the getDesign seam.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ROTATING_LINES } from './links-design.js';
 
 // Minimal DOM: getElementById returns a per-id stub element with { innerHTML, style }.
 const els = /** @type {Record<string, any>} */ ({});
@@ -13,10 +14,17 @@ global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ i
 
 const { initLinksAnalysis } = await import('./links-analysis.js');
 
-/** A fully-designed 28-line rotation (every line worked Mon–Fri, rest Sat/Sun). */
+/**
+ * A fully-designed rotation (every line worked Mon–Fri, rest Sat/Sun).
+ *
+ * Sized from ROTATING_LINES, not a literal. The panel reads the same constant, so a fixture with
+ * its own number would drift the moment the rotation changed — and it would drift QUIETLY in the
+ * safe direction: a 28-line fixture against a 22-line panel still reports "all lines designed",
+ * because 22 of the 28 are filled. It read 28 against 22 for exactly one release (v19.98).
+ */
 function fullPatterns() {
     const p = /** @type {Record<string, any>} */ ({});
-    for (let i = 1; i <= 28; i++) {
+    for (let i = 1; i <= ROTATING_LINES; i++) {
         p[String(i)] = { sun: 'RD', mon: '06:00-14:00', tue: '06:00-14:00', wed: '06:00-14:00', thu: '06:00-14:00', fri: '06:00-14:00', sat: 'RD' };
     }
     return p;
@@ -49,7 +57,7 @@ test('designed state renders the coverage heat map + the checks panel', () => {
 
     a.renderDesignChecks();
     assert.match(els.checksContent.innerHTML, /check-rows/);
-    assert.match(els.checksContent.innerHTML, /All lines designed/); // all 28 filled
+    assert.match(els.checksContent.innerHTML, /All lines designed/); // every line filled
     assert.match(els.checksContent.innerHTML, /Shift balance/);
 });
 

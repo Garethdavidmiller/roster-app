@@ -152,7 +152,7 @@ A picker strip switches designs: **+ New** (blank), **⎘ Duplicate** (forks the
 With ≥2 designs, shows two read-only grids side-by-side (≥1024px) or stacked, with a gold-outline diff on differing cells. Each compare column keeps `overflow-x:auto` even on desktop. The main grid stays **rendered** in compare mode — hidden on screen only (`body.links-compare-on` + `@media screen`) so print always outputs the active design. A print-only `#printDesignName` label names the printed sheet.
 
 ### patterns data shape
-`patterns` is `{ "1"–"28": { sun, mon, tue, wed, thu, fri, sat } }` (each value a shift string, `"SPARE"`, or `"RD"`). **Position keys:** always `String(pos)` (`"1"`–`"28"`), never `Number`.
+`patterns` is `{ "1"–"<ROTATING_LINES>": { sun, mon, tue, wed, thu, fri, sat } }` (each value a shift string, `"SPARE"`, or `"RD"`). **Position keys:** always `String(pos)`, never `Number`.
 
 Staff names were removed at v12.39 — the design is patterns-only ("Line 1", "Line 2"…); who goes on which line is decided after patterns are agreed. Legacy `meta` in old docs is ignored on load and dropped on next save.
 
@@ -274,14 +274,14 @@ analysis already updated live; you could not see it happen.
 
 ### Design checks (v12.39, completeness added v12.41; fatigue factors added v19.46; quiet rows collapsed v19.57)
 
-The card has **two halves**. The first is `runDesignChecks(patterns, 28)`:
+The card has **two halves**. The first is `runDesignChecks(patterns, ROTATING_LINES)`:
 - **Unfilled lines** (any line that is entirely rest days is *not yet designed*, not a vacancy)
 - Weekends off (Sat of line w + Sun of line w+1, wrapping)
 - Short turnarounds (<12 h rest between consecutive timed shifts across the full circular rotation)
 - Longest consecutive-worked-days run
 - Early/late balance
 
-Renders plain-English traffic-light rows (completeness first); updates live on every cell edit / generate. All 28 lines rotate and are checked.
+Renders plain-English traffic-light rows (completeness first); updates live on every cell edit / generate. Every line rotates and is checked.
 
 ### Hard limits vs advisory factors — and why the module is no longer called "legal" (v19.91)
 
@@ -423,7 +423,7 @@ Two things about the rules themselves that are easy to get wrong, both caught by
 **FF11 is not the consecutive-worked-days check it resembles** (a single rest day is not a 48h break,
 and a rotation with no 48h break at all returns every worked day, not the sequence length); and
 **every rule laps the rotation** — `earlyBlocksWithShortRecovery` was the one that did not, so a
-block straddling line 28 → line 1 was cut in half and reported as nothing.
+block straddling the last line → line 1 was cut in half and reported as nothing.
 
 Hours totals are a **floor**: SPARE carries no times, so a standby day contributes zero.
 
@@ -487,8 +487,8 @@ exists to prevent.
 
 `links-app.js` also passes a `getBaseline` thunk so the panel can show what **today's** link scores.
 It is computed over `weeklyRoster` (20 lines) and `bilingualRoster` (8) **at their own lengths** —
-splicing them into one 28 reports a longest run of 19, which is a property of the join and not of
-either roster.
+splicing them into one rotation reports a longest run of 19, which is a property of the join and
+not of either roster.
 
 > **Section order (v19.94).** Everything about the auto-generator now sits together: what it is,
 > how it builds, how the lines get ordered, the control that was removed, then how the card looks.
@@ -503,11 +503,16 @@ either roster.
 
 The previous model took a per-day-class spare HEADCOUNT and fed it to the rotating window as one more segment. Because the window slides daily, that gave each person spare on some days and a timed duty on others. **The daily SP headcount came out right, which is why it went unnoticed** — the total was correct and the distribution was wrong. `spareLines` whole lines are now reserved and spread evenly around the wheel, and the rotation is built over the remainder; daily targets are still met exactly, and every day shows the same SP count, as the real roster does.
 
-Two consequences worth knowing. The targets are validated against the **working** lines (`lines − spareLines`), so a total that fits in 28 can still be refused. And a spare week counts as **four** worked days in the run checks, not seven — see *A spare week is four duties of seven* under Design checks.
+Two consequences worth knowing. The targets are validated against the **working** lines (`lines − spareLines`), so a total that fits the rotation can still be refused. And a spare week counts as **four** worked days in the run checks, not seven — see *A spare week is four duties of seven* under Design checks.
 
 > **This paragraph said SEVEN until v19.94, and it was the pre-v19.79 rule.** The correction > was made in the Design-checks section and never carried back here, so the file argued with > itself 280 lines apart — and this copy also repeated the reasoning v19.79 specifically > overturned ("over-reporting a run is the safe direction for a fatigue check"). It is not: > a 7/7 spare week fuses the blocks either side of it, which reported the live main roster at > 15 consecutive days against a true 9. A reader arriving at the generator first would have > taken away the rule the tool no longer follows.
 
-The table is **seeded from the current roster** on page load via `buildRosterTargets()` — **all 28 real lines: the main 20 weeks AND the whole 8-week bilingual roster** (v19.59). It used to take main 20 plus only the two bilingual weeks the two bilingual members happen to sit on, then apply that 22-line sample to a 28-line design; bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came back as **4** where the real combined roster has **6** (main 1/7/12/17 + bilingual 1/8). Two whole lines of standby cover, missing by default. The design is 28 because that is main + bilingual, so the seed has to be main + bilingual too; which weeks two people sit on today is a fact about staffing, not about the roster's shape.
+The table is **seeded from the current roster** on page load via `buildRosterTargets()`. **One rule governs what it samples: the seed must sample exactly what the design represents.** That rule has now been applied twice, in opposite directions, and both failures were silent.
+
+- **v19.59 — the sample was too NARROW.** It took main's 20 weeks plus only the two bilingual weeks the two bilingual members happen to sit on, then applied that 22-line sample to a 28-line design. Bilingual weeks 1 and 8 are the SPARE ones and were never sampled, so the seeded spare count came back as **4** where the combined roster had **6** (main 1/7/12/17 + bilingual 1/8) — two whole lines of standby cover missing by default. Fixed by taking both cycles in full: which weeks two people sit on today is a fact about staffing, not about the roster's shape.
+- **v19.98 — the sample became too WIDE.** The design is now 22 lines of the main roster widened and excludes the bilingual roster entirely, so seeding from it would target **ten shift times no line in the design can work** (all ten bilingual times are bilingual-only — zero overlap with main's 18). The seed reads the main cycle and nothing else: **18 slots, 4 spare lines** (main 1/7/12/17).
+
+**The 4 is a coincidence and the tests treat it as one.** It read 4 before v19.59 for the wrong reason — the under-sample happened to drop exactly the two bilingual spare weeks — and reads 4 now for the right one. `links-seed.test.mjs` therefore checks line IDENTITY and asserts no bilingual-only shift time is ever seeded, rather than resting on the figure.
 
 **It lives in `links-seed.js` and has unit tests** (v19.92). Until then this paragraph ended: *"Pinned by an e2e that drives `↺ Reset targets from current roster`, because the seed lives in the coordinator and a unit test would be checking its own copy of it."* That was true and entirely self-inflicted — the function was already pure, with no DOM, no Firestore and no coordinator state; it was simply not exported, so there was nothing else for a test to check. Exported, there is. The e2e stays (it proves the BUTTON reaches the seed, which a unit test cannot), but it is no longer the only cover.
 
@@ -533,7 +538,7 @@ will propose it again. If it ever returns, two things must come with it:
 **The finding the control was built to surface does not go away with it**, and is the part worth
 keeping — see `LINKS_DEC2026_PLAN.md`. 22 working lines x 7 days is 154 day-slots, so every extra
 duty comes out of a rest day: at +25% rest days fall to 1.14 per line, and above ~+37% the targets
-do not fit 28 lines at all. A service increase cannot be absorbed by making the existing lines
+do not fit the rotation at all. A service increase cannot be absorbed by making the existing lines
 denser — the link has to get bigger, which means more staff. That is an argument to take into the
 room, not a control to put on a page.
 
@@ -553,7 +558,7 @@ Measured against the real roster, the old construction was giving people a week 
 
 The tool reports FF19 and its own generator was the thing inflating it ~5×. Days worked per line now matches the real roster's distribution (3–6, clustered at 5).
 
-Waves rather than exact times, deliberately: per-TIME blocks are infeasible here — the seed produces 28 distinct times over 22 working lines and several are weekend-only — and waves are also what the real roster does (line 3 works 06:20-14:20 midweek and 06:20-14:00 on the Saturday).
+Waves rather than exact times, deliberately: per-TIME blocks are infeasible here — the seed produces more distinct times than there are working lines, and several are weekend-only — and waves are also what the real roster does (line 3 works 06:20-14:20 midweek and 06:20-14:00 on the Saturday).
 
 Three things that were wrong on the way and are each pinned by a test:
 
@@ -567,9 +572,9 @@ Its documented promise — *"a person's week only moves later, never a late fini
 
 Strides are no longer near-equal: each day's is capped at `working − (next day's total)`, exactly the condition for a wrapping line to be resting the following day, and the lap is distributed in proportion to those caps. When the caps cannot fund a lap the targets leave under one rest day per line per week — the generator **refuses** (`reason: 'no-rest'`, with its own message) rather than shipping the phantom guarantee. Settled weeks survive those same targets, because a line staying in one wave costs nothing in body-clock movement.
 
-Daily targets are met exactly by both; any day-class total > the working lines is rejected. Generator writes all 28 lines.
+Daily targets are met exactly by both; any day-class total > the working lines is rejected. The generator writes every line.
 
-**Do not add back** `buildDefaultDesign`, `initFromRosters`, or `resetFromRosters` — those paths were removed at v12.43 because they copied raw 22-line roster patterns leaving lines 23–28 as all-RD blanks. The generator produces a complete 28-line rotation.
+**Do not add back** `buildDefaultDesign`, `initFromRosters`, or `resetFromRosters` — those paths were removed at v12.43 because they copied raw roster patterns verbatim, leaving the lines past the roster's own length as all-RD blanks. The generator produces a complete rotation.
 
 ### Line ORDER — the five objectives (v19.58; `variety` added v19.60)
 
@@ -830,7 +835,7 @@ Two more from the same pass, both in-use surfaces:
   rather than as hierarchy. `#generatorCard .links-desc` now shares the form's cap. **Anything added
   to this card must join that column too**; an e2e measures all five left edges and names the
   offender, because a whole-card baseline just re-records whatever the alignment happens to be.
-- **The 28-row target table keeps its column headers — at ≥768px ONLY** (`position: sticky` on
+- **The target table keeps its column headers — at ≥768px ONLY** (`position: sticky` on
   `thead th`). They scrolled away after the first six rows, leaving three unlabelled number columns
   — and Mon–Fri, Sat and Sun are three different commitments (Sunday is not even contracted), so
   typing into the wrong one is a real error with nothing to catch it.
@@ -849,10 +854,46 @@ Two more from the same pass, both in-use surfaces:
   makes them scannable. **It changes no semantics and must not**: a fatigue factor that is present
   still wears amber and never the red edge.
 
-### Line numbering (full 28-line rotation, v12.42)
-All 28 lines rotate and **every one must carry a real worked pattern** — in the rotation everyone passes through every line, so a "vacancy" is a missing *person*, not a missing *pattern*. `ROTATING_LINES = 28`.
+### Line numbering — the full rotation (v12.42; length changed v19.98)
 
-**C. Reen is NOT a special case:** the link is designed as full 28 so it still works if she ever leaves; her adjusted fixed shifts are applied as overrides on the base roster. The old `FIXED_POS` / `fixed-link-separator` / `fixed-cell` model and the earlier `VACANT_FROM` placeholders model were both removed (v12.41 dropped vacant; v12.42 dropped fixed). All 28 rows are normal editable rotating rows.
+Every line rotates and **every one must carry a real worked pattern** — in the rotation everyone
+passes through every line, so a "vacancy" is a missing *person*, not a missing *pattern*.
+
+**`ROTATING_LINES` in `links-design.js` is the ONE declaration of the length, and it is now 22.**
+
+It was 28 = the main 20-week cycle + the bilingual 8, because the design modelled both as one
+rotation. The December 2026 plan changed (owner, Aug 2026): the new link is **22 lines and does not
+include the bilingual roster at all** — not its lines, not its shift times, not its work. It is the
+CEA/main roster **widened** from 20 to 22 to increase staffing. Evidence class **C** (owner-confirmed
+practice): "22 is final, we are told", with no document behind it.
+
+**Everything derives from the constant — do not write the number down again.** That is not a style
+preference; it is the whole content of the v19.98 change:
+
+- `links-compare.js` held its OWN `const TOTAL_POS = 28`, missed by the v19.38 sweep that was
+  supposed to end the copies, because it was extracted from the coordinator afterwards and took the
+  literal with it. It would have rendered 28 rows beside a 22-row grid, silently.
+- Roughly **fifteen** copies lived in PROSE — the grid card's title, the empty state, four tips
+  entries, the generator's totals, its Apply confirm, `max` attributes in the markup. Every one
+  renders perfectly while describing a link that does not exist.
+
+`links-rotation-parity.test.mjs` now fails on both classes, so **moving 22 to 23 is one edit** where
+moving 28 to 22 was a sweep. Static markup that cannot interpolate uses a `.js-rotating-lines` span
+stamped at init.
+
+**Designs saved against the OLD length are left exactly as they are.** A 28-line design still in
+Firestore renders its first 22 rows, is analysed over 22, and — because `workingCopy` deep-copies the
+whole patterns object — saves all 28 back. Trimming on load would destroy six lines of somebody's
+work on a page visit (the v19.84 stale-hard-delete class); trimming on save would do it at the moment
+they least expect it. So the fact is put on screen instead: `#linksOverLengthNotice` names the two
+lengths, says the surplus rows are neither shown nor counted but are still stored, and suggests
+building the new link fresh. Deleting the old designs is the owner's call to make deliberately.
+
+**C. Reen is NOT a special case:** the link is designed as a full rotation so it still works if she
+ever leaves; her adjusted fixed shifts are applied as overrides on the base roster. The old
+`FIXED_POS` / `fixed-link-separator` / `fixed-cell` model and the earlier `VACANT_FROM` placeholders
+model were both removed (v12.41 dropped vacant; v12.42 dropped fixed). Every row is a normal
+editable rotating row.
 
 The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`); the Design checks "Lines not yet designed" row lists them until filled.
 
@@ -864,10 +905,10 @@ The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`)
 ### Print (v12.37; reviewed v19.45)
 A4 landscape grid + coverage + checks; generator, brush bar, picker, save row, tips and chevrons hidden.
 
-**The whole 28-line rotation must land on ONE sheet** — you cannot judge a rotation split across
+**The whole rotation must land on ONE sheet** — you cannot judge a rotation split across
 two pages. That is a measured constraint, not a preference: A4 landscape at 1cm margins gives
-**718px** of printable height, and at the old 26px rows the grid card came to **903px**, so it
-always broke (the CSS comment claimed it fitted "or close to"). Rows are now 21px, the cell
+**718px** of printable height, and at the old 26px rows and 28 lines the grid card came to **903px**,
+so it always broke (the CSS comment claimed it fitted "or close to"). Rows are now 21px, the cell
 line-height 1.15, and the grid card's own header is dropped in print — the masthead names the sheet
 — which brings it to **703px**. Re-measure if the cell font or the masthead changes; there is only
 ~15px of headroom.

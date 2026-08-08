@@ -655,9 +655,18 @@ describe('canonical shift form', () => {
 
 describe('the rotation length is declared once', () => {
     test('ROTATING_LINES is the default for every window in this module', () => {
-        // Three literal 28s (links-app's pair, links-analysis's pair, these defaults) kept in step by
-        // a comment is how a grid renders one number of rows while the checks examine another.
-        assert.equal(ROTATING_LINES, 28);
+        // Literal copies kept in step by a comment is how a grid renders one number of rows while
+        // the checks examine another.
+        //
+        // This deliberately does NOT assert the VALUE. It did (`=== 28`), and when the rotation
+        // moved to 22 at v19.98 that assertion failed for the one reason a test never should: it
+        // was pinning a business decision that had legitimately changed, so the only available fix
+        // was to edit the expectation — which is not a check, it is a chore. The value is owned by
+        // `links-design.js` and the owner; what belongs in a test is that every window in this
+        // module DEFAULTS to it, whatever it is. `links-rotation-parity.test.mjs` covers the other
+        // half — that nothing else writes the number down.
+        assert.equal(typeof ROTATING_LINES, 'number');
+        assert.ok(ROTATING_LINES > 0);
         const all = {};
         for (let i = 1; i <= ROTATING_LINES; i++) all[String(i)] = { sun: 'RD', mon: '06:00-14:00', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
         assert.equal(runDesignChecks(all).totalWeeks, ROTATING_LINES);

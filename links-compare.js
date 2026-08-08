@@ -14,11 +14,16 @@
  * design collection + a few render callbacks and local helpers (all defined in links-app.js).
  */
 import { escapeHtml } from './roster-data.js';
-import { DAYS, classifyShift, calcCoverage } from './links-design.js';
+import { DAYS, ROTATING_LINES, classifyShift, calcCoverage } from './links-design.js';
 import { formatWindow, windowsDiffer } from './links-window.js';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const TOTAL_POS = 28;
+// The rotation length, IMPORTED (v19.98). It was a local literal `28` — the fourth copy of a
+// number links-design.js had already been made the single declaration of at v19.38, and the one
+// the earlier sweep missed. When the rotation went 28 -> 22 this module alone kept rendering 28
+// rows, so compare mode showed six rows of rest days that the grid beside it did not have and no
+// analysis counted. Never restate this number.
+const TOTAL_POS = ROTATING_LINES;
 
 /**
  * @param {object} deps

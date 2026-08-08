@@ -3,13 +3,13 @@
  * links-app.js — Coordinator for links.html.
  *
  * Owns: auth guard, Firestore load/save for named link-design documents,
- *   28-line design grid, design picker, compare mode, paint-mode brush bar,
+ *   the design grid (ROTATING_LINES rows), design picker, compare mode, paint-mode brush bar,
  *   coverage analysis, design quality checks, and the auto-generator.
  * Pure maths (classifyShift, calcCoverage, generatePatterns, runDesignChecks)
  *   live in links-design.js — no DOM, no Firebase there.
  */
 
-import { CONFIG, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
+import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -179,9 +179,15 @@ export function init() {
     const ACTIVE_KEY = 'myb_links_active_design';
 
     // Shift option lists derived from actual roster data so they always match real shifts.
+    //
+    // The MAIN roster only, since v19.98. The December 2026 link is 22 lines of the CEA roster
+    // widened and does not take on the bilingual roster's work, so offering the bilingual times
+    // would put ten shifts in the brush bar and the cell dropdown that no line in this design can
+    // legitimately work. All ten are bilingual-only — there is zero overlap with main's 18 — so
+    // this removes exactly those and nothing a designer needs.
     const { EARLY_SHIFTS, LATE_SHIFTS } = (() => {
         const all = new Set();
-        for (const roster of [weeklyRoster, bilingualRoster]) {
+        for (const roster of [weeklyRoster]) {
             for (const week of Object.values(roster)) {
                 for (const shift of Object.values(week)) {
                     if (shift && shift !== 'RD' && shift !== 'OFF' && shift !== 'SPARE') all.add(shift);
@@ -236,13 +242,20 @@ export function init() {
     // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
     // links-analysis.js (v17.70). They read only the live active design, via this getter.
     /**
-     * The CURRENT link's fatigue profile, for comparison (v19.46).
+     * The CURRENT link's fatigue profile, for comparison (v19.46; main-only since v19.98).
      *
-     * Computed over each REAL rotation at its OWN length — the main cycle is 20 lines and the
-     * bilingual 8 — never spliced into one 28. Concatenating two unrelated rotations reports a
-     * longest run of 19 days, which is a property of the join rather than of either roster; the
-     * per-cycle answers are 15 and 14. A proposal reporting "15 consecutive shifts" reads very
-     * differently once you know that is also where today's link sits.
+     * Computed over the REAL main rotation at its OWN length — 20 lines, never padded or spliced.
+     * Two things this must not become:
+     *
+     * **Do not splice cycles together.** Concatenating main and bilingual reported a longest run of
+     * 19 days, which is a property of the JOIN rather than of either roster. That was the v19.46
+     * reason for measuring each separately, and it still applies to any future pairing.
+     *
+     * **The bilingual row is gone, and the summary says why rather than leaving a hole.** A design
+     * is now 22 lines of the main roster widened and excludes the bilingual roster entirely, so a
+     * bilingual figure would be a comparison against a rotation the proposal does not replace. The
+     * summary names the comparator — "the main 20-line cycle, which this 22-line design replaces" —
+     * so its absence reads as a decision and not as a missing number.
      */
     function currentLinkBaseline() {
         try {
@@ -252,19 +265,17 @@ export function init() {
                 return { p, lines: i - 1 };
             };
             const main = toPatterns(weeklyRoster);
-            const bl   = toPatterns(bilingualRoster);
             const a = assessFatigue(main.p, main.lines);
-            const b = assessFatigue(bl.p, bl.lines);
             const pick = (/** @type {any} */ r, /** @type {string} */ code) =>
                 r.results.find((/** @type {any} */ x) => x.code === code && x.status !== 'n/a');
-            const ff11a = pick(a, 'FF11'), ff11b = pick(b, 'FF11');
+            const ff11a = pick(a, 'FF11');
             const ff15a = pick(a, 'FF15');
             return {
-                summary: `Today's link already features ${a.present} of these factors on the main ${main.lines}-line cycle`
-                    + ` and ${b.present} on the ${bl.lines}-line bilingual cycle.`,
-                detail: `Longest run without a 48h break: ${ff11a?.value} (main) and ${ff11b?.value} (bilingual), against FF11's 13.`
-                    + ` Longest run of consecutive early starts: ${ff15a?.value} (main), against FF15's 4.`
-                    + ` Measured per cycle at its own length, not spliced into one rotation.`,
+                summary: `Today's link already features ${a.present} of these factors on the main ${main.lines}-line cycle,`
+                    + ` which this ${TOTAL_POS}-line design replaces.`,
+                detail: `Longest run without a 48h break: ${ff11a?.value}, against FF11's 13.`
+                    + ` Longest run of consecutive early starts: ${ff15a?.value}, against FF15's 4.`
+                    + ` Measured on the main cycle at its own length, not spliced into one rotation.`,
             };
         } catch (err) {
             console.warn('[Links] Baseline unavailable:', err);
@@ -1095,7 +1106,37 @@ export function init() {
         const el = document.getElementById('linksGridHint');
         if (el) el.textContent = hasDesign
             ? 'Tap any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.'
-            : 'A link is 28 lines — everyone works line 1 one week, line 2 the next, all the way round.';
+            : `A link is ${TOTAL_POS} lines — everyone works line 1 one week, line 2 the next, all the way round.`;
+    }
+
+    /**
+     * A design holding MORE lines than the rotation is now — and why it cannot be silent (v19.98).
+     *
+     * The rotation went 28 → 22, and every 28-line design saved before that is still in Firestore.
+     * Nothing about opening one LOOKS wrong: the grid loops `1..TOTAL_POS`, so lines 23–28 simply
+     * are not drawn; every analysis (`toSequence`, coverage, the checks, the fatigue factors) reads
+     * the same range and therefore reports on 22 lines; and `workingCopy` DEEP COPIES the whole
+     * patterns object, so the next save writes all 28 back. The result is a design that is assessed
+     * as one thing and stored as another, indefinitely, with no symptom.
+     *
+     * Which half to fix was the decision. Dropping the surplus on load would destroy six lines of
+     * somebody's work on a page visit — the same class of failure as the v19.84 stale hard-delete —
+     * and dropping it on SAVE would do it at the moment the designer is least expecting it. So the
+     * data is left exactly as it is and the fact is put on screen: the rows are dormant, the panels
+     * below describe 22 lines, and deleting the design is the designer's call to make deliberately.
+     *
+     * Deliberately not a `confirm()`: it is a statement about the design, not a decision to take now.
+     */
+    function _renderOverLengthNotice() {
+        const el = document.getElementById('linksOverLengthNotice');
+        if (!el) return;
+        const held = Object.keys(/** @type {Record<string, any>} */ (design?.patterns || {})).length;
+        if (!design || held <= TOTAL_POS) { el.style.display = 'none'; el.textContent = ''; return; }
+        el.style.display = '';
+        el.textContent = `This design holds ${held} lines and the rotation is now ${TOTAL_POS}. `
+            + `Lines ${TOTAL_POS + 1}–${held} are not shown and are not counted in Coverage or Design `
+            + `checks, but they are still stored and are saved with the design. It was built for the `
+            + `${held}-line link; build the new one fresh rather than editing this.`;
     }
 
     function renderGrid() {
@@ -1121,9 +1162,10 @@ export function init() {
             if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : 'No designs yet';
             if (emptyMsg) emptyMsg.innerHTML = loadFailed
                 ? `Check your connection and refresh the page. Nothing has been lost — saved designs are on the server.`
-                : `Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty 28-line grid.`;
+                : `Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty ${TOTAL_POS}-line grid.`;
             if (emptyActs) /** @type {HTMLElement} */ (emptyActs).style.display = loadFailed ? 'none' : '';
             _setGridHint(false);
+            _renderOverLengthNotice();   // `design` is null here, so this hides it
             if (wrapper)    wrapper.style.display    = 'none';
             if (emptyState) emptyState.style.display = '';
             if (saveRow)    saveRow.style.display    = 'none';
@@ -1175,6 +1217,7 @@ export function init() {
             );
         }
         if (tbody) tbody.innerHTML = rows.join('');
+        _renderOverLengthNotice();
 
         const cov = calcCoverage(design.patterns);
         renderFooter(cov);
@@ -1335,16 +1378,18 @@ export function init() {
     /**
      * Derive generator targets from the current roster.
      *
-     * ALL 28 REAL LINES — the main 20-week link and the whole 8-week bilingual one (v19.59). It used
-     * to take the main 20 plus only the TWO bilingual weeks the two bilingual members happen to sit
-     * on, then apply that 22-line sample to a 28-line design. Bilingual weeks 1 and 8 are the SPARE
-     * ones and were never sampled, so the seeded spare count came back as 4 when the roster the
-     * design represents has SIX — main 1/7/12/17 plus bilingual 1/8. Two whole lines of standby
-     * cover, missing by default, from a number nobody had reason to re-check.
+     * The WHOLE MAIN CYCLE, and only that (`links-seed.js`). One rule, applied twice: the seed
+     * samples exactly what the design represents.
      *
-     * The design is 28 lines because that is main + bilingual, so the seed has to be main +
-     * bilingual too. `teamMembers` is no longer read here: which weeks two people are on today is a
-     * fact about staffing, not about the roster's shape.
+     * v19.59 applied it to the sample being too NARROW — main 20 plus only the two bilingual weeks
+     * two bilingual members happen to sit on, so bilingual 1 and 8 (the SPARE ones) were never seen
+     * and the seeded spare count came back as 4 against the then-correct 6. v19.98 applies it to the
+     * sample being too WIDE: the design is now 22 lines of the CEA roster widened and excludes the
+     * bilingual roster entirely, so seeding from it would target ten shift times no line in this
+     * design works. Main-only seeds 18 slots and 4 spare lines (main 1/7/12/17).
+     *
+     * `teamMembers` is not read here: which weeks people sit on today is a fact about staffing, not
+     * about the roster's shape.
      *
      * Weekday count = the busiest Mon–Fri day for that time (some shifts only run Tue/Thu/Fri). That
      * is deliberately the MAX and not an average — under-staffing a day is the worse error — but it
@@ -1359,7 +1404,7 @@ export function init() {
             `<td class="gen-td-time"><select class="gen-select gen-slot-time" data-slot="${i}" ` +
             `aria-label="Shift time for row ${i + 1}">${buildShiftOptions(slot.time)}</select></td>` +
             ['weekday', 'sat', 'sun'].map(cls =>
-                `<td><input type="number" class="gen-input gen-slot-count" min="0" max="28" ` +
+                `<td><input type="number" class="gen-input gen-slot-count" min="0" max="${TOTAL_POS}" ` +
                 `value="${(/** @type {Record<string, any>} */ (slot))[cls]}" data-slot="${i}" data-class="${cls}" ` +
                 `aria-label="${cls === 'weekday' ? 'Mon–Fri' : cls === 'sat' ? 'Saturday' : 'Sunday'} target for ${escapeHtml(slot.time)}"></td>`
             ).join('') +
@@ -1379,8 +1424,8 @@ export function init() {
         for (const [cls, id] of [['weekday', 'genTotWeekday'], ['sat', 'genTotSat'], ['sun', 'genTotSun']]) {
             const el = document.getElementById(id);
             if (!el) continue;
-            el.textContent = `${tot[cls]} / 28`;
-            el.classList.toggle('gen-total-over', tot[cls] > 28);
+            el.textContent = `${tot[cls]} / ${TOTAL_POS}`;
+            el.classList.toggle('gen-total-over', tot[cls] > TOTAL_POS);
         }
         return tot;
     }
@@ -1531,12 +1576,12 @@ export function init() {
                 return;
             }
             const tot = updateGenTotals();
-            const over = ['weekday', 'sat', 'sun'].filter(c => tot[c] > 28);
+            const over = ['weekday', 'sat', 'sun'].filter(c => tot[c] > TOTAL_POS);
             if (over.length) {
                 if (errEl) {
                     const names = /** @type {Record<string, any>} */ ({ weekday: 'Mon–Fri', sat: 'Saturday', sun: 'Sunday' });
                     errEl.textContent = `Can't generate: ${over.map(c => `${names[c]} totals ${tot[c]}`).join(', ')} — ` +
-                        `each day's total (shifts + spare) can't exceed 28 lines.`;
+                        `each day's total (shifts + spare) can't exceed ${TOTAL_POS} lines.`;
                 }
                 return;
             }
@@ -1558,16 +1603,16 @@ export function init() {
             }
 
             // Name what is at stake (v19.38). The message used to be the same whether the active design
-            // was blank or full of hand-tuned work — and Apply overwrites all 28 lines either way.
+            // was blank or full of hand-tuned work — and Apply overwrites every line either way.
             const _hasWork = !!design && Object.values(/** @type {Record<string, any>} */ (design.patterns || {}))
                 .some(p => DAYS.some(d => { const v = p?.[d]; return v && v !== 'RD' && v !== 'OFF'; }));
             const _genMsg = _hasWork
-                ? `This replaces all 28 lines of “${design?.name || 'this design'}” with the generated pattern. Any edits you have made will be lost.`
-                : 'Apply the generated pattern to all 28 lines?';
+                ? `This replaces all ${TOTAL_POS} lines of “${design?.name || 'this design'}” with the generated pattern. Any edits you have made will be lost.`
+                : `Apply the generated pattern to all ${TOTAL_POS} lines?`;
             if (!await confirmDialog({
                 title: 'Apply pattern',
                 message: _genMsg,
-                confirmLabel: _hasWork ? 'Replace all 28 lines' : 'Apply',
+                confirmLabel: _hasWork ? `Replace all ${TOTAL_POS} lines` : 'Apply',
                 danger: _hasWork,
             })) return;
 
@@ -2015,6 +2060,15 @@ export function init() {
         refreshGenTargetsForDesign();
     }
 
+    // The rotation length appears in static markup too (the grid card's title, the empty-state
+    // sentence). Stamped from ROTATING_LINES so the HTML cannot go stale independently of the
+    // constant — which is exactly what happened to fifteen prose copies of "28" (v19.98).
+    for (const el of document.querySelectorAll('.js-rotating-lines')) el.textContent = String(TOTAL_POS);
+    // Same for the two numeric ceilings the markup carries. A spare week is a whole line, so at
+    // least one line has to be left to work — hence TOTAL_POS - 1 rather than TOTAL_POS.
+    document.getElementById('genSpareLines')?.setAttribute('max', String(TOTAL_POS - 1));
+    document.getElementById('objLongTarget')?.setAttribute('max', String(TOTAL_POS));
+
     // ============================================
     // COLLAPSIBLE CARDS
     // ============================================
@@ -2112,8 +2166,8 @@ export function init() {
                 title: 'Link design grid',
                 sections: [
                     { heading: 'How it works', items: [
-                        { icon: '📋', html: 'Each <strong>row</strong> is one of the 28 lines. Each <strong>column</strong> is a day of the week (Sun–Sat).' },
-                        { icon: '🔄', html: 'All 28 lines rotate — everyone passes through every line over the cycle, so <strong>all 28 must be filled</strong> with a real pattern before the link can be authorised.' },
+                        { icon: '📋', html: `Each <strong>row</strong> is one of the ${TOTAL_POS} lines. Each <strong>column</strong> is a day of the week (Sun–Sat).` },
+                        { icon: '🔄', html: `All ${TOTAL_POS} lines rotate — everyone passes through every line over the cycle, so <strong>all ${TOTAL_POS} must be filled</strong> with a real pattern before the link can be authorised.` },
                         { icon: '🖌️', html: '<strong>Paint mode</strong> — arm a shift in the Paint bar above the grid, then click cells to fill them. Click the same chip again (or press Escape) to stop painting.' },
                         { icon: '✏️', html: '<strong>Single-cell edit</strong> — with no brush armed, tap any cell to pick a shift from the dropdown, or choose <strong>Custom time…</strong> to type a new one.' },
                         { icon: '💾', html: 'Tap <strong>Save changes</strong> when done.' },
@@ -2125,7 +2179,7 @@ export function init() {
                     ]},
                     { heading: 'Filling the lines', items: [
                         { icon: '⬜', html: 'A line shown as <strong>all rest days</strong> is <em>not yet designed</em> — its line number turns amber. Fill it manually or with the generator. The Design checks card lists any that are still empty.' },
-                        { icon: '🙋', html: 'Empty lines are <strong>not vacancies</strong> — a vacancy is a missing person, not a missing pattern. The link must be a complete 28 so it still works whoever is in post.' },
+                        { icon: '🙋', html: `Empty lines are <strong>not vacancies</strong> — a vacancy is a missing person, not a missing pattern. The link must be a complete ${TOTAL_POS} so it still works whoever is in post.` },
                     ]},
                 ],
             },
@@ -2145,10 +2199,10 @@ export function init() {
             'links-checks': {
                 title: 'Design checks',
                 sections: [{ items: [
-                    { icon: '🔄', html: '<strong>All lines designed</strong> — every one of the 28 rotating lines must carry a real pattern. A line that is all rest days is unfinished (not a vacancy), and the link can\'t be authorised until they are all filled.' },
+                    { icon: '🔄', html: `<strong>All lines designed</strong> — every one of the ${TOTAL_POS} rotating lines must carry a real pattern. A line that is all rest days is unfinished (not a vacancy), and the link can't be authorised until they are all filled.` },
                     { icon: '✅', html: '<strong>Weekends off</strong> — a full weekend = Saturday rest + the following Sunday rest. Aim for at least 40% of weeks.' },
                     { icon: '⏱️', html: '<strong>Rest between shifts</strong> — checks every transition between two <em>timed</em> shifts across the rotation for less than 12 hours rest. Late-to-early next morning is the classic short turnaround. A spare day has no times, so a transition either side of one can\'t be measured and isn\'t counted.' },
-                    { icon: '📅', html: '<strong>Longest run</strong> — how many consecutive working days appear anywhere in the 28-line cycle. Over 7 days is flagged.' },
+                    { icon: '📅', html: `<strong>Longest run</strong> — how many consecutive working days appear anywhere in the ${TOTAL_POS}-line cycle. Over 7 days is flagged.` },
                     { icon: '⚖️', html: '<strong>Shift balance</strong> — how the worked days split between early, late, and spare across the full rotation.' },
                     { icon: '🔄', html: 'Checks cover the <em>rotation</em>, not a single week — turnarounds and run lengths wrap across line boundaries.' },
                 ]}],
@@ -2157,15 +2211,15 @@ export function init() {
                 title: 'Auto-generator',
                 sections: [
                     { heading: 'What it does', items: [
-                        { icon: '⚡', html: 'Builds a fair 28-line rotating pattern from a <strong>list of shifts</strong> — one row per start time, each with its own headcount for Mon–Fri, Saturday, and Sunday.' },
+                        { icon: '⚡', html: `Builds a fair ${TOTAL_POS}-line rotating pattern from a <strong>list of shifts</strong> — one row per start time, each with its own headcount for Mon–Fri, Saturday, and Sunday.` },
                         { icon: '🌊', html: 'The station is staffed in <strong>waves</strong> — opens, mid-morning, middles, afternoons, closes — so you can add as many shift rows as the day needs, not just one early and one late.' },
                         { icon: '🌅', html: 'Within each person\'s week, start times only move <strong>later</strong> — never a late finish then an early start — so body clocks shift in the easy direction.' },
                         { icon: '✅', html: 'Daily targets are met <strong>exactly</strong> by construction.' },
                     ]},
                     { heading: 'How to use it', items: [
-                        { icon: '↺', html: 'The table starts <strong>pre-filled from the current roster</strong> — what today\'s 22 active lines actually provide. Edit from there, or use the reset link to get back to it.' },
+                        { icon: '↺', html: `The table starts <strong>pre-filled from the current roster</strong> — what the ${CONFIG.MAIN_ROSTER_WEEKS}-week main cycle actually provides today. Edit from there, or use the reset link to get back to it.` },
                         { icon: '➕', html: '<strong>+ Add another shift</strong> for a new start time; ✕ removes a row. Pick times from the dropdown or choose Custom time….' },
-                        { icon: '⚠️', html: 'Each day\'s total (all shifts + spare) can\'t exceed 28 — watch the Total row.' },
+                        { icon: '⚠️', html: `Each day's total (all shifts + spare) can't exceed ${TOTAL_POS} — watch the Total row.` },
                         { icon: '3️⃣', html: 'Tap <strong>Generate link</strong>, then review the Coverage analysis and Design checks before saving.' },
                     ]},
                 ],

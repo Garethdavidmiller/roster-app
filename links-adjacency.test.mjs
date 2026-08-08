@@ -5,13 +5,13 @@ import {
     breakLength, boundaryRest, scoreOrder, cost, reorderLines, applyOrder,
     blockRuns, blockExcess,
 } from './links-adjacency.js';
-import { generatePatterns } from './links-design.js';
+import { generatePatterns, ROTATING_LINES } from './links-design.js';
 
 /** A design with variety: several start times, spare weeks, and rest days. */
 function design() {
     const waves = ['06:20-14:20', '07:00-15:00', '08:00-16:00', '11:00-19:00', '14:00-22:00', '15:55-23:55']
         .map(time => ({ time, weekday: 3, sat: 2, sun: 1 }));
-    return generatePatterns({ slots: waves, spareLines: 4, lines: 28 });
+    return generatePatterns({ slots: waves, spareLines: 4, lines: ROTATING_LINES });
 }
 // A WORKED base, so a fixture that overrides only Sat/Sun tests exactly Sat + Sun — with an
 // all-rest base, Friday and Monday would silently be rest too and every break would read as four days.

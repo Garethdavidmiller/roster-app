@@ -120,7 +120,7 @@ export const MAX_CONSECUTIVE_WORKED_DAYS = 13;
  * Assess a design against the hard limits.
  *
  * @param {Record<string, Record<string, any>>} patterns
- * @param {number} [lines=28]
+ * @param {number} [lines=ROTATING_LINES]
  * @returns {{ checks: HardLimitCheck[], breaches: number, assessable: boolean }}
  */
 export function assessHardLimits(patterns, lines = ROTATING_LINES) {

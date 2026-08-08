@@ -27,8 +27,9 @@ import { escapeHtml } from './roster-data.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
 // 28 alongside links-app.js's own pair, with a comment claiming they "stay in step without a shared
-// import". Three literals kept in step by hope is how a grid renders 28 rows while the checks
-// examine a different number, silently.
+// import". Three literals kept in step by hope is how a grid renders one number of rows while the
+// checks examine a different one, silently — and the rotation has since gone 28 -> 22 (v19.98),
+// which would have made all three wrong in three different ways.
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS = ROTATING_LINES;
 
@@ -300,7 +301,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
      * WORK, not duplicated LOGIC — every figure still comes from the one pure function that owns it —
      * and it buys order-independence: sharing state between the three would make the strip silently
      * wrong whenever a caller ran them in a different order, which is exactly the kind of bug that
-     * renders fine and tells nobody. Over 28 lines the cost is microseconds.
+     * renders fine and tells nobody. Over a couple of dozen lines the cost is microseconds.
      */
     function renderSummary() {
         const el = document.getElementById('linksSummary');
@@ -444,7 +445,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null }) {
             `<div class="check-row check-neutral">` +
             `${info}<div class="check-body">` +
             `<strong>Shift balance</strong> — ${early} early / ${late} late / ${spare} spare` +
-            ` across the 28-line rotation` +
+            ` across the ${TOTAL_POS}-line rotation` +
             `<span class="check-note"> (${earlyPct}% early, ${latePct}% late)</span>` +
             `</div></div>`
         );

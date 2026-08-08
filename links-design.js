@@ -12,13 +12,33 @@
 
 export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-/** The rotation length. ONE declaration (v19.38) — it previously sat as a literal in three places
- *  (links-app's TOTAL_POS + ROTATING_LINES, links-analysis's own pair, and the default parameter of
- *  every function here), with a comment in links-analysis.js claiming they "stay in step without a
- *  shared import". That is a hope, not a mechanism. Every line rotates, so the grid height, the
- *  checks window and the generator output are necessarily the SAME number — there is no reading of
- *  this app where they differ. */
-export const ROTATING_LINES = 28;
+/**
+ * The rotation length. ONE declaration (v19.38) — it previously sat as a literal in three places
+ * (links-app's TOTAL_POS + ROTATING_LINES, links-analysis's own pair, and the default parameter of
+ * every function here), with a comment in links-analysis.js claiming they "stay in step without a
+ * shared import". That is a hope, not a mechanism. Every line rotates, so the grid height, the
+ * checks window and the generator output are necessarily the SAME number — there is no reading of
+ * this app where they differ.
+ *
+ * ── 28 → 22 (v19.98, owner: the December 2026 plan changed) ────────────────────────────────────
+ *
+ * It was **28 = the main 20-week cycle + the bilingual 8**, because the design modelled both as one
+ * rotation. That is no longer what is being built. The new link is **22 lines and excludes the
+ * bilingual roster entirely** — not its lines, not its shift times, not its work. It is the CEA
+ * (main) roster **widened from 20 to 22 to increase staffing levels**; the bilingual roster
+ * continues separately and is simply out of scope.
+ *
+ * So this number is no longer derived from anything the app can see — it is a business figure
+ * (owner, Aug 2026: "22 is final, we are told"). There is **no document behind it**, which makes it
+ * evidence class C by ROADMAP.md's scale: fine as a design parameter, and it must NOT be rendered to
+ * a manager as a requirement without a source. See KNOWN_LIMITATIONS.md → Links.
+ *
+ * **Everything that used to hardcode 28 now derives from this constant** — the grid height, the
+ * generator's `max` and its over-target validation, and every string that names the figure. That is
+ * the substance of the change: moving 22 to 23 later is now one edit here, where moving 28 to 22 was
+ * a sweep of ~15 literals. Do not re-introduce a literal.
+ */
+export const ROTATING_LINES = 22;
 
 /** Minimum rest between two timed shifts on consecutive days, in minutes. */
 export const MIN_REST_MINUTES = 12 * 60;
@@ -270,7 +290,7 @@ export function dayClass(d) {
  * an artefact whose whole job is showing where cover is thin. CEA duties finish 23:55, so this is
  * reachable only through legacy/imported data.
  * @param {Object} patterns - { "1".."N": { sun..sat } }
- * @param {number} [totalPos=28]
+ * @param {number} [totalPos=ROTATING_LINES]
  * @returns {Object.<string,{hours:number[], spare:number}>} keyed by day
  */
 export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
@@ -399,7 +419,7 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
  * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
  *   - one entry per distinct shift time, with target headcounts per day class
  * @param {number} [opts.spareLines=0] - how many WHOLE lines are spare weeks
- * @param {number} [opts.lines=28]
+ * @param {number} [opts.lines=ROTATING_LINES]
  * @returns {Object|null} patterns for "1".."lines", or null if invalid /
  *   any day-class total exceeds the working lines
  */
@@ -669,7 +689,7 @@ function slotAt(/** @type {Array<any>} */ group, /** @type {string} */ cls, /** 
  * @param {Object} opts
  * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
  * @param {number} [opts.spareLines=0]
- * @param {number} [opts.lines=28]
+ * @param {number} [opts.lines=ROTATING_LINES]
  * @param {boolean} [opts.settled=true] - false forces the rotating fallback (for comparison)
  * @returns {{patterns: Object|null, mode: 'settled'|'rotating'|null, waves: number, reason: string|null}}
  */
@@ -746,7 +766,7 @@ export function generateLink({ slots, spareLines = 0, lines = ROTATING_LINES, se
  * the weekend between two weeks is Sat of line w + Sun of line w+1.
  *
  * @param {Object} patterns - { "1".."N": { sun..sat } }
- * @param {number} [rotatingLines=28] - all 28 lines rotate
+ * @param {number} [rotatingLines=ROTATING_LINES] - every line rotates
  * @returns {{
  *   weekendsOff: number, weekendsOffPct: number, totalWeeks: number,
  *   unfilledLines: number[],

@@ -145,6 +145,41 @@ test('firestore.rules staffContact work-email domain matches CONFIG.WORK_EMAIL_D
         `firestore.rules staffContact workEmail validation must match CONFIG.WORK_EMAIL_DOMAIN ('${domain}') — the two drifted.`);
 });
 
+test('the VAPID public key is identical in functions/index.js and notif.js', () => {
+    // The 87-char VAPID public key is a hardcoded literal on BOTH sides of the push system:
+    //   functions/index.js — passed to setVapidDetails(), so it SIGNS every push we send
+    //   notif.js           — passed to pushManager.subscribe(), so it is what each device subscribes WITH
+    // A subscription is only valid for the key it was created with, so if these two ever drift, every
+    // send is rejected.
+    //
+    // Why this needs a test rather than a comment: the failure is SILENT AND PERMANENT. `fanOutPush`
+    // deliberately deletes a subscription only on 410/404 — a 401 (which is exactly what a key mismatch
+    // produces) is logged and the doc is KEPT, precisely so a VAPID misconfiguration cannot wipe the
+    // whole collection (v16.15). So staff simply stop receiving Huddle notifications while
+    // `pushSubscriptions` still looks healthy and nothing surfaces it.
+    //
+    // Worse, the client's own migration path cannot rescue it either: notif.js re-subscribes when
+    // `VAPID_FINGERPRINT` (the first 12 chars of ITS OWN copy) changes — so a server-side-only edit
+    // moves nothing on the devices. The two literals have to be equal, and only a check like this says so.
+    const fnSrc    = readFileSync(join(ROOT, 'functions/index.js'), 'utf8');
+    const notifSrc = readFileSync(join(ROOT, 'notif.js'), 'utf8');
+    const grab = (/** @type {string} */ src, /** @type {string} */ where) => {
+        const m = src.match(/VAPID_PUBLIC_KEY\s*=\s*'([^']+)'/);
+        assert.ok(m, `VAPID_PUBLIC_KEY literal not found in ${where} — re-point this guard rather than deleting it`);
+        return m[1];
+    };
+    const server = grab(fnSrc, 'functions/index.js');
+    const client = grab(notifSrc, 'notif.js');
+    assert.equal(client, server,
+        'VAPID public key drift: functions/index.js signs pushes with one key while notif.js subscribes ' +
+        'devices with another. Every send would 401, the subscriptions would NOT be cleaned up (401 is ' +
+        'deliberately non-deleting), and notifications would stop with no error anywhere.');
+    // A VAPID P-256 public key is 65 raw bytes → 87 base64url chars, no padding. A truncated or
+    // re-wrapped key would still be "equal on both sides" and still break every send.
+    assert.match(server, /^[A-Za-z0-9_-]{87}$/,
+        `VAPID public key is not a valid 87-char base64url P-256 key (got ${server.length} chars)`);
+});
+
 test('every served page carries the noindex meta, matching the X-Robots-Tag header', () => {
     // Same contract as the mirrored CSP (csp-meta-parity.test.mjs), applied to a second header: the
     // X-Robots-Tag in firebase.json only reaches Firebase Hosting, so the GitHub Pages staff mirror —

@@ -163,6 +163,22 @@ body.auth-ready .container { display: grid; }
     opacity: 0.35;
 }
 .links-empty-state .links-empty-msg { max-width: 46ch; }
+
+/* A design saved against a LONGER rotation than the current one (v19.98). Amber, not red: the
+   design is intact and nothing is at risk — it simply describes a link that no longer exists, and
+   the rows past the rotation are dormant rather than broken. Reuses the existing amber recipe
+   (`--warning-amber` at 10% with a full-strength left edge) that the Design-checks rows use, so a
+   caution reads the same wherever it appears on this page. */
+.links-overlength-notice {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--warning-amber);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--warning-amber) 10%, transparent);
+    font-size: var(--type-small);
+    line-height: 1.45;
+    color: var(--text-dark);
+}
 .links-empty-title {
     font-size: var(--type-medium);
     font-weight: 700;

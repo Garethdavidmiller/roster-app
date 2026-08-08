@@ -25,6 +25,7 @@
 
 import { test, expect } from './fixtures.js';
 import { seedSession, seedMember, openRosterReview } from './helpers.js';
+import { ROTATING_LINES } from '../links-design.js';
 
 // A Wednesday inside G. Miller's rendered roster window — gives a stable "Today" cell and a
 // deterministic pay period without depending on the wall clock the suite runs on.
@@ -243,7 +244,9 @@ const LINKS_DESIGN = (() => {
     /** @type {Record<string, any>} */
     const patterns = {};
     const shifts = ['06:20-14:20', '07:00-15:00', '11:00-19:30', '14:00-22:30', 'SPARE', 'RD', 'RD'];
-    for (let i = 1; i <= 28; i++) {
+    // ROTATING_LINES. A fixture LONGER than the rotation would trip the over-length notice and
+    // silently re-baseline the legacy-design surface as though it were the normal one.
+    for (let i = 1; i <= ROTATING_LINES; i++) {
         /** @type {Record<string, string>} */
         const row = {};
         ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach((d, j) => {
@@ -289,9 +292,13 @@ test('links — design grid + coverage + checks (desktop 1280)', async ({ page }
     await page.goto('/links.html');
 
     // Sentinels BEFORE the capture. Without them a regression that dropped the seeded design still
-    // renders a plausible page — 28 empty rows and an empty-state heat map — and the next baseline
-    // regeneration would lock in a green test covering nothing (the Usage-card lesson, v19.25).
-    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    // renders a plausible page — a grid of empty rows and an empty-state heat map — and the next
+    // baseline regeneration would lock in a green test covering nothing (the Usage-card lesson,
+    // v19.25). The over-length notice is asserted ABSENT for the same reason: it is a visible band
+    // above the grid, so a fixture that outgrew the rotation would change the composition and the
+    // regeneration would accept it.
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await expect(page.locator('#linksOverLengthNotice')).toBeHidden();
     await expect(page.locator('tr.row-unfilled')).toHaveCount(0, { timeout: 10000 });
     await expect(page.locator('#coverageHeatmap')).toBeVisible();
     await settle(page, '.links-grid');
@@ -300,7 +307,7 @@ test('links — design grid + coverage + checks (desktop 1280)', async ({ page }
 
 // The AUTO-GENERATOR had no pixel coverage at all until v19.64, because the card is collapsed in the
 // workspace baseline above — so four consecutive releases reshaped it with nothing but hand-read
-// screenshots watching. That is a lot of surface: the 28-row target table, the spare-week row, the
+// screenshots watching. That is a lot of surface: the target table, the spare-week row, the
 // totals, and the five line-order objectives, all of which moved between v19.58 and v19.63.
 //
 // It is also where this page's layout bugs actually happen. The list is not hypothetical: an inline
@@ -317,7 +324,7 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
     }, LINKS_DESIGN);
     await prep(page, { width: 1280, height: 2600 });
     await page.goto('/links.html');
-    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
 
     // TWO objectives are switched off deliberately: the whole point of the v19.63 restyle is that on
@@ -329,9 +336,12 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
     // Sentinels before the capture — same reasoning as the workspace shot. The target table is
     // SEEDED FROM THE ROSTER, so a regression in `buildRosterTargets` would render a plausible but
     // empty generator, and the next baseline regeneration would lock in a green test covering
-    // nothing. Six spare lines is the roster's real figure (main 1/7/12/17 + bilingual 1/8).
+    // nothing. FOUR spare lines is the roster's real figure since v19.98 (main 1/7/12/17); it was
+    // 6 while the bilingual roster was in scope (its 1 and 8). This sentinel caught that change on
+    // the regeneration run, which is exactly what it is for — without it the new figure would have
+    // been baselined as a picture and nobody would have looked at the number.
     await expect(page.locator('#genSlotRows tr').first()).toBeVisible();
-    await expect(page.locator('#genSpareLines')).toHaveValue('6');
+    await expect(page.locator('#genSpareLines')).toHaveValue('4');
     await expect(page.locator('.gen-obj')).toHaveCount(5);
     await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(3);
 
@@ -413,7 +423,7 @@ test('links — auto-generator card at a narrow width (390)', async ({ page }) =
     }, LINKS_DESIGN);
     await prep(page, { width: 390, height: 1400 });
     await page.goto('/links.html');
-    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(28);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
     await page.locator('#objWeekends').uncheck();
 
