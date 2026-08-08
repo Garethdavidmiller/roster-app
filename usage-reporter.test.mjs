@@ -56,7 +56,7 @@ describe('recordUsage — admin exclusion + page-view/active-account gating', ()
     });
 
     test('the anonymous calendar with an ADMIN selected member records nothing (identity arg excludes)', () => {
-        recordUsage('calendar', null, 'G. Miller');
+        recordUsage('calendar', 'G. Miller');
         assert.deepEqual(_pageViews, []);
     });
 
@@ -66,7 +66,19 @@ describe('recordUsage — admin exclusion + page-view/active-account gating', ()
         assert.equal(_activeAccounts.length, 1, 'first load this month/window counts the account');
     });
 
-    test('anonymous page view (no member) records the view but NO active account', () => {
+    test('a CALENDAR-ONLY visitor counts as an active account (v19.95)', () => {
+        // The change this signature exists for. The calendar has no Auth session, so until v19.95 it
+        // passed member=null and the account metric skipped it — and a member who only ever reads
+        // the roster signs in NOWHERE, so "accounts active" was quietly counting the minority who
+        // open an authenticated page while reading as though it counted everybody.
+        recordUsage('calendar', 'S. Silva');
+        assert.deepEqual(_pageViews, ['calendar']);
+        assert.equal(_activeAccounts.length, 1, 'a signed-out calendar visitor is an active account');
+    });
+
+    test('a FIRST-RUN device (no identity) records the view but NO account', () => {
+        // Nothing to dedup on — and the "selection" at that moment is only the default member, an
+        // admin. One load per device, immediately before a member is chosen.
         recordUsage('calendar', null);
         assert.deepEqual(_pageViews, ['calendar']);
         assert.deepEqual(_activeAccounts, []);
@@ -77,6 +89,15 @@ describe('recordUsage — admin exclusion + page-view/active-account gating', ()
         recordUsage('paycalc', 'S. Silva');   // same day — deduped
         assert.deepEqual(_pageViews, ['paycalc', 'paycalc'], 'page views always count');
         assert.equal(_activeAccounts.length, 1, 'active account deduped for the window');
+    });
+
+    test('the calendar and an authenticated page are ONE account, not two', () => {
+        // The dedup keys are shared across both routes on purpose. Reading the roster and then
+        // opening Settings is one person having one day, and a per-route key would have inflated
+        // every figure the moment calendar visits started counting.
+        recordUsage('calendar', 'S. Silva');
+        recordUsage('settings', 'S. Silva');
+        assert.equal(_activeAccounts.length, 1);
     });
 });
 
@@ -107,42 +128,44 @@ describe('per-address counters — the migration metric (v19.23)', () => {
     });
 
     test('no identity records nothing — there is nothing to dedup on', () => {
-        recordUsage('calendar', null, null);
+        recordUsage('calendar', null);
         assert.deepEqual(_origins, []);
     });
 
     test('a first visit records the address, not installed', () => {
-        recordUsage('calendar', null, 'S. Silva');
+        recordUsage('calendar', 'S. Silva');
         assert.equal(_origins.length, 1);
         assert.equal(_origins[0].origin, 'web');
         assert.equal(_origins[0].countVisit, true);
         assert.equal(_origins[0].installed, false);
     });
 
-    test('the calendar counts even though it records no ACTIVE ACCOUNT', () => {
-        // The calendar passes member=null (anonymous) and only an identity. Active accounts skip it,
-        // which is why calendar-only staff are invisible there — and they are the majority, and
-        // exactly the people a migration strands. The address metric must not inherit that blind spot.
-        recordUsage('calendar', null, 'S. Silva');
-        assert.deepEqual(_activeAccounts, []);
+    test('the calendar now counts in BOTH metrics on one identity (v19.95)', () => {
+        // This test used to assert the opposite half — `_activeAccounts` EMPTY — because the address
+        // metric was deliberately compensating for a blind spot in the account metric above it:
+        // calendar-only staff are the majority, they sign in nowhere, and they are exactly the
+        // people an old installed PWA strands. v19.95 removed the blind spot rather than leaving one
+        // metric working around another, so the two now key on the same identity and agree.
+        recordUsage('calendar', 'S. Silva');
+        assert.equal(_activeAccounts.length, 1, 'the account metric must no longer skip the calendar');
         assert.equal(_origins.length, 1);
     });
 
     test('a second visit in the same window is NOT counted again', () => {
-        recordUsage('calendar', null, 'S. Silva');
+        recordUsage('calendar', 'S. Silva');
         recordUsage('paycalc', 'S. Silva');
         assert.equal(_origins.length, 1, 'unique accounts must not double-count');
     });
 
     test('the mirror is recorded as its own address', () => {
         setEnv({ host: 'garethdavidmiller.github.io' });
-        recordUsage('calendar', null, 'S. Silva');
+        recordUsage('calendar', 'S. Silva');
         assert.equal(_origins[0].origin, 'pages');
     });
 
     test('installed on the first open records BOTH counters in one write', () => {
         setEnv({ standalone: true });
-        recordUsage('calendar', null, 'S. Silva');
+        recordUsage('calendar', 'S. Silva');
         assert.deepEqual(
             { countVisit: _origins[0].countVisit, installed: _origins[0].installed },
             { countVisit: true, installed: true });
@@ -152,9 +175,9 @@ describe('per-address counters — the migration metric (v19.23)', () => {
         // The asymmetry the two independent flags exist for. A single shared flag would freeze
         // whichever mode came first, so this member would never be counted as installed — and
         // "how many have actually installed it on the new address" is the entire question.
-        recordUsage('calendar', null, 'S. Silva');                 // browser tab
+        recordUsage('calendar', 'S. Silva');                 // browser tab
         setEnv({ standalone: true });
-        recordUsage('calendar', null, 'S. Silva');                 // now from the home screen
+        recordUsage('calendar', 'S. Silva');                 // now from the home screen
         assert.equal(_origins.length, 2);
         assert.deepEqual(
             { countVisit: _origins[1].countVisit, installed: _origins[1].installed },
@@ -164,15 +187,15 @@ describe('per-address counters — the migration metric (v19.23)', () => {
 
     test('a third open changes nothing once both are counted', () => {
         setEnv({ standalone: true });
-        recordUsage('calendar', null, 'S. Silva');
-        recordUsage('calendar', null, 'S. Silva');
+        recordUsage('calendar', 'S. Silva');
+        recordUsage('calendar', 'S. Silva');
         recordUsage('paycalc', 'S. Silva');
         assert.equal(_origins.length, 1);
     });
 
     test('two members on one device are counted separately', () => {
-        recordUsage('calendar', null, 'S. Silva');
-        recordUsage('calendar', null, 'J. Davies');
+        recordUsage('calendar', 'S. Silva');
+        recordUsage('calendar', 'J. Davies');
         assert.equal(_origins.length, 2);
     });
 });

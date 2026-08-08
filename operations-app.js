@@ -781,8 +781,9 @@ export function init() {
                 title: 'Usage',
                 sections: [
                     { heading: 'What it shows', items: [
-                        { icon: '👥', html: '<strong>Accounts active</strong> — how many individual staff accounts <strong>used the app</strong> this calendar month and over the last 30 days. Simply opening the app counts — a saved session doesn\'t need a fresh sign-in, so this is normally higher than the sign-in count on App Speed' },
-                        { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened this month' },
+                        { icon: '👥', html: '<strong>Accounts active</strong> — how many individual staff accounts <strong>used the app</strong> this calendar month and over the last 30 days. Simply opening the app counts, <strong>including just looking at the roster without signing in</strong>' },
+                        { icon: '📈', html: 'That last part changed in <strong>August 2026</strong>. Before then this counted only people who opened a page you must sign in for, so it missed anyone who just reads their shifts — most of the staff. Expect a <strong>step up</strong> from that point; figures either side of it aren\'t comparable' },
+                        { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened this month, and how many times each document and guide has been opened' },
                     ]},
                     { heading: 'Which address staff are on', items: [
                         { icon: '\u{1F6A6}', html: 'While the app is served from <strong>two addresses</strong>, this shows how far the move has got — unique accounts on each over the last 30 days, and how many opened the <strong>installed</strong> app rather than a browser tab' },
@@ -791,6 +792,7 @@ export function init() {
                     { heading: 'Sign-ins vs opens', items: [
                         { icon: '\u{1F511}', html: '<strong>Accounts that have signed in</strong> is the exact unique count, from Firebase Auth itself. It counts <strong>sign-ins, not opens</strong> — a session lasts up to 30 days, so someone can sign in once and use the app daily' },
                         { icon: '\u{1F423}', html: '<strong>Never signed in</strong> is the actionable one: accounts set up that have never been used' },
+                        { icon: '\u{1F50D}', html: 'The <strong>gap</strong> between the two blocks is now readable: roughly the staff who use the roster but have <strong>never held an account session</strong>. They can\'t be reached by anything that happens at sign-in — a password prompt, for one' },
                     ]},
                     { heading: 'Privacy', items: [
                         { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it counts <em>how many</em> accounts and visits, never <em>which</em> account did what. No names, no per-person history is stored' },

@@ -57,6 +57,45 @@ test('every analytics id the client can write is allowed by firestore.rules', ()
         'ids allowed by firestore.rules that no client code writes — stale allowlist entries');
 });
 
+// The guide open ids have a FOURTH home — NAV_GUIDES in nav-panel.js, which is what actually emits
+// them. A guide added there without an `openId` renders a perfectly good link that counts nothing,
+// which is the quietest failure of the lot: the bar is simply absent, and an absent bar reads as
+// "nobody opens it". (This is the same shape as tips-content.test.mjs's missing-key case, where the
+// `?` button is inert rather than broken.) Until v19.95 the handler matched the href instead, and
+// two of the four guides had no branch at all — so the group answered a narrower question than its
+// heading claimed for five months.
+test('every guide in the nav drawer has an open counter, and every guide counter is emitted', () => {
+    const NAV = read('nav-panel.js');
+    const g = NAV.match(/const NAV_GUIDES = \[([\s\S]*?)\n\];/);
+    assert.ok(g, 'NAV_GUIDES not found in nav-panel.js');
+    /** One entry per line: assert on the LINE, so a url with no openId is a named failure. */
+    const entries = g[1].split('\n').filter(l => l.includes('url:'));
+    assert.equal(entries.length, 4, `expected the four guides, found ${entries.length}`);
+    const navIds = new Set();
+    for (const line of entries) {
+        const id = line.match(/openId:\s*'([a-z-]+)'/)?.[1];
+        assert.ok(id, `a NAV_GUIDES entry has no openId, so opening it counts nothing:\n  ${line.trim()}`);
+        navIds.add(id);
+    }
+
+    const om = read('operations-reports.js').match(/const OPEN_META = \{([\s\S]*?)\n\};/);
+    assert.ok(om, 'OPEN_META not found in operations-reports.js');
+    const metaGuideIds = new Set([...om[1].matchAll(/'(guide-[a-z-]+)':/g)].map(x => x[1]));
+
+    // Both directions. A nav id missing from OPEN_META writes a counter that renders with the
+    // fallback 📄 and a raw id for a label; a stale OPEN_META id is a bar that can never appear.
+    assert.deepEqual([...navIds].sort(), [...metaGuideIds].sort(),
+        'NAV_GUIDES openIds and OPEN_META guide ids have drifted');
+
+    // …and the handler must read the id off the element rather than guessing it from the href.
+    // `'./paycalc-guide.html'.includes('guide.html')` is TRUE, so a substring test would count the
+    // Pay Calculator Guide as the Staff Guide and both bars would still look plausible.
+    assert.match(NAV, /data-open-id="\$\{g\.openId\}"/,
+        'the guide link no longer carries data-open-id — the open counter has lost its id source');
+    assert.doesNotMatch(NAV, /_href\.includes\('(guide|fip)/,
+        'guide open ids must not be matched from the href — see the substring trap above');
+});
+
 // ── 2. The "Other" day-family flavour grammar ───────────────────────────────────────────────────
 // OTHER_FLAVOURS in override-utils.js is the documented single source (CLAUDE.md → "grammar
 // single-source"), and the CLIENT already derives its own accept-set from it (v18.91). But the

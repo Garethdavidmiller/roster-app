@@ -35,6 +35,12 @@ const OPEN_META = {
     'huddle':         { emoji: '📋', label: 'Daily Huddle' },
     'circular':       { emoji: '📰', label: 'Weekly Retail Circular' },
     'newsletter':     { emoji: '🗞️', label: 'Marylebone Newsletter' },
+    // All four guides, not two (v19.95). The Staff & Admin Guide and the Pay Calculator Guide are
+    // the two most likely to answer a question staff would otherwise ask a manager, and they were
+    // the two with no counter at all — so the group answered "which of the two REFERENCE guides is
+    // read more" while reading as "which guides are read". Emojis match NAV_GUIDES.
+    'guide-staff':    { emoji: '📘', label: 'Staff & Admin Guide' },
+    'guide-paycalc':  { emoji: '💷', label: 'Pay Calculator Guide' },
     'guide-railcard': { emoji: '🎫', label: 'Railcard Guide' },
     'guide-fip':      { emoji: '🇪🇺', label: 'FIP Travel Guide' },
 };

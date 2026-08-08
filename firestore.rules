@@ -2,7 +2,9 @@ rules_version = '2';
 // MYB Roster — Firestore Security Rules
 // Last swept v19.41 (Aug 2026): linkDesigns create/update accepts the optional `deletedAt`/
 // `deletedBy` soft-delete pair (present = in the bin, absent = live), type-checked when present.
-// Prior sweep v19.39: linkDesigns READ now requires a `name` claim — the previous
+// Sweep v19.95: the analytics pv_ counts allowlist gains `guide-staff` and `guide-paycalc` — the
+// two guides that had no open counter, so the "Documents & guides" group silently answered a
+// narrower question than it appeared to. Prior sweep v19.39: linkDesigns READ now requires a `name` claim — the previous
 // `request.auth != null` admitted the calendar's anonymous sessions, i.e. any visitor, which the
 // rule's own comment did not say. Prior sweep v19.23: analytics gains the `origins` doc (per-address migration counters —
 // a NEW doc rather than a third map on activeAccounts, so a rules-deploy lag cannot deny the writes
@@ -507,10 +509,12 @@ service cloud.firestore {
            request.resource.data.month is string &&
            docId == 'pv_' + request.resource.data.month &&
            request.resource.data.counts is map &&
-           // Six page-view ids + five document/guide OPEN ids (v18.20 — Huddle/Circular/Newsletter
-           // opens and the two reference-guide opens share the same anonymous counter map).
+           // Six page-view ids + seven document/guide OPEN ids (v18.20 — Huddle/Circular/Newsletter
+           // opens and the guide opens share the same anonymous counter map; guide-staff and
+           // guide-paycalc added v19.95, completing the four guides in NAV_GUIDES).
            request.resource.data.counts.keys().hasOnly(['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links',
-                                                        'huddle', 'circular', 'newsletter', 'guide-railcard', 'guide-fip']) &&
+                                                        'huddle', 'circular', 'newsletter',
+                                                        'guide-staff', 'guide-paycalc', 'guide-railcard', 'guide-fip']) &&
            (!('calendar'   in request.resource.data.counts) || request.resource.data.counts.calendar   is int) &&
            (!('admin'      in request.resource.data.counts) || request.resource.data.counts.admin      is int) &&
            (!('paycalc'    in request.resource.data.counts) || request.resource.data.counts.paycalc    is int) &&
@@ -520,6 +524,8 @@ service cloud.firestore {
            (!('huddle'     in request.resource.data.counts) || request.resource.data.counts.huddle     is int) &&
            (!('circular'   in request.resource.data.counts) || request.resource.data.counts.circular   is int) &&
            (!('newsletter' in request.resource.data.counts) || request.resource.data.counts.newsletter is int) &&
+           (!('guide-staff'    in request.resource.data.counts) || request.resource.data.counts['guide-staff']    is int) &&
+           (!('guide-paycalc'  in request.resource.data.counts) || request.resource.data.counts['guide-paycalc']  is int) &&
            (!('guide-railcard' in request.resource.data.counts) || request.resource.data.counts['guide-railcard'] is int) &&
            (!('guide-fip'      in request.resource.data.counts) || request.resource.data.counts['guide-fip']      is int) &&
            (resource == null || request.auth.token.admin == true ||

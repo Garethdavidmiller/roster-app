@@ -143,11 +143,11 @@ test('guide: an off-allowlist ?from= leaves the back arrow untouched', async ({ 
 
 
 
-// ── THE CALENDAR MUST PASS AN IDENTITY THE MIGRATION METRIC CAN USE (v19.86, external review P2) ──
-// `recordUsage`'s third argument does two jobs: exclude the developer's own sessions, and give
-// `_recordOrigin` a dedup key. The calendar passed `getSession()?.name` — right for the first job,
-// null for the second on an ordinary anonymous visitor, so `_recordOrigin` returned immediately and
-// the address-migration metric never saw the population it exists to observe: calendar-only staff,
+// ── THE CALENDAR MUST PASS AN IDENTITY THE TELEMETRY CAN USE (v19.86, external review P2) ──
+// `recordUsage`'s identity argument does three jobs: exclude the developer's own sessions, key the
+// address counters, and — since v19.95 — key the active-account counts. The calendar passed
+// `getSession()?.name`, right for the first and null for the others on an ordinary anonymous
+// visitor, so those metrics never saw the population they exist to observe: calendar-only staff,
 // who never sign in anywhere and are exactly the people an old installed PWA strands.
 //
 // This has to drive real page INIT. The unit tests call `recordUsage` directly with an identity
@@ -156,7 +156,7 @@ test('guide: an off-allowlist ?from= leaves the back arrow untouched', async ({ 
 test('calendar: origin telemetry gets the selected member when nobody is signed in', async ({ page }) => {
     // Rewrite usage-reporter.js so recordUsage records its arguments. A missing anchor THROWS: a
     // silent no-op here would leave a green test that had stopped testing the wiring.
-    const ANCHOR = 'export function recordUsage(page, member = null, identity = member) {';
+    const ANCHOR = 'export function recordUsage(page, identity = null) {';
     await page.route('**/usage-reporter.js', async route => {
         const res = await route.fetch();
         const src = await res.text();
@@ -164,7 +164,7 @@ test('calendar: origin telemetry gets the selected member when nobody is signed 
             throw new Error(`calendar: recordUsage anchor no longer matches — "${ANCHOR}". Re-point it.`);
         }
         const body = src.replace(ANCHOR, ANCHOR
-            + '\n    (window.__E2E ||= {}).usageCalls = [...(window.__E2E.usageCalls || []), { page, member, identity }];');
+            + '\n    (window.__E2E ||= {}).usageCalls = [...(window.__E2E.usageCalls || []), { page, identity }];');
         await route.fulfill({ response: res, body, contentType: 'text/javascript' });
     });
 
@@ -177,16 +177,18 @@ test('calendar: origin telemetry gets the selected member when nobody is signed 
         .toBeGreaterThan(0);
     const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
     expect(call, 'the calendar must report a page view').toBeTruthy();
-    expect(call.identity, 'the selected member is the origin metric’s dedup key').toBe('S. Silva');
-    // `member` stays null — the calendar deliberately counts a page view, never an active account.
-    expect(call.member).toBe(null);
+    expect(call.identity, 'the selected member is the dedup key for both the origin and account metrics')
+        .toBe('S. Silva');
+    // Since v19.95 that ONE identity also counts the visit as an active account. The spec used to
+    // assert a second `member` argument was null here, documenting the gap: a member who only reads
+    // the roster signs in nowhere, so "accounts active" excluded most of the staff.
 });
 
 test('calendar: a FIRST-RUN device reports no identity, so the default admin cannot exclude it', async ({ page }) => {
     // The guard that makes the fallback above safe. Before anyone picks a name the "selection" is
     // only CONFIG.DEFAULT_MEMBER_NAME — an admin — so keying on it unguarded would silently drop
     // every fresh visitor from the usage counts AND from the migration metric.
-    const ANCHOR = 'export function recordUsage(page, member = null, identity = member) {';
+    const ANCHOR = 'export function recordUsage(page, identity = null) {';
     await page.route('**/usage-reporter.js', async route => {
         const res = await route.fetch();
         const src = await res.text();
@@ -194,7 +196,7 @@ test('calendar: a FIRST-RUN device reports no identity, so the default admin can
         await route.fulfill({
             response: res, contentType: 'text/javascript',
             body: src.replace(ANCHOR, ANCHOR
-                + '\n    (window.__E2E ||= {}).usageCalls = [...(window.__E2E.usageCalls || []), { page, member, identity }];'),
+                + '\n    (window.__E2E ||= {}).usageCalls = [...(window.__E2E.usageCalls || []), { page, identity }];'),
         });
     });
 
@@ -203,6 +205,57 @@ test('calendar: a FIRST-RUN device reports no identity, so the default admin can
         .toBeGreaterThan(0);
     const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
     expect(call.identity, 'a first-run device must not be keyed on the default member').toBe(null);
+});
+
+
+// ── EACH GUIDE MUST COUNT AS ITSELF (v19.95) ─────────────────────────────────────────────────────
+// The guides are static pages with no Firebase, so the drawer tap is the only place an open can be
+// counted, and the id has to be chosen from the link that was clicked. Until v19.95 that was a
+// substring test on the href covering two of the four guides — and the two added here are exactly
+// the case it gets wrong, because `'./paycalc-guide.html'.includes('guide.html')` is TRUE.
+//
+// Nothing else can catch a mis-mapping. The unit tests hand `recordOpen` an id, the parity test
+// proves the LISTS agree, and both stay green while every Pay Calculator Guide open is filed under
+// the Staff Guide — two plausible-looking bars, one of them wrong, on a card nobody cross-checks.
+// So this drives the real drawer and reads back what each tap actually emitted.
+test('nav: each guide records its OWN open id', async ({ page }) => {
+    const ANCHOR = 'export function recordOpen(itemId, identity = null) {';
+    await page.route('**/usage-reporter.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        // A moved anchor THROWS rather than no-opping: a silent miss would leave a green test that
+        // records nothing and therefore asserts nothing.
+        if (!src.includes(ANCHOR)) throw new Error(`nav: recordOpen anchor no longer matches — "${ANCHOR}".`);
+        await route.fulfill({
+            response: res, contentType: 'text/javascript',
+            // sessionStorage, NOT a window global: the tap navigates to the guide, so a global dies
+            // with the document and every reading comes back empty — which reads as "the counter
+            // never fired" whether or not it did. (It did, first time round.)
+            body: src.replace(ANCHOR, ANCHOR
+                + '\n    sessionStorage.setItem("__opens", (sessionStorage.getItem("__opens")||"") + itemId + ",");'
+                + '\n    return;'),
+        });
+    });
+    await seedMember(page, 'S. Silva');
+
+    for (const [label, expected] of [
+        ['Staff & Admin Guide',  'guide-staff'],
+        ['Pay Calculator Guide', 'guide-paycalc'],
+        ['Railcard Guide',       'guide-railcard'],
+        ['FIP Travel Guide',     'guide-fip'],
+    ]) {
+        await page.goto('/');
+        await page.locator('#navMenuBtn').click();
+        await page.getByRole('link', { name: label }).click();
+        await page.waitForURL(/guide|fip/);
+        const opens = await page.evaluate(() => {
+            const v = sessionStorage.getItem('__opens') || '';
+            sessionStorage.removeItem('__opens');
+            return v.split(',').filter(Boolean);
+        });
+        expect(opens, `opening "${label}" must record exactly one open`).toHaveLength(1);
+        expect(opens[0], `"${label}" recorded the wrong id`).toBe(expected);
+    }
 });
 
 

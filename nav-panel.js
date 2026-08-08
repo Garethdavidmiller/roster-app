@@ -60,12 +60,21 @@ const NAV_INFORMATION = [
  * Guides — collapsible submenu (tap "📖 Guides" to expand). Static reference
  * pages, grouped together so the Information section stays focused on live docs.
  * Adding a guide = one entry here.
+ *
+ * `openId` is the anonymous open-counter id (v18.20 for the first two, v19.95 for the rest). It
+ * lives on the ENTRY and is stamped onto the rendered link as `data-open-id`, so the click handler
+ * reads it off the element rather than inferring it from the href. That is not tidiness: the two
+ * ids added at v19.95 are the exact case a href test gets wrong, because
+ * `'./paycalc-guide.html'.includes('guide.html')` is TRUE — a substring match would have counted
+ * every Pay Calculator Guide open as a Staff Guide open, and both bars would still have looked
+ * plausible. A guide added here without an `openId` simply is not counted, which
+ * firestore-contract-parity.test.mjs fails on rather than leaving to be noticed.
  */
 const NAV_GUIDES = [
-    { icon: '📘', label: 'Staff & Admin Guide',  url: './guide.html'          },
-    { icon: '💷', label: 'Pay Calculator Guide', url: './paycalc-guide.html'  },
-    { icon: '🎫', label: 'Railcard Guide',       url: './railcard-guide.html' },
-    { icon: '🇪🇺', label: 'FIP Travel Guide',     url: './fip.html'            },
+    { icon: '📘', label: 'Staff & Admin Guide',  url: './guide.html',          openId: 'guide-staff'    },
+    { icon: '💷', label: 'Pay Calculator Guide', url: './paycalc-guide.html',  openId: 'guide-paycalc'  },
+    { icon: '🎫', label: 'Railcard Guide',       url: './railcard-guide.html', openId: 'guide-railcard' },
+    { icon: '🇪🇺', label: 'FIP Travel Guide',     url: './fip.html',            openId: 'guide-fip'      },
 ];
 
 /**
@@ -464,10 +473,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             // Counted at the moment the navigation actually COMMITS, not on the click (v18.91):
             // the plain-click path below defers ~120ms and Back cancels it, so counting up front
             // recorded opens that never happened.
-            const _href = guideLink.getAttribute('href') || '';
+            //
+            // The id is READ OFF THE ELEMENT (`data-open-id`, stamped from NAV_GUIDES at render).
+            // It was matched from the href until v19.95, which covered only two of the four guides
+            // — and adding the other two that way would have been wrong, because
+            // `'./paycalc-guide.html'.includes('guide.html')` is true.
             const _countGuideOpen = () => {
-                if (_href.includes('railcard-guide')) recordOpen('guide-railcard', _usageId);
-                else if (_href.includes('fip.html'))  recordOpen('guide-fip', _usageId);
+                const openId = guideLink.dataset.openId;
+                if (openId) recordOpen(openId, _usageId);
             };
             const plainGuideClick = e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
             if (plainGuideClick && _historyPushed) {
@@ -919,7 +932,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // appends ?from=<this page> so the guide's ← comes back HERE (guide-back.js, v18.84) — which is
     // what the new-tab open used to buy us, without the extra browser chrome.
     const guideLinks = NAV_GUIDES
-        .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide"><span aria-hidden="true">${g.icon}</span> ${g.label}</a></li>`)
+        .map(g => `<li><a href="${g.url}" class="nav-panel-link nav-panel-link--guide" data-open-id="${g.openId}"><span aria-hidden="true">${g.icon}</span> ${g.label}</a></li>`)
         .join('');
 
     // Settings link — always visible except on the settings page itself.
