@@ -96,3 +96,49 @@ describe('surname derivation — browser ↔ functions parity', () => {
             'functions/roster-parse-helpers.js nameToPassword no longer matches the canonical derivation');
     });
 });
+
+// ── THE ACCOUNT EMAIL — the identifier itself, and it was NOT guarded (v19.98) ──────────────────
+//
+// Everything above guards the PASSWORD half of the identity derivation. `nameToEmail` is the other
+// half, duplicated across the same ESM/CommonJS boundary for the same reason, and nothing checked it:
+//
+//   browser:   nameToEmail()  in auth-identity.js   — what the client SIGNS IN as
+//   functions: nameToEmail()  in functions/roster-parse-helpers.js — what setupRosterAuth PROVISIONS
+//
+// It is the more consequential of the two. A drifted password is a failed sign-in with an error the
+// member can report; a drifted email means the server creates `x@myb-roster.local` while the client
+// authenticates against `y@myb-roster.local` — an account that does not exist, for a member who is
+// simply locked out, with "Set up accounts" reporting success.
+//
+// The two implementations are already written DIFFERENTLY, which is what makes this worth pinning
+// rather than assuming: the browser delegates its surname to `normaliseSurname`, the functions copy
+// inlines the same expression. They agree today on all 51 real names and on accents, apostrophes,
+// hyphens, particles and doubled spaces — so this is a drift guard, not a bug report.
+describe('nameToEmail parity across the browser / functions boundary', () => {
+    const { nameToEmail: fnEmail } = require('./functions/roster-parse-helpers.js');
+
+    test('both sides derive the same account email, on every real name and the awkward ones', async () => {
+        const { nameToEmail: browserEmail } = await import('./auth-identity.js');
+        const { teamMembers } = await import('./roster-data.js');
+        const names = [
+            ...teamMembers.map((/** @type {any} */ m) => m.name),
+            "S. O'Brien", 'J. Smith-Jones', 'A. Van Der Berg', "M. D'Souza", 'X. Ünal',
+            'P. Ng', '  L.  Spaced  Out  ', 'R. Mc Donald', 'T. St John', 'Z. Åberg',
+            'N. José', 'K. Ekwueme-Okoye', 'B. de la Cruz',
+        ];
+        for (const n of names) {
+            assert.equal(browserEmail(n), fnEmail(n),
+                `nameToEmail("${n}") differs across the boundary — the client would sign in to an ` +
+                'account setupRosterAuth never created');
+        }
+    });
+
+    test('the derived email is always a usable Firebase identifier', () => {
+        // Guards the shape rather than the spelling: whatever the rule becomes, it has to stay a
+        // lowercase local-part on the synthetic domain, or Firebase rejects the account outright.
+        for (const n of ['G. Miller', "S. O'Brien", 'A. Tuck']) {
+            assert.match(fnEmail(n), /^[a-z]+\.[a-z]+@myb-roster\.local$/,
+                `nameToEmail("${n}") = "${fnEmail(n)}" is not a valid synthetic account email`);
+        }
+    });
+});
