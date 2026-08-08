@@ -115,6 +115,32 @@ two-month warning, because "must be done by April" reliably becomes "started in 
 
 ## NEXT — likely, but a trigger is required
 
+### Rangers & Rovers guide
+**Status:** Planned — `RANGERS_ROVERS_PLAN.md` · **Owner:** Gareth (the blocking half) · **Trigger:** a class-A/B source route
+
+A fifth guide page, for the ranger and rover area passes staff have to accept or refuse at the
+gateline. The design work is done and written up; **the plan deliberately stops before any content**.
+
+**Why it is blocked, and why that is the right answer.** Every claim on such a page is a rule a
+passenger could be refused travel by, so the Evidence class gate above puts the whole page at **A or
+B** — and this environment's network policy blocks `nationalrail.co.uk` and `chilternrailways.co.uk`
+outright, so nothing class-A can be reached from here. Web search returns third-party summaries, which
+is precisely the sourcing `GUIDE_SOURCES.md` warns is not counter-final, and precisely how the v17.45
+railcard errors happened. Writing it anyway would produce a fluent, plausible, unverifiable page —
+worse than not having one, because nobody at a gateline knows off-hand whether a given rover is valid
+to Banbury.
+
+**Two unblocks, and one of them is needed either way:** widen the environment's egress to the rail
+domains (removes the dependence on being handed the national half), and/or Gareth supplies the
+retail-system listing. The second is required regardless — *is it valid on us, and between which
+stations* is an operator fact no public page states, and it is the only thing this guide would offer
+that National Rail does not already do better.
+
+**The one design decision worth knowing without reading the plan:** the guide leads with the products
+that are **not** valid on Chiltern. That is the answer staff cannot get quickly anywhere else, and a
+page listing all ~90 national products would be unusable at a gateline — a staff member who fails to
+find the ticket in their hand cannot tell whether that means *not valid* or *not listed*.
+
 ### Address migration campaign
 **Status:** Planned, sequenced after the password work · **Owner:** Gareth · **Trigger:** password migration substantially complete
 
