@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: August 2026 — v20.00 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.10 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -116,56 +116,61 @@ two-month warning, because "must be done by April" reliably becomes "started in 
 ## NEXT — likely, but a trigger is required
 
 ### Rangers & Rovers guide
-**Status:** **SHIPPED AS A DRAFT v20.05** — `RANGERS_ROVERS_PLAN.md` · **Owner:** Gareth (verification) · **Trigger:** confirm each product against the retail system
+**Status:** **SHIPPED; SOURCE-CHECKED PER PRODUCT v20.10** — `RANGERS_ROVERS_PLAN.md` · **Owner:** Gareth · **Trigger:** settle the two source conflicts through Chiltern/retail guidance
 
 A fifth guide page, for the ranger and rover area passes staff have to accept or refuse at the
-gateline. **Built and shipped, and every claim on it is marked unverified** — the page carries a
-printing draft banner, a `to confirm` pill on each card, and a `Draft` class on each register row,
-all three enforced by `guide-sources.test.mjs`. It ships that way because a staff member with
-nothing has to guess, and a structured best-available answer that SAYS it is unconfirmed beats a
-guess — the precedent is `links-fatigue.js`, whose FF17/18/19 render with `confirm: true`.
+gateline. Shipped at v20.05 **entirely unverified** and marked so in three enforced places; the owner
+then checked its products against the live National Rail pages (Aug 2026), and the governance changed
+shape as a result.
 
-**What is left is verification, and it splits into two halves with different owners.**
+**The interesting part is what checking revealed the page-wide banner could not say.** Eight products
+read cleanly. Two came back with the *source contradicting itself* — and under one "Draft" banner
+those are indistinguishable from the eight, which costs the reader exactly what the banner was for.
+So `GUIDE_SOURCES.md` gained a **`Conflict`** class and the page a status per product:
 
-**Half one — the national rules — is blocked on an environment setting, not on effort.** The session's
-egress policy denies `nationalrail.co.uk` and `chilternrailways.co.uk` (re-tested Aug 2026, still
+| Status | Meaning |
+|---|---|
+| `✓ National Rail checked · Aug 2026` | read at source; the card states what the source states |
+| `⚠ Source conflict · check retail system` | read at source, and the source will not settle it |
+| `Draft · source not yet verified` | not yet read at source |
+
+**A Conflict is not a stronger Draft.** Draft = nobody looked. Conflict = somebody did, and the
+publisher contradicts itself — re-reading fixes the first and can never fix the second. They must
+never share a marker, or a staff member is sent back to a page that has already been read.
+
+**The two unresolved ones, neither resolvable by looking again:**
+
+- **Shakespeare Explorer** — National Rail's own page permits break of journey in its description and
+  forbids it in the detailed outward/return conditions. One page, two answers.
+- **Thames Rover 7 Day** — the current 7-Day promotion lists Chiltern (with Banbury and Bicester
+  Village); the older TR3/TR7 formal page says GWR only. **The duration is load-bearing**: the 3-Day
+  promotion lists GWR only, so a card headed "Thames Rover" would carry the 7-Day finding onto a
+  product the current source says is not ours.
+
+Settling either needs Chiltern/retail guidance, not another read. **Never resolve a conflict by
+picking the likelier reading** — both cases refuse somebody whichever way they are called.
+
+**Also outstanding:** four product-page URLs (Chiltern Friends & Family, West Midlands Family Day
+Ranger, and the two conflicting Thames pages). Those rows cite the parent/landing page and say so,
+rather than carrying a URL pattern-guessed from the others — a fabricated citation in a source
+register is the precise failure the register exists to prevent, and it would look more authoritative
+than the honest gap.
+
+**The egress request still stands, and is now about maintenance rather than launch.** The session's
+policy denies `nationalrail.co.uk` and `chilternrailways.co.uk` (re-tested Aug 2026, still
 `EGRESS_BLOCKED`), and the allowlist is environment config that cannot be changed from inside a
-session — the proxy's own guidance is *"do not retry or route around it — report the blocked host"*.
-**Gareth: add `www.nationalrail.co.uk` and `support.chilternrailways.co.uk` to the network policy on
-this environment (claude.ai/code → environment settings). Name the SUBDOMAINS, not just the bare
-domains** — the Chiltern content is on `support.`, and the product pages are on `www.`. Expect a fresh
-session to be needed before it takes effect. With that open, the five product pages and Chiltern's own
-ranger/rover article can be fetched and quoted verbatim.
+session. **Gareth: add `www.nationalrail.co.uk` and `support.chilternrailways.co.uk` to this
+environment's network policy (claude.ai/code → environment settings). Name the SUBDOMAINS** — the
+Chiltern content is on `support.`, the product pages on `www.`. With that open, review passes can
+quote verbatim instead of depending on the owner re-checking by hand each time.
 
-**Half two — is it valid on us, and between which stations — is an operator fact and stays with
-Gareth** whatever the egress policy says. The national pages do not answer it. The least certain claim
-on the page is the Oxfordshire Day Ranger's Chiltern boundary (that High Wycombe and Aylesbury are
-outside it) — inferred from a station list, not stated by a source, and exactly the kind of claim that
-refuses somebody travel if it is wrong. Check it in the retail system.
-
-Then per product: flip its `GUIDE_SOURCES.md` row from `Draft` to `National`, and drop
-`rr-card--draft` from its card. The banner goes when the last one does, and `guide-sources.test.mjs`
-fails if it is removed early.
-
-**Why it is blocked, and why that is the right answer.** Every claim on such a page is a rule a
-passenger could be refused travel by, so the Evidence class gate above puts the whole page at **A or
-B** — and this environment's network policy blocks `nationalrail.co.uk` and `chilternrailways.co.uk`
-outright, so nothing class-A can be reached from here. Web search returns third-party summaries, which
-is precisely the sourcing `GUIDE_SOURCES.md` warns is not counter-final, and precisely how the v17.45
-railcard errors happened. Writing it anyway would produce a fluent, plausible, unverifiable page —
-worse than not having one, because nobody at a gateline knows off-hand whether a given rover is valid
-to Banbury.
-
-**Two unblocks, and one of them is needed either way:** widen the environment's egress to the rail
-domains (removes the dependence on being handed the national half), and/or Gareth supplies the
-retail-system listing. The second is required regardless — *is it valid on us, and between which
-stations* is an operator fact no public page states, and it is the only thing this guide would offer
-that National Rail does not already do better.
+**Half two stays with Gareth whatever the egress policy says:** *is it valid on us, and between which
+stations* is an operator fact the national pages do not answer.
 
 **The one design decision worth knowing without reading the plan:** the guide leads with the products
-that are **not** valid on Chiltern. That is the answer staff cannot get quickly anywhere else, and a
-page listing all ~90 national products would be unusable at a gateline — a staff member who fails to
-find the ticket in their hand cannot tell whether that means *not valid* or *not listed*.
+that are **not** valid on Chiltern, and states plainly that it is **not an exhaustive national list** —
+absence is out of scope, not invalidity. It carried an approximate national product count until
+v20.10; that went, because pinning a changing figure dates the page and buys the reader nothing.
 
 ### Address migration campaign
 **Status:** Planned, sequenced after the password work · **Owner:** Gareth · **Trigger:** password migration substantially complete

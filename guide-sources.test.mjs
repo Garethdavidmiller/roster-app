@@ -24,7 +24,23 @@ const SRC = readFileSync(new URL('./GUIDE_SOURCES.md', import.meta.url), 'utf8')
 // and the alternative was worse in both directions: classify those rows `National` and the register
 // certifies something nobody checked, or leave them out and the guide's riskiest claims have no rows
 // at all. A named class makes the gap countable, and the test below makes it visible on the page.
-const CLASSES = new Set(['National', 'Local', 'Tip', 'Fact', 'Contact', 'Draft']);
+// `Conflict` (v20.10) is the OTHER kind of not-settled, and collapsing the two would lose the whole
+// point of naming either. `Draft` = we have not looked. `Conflict` = we looked, and the source is
+// the problem — it contradicts itself, or another currently-published authoritative source. A
+// Conflict row is BETTER evidence than a Draft one (somebody read the page) and is NOT closer to
+// being resolved, because no amount of re-reading fixes a publisher's contradiction. Both must stay
+// visibly provisional on the page; only the wording differs.
+const CLASSES = new Set(['National', 'Local', 'Tip', 'Fact', 'Contact', 'Draft', 'Conflict']);
+
+/**
+ * The classes a reader must be TOLD about, and the per-card marker each one requires.
+ *
+ * Keyed as a map rather than a list because the markers are not interchangeable: a Conflict card
+ * wearing the draft marker would tell a staff member "not checked yet" about a claim that HAS been
+ * checked and cannot be settled — which is the misreading that would send them back to the same
+ * page for the same answer.
+ */
+const PROVISIONAL = { Draft: 'rr-card--draft', Conflict: 'rr-card--conflict' };
 const COLS = ['ID', 'Guide', 'Section', 'Class', 'Reviewed', 'Next', 'Source'];
 
 /**
@@ -322,31 +338,97 @@ test('review-cadence reminder (never fails; logs overdue high-risk rows)', () =>
 // countdown for ten versions after the purge was switched off, and what that cost was not the
 // countdown — it was the reason to believe the next thing the panel said.
 //
-// So: every guide with a `Draft` row must carry a visible draft banner, and every block anchored to
-// a Draft row must carry the per-card marker. The banner alone is not enough — it scrolls away, and
-// a printed or screenshotted card outlives it.
-test('a Draft register row is declared on the page it certifies', () => {
-    const draftIds = new Set(rows.filter(r => r.Class === 'Draft').map(r => r.ID));
-    if (draftIds.size === 0) return;   // nothing to police — every row has been verified
+// So: every block anchored to a provisional row must carry that CLASS's own per-card marker, and any
+// guide holding provisional rows must carry a banner that names which states are present. The banner
+// alone is not enough — it scrolls away, and a printed or screenshotted card outlives it.
+//
+// ── AND THE STATE IS NOW PER-PRODUCT, NOT PER-PAGE (v20.10) ────────────────────────────────────
+// The Rangers & Rovers guide shipped entirely Draft behind one page-wide banner. Once the owner had
+// checked the products at source, that banner was actively misleading in the OTHER direction: eight
+// well-sourced products and two contradictory ones presented as equally uncertain, so a reader could
+// no longer tell which was which — the same "reason to believe the next thing" cost the
+// links-deletion bin note incurred, running the other way. Hence a marker per class, and a banner
+// that has to mention every state actually present on the page.
 
-    const guidesWithDrafts = new Set(rows.filter(r => draftIds.has(r.ID)).map(r => r.Guide));
-    for (const guide of guidesWithDrafts) {
+/**
+ * The banner element's own text.
+ *
+ * Sliced to the chip bar that follows it rather than matched with a lazy `</div>` pair — the first
+ * version did the latter and the banner has no two adjacent closing divs, so the match ran on into
+ * the rest of the document and picked up the words it was meant to be checking for. It passed a
+ * mutation that deleted "conflict" from the banner (measured), which is the exact failure a
+ * guard-the-guard pass exists to find. Fails loud if the anchor moves.
+ * @param {string} html @param {string} file
+ */
+function bannerOf(html, file) {
+    const i = html.indexOf('class="source-banner"');
+    if (i === -1) return '';
+    const j = html.indexOf('<nav', i);
+    assert.ok(j > i, `${file}: could not bound the source banner — it is no longer followed by the ` +
+        'chip bar, so this extraction is reading the wrong region. Fix the slice, do not widen it.');
+    return html.slice(i, j);
+}
+
+test('a provisional register row is declared on the page it certifies', () => {
+    /** @type {Record<string, Set<string>>} */
+    const idsByClass = {};
+    for (const cls of Object.keys(PROVISIONAL)) {
+        idsByClass[cls] = new Set(rows.filter(r => r.Class === cls).map(r => r.ID));
+    }
+    const allProvisional = new Set(Object.values(idsByClass).flatMap(s => [...s]));
+    if (allProvisional.size === 0) return;   // nothing to police — every row is settled
+
+    const guides = new Set(rows.filter(r => allProvisional.has(r.ID)).map(r => r.Guide));
+    for (const guide of guides) {
         const file = GUIDE_FILES[guide];
         if (!file) continue;           // paycalc renders elsewhere — same exemption as the linkage checks
         const html = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
-        assert.match(html, /class="draft-banner"/,
-            `${file} certifies ${[...draftIds].length} unverified (Draft) claims but shows no draft banner — ` +
-            'a reader has no way to know. Add the banner, or verify the rows and reclassify them.');
 
-        // Every element carrying a Draft ref must also carry the per-card marker. Matched on the
+        assert.match(html, /class="source-banner"/,
+            `${file} certifies provisional claims but shows no source banner — a reader has no way ` +
+            'to know. Add the banner, or settle the rows and reclassify them.');
+
+        // The banner must name every provisional state actually on the page. One that says "draft"
+        // over a page whose only unsettled rows are Conflicts sends the reader back to re-read a
+        // source that has already been read — and one that omits a state entirely is worse than no
+        // summary, because it reads as a complete one.
+        const banner = bannerOf(html, file);
+        for (const [cls, ids] of Object.entries(idsByClass)) {
+            if (!ids.size) continue;
+            assert.match(banner, cls === 'Conflict' ? /conflict/i : /draft/i,
+                `${file}: the banner does not mention ${cls}, but ${ids.size} ${cls} row(s) are on ` +
+                `this page:\n  ${banner.replace(/\s+/g, ' ').slice(0, 200)}…`);
+        }
+
+        // Every element carrying a provisional ref must carry THAT CLASS's marker. Matched on the
         // element's own attribute string, so an anchor that lost its marker is named individually
         // rather than the file passing on the strength of some OTHER card having one.
         for (const m of html.matchAll(/<[^>]*data-guide-source="([^"]+)"[^>]*>/g)) {
             const ids = m[1].trim().split(/\s+/);
-            if (!ids.some(id => draftIds.has(id))) continue;
-            assert.match(m[0], /rr-card--draft/,
-                `${file}: the block citing ${ids.join(' ')} is certified by an unverified (Draft) row ` +
-                `but carries no per-card draft marker:\n  ${m[0].slice(0, 120)}…`);
+            for (const [cls, marker] of Object.entries(PROVISIONAL)) {
+                if (!ids.some(id => idsByClass[cls].has(id))) continue;
+                assert.ok(m[0].includes(marker),
+                    `${file}: the block citing ${ids.join(' ')} is certified by a ${cls} row but ` +
+                    `carries no \`${marker}\` marker:\n  ${m[0].slice(0, 140)}…`);
+            }
         }
+    }
+});
+
+// A CONFLICT ROW MUST SAY WHAT THE CONFLICT IS (v20.10). The class is the cheap part; the value is
+// the reader being able to see BOTH readings and decide what to do meanwhile. A row classified
+// Conflict whose claim text does not describe the disagreement has recorded a mood, not evidence —
+// and the next person to look at it has to redo the work that produced the classification.
+test('every Conflict row describes the disagreement it found', () => {
+    const conflicts = rows.filter(r => r.Class === 'Conflict');
+    assert.ok(conflicts.length, 'no Conflict rows — if the class has fallen out of use, remove it');
+    for (const r of conflicts) {
+        assert.match(r.Section, /conflict/i,
+            `${r.ID}: a Conflict row must name its state in the claim text, so the register reads ` +
+            'correctly without cross-referencing the Class column');
+        // Two sides, not one — the row has to hold both readings.
+        assert.match(r.Section, /\bbut\b|\bwhile\b|\bwhereas\b/i,
+            `${r.ID}: a Conflict row must state BOTH readings. If only one is recorded, the next ` +
+            'reader cannot tell what was checked, and the classification is unactionable.');
     }
 });

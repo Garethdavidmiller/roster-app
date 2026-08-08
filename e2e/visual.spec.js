@@ -539,16 +539,28 @@ test('guide — railcard mobile 390', async ({ page }) => {
 });
 
 // Baselined at MOBILE, like its sibling the railcard guide: this is a gateline page, read on a phone.
-// The composition worth locking is the card stack + the draft banner — and the banner especially,
+// The composition worth locking is the card stack + the source banner — and the banner especially,
 // because it is the one element whose disappearance would change what the page CLAIMS rather than
 // how it looks, and no behavioural test asserts a background.
+//
+// THE SENTINELS EARNED THEIR KEEP AT v20.10 and are worth reading before changing. They asserted the
+// v20.05 state — a draft banner and nine draft cards — and failed the moment the evidence model
+// moved to per-product. That is the intended behaviour, not friction: without them the run would
+// have regenerated a green baseline of a page whose claims had changed, and the change would have
+// entered the repo as a picture nobody compared against anything.
 test('guide — rangers & rovers mobile 390', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 4400 });
+    await page.setViewportSize({ width: 390, height: 6200 });
     await page.goto('/rangers-guide.html');
-    // Sentinel before the capture: a page that lost its draft treatment would still screenshot
-    // perfectly and the next regeneration would lock in the un-caveated version as the new truth.
-    await expect(page.locator('.draft-banner')).toBeVisible();
-    await expect(page.locator('.rr-card--draft')).toHaveCount(9);
+    // The banner still exists, but it now SUMMARISES rather than blankets.
+    await expect(page.locator('.source-banner')).toBeVisible();
+    // Two products carry an unresolved source conflict (Shakespeare Explorer, Thames Rover 7 Day) —
+    // pinned by COUNT, because the failure worth catching is one of them quietly losing its marker
+    // and reading as settled.
+    await expect(page.locator('.rr-card--conflict')).toHaveCount(2);
+    // …and nothing is Draft any more. Asserted explicitly rather than left implicit: a product added
+    // later without a status would otherwise slip in unmarked.
+    await expect(page.locator('.rr-card--draft')).toHaveCount(0);
+    await expect(page.locator('.pill-checked')).not.toHaveCount(0);
     await guideSettle(page, '.chip-bar, .rr-card');
     await expect(page).toHaveScreenshot('rangers-guide-mobile-390.png');
 });
