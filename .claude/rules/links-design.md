@@ -844,9 +844,35 @@ Two rules that are easy to undo:
   that simply never rosters Sundays would score as generous while giving nothing away. `breakLength`
   returns both; `days` is right for fatigue, `given` is right for judging the design.
 
-**Deterministic** — no randomness. The same design and switches always give the same order, so a
-designer can re-run and get their design back, and two designers comparing notes compare the same
-thing. Greedy nearest-neighbour then a bounded 2-opt; not optimal and does not claim to be.
+**Deterministic per attempt** (v20.07 — was flatly deterministic, which made Generate a dead end:
+pressing it again returned the identical design, and a designer could never ask "is there another
+arrangement?" without changing a target they did not want to change — the owner's report). The 2-opt
+is a local search, so where it STARTS decides where it lands:
+
+- **Attempt 0** starts from the greedy order — byte-identical to the old behaviour, so the measured
+  figures in the docs still describe the first press, and the two e2e assertions on the first-press
+  status text stay true.
+- **Attempt N ≥ 1** starts from three seeded shuffles (mulberry32 on the attempt number — never
+  `Math.random`, never the clock) and keeps the best by cost. Different attempts land in different
+  local minima: measured on the live seed, attempts 0–7 produced seven distinct designs, several
+  better than attempt 0 on individual figures (attempt 2: week-to-week 110 min against 156 at the
+  same longest run).
+
+What the old rule was FOR — reproducibility — survives: same design, switches and attempt number
+give the same order on any device, so "design 3" means the same design to two designers comparing
+notes, and a variant is recoverable by reloading and pressing Generate the same number of times.
+The status line names the design, tracks the best-so-far on the ticked objectives, and says how to
+get a superseded best back.
+
+**The even cover spread is a FILTER on candidates, not only a weight** — and that distinction was
+measured, not theorised: attempt 6's three starts all converged into minima with gaps 6,7,6,5. The
+w=3000 weight makes unevenness expensive, but a local search can only pay a price it can find a
+path away from. A candidate that breaks the spread is not a worse candidate — it is not a candidate;
+if all three fail, the attempt falls back to the canonical design and the status line admits the
+duplicate rather than renumbering it. Teeth-verified three ways (attempt-blind seed, dropped
+filter, `Math.random` in place of the PRNG).
+
+Greedy nearest-neighbour then a bounded 2-opt; not optimal and does not claim to be.
 
 ### Sunday is not contracted, and the generator does not model it
 

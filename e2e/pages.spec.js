@@ -1544,6 +1544,40 @@ test('links: generating names the construction that produced the design', async 
     await expect(page.locator('#linksSaveStatus')).toContainText(/settled weeks, \d+ waves?/);
 });
 
+// ── Pressing Generate again explores (v20.07) ────────────────────────────────────────────────────
+// The reorder was flatly deterministic, so a second press returned the identical design and said
+// nothing — the owner's report. The engine's attempt behaviour is unit-tested in
+// links-adjacency.test.mjs; what only a real browser can prove is the WIRING: that the second press
+// actually advances the counter (the fingerprint has to read the same inputs both times), and that
+// the status line names the variant rather than repeating the first press's text. Without this, a
+// broken fingerprint silently pins every press to attempt 0 — which is exactly the bug being fixed,
+// wearing the new code.
+test('links: pressing Generate again produces a different, named design', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await openLinks(page);
+    await page.locator('#generatorToggleHeader').click();
+
+    const gen = async () => {
+        await page.locator('#genApplyBtn').click();
+        const ok = page.locator('.dialog-btn-confirm');
+        if (await ok.count()) await ok.first().click();
+        await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    };
+    const gridText = () => page.evaluate(() =>
+        /** @type {HTMLElement} */ (document.getElementById('linksGridBodyRows')).innerText);
+
+    await gen();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Generate again');
+    const first = await gridText();
+
+    await gen();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Design 2');
+    // The grid itself must change — a status line claiming "Design 2" over an identical grid is the
+    // tool pretending to explore. (Attempt 1 differs from attempt 0 on the live seed; pinned by the
+    // unit distinctness test, so this is not a flaky coincidence.)
+    expect(await gridText()).not.toBe(first);
+});
+
 // ── No focusable field may sit under 16px on a touch device (v19.61) ─────────────────────────────
 // iOS force-zooms the page when you focus a field smaller than 16px, and the app has said "never go
 // below 16px on a focusable field" in css-tokens.md since v11.77 — with NOTHING enforcing it.
