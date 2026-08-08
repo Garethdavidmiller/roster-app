@@ -18,6 +18,25 @@
  * Does NOT own: the backup format or any import RULE — those are pure, in paycalc-transfer.js,
  *   so the decision to overwrite someone's pay history is testable without a browser.
  * Edit here for: the card's wording, buttons, or feedback states.
+ *
+ * ── THE RESTORE ORDER IS NOT ARBITRARY (moved here from CLAUDE.md's file tree, v20.11) ─────────
+ *
+ * A restore is a **REPLACE, never a merge** — a half-merged pay history is worse than either
+ * version. Two things about how it does that are easy to "tidy" into a catastrophe:
+ *
+ * 1. **It WRITES FIRST, verifies by reading back, and only then removes the surplus.** The obvious
+ *    wipe-then-write order is catastrophic here because `lsSet` SWALLOWS a storage error (ls.js
+ *    does that deliberately, for iOS private mode). On a device that had stopped accepting writes,
+ *    the wipe would succeed, the write would silently do nothing, and the member would be told
+ *    "Restored" as their pay history vanished. A `try/catch` around `lsSet` is dead code — reading
+ *    the values back is the only signal there is.
+ *
+ * 2. **Surplus keys are `lsDel`'d, not blanked.** A key set to `''` leaves a value the app would
+ *    later try to parse, and a key the backup lacks must genuinely disappear or the "replace" is a
+ *    merge wearing a replace's label.
+ *
+ * And every control is disabled when the member cannot be identified — **the paste pair included**,
+ * whose omission once left one paste able to delete two members' pay history on a shared device.
  */
 
 import { lsGet, lsSet, lsDel, lsKeys } from './ls.js';

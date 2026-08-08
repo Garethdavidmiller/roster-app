@@ -103,13 +103,19 @@ fi
 # ESLint — run on staged .js files only (fast).
 # Uses project-local node_modules/.bin/eslint (installed by `npm install`).
 if [[ -x "./node_modules/.bin/eslint" ]]; then
-  # service-worker.js is excluded from ESLint (it's in .eslintignore / has a matching
-  # ignore pattern) — ESLint warns "file ignored" which fails --max-warnings=0.
-  # It has no ES-module syntax anyway; use node --check for syntax-only validation.
+  # --no-warn-ignored is load-bearing (v20.11). Naming an ESLint-IGNORED file on the command line
+  # makes it warn "file ignored", which --max-warnings=0 turns into a failed commit — so any commit
+  # touching one is blocked for a reason that is not a lint problem. This block used to handle that
+  # by filtering out the one ignored path anybody had hit (service-worker.js), while the ignore list
+  # in eslint.config.js grew to cover e2e/**, scripts/**, four playwright configs and the test globs.
+  # Staging e2e/visual.spec.js duly failed the hook. A hand-maintained mirror of another list is the
+  # failure this repo keeps writing guards about; the flag tracks the real list automatically.
+  # service-worker.js stays filtered for a SEPARATE reason: its coverage is `node --check` above
+  # (SW global scope, no ES-module syntax), which is a statement about what checks it, not a warning.
   STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' | grep -v 'node_modules\|functions/' | grep -v 'service-worker\.js' | tr '\n' ' ')
   if [[ -n "$STAGED_JS" ]]; then
     # shellcheck disable=SC2086
-    ./node_modules/.bin/eslint --max-warnings=0 $STAGED_JS
+    ./node_modules/.bin/eslint --max-warnings=0 --no-warn-ignored $STAGED_JS
     if [ $? -ne 0 ]; then
       echo ""
       echo "  ESLint: fix the above warnings/errors, then re-commit."

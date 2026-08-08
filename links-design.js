@@ -8,6 +8,62 @@
  *   checks (weekends off, short turnarounds, longest stretch, balance).
  * Edit here for: generator algorithm, check thresholds, coverage maths.
  * Tested by links-design.test.mjs.
+ *
+ * ── THE RULES THAT MUST SURVIVE AN EDIT ────────────────────────────────────────────────────────
+ *
+ * Moved here from CLAUDE.md's file tree at v20.11. It had accumulated twelve version stamps there
+ * — a changelog living in a routing table, loaded into every session and read on almost none. The
+ * release history stays in git and in LINKS_DEC2026_PLAN.md; what belongs beside the code is the
+ * set of things a future edit can silently break. Those are:
+ *
+ * `ROTATING_LINES` is the ONE declaration of the rotation length. **Never write the number down** —
+ * not in a module, not in prose, not in a `max` attribute. It was a literal in three files kept in
+ * step by a comment until v19.38, and when the length moved twice (28 → 22 → 24) the sweep found it
+ * restated in ~15 places, every one of which rendered perfectly while describing a link that does
+ * not exist. `links-rotation-parity.test.mjs` fails on a literal; markup that cannot interpolate
+ * uses a `.js-rotating-lines` span. A design SAVED at an older length is left alone — trimming on
+ * load destroys work on a page visit, trimming on save does it at the worst possible moment — so
+ * `#linksOverLengthNotice` states that the surplus rows are neither shown nor counted but are kept.
+ *
+ * `normalisePatterns` pads a legacy unpadded time on load so this module has ONE time format.
+ * Before it, `classifyShift` and `startMinutes` could disagree about what a time IS: "6:00-14:00"
+ * classified as a normal early while `startMinutes` returned null, so it counted in the day totals
+ * yet was ABSENT from the hourly heat map and exempt from every turnaround check.
+ *
+ * SPARE IS A WHOLE WEEK, not a per-day headcount. `spareLines` reserves whole lines spread around
+ * the wheel. Feeding a spare count to the sliding window instead scattered a person's standby days
+ * across the week while the daily SP total stayed correct — which is exactly why nobody noticed.
+ * The real roster has whole spare weeks only. A spare week is **four** duties of seven
+ * (`SPARE_WORKED_DAYS`); counting it as seven let one bridge the blocks either side of it and
+ * reported the live main roster at 15 consecutive worked days against a true ceiling of 9.
+ *
+ * `generateLink` groups slots into WAVES by start time (within `WAVE_SPAN_MINUTES`, the FF19
+ * threshold) and gives each wave a contiguous block of lines, so a line never leaves its wave.
+ * Two rules were wrong on the first attempt and both made the link UNFAIR: a wave too small to fund
+ * a line is **merged into its nearer neighbour** (two weekend-only slots once held a whole line, so
+ * somebody worked two days a week), and a lap is **spread across the week, never front-loaded**.
+ * The older rotating construction is kept as a fallback and **refuses** (`no-rest`) when strides
+ * cannot fund a lap, rather than shipping the phantom "only moves later" guarantee it used to
+ * claim — positions read mod `working`, so every line wrapped front-to-back once a week.
+ * Interleaving the waves inside the generator is a WON'T-DO: tried and reverted, it fixes raw block
+ * length but puts a late wave's 23:55 Saturday beside a morning wave's 06:20 Sunday. The generator
+ * owns the SHAPE; `links-adjacency.js` owns the ORDER. A test fails if the interleave returns.
+ *
+ * `weeklyHours` has TWO exclusions, each load-bearing and each easy to "simplify" into a plausible
+ * wrong answer. **Sundays come out**, because Sunday is not contracted for any grade here, so
+ * counting it towards 35 reports a design as delivering contracted hours using time that is not
+ * contracted — it FLATTERS. The denominator is the **working lines**, because a cover week carries
+ * no times, so dividing by all of them charges the average with weeks of zero — it DEFLATES.
+ * Validated against the roster itself: the live main cycle's 16 working lines come to exactly
+ * 35.00. A line with worked duties but no readable time is reported through `unreadableLines` /
+ * `complete`, never silently dropped — see the note at that function.
+ *
+ * `endMinutesAbs` is the ONE reading of a duty that runs past midnight. Both former inline copies
+ * erred towards *safer than the truth*: the heat map dropped the post-midnight hours entirely, and
+ * the turnaround check credited a 00:30 finish with ~26h of rest before an 06:20 start instead of
+ * 5h50. Unreachable from the CEA link (`normaliseCustomShift` refuses a wrapping value) — keep that
+ * ban. `dutyMinutes` lives here rather than in links-fatigue.js and is re-exported there: a second
+ * copy is the exact failure `endMinutesAbs` was extracted to end.
  */
 
 export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];

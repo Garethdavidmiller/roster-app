@@ -2,8 +2,18 @@
 // (config: playwright.visual.mjs) — excluded from the smoke run because pixel diffs are
 // environment-sensitive. Locks the composition of every key surface (including the accepted
 // desktop "voids") so a CSS/layout change like the Section C token sweep can't silently
-// restyle a page. When an intentional visual change lands, regenerate the affected baseline
-// with `npm run test:visual -- --update-snapshots` and eyeball the new PNG in review.
+// restyle a page. When an intentional visual change lands, regenerate with
+// `npm run test:visual -- --update-snapshots=all` and eyeball the new PNGs in review.
+//
+// TWO THINGS ABOUT REGENERATING, both learned the hard way (this header said a bare
+// `--update-snapshots` until v20.11, which is the wrong half of both of them):
+//   · `=all` is LOAD-BEARING. A bare `--update-snapshots` only rewrites baselines whose comparison
+//     FAILED, so a baseline that drifted INSIDE the tolerance can never be refreshed by it.
+//   · `=all` rewrites every baseline including the ones that PASSED. So afterwards run
+//     `git status e2e/visual-baselines/` and REVERT anything you cannot explain — a v19.62 run
+//     intended to capture one change came back with five modified, four of them sub-tolerance
+//     rendering noise that would have been committed as though reviewed. Reverting a file and
+//     re-running is the check: still passes ⇒ it was noise and does not belong in the diff.
 //
 // Determinism: the clock is pinned so the calendar + pay period are fixed; Firebase is stubbed
 // (fixtures.js) so reads are empty; a fixed member is seeded; every one-time overlay is
