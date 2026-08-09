@@ -160,6 +160,76 @@ stripe (green = any time, amber = a morning bar), the `⊘` token, the card/row 
 Chiltern callout mean here exactly what they mean there. The two pages are read by the same people
 minutes apart; a second vocabulary would slow both down.
 
+### It answers the MARYLEBONE question first (v20.37)
+
+The page used to lead with "is Chiltern a participating operator?" and print that as each card's
+primary status. That is the wrong question at this gateline, and the page proved it: the **West
+Midlands Day Ranger** read `On us? ✓ Yes` while being unusable at Marylebone — its area stops at
+Leamington Spa. The staff member had to open the card and read four rows down to find that out, at a
+barrier, with somebody waiting.
+
+So every card now carries **two states, and neither can be inferred from the other**:
+
+| Attribute | Values | Rendered as |
+|---|---|---|
+| `data-myb-validity` | `yes` · `no` · `conflict` · `unconfirmed` | `.myb-status` badge in the left half of `.rr-status-grid` |
+| `data-chiltern-validity` | `yes` · `no` · `conflict` · `unconfirmed` | `.ch-status` badge in the right half |
+
+**`unconfirmed` is not a milder `conflict`, and the badge proves how easily that is forgotten.** The
+page has said since v20.10 that a Conflict is not a stronger Draft — and the badges shipped, *in the
+release that wrote the two-dimension rule down*, with the Shakespeare card reading `⚠ Conflict` over
+a product that has **no readable page at all**. The rule had only ever been enforced on the card
+pill, and the badge is what a reader now looks at. So: `conflict` takes RED (matching
+`pill-conflict`), `unconfirmed` takes AMBER (matching `pill-draft`), and
+`guide-sources.test.mjs` fails if an unconfirmed product wears a conflict badge **or** if the two are
+styled identically. Red beside the red `⊘ Not valid` is deliberate — those two are separated by the
+word and the `⚠`/`⊘` token, never by hue.
+
+`✓ Area only` on the Chiltern side is the whole point of the split: a real ticket on our network that
+is no use from London. **The three top-level sections are that pair**, not a product taxonomy —
+*Valid at Marylebone* → *Valid on Chiltern but not at Marylebone* → *Not valid on Chiltern at all* —
+so the answer is the section heading and the badges only confirm it.
+
+`guide-sources.test.mjs` pins this: both attributes declared on every card, values constrained,
+Marylebone never merely copied from Chiltern, an `MYB ✓` obliged to state its scope, and each status
+carried by **words** as well as colour. The failure mode is silent — a wrong badge renders perfectly —
+and it is the exact defect this restructure was commissioned to fix.
+
+### Evidence is per CLAIM, not per card (v20.37)
+
+Two products carried a whole-card `Conflict` for a disagreement affecting one line of them
+(Shakespeare's break of journey; who operates the Thames 7-Day area). That is the page-wide banner's
+failure one level down: a reader cannot tell which line is doubtful, so they distrust the eight facts
+that are sound or miss the one that is not. A disputed claim now takes its **own** `data-guide-source`
+id and its own `.rr-unresolved` callout, and the card keeps whatever state its own sourcing earned.
+The register test accepts a card-level marker **or** a claim-level one.
+
+The same pass split `rr-shakespeare` into `-core` (**Draft** — no current page exists, which is an
+absence, not a disagreement) and `-boj` (**Conflict**), and `rr-thames-7` into `-geography`
+(**National** — settled) and `-operator` (**Conflict**).
+
+### State a BOUNDARY, not a station list (v20.37)
+
+Four cards named "its Chiltern stations" as an exhaustive set. That is a claim about the
+**intersection** of the ticket's area with Chiltern's network, and only the first of those two is
+sourceable from the product page — so the lists were wrong in both directions at once (the West
+Midlands pair omitted eight Chiltern-served stations; Oxfordshire and Thames 7-Day omitted **Oxford**,
+which is in both areas and which we call at). What the applicable-station list *does* prove is where
+the area **stops**, which is the only part a Marylebone gateline acts on. Prefer "reaches Leamington
+Spa and stops — Banbury is outside it" over any enumeration. Name a station individually only for a
+genuine near-miss whose neighbour differs: *Bicester Village but not Bicester North*, *Oxford but not
+Oxford Parkway*.
+
+### A rule that belongs to a CLASS does not go on one card (v20.37)
+
+"A Rover may not be issued more than 3 days ahead (5 by telesales/internet)" sat on the All Line Rover
+card under a ✓ pill. It is true, but it is on the **Rover ticket pages** (`he7`, `s37`) and not on
+that promotion page at all — so the card claimed a class rule as its own, the register cited a page
+that does not state it, and a reader holding a Heart of England Rover learned nothing. It is now one
+entry in "How to check one" (`rr-advance-sale`), cited where it was read, and explicitly scoped to
+Rovers — the `ce1` Discoverer page carries a different limit. Ask of any new fact: *is this true of
+this product, or of its class?*
+
 **Its evidence state is PER PRODUCT, and there are three of them** (v20.10, owner). It shipped at
 v20.05 entirely Draft — content assembled from public summaries, because the National Rail pages are
 unreachable from the build environment. The owner has since checked the products directly against

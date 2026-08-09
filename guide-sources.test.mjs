@@ -32,15 +32,26 @@ const SRC = readFileSync(new URL('./GUIDE_SOURCES.md', import.meta.url), 'utf8')
 // visibly provisional on the page; only the wording differs.
 const CLASSES = new Set(['National', 'Local', 'Tip', 'Fact', 'Contact', 'Draft', 'Conflict']);
 
-/**
- * The classes a reader must be TOLD about, and the per-card marker each one requires.
+/* The classes a reader must be TOLD about, and the markers that satisfy each. The markers are NOT
+ * interchangeable between classes: a Conflict wearing the draft marker would tell a staff member
+ * "not checked yet" about a claim that HAS been checked and cannot be settled — the misreading that
+ * sends them back to the same page for the same answer.
  *
- * Keyed as a map rather than a list because the markers are not interchangeable: a Conflict card
- * wearing the draft marker would tell a staff member "not checked yet" about a claim that HAS been
- * checked and cannot be settled — which is the misreading that would send them back to the same
- * page for the same answer.
- */
-const PROVISIONAL = { Draft: 'rr-card--draft', Conflict: 'rr-card--conflict' };
+ * ── CLAIM-LEVEL EVIDENCE (v20.37) ──────────────────────────────────────────────────────────────
+ * Each class lists the markers that satisfy it. It was one marker per class, which silently assumed
+ * THE WHOLE CARD is the unit of uncertainty — and that assumption had a cost the Shakespeare
+ * Explorer card was paying: one unresolved break-of-journey footnote forced `.rr-card--conflict`
+ * onto the entire product, so its basic validity read as doubtful because of a secondary condition.
+ *
+ * A Conflict may therefore now be carried by a claim-level callout (`.rr-unresolved`) as well as by
+ * a whole card. This is a GENERALISATION, not a relaxation: the citing element must still carry a
+ * visible conflict marker of its own, and `.rr-unresolved` is a red, explicitly-worded block — it
+ * is not a quieter way of saying the same thing. What it buys is that the confirmed claims beside
+ * it stop inheriting its uncertainty.
+ *
+ * Draft keeps a single marker deliberately. Draft means nobody has read the source, which is a
+ * statement about the whole product, not about one claim within it. */
+const PROVISIONAL = { Draft: ['rr-card--draft'], Conflict: ['rr-card--conflict', 'rr-unresolved'] };
 const COLS = ['ID', 'Guide', 'Section', 'Class', 'Reviewed', 'Next', 'Source'];
 
 /**
@@ -487,11 +498,11 @@ test('a provisional register row is declared on the page it certifies', () => {
         // rather than the file passing on the strength of some OTHER card having one.
         for (const m of html.matchAll(/<[^>]*data-guide-source="([^"]+)"[^>]*>/g)) {
             const ids = m[1].trim().split(/\s+/);
-            for (const [cls, marker] of Object.entries(PROVISIONAL)) {
+            for (const [cls, markers] of Object.entries(PROVISIONAL)) {
                 if (!ids.some(id => idsByClass[cls].has(id))) continue;
-                assert.ok(m[0].includes(marker),
+                assert.ok(markers.some(mk => m[0].includes(mk)),
                     `${file}: the block citing ${ids.join(' ')} is certified by a ${cls} row but ` +
-                    `carries no \`${marker}\` marker:\n  ${m[0].slice(0, 140)}…`);
+                    `carries none of \`${markers.join('`, `')}\`:\n  ${m[0].slice(0, 140)}…`);
             }
         }
     }
@@ -513,4 +524,159 @@ test('every Conflict row describes the disagreement it found', () => {
             `${r.ID}: a Conflict row must state BOTH readings. If only one is recorded, the next ` +
             'reader cannot tell what was checked, and the classification is unactionable.');
     }
+});
+
+// ── MARYLEBONE-FIRST SEMANTICS (v20.37) ─────────────────────────────────────────────────────────
+//
+// The guide used to answer "does Chiltern participate somewhere?" and the answer was printed as the
+// card's primary status. That is the wrong question at this gateline, and the page proved it: the
+// West Midlands Day Ranger read "On us? ✓ Yes" while being unusable at Marylebone — its area stops
+// at Leamington Spa. A staff member had to open the card and read four rows down to find that out.
+//
+// So every card now carries TWO machine-readable states, and the whole point is that ONE CANNOT BE
+// INFERRED FROM THE OTHER. These tests exist to stop that inference creeping back: the failure is
+// silent (a wrong badge renders perfectly), it is the exact defect this pass was commissioned to
+// fix, and the consequence at a barrier is refusing a valid ticket or accepting an invalid one.
+const RR_HTML = readFileSync(new URL('./rangers-guide.html', import.meta.url), 'utf8');
+
+/** Every element declaring the validity pair, as `{ id, myb, chiltern, attrs, block }`. */
+function validityCards() {
+    const out = [];
+    for (const m of RR_HTML.matchAll(/<div\b([^>]*data-myb-validity="[^"]*"[^>]*)>/g)) {
+        const attrs = m[1];
+        const grab = (k) => (attrs.match(new RegExp(`${k}="([^"]*)"`)) || [])[1];
+        // The card's own text runs to the next card or section heading — enough to assert what the
+        // reader actually sees, without parsing HTML properly.
+        const from = m.index + m[0].length;
+        const nextCard = RR_HTML.indexOf('data-myb-validity', from);
+        const nextSec = RR_HTML.indexOf('<h2 class="section"', from);
+        const ends = [nextCard, nextSec].filter(i => i > -1);
+        const end = ends.length ? Math.min(...ends) : RR_HTML.length;
+        out.push({ id: grab('id'), myb: grab('data-myb-validity'), ch: grab('data-chiltern-validity'),
+                   attrs, block: RR_HTML.slice(from, end) });
+    }
+    return out;
+}
+
+test('rangers: every product declares BOTH validity states, from a constrained set', () => {
+    const cards = validityCards();
+    assert.ok(cards.length >= 8, `expected the product cards to be found, got ${cards.length}`);
+    // FOUR states, and `unconfirmed` is not a synonym for `conflict` — see the dedicated test below.
+    const ALLOWED = new Set(['yes', 'no', 'conflict', 'unconfirmed']);
+    for (const c of cards) {
+        assert.ok(c.id, `a validity card has no id: ${c.attrs.slice(0, 90)}`);
+        assert.ok(ALLOWED.has(c.myb), `${c.id}: data-myb-validity="${c.myb}" is not one of ${[...ALLOWED].join('/')}`);
+        assert.ok(ALLOWED.has(c.ch), `${c.id}: data-chiltern-validity="${c.ch}" is not one of ${[...ALLOWED].join('/')}`);
+    }
+});
+
+test('rangers: the Marylebone answer is never inherited from the Chiltern one', () => {
+    // The defect this whole pass fixes, asserted as a property rather than a list of products:
+    // there must be cards where Chiltern is yes and Marylebone is NOT. If that set ever empties,
+    // either the guide has lost its point or somebody has "tidied" the two states into one.
+    const cards = validityCards();
+    const elsewhere = cards.filter(c => c.ch === 'yes' && c.myb === 'no');
+    assert.ok(elsewhere.length >= 3,
+        'no cards left where Chiltern participates but Marylebone is not valid — that combination ' +
+        'is the reason this guide was restructured; losing it means the inference is back');
+    // And each of them must SAY so where the reader is looking, not merely in a data attribute.
+    for (const c of elsewhere) {
+        assert.match(c.block, /not valid|Not valid/,
+            `${c.id}: Chiltern-yes/Marylebone-no, but the card never says it is not valid here`);
+    }
+});
+
+test('rangers: a Marylebone-valid card explains WHAT KIND of validity it is', () => {
+    // "MYB ✓" alone is not enough — an All Line Rover and a one-return-journey product would wear
+    // the same badge while meaning very different things at a barrier.
+    for (const c of validityCards().filter(c => c.myb === 'yes')) {
+        assert.match(c.block, /class="rr-status-note"/,
+            `${c.id}: claims Marylebone validity with no one-line explanation of its scope`);
+        assert.match(c.block, /myb-status--yes/, `${c.id}: no visible Marylebone-valid badge`);
+    }
+});
+
+test('rangers: status is carried by WORDS, not colour alone', () => {
+    // A gateline copy may be printed in monochrome, and a screen reader gets no colour at all.
+    for (const c of validityCards()) {
+        const want = { yes: 'Valid', no: 'Not valid', conflict: 'Conflict', unconfirmed: 'Check' }[c.myb];
+        assert.ok(c.block.includes(want) || c.block.includes(want.toLowerCase()),
+            `${c.id}: the Marylebone status must read as the word "${want}", not a colour`);
+    }
+});
+
+test('rangers: the known operational conclusions are pinned', () => {
+    // Researched against the products' own National Rail applicable-station lists (Aug 2026).
+    // Concepts, not sentences: the ids and the two states, so wording stays free to change.
+    const by = Object.fromEntries(validityCards().map(c => [c.id, c]));
+    const EXPECT = {
+        'rr-chiltern-ff': ['yes', 'yes'],   // London Marylebone is in its own station list
+        'rr-allline':     ['yes', 'yes'],   // the before-10:00 bar names neither Chiltern nor MYB
+        'rr-wmdr':        ['no',  'yes'],   // Chiltern stations stop at Leamington Spa
+        'rr-wmfdr':       ['no',  'yes'],   // the Day Ranger's boundary — Leamington Spa in, Banbury out
+        'rr-oxon':        ['no',  'yes'],   // Banbury, Kings Sutton, Bicester Village, Islip, Oxford
+        'rr-heart':       ['no',  'yes'],   // Banbury + the Leamington–Birmingham corridor + Oxford
+        'rr-thames':      ['no',  'conflict'],    // geography settled; operator disputed
+        'rr-shakespeare': ['unconfirmed', 'unconfirmed'], // no readable source — an ABSENCE, not a disagreement
+    };
+    for (const [id, [myb, ch]] of Object.entries(EXPECT)) {
+        assert.ok(by[id], `card ${id} is missing`);
+        assert.equal(by[id].myb, myb, `${id}: Marylebone validity changed — re-check the source before editing this`);
+        assert.equal(by[id].ch, ch, `${id}: Chiltern validity changed — re-check the source before editing this`);
+    }
+});
+
+// AN ABSENCE IS NOT A DISAGREEMENT — THE SAME RULE, ONE LEVEL DOWN (v20.37).
+// The page has said since v20.10 that a Conflict is not a stronger Draft: re-reading fixes "nobody
+// has looked" and can never fix "the publisher contradicts itself", so sending somebody back to a
+// page that has already been read wastes time at a barrier. That rule was enforced on the CARD PILL
+// and nowhere else — and when the Marylebone/Chiltern badges were added, the Shakespeare card
+// promptly shipped `⚠ Conflict` over a product with no readable page at all, in the same release
+// that wrote the rule down. The badge is the thing actually read now, so it is guarded too.
+test('rangers: a product nobody can source is never badged as a self-contradicting one', () => {
+    const cards = validityCards();
+    const unconfirmed = cards.filter(c => c.myb === 'unconfirmed' || c.ch === 'unconfirmed');
+    assert.ok(unconfirmed.length,
+        'no unconfirmed products left — if every one has been sourced, delete this test and the ' +
+        'state with it, but do NOT fold it into `conflict`');
+    for (const c of unconfirmed) {
+        assert.doesNotMatch(c.block, /status--conflict/,
+            `${c.id}: an unsourceable product wears a CONFLICT badge. Nobody has read a source for ` +
+            'it, which is the opposite of two readings disagreeing, and the two must never share a marker');
+        assert.match(c.block, /status--unconfirmed/, `${c.id}: no visible unconfirmed badge`);
+    }
+    // And the two states must be visually distinguishable, not merely differently named — the
+    // whole failure mode is a reader treating one as the other at a glance.
+    const css = readFileSync(new URL('./rangers-guide.css', import.meta.url), 'utf8');
+    const decl = (cls) => (css.match(new RegExp(`\\.myb-status--${cls}\\s*\\{([^}]*)\\}`)) || [])[1];
+    const [conflict, unconf] = [decl('conflict'), decl('unconfirmed')];
+    assert.ok(conflict && unconf, 'both badge states must be styled in rangers-guide.css');
+    assert.notEqual(conflict.replace(/\s+/g, ' ').trim(), unconf.replace(/\s+/g, ' ').trim(),
+        'the conflict and unconfirmed badges are styled identically — they are different answers ' +
+        'and a reader must be able to tell them apart without reading the word');
+});
+
+test('rangers: the Thames 7-Day conflict never leaks onto the 3-Day product', () => {
+    // Two different tickets. The 3-Day page names GWR only; merging the finding would invent
+    // validity for a product that does not have it.
+    assert.match(RR_HTML, /3 Day version is a different ticket/i,
+        'the 3-Day warning has gone — the duration is load-bearing in this card');
+});
+
+test('rangers: a break-of-journey conflict does not make the whole product look doubtful', () => {
+    // The claim-level evidence model, asserted end to end: the Shakespeare card must NOT carry the
+    // whole-card conflict marker, while its break-of-journey callout must.
+    const card = RR_HTML.slice(RR_HTML.indexOf('id="rr-shakespeare"'));
+    const open = card.slice(0, card.indexOf('>'));
+    assert.ok(!open.includes('rr-card--conflict'),
+        'the Shakespeare card carries a whole-card conflict marker again — one unresolved secondary ' +
+        'condition must not make its basic validity read as doubtful');
+    assert.match(card.slice(0, card.indexOf('<h2')), /rr-unresolved[^>]*data-guide-source="rr-shakespeare-boj"|data-guide-source="rr-shakespeare-boj"[^>]*rr-unresolved/,
+        'the break-of-journey conflict must be carried by its own claim-level callout');
+});
+
+test('rangers: absence from the page is never presented as invalidity', () => {
+    assert.match(RR_HTML, /do not assume it is invalid|out of scope, not invalid/i,
+        'the non-exhaustive rule has gone — a ticket missing from this page is out of scope, not invalid');
+    assert.doesNotMatch(RR_HTML, /only these tickets are valid/i);
 });

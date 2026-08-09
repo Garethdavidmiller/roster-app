@@ -181,7 +181,8 @@ h2.section:first-of-type { margin-top: 4px; }
     margin-bottom: 10px;
 }
 /* The stripe is the Mon–Fri time rule and nothing else — same contract as the railcard guide.
-   Do not repurpose it for "is it valid on us", which is what the On us? row is for. */
+   Do not repurpose it for "is it valid here", which is what the .rr-status-grid badges are for
+   (v20.37 — the old "On us?" row it used to point at no longer exists). */
 .rr-green { border-left-color: var(--green); }
 .rr-amber { border-left-color: var(--amber); }
 
@@ -209,6 +210,79 @@ h2.section:first-of-type { margin-top: 4px; }
 }
 .rr-name { font-size: 16px; font-weight: 800; color: var(--navy); }
 .rr-who { font-size: 12px; color: var(--light); margin-bottom: 8px; }
+
+/* ── The Marylebone-first status pair (v20.37) ────────────────────────────────
+   TWO DIMENSIONS, SHOWN TOGETHER, NEVER MERGED. "Valid on Chiltern" and "valid at Marylebone" are
+   different questions and the guide exists because one used to be inferred from the other. They sit
+   side by side so the difference is the first thing read, and Marylebone is always the left column
+   because this is the MYB app.
+
+   These are DELIBERATELY NOT the card stripe. `.rr-green`/`.rr-amber` already encode the product's
+   time character, and repurposing them for Marylebone validity would have destroyed a meaning the
+   page already had — so this is its own compact treatment, and it carries a WORD, never just a
+   colour (the near-misses list, print, and any monochrome copy all depend on that). */
+.rr-status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding: 9px 10px;
+    background: var(--navy-bg);
+    border-radius: 8px;
+}
+.rr-status { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rr-status-lbl {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--light);
+}
+.rr-status-note { font-size: 11.5px; line-height: 1.4; color: var(--mid); }
+
+.myb-status, .ch-status {
+    display: inline-block;
+    align-self: flex-start;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+/* FOUR STATES, AND THE LAST TWO ARE NOT THE SAME ONE (v20.37).
+   `--conflict` takes RED and `--unconfirmed` AMBER, matching `pill-conflict` and `pill-draft`
+   exactly, because this page's one load-bearing distinction is that a conflict is not a stronger
+   draft: somebody read the source and it contradicts itself, versus nobody can read it at all.
+   Re-reading fixes the second and can never fix the first. They shipped sharing the amber badge for
+   part of v20.37 — the Shakespeare card said "⚠ Conflict" over an ABSENCE, which is the error the
+   rest of the page is written to prevent. Red beside the red `⊘ Not valid` is deliberate and safe:
+   the two are separated by the word and by the `⚠` vs `⊘` token, never by hue alone. */
+.myb-status--yes         { background: #e8f5e9; color: var(--green); border: 1px solid #b7dfba; }
+.myb-status--no          { background: #ffebee; color: var(--red);   border: 1px solid #f3bcbc; }
+.myb-status--conflict    { background: #ffebee; color: var(--red);   border: 1px solid #f3bcbc; }
+.myb-status--unconfirmed { background: var(--amber-bg); color: var(--amber); border: 1px solid #e8c98a; }
+.ch-status--yes          { background: #e8f5e9; color: var(--green); border: 1px solid #b7dfba; }
+.ch-status--no           { background: #ffebee; color: var(--red);   border: 1px solid #f3bcbc; }
+.ch-status--conflict     { background: #ffebee; color: var(--red);   border: 1px solid #f3bcbc; }
+.ch-status--unconfirmed  { background: var(--amber-bg); color: var(--amber); border: 1px solid #e8c98a; }
+
+/* The near-misses state their pair inline. No grid: with no Chiltern validity there is nothing to
+   explain, only to state (and a full status block would give a dead end more weight than a live
+   product). */
+.rr-no-status { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+
+/* Narrow phones: two long badges side by side become unreadable well before they overflow, so the
+   pair stacks. Marylebone stays first, which is the whole point of the ordering. */
+@media (max-width: 400px) {
+    .rr-status-grid { grid-template-columns: 1fr; gap: 10px; }
+}
+
+/* Print: the badges must survive monochrome, so they are outlined and the word does the work.
+   A printed copy of this page is the one most likely to be read at a barrier. */
+@media print {
+    .rr-status-grid { background: transparent; border: 1px solid #999; }
+    .myb-status, .ch-status { background: transparent !important; border: 1px solid #333; color: #000 !important; }
+}
 
 .rr-facts { display: flex; flex-direction: column; gap: 6px; }
 .rr-row {

@@ -133,6 +133,31 @@ One card per product. Rows chosen to answer the checking question in the order i
 | **When** | "is it too early?" | Reuse the railcard guide's colour stripe + `⊘` token exactly — green = any time, amber = morning restriction. Do **not** invent a new vocabulary |
 | **On us?** | the whole point | Explicit yes/no/partial, never inferred from the Area row |
 
+**Superseded at v20.37: "On us?" was the wrong question, and the page proved it.** One column
+cannot hold the answer, because there are two questions and a product can split them: the **West
+Midlands Day Ranger** names Chiltern as an operator — a true `On us? ✓ Yes` — and is *unusable at
+Marylebone*, because its area stops at Leamington Spa. A staff member at this barrier read the ✓,
+and the fact that undid it was four rows down inside the card.
+
+So the model is now **two states per product, and neither is derivable from the other**:
+
+| | Question | Attribute |
+|---|---|---|
+| **Marylebone** | can the person in front of me use this, here? | `data-myb-validity` |
+| **Chiltern** | is it a real ticket on our network at all, and where? | `data-chiltern-validity` |
+
+`✓ Area only` is the value that did not exist before and carries most of the page's worth: *yes, it
+is ours; no, not from London*. The top-level sections ARE that pair — Valid at Marylebone → Valid on
+Chiltern but not at Marylebone → Not valid on Chiltern at all — so the section heading answers
+before any badge is read. Tier 1 / Tier 2 in §3 survive as the *scoping* rule; they are no longer
+the page's shape.
+
+Two further rules the same pass established, both recorded in `.claude/rules/guide-pages.md`:
+**state a boundary, never an exhaustive station list** (the list is a claim about an intersection,
+and only one side of it is sourceable from the product page), and **a rule that belongs to a class
+does not sit on one card** (the Rover advance-sale limit was on the All Line Rover as though it were
+that ticket's own).
+
 **The flexi-rover box-dating rule deserves its own treatment.** On a flexi product the holder writes
 the date in the next box themselves before travelling. That makes it the one ranger/rover rule a
 gateline can actually *enforce* — an undated box is the check — and it is the rule most likely to be
@@ -335,18 +360,21 @@ cannot argue it. §3's scoping decision (lead with the five, answer the rest by 
 correct as *layout*; what was wrong was letting it become an *inference*. Not on the list now means
 CHECK, and step 1 of "How to check one" routes there rather than to a no.
 
-**The three reported products are named on the page and given no rules** (`#rr-reported`). That is
-deliberate and is the whole distinction this plan is built on: a card states days, area, time bars
-and break of journey, and each of those is a rule a passenger could be refused travel by — §1's
-class A/B gate. A third party's summary is class C at best, and is precisely the sourcing behind the
-v17.45 railcard errors. What IS supportable, and is also what a gateline needs, is: these exist, do
-not refuse one. Writing them up is WP1 work once task #36 opens the sources:
+**The three reported products were named on the page and given no rules.** That was deliberate and is
+the whole distinction this plan is built on: a card states days, area, time bars and break of
+journey, and each of those is a rule a passenger could be refused travel by — §1's class A/B gate. A
+third party's summary is class C at best, and is precisely the sourcing behind the v17.45 railcard
+errors. What was supportable, and what a gateline needs, is: these exist, do not refuse one.
 
-| Reported | What it needs before it can become a card |
-|---|---|
-| **Thames Rover (7 Day)** | Area, whether our Marylebone corridor is in it, the time bar |
-| **West Midlands Family Day Ranger** | Same as the Day Ranger already carded, plus the group composition rule |
-| **Chiltern Friends & Family** | **Ours, if it exists** — so it needs the retail system, not just a national page. Highest priority of the three |
+| Reported | What it needed before it could become a card | Status |
+|---|---|---|
+| **Thames Rover (7 Day)** | Area, whether our Marylebone corridor is in it, the time bar | **Carded v20.10.** Its own applicable-station list settles the area (Marylebone absent) and the time bar was read at source at v20.37; the operator question stays a recorded conflict |
+| **West Midlands Family Day Ranger** | Same as the Day Ranger already carded, plus the group composition rule | **Carded v20.10**, and sourced to its OWN product page at v20.37 (`minAdultPassengers`/`minChildPassengers` give the 1–2 + 1–2 rule directly) |
+| **Chiltern Friends & Family** | **Ours, if it exists** — so it needs the retail system, not just a national page. Highest priority of the three | **Carded v20.10.** It does exist and has a National Rail product page of its own; London Marylebone is in its applicable-station list, which is the direct evidence for its `MYB ✓` |
+
+**All three are now full cards**, so `#rr-reported` no longer names them — what survives at that id is
+the *rule* that made the list necessary: a product missing from this page is out of scope, not
+invalid. Do not re-add a names-only list; a product either earns a card or is covered by that rule.
 
 ---
 

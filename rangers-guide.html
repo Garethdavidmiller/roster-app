@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Rangers & Rovers Guide | At-work reference sheet. Sources checked against National Rail, August 2026; two products carry an unresolved source conflict. -->
+<!-- MYB Roster — Rangers & Rovers Guide | At-work reference sheet, grouped by whether a pass works AT MARYLEBONE. Sources checked against National Rail, August 2026; two individual claims carry an unresolved source conflict. -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -56,21 +56,33 @@
     they must never wear the same marker — a reader sent back to a page that has already been read
     learns nothing and loses time at a gateline. Enforced by guide-sources.test.mjs.
 
-    Do NOT remove this banner while any card carries `.rr-card--draft` or `.rr-card--conflict`.
+    AND THE STATE IS PER CLAIM, NOT PER CARD (v20.37). Two products were carrying a whole-card
+    Conflict marker for a disagreement that affected ONE line of them: the Shakespeare Explorer's
+    break-of-journey rule, and who operates the Thames 7-Day area. Marking the whole card provisional
+    for that is the same failure as the page-wide banner one level down — a reader cannot tell which
+    line is the doubtful one, so either they distrust the eight facts that are solid or they miss the
+    one that is not. A disputed claim now carries its own `data-guide-source` id and its own callout
+    (`.rr-unresolved`), and the card around it keeps whatever state its own sourcing earned.
+    guide-sources.test.mjs accepts EITHER a card-level marker or a claim-level one.
+
+    Do NOT remove this banner while any card carries `.rr-card--draft` or `.rr-card--conflict`, or
+    while any claim carries `.rr-unresolved`.
 -->
 <div class="source-banner" role="note">
     <div class="draft-title"><span aria-hidden="true">✓</span> Reference guide — sources checked August 2026</div>
     <p>Most entries below have been <strong>checked directly against current National Rail
-    information</strong>. Two are marked <strong>Source conflict</strong>: National Rail's own pages
-    disagree with themselves, so those remain provisional — <strong>check the retail system before
-    deciding validity, and do not refuse travel on them</strong>. Anything still marked
-    <em>Draft</em> has not been checked at source.</p>
+    information</strong>, and are grouped by whether they work <strong>at Marylebone</strong>. Where a
+    single claim is marked <strong>Source conflict</strong>, National Rail's own pages disagree with
+    themselves — that claim is provisional, but the rest of its card is not. Anything marked
+    <em>Draft</em> could not be read at source. In both cases: <strong>check the retail system before
+    deciding validity, and do not refuse travel</strong>.</p>
 </div>
 
 <nav class="chip-bar" aria-label="Jump to section">
     <button class="chip" type="button" data-target="rr-quick">Quick answer</button>
-    <button class="chip" type="button" data-target="rr-yes">Works on us</button>
-    <button class="chip" type="button" data-target="rr-no">Not on us</button>
+    <button class="chip" type="button" data-target="rr-myb">At Marylebone</button>
+    <button class="chip" type="button" data-target="rr-elsewhere">Chiltern elsewhere</button>
+    <button class="chip" type="button" data-target="rr-no">Not on Chiltern</button>
     <button class="chip" type="button" data-target="rr-checks">How to check</button>
 </nav>
 
@@ -93,263 +105,370 @@
         What replaces both is a rule rather than a count: these are the ones we have identified and
         checked; absence is not invalidity; check the retail system.
     -->
+    <!--
+        MARYLEBONE FIRST (v20.37). The page used to lead with "On us?" — does Chiltern participate
+        anywhere. That is the wrong first question at this gateline, and the guide's own cards proved
+        it: the West Midlands Day Ranger answered "On us? ✓ Yes", and a reader had to get four rows
+        further down to discover the area stops at Leamington Spa and the ticket is worthless for the
+        journey they are standing in front of.
+
+        So every card now answers two SEPARATE questions, in this order: can it be used HERE, and
+        where on Chiltern does it work at all. They are not the same question and one cannot be
+        inferred from the other — which is the whole reason this pass exists.
+    -->
     <h2 class="section" id="rr-quick">The quick answer</h2>
 
     <div class="quick">
-        <p><strong>Most Rangers and Rovers are not valid on Chiltern.</strong> They are area passes
-        sold by other operators for other parts of the country, and ours is a narrow corridor out of
-        Marylebone.</p>
-        <p>Below are the Rangers and Rovers <strong>most relevant to Chiltern and Marylebone that we
-        have identified and checked</strong>. <strong>This is not an exhaustive national list.</strong>
-        If a product is not shown here, <strong>do not assume it is invalid</strong> — check the retail
-        system or the current National Rail conditions.</p>
+        <p><strong>A Ranger or Rover can be valid on Chiltern without being valid at
+        Marylebone.</strong> Most of them are area passes for other parts of the country, and several
+        that <em>do</em> name Chiltern only reach the Birmingham or Oxford end of our route — they
+        stop at Leamington Spa or Banbury and are no use for a journey to or from London.</p>
+        <p>The cards below are grouped by <strong>what matters here</strong>: whether the passenger
+        can actually use it at Marylebone, where its Chiltern validity starts and stops, and any time
+        or route restriction. <strong>This is a Marylebone reference, not the national Ranger and
+        Rover catalogue.</strong> If a product is not shown, <strong>do not assume it is
+        invalid</strong> — check the retail system.</p>
     </div>
 
+    <!-- TWO SCALES, AND THEY MUST NOT READ AS ONE (v20.37). The MYB/Chiltern badges say where a
+         ticket WORKS; the pills say how well we have CHECKED it. A green badge and a green pill mean
+         entirely different things, so the key states both separately and the badges carry a word,
+         never just a colour. -->
     <div class="key" aria-label="Key to symbols">
-        <span class="key-item"><span class="tok tok-ok">✓</span> valid on Chiltern</span>
-        <span class="key-item"><span class="tok tok-no">⊘</span> not before the time shown</span>
+        <span class="key-item"><span class="myb-status myb-status--yes">MYB ✓</span> usable at Marylebone</span>
+        <span class="key-item"><span class="myb-status myb-status--no">MYB ⊘</span> not usable at Marylebone</span>
+        <span class="key-item"><span class="tok tok-ok">✓</span> valid on Chiltern — check the stated area</span>
+        <span class="key-item"><span class="tok tok-no">⊘</span> not valid in the stated place or time</span>
         <span class="key-item"><span class="pill pill-checked">✓ checked</span> read at the National Rail source</span>
         <span class="key-item"><span class="pill pill-conflict">⚠ conflict</span> the source contradicts itself — check the retail system</span>
+        <span class="key-item"><span class="myb-status myb-status--unconfirmed">⚠ Check</span> nobody can read a source for it — check the retail system, and do not refuse</span>
     </div>
 
-    <h2 class="section" id="rr-yes">Works on us</h2>
+    <!-- SECTION ORDER IS THE FEATURE (v20.37). "Can I accept this here?" first, "where does it work
+         at all?" second. A product that names Chiltern but stops at Leamington is in the SECOND
+         section, however prominently its own page lists us as an operator. -->
+    <h2 class="section" id="rr-myb">Valid at Marylebone</h2>
 
-    <!-- SHAKESPEARE EXPLORER — first, because it is the only one that starts at Marylebone, so it is
-         the one most likely to be presented at our own gateline. -->
-    <div class="rr-card rr-green rr-card--conflict" id="rr-shakespeare" data-guide-source="rr-shakespeare">
-        <div class="rr-top">
-            <span class="rr-name">Shakespeare Explorer</span>
-            <span class="pill pill-conflict">⚠ Source conflict · check retail system</span>
-        </div>
-        <div class="rr-who">A Chiltern product — starts at Marylebone</div>
-        <div class="rr-facts">
-            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 or 4 days · return</span></div>
-            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Marylebone to Leamington Spa, Warwick, Warwick Parkway and all stations to <strong>Stratford-upon-Avon</strong>, plus unlimited travel between Leamington Spa and Stratford</span></div>
-            <div class="rr-row">
-                <span class="rr-lbl">When</span>
-                <span class="rr-val">
-                    <span class="rr-cutoff no"><span class="tok tok-no">⊘</span> return to London on trains due into Marylebone before <strong>10:00</strong> Mon&ndash;Fri</span>
-                </span>
-            </div>
-            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes — Chiltern, GWR and London Northwestern</span></div>
-        </div>
-        <!-- THE SOURCE CONTRADICTS ITSELF, AND THE GUIDE REPORTS BOTH READINGS (v20.10, owner,
-             checked at National Rail Aug 2026). Its DESCRIPTION says break of journey is permitted
-             between London and Leamington Spa; the DETAILED outward and return conditions on the SAME
-             page say it is not. That is a Conflict, not a Draft — somebody has read it, and reading it
-             again will not settle it.
-
-             The temptation is to pick the likelier reading. Do not: each one refuses somebody. Say it
-             is allowed and a passenger is charged nothing they should have been; say it is barred and
-             a passenger who stopped off in good faith is penalised. The card names both and says what
-             to do meanwhile, which is the only claim the evidence actually supports.
-
-             v20.09 said Bicester Village was "a legitimate stop-off, not a fare evasion". That was the
-             disputed reading stated as fact, and it is gone. -->
-        <div class="rr-chiltern rr-unresolved">
-            <span class="ct-label">Break of journey — source conflict:</span> National Rail's current
-            description says an intermediate break of journey <strong>is</strong> permitted between
-            London and Leamington Spa; the detailed outward and return conditions on the
-            <strong>same page</strong> say it is <strong>not</strong>. Do not rely on this guide for an
-            intermediate stop such as Bicester Village until it has been confirmed through
-            Chiltern/retail guidance — and do not refuse travel on it either.
-        </div>
+    <div class="rr-notes">
+        <p>Identified and checked as usable <strong>at this station</strong>. Not a proof that
+        nothing else is — see <a href="#rr-cantsource">below</a> and the closing note.</p>
     </div>
 
-    <div class="rr-card rr-amber" id="rr-heart" data-guide-source="rr-heart-england">
-        <div class="rr-top">
-            <span class="rr-name">Heart of England Rover</span>
-            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
-        </div>
-        <div class="rr-who">Midlands and Central England — Chiltern is a named operator</div>
-        <div class="rr-facts">
-            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">3 days in 7, or 7 consecutive — <strong>flexi: they date the box themselves</strong></span></div>
-            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Reaches Banbury, Stratford-upon-Avon, Birmingham and Oxford. Area map on the ticket</span></div>
-            <div class="rr-row">
-                <span class="rr-lbl">When</span>
-                <span class="rr-val">
-                    <span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:00</strong> Mon&ndash;Fri</span>
-                    <span class="rr-sub">Any time Sat, Sun and Bank Holidays</span>
-                </span>
-            </div>
-            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes — Chiltern is named alongside Avanti, CrossCountry, EMR, GWR, LNR, Northern, TfW and WMR</span></div>
-        </div>
-    </div>
-
-    <div class="rr-card rr-amber" id="rr-wmdr" data-guide-source="rr-west-midlands">
-        <div class="rr-top">
-            <span class="rr-name">West Midlands Day Ranger</span>
-            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
-        </div>
-        <div class="rr-who">The Birmingham end of our route</div>
-        <div class="rr-facts">
-            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 day</span></div>
-            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Network West Midlands, out to Crewe, Stafford, Stoke, Nuneaton, Northampton, <strong>Leamington Spa</strong>, Stratford-upon-Avon, Redditch, Hereford and Gobowen</span></div>
-            <div class="rr-row">
-                <span class="rr-lbl">When</span>
-                <span class="rr-val">
-                    <span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:00</strong> Mon&ndash;Fri</span>
-                    <span class="rr-sub">Any train Sat, Sun and Bank Holidays</span>
-                </span>
-            </div>
-            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes — includes Birmingham Snow Hill and Moor Street</span></div>
-        </div>
-        <div class="rr-chiltern">
-            <span class="ct-label">Chiltern:</span> the area stops at <strong>Leamington Spa</strong>. It is <strong>not</strong> a ticket to London — anyone travelling south of Leamington needs a separate fare.
-        </div>
-    </div>
-
-    <!-- The FAMILY version of the card above. A separate card, not a line inside it, because the
-         thing a gateline needs to check is different: the group composition. -->
-    <div class="rr-card rr-amber" id="rr-wmfdr" data-guide-source="rr-west-midlands-family">
-        <div class="rr-top">
-            <span class="rr-name">West Midlands Family Day Ranger</span>
-            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
-        </div>
-        <div class="rr-who">The family version of the Day Ranger above</div>
-        <div class="rr-facts">
-            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 day · <strong>1&ndash;2 adults and 1&ndash;2 children</strong></span></div>
-            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">The same broad West Midlands boundary as the Day Ranger — reaches <strong>Leamington Spa</strong></span></div>
-            <div class="rr-row">
-                <span class="rr-lbl">When</span>
-                <span class="rr-val">
-                    <span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:00</strong> Mon&ndash;Fri</span>
-                    <span class="rr-sub">Any train Sat, Sun and Bank Holidays</span>
-                </span>
-            </div>
-            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes — Chiltern is a named operator</span></div>
-        </div>
-        <div class="rr-chiltern">
-            <span class="ct-label">Check the group:</span> it is valid for <strong>1&ndash;2 adults with 1&ndash;2 children</strong>. Adults travelling alone on it, or a larger group, are outside what the ticket covers. Same <strong>Leamington Spa</strong> boundary as the Day Ranger — it is not a ticket to London.
-        </div>
-    </div>
-
-
-    <div class="rr-card rr-amber" id="rr-oxon" data-guide-source="rr-oxfordshire">
-        <div class="rr-top">
-            <span class="rr-name">Oxfordshire Day Ranger</span>
-            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
-        </div>
-        <div class="rr-who">Our Bicester and Oxford branch</div>
-        <div class="rr-facts">
-            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 day</span></div>
-            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Oxfordshire — includes <strong>Bicester Village</strong>, Islip, Oxford, Heyford, <strong>Banbury</strong> and <strong>Kings Sutton</strong></span></div>
-            <div class="rr-row">
-                <span class="rr-lbl">When</span>
-                <span class="rr-val">
-                    <span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:30</strong> Mon&ndash;Fri — <strong>or</strong> when the applicable Off-Peak Day Return becomes valid, <strong>whichever is earlier</strong></span>
-                    <span class="rr-sub">Any time Sat, Sun and Bank Holidays. The 09:30 alone is not the rule — on a route whose Off-Peak starts sooner, the earlier time wins</span>
-                </span>
-            </div>
-            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes on our Oxford line stations</span></div>
-        </div>
-        <div class="rr-chiltern">
-            <span class="ct-label">Chiltern:</span> it covers our stations from <strong>Kings Sutton</strong> and <strong>Banbury</strong> down to <strong>Oxford</strong> and <strong>Bicester Village</strong> — but <strong>not</strong> the run south to Marylebone. High Wycombe and Aylesbury are outside it.
-        </div>
-    </div>
-
-    <!-- THAMES ROVER — 7 DAY, AND THE DURATION IS LOAD-BEARING (v20.10, owner, checked Aug 2026).
-         The current 7-Day promotion page lists Chiltern, with Banbury and Bicester Village among the
-         validity stations. The older TR3/TR7 formal ticket-terms page says GWR only, and carries
-         other obviously stale material. The 3-Day promotion page ALSO lists GWR only.
-
-         So there are two traps here, and the second is the one a guide creates for itself: writing a
-         card headed "Thames Rover" would silently apply the 7-Day finding to the 3-Day product,
-         which by the current source is not ours. The duration is in the card's name for that reason
-         and must stay there. -->
-    <div class="rr-card rr-amber rr-card--conflict" id="rr-thames" data-guide-source="rr-thames-7">
-        <div class="rr-top">
-            <span class="rr-name">Thames Rover — 7 Day</span>
-            <span class="pill pill-conflict">⚠ Source conflict · check retail system</span>
-        </div>
-        <div class="rr-who">The <strong>7 Day</strong> version only — see the warning below</div>
-        <div class="rr-facts">
-            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">7 days · flexi, self-validated (numeric day/month before the first journey)</span></div>
-            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Thames valley. The current 7-Day page lists <strong>Banbury</strong> and <strong>Bicester Village</strong> among its stations</span></div>
-            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val"><span class="tok tok-no">⚠</span> <strong>Not settled</strong> — check the retail system</span></div>
-        </div>
-        <div class="rr-chiltern rr-unresolved">
-            <span class="ct-label">Source conflict:</span> National Rail's current <strong>7 Day</strong>
-            promotion page lists <strong>Chiltern</strong>, but its older <strong>TR3/TR7</strong> formal
-            ticket page says <strong>GWR only</strong>. Confirm in the retail system before deciding —
-            and <strong>do not refuse travel on this alone</strong>.
-            <br><strong>The 3 Day version is a different ticket:</strong> the current 3-Day page lists
-            GWR only, so do not carry this finding across to it.
-        </div>
-    </div>
-
-
-    <div class="rr-card rr-green" id="rr-allline" data-guide-source="rr-all-line">
-        <div class="rr-top">
-            <span class="rr-name">All Line Rover</span>
-            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
-        </div>
-        <div class="rr-who">Chiltern and most of the National Rail network</div>
-        <div class="rr-facts">
-            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">7 or 14 consecutive days</span></div>
-            <!-- "All of Great Britain" was the over-claim (v20.08, external review). It is the whole
-                 NATIONAL RAIL network, which is not the same sentence: the review lists Eurostar,
-                 Heathrow Express, the Underground, DLR, trams, shipping services and heritage lines
-                 as outside it. None of those is us, so nothing here changes what we accept — but a
-                 staff member reading "valid on everything, everywhere" answers a question about the
-                 Underground wrongly, and does it confidently. -->
-            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Valid on <strong>Chiltern</strong> and most National Rail services across Great Britain. <strong>Not</strong> Eurostar, Heathrow Express, the Underground, DLR, trams, shipping services or heritage railways</span></div>
-            <div class="rr-row">
-                <span class="rr-lbl">When</span>
-                <span class="rr-val">
-                    <span class="rr-cutoff ok"><span class="tok tok-ok">✓</span> Any time on Chiltern</span>
-                    <span class="rr-sub">A before-10:00 Mon&ndash;Fri bar applies on some long-distance operators, not on us</span>
-                </span>
-            </div>
-            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes</span></div>
-        </div>
-        <div class="rr-chiltern">
-            <!-- The channel split matters at a ticket window (v20.08, external review): this read as
-                 a flat 3-day rule, so a passenger asking on the Monday for the following week was
-                 told no when a route exists. Staff copy states the rule; the reason lives here. -->
-            <span class="ct-label">Selling it:</span> a maximum of <strong>3 days</strong> ahead at ordinary outlets, or <strong>5 days</strong> ahead by <strong>telesales or internet</strong>.
-        </div>
-    </div>
-
-    <!-- OURS, AND THE MOST LIKELY OF ALL OF THESE TO BE PRESENTED AT MARYLEBONE — National Rail
-         describes it specifically as a Day Ranger for friends and family of Chiltern employees. The
-         gate note is the operationally important part: the e-ticket does not open the barriers, so
-         it arrives at a member of staff BY DESIGN and must not be read as a faulty ticket. -->
-    <div class="rr-card rr-green" id="rr-chiltern-ff" data-guide-source="rr-chiltern-ff">
+    <div class="rr-card rr-green" id="rr-chiltern-ff" data-guide-source="rr-chiltern-ff"
+         data-myb-validity="yes" data-chiltern-validity="yes">
         <div class="rr-top">
             <span class="rr-name">Chiltern Friends &amp; Family</span>
             <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
         </div>
         <div class="rr-who">Ours — for friends and family of Chiltern employees</div>
+        <div class="rr-status-grid">
+            <div class="rr-status">
+                <span class="rr-status-lbl">Marylebone</span>
+                <span class="myb-status myb-status--yes">✓ Valid</span>
+                <span class="rr-status-note">Unlimited travel on most Chiltern services, Marylebone included.</span>
+            </div>
+            <div class="rr-status">
+                <span class="rr-status-lbl">Chiltern</span>
+                <span class="ch-status ch-status--yes">✓ Valid</span>
+                <span class="rr-status-note">A Chiltern product; London Marylebone is in its own station list.</span>
+            </div>
+        </div>
         <div class="rr-facts">
             <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 day &mdash; a Day Ranger</span></div>
-            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Unlimited travel on <strong>most Chiltern services</strong>. Stations managed by <strong>London Underground</strong> are excluded</span></div>
-            <div class="rr-row">
-                <span class="rr-lbl">When</span>
-                <span class="rr-val"><span class="rr-cutoff ok"><span class="tok tok-ok">✓</span> <strong>No time restriction</strong></span></span>
-            </div>
-            <div class="rr-row"><span class="rr-lbl">On us?</span><span class="rr-val ok"><span class="tok tok-ok">✓</span> Yes — it is a Chiltern product</span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Unlimited travel on <strong>most Chiltern services</strong>. <strong>Not</strong> to or from the London Underground-managed stations: <strong>South Ruislip</strong>, <strong>West Ruislip</strong>, and <strong>Harrow-on-the-Hill to Amersham inclusive</strong></span></div>
+            <div class="rr-row"><span class="rr-lbl">When</span><span class="rr-val"><span class="rr-cutoff ok"><span class="tok tok-ok">✓</span> <strong>No time restriction</strong></span></span></div>
+            <div class="rr-row"><span class="rr-lbl">Buying</span><span class="rr-val">Chiltern website or app only, and <strong>e-ticket only</strong></span></div>
         </div>
         <div class="rr-chiltern">
-            <span class="ct-label">At the gate:</span> the e-ticket <strong>does not operate the automatic gates</strong>. Somebody presenting it at the barrier is doing the right thing, not showing you a broken ticket — check it and let them through.
+            <span class="ct-label">At the Marylebone gate:</span> the e-ticket <strong>does not operate
+            the automatic gates</strong> &mdash; National Rail say so explicitly, as a technical
+            limitation of the product. Somebody presenting it at the barrier is doing the right thing,
+            not showing you a broken ticket. Check it and let them through.
         </div>
     </div>
+    <div class="rr-card rr-green" id="rr-allline" data-guide-source="rr-all-line"
+         data-myb-validity="yes" data-chiltern-validity="yes">
+        <div class="rr-top">
+            <span class="rr-name">All Line Rover</span>
+            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
+        </div>
+        <div class="rr-who">Chiltern and most of the National Rail network</div>
+        <div class="rr-status-grid">
+            <div class="rr-status">
+                <span class="rr-status-lbl">Marylebone</span>
+                <span class="myb-status myb-status--yes">✓ Valid</span>
+                <span class="rr-status-note">Valid on Chiltern from Marylebone at any time.</span>
+            </div>
+            <div class="rr-status">
+                <span class="rr-status-lbl">Chiltern</span>
+                <span class="ch-status ch-status--yes">✓ Valid</span>
+                <span class="rr-status-note">Chiltern is a named operator across the network.</span>
+            </div>
+        </div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val"><strong>7 or 14</strong> consecutive days &mdash; two separate tickets<span class="rr-sub">Valid until <strong>04:29</strong> the morning after the expiry date printed on it &mdash; a last train home on the final night is inside the ticket, not outside it</span></span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Most National Rail services across Great Britain. <strong>Not</strong> Eurostar, Heathrow Express, the Underground, DLR, London Trams, shipping services or private railways (Ffestiniog and Welsh Highland excepted)</span></div>
+            <div class="rr-row"><span class="rr-lbl">When</span><span class="rr-val"><span class="rr-cutoff ok"><span class="tok tok-ok">✓</span> Any time on Chiltern</span><span class="rr-sub">The before-10:00 Mon&ndash;Fri bar names <strong>Avanti, CrossCountry, EMR and LNER only</strong>, at ten listed stations. Neither Chiltern nor Marylebone is among them</span></span></div>
+        </div>
+        <!-- THE ADVANCE-SALE RULE USED TO LIVE HERE, AND IT IS NOT AN ALL LINE ROVER FACT (v20.37).
+             "3 days ahead, 5 by telesales or internet" is real, but it is stated on the ROVER TICKET
+             pages (read on he7 and s37) and appears nowhere on this product's page. Sitting on this
+             card under a ✓ pill, it read as this ticket's own selling rule — so a reader would not
+             know it governs the Heart of England Rover too, and the register row cited a page that
+             does not say it. It is now one general rule in "How to check one", cited where it was
+             actually read. -->
+    </div>
+    <!-- SHAKESPEARE EXPLORER — THE CATALOGUE AUDIT'S ONE UNCOMFORTABLE RESULT (v20.37).
+         It was this page's flagship Marylebone product. Re-checking it against National Rail found
+         NO product page: not in the promotions sitemap (246 entries), not in the tickets sitemap
+         (1,090), and three plausible URLs 404. That is not the same as "withdrawn", and this guide
+         must not say it is — an absence is evidence of an absence of evidence, which is exactly the
+         trap the FIP eligibility miss fell into a version earlier.
 
+         So it keeps a card, because tickets already sold stay valid until they expire and a member
+         of staff may well be handed one. What it loses is the ✓ — we can no longer show a source. -->
+    <h2 class="section" id="rr-cantsource">We can no longer source this one</h2>
 
-    <!--
-        TIER 2 IS THE POINT OF THE PAGE. Every product here reaches somewhere on our map — Oxford,
-        Moreton-in-Marsh, Worcester — so a passenger can reasonably believe it covers us. Saying "no"
-        quickly, and saying what they need instead, is the answer no national page gives.
-    -->
-    <h2 class="section" id="rr-no">Near misses — NOT valid on us</h2>
+    <div class="rr-card rr-card--draft" id="rr-shakespeare" data-guide-source="rr-shakespeare-core"
+         data-myb-validity="unconfirmed" data-chiltern-validity="unconfirmed">
+        <div class="rr-top">
+            <span class="rr-name">Shakespeare Explorer</span>
+            <span class="pill pill-draft">Draft · no current source found</span>
+        </div>
+        <div class="rr-who">Was a Marylebone-origin Rover — no product page found Aug 2026</div>
+        <div class="rr-status-grid">
+            <div class="rr-status">
+                <span class="rr-status-lbl">Marylebone</span>
+                <span class="myb-status myb-status--unconfirmed">⚠ Check</span>
+                <span class="rr-status-note">Cannot be confirmed from the current National Rail catalogue.</span>
+            </div>
+            <div class="rr-status">
+                <span class="rr-status-lbl">Chiltern</span>
+                <span class="ch-status ch-status--unconfirmed">⚠ Check</span>
+                <span class="rr-status-note">It listed Chiltern when it could last be read. There is no current page to re-read.</span>
+            </div>
+        </div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">Was sold as 1 or 4 days, as a return from London</span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Was Marylebone to Leamington Spa, Warwick, Warwick Parkway and all stations to Stratford-upon-Avon, with unlimited travel in the Leamington&ndash;Stratford area</span></div>
+            <div class="rr-row"><span class="rr-lbl">When</span><span class="rr-val"><span class="rr-sub">The return leg carried a before-10:00 Mon&ndash;Fri bar into London</span></span></div>
+        </div>
+        <div class="rr-chiltern rr-unresolved">
+            <span class="ct-label">What changed:</span> in August 2026 this product has
+            <strong>no page in National Rail's current catalogue</strong> &mdash; it is absent from
+            both the promotions and the tickets sitemaps. We are <strong>not</strong> saying it has
+            been withdrawn; we are saying <strong>we cannot source it</strong>, and the details above
+            are what the page said when it could last be read.
+            <br><strong>If one is presented:</strong> check it in the retail system.
+            <strong>Do not refuse it on the strength of this page.</strong> A ticket already sold
+            stays valid until it expires.
+        </div>
+        <!-- CLAIM-LEVEL CONFLICT (v20.37). This is a SEPARATE evidence record from the product
+             itself, and that separation is the point: one unresolved secondary condition used to
+             make the whole card wear `.rr-card--conflict`, so a passenger's basic ticket validity
+             read as doubtful because of a break-of-journey footnote. The conflict lives on the
+             claim it actually concerns. -->
+        <div class="rr-chiltern rr-unresolved" data-guide-source="rr-shakespeare-boj">
+            <span class="ct-label">Break of journey &mdash; source conflict:</span> when the page
+            could still be read, its description said an intermediate break of journey
+            <strong>is</strong> permitted between London and Leamington Spa, while the detailed
+            outward and return conditions on the <strong>same page</strong> said it is
+            <strong>not</strong>. Unresolved, and re-reading cannot settle it. Do not rely on this
+            guide for an intermediate stop such as Bicester Village &mdash; and do not refuse travel
+            on it either.
+        </div>
+    </div>
+    <!-- THE SECTION THIS WHOLE PASS EXISTS FOR. Every product here names Chiltern on its own
+         National Rail page — and every one of them is useless at this gateline. Under the old
+         "Works on us" heading they sat beside the genuinely Marylebone-valid ones. -->
+    <h2 class="section" id="rr-elsewhere">Valid on Chiltern &mdash; but not at Marylebone</h2>
+
+    <div class="rr-notes">
+        <p>These name Chiltern as an operator, and they are <strong>real tickets on our
+        network</strong> &mdash; just not on the London end of it. Each one's area stops well short of
+        Marylebone, so a passenger travelling to or from London needs a separate fare for the part
+        outside the boundary.</p>
+    </div>
+
+    <div class="rr-card rr-amber" id="rr-wmdr" data-guide-source="rr-west-midlands"
+         data-myb-validity="no" data-chiltern-validity="yes">
+        <div class="rr-top">
+            <span class="rr-name">West Midlands Day Ranger</span>
+            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
+        </div>
+        <div class="rr-who">The Birmingham end of our route</div>
+        <div class="rr-status-grid">
+            <div class="rr-status">
+                <span class="rr-status-lbl">Marylebone</span>
+                <span class="myb-status myb-status--no">⊘ Not valid</span>
+                <span class="rr-status-note">The area reaches Leamington Spa. It is not a ticket to London.</span>
+            </div>
+            <div class="rr-status">
+                <span class="rr-status-lbl">Chiltern</span>
+                <span class="ch-status ch-status--yes">✓ Area only</span>
+                <span class="rr-status-note">Everything from <strong>Leamington Spa</strong> northwards, including the Stratford branch. <strong>Banbury is outside it.</strong></span>
+            </div>
+        </div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 day</span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Network West Midlands, out to Crewe, Stafford, Stoke, Nuneaton, Northampton, <strong>Leamington Spa</strong>, Stratford-upon-Avon, Redditch, Hereford and Gobowen</span></div>
+            <div class="rr-row"><span class="rr-lbl">When</span><span class="rr-val"><span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:00</strong> Mon&ndash;Fri</span><span class="rr-sub">Any train Sat, Sun and Bank Holidays</span></span></div>
+        </div>
+        <div class="rr-chiltern">
+            <span class="ct-label">From Marylebone:</span> not valid. On our line the area reaches
+            down to <strong>Leamington Spa</strong> and stops &mdash; Warwick, Warwick Parkway,
+            Hatton, Lapworth, Dorridge, Solihull and Birmingham Moor Street are all inside it,
+            <strong>Banbury and everything south of it are not</strong>. Anyone travelling on towards
+            London needs another ticket for that leg.
+        </div>
+    </div>
+    <div class="rr-card rr-amber" id="rr-wmfdr" data-guide-source="rr-west-midlands-family"
+         data-myb-validity="no" data-chiltern-validity="yes">
+        <div class="rr-top">
+            <span class="rr-name">West Midlands Family Day Ranger</span>
+            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
+        </div>
+        <div class="rr-who">The family version of the Day Ranger above</div>
+        <div class="rr-status-grid">
+            <div class="rr-status">
+                <span class="rr-status-lbl">Marylebone</span>
+                <span class="myb-status myb-status--no">⊘ Not valid</span>
+                <span class="rr-status-note">Same Leamington Spa boundary as the standard Day Ranger.</span>
+            </div>
+            <div class="rr-status">
+                <span class="rr-status-lbl">Chiltern</span>
+                <span class="ch-status ch-status--yes">✓ Area only</span>
+                <span class="rr-status-note">The same area as the Day Ranger &mdash; Leamington Spa northwards, Banbury outside.</span>
+            </div>
+        </div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 day · <strong>1&ndash;2 adults and 1&ndash;2 children</strong></span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">The same West Midlands boundary as the Day Ranger &mdash; reaches <strong>Leamington Spa</strong></span></div>
+            <div class="rr-row"><span class="rr-lbl">When</span><span class="rr-val"><span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:00</strong> Mon&ndash;Fri</span><span class="rr-sub">Any train Sat, Sun and Bank Holidays</span></span></div>
+        </div>
+        <div class="rr-chiltern">
+            <span class="ct-label">Check the group:</span> valid for <strong>1&ndash;2 adults with
+            1&ndash;2 children</strong>. Adults travelling alone on it, or a larger group, are outside
+            what the ticket covers.
+        </div>
+    </div>
+    <div class="rr-card rr-amber" id="rr-oxon" data-guide-source="rr-oxfordshire"
+         data-myb-validity="no" data-chiltern-validity="yes">
+        <div class="rr-top">
+            <span class="rr-name">Oxfordshire Day Ranger</span>
+            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
+        </div>
+        <div class="rr-who">Our Bicester and Oxford branch</div>
+        <div class="rr-status-grid">
+            <div class="rr-status">
+                <span class="rr-status-lbl">Marylebone</span>
+                <span class="myb-status myb-status--no">⊘ Not valid</span>
+                <span class="rr-status-note">An Oxfordshire-area Ranger. It does not cover the run to London.</span>
+            </div>
+            <div class="rr-status">
+                <span class="rr-status-lbl">Chiltern</span>
+                <span class="ch-status ch-status--yes">✓ Area only</span>
+                <span class="rr-status-note">Banbury, Kings Sutton, Bicester <em>Village</em>, Islip and Oxford &mdash; but not Bicester North or Oxford Parkway.</span>
+            </div>
+        </div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">1 day</span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Between <strong>Banbury</strong>, Moreton-in-Marsh, <strong>Oxford</strong>, Didcot Parkway and Reading &mdash; and only within the area on the ticket map</span></div>
+            <div class="rr-row"><span class="rr-lbl">When</span><span class="rr-val"><span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:30</strong> Mon&ndash;Fri &mdash; <strong>or</strong> when the applicable Off-Peak Day Return becomes valid, <strong>whichever is earlier</strong></span><span class="rr-sub">Any time Sat, Sun and Bank Holidays. The 09:30 alone is not the rule &mdash; on a route whose Off-Peak starts sooner, the earlier time wins</span></span></div>
+        </div>
+        <div class="rr-chiltern">
+            <span class="ct-label">From Marylebone:</span> not valid. On our line it holds
+            <strong>Banbury</strong>, <strong>Kings Sutton</strong>, <strong>Bicester Village</strong>,
+            <strong>Islip</strong> and <strong>Oxford</strong> &mdash; the Oxfordshire end only. Two
+            near-misses worth knowing: <strong>Bicester North and Oxford Parkway are not in it</strong>,
+            though their neighbours are. High Wycombe and Aylesbury are outside it, and so is the whole
+            line south to London.
+        </div>
+    </div>
+    <div class="rr-card rr-amber" id="rr-heart" data-guide-source="rr-heart-england"
+         data-myb-validity="no" data-chiltern-validity="yes">
+        <div class="rr-top">
+            <span class="rr-name">Heart of England Rover</span>
+            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
+        </div>
+        <div class="rr-who">Midlands and Central England — Chiltern is a named operator</div>
+        <div class="rr-status-grid">
+            <div class="rr-status">
+                <span class="rr-status-lbl">Marylebone</span>
+                <span class="myb-status myb-status--no">⊘ Not valid</span>
+                <span class="rr-status-note">Its Chiltern stations reach Banbury. Marylebone is outside the area.</span>
+            </div>
+            <div class="rr-status">
+                <span class="rr-status-lbl">Chiltern</span>
+                <span class="ch-status ch-status--yes">✓ Area only</span>
+                <span class="rr-status-note">Banbury, Leamington Spa through to Birmingham Moor Street, and Oxford &mdash; but not Oxford Parkway or Bicester.</span>
+            </div>
+        </div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val"><strong>7 consecutive days</strong> &mdash; but each day is <strong>self-validated</strong>: they date the box themselves</span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Midlands and Central England, only within the area on the ticket map</span></div>
+            <div class="rr-row"><span class="rr-lbl">When</span><span class="rr-val"><span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:00</strong> Mon&ndash;Fri</span><span class="rr-sub">Any train Sat, Sun and Bank Holidays</span></span></div>
+        </div>
+        <div class="rr-chiltern">
+            <span class="ct-label">From Marylebone:</span> not valid. On the current National Rail
+            station list, <strong>Banbury</strong> is as far down our line as it reaches &mdash; Kings
+            Sutton and everything below it are outside. North of there it holds the
+            <strong>Leamington Spa to Birmingham Moor Street</strong> corridor and the Stratford branch.
+            <strong>Oxford</strong> is in the area but <strong>Oxford Parkway is not</strong>, so a
+            Chiltern train out of Oxford leaves the area at its first stop.
+        </div>
+    </div>
+    <div class="rr-card rr-amber rr-card--conflict" id="rr-thames" data-guide-source="rr-thames-7-geography rr-thames-7-operator"
+         data-myb-validity="no" data-chiltern-validity="conflict">
+        <div class="rr-top">
+            <span class="rr-name">Thames Rover &mdash; 7 Day</span>
+            <span class="pill pill-conflict">⚠ Source conflict · check retail system</span>
+        </div>
+        <div class="rr-who">The <strong>7 Day</strong> version only — see the warning below</div>
+        <div class="rr-status-grid">
+            <div class="rr-status">
+                <span class="rr-status-lbl">Marylebone</span>
+                <span class="myb-status myb-status--no">⊘ Not valid</span>
+                <span class="rr-status-note">Marylebone is not in its area. That part is settled.</span>
+            </div>
+            <div class="rr-status">
+                <span class="rr-status-lbl">Chiltern</span>
+                <span class="ch-status ch-status--conflict">⚠ Conflict</span>
+                <span class="rr-status-note">Its own pages disagree about whether Chiltern is an operator.</span>
+            </div>
+        </div>
+        <div class="rr-facts">
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">7 days &mdash; <strong>self-validated</strong> (they date the box before the first journey)</span></div>
+            <div class="rr-row"><span class="rr-lbl">When</span><span class="rr-val"><span class="rr-cutoff no"><span class="tok tok-no">⊘</span> before <strong>09:30</strong> Mon&ndash;Fri &mdash; <strong>or</strong> when the Off-Peak Day Return becomes valid, <strong>whichever is earlier</strong></span><span class="rr-sub">It also bars a named list of late-afternoon departures from London Paddington &mdash; all Great Western, none of ours</span></span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Thames valley. On the current 7-Day page its Chiltern stations are <strong>Banbury</strong>, <strong>Kings Sutton</strong>, <strong>Bicester Village</strong>, <strong>Islip</strong> and <strong>Oxford</strong> &mdash; Marylebone is not among them</span></div>
+        </div>
+        <!-- TWO QUESTIONS, SEPARATELY ANSWERED (v20.37). The old card had one red "Not settled"
+             for everything, which is a waste of the one thing that IS settled: the geography. The
+             station list on the current page does not contain Marylebone, so the Marylebone answer
+             is a clean no. What remains unresolved is purely whether Chiltern is an operator on it
+             at all — which changes nothing here, and everything at Banbury. -->
+        <div class="rr-chiltern rr-unresolved">
+            <span class="ct-label">Operator &mdash; source conflict:</span> National Rail's current
+            <strong>7 Day</strong> page lists <strong>Chiltern</strong>; the formal
+            <strong>TR3/TR7</strong> ticket page says <strong>GWR only</strong>. Unresolved &mdash;
+            confirm in the retail system, and <strong>do not refuse travel on this alone</strong>.
+            <br><strong>The 3 Day version is a different ticket:</strong> the current 3-Day page names
+            GWR only, so do not carry this finding across to it.
+            <br><span class="ct-label">Marylebone is not affected by that conflict:</span> it is
+            outside the ticket's area either way.
+        </div>
+    </div>
+    <h2 class="section" id="rr-no">Not valid on Chiltern at all</h2>
 
     <div class="rr-nolist">
-        <div class="rr-no-item" data-guide-source="rr-cotswolds">
+        <div class="rr-no-item" id="rr-cotswolds" data-guide-source="rr-cotswolds" data-myb-validity="no" data-chiltern-validity="no">
             <div class="rr-no-name"><span><span class="tok tok-no">⊘</span> Cotswolds Discoverer</span> <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span></div>
-            <p>Covers Oxford, Kingham, Moreton-in-Marsh, Charlbury — stations on <em>a</em> line to Oxford. It is a <strong>Great Western Railway</strong> product; <strong>Chiltern is not an operator on it</strong>, so the answer at our gateline is no.</p>
+            <div class="rr-no-status"><span class="myb-status myb-status--no">MYB ⊘ Not valid</span> <span class="ch-status ch-status--no">Chiltern ⊘ Not valid</span></div>
+            <p>Covers Oxford, Kingham, Moreton-in-Marsh, Charlbury — stations on <em>a</em> line to Oxford. It is a <strong>Great Western Railway</strong> product; <strong>Chiltern is not an operator on it</strong>, so the answer at our gateline is no. <strong>Oxford being in its area does not change that</strong> — the area says where, the operator list says whose trains, and it has to be both.</p>
         </div>
-        <div class="rr-no-item" data-guide-source="rr-severn-solent">
+        <div class="rr-no-item" id="rr-severn-solent" data-guide-source="rr-severn-solent" data-myb-validity="no" data-chiltern-validity="no">
             <div class="rr-no-name"><span><span class="tok tok-no">⊘</span> Freedom of Severn &amp; Solent Rover</span> <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span></div>
+            <div class="rr-no-status"><span class="myb-status myb-status--no">MYB ⊘ Not valid</span> <span class="ch-status ch-status--no">Chiltern ⊘ Not valid</span></div>
             <p>Reaches Worcester and Great Malvern in the north. <strong>TfW, CrossCountry, GWR and South Western</strong> — Chiltern is not among them.</p>
         </div>
     </div>
@@ -360,7 +479,7 @@
          gone — what remains is the rule that made the list necessary. -->
     <div class="rr-notes" id="rr-reported">
         <h3>Anything else — check, don't refuse</h3>
-        <p>This page covers the products most relevant to Marylebone. It is <strong>not</strong> the
+        <p>This page covers the products most relevant to Marylebone, and is grouped by whether they work <strong>here</strong>. It is <strong>not</strong> the
         national list, and National Rail's catalogue changes — so a ticket missing from here is
         <strong>out of scope, not invalid</strong>. Check it in the retail system. Refusing a valid
         pass is the worse mistake, and it is the one this page could cause.</p>
@@ -384,19 +503,40 @@
         and in ink — <code>07 09</code> for the 7th of September. <strong>Follow the instructions
         printed on that particular Rover</strong>; the Heart of England Rover is the one this is
         quoted from.</p>
+        <p><strong>What goes in the box is not the same on every Rover</strong> — the Freedom of
+        Severn &amp; Solent page asks for an <code>✗</code> in the box rather than a written date. So
+        the rule to enforce is <em>that the box has been completed before travelling</em>, not the
+        particular mark. A blank one is what you are looking for.</p>
         <p><strong>An undated box on a journey in progress is the fault</strong> — the ticket has not
         been validated for today. A box dated in pencil, or dated after you asked, is the same thing.</p>
         <p>This is the one rule on this page you can enforce by looking. Everything else needs the
         retail system.</p>
     </div>
 
-    <div class="check-steps">
-        <div class="check-item"><div class="check-num">1</div><div><strong>Is it carded above?</strong> If yes, that card has the rules — and its status says how well sourced they are. If not, go straight to step 5: this page is not the national list.</div></div>
-        <div class="check-item"><div class="check-num">2</div><div><strong>Is today inside it?</strong> Day rangers are one date. Flexi rovers need today's box dated.</div></div>
-        <div class="check-item"><div class="check-num">3</div><div><strong>Is it too early?</strong> Most carry a 09:00 or 09:30 Mon&ndash;Fri bar. Weekends and Bank Holidays are usually clear.</div></div>
-        <div class="check-item"><div class="check-num">4</div><div><strong>Are we inside the area?</strong> The boundary is a <em>station</em>, not a region — Leamington Spa and Banbury are the two that matter to us.</div></div>
-        <div class="check-item"><div class="check-num">5</div><div><strong>Still unsure?</strong> Check it in the retail system before refusing. Refusing a valid pass is the worse mistake.</div></div>
+    <!-- A GENERAL ROVER RULE, MOVED OFF THE ALL LINE ROVER CARD (v20.37). It sat there as though it
+         were that product's own selling rule; it is stated on the ROVER TICKET pages (read on he7 and
+         s37) and not on the All Line promotion page at all. Sitting on one card, it told a reader
+         nothing about the Heart of England Rover in front of them. Note the Cotswolds Discoverer's
+         page carries a DIFFERENT rule (7 days), which is why this is scoped to Rovers, not to
+         everything on the page. -->
+    <div class="rr-notes" data-guide-source="rr-advance-sale">
+        <h3>Selling a Rover <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span></h3>
+        <p>A Rover <strong>may not be issued more than 3 days ahead</strong> of the date it becomes
+        valid &mdash; <strong>5 days</strong> for telesales and internet bookings. This is a
+        <strong>Rover</strong> rule, not one product's: it is on the ticket pages for the Heart of
+        England Rover and the Freedom of Severn &amp; Solent Rover alike. Day Rangers and Discoverers
+        set their own &mdash; the Cotswolds Discoverer, for one, says 7 days.</p>
     </div>
+
+    <div class="check-steps">
+        <div class="check-item"><div class="check-num">1</div><div><strong>Is it valid <em>at Marylebone</em>?</strong> Look at the MYB badge first. If it says <strong>⊘</strong>, the fact that Chiltern is named on the ticket does not make it valid through this gateline.</div></div>
+        <div class="check-item"><div class="check-num">2</div><div><strong>Which part of Chiltern does it cover?</strong> Check the boundary station, not the operator list. <em>"Chiltern is a participating operator"</em> is where the check starts, never where it ends.</div></div>
+        <div class="check-item"><div class="check-num">3</div><div><strong>Is today inside it?</strong> Day Rangers are one date. Flexi Rovers need today's box dated &mdash; see the date-box rule above.</div></div>
+        <div class="check-item"><div class="check-num">4</div><div><strong>Is it too early?</strong> Most carry a 09:00 or 09:30 Mon&ndash;Fri bar, and a Railcard discount can add its own on top. Weekends and Bank Holidays are usually clear.</div></div>
+        <div class="check-item"><div class="check-num">5</div><div><strong>Any unusual restriction?</strong> Break of journey, named excluded services, group composition, route exclusions.</div></div>
+        <div class="check-item"><div class="check-num">6</div><div><strong>Still unsure?</strong> Check it in the retail system before refusing &mdash; including anything not carded here. Refusing a valid pass is the worse mistake.</div></div>
+    </div>
+
 
     <div class="rr-notes" data-guide-source="rr-two-together">
         <h3>Two things that catch people out <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span></h3>
