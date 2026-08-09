@@ -567,14 +567,29 @@ test('guide — rangers & rovers mobile 390', async ({ page }) => {
     await page.goto('/rangers-guide.html');
     // The banner still exists, but it now SUMMARISES rather than blankets.
     await expect(page.locator('.source-banner')).toBeVisible();
-    // Two products carry an unresolved source conflict (Shakespeare Explorer, Thames Rover 7 Day) —
-    // pinned by COUNT, because the failure worth catching is one of them quietly losing its marker
-    // and reading as settled.
-    await expect(page.locator('.rr-card--conflict')).toHaveCount(2);
-    // …and nothing is Draft any more. Asserted explicitly rather than left implicit: a product added
-    // later without a status would otherwise slip in unmarked.
-    await expect(page.locator('.rr-card--draft')).toHaveCount(0);
+    // AND THEY EARNED IT AGAIN AT v20.37, in the same way. The counts below were `conflict: 2,
+    // draft: 0` and failed when evidence moved from the PRODUCT to the CLAIM — which is exactly the
+    // change a regenerated screenshot would have swallowed silently.
+    //
+    // The provisional total is still TWO, and that is the number to keep pinned; what changed is
+    // where each one sits. Thames 7-Day keeps a whole-card marker, because the disputed claim (is
+    // Chiltern an operator?) IS that card's Chiltern answer. Shakespeare does not: nobody can read
+    // its page at all, which is a Draft, and its break-of-journey conflict lives on the claim it
+    // concerns. Counting the two shapes separately is the point — collapsing them back into one
+    // number is how the distinction gets lost.
+    await expect(page.locator('.rr-card--conflict')).toHaveCount(1);  // Thames 7-Day
+    await expect(page.locator('.rr-card--draft')).toHaveCount(1);     // Shakespeare — unsourceable
+    await expect(page.locator('[data-guide-source="rr-shakespeare-boj"].rr-unresolved')).toHaveCount(1);
+    // A Draft and a Conflict must never render alike, and a screenshot is the only thing that can
+    // see it: the badges are what a reader looks at now, and the Shakespeare card shipped mid-v20.37
+    // wearing "⚠ Conflict" over an absence. Pinned by CLASS here; the styling is separated by
+    // guide-sources.test.mjs, which fails if the two recipes are identical.
+    await expect(page.locator('.myb-status--unconfirmed, .ch-status--unconfirmed')).not.toHaveCount(0);
     await expect(page.locator('.pill-checked')).not.toHaveCount(0);
+    // The Marylebone-first split itself: at least one product valid on Chiltern and NOT here. If
+    // this empties, the page has lost the thing it was restructured to say.
+    await expect(page.locator('.rr-card[data-chiltern-validity="yes"][data-myb-validity="no"]'))
+        .not.toHaveCount(0);
     await guideSettle(page, '.chip-bar, .rr-card');
     await expect(page).toHaveScreenshot('rangers-guide-mobile-390.png');
 });
