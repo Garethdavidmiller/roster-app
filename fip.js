@@ -3,8 +3,8 @@
 //
 // Two jobs, both progressive enhancement (CSP blocks inline scripts, so this is a `defer`-loaded
 // external file like railcard-guide.js; with JS off the page still works — every country visible):
-//   1. Country finder (v17.64): a search box live-filters the 25 country cards AND the A–Z jump
-//      list by country name or operator/train text, so a 25-country reference is navigable at work.
+//   1. Country finder (v17.64): a search box live-filters the country cards AND the A–Z jump
+//      list by country name or operator/train text, so a long country reference is navigable at work.
 //   2. Open-on-jump: the jump/popular links (#country-fr, …) point at native <details>. A bare
 //      anchor-scroll lands ON the row but leaves it COLLAPSED (double taps). We open the target
 //      <details> on a deep link, on every in-page jump, and — if it was filtered out — clear the
@@ -30,7 +30,9 @@ var searchInput = /** @type {HTMLInputElement|null} */ (document.getElementById(
 var clearBtn    = document.getElementById('countryClear');
 var countEl     = document.getElementById('countryCount');
 var noMatchEl    = document.getElementById('countryNoMatch');
-// The 25 country cards (23 <details> + 2 not-FIP <div>), each id="country-XX". (Finder control ids
+// The country cards (<details>, plus the not-FIP <div>s), each id="country-XX". **Never write the
+// count down** — it was "25" until the v20.25 audit made it 32, and a number in a comment is a
+// claim nobody re-checks. The finder counts the DOM. (Finder control ids
 // use no hyphen — countrySearch/countryClear/… — so they never match this "country-" selector.)
 var countryCards = Array.prototype.slice.call(document.querySelectorAll('[id^="country-"]'));
 // A–Z jump chips, kept in lockstep with their target card's visibility.

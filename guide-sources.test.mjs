@@ -286,34 +286,29 @@ test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed da
 // Which rows back the country cards is derived from the HTML rather than listed here: a row counts
 // if any block citing it is not a `ferry-*` details. A list would need editing every time a section
 // is added, and would go stale in the direction of over-claiming again.
-test('the FIP country-finder note states a review date backed by the register', () => {
+test('the FIP country-finder note makes NO page-wide checked claim', () => {
+    // ── THE BLANKET DATE IS RETIRED (v20.25) ───────────────────────────────────────────────────
+    //
+    // The note used to say "These country cards were last reviewed Jul 2026". That is a single
+    // claim standing in for 32 separate ones, and it can only ever be wrong in one of two
+    // directions: stale, or — the moment ONE card is re-verified — an over-claim covering 31 cards
+    // nobody looked at. The v20.25 country pass made that concrete: eight cards were checked
+    // against live Rail Staff Travel pages and the rest were not, and no single date describes
+    // that honestly.
+    //
+    // So the page now says each card carries its own date and that an undated card is not yet
+    // verified, and this test guards the absence rather than the value. Per-card parity between
+    // the visible date and the register is enforced by its own test above — that is where a date
+    // claim belongs, because there it is bounded by the card making it.
     const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
-    const m = html.match(/country cards were last reviewed ([A-Z][a-z]{2}) (\d{4})/);
-    assert.ok(m, 'the cf-note guide-level review date is missing from fip.html');
-    const shown = `${m[2]}-${String(MONTHS.indexOf(m[1]) + 1).padStart(2, '0')}`;
-
-    // ── WHAT BACKS THE COUNTRY-CARD DATE IS THE COUNTRY CARDS, AND NOTHING ELSE ────────────────
-    //
-    // Scoped to rows cited by a `<details id="country-…">`. It used to sweep every fip row cited
-    // from anywhere on the page, which made the blanket date hostage to rows that say nothing about
-    // a country: adding the v20.23 coupon-mechanics rows (dated 2026-08, and correctly so — the
-    // Conditions of Issue and Use were opened and read) dragged `newest` forward and demanded the
-    // page claim the COUNTRY CARDS had been reviewed in August, when they had not been touched.
-    //
-    // That is the exact failure GUIDE_SOURCES.md exists to prevent, arriving through the guard
-    // meant to prevent it. The file's own next line already says ferry-only ids "say nothing about
-    // the country cards" — this applies the same reasoning to every other cross-cutting row.
-    const countryRows = new Set();
-    for (const mm of html.matchAll(/<details id="(country-[^"]+)"[^>]*data-guide-source="([^"]+)"/g)) {
-        for (const id of mm[2].trim().split(/\s+/)) countryRows.add(id);
-    }
-
-    const backing = rows.filter(r => r.Guide === 'fip' && countryRows.has(r.ID));
-    assert.ok(backing.length >= 9, `expected the country-card rows, found ${backing.length}`);
-    const newest = backing.map(r => r.Reviewed).sort().pop();
-    assert.equal(shown, newest,
-        `fip.html says the country cards were reviewed ${shown}, but the newest country-card register ` +
-        `row is ${newest} — the guide-level date must never outrun the reviews behind it`);
+    assert.doesNotMatch(html, /country cards were last reviewed/,
+        'the page-wide "last reviewed" claim is back — one date cannot speak for every card');
+    const note = html.match(/<p class="cf-note">([\s\S]*?)<\/p>/);
+    assert.ok(note, 'the country-finder note is missing');
+    assert.match(note[1], /own checked date/,
+        'the note must tell the reader where the real dates are');
+    assert.match(note[1], /not yet been re-verified|has not yet/,
+        'the note must say what an UNDATED card means — silence reads as "fine" otherwise');
 });
 
 // Non-failing diagnostic: surface rows whose manual review is overdue. Deliberately NOT an

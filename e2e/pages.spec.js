@@ -943,7 +943,10 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     await search.fill('spain');
     await expect(page.locator('#country-es')).toBeVisible();
     await expect(page.locator('#country-no')).toBeHidden();
-    await expect(page.locator('#countryCount')).toContainText('of 25 countries');
+    // Counted from the DOM, never written down. The literal 25 outlived the guide by one release:
+    // the v20.25 country pass took it to 32 and this assertion failed on correct behaviour.
+    const totalCountries = await page.locator('[id^="country-"]').count();
+    await expect(page.locator('#countryCount')).toContainText(`of ${totalCountries} countries`);
     await expect(page.locator('#countryClear')).toBeVisible();
     // The A–Z chip for a hidden country is hidden too (kept in lockstep with its card).
     await expect(page.locator('.country-jump a[href="#country-no"]')).toBeHidden();
