@@ -272,6 +272,44 @@ test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed da
     assert.ok(checked >= 9, `expected the nine sourced FIP country cards to show a date, found ${checked}`);
 });
 
+// ── EVERY COUNTRY AND FERRY CARD SHOWS ITS EVIDENCE STATE (v20.31) ──────────────────────────────
+//
+// The test above proves a date that IS shown is honest. It says nothing about a card that shows
+// none — and that is the gap the page fell into. Between v20.25 and v20.30 the country audit ran a
+// card at a time, each pass adding a "✓ Checked …" line to the cards it had just verified. By the
+// end all 33 country and ferry cards had been read against their live Rail Staff Travel page and
+// eleven of them still carried no line, purely because of which pass had touched them.
+//
+// That is worse than it sounds. The page's own country-finder note tells the reader, correctly,
+// that "a card with no date has not yet been re-verified — treat it as a starting point, not a
+// ruling". So eleven fully-sourced cards were actively telling staff to trust them less. An
+// evidence marker that is present or absent by accident does not merely fail to inform; it
+// misinforms, and it does so in the direction of the reader dismissing good information.
+//
+// The failure mode is silent both ways, which is why it needs a test rather than a convention:
+// nothing renders wrong, nothing throws, and the missing line looks exactly like a deliberate
+// "not checked". So the invariant is now structural — a country or ferry card carries an evidence
+// line, or this fails. Adding a new card means deciding its evidence state, which is the decision
+// that was being skipped.
+test('every FIP country and ferry card states its evidence state', () => {
+    const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
+    const cards = [...html.matchAll(/<details id="((?:country-|ferry-)[^"]+)"[^>]*>([\s\S]*?)<\/details>/g)];
+    assert.ok(cards.length >= 30,
+        `expected the country/ferry cards to be found, got ${cards.length} — has the markup changed?`);
+    const bare = cards.filter(m => !/class="country-reviewed"/.test(m[2])).map(m => m[1]);
+    assert.deepEqual(bare, [],
+        `these FIP cards render no evidence line: ${bare.join(', ')}. The country-finder note tells ` +
+        `readers an undated card is unverified, so a sourced card without one understates itself. ` +
+        `Add the "✓ Checked <Mon> <Year> against Rail Staff Travel" line — or, if it genuinely is ` +
+        `unverified, say so in the card rather than leaving the reader to infer it from silence`);
+    // And every card must also cite the register row that backs it — an evidence line with no
+    // anchor is a claim about a review nothing records.
+    const unanchored = cards.filter(m => !/data-guide-source=/.test(m[0].slice(0, m[0].indexOf('>'))))
+        .map(m => m[1]);
+    assert.deepEqual(unanchored, [],
+        `these FIP cards show an evidence line but cite no register row: ${unanchored.join(', ')}`);
+});
+
 // The FIP country finder also states a GUIDE-LEVEL review date, because the 16 lower-use country
 // cards carry no date of their own (they sit under the sampled `fip-carrier-accept` row). Same
 // hazard, same guard: it must equal the newest Reviewed date across the rows that back the COUNTRY
@@ -286,31 +324,29 @@ test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed da
 // Which rows back the country cards is derived from the HTML rather than listed here: a row counts
 // if any block citing it is not a `ferry-*` details. A list would need editing every time a section
 // is added, and would go stale in the direction of over-claiming again.
-test('the FIP country-finder note states a review date backed by the register', () => {
+test('the FIP country-finder note makes NO page-wide checked claim', () => {
+    // ── THE BLANKET DATE IS RETIRED (v20.25) ───────────────────────────────────────────────────
+    //
+    // The note used to say "These country cards were last reviewed Jul 2026". That is a single
+    // claim standing in for 32 separate ones, and it can only ever be wrong in one of two
+    // directions: stale, or — the moment ONE card is re-verified — an over-claim covering 31 cards
+    // nobody looked at. The v20.25 country pass made that concrete: eight cards were checked
+    // against live Rail Staff Travel pages and the rest were not, and no single date describes
+    // that honestly.
+    //
+    // So the page now says each card carries its own date and that an undated card is not yet
+    // verified, and this test guards the absence rather than the value. Per-card parity between
+    // the visible date and the register is enforced by its own test above — that is where a date
+    // claim belongs, because there it is bounded by the card making it.
     const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
-    const m = html.match(/country cards were last reviewed ([A-Z][a-z]{2}) (\d{4})/);
-    assert.ok(m, 'the cf-note guide-level review date is missing from fip.html');
-    const shown = `${m[2]}-${String(MONTHS.indexOf(m[1]) + 1).padStart(2, '0')}`;
-
-    /** Ids cited ONLY by ferry blocks — they say nothing about the country cards. */
-    const ferryOnly = new Set();
-    const nonFerry  = new Set();
-    for (const mm of html.matchAll(/<details id="([^"]+)"[^>]*data-guide-source="([^"]+)"/g)) {
-        for (const id of mm[2].trim().split(/\s+/)) {
-            (mm[1].startsWith('ferry-') ? ferryOnly : nonFerry).add(id);
-        }
-    }
-    // A cross-cutting row cited by a non-details block (a card, a list item) counts too.
-    for (const mm of html.matchAll(/data-guide-source="([^"]+)"/g)) {
-        for (const id of mm[1].trim().split(/\s+/)) if (!ferryOnly.has(id)) nonFerry.add(id);
-    }
-
-    const backing = rows.filter(r => r.Guide === 'fip' && !(ferryOnly.has(r.ID) && !nonFerry.has(r.ID)));
-    assert.ok(backing.length >= 9, `expected the country-card rows, found ${backing.length}`);
-    const newest = backing.map(r => r.Reviewed).sort().pop();
-    assert.equal(shown, newest,
-        `fip.html says the country cards were reviewed ${shown}, but the newest country-card register ` +
-        `row is ${newest} — the guide-level date must never outrun the reviews behind it`);
+    assert.doesNotMatch(html, /country cards were last reviewed/,
+        'the page-wide "last reviewed" claim is back — one date cannot speak for every card');
+    const note = html.match(/<p class="cf-note">([\s\S]*?)<\/p>/);
+    assert.ok(note, 'the country-finder note is missing');
+    assert.match(note[1], /own checked date/,
+        'the note must tell the reader where the real dates are');
+    assert.match(note[1], /not yet been re-verified|has not yet/,
+        'the note must say what an UNDATED card means — silence reads as "fine" otherwise');
 });
 
 // Non-failing diagnostic: surface rows whose manual review is overdue. Deliberately NOT an

@@ -94,7 +94,47 @@ gap the v17.45 audit flagged can't silently reopen.
 
 ## FIP guide
 
-`fip.html` is a low-frequency educational reference — not a core workflow. Judge it as an article-like reference page. Do not flag reference-page format as a design defect. Care about: factual accuracy, "last checked" date, source links, mobile layout, navy/gold palette.
+`fip.html` is a low-frequency educational reference — not a core workflow. Judge it as an
+article-like reference page. Do not flag reference-page format as a design defect. Care about
+factual accuracy, source links, mobile layout, and the navy/gold palette.
+
+**Evidence is PER CARD, and there is deliberately no page-wide "last checked" date** (v20.25,
+tightened v20.31). The page used to carry one — "these country cards were last reviewed Jul 2026" —
+and a single date standing in for thirty-odd separate claims can only ever be wrong in one of two
+directions: stale, or, the moment one card is re-verified, an over-claim covering every card nobody
+looked at. Each country and ferry card therefore shows its own `✓ Checked <Mon> <Year> against Rail
+Staff Travel` line and cites its own `data-guide-source` row. `guide-sources.test.mjs` enforces
+three things: the date shown equals its register row's `Reviewed`; **every** country/ferry card
+carries a line *and* an anchor; and the finder note makes no page-wide claim.
+
+**Absence of a marker is a statement, so it must never be an accident.** The page tells readers an
+undated card has not been re-verified. Between v20.25 and v20.30 the audit ran a card at a time and
+eleven fully-sourced cards ended up with no line purely because of which pass had touched them — so
+they were telling staff to trust them less than they deserved. Nothing rendered wrong, nothing
+threw, and no behavioural test could see it; that is why the invariant is now structural.
+
+**The country audit's standing rules** (established across v20.25–v20.32, all thirty-odd cards read
+against their live Rail Staff Travel country page):
+
+- **Never soften an unsourced claim — remove it.** Four survived years of review by sounding
+  plausible: Denmark refusing SJ/Snälltåget night trains, Czech "ARRIVA vlaky and Trilex", Croatia
+  bookable "via Trainseurope", Romania's "trains are slow". None is in the source. The worst was
+  eligibility: **"you generally qualify after 12 months' service"** appears in no RST page at all,
+  and it was the first thing a new starter read.
+- **A country is not an undertaking.** Hungary has two (MÁV and GySEV), so does Spain (RENFE and
+  Euskotren), Bosnia (ŽRS and ŽFBH) and Ireland (CIÉ and NIR); Poland has six. A card naming one
+  operator reads as though the country has one, and coupons do not transfer between them.
+- **Say which direction a rule bites.** Several countries treat the coupon and the FIP Card
+  differently and it goes both ways — Denmark and the Netherlands favour the coupon, Czechia
+  charges a supplement to a *leisure* coupon only.
+- **Record a stated absence as an absence.** RST publishes no child-fare ages for Lithuania and no
+  Swedish/Finnish undertaking exists; a blank reads as "no restriction".
+
+**The booking-reach table** (`#booking-table`, v20.31) is the page's only table. It stacks below
+560px via `data-label` generated content, and carries explicit `role="table"/"row"/"cell"` because
+`display: block` strips a table's semantics from the accessibility tree. It must stay invisible to
+the country finder, which selects `[id^="country-"]` — an id starting `country-` would let a search
+hide the table that answers the question about that country.
 
 
 ## Rangers & Rovers guide (v20.05)
