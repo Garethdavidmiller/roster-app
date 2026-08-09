@@ -485,8 +485,24 @@ lets both be fixed at once.
 | Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |
 | Guides, Huddle, Circular, Newsletter | Reachable **without** the PIN. The nav drawer is never locked. |
 
-A member on a shared PC can also use **"MYB member? Sign in instead"** on the unlock card, and a
-viewer can press **Lock Calendar** in the nav drawer before walking away.
+A member on a shared PC can also use **"Sign in instead"** on the unlock card, and a viewer can
+press **Lock Calendar** in the nav drawer before walking away.
+
+### Switching it on and off
+
+`CONFIG.CALENDAR_PIN_ACCESS` in `roster-data.js` is the on/off switch, and both directions are a
+hosting deploy of one line:
+
+- **`false`** — the Calendar is on its pre-v20.12 model: anonymous session, no gate, no card. Staff
+  see no change at all. This is how the feature ships DARK, and it is the fast rollback while the
+  `overrides` rule is still permissive.
+- **`true`** — the card is up: a member session or the staff PIN, and nothing else.
+
+**It controls friction, not protection.** Whether the roster is actually protected is decided by
+`firestore.rules`, which is a separate deploy. Once the rules are tightened, switching the flag off
+no longer re-opens anything — the client stops asking for a PIN while the server keeps refusing the
+reads, which shows every visitor a base roster under a "couldn't update" chip. Rolling back after
+that point means rolling back the rules: RECOVERY_RUNBOOK.md → "The Calendar PIN".
 
 ### Setting the PIN (do this FIRST — the function will not work without it)
 

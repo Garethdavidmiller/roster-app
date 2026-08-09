@@ -46,7 +46,7 @@
  *     second copy that can disagree with it.
  */
 
-import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthStateChanged } from './firebase-client.js';
+import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersistence, onAuthStateChanged } from './firebase-client.js';
 import { getSession, reconcileExpiredIdentity } from './session.js';
 import { CONFIG } from './roster-data.js';
 import { isViewerUser, decideAccess, normalisePin, isCompletePin, classifyUnlockFailure, attemptBackoffMs, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
@@ -59,7 +59,7 @@ const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCal
  *  on a working network is the more annoying of the two errors. */
 const UNLOCK_TIMEOUT_MS = 15000;
 
-/** @type {'named'|'viewer'|'none'} */
+/** @type {'named'|'viewer'|'open'|'none'} */
 let _accessType = 'none';
 /** @type {(() => void)|null} */
 let _resolveAccess = null;
@@ -74,7 +74,9 @@ let _onGranted = null;
  *  user-visible half of that. */
 export const calendarAccessReady = /** @type {Promise<void>} */ (new Promise(resolve => { _resolveAccess = () => resolve(); }));
 
-/** @returns {'named'|'viewer'|'none'} the access this browser currently holds. */
+/** @returns {'named'|'viewer'|'open'|'none'} the access this browser currently holds.
+ *  `open` means the staff PIN is switched OFF (`CONFIG.CALENDAR_PIN_ACCESS`) and the Calendar is
+ *  running its pre-v20.12 model — anonymous session, no gate. See `initCalendarAccess`. */
 export function getAccessType() { return _accessType; }
 
 /** @returns {boolean} true when the Calendar is being viewed through the shared staff PIN. */
@@ -123,7 +125,7 @@ function firstAuthUser() {
 }
 
 /** Commit an access decision exactly once, and let the Calendar start. */
-function grant(/** @type {'named'|'viewer'} */ type) {
+function grant(/** @type {'named'|'viewer'|'open'} */ type) {
     _accessType = type;
     document.body.classList.remove('calendar-locked');
     document.body.classList.add('calendar-unlocked');
@@ -431,6 +433,9 @@ function showLockPanel() {
  */
 export function handleAccessLost() {
     if (_accessType === 'none') return;
+    // Nothing to return TO when the PIN is switched off: there is no lock card, and showing one
+    // would strand a member behind a control the deployment has deliberately disabled.
+    if (_accessType === 'open') return;
     // The CALLER closes the override gate (calendar-app.js passes a wrapper that calls
     // `setOverrideAccess(false)` first). It is not done here because this module deliberately does
     // not import calendar-overrides.js — the gate must not depend on the access layer it protects
@@ -454,7 +459,7 @@ export function handleAccessLost() {
  * @param {{ onGranted: () => void }} deps  onGranted runs ONCE, the first time access is granted.
  *   It is how `calendar-app.js` defers every piece of Calendar initialisation — the member
  *   dropdown, the render, the fetch, the swipe handler — so that none of it exists while locked.
- * @returns {Promise<'named'|'viewer'|'none'>}
+ * @returns {Promise<'named'|'viewer'|'open'|'none'>}
  */
 export async function initCalendarAccess({ onGranted }) {
     _onGranted = onGranted;
@@ -465,20 +470,43 @@ export async function initCalendarAccess({ onGranted }) {
     setWorkspaceHidden(true);
     document.body.classList.add('calendar-locked');
 
-    /** @type {'named'|'viewer'|'none'} */
+    /** @type {'named'|'viewer'|'open'|'none'} */
     let type;
     try { type = await resolveAccess(); }
     catch (e) { console.error('[CalendarAccess] decision failed', e); type = 'none'; }
 
-    if (type === 'none' && CONFIG.CALENDAR_PIN_ACCESS === false) {
-        // Kill switch. If the PIN exchange is ever broken in production, flipping this in
-        // roster-data.js reopens the Calendar to anyone with a named session and leaves everyone
-        // else on the panel — it does NOT re-open override reads, which are the server's decision.
-        // Present so the client half can be stood down without a rules rollback.
-        console.warn('[CalendarAccess] PIN access disabled by config');
+    // ── THE SWITCH (v20.16) ─────────────────────────────────────────────────────────────────────
+    //
+    // `CONFIG.CALENDAR_PIN_ACCESS: false` puts the Calendar back on its pre-v20.12 model: an
+    // anonymous session, no gate, no card, exactly what staff had before. It exists so the whole
+    // feature can be deployed DARK — shipped, running, and invisible — and switched on later by a
+    // one-line change, and so it can be switched off again in seconds if the exchange misbehaves in
+    // production. Both directions are a hosting deploy; neither touches the rules.
+    //
+    // **It controls FRICTION, NOT PROTECTION, and confusing the two is the way to get hurt here.**
+    // Override reads are the server's decision. While `firestore.rules` still carries the old
+    // permissive `allow read;`, this flag is the only thing standing between a visitor and the
+    // roster — so "off" genuinely means open to anyone with the URL, as it always was. Once the
+    // rules are tightened, turning this off no longer re-opens anything: the reads are denied by the
+    // server and the anonymous session below satisfies nothing. Off is a rollback for the WINDOW
+    // between the two deploys, not afterwards.
+    //
+    // It resolves the access type normally first, so a signed-in member is still `named` and every
+    // member-specific behaviour is unchanged. Only the FALLBACK moves: `none` (locked) becomes
+    // `open` (anonymous, running).
+    if (CONFIG.CALENDAR_PIN_ACCESS === false) {
+        if (type === 'none') {
+            // The pre-v20.12 bootstrap, restored verbatim for this mode. The calendar's best-effort
+            // WRITES — the error reporter, the usage counters, the push-subscription renewal — all
+            // require `request.auth != null`, so without this they would silently stop and the app
+            // would look fine while going quiet on exactly the telemetry that would tell you it had.
+            try { await signInAnonymously(auth); } catch { /* best effort, as it always was */ }
+            type = 'open';
+        }
+        console.warn('[CalendarAccess] staff PIN is switched OFF (CONFIG.CALENDAR_PIN_ACCESS)');
     }
 
-    if (type === 'named' || type === 'viewer') { grant(type); return type; }
+    if (type === 'named' || type === 'viewer' || type === 'open') { grant(type); return type; }
     showLockPanel();
     return 'none';
 }

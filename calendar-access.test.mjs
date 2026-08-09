@@ -48,6 +48,11 @@ mock.module('./firebase-client.js', {
             return { user: currentUser };
         },
         signOut: async () => { ops.push('signOut'); currentUser = null; },
+        signInAnonymously: async () => {
+            ops.push('signInAnonymously');
+            currentUser = { uid: 'anon-1', isAnonymous: true };
+            return { user: currentUser };
+        },
         setViewerPersistence: async () => { ops.push('persistence:session'); },
         restoreMemberPersistence: async () => { ops.push('persistence:member'); },
         onAuthStateChanged: (_a, cb) => { cb(currentUser); return () => {}; },
@@ -61,9 +66,10 @@ mock.module('./session.js', {
     },
 });
 
-mock.module('./roster-data.js', {
-    namedExports: { CONFIG: { CALENDAR_PIN_ACCESS: true } },
-});
+/** Mutable so both sides of the switch are reachable — the whole point of the flag is that it has
+ *  two behaviours, and a test that could only ever see one would be checking half a feature. */
+const CONFIG = { CALENDAR_PIN_ACCESS: true };
+mock.module('./roster-data.js', { namedExports: { CONFIG } });
 
 const {
     unlockWithPin, getAccessType, isViewerMode, initCalendarAccess, lockCalendar, handleAccessLost,
@@ -122,6 +128,7 @@ beforeEach(() => {
     currentUser = null;
     tokenClaims = { calendarViewer: true };
     sessionValue = null;
+    CONFIG.CALENDAR_PIN_ACCESS = true;
     fetchQueue = [];
     lastFetchBody = null;
     fakeDom();
@@ -374,5 +381,69 @@ describe('the viewer↔member race', () => {
         sessionValue = { name: 'G. Miller' };
         currentUser = { uid: 'calendar-viewer', isAnonymous: false };
         assert.deepEqual(await unlockWithPin('1234'), { ok: true });
+    });
+});
+
+describe('THE ON/OFF SWITCH — CONFIG.CALENDAR_PIN_ACCESS', () => {
+    // It exists so the feature can be deployed DARK: shipped, running, and invisible to staff, then
+    // switched on later by one line. Until v20.16 it only wrote a console warning and changed
+    // nothing, so it would have shipped as permanently ON — a knob that drives nothing, which is the
+    // `SOFT_DELETE_RETENTION_DAYS` mistake this repo has a written rule about.
+
+    test('OFF: a visitor with nothing gets the Calendar, not the card', async () => {
+        CONFIG.CALENDAR_PIN_ACCESS = false;
+        let started = 0;
+        const type = await initCalendarAccess({ onGranted: () => { started++; } });
+        assert.equal(type, 'open');
+        assert.equal(started, 1, 'the Calendar was not started');
+        assert.equal(getAccessType(), 'open');
+        assert.equal(isViewerMode(), false, 'open mode must not read as viewer mode');
+    });
+
+    test('OFF: the anonymous session comes back, or the telemetry goes silent', async () => {
+        // The calendar's best-effort WRITES — error reporter, usage counters, push renewal — all
+        // need `request.auth != null`. Without restoring this the app would look completely fine
+        // while going quiet on exactly the telemetry that would tell you it was not.
+        CONFIG.CALENDAR_PIN_ACCESS = false;
+        await initCalendarAccess({ onGranted: () => {} });
+        assert.ok(ops.includes('signInAnonymously'),
+            `no anonymous session was established: ${JSON.stringify(ops)}`);
+    });
+
+    test('OFF: a signed-in MEMBER is still named — only the fallback moves', async () => {
+        // The flag changes what happens to someone with nothing. It must not downgrade a member,
+        // or every member-specific behaviour would quietly switch off with it.
+        CONFIG.CALENDAR_PIN_ACCESS = false;
+        sessionValue = { name: 'G. Miller' };
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
+        assert.equal(ops.includes('signInAnonymously'), false,
+            'a member was given an anonymous session on top of their own');
+    });
+
+    test('OFF: a restored VIEWER is still a viewer', async () => {
+        CONFIG.CALENDAR_PIN_ACCESS = false;
+        currentUser = { uid: 'calendar-viewer', isAnonymous: false };
+        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'viewer');
+    });
+
+    test('OFF: an access-loss cannot re-lock a Calendar that has no lock', async () => {
+        // Nothing to return to. Showing the card here would strand a member behind a control the
+        // deployment has deliberately disabled.
+        CONFIG.CALENDAR_PIN_ACCESS = false;
+        await initCalendarAccess({ onGranted: () => {} });
+        handleAccessLost();
+        assert.equal(getAccessType(), 'open', 'open mode was re-locked');
+    });
+
+    test('ON: the same visitor gets the card and no session at all', async () => {
+        // The other half of the switch, so neither test can pass by the flag being ignored.
+        CONFIG.CALENDAR_PIN_ACCESS = true;
+        let started = 0;
+        assert.equal(await initCalendarAccess({ onGranted: () => { started++; } }), 'none');
+        assert.equal(started, 0);
+        assert.equal(ops.includes('signInAnonymously'), false,
+            'an anonymous session was created while the Calendar was locked — it grants nothing '
+            + 'under the tightened rules and would be a round trip for a token no rule accepts');
     });
 });

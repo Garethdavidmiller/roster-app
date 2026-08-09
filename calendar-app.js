@@ -930,7 +930,10 @@ initDocViewer({ authReady });   // same reasoning as the Huddle viewer above
         // lost is VAPID-rotation self-healing during a viewer session, which is a rare manual event
         // on a machine that should not be carrying somebody's notifications anyway.
         calendarAccessReady
-            .then(() => { if (getAccessType() === 'named') return getNotifState(); })
+            // `open` too (v20.16): with the staff PIN switched off the Calendar is back on its
+            // pre-v20.12 anonymous model, and renewal under an anonymous uid is exactly what it did
+            // then. Only VIEWER mode is excluded, because that uid is shared by every office PC.
+            .then(() => { const t = getAccessType(); if (t === 'named' || t === 'open') return getNotifState(); })
             .catch((/** @type {any} */ err) => console.warn('[Notifications] Renewal failed:', err.message));
         return;
     }
@@ -951,7 +954,10 @@ initDocViewer({ authReady });   // same reasoning as the Huddle viewer above
     // indefinitely, with nobody who could turn it off. A staff member who wants notifications wants
     // them on their own phone, where they are signed in.
     calendarAccessReady.then(() => {
-        if (getAccessType() !== 'named') return;
+        // Same rule as the renewal above: everyone EXCEPT the shared viewer. With the PIN switched
+        // off that restores the prompt to every calendar visitor, which is what it was before.
+        const t = getAccessType();
+        if (t !== 'named' && t !== 'open') return;
         _prompt.style.display = 'flex';
     });
     function hide() { _prompt.style.display = 'none'; }

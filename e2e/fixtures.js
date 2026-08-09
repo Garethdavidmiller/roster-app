@@ -368,6 +368,19 @@ export async function enforceNamedSession(page) {
 }
 
 /**
+ * Switch the staff Calendar PIN OFF for one test — the "deploy dark" state (v20.16).
+ *
+ * Rewrites `CONFIG.CALENDAR_PIN_ACCESS` in roster-data.js as it is served, the same way
+ * `enforceNamedSession` does, so the real file and the production default are untouched. Call
+ * BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ */
+export async function disableCalendarPin(page) {
+    _setConfigOverride(page, 'CALENDAR_PIN_ACCESS',
+        /CALENDAR_PIN_ACCESS:\s*(?:true|false)/, 'CALENDAR_PIN_ACCESS: false');
+}
+
+/**
  * Turn in-place sign-in ON (for ALL coordinators) for one test by rewriting roster-data.js as it is
  * served — flips every per-page key in the `INPLACE_LOGIN: { … }` object to `true` without touching the
  * real file or the production default. Call BEFORE page.goto(). Each test only exercises one page, so

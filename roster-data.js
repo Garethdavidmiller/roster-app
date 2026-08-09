@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '20.15';
+export const APP_VERSION = '20.16';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -84,16 +84,31 @@ export const CONFIG = {
     // an expired session forces a real typed login, so coverage completes itself inside 30 days and
     // staggers by each member's own expiry rather than landing on everyone at once.
     FORCE_PASSWORD_SET:               true,
-    // ── Staff PIN access for the Calendar (v20.12) ──────────────────────────────────────────────
-    // The Calendar opens for a named member session OR the shared staff PIN. This flag is a CLIENT
-    // kill switch for the PIN half only: set false and the unlock panel is still shown (there is
-    // nothing else to show) but the failure is logged as deliberate rather than as a fault.
+    // ── Staff PIN access for the Calendar — THE ON/OFF SWITCH (v20.12; made real v20.16) ────────
     //
-    // Read what it does NOT do before reaching for it in an incident. It cannot re-open the
-    // Calendar to everybody, because override reads are a SERVER decision — `firestore.rules` now
-    // requires a `name` claim or the `calendarViewer` capability, and no client flag can talk it out
-    // of that. If the PIN exchange itself is broken in production, the availability rollback is the
-    // rules one (RECOVERY_RUNBOOK.md → "Calendar PIN"), not this.
+    // true  → the Calendar opens for a named member session or the shared staff PIN, and for
+    //         nothing else. Everyone else gets the unlock card.
+    // false → the Calendar is back on its pre-v20.12 model: an anonymous session, no gate, no card.
+    //         Exactly what staff had before, with the feature shipped but invisible.
+    //
+    // Both directions are a HOSTING deploy of this one line. Neither touches `firestore.rules`,
+    // which is what makes it usable as a same-day rollback: if the exchange misbehaves in
+    // production, flipping this to false restores the Calendar in the time a deploy takes, with no
+    // rules change and nothing to wait for.
+    //
+    // **IT CONTROLS FRICTION, NOT PROTECTION**, and confusing the two is how this gets somebody
+    // hurt. Whether the roster is actually protected is decided by `firestore.rules`, and the two
+    // are separate deploys on purpose:
+    //
+    //   · flag ON  + rules permissive → the card is up, the data is NOT yet protected. The soak
+    //     state: prove the exchange against real staff and a real secret, with an instant undo.
+    //   · flag ON  + rules tightened  → the shipped state. The roster is protected.
+    //   · flag OFF + rules permissive → fully open, as it always was. Deploy-dark, or undo.
+    //   · flag OFF + rules tightened  → DO NOT. The client stops asking for a PIN while the server
+    //     keeps refusing the reads, so every visitor gets the base roster under a "couldn't update"
+    //     chip — a roster that is WRONG rather than obviously broken, which is the one outcome this
+    //     feature exists to prevent. Rolling back AFTER the rules have shipped means rolling back
+    //     the RULES (RECOVERY_RUNBOOK.md → "The Calendar PIN").
     CALENDAR_PIN_ACCESS:              true,
     // How long the calendar's `pw-own-2026` notice keeps showing on a device that has not yet seen
     // it, in days from its 6 Aug 2026 posting date (calendar-app.js). CONFIGURABLE ON PURPOSE

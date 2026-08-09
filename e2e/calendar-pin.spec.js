@@ -15,6 +15,7 @@
  */
 import { test, expect } from './fixtures.js';
 import { seedMember, seedMemberSession, stubPinExchange, enterPin, collectFatalErrors } from './helpers.js';
+import { disableCalendarPin } from './fixtures.js';
 
 // ── Locked ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -330,4 +331,56 @@ test('a signed-in member keeps the full footer — name, bell and sign out', asy
     await expect(page.locator('#navPanelMember')).toHaveText('G. Miller');
     await expect(page.locator('#navSignOutBtn')).toBeVisible();
     await expect(page.locator('#navNotifBell')).toHaveCount(1);
+});
+
+// ── The on/off switch (v20.16) ──────────────────────────────────────────────────────────────────
+//
+// The feature ships DARK: merged, deployed and running, but invisible to staff until one line is
+// flipped. These prove the "off" state is genuinely the pre-v20.12 Calendar and not a half-disabled
+// version of the new one — which is the failure that would only be discovered by staff.
+
+test('switched OFF: a visitor with nothing gets the Calendar, exactly as before', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await disableCalendarPin(page);
+    await seedMember(page);
+    await page.goto('/index.html');
+
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
+    await expect(page.locator('#calendarControls')).toBeVisible();
+    await expect(page.locator('#calendarLegend')).toBeVisible();
+    // Built, not merely revealed.
+    expect(await page.locator('#teamMemberSelect option').count()).toBeGreaterThan(0);
+    expect(errors).toEqual([]);
+});
+
+test('switched OFF: the FIRST-RUN prompt still works for a brand-new device', async ({ page }) => {
+    // No seeded member at all — the state a new starter opens the app in. Under the old model this
+    // is the "choose your name" prompt, and it must survive the switch untouched.
+    await disableCalendarPin(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
+});
+
+test('switched OFF: no Lock Calendar, and no empty footer', async ({ page }) => {
+    // `open` is not viewer mode. Offering "Lock Calendar" when there is no lock would be a control
+    // that does nothing.
+    await disableCalendarPin(page);
+    await seedMember(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toBeVisible();
+    await expect(page.locator('#navLockCalendarBtn')).toBeHidden();
+});
+
+test('switched OFF: a signed-in member is unaffected', async ({ page }) => {
+    await disableCalendarPin(page);
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanelMember')).toHaveText('G. Miller');
+    await expect(page.locator('#navSignOutBtn')).toBeVisible();
 });
