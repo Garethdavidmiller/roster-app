@@ -1086,13 +1086,13 @@ never contingent on the beta label, and dropping it does not make any of them go
   until the age comes from the server.
 
 ### Test coverage gaps
-The suite is now broad (76 root test files, ~1926 tests — see CLAUDE.md's file tree for the
-full per-suite listing; nearly every pure module has a companion `.test.mjs`, the exceptions
+The suite is now broad (see CLAUDE.md's file tree for the
+full per-suite listing, which `doc-parity.test.mjs` keeps complete; nearly every pure module has a companion `.test.mjs`, the exceptions
 being trivial data/formatter modules like `paycalc-help.js` and
 `roster-cycle-data.js`). What matters here is what is **still not** covered:
 
 **Closed v16.32–16.33:** the push-notification state machine + subscribe/unsubscribe flow
-(`notif.test.mjs`, 23 tests — Push APIs stubbed on globalThis), the `setupRosterAuth` (B4) decision
+(`notif.test.mjs` — Push APIs stubbed on globalThis), the `setupRosterAuth` (B4) decision
 logic (extracted to `functions/roster-parse-helpers.js` and unit-tested: `parseSetupActionFlags`,
 `resolveRosterAuthConfig`, `claimsForTier`, `computeOrphanLabels`), and the `isSafeStorageUrl`
 download-URL allowlist (extracted to `storage-utils.js` + `storage-utils.test.mjs`).

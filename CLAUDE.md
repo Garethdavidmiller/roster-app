@@ -409,7 +409,7 @@ roster-app/
 
 **Run all tests:**
 ```
-npm test              # test:hygiene + test:parse + test:unit (~2310 tests across 92 root test files)
+npm test              # test:hygiene + test:parse + test:unit (every root test file; the tree below lists them)
 npm run check         # lint + typecheck + npm test (full pre-push gate)
 npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
