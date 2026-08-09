@@ -29,7 +29,7 @@ import { recordPageLatency } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler } from './calendar-overrides.js';
-import { initCalendarAccess, calendarAccessReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
+import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
@@ -929,10 +929,12 @@ initDocViewer({ authReady });   // same reasoning as the Huddle viewer above
         // no-op write-wise, so an existing subscription is left exactly as it was; the only thing
         // lost is VAPID-rotation self-healing during a viewer session, which is a rare manual event
         // on a machine that should not be carrying somebody's notifications anyway.
-        calendarAccessReady
+        calendarAuthReady
             // `open` too (v20.16): with the staff PIN switched off the Calendar is back on its
             // pre-v20.12 anonymous model, and renewal under an anonymous uid is exactly what it did
             // then. Only VIEWER mode is excluded, because that uid is shared by every office PC.
+            // Gated on AUTH rather than access: a lapsed subscription re-subscribes, which is a
+            // Firestore write, and in `open` mode access resolves before the session exists.
             .then(() => { const t = getAccessType(); if (t === 'named' || t === 'open') return getNotifState(); })
             .catch((/** @type {any} */ err) => console.warn('[Notifications] Renewal failed:', err.message));
         return;
@@ -953,7 +955,7 @@ initDocViewer({ authReady });   // same reasoning as the Huddle viewer above
     // it would sit on a shared office PC pushing one person's Huddle to a machine in the mess room
     // indefinitely, with nobody who could turn it off. A staff member who wants notifications wants
     // them on their own phone, where they are signed in.
-    calendarAccessReady.then(() => {
+    calendarAuthReady.then(() => {
         // Same rule as the renewal above: everyone EXCEPT the shared viewer. With the PIN switched
         // off that restores the prompt to every calendar visitor, which is what it was before.
         const t = getAccessType();
@@ -974,10 +976,10 @@ initDocViewer({ authReady });   // same reasoning as the Huddle viewer above
                 lsSet('myb_notif_prompt_done', '1');   // asked and declined — don't re-prompt
                 return;
             }
-            // Already resolved — the prompt is only shown from inside a `calendarAccessReady`
+            // Already resolved — the prompt is only shown from inside a `calendarAuthReady`
             // callback — but kept so the gesture/auth ordering above stays explicit at the one
             // place it matters.
-            await calendarAccessReady;
+            await calendarAuthReady;
             await enableNotifications();   // permission already granted → goes straight to subscribe
         } catch (err) {
             console.warn('[Notifications] Enable failed:', /** @type {any} */ (err).message);
@@ -1001,7 +1003,13 @@ initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 // authenticated session to collect. The cost is real and worth stating — an unlock that FAILS is
 // invisible to the error log, so a broken PIN exchange shows up in the Cloud Function logs and in
 // staff reports rather than in the Operations Error Log card.
-calendarAccessReady.finally(() => {
+// `calendarAuthReady`, NOT `calendarAccessReady` (v20.22). In `open` mode the two are different
+// instants: access is granted the moment the decision is made, deliberately WITHOUT waiting for the
+// anonymous sign-in, so that the grid can paint. Every call below writes to Firestore, and every one
+// of those rules requires `request.auth != null` — so gating them on access alone fired them into a
+// window with no token and the writes were simply rejected. This is the same race the v14.23–28
+// push-subscription fix was about, re-opened from the other side.
+calendarAuthReady.finally(() => {
     initErrorReporter();
     // The calendar has no Auth session of its own, and since v19.95 that no longer keeps its
     // visitors out of the account figures: `recordUsage` takes ONE identity and counts it. For the
@@ -1027,7 +1035,9 @@ calendarAccessReady.finally(() => {
 
 const _calendarSession = getSession();
 initNavPanel({
-    authReady: calendarAccessReady,
+    // The nav panel's `authReady` gates the Circular/Newsletter open counters — Firestore writes —
+    // so it needs the AUTH promise, not the access one (v20.22).
+    authReady: calendarAuthReady,
     currentPage: 'calendar',
     memberName:  _calendarSession?.name || null,
     // Open-counter exclusion identity: the session name, else the SELECTED member — but null on

@@ -173,9 +173,13 @@ test('operations: App speed breaks the busiest page down by connection, install 
     expect(vs[0]).toBe('v20.18');
     // Both seeded versions clear the roll-up threshold on their own, so they stay separate rows.
     expect(vs.some(t => t.includes('20.9'))).toBe(true);
-    // The number the card states: everything NOT within a second, the complement of the headline.
-    // 80 of 80 3G loads are over 3s, so 100% are over 1s.
-    await expect(speed).toContainText('100% over 1s');
+    // The figure the card states is the complement of the headline — everything NOT within a
+    // second — and since v20.21 it is its own column under an "over 1s" header, so the row reads
+    // as a bare number rather than repeating three words it never changes.
+    await expect(speed).toContainText('over 1s');
+    const conn3g = speed.locator('.speed-row--why', { hasText: '3G-like' }).first();
+    await expect(conn3g.locator('.speed-row-count')).toHaveText('100%');
+    await expect(conn3g.locator('.speed-row-sub')).toHaveText('80');
     // And the honesty marker on the three-sample group, without which that row reads exactly as
     // confidently as the 380-sample one next to it.
     await expect(speed).toContainText('(few)');
