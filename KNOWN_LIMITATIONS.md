@@ -337,6 +337,23 @@ Admin page independently blocks a signed-in name that is no longer a selectable 
 (v16.21). So the exposure is bounded by the account disable, not by our localStorage timer — which
 is why lengthening the timer is a UX change, not a security one.
 
+**One interaction to expect on iOS, found while reviewing this change.** `decideAccess` grants
+`named` only when a live local session is backed by a **restored Firebase identity** — both halves,
+because either alone is a real failure (see `calendar-access-core.js`). iOS ITP evicts IndexedDB
+after roughly **7 days** of no PWA use, which is where the Firebase identity lives. Until now the
+7-day idle cutoff aged out at about the same moment, so the two expired together and the member
+simply saw a login. With the cutoff gone, an iPhone user who does not open the app for a fortnight
+can hold a valid local session with **no restorable identity** — a state that previously lasted
+about a day and can now last up to three weeks.
+
+Today that is invisible: `CONFIG.CALENDAR_PIN_ACCESS` is `false`, so access resolves `open`, the
+Calendar signs in anonymously and everything works. **When the PIN is switched on it becomes
+visible**: that member gets the unlock card instead of their roster, despite being signed in. The
+card's "Sign in instead" link resolves it in one step and re-establishes the identity, so it is
+recoverable rather than a lockout — but it will generate a support question, it will land on iPhone
+users specifically, and it is worth expecting rather than diagnosing. Watch for it in the first week
+after the rollout (RECOVERY_RUNBOOK.md → "The Calendar PIN").
+
 **Why removed rather than lengthened.** A policy left in place with no effect is the thing a later
 reader "restores" on the assumption it was load-bearing. `session.test.mjs` pins the replacement
 properties instead: a long-untouched session inside its 30 days is still valid, a pre-v20.41 session
