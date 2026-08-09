@@ -9,7 +9,7 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getClientErrors, resolveClientError, getUsageStats, getPerfStats, getSignInStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 
 /**
@@ -752,6 +752,67 @@ async function initPageSpeedCard() {
         return frag;
     };
 
+    /** Below how many samples a row's percentages are not worth reading. Four samples can say
+     *  "100% slow" and mean nothing; showing that next to a 400-sample row with equal visual
+     *  confidence is how a breakdown misleads. Marked rather than hidden — a small group that is
+     *  ALWAYS slow is still a lead, it just is not yet a finding. */
+    const THIN_SAMPLE = 20;
+
+    /** One breakdown block: the busiest page's samples split by a single dimension.
+     *  @param {Record<string, number>} samples @param {string} page
+     *  @param {'conn'|'mode'|'version'} dimension */
+    const breakdownRows = (samples, page, dimension) => {
+        const { rows } = summarisePerfBy(samples, { page, metric: 'domReady', dimension });
+        if (rows.length < 2) return null;   // one group explains nothing — it IS the page total
+        const frag = document.createDocumentFragment();
+        const heading = document.createElement('p');
+        heading.className = 'speed-note speed-dim-label';
+        heading.textContent = PERF_DIMENSIONS[dimension].label;
+        frag.appendChild(heading);
+
+        const list = document.createElement('div');
+        list.className = 'speed-rows';
+        rows.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'speed-row speed-row--why';
+            const thin = r.total < THIN_SAMPLE;
+            // The SLOW percentage is the number being hunted, so it is stated as a number rather
+            // than left to be eyeballed off a bar. The card had only ever exposed "% quick", in an
+            // aria-label, which is the one figure that cannot answer "why is this slow".
+            row.innerHTML =
+                `<span class="speed-row-label">${escapeHtml(r.label)}${thin ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-bar" role="img" aria-label="${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
+                `<span class="speed-row-count">${r.pctSlow}% slow · ${r.total.toLocaleString('en-GB')}</span>`;
+            list.appendChild(row);
+        });
+        frag.appendChild(list);
+        return frag;
+    };
+
+    /** The whole "why" section, for the page with the most samples.
+     *
+     *  Deliberately NOT hardcoded to the Calendar, even though the Calendar is what prompted it and
+     *  is ~74% of all opens: pinning a page id here would leave the section quietly answering about
+     *  the wrong page the first time that changes. The busiest page is the one whose distribution
+     *  drives the headline figure, which is the same reason the Calendar is the interesting one now.
+     *  @param {Record<string, number>} samples @param {Array<any>} byPage */
+    const whySection = (samples, byPage) => {
+        const busiest = byPage[0];
+        if (!busiest || !busiest.total) return null;
+        const meta = PAGE_META[busiest.page];
+        const frag = document.createDocumentFragment();
+        frag.appendChild(subMilestone('🔍', `Why some are slower — ${meta ? meta.emoji + ' ' + meta.label : busiest.page}`));
+        frag.appendChild(noteLine(
+            'The busiest page, split by the things that were already being recorded with each load. '
+            + 'Small groups are marked "(few)" — a handful of loads can read 100% slow and mean nothing.'));
+        let any = false;
+        for (const dim of /** @type {Array<'conn'|'mode'|'version'>} */ (['conn', 'mode', 'version'])) {
+            const block = breakdownRows(samples, busiest.page, dim);
+            if (block) { frag.appendChild(block); any = true; }
+        }
+        return any ? frag : null;
+    };
+
     try {
         await sessionReady;
         const stats = await withClaimRetry(getPerfStats);   // { thisMonth, lastMonth }
@@ -788,6 +849,10 @@ async function initPageSpeedCard() {
             body.appendChild(verdictBanner(perfVerdict(w.pages.overall, 'pages'), w.pages.overall, w.pages.total, 'page opens', windowLabel));
 
             if (w.fcp.total || w.pages.total) body.appendChild(dualRows(w.fcp.byPage, w.pages.byPage, w.month));
+
+            // Section 3 — WHY. The per-page rows above say which page is slow; this says for whom.
+            const why = whySection(w.samples || {}, w.pages.byPage);
+            if (why) body.appendChild(why);
 
             const note = document.createElement('p');
             note.className = 'usage-note';
