@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v20.20 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.30 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
