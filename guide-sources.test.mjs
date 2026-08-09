@@ -292,20 +292,23 @@ test('the FIP country-finder note states a review date backed by the register', 
     assert.ok(m, 'the cf-note guide-level review date is missing from fip.html');
     const shown = `${m[2]}-${String(MONTHS.indexOf(m[1]) + 1).padStart(2, '0')}`;
 
-    /** Ids cited ONLY by ferry blocks — they say nothing about the country cards. */
-    const ferryOnly = new Set();
-    const nonFerry  = new Set();
-    for (const mm of html.matchAll(/<details id="([^"]+)"[^>]*data-guide-source="([^"]+)"/g)) {
-        for (const id of mm[2].trim().split(/\s+/)) {
-            (mm[1].startsWith('ferry-') ? ferryOnly : nonFerry).add(id);
-        }
-    }
-    // A cross-cutting row cited by a non-details block (a card, a list item) counts too.
-    for (const mm of html.matchAll(/data-guide-source="([^"]+)"/g)) {
-        for (const id of mm[1].trim().split(/\s+/)) if (!ferryOnly.has(id)) nonFerry.add(id);
+    // ── WHAT BACKS THE COUNTRY-CARD DATE IS THE COUNTRY CARDS, AND NOTHING ELSE ────────────────
+    //
+    // Scoped to rows cited by a `<details id="country-…">`. It used to sweep every fip row cited
+    // from anywhere on the page, which made the blanket date hostage to rows that say nothing about
+    // a country: adding the v20.23 coupon-mechanics rows (dated 2026-08, and correctly so — the
+    // Conditions of Issue and Use were opened and read) dragged `newest` forward and demanded the
+    // page claim the COUNTRY CARDS had been reviewed in August, when they had not been touched.
+    //
+    // That is the exact failure GUIDE_SOURCES.md exists to prevent, arriving through the guard
+    // meant to prevent it. The file's own next line already says ferry-only ids "say nothing about
+    // the country cards" — this applies the same reasoning to every other cross-cutting row.
+    const countryRows = new Set();
+    for (const mm of html.matchAll(/<details id="(country-[^"]+)"[^>]*data-guide-source="([^"]+)"/g)) {
+        for (const id of mm[2].trim().split(/\s+/)) countryRows.add(id);
     }
 
-    const backing = rows.filter(r => r.Guide === 'fip' && !(ferryOnly.has(r.ID) && !nonFerry.has(r.ID)));
+    const backing = rows.filter(r => r.Guide === 'fip' && countryRows.has(r.ID));
     assert.ok(backing.length >= 9, `expected the country-card rows, found ${backing.length}`);
     const newest = backing.map(r => r.Reviewed).sort().pop();
     assert.equal(shown, newest,

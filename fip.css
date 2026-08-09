@@ -257,6 +257,17 @@ details[open] > summary { border-bottom: 1px solid var(--border); }
     font-size: 12px; color: var(--light);
 }
 
+/* A source/evidence aside INSIDE a callout box. Deliberately quieter than the box's own text and
+   carrying NO entitlement colour: on this page green/amber/red mean what your travel benefit is,
+   and reusing them for how well-checked a claim is would make "we verified this" look like "you
+   travel free". Evidence status is secondary by design — it supports the content, never competes. */
+.src-note {
+    display: block;
+    font-size: 12px;
+    color: var(--mid);
+    line-height: 1.45;
+}
+
 /* ── Tags ────────────────────────────────── */
 .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
 .tag {
