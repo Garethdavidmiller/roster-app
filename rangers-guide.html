@@ -151,7 +151,7 @@
 
     <div class="rr-notes">
         <p>Identified and checked as usable <strong>at this station</strong>. Not a proof that
-        nothing else is — see <a href="#rr-cantsource">below</a> and the closing note.</p>
+        nothing else is — see the closing note.</p>
     </div>
 
     <div class="rr-card rr-green" id="rr-chiltern-ff" data-guide-source="rr-chiltern-ff"
@@ -218,64 +218,61 @@
              does not say it. It is now one general rule in "How to check one", cited where it was
              actually read. -->
     </div>
-    <!-- SHAKESPEARE EXPLORER — THE CATALOGUE AUDIT'S ONE UNCOMFORTABLE RESULT (v20.37).
-         It was this page's flagship Marylebone product. Re-checking it against National Rail found
-         NO product page: not in the promotions sitemap (246 entries), not in the tickets sitemap
-         (1,090), and three plausible URLs 404. That is not the same as "withdrawn", and this guide
-         must not say it is — an absence is evidence of an absence of evidence, which is exactly the
-         trap the FIP eligibility miss fell into a version earlier.
+    <!-- SHAKESPEARE EXPLORER — AND THE CORRECTION THAT PUT IT BACK (v20.43).
+         v20.37 moved this card into a "we can no longer source this one" section after a catalogue
+         audit found no product page: absent from the promotions sitemap (246 entries), absent from
+         the tickets sitemap (1,090), three plausible URLs 404. The reasoning was sound and the
+         conclusion was WRONG. The page is live at /ticket-types/tickets/sh1/ and was live then.
 
-         So it keeps a card, because tickets already sold stay valid until they expire and a member
-         of staff may well be handed one. What it loses is the ✓ — we can no longer show a source. -->
-    <h2 class="section" id="rr-cantsource">We can no longer source this one</h2>
+         The lesson is the same one the FIP eligibility miss taught, arriving from the opposite
+         direction. There, an absent statement was read as a permissive rule. Here, an absent INDEX
+         ENTRY was read as an absent PAGE. A catalogue's silence is a fact about the catalogue.
+         Before downgrading a product from National to Draft, query the ticket CODE directly — this
+         one costs a single request and would have settled it.
 
-    <div class="rr-card rr-card--draft" id="rr-shakespeare" data-guide-source="rr-shakespeare-core"
-         data-myb-validity="unconfirmed" data-chiltern-validity="unconfirmed">
+         Re-read in full Aug 2026. Every claim below is from that page. -->
+
+    <div class="rr-card rr-green" id="rr-shakespeare" data-guide-source="rr-shakespeare-core"
+         data-myb-validity="yes" data-chiltern-validity="yes">
         <div class="rr-top">
             <span class="rr-name">Shakespeare Explorer</span>
-            <span class="pill pill-draft">Draft · no current source found</span>
+            <span class="pill pill-checked">✓ National Rail checked · Aug 2026</span>
         </div>
-        <div class="rr-who">Was a Marylebone-origin Rover — no product page found Aug 2026</div>
+        <div class="rr-who">A Marylebone-origin Rover — Stratford-upon-Avon and the Warwickshire line</div>
         <div class="rr-status-grid">
             <div class="rr-status">
                 <span class="rr-status-lbl">Marylebone</span>
-                <span class="myb-status myb-status--unconfirmed">⚠ Check</span>
-                <span class="rr-status-note">Cannot be confirmed from the current National Rail catalogue.</span>
+                <span class="myb-status myb-status--yes">✓ Valid</span>
+                <span class="rr-status-note">The product is sold <strong>as</strong> a journey from London Marylebone &mdash; the page names this station.</span>
             </div>
             <div class="rr-status">
                 <span class="rr-status-lbl">Chiltern</span>
-                <span class="ch-status ch-status--unconfirmed">⚠ Check</span>
-                <span class="rr-status-note">It listed Chiltern when it could last be read. There is no current page to re-read.</span>
+                <span class="ch-status ch-status--yes">✓ Valid</span>
+                <span class="rr-status-note">Chiltern Railways is one of its three named operators.</span>
             </div>
         </div>
         <div class="rr-facts">
-            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val">Was sold as 1 or 4 days, as a return from London</span></div>
-            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">Was Marylebone to Leamington Spa, Warwick, Warwick Parkway and all stations to Stratford-upon-Avon, with unlimited travel in the Leamington&ndash;Stratford area</span></div>
-            <div class="rr-row"><span class="rr-lbl">When</span><span class="rr-val"><span class="rr-sub">The return leg carried a before-10:00 Mon&ndash;Fri bar into London</span></span></div>
+            <div class="rr-row"><span class="rr-lbl">Days</span><span class="rr-val"><strong>1 or 4 days</strong>, as a return from London<span class="rr-sub">Day return: back on the date on the ticket. Four-day: back within four days of it</span></span></div>
+            <div class="rr-row"><span class="rr-lbl">Area</span><span class="rr-val">One outward and return journey from <strong>London Marylebone</strong> (or Paddington) to <strong>Leamington Spa, Warwick, Warwick Parkway, Hatton, Claverdon, Bearley, Wilmcote, Stratford-upon-Avon Parkway</strong> or <strong>Stratford-upon-Avon</strong> &mdash; plus unlimited travel between those stations for the ticket's life</span></div>
+            <div class="rr-row"><span class="rr-lbl">Out</span><span class="rr-val"><span class="rr-cutoff ok"><span class="tok tok-ok">✓</span> <strong>Any time from Marylebone</strong></span><span class="rr-sub">The page says so in those words &mdash; there is no morning bar on the way out</span></span></div>
+            <div class="rr-row"><span class="rr-lbl">Back</span><span class="rr-val"><span class="rr-cutoff"><span class="tok">⚠</span> <strong>Not on a train timed to arrive London before 10:00, Mon&ndash;Fri</strong></span><span class="rr-sub">Arrival time into Marylebone or Paddington, not departure. No bar at weekends</span></span></div>
+            <div class="rr-row"><span class="rr-lbl">Discounts</span><span class="rr-val">Child 50%. <strong>Senior discount is available to anyone who has reached Senior Railcard age &mdash; they do not have to hold the Railcard.</strong> Family &amp; Friends applies on the <strong>four-day ticket only</strong>. GroupSave applies</span></div>
         </div>
-        <div class="rr-chiltern rr-unresolved">
-            <span class="ct-label">What changed:</span> in August 2026 this product has
-            <strong>no page in National Rail's current catalogue</strong> &mdash; it is absent from
-            both the promotions and the tickets sitemaps. We are <strong>not</strong> saying it has
-            been withdrawn; we are saying <strong>we cannot source it</strong>, and the details above
-            are what the page said when it could last be read.
-            <br><strong>If one is presented:</strong> check it in the retail system.
-            <strong>Do not refuse it on the strength of this page.</strong> A ticket already sold
-            stays valid until it expires.
-        </div>
-        <!-- CLAIM-LEVEL CONFLICT (v20.37). This is a SEPARATE evidence record from the product
-             itself, and that separation is the point: one unresolved secondary condition used to
-             make the whole card wear `.rr-card--conflict`, so a passenger's basic ticket validity
-             read as doubtful because of a break-of-journey footnote. The conflict lives on the
-             claim it actually concerns. -->
+        <!-- CLAIM-LEVEL CONFLICT. A SEPARATE evidence record from the product itself, and that
+             separation is the point: one unresolved secondary condition used to make the whole card
+             wear `.rr-card--conflict`, so a passenger's basic ticket validity read as doubtful
+             because of a break-of-journey footnote. The conflict lives on the claim it concerns. -->
         <div class="rr-chiltern rr-unresolved" data-guide-source="rr-shakespeare-boj">
-            <span class="ct-label">Break of journey &mdash; source conflict:</span> when the page
-            could still be read, its description said an intermediate break of journey
-            <strong>is</strong> permitted between London and Leamington Spa, while the detailed
-            outward and return conditions on the <strong>same page</strong> said it is
-            <strong>not</strong>. Unresolved, and re-reading cannot settle it. Do not rely on this
-            guide for an intermediate stop such as Bicester Village &mdash; and do not refuse travel
-            on it either.
+            <span class="ct-label">Break of journey &mdash; source conflict:</span> the page's own
+            description says break of journey <strong>is</strong> permitted at stations between London
+            Marylebone and Leamington Spa when travelling to or from the Rover area. Its detailed
+            outward <em>and</em> return conditions, on the <strong>same page</strong>, both say it is
+            <strong>not</strong> valid for break of journey anywhere between London and Leamington Spa.
+            One page, two answers, and re-reading cannot settle it.
+            <br><strong>Inside the Rover area (Leamington Spa to Stratford-upon-Avon) break of journey
+            is permitted &mdash; both halves agree on that.</strong> It is only the London leg that is
+            in dispute. Do not rely on this guide for an intermediate stop such as Bicester Village,
+            and do not refuse travel on it either &mdash; check the retail system.
         </div>
     </div>
     <!-- THE SECTION THIS WHOLE PASS EXISTS FOR. Every product here names Chiltern on its own
