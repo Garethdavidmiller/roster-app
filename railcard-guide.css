@@ -382,3 +382,174 @@ a { color: var(--navy); text-underline-offset: 2px; }
     .rc, .gotchas, .check, .digital { box-shadow: none; }
     .section { break-after: avoid; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+   MARYLEBONE OPERATIONAL LAYER (v20.38)
+
+   Everything below serves the three-question split described in the page's own head comment:
+   the Railcard's discount rule, the TICKET's validity, and what to do when something is wrong.
+   The recipes are lifted from rangers-guide.css deliberately — the two pages are read by the same
+   people minutes apart, and the source banner, the ✓-checked pill and the amber Chiltern callout
+   have to mean the same thing on both or neither is trustworthy.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Source banner + evidence pills (shape shared with the Rangers guide) ─────────────────────── */
+.source-banner {
+    background: var(--amber-bg);
+    border-bottom: 2px solid var(--amber);
+    padding: 12px max(16px, env(safe-area-inset-left));
+}
+.source-banner > * { max-width: 760px; margin-left: auto; margin-right: auto; }
+.draft-title { font-weight: 800; color: var(--amber); font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
+.source-banner p { font-size: 13px; color: var(--text); }
+
+.pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+/* Same measured pair as the Rangers guide: the raw --green token on its own 10% tint is 4.49:1,
+   which fails AA by 0.01 and is invisible to review. 85% green / 15% black clears it. */
+.pill-checked {
+    background: color-mix(in srgb, var(--green) 10%, white);
+    color: color-mix(in srgb, var(--green) 85%, black);
+    border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
+}
+/* Chiltern-sourced rather than national. Navy, not amber: amber on this page already means
+   "morning restriction", and a source badge must not read as a time rule. */
+.pill-local {
+    background: var(--navy-tag-bg);
+    color: var(--navy);
+    border: 1px solid color-mix(in srgb, var(--navy) 25%, transparent);
+}
+.rc-top { flex-wrap: wrap; gap: 6px; }
+
+/* ── The quick check: grouped by KIND of rule, not by card ────────────────────────────────────
+   Each group is a left-striped block in the token colour of its rule type, so the four kinds are
+   distinguishable at a glance — but every one also carries its symbol AND its words, because a
+   printed copy may be monochrome and because colour alone has never been how this app carries
+   meaning. */
+.qc-intro { font-size: 13px; color: var(--mid); margin-bottom: 10px; }
+.qc-intro p { margin: 0; }
+.qc-group {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--light);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+.qc-head { font-size: 13.5px; font-weight: 800; color: var(--text); display: flex; align-items: baseline; gap: 7px; }
+.qc-tok { font-weight: 800; font-size: 15px; line-height: 1; }
+.qc-cards { font-size: 13px; color: var(--text); margin: 4px 0 3px; }
+.qc-note { font-size: 12.5px; color: var(--mid); line-height: 1.45; }
+
+.qc-none  { border-left-color: var(--green); }
+.qc-none  .qc-tok, .qc-none  .qc-head { color: var(--green); }
+.qc-min   { border-left-color: var(--amber); }
+.qc-min   .qc-tok, .qc-min   .qc-head { color: var(--amber); }
+.qc-fixed { border-left-color: var(--red); }
+.qc-fixed .qc-tok, .qc-fixed .qc-head { color: var(--red); }
+.qc-fare  { border-left-color: var(--navy); }
+.qc-fare  .qc-tok, .qc-fare  .qc-head { color: var(--navy); }
+.qc-other { border-left-color: var(--light); }
+.qc-group .qc-cards strong { color: inherit; }
+
+/* ── The Marylebone morning panel ─────────────────────────────────────────────────────────────
+   Deliberately NOT styled as a railcard card: it is a TICKET rule, and the whole point of the
+   v20.38 pass is that those two are different things. Navy-tinted, its own shape, and it states
+   twice that the retail system is the authority. */
+.myb-panel {
+    background: var(--navy-bg);
+    border: 1px solid color-mix(in srgb, var(--navy) 18%, transparent);
+    border-radius: 12px;
+    padding: 12px 13px;
+    margin-bottom: 14px;
+}
+.myb-panel-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+.myb-panel-title { font-weight: 800; font-size: 14px; color: var(--navy); }
+.myb-dir { display: flex; flex-direction: column; gap: 6px; }
+.myb-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 10px;
+    align-items: start;
+    background: var(--white);
+    border-radius: 8px;
+    padding: 7px 9px;
+}
+.myb-way { font-size: 12.5px; font-weight: 700; color: var(--text); }
+.myb-way-sub { display: block; font-weight: 400; font-size: 11.5px; color: var(--light); line-height: 1.35; margin-top: 1px; }
+.myb-rule { font-size: 12.5px; font-weight: 600; }
+.myb-rule--late { color: var(--red); }
+.myb-rule--mid  { color: var(--amber); }
+.myb-rule--ok   { color: var(--green); }
+.myb-foot { font-size: 12px; color: var(--mid); line-height: 1.45; margin-top: 9px; }
+.myb-foot--warn { color: var(--text); }
+
+/* Narrow phones: the two columns stop being readable well before they overflow. */
+@media (max-width: 430px) {
+    .myb-row { grid-template-columns: 1fr; gap: 3px; }
+}
+
+/* ── Legend: the ticket line is a separate strip so it cannot be read as a fourth symbol ─────── */
+.key--ticket { display: block; font-size: 12.5px; color: var(--text); }
+.key--ticket .key-item { display: block; }
+
+/* ── "Follows the ticket" cutoff — navy, because it is not a time at all ─────────────────────── */
+.rc-cutoff.fare { background: var(--navy-tag-bg); color: var(--navy); }
+
+/* ── Callout variants inside a card ──────────────────────────────────────────────────────────
+   A CORRECTION is red because it records something this guide previously got wrong and a staff
+   member may still be carrying — it is the one class of note worth interrupting for. A TRANSITION
+   is amber (a dated change, not an error). An UNSOURCED note is grey-bordered and must never wear
+   either: "we could not find out" is not a finding. */
+.rc-correction { background: var(--red-bg); border-left: 3px solid var(--red); }
+.rc-correction .ct-label { color: var(--red); }
+.rc-transition { background: var(--amber-bg); border-left: 3px solid var(--amber); }
+.rc-unsourced  { background: var(--navy-bg); border-left: 3px solid var(--light); }
+.rc-unsourced .ct-label { color: var(--mid); }
+
+/* ── Photo/identity block ────────────────────────────────────────────────────────────────────── */
+.photo-note {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 12px;
+    margin: 12px 0;
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--text);
+}
+.photo-note .photo-table { margin-top: 8px; font-weight: 400; }
+.photo-note .check-note { margin-top: 8px; font-weight: 400; }
+
+/* ── Selling vs gateline: two panels, because they are two jobs ──────────────────────────────── */
+.split { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px; }
+.split-half {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+.split-head { font-weight: 800; font-size: 13px; color: var(--navy); margin-bottom: 4px; }
+.split-half p { font-size: 12.5px; color: var(--mid); line-height: 1.45; margin: 0; }
+@media (min-width: 640px) { .split { grid-template-columns: 1fr 1fr; } }
+
+.gotcha--wide { display: block; }
+
+/* ── Print: the operational layer must survive monochrome ────────────────────────────────────
+   A printed copy is the one most likely to be read at a barrier, and every status on this page is
+   carried by a word as well as a colour — so print keeps the words and drops the fills. */
+@media print {
+    .source-banner { background: transparent; border-bottom: 1.5pt solid #333; }
+    .pill { background: transparent !important; border: 0.5pt solid #333; color: #000 !important; }
+    .qc-group { border: 0.5pt solid #999; border-left: 2.5pt solid #333; break-inside: avoid; }
+    .myb-panel { background: transparent; border: 0.5pt solid #333; break-inside: avoid; }
+    .myb-row { background: transparent; border-bottom: 0.25pt solid #ccc; }
+    .split-half, .photo-note { border: 0.5pt solid #999; break-inside: avoid; }
+    .rc-correction, .rc-transition, .rc-unsourced { background: transparent; border-left: 2pt solid #333; }
+}
