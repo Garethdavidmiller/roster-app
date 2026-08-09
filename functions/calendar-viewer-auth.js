@@ -23,7 +23,10 @@
  * template — see the constant.
  *
  * Only FAILURES are recorded. A correct PIN writes nothing, so the normal path costs no storage and
- * no latency, and the throttle state cannot be used to count how many people used the app.
+ * no latency, and the throttle state cannot be used to count how many people used the app. Expired
+ * rows are swept opportunistically on the failure path — see `isThrottleStateStale`, which was
+ * written here at v20.12 and NOT actually called until v20.15, so for three versions this comment
+ * described a sweep that did not happen and the collection only ever grew.
  */
 
 const crypto = require('crypto');
@@ -207,6 +210,10 @@ function recordFailure(state, now, cfg) {
  * to depend on, and a handful of documents does not justify one. Exposed as a pure predicate so the
  * retention rule is stated once and tested, rather than being an inline date comparison nobody
  * looks at again.
+ *
+ * **Being tested is not the same as being CALLED**, which is how this shipped inert at v20.12: it
+ * had unit tests covering every boundary and no caller anywhere, so the suite was green and the
+ * collection grew for ever. The sweep now runs on the failure path in `unlockCalendarViewer`.
  *
  * @param {{ windowStart?: number, blockedUntil?: number }|null|undefined} state
  * @param {number} now  epoch ms

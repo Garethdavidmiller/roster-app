@@ -1938,6 +1938,10 @@ button.nav-panel-link--notices {
    every signed-in member and offers them an action that does nothing. Same trap as the calendar
    workspace gate in index.css. */
 .nav-panel-lock[hidden] { display: none !important; }
+/* Same reason as the lock button: `.nav-panel-footer` sets a display, which beats the `hidden`
+   attribute's UA rule — so a footer rendered hidden for a locked visitor would show anyway, as an
+   empty bar with a blank name. */
+.nav-panel-footer[hidden] { display: none !important; }
 
 .nav-panel-signout {
     background: none;

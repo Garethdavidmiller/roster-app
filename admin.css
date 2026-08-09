@@ -895,7 +895,7 @@
         }
 
         .feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
-        .feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
+        .feedback.error   { display: block; background: var(--error-bg);    color: var(--error-text); }
 
         /* ---- Annual Leave over-limit confirm bar (fixed bottom sheet) ---- */
         .al-confirm-bar {
@@ -1459,7 +1459,7 @@
 
         .al-preview.empty { color: var(--text-light); }
         .al-preview.ready { background: var(--al-light); color: var(--al-deep); }
-        .al-preview.error { background: var(--error-bg); color: var(--error-red); }
+        .al-preview.error { background: var(--error-bg); color: var(--error-text); }
 
         /* Absence preview — reuses al-preview layout */
         .sick-preview.ready { background: var(--absence-light); color: var(--absence-text); }
@@ -1603,7 +1603,7 @@
             border-top: 1px solid var(--border-light);
         }
         .list-feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
-        .list-feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
+        .list-feedback.error   { display: block; background: var(--error-bg);    color: var(--error-text); }
 
         /* ═════════════════════════════════════════════════════════════
            TABLET & DESKTOP  —  min-width only; mobile (< 768px) untouched

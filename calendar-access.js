@@ -293,7 +293,10 @@ function showLockPanel() {
     document.body.classList.add('calendar-locked');
     setWorkspaceHidden(true);
 
-    const host = document.querySelector('.container');
+    // Falls back to <body>. `.container` has been there since the app was written, but the cost of
+    // it being absent is not "the card is misplaced" — it is a navy page with no card, no calendar
+    // and no way forward, on the app's front door. A misplaced card is recoverable; nothing is not.
+    const host = document.querySelector('.container') || document.body;
     if (!host) return;
 
     const panel = document.createElement('section');
@@ -345,9 +348,15 @@ function showLockPanel() {
      *  same box in a neutral tint, so there is one live region rather than two competing ones.
      *  @param {string} text @param {boolean} isError */
     function say(text, isError) {
-        msg.textContent = text;
+        // VISIBLE FIRST, then the text. The box is `display: none` when empty, and an element that
+        // is not displayed is not in the accessibility tree — so writing the text while it is still
+        // hidden means the live region never observes a change, and whether making it visible
+        // afterwards announces anything is left to the screen reader. Setting the text while the
+        // region IS in the tree is the only order that reliably announces. (axe cannot see this:
+        // it checks that a live region exists, not that it ever spoke.)
         msg.classList.toggle('visible', !!text);
         msg.classList.toggle('cal-lock-msg--info', !!text && !isError);
+        msg.textContent = text;
     }
 
     let _busy = false;
@@ -432,8 +441,8 @@ export function handleAccessLost() {
     showLockPanel();
     const msg = document.getElementById('calLockMsg');
     if (msg) {
+        msg.classList.add('visible', 'cal-lock-msg--info');   // visible BEFORE the text — see say()
         msg.textContent = 'Calendar access has expired. Enter the staff PIN to carry on.';
-        msg.classList.add('visible', 'cal-lock-msg--info');
     }
 }
 

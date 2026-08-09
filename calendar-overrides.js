@@ -48,6 +48,25 @@ export function setOverrideAccess(granted) { _accessGranted = granted === true; 
 /** @returns {boolean} whether override reads are currently permitted. */
 export function hasOverrideAccess() { return _accessGranted; }
 
+/** Called when a read is refused because ACCESS has gone, rather than because the network is poor.
+ *  Injected by the coordinator for the same reason `setOverrideAccess` is pushed in: this module
+ *  must not import the access layer it exists to back up. */
+/** @type {(() => void)|null} */
+let _onAccessLost = null;
+
+/** @param {(() => void)|null} fn */
+export function setOverrideAccessLostHandler(fn) { _onAccessLost = fn; }
+
+/** Is this failure "you may no longer read the Calendar" rather than "the network is poor"?
+ *  Both arrive by different routes and mean the same thing to the member: the session that was
+ *  letting them see the roster has gone.
+ *  @param {any} err @returns {boolean} */
+function _isAccessFailure(err) {
+    const code = err && (err.code || err.message);
+    return code === 'permission-denied' || code === 'calendar-access-required'
+        || (typeof code === 'string' && code.includes('permission-denied'));
+}
+
 const fetchedMonths        = new Set();
 // Memoised getShiftTypesInMonth() results. Key: "memberName|year|month".
 // Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
@@ -195,6 +214,21 @@ export async function ensureOverridesCached(year, month, renderFn) {
         await fetchOverridesForRange(startStr, endStr);
     } catch (err) {
         fetchedMonths.delete(key);  // Allow retry on next navigation
+        // ACCESS GONE, not a network blip (v20.15). This path had no recovery at all: the month
+        // simply rendered from the base roster with a line in the console, which is the one outcome
+        // the whole feature exists to prevent — somebody shown a shift they are not working, with
+        // nothing on screen saying so. It is not theoretical either: revoking the shared viewer's
+        // refresh tokens is a documented step of rotating the PIN, and it lands exactly here, on
+        // every viewer's next month navigation.
+        //
+        // The initial fetch already had this recovery (calendar-initial-fetch.js). Month navigation
+        // and Team View come through HERE instead, and they are the likelier path, because by the
+        // time a session expires the initial fetch is long finished.
+        if (_onAccessLost && _isAccessFailure(err)) {
+            _accessGranted = false;   // shut the gate before anything can repaint from the cache
+            try { _onAccessLost(); } catch (e) { console.error('[Calendar] access-lost handler failed', e); }
+            return;
+        }
         console.error('[Firestore] Failed to fetch overrides for', key, err);
         return;
     }

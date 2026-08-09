@@ -26,7 +26,7 @@ import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 /** @type {{ server: number, cache: number }} */
-const calls = { server: 0, cache: 0 };
+const calls = { server: 0, cache: 0, serverError: null };
 /** Docs the fake Firestore will hand back — stands in for a populated IndexedDB cache. */
 let cacheDocs = [];
 
@@ -36,7 +36,7 @@ mock.module('./firebase-client.js', {
         collection: () => ({}),
         query: (...a) => ({ a }),
         where: () => ({}),
-        getDocs: async () => { calls.server++; return _snap([]); },
+        getDocs: async () => { calls.server++; if (calls.serverError) throw calls.serverError; return _snap([]); },
         getDocsFromCache: async () => { calls.cache++; return _snap(cacheDocs); },
         COLLECTIONS: { overrides: 'overrides' },
     },
@@ -55,6 +55,7 @@ const mod = await import('./calendar-overrides.js');
 const {
     setOverrideAccess, hasOverrideAccess, rosterOverridesCache,
     fetchOverridesForRange, fetchOverridesForRangeFromCache, ensureOverridesCached, clearFetchedMonth, monthKey,
+    setOverrideAccessLostHandler,
 } = mod;
 
 const OVERRIDE = {
@@ -65,6 +66,7 @@ const OVERRIDE = {
 beforeEach(() => {
     calls.server = 0;
     calls.cache = 0;
+    calls.serverError = null;
     cacheDocs = [];
     rosterOverridesCache.clear();
     setOverrideAccess(false);
@@ -186,5 +188,59 @@ describe('month navigation and Team View obey the same gate', () => {
         // second fetch path re-introduced there would be invisible to every test above.
         const src = mod;
         assert.equal(typeof src.ensureOverridesCached, 'function');
+    });
+});
+
+describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not the initial fetch', () => {
+    // Found by the v20.15 bug sweep. The initial fetch had an access-lost recovery from the start;
+    // `ensureOverridesCached` — which is what month navigation and Team View actually use — had
+    // none. So an expiry after page load rendered the month from the BASE ROSTER with a line in the
+    // console and nothing on screen: somebody shown a shift they are not working.
+    //
+    // It is not a theoretical trigger. Revoking the shared viewer's refresh tokens is a documented
+    // step of rotating the staff PIN, and it lands exactly here on every viewer's next navigation.
+
+    test('a permission-denied month fetch SHUTS THE GATE and calls the handler', async () => {
+        setOverrideAccess(true);
+        let lost = 0;
+        setOverrideAccessLostHandler(() => { lost++; });
+        calls.serverError = Object.assign(new Error('denied'), { code: 'permission-denied' });
+
+        await ensureOverridesCached(2026, 3, () => {});
+        assert.equal(lost, 1, 'the access-lost handler was not called');
+        assert.equal(hasOverrideAccess(), false,
+            'the gate stayed OPEN — a later render could still paint from the local cache');
+        setOverrideAccessLostHandler(null);
+        calls.serverError = null;
+    });
+
+    test('an ORDINARY network failure does NOT re-lock — that would be a loop nobody can win', async () => {
+        // The whole point of separating these: an offline blip must keep the last-good calendar and
+        // the retry chip. Re-locking on it would demand a PIN from someone whose PIN is fine.
+        setOverrideAccess(true);
+        let lost = 0;
+        setOverrideAccessLostHandler(() => { lost++; });
+        calls.serverError = Object.assign(new Error('unavailable'), { code: 'unavailable' });
+
+        await ensureOverridesCached(2026, 4, () => {});
+        assert.equal(lost, 0, 'a network failure was treated as an access failure');
+        assert.equal(hasOverrideAccess(), true, 'a network blip closed the access gate');
+        setOverrideAccessLostHandler(null);
+        calls.serverError = null;
+    });
+
+    test('the local sentinel counts as an access failure too', async () => {
+        // `fetchOverridesForRange` throws `calendar-access-required` when the gate is already shut.
+        // It arrives by a different route from Firestore's `permission-denied` and means the same
+        // thing to the member, so both must reach the same recovery.
+        setOverrideAccess(false);
+        let lost = 0;
+        setOverrideAccessLostHandler(() => { lost++; });
+        // The gate short-circuits ensureOverridesCached before the fetch, so drive the throw
+        // directly through the authoritative read the way a stale caller would.
+        await assert.rejects(() => fetchOverridesForRange('2026-05-01', '2026-05-31'),
+            /calendar-access-required/);
+        setOverrideAccessLostHandler(null);
+        assert.equal(lost, 0, 'the pre-gate short-circuit should not fire the handler');
     });
 });

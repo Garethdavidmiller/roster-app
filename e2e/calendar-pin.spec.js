@@ -287,3 +287,47 @@ test('the card does not overflow at 360px, nor sprawl at 1440px', async ({ page 
     // Compact on purpose — a wide centred panel is what a corporate login portal looks like.
     expect(w).toBeLessThanOrEqual(440);
 });
+
+// ── Regressions found by the v20.15 bug sweep ───────────────────────────────────────────────────
+
+test('the nav drawer shows NO footer while the Calendar is locked', async ({ page }) => {
+    // v20.12 widened the footer condition from `onSignOut` to `(onSignOut || onLockCalendar)` so the
+    // viewer's Lock Calendar button had somewhere to live — and the calendar always passes the
+    // latter, so a locked visitor got an empty footer bar with a blank member name, and a
+    // NOTIFICATION BELL. The bell is documented as signed-in only, and a viewer tapping it would be
+    // denied by the v20.12 push-subscription rule: a control that cannot succeed, offered.
+    await page.goto('/index.html');
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toBeVisible();
+    await expect(page.locator('.nav-panel-footer')).toBeHidden();
+    await expect(page.locator('#navNotifBell')).toHaveCount(0);
+});
+
+test('a VIEWER gets the footer for Lock Calendar — but still no bell', async ({ page }) => {
+    await stubPinExchange(page);
+    await seedMember(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('.nav-panel-footer')).toBeVisible();
+    await expect(page.locator('#navLockCalendarBtn')).toBeVisible();
+    await expect(page.locator('#navPanelMember')).toHaveText('Staff PIN access');
+    // Every office PC unlocking with the PIN shares one uid, so a subscription written under it is
+    // owned by fifty people. The rules deny it; the UI must not offer it either.
+    await expect(page.locator('#navNotifBell')).toHaveCount(0);
+});
+
+test('a signed-in member keeps the full footer — name, bell and sign out', async ({ page }) => {
+    // Guard the guard. Both assertions above are absences, and a footer that never rendered for
+    // anybody would satisfy them.
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('.nav-panel-footer')).toBeVisible();
+    await expect(page.locator('#navPanelMember')).toHaveText('G. Miller');
+    await expect(page.locator('#navSignOutBtn')).toBeVisible();
+    await expect(page.locator('#navNotifBell')).toHaveCount(1);
+});

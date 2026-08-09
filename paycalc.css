@@ -622,7 +622,7 @@
       transition: background var(--dur-med), border-color var(--dur-med), color var(--dur-med);
     }
     .adj-sign-btn.negative {
-      background: var(--error-bg); border-color: var(--error-red); color: var(--error-red);
+      background: var(--error-bg); border-color: var(--error-red); color: var(--error-text);
     }
     .adj-sign-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .field-hint { font-size: var(--type-small); color: var(--text-light); margin-top: 5px; line-height: 1.45; }

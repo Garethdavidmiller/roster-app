@@ -586,6 +586,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (lockBtn) { if (viewer) lockBtn.removeAttribute('hidden'); else lockBtn.setAttribute('hidden', ''); }
         const label = document.getElementById('navPanelMember');
         if (viewer && label && !label.textContent) label.textContent = 'Staff PIN access';
+        // A footer with no member and no viewer has nothing in it — keep it away entirely rather
+        // than showing an empty bar. (A member's footer is never hidden: it renders without the
+        // attribute, and this only ever runs on the calendar.)
+        const footer = document.querySelector('.nav-panel-footer');
+        if (footer && !onSignOut) {
+            if (viewer) footer.removeAttribute('hidden'); else footer.setAttribute('hidden', '');
+        }
     }
 
     // Sign-out footer button
@@ -994,7 +1001,12 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, o
     // and the labelled row gave it more footer prominence than it earns. Signed-in
     // only (matches the footer) — unsigned users have the calendar's one-time
     // #notifPrompt strip and the Settings card after signing in.
-    const bellHtml = notifSupported() ? `
+    // `onSignOut` as well as notifSupported() (v20.15). The footer used to render only for a
+    // signed-in member, so "signed-in only" came for free; widening the footer to carry the
+    // viewer's Lock Calendar button silently handed the bell to people with no member identity at
+    // all — a locked calendar visitor, and a staff-PIN viewer whose subscription write the v20.12
+    // rules now DENY. A control that cannot succeed must not be offered.
+    const bellHtml = (onSignOut && notifSupported()) ? `
                     <button class="nav-panel-bell" id="navNotifBell" type="button"
                             aria-pressed="false" aria-label="Checking notification status…"
                             data-notif-state="loading">
@@ -1009,8 +1021,11 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, o
     // The footer exists for a member (name + bell + sign out) OR for a viewer (the lock button).
     // Before v20.12 it was `onSignOut ?` alone, which is why a viewer — who has no session and so no
     // sign-out — would otherwise have no footer to put this in.
+    // Rendered `hidden` for a lock-only footer and revealed by `_refreshLock` once access resolves,
+    // because whether there is anything to put in it is not known at inject time. Without that a
+    // LOCKED visitor got an empty footer bar with a blank member name where a name should be.
     const footerHtml = (onSignOut || onLockCalendar) ? `
-        <div class="nav-panel-footer">
+        <div class="nav-panel-footer"${onSignOut ? '' : ' hidden'}>
             <div class="nav-panel-footer-row">
                 <div class="nav-panel-member-wrap">
                     <span class="nav-panel-avatar" id="navPanelAvatar" aria-hidden="true"></span>

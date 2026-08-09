@@ -28,7 +28,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
-import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess } from './calendar-overrides.js';
+import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler } from './calendar-overrides.js';
 import { initCalendarAccess, calendarAccessReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
@@ -1053,6 +1053,10 @@ initCalendarAccess({
         // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
         // and leave the month unfetched for the session.
         setOverrideAccess(true);
+        // Month navigation and Team View reach Firestore through `ensureOverridesCached`, not
+        // through the initial fetch — so they need the same access-lost recovery, and they are the
+        // likelier path once a session has been open for a while (v20.15).
+        setOverrideAccessLostHandler(handleAccessLost);
         _startCalendarWorkspace?.();
     },
 });

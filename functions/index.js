@@ -60,6 +60,7 @@ const {
     clientIpOf,
     throttleDecision,
     recordFailure,
+    isThrottleStateStale,
     viewerClaims,
 } = require('./calendar-viewer-auth');
 const rosterMembers = require('./roster-members.json');
@@ -2116,6 +2117,25 @@ exports.unlockCalendarViewer = onRequest(
                 });
             } catch (e) {
                 console.warn('[unlockCalendarViewer] failure record failed:', e && e.code);
+            }
+            // Opportunistic sweep of everything that has aged out (v20.15). `isThrottleStateStale`
+            // was written and tested at v20.12 and then never called — so this collection only ever
+            // grew, one document per source hash, for ever, while the module header claimed it was
+            // swept. Done here rather than on a schedule because there is no scheduled job to hang
+            // it on and the volume never justifies one; done on the FAILURE path only, so the normal
+            // correct-PIN path still writes and reads nothing. Best-effort: a sweep that fails must
+            // never affect the response the member already earned.
+            try {
+                const old = await admin.firestore().collection('viewerAttempts').limit(50).get();
+                const dead = old.docs.filter(d => isThrottleStateStale(d.data(), now));
+                if (dead.length) {
+                    const batch = admin.firestore().batch();
+                    dead.forEach(d => batch.delete(d.ref));
+                    await batch.commit();
+                    console.log('[unlockCalendarViewer] swept', dead.length, 'expired throttle rows');
+                }
+            } catch (e) {
+                console.warn('[unlockCalendarViewer] throttle sweep failed:', e && e.code);
             }
             console.warn('[unlockCalendarViewer] rejected', sourceKey);
             return res.status(401).json({ error: 'PIN not recognised' });
