@@ -170,9 +170,12 @@ test('operations: App speed breaks the busiest page down by connection, install 
     // regression hunt to the wrong release.
     const versions = await speed.locator('.speed-row--why .speed-row-label').allTextContents();
     const vs = versions.filter(t => t.startsWith('v'));
-    expect(vs.slice(0, 2)).toEqual(['v20.18', 'v20.9']);
-    // The number the card never used to show. 80 of 80 3G loads are slow.
-    await expect(speed).toContainText('100% slow');
+    expect(vs[0]).toBe('v20.18');
+    // Both seeded versions clear the roll-up threshold on their own, so they stay separate rows.
+    expect(vs.some(t => t.includes('20.9'))).toBe(true);
+    // The number the card states: everything NOT within a second, the complement of the headline.
+    // 80 of 80 3G loads are over 3s, so 100% are over 1s.
+    await expect(speed).toContainText('100% over 1s');
     // And the honesty marker on the three-sample group, without which that row reads exactly as
     // confidently as the 380-sample one next to it.
     await expect(speed).toContainText('(few)');

@@ -174,6 +174,72 @@ describe('summarisePerfBy — WHY a page is slow, not just that it is', () => {
         assert.deepEqual(r.rows.map(x => x.label), ['v20.18', 'v20.9', 'v19.100']);
     });
 
+    test('versions ROLL UP into buckets big enough to read — the shipped-and-wrong case', () => {
+        // v20.19 listed each version individually. The version bumps 0.01 per change, so one month
+        // spanned ~30 releases and 480 samples gave rows of 1–9 loads, every one flagged "(few)",
+        // none comparable — the dimension meant to answer "did a release make this worse" answered
+        // nothing while taking more screen than the other two put together.
+        const rows = [];
+        for (let i = 1; i <= 9; i++) rows.push(['calendar', 'lt500ms', 'browser', '4g', 4, `20.${i}`]);
+        const r = summarisePerfBy(dimSamples(rows), { page: 'calendar', dimension: 'version', minSamples: 10 });
+        assert.ok(r.rows.length <= 4, `still fragmented: ${r.rows.map(x => x.label).join(', ')}`);
+        assert.equal(r.total, 36, 'roll-up lost samples');
+        assert.equal(r.rows.reduce((n, x) => n + x.total, 0), 36, 'the rows no longer add up to the total');
+        assert.ok(r.rows.every(x => x.total >= 10), 'a bucket below the threshold survived');
+    });
+
+    test('buckets accumulate NEWEST-first, so the current release is not diluted by old ones', () => {
+        // The release being judged is the newest. Accumulating oldest-first would average it into a
+        // bucket with its predecessors and hide exactly the regression this is here to surface.
+        const r = summarisePerfBy(dimSamples([
+            ['calendar', 'over8s',  'browser', '4g', 12, '20.20'],   // the new, bad release
+            ['calendar', 'lt500ms', 'browser', '4g', 12, '20.10'],
+            ['calendar', 'lt500ms', 'browser', '4g', 12, '20.9'],
+        ]), { page: 'calendar', dimension: 'version', minSamples: 10 });
+        assert.equal(r.rows[0].label, 'v20.20', 'the newest release was merged into older ones');
+        assert.equal(r.rows[0].pctSlow, 100, 'the regression was averaged away');
+    });
+
+    test('a contiguous bucket is LABELLED as a range, and a lone version is not', () => {
+        const r = summarisePerfBy(dimSamples([
+            ['calendar', 'lt500ms', 'browser', '4g', 30, '20.20'],   // alone: meets the threshold
+            ['calendar', 'lt500ms', 'browser', '4g', 5,  '20.12'],
+            ['calendar', 'lt500ms', 'browser', '4g', 5,  '20.11'],
+            ['calendar', 'lt500ms', 'browser', '4g', 25, '20.10'],
+        ]), { page: 'calendar', dimension: 'version', minSamples: 20 });
+        assert.equal(r.rows[0].label, 'v20.20');
+        assert.equal(r.rows[1].label, 'v20.10–v20.12', 'the range reads low–high');
+    });
+
+    test('the oldest remainder is MERGED, never left as a thin trailing row', () => {
+        // A trailing "(few)" row is the thing the roll-up exists to remove; producing one at the
+        // end would reintroduce it in the one place nobody looks.
+        const r = summarisePerfBy(dimSamples([
+            ['calendar', 'lt500ms', 'browser', '4g', 25, '20.20'],
+            ['calendar', 'lt500ms', 'browser', '4g', 2,  '20.10'],
+        ]), { page: 'calendar', dimension: 'version', minSamples: 20 });
+        assert.equal(r.rows.length, 1, 'a 2-sample tail was emitted as its own row');
+        assert.equal(r.rows[0].total, 27);
+        assert.equal(r.rows[0].label, 'v20.10–v20.20');
+    });
+
+    test('a month with barely any data shows what it has rather than nothing', () => {
+        const r = summarisePerfBy(dimSamples([['calendar', 'lt500ms', 'browser', '4g', 3, '20.20']]),
+            { page: 'calendar', dimension: 'version', minSamples: 20 });
+        assert.equal(r.rows.length, 1);
+        assert.equal(r.rows[0].total, 3);
+    });
+
+    test('conn and mode are NOT rolled up — their values are a fixed, small set', () => {
+        // Only the version dimension is unbounded. Bucketing "3G-like" into "4G-like" because it is
+        // small would destroy the comparison the row exists to make.
+        const r = summarisePerfBy(dimSamples([
+            ['calendar', 'lt500ms', 'browser', '4g', 200],
+            ['calendar', 'over8s',  'browser', '3g', 2],
+        ]), { page: 'calendar', dimension: 'conn', minSamples: 20 });
+        assert.deepEqual(r.rows.map(x => x.value), ['4g', '3g']);
+    });
+
     test('a key missing its dimension is counted as unknown, never dropped', () => {
         // A short key (an older or non-conforming client) must not shrink the total, or the
         // breakdown would silently disagree with the per-page count printed right above it.
