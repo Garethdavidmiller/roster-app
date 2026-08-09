@@ -152,6 +152,120 @@ the country finder, which selects `[id^="country-"]` — an id starting `country
 hide the table that answers the question about that country.
 
 
+### The Marylebone operational overhaul (v20.38)
+
+The guide answered *"what are the Railcard rules?"*. It now answers *"somebody has shown me this
+ticket at Marylebone — what actually matters?"*, and the difference is **three questions the old
+page collapsed into one**:
+
+| | Question | Whose rule |
+|---|---|---|
+| **A** | does the **discount** apply at this time? | the Railcard's |
+| **B** | is the **ticket** valid on this train at all? | the ticket's |
+| **C** | if something is wrong, what do we **do**? | Chiltern's |
+
+Collapsing A into B produced the old legend — *"£ = travel OK, but a minimum fare applies"* — which
+reads as though a Railcard settles whether somebody may travel. It does not; it settles the price.
+Collapsing B into A produced invented Marylebone times (`~10:00`, `~09:30`) on Family & Friends and
+Senior, which have **no Railcard time of their own at all**.
+
+**Three kinds of morning rule, and they must stay visibly different.** No limit (16-17, Disabled) ·
+minimum fare, which is *not* a ban (16-25, 26-30, HM Forces, Veterans) · fixed Railcard cutoff
+(Two Together and Gold 09:30, Network 10:00) · follows-the-ticket (F&F, Senior, GroupSave). Rendering
+the last kind with a clock time is what invented the shortcuts; `guide-sources.test.mjs` now fails on
+an `around HH:MM` in those three cards.
+
+**The Marylebone morning panel replaces the invented times with the real rule.** Deleting the local
+layer would have left the fare-controlled cards saying nothing actionable, so instead the page prints
+what those cards should have pointed at all along: Chiltern's own Off-Peak restriction, which is
+**directional** — inbound must arrive after 10:00; outbound south of Banbury cannot depart
+04:29–08:30; outbound to **Banbury and north has no morning restriction**. It is styled as a ticket
+rule, not a railcard card, and says twice that the retail system is the authority.
+
+### The Network boundary: how a "correction" turned out to be the error
+
+The guide said the Network Railcard area ended after Banbury/Kings Sutton and was not valid for
+Leamington, Warwick, Solihull or Birmingham. v20.38 set out to correct that, concluded the area
+**does** reach Birmingham, rewrote the card, rewrote Family & Friends, Senior and the Gold
+comparison to match, and pinned the new claim with a regression test.
+
+**The original text was right.** It was caught because the owner asked *"surely it only goes up to
+Banbury?"*
+
+**The bad reasoning:** the railcard's area map has a machine-readable **station index**, and that
+index lists Birmingham Moor Street and Snow Hill. But the map is the *London & the South East rail
+services* map with the railcard area drawn on it as an overlay, so the index is the **map's** index,
+not the boundary — a caveat that was identified, written down in the handback, and then leaned past
+because the inference was convenient. The disproof is one line: **the same index lists Bristol,
+Taunton, Weston-super-Mare and Exeter.**
+
+**How it was actually settled.** The boundary IS in the PDF: a **41-vertex filled polygon**, drawn
+immediately before the six `NETWORK RAILCARD AREA` labels, extractable from the content stream. Run
+point-in-polygon against a rendered copy of the map and it gives a clean answer — **Banbury inside
+and on the edge (it is the boundary station); Kings Sutton, Bicester, Oxford, Marylebone and Reading
+inside; Leamington Spa, Warwick, Solihull, Coventry and Birmingham outside.** Bristol tests outside
+too, which is the method checking itself against the very index that produced the error.
+
+**Two lessons, and the second is the one that generalises.**
+
+*Direction of failure.* "Not valid past Banbury" refuses valid tickets; "valid to Birmingham" accepts
+invalid ones. On a revenue-facing page the second is worse, so a claim that loosens a restriction
+needs **more** evidence than one that tightens it, not the same amount.
+
+*A convenient inference is not evidence.* The caveat was already recorded; what failed was letting a
+tidy conclusion outrank it. When a source nearly answers the question, state what it actually
+establishes and mark the rest unsettled — and when the owner's operational knowledge contradicts a
+fresh inference, the inference is the thing to re-examine first.
+
+### The other error that shipped
+
+**"16-17 Saver is digital only, a physical one is not genuine."** The official conditions describe a
+physical Saver in six clauses. Both formats are genuine; the real constraint is that it is **not sold
+at stations**. Pinned and teeth-verified, along with the removal of the 28-day forgotten-Railcard
+deadline (Chiltern's Charter says one claim per 12 months and states no deadline) and of every
+appearance-based check.
+
+### Never ask staff to judge how somebody looks
+
+`age looks right`, `eligibility looks right` and the physical-card row telling staff to check that a
+Disabled Persons holder's *"age/eligibility looks right"* are **removed, not softened**. The rule is
+wrong on four products — 16-25 and 26-30 both stay valid past their upper age (the terms say so
+verbatim), the Saver will from 17 August 2026, and Family & Friends keeps discounting a child who
+turns 16 mid-card — and on the Disabled Persons Railcard it asks for a judgement no gateline should
+make. **The card is the evidence.** The guard also requires the page to say so positively: dropping
+the instruction silently would leave the habit in place.
+
+### Two suspected conflicts that were investigated and found NOT to be conflicts
+
+Both were a clause read outside its scope, and recording either would have logged a dispute that does
+not exist — sending the next reader to re-read a page that already agrees.
+
+- **Gold Card First Class.** The generic ticket-conditions text reads *"…Network Railcard: 1/3 off and
+  Senior Railcard: 1/3 off **on Standard**. Other discount cards: Gold Cards: 1/3 off…"*. **"on
+  Standard" binds to Senior**; Gold sits in a separate sentence with no class qualifier, and its own
+  page says Standard *and* First twice.
+- **Chiltern's "£13 at all times".** Read alone it contradicts RDG's Mon–Fri minimum. Its table's own
+  preamble is *"Restrictions listed below are applicable Monday–Friday (excluding bank holidays)"*.
+
+**Check the scope of a clause before recording a Conflict.** Two of the three candidates in this
+audit dissolved on that check.
+
+### Network easements exist, and none of them is ours
+
+The railcard publishes a list of ~86 origin stations that may use the discount before 10:00 on a
+named service. **No Chiltern service and no Marylebone-route station is on it** — the one "Oxford"
+row is a *Great Western* service to Paddington. So the guide says 10:00 has no exception here, which
+is more useful than "easements may apply": the latter invites a staff member to wonder whether one
+applies at this gateline.
+
+### A correction callout may quote the old wrong wording — if it negates it
+
+`.rc-correction` blocks are the one place the banned phrasing may appear, because a staff member who
+learned "not valid past Banbury" from this page needs to be told in those words that it was wrong.
+The "must not say" guards therefore skip those blocks — and a separate test fails if any correction
+block lacks an explicit negation, so the class cannot become somewhere to park a live claim. The
+exemption is **earned, not granted by the class name**.
+
 ## Rangers & Rovers guide (v20.05)
 
 `rangers-guide.html` — the ranger and rover area passes staff accept or refuse at the gateline. A

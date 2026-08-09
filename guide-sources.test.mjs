@@ -51,7 +51,15 @@ const CLASSES = new Set(['National', 'Local', 'Tip', 'Fact', 'Contact', 'Draft',
  *
  * Draft keeps a single marker deliberately. Draft means nobody has read the source, which is a
  * statement about the whole product, not about one claim within it. */
-const PROVISIONAL = { Draft: ['rr-card--draft'], Conflict: ['rr-card--conflict', 'rr-unresolved'] };
+// Markers that make a provisional claim VISIBLE, per class. The list is per-class rather than
+// per-guide because the two guides express the same idea in their own idiom — the Rangers page
+// tints a whole card (`rr-card--draft`) or a single callout (`rr-unresolved`); the Railcard page
+// has only ever needed the claim-level form (`rc-unsourced`). What must not drift is the RULE:
+// a Draft and a Conflict may never share a marker, in either dialect.
+const PROVISIONAL = {
+    Draft:    ['rr-card--draft', 'rc-unsourced'],
+    Conflict: ['rr-card--conflict', 'rr-unresolved'],
+};
 const COLS = ['ID', 'Guide', 'Section', 'Class', 'Reviewed', 'Next', 'Source'];
 
 /**
@@ -463,12 +471,14 @@ function bannerOf(html, file) {
 }
 
 test('a provisional register row is declared on the page it certifies', () => {
-    /** @type {Record<string, Set<string>>} */
-    const idsByClass = {};
-    for (const cls of Object.keys(PROVISIONAL)) {
-        idsByClass[cls] = new Set(rows.filter(r => r.Class === cls).map(r => r.ID));
-    }
-    const allProvisional = new Set(Object.values(idsByClass).flatMap(s => [...s]));
+    // SCOPED PER GUIDE, and that is a fix rather than a detail (v20.38). These sets used to be built
+    // across the WHOLE register, so the loop below asked every provisional guide to account for
+    // every other guide's states. It passed only because exactly one page had provisional rows; the
+    // moment the Railcard guide gained its first Draft row it was required to describe the Rangers
+    // guide's Conflicts in its own banner. A cross-guide assertion is always wrong here — a banner
+    // can only honestly summarise the page it sits on.
+    const allProvisional = new Set(
+        rows.filter(r => Object.keys(PROVISIONAL).includes(r.Class)).map(r => r.ID));
     if (allProvisional.size === 0) return;   // nothing to police — every row is settled
 
     const guides = new Set(rows.filter(r => allProvisional.has(r.ID)).map(r => r.Guide));
@@ -476,6 +486,13 @@ test('a provisional register row is declared on the page it certifies', () => {
         const file = GUIDE_FILES[guide];
         if (!file) continue;           // paycalc renders elsewhere — same exemption as the linkage checks
         const html = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+
+        /** @type {Record<string, Set<string>>} — THIS guide's provisional ids, by class. */
+        const idsByClass = {};
+        for (const cls of Object.keys(PROVISIONAL)) {
+            idsByClass[cls] = new Set(
+                rows.filter(r => r.Guide === guide && r.Class === cls).map(r => r.ID));
+        }
 
         assert.match(html, /class="source-banner"/,
             `${file} certifies provisional claims but shows no source banner — a reader has no way ` +
@@ -679,4 +696,218 @@ test('rangers: absence from the page is never presented as invalidity', () => {
     assert.match(RR_HTML, /do not assume it is invalid|out of scope, not invalid/i,
         'the non-exhaustive rule has gone — a ticket missing from this page is out of scope, not invalid');
     assert.doesNotMatch(RR_HTML, /only these tickets are valid/i);
+});
+
+// ── RAILCARD: THE MARYLEBONE OPERATIONAL CONTRACT (v20.38) ──────────────────────────────────────
+//
+// Every test below pins a claim that, if it regressed, would make a Marylebone staff member refuse
+// a valid discounted ticket or accept an invalid one. Two of them pin errors that ACTUALLY SHIPPED
+// and stood for months — the Network boundary and "16-17 is digital only" — which is why they are
+// asserted as concepts rather than left to review.
+//
+// They are deliberately semantic, not prose-shaped: wording must stay free to improve. What is
+// pinned is the meaning a reader takes away.
+const RC_HTML = readFileSync(new URL('./railcard-guide.html', import.meta.url), 'utf8');
+
+/** The page's visible text, comments stripped — a rule buried in a comment is not guidance. */
+const RC_TEXT = RC_HTML.replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+/* THE CORRECTION CALLOUTS ARE THE ONE PLACE THE OLD WRONG WORDING MAY APPEAR, and that is the point
+ * of them: a staff member who learned "not valid past Banbury" from this page needs to be told, in
+ * those words, that it was wrong. So the "must not say X" scans below run against the page with
+ * `.rc-correction` blocks removed.
+ *
+ * That exemption is EARNED, not granted by the class name — `correctionsAreNegations` below fails
+ * if any correction block lacks an explicit negation, so the class cannot become a place to park a
+ * live claim the guards would otherwise catch. */
+const CORRECTIONS = [...RC_HTML.matchAll(/<div class="rc-chiltern rc-correction">([\s\S]*?)<\/div>/g)]
+    .map(m => m[1]);
+const RC_TEXT_LIVE = RC_HTML
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<div class="rc-chiltern rc-correction">[\s\S]*?<\/div>/g, ' ')
+    .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+test('railcard: a correction callout must actually negate what it quotes', () => {
+    assert.ok(CORRECTIONS.length >= 2,
+        `expected the shipped-error corrections to be present, found ${CORRECTIONS.length}`);
+    for (const c of CORRECTIONS) {
+        assert.match(c, /was wrong|that was wrong|used to say|removed|corrected/i,
+            'a .rc-correction block does not negate the wording it quotes. This class is exempt from ' +
+            'the "must not say" guards precisely because it contradicts the old claim — a block that ' +
+            'only restates it would slip a live error past every check below:\n  ' + c.slice(0, 160));
+    }
+});
+
+test('railcard: the Network area ends at Banbury, and Birmingham is outside it', () => {
+    // THIS TEST HAS NOW BEEN WRITTEN THREE TIMES, AND THE HISTORY IS THE USEFUL PART.
+    //   1. It pinned "the area reaches Birmingham" — a v20.38 "correction" inferred from the
+    //      railcard map's station INDEX, which lists Birmingham Moor Street and Snow Hill.
+    //   2. The inference was invalid: the same index lists Bristol, Taunton and Exeter, so it
+    //      indexes the rail-services map, not the boundary. The claim was withdrawn to Draft.
+    //   3. It was then settled properly. The boundary is a 41-vertex filled polygon in the map PDF;
+    //      point-in-polygon against a rendered copy puts Banbury INSIDE and on the edge (it is the
+    //      boundary station), and Leamington Spa, Warwick, Solihull, Coventry and Birmingham
+    //      OUTSIDE. Bristol tests outside too, which is the method checking itself.
+    //
+    // So the ORIGINAL guide was right and the "correction" was the error. What this test protects is
+    // the answer, not either author: asserting Birmingham is inside would make a gateline accept
+    // invalid tickets, which is the more expensive direction of the two.
+    const card = RC_HTML.slice(RC_HTML.indexOf('id="rc-network"'));
+    const body = card.slice(0, card.indexOf('<h2')).replace(/<!--[\s\S]*?-->/g, ' ');
+
+    assert.match(body, /reaches <strong>Banbury and\s+Kings Sutton<\/strong> and stops/i,
+        'the Network card must state where the area ends on our line');
+    assert.match(body, /Birmingham Moor Street \/ Snow Hill are outside/i,
+        'the card must name Birmingham as OUTSIDE. Verified by point-in-polygon against the map\'s ' +
+        'own boundary — do not "correct" this from the map\'s station index, which also lists Bristol.');
+    assert.match(body, /Banbury is the boundary station/i,
+        'naming Banbury as THE boundary station is what makes the buy-before-you-cross rule usable');
+});
+
+test('railcard: no card claims Birmingham is inside the Network area', () => {
+    // The bad inference had already spread to Family & Friends, Senior and the Gold comparison
+    // before it was caught. Asserted page-wide so it cannot return through any one of them.
+    // (The Network card names Birmingham as OUTSIDE, which these patterns deliberately do not match.)
+    assert.doesNotMatch(RC_TEXT_LIVE, /Birmingham is inside the (?:Network )?area/i);
+    assert.doesNotMatch(RC_TEXT_LIVE, /wholly within it and the peak rule applies/i);
+    assert.doesNotMatch(RC_TEXT_LIVE, /both the Gold Card area and the Network Railcard area include/i);
+});
+
+test('railcard: a physical 16-17 Saver is never described as not genuine', () => {
+    // THE ERROR THIS PREVENTS: "Digital only — no physical card" on a product whose official
+    // conditions describe a physical Saver in six separate clauses. This one is asserted hardest,
+    // because acting on it means refusing a valid card belonging to a 16-year-old.
+    const card = RC_HTML.slice(RC_HTML.indexOf('id="rc-1617"'));
+    const body = card.slice(0, card.indexOf('<div class="rc amber"'))
+        .replace(/<div class="rc-chiltern rc-correction">[\s\S]*?<\/div>/g, ' ');
+    assert.doesNotMatch(body, /digital only/i,
+        'the 16-17 Saver is described as digital only again — the official conditions describe a ' +
+        'PHYSICAL Saver throughout (2.1, 2.2.1, 2.8.1, 3.1-3.3). Both formats are genuine.');
+    assert.match(body, /physical or digital/i, 'the 16-17 Saver must state that both formats are genuine');
+    // The real constraint, which the old text displaced: you cannot buy one at a station.
+    assert.match(body, /not sold at stations|not available to purchase at stations/i);
+});
+
+test('railcard: the 17 August 2026 Saver change is represented, expiry over appearance', () => {
+    const card = RC_HTML.slice(RC_HTML.indexOf('id="rc-1617"'));
+    const body = card.slice(0, card.indexOf('<div class="rc amber"'));
+    assert.match(body, /17 August 2026/,
+        'the dated Saver change has gone. Until it has bedded in the guide must name the date — an ' +
+        '18-year-old holding an in-date Saver is legitimate from then on.');
+    assert.match(body, /expiry date|check the expiry/i);
+});
+
+test('railcard: nobody is asked to judge age, disability or eligibility by appearance', () => {
+    // Removed rather than softened (v20.38). It is wrong on FOUR products — 16-25 and 26-30 both
+    // outlive their upper age, the Saver will from 17 Aug 2026, and F&F keeps discounting a child
+    // who turns 16 mid-card — and on the Disabled Persons Railcard it asks for a judgement no
+    // gateline should be making at all.
+    for (const bad of [
+        /age looks right/i,
+        /eligibility looks right/i,
+        /looks right for the card/i,
+        /check (?:the )?age\/eligibility/i,
+    ]) {
+        assert.doesNotMatch(RC_TEXT_LIVE, bad, `appearance-based checking has returned (${bad})`);
+    }
+    assert.match(RC_TEXT, /never (?:assess|judge)|don't judge validity by how old/i,
+        'the page must positively say NOT to infer invalidity from appearance — dropping the old ' +
+        'instruction silently leaves the habit in place');
+});
+
+test('railcard: the forgotten-Railcard rule carries no unsupported deadline', () => {
+    assert.doesNotMatch(RC_TEXT, /within 28 days/i,
+        'the 28-day forgotten-Railcard claim is back. No source supports it; Chiltern\'s Passenger ' +
+        'Charter allows one claim per customer in a 12-month period, with no deadline stated.');
+    assert.match(RC_TEXT, /12[- ]month period/i);
+});
+
+test('railcard: the three kinds of morning rule stay distinguishable', () => {
+    // The defect this prevents is subtle and was the page's second-worst: rendering a fare-controlled
+    // card (Family & Friends, Senior, GroupSave) with a clock time makes it look like a fixed cutoff,
+    // which is how "~10:00" and "~09:30" got invented for products that have no Railcard time at all.
+    const FIXED = { 'rc-twotogether': '09:30', 'rc-gold': '09:30', 'rc-network': '10:00' };
+    for (const [id, time] of Object.entries(FIXED)) {
+        const at = RC_HTML.indexOf(`id="${id}"`);
+        const body = RC_HTML.slice(at, at + 4000);
+        assert.ok(body.includes(time), `${id} must state its fixed ${time} cutoff`);
+    }
+    for (const id of ['rc-ff', 'rc-senior', 'rc-groupsave']) {
+        const card = RC_HTML.slice(RC_HTML.indexOf(`id="${id}"`), RC_HTML.indexOf(`id="${id}"`) + 4000);
+        assert.match(card, /Follows the <strong>Off-Peak<\/strong>/,
+            `${id} is fare-controlled and must say it follows the Off-Peak fare`);
+        assert.doesNotMatch(card, /around <strong>\d\d:\d\d/,
+            `${id} has re-acquired an invented "around HH:MM" Railcard cutoff. It has no Railcard ` +
+            'time of its own — the ticket decides, and the direction decides the ticket.');
+    }
+});
+
+test('railcard: the Marylebone morning panel is directional and disclaims itself', () => {
+    const panel = RC_HTML.slice(RC_HTML.indexOf('class="myb-panel"'), RC_HTML.indexOf('class="key"'));
+    assert.match(panel, /arrive after 10:00/i, 'inbound rule missing');
+    assert.match(panel, /04:29&ndash;08:30|04:29–08:30/, 'outbound south-of-Banbury rule missing');
+    assert.match(panel, /Banbury &amp; north[\s\S]{0,300}No morning restriction/i,
+        'the "Banbury and north has no morning restriction" row is the one most likely to be ' +
+        'dropped as an edge case, and it is the one that most often applies on our route');
+    assert.match(panel, /11:30/, 'the Super Off-Peak inbound threshold is missing');
+    // It is a Chiltern ticket rule, and must never read as a national Railcard rule.
+    assert.match(panel, /ticket's rule, not the Railcard's/i);
+    assert.match(panel, /retail system/i);
+});
+
+test('railcard: the legend separates the DISCOUNT from the ticket', () => {
+    // The old legend said "£ = travel OK, but a minimum fare applies", which reads as though the
+    // Railcard settles whether somebody may travel. It does not — it settles the price.
+    assert.doesNotMatch(RC_TEXT, /£\s*=\s*travel OK/i);
+    assert.match(RC_TEXT, /Neither symbol says the passenger cannot travel/i,
+        'the legend must state that a missing discount is not a bar on travel');
+});
+
+test('railcard: photocard rules stay scoped to the formats that need them', () => {
+    // Over-generalising these refuses valid holders: the separate Photocard applies to 16-25 and
+    // Two Together only where the PHYSICAL card was bought AT A STATION, and always for HM Forces.
+    for (const id of ['rc-1625', 'rc-twotogether']) {
+        const card = RC_HTML.slice(RC_HTML.indexOf(`id="${id}"`), RC_HTML.indexOf(`id="${id}"`) + 3000);
+        assert.match(card, /bought at a station<\/strong>|<strong>bought at a station/i,
+            `${id}: the separate Photocard requirement must stay scoped to a station-bought physical card`);
+    }
+    const forces = RC_HTML.slice(RC_HTML.indexOf('id="rc-forces"'), RC_HTML.indexOf('id="rc-forces"') + 3000);
+    assert.match(forces, /Photocard is mandatory|Photocard <strong>always<\/strong>/i);
+});
+
+test('railcard: First Class is answered per card, never in one blanket sentence', () => {
+    assert.doesNotMatch(RC_TEXT, /Most cards give the same 1\/3 off/i,
+        'the blanket First Class claim is back — it hid too many exceptions to be useful');
+    // Every substantive product card carries its own Class row.
+    for (const id of ['rc-1617', 'rc-1625', 'rc-2630', 'rc-disabled', 'rc-ff', 'rc-gold',
+                      'rc-forces', 'rc-network', 'rc-senior', 'rc-twotogether', 'rc-veterans', 'rc-groupsave']) {
+        const card = RC_HTML.slice(RC_HTML.indexOf(`id="${id}"`), RC_HTML.indexOf(`id="${id}"`) + 4000);
+        assert.match(card, /<span class="rc-lbl">Class<\/span>/,
+            `${id} has no Class row — First Class is exactly the kind of rule that must be per-product`);
+    }
+    // The two that are genuinely Standard-only must say so.
+    const net = RC_HTML.slice(RC_HTML.indexOf('id="rc-network"'), RC_HTML.indexOf('id="rc-network"') + 4000);
+    assert.match(net, /Standard Class only/i);
+});
+
+test('railcard: every substantive card carries evidence (FIP/Rangers coverage standard)', () => {
+    // The gap this closes: 6 of 13 cards had no source relationship at all, which put the Railcard
+    // guide behind both its siblings on the page with the highest refusal risk.
+    const ids = [...RC_HTML.matchAll(/<div class="rc[^"]*" id="(rc-[a-z0-9-]+)"/g)].map(m => m[1]);
+    assert.ok(ids.length >= 12, `expected >= 12 product cards, found ${ids.length}`);
+    for (const id of ids) {
+        const open = RC_HTML.slice(RC_HTML.indexOf(`id="${id}"`));
+        assert.match(open.slice(0, open.indexOf('>') + 1), /data-guide-source="/,
+            `${id} has no data-guide-source — every substantive card must be evidenced`);
+    }
+});
+
+test('railcard: the checking sequence starts with the ticket, not the Railcard', () => {
+    const steps = RC_HTML.slice(RC_HTML.indexOf('class="check"'), RC_HTML.indexOf('class="photo-note"'));
+    const first = steps.slice(0, steps.indexOf('check-num">2'));
+    assert.match(first, /Check the ticket first/i,
+        'step 1 must be the ticket. Opening on the Railcard trains the eye on the discount and ' +
+        'quietly assumes the ticket is fine — most of what is wrong at this gateline is the ticket.');
+    assert.doesNotMatch(RC_TEXT, /Same checks whether/i,
+        'selling and gateline are different jobs — before travel it can still be fixed, after it cannot');
 });

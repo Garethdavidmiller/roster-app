@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Railcard Guide | At-work reference sheet. Verified July 2026. -->
+<!-- MYB Roster — Railcard Guide | At-work reference sheet, written for the Marylebone gateline and ticket office. Sources checked against the individual Railcard terms, National Rail and Chiltern, August 2026. -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -33,182 +33,364 @@
     <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
 </header>
 
-<nav class="chip-bar" aria-label="Jump to card">
-    <button class="chip" type="button" data-target="rc-1617">16&ndash;17</button>
-    <button class="chip" type="button" data-target="rc-1625">16&ndash;25</button>
-    <button class="chip" type="button" data-target="rc-2630">26&ndash;30</button>
-    <button class="chip" type="button" data-target="rc-disabled">Disabled</button>
-    <button class="chip" type="button" data-target="rc-ff">F&amp;F</button>
-    <button class="chip" type="button" data-target="rc-gold">Gold Card</button>
-    <button class="chip" type="button" data-target="rc-forces">HM Forces</button>
-    <button class="chip" type="button" data-target="rc-jcp">Jobcentre+</button>
-    <button class="chip" type="button" data-target="rc-network">Network</button>
-    <button class="chip" type="button" data-target="rc-senior">Senior</button>
-    <button class="chip" type="button" data-target="rc-twotogether">Two Together</button>
-    <button class="chip" type="button" data-target="rc-veterans">Veterans</button>
-    <button class="chip" type="button" data-target="rc-groupsave">GroupSave</button>
+<!--
+    THREE QUESTIONS, NEVER ONE (v20.38). The page used to answer "what are the Railcard rules?" and
+    that framing hid the distinction a gateline actually needs:
+
+      A. does the RAILCARD DISCOUNT apply at this time?   (a Railcard question)
+      B. is the TICKET valid on this train at all?        (a ticket question — a Railcard never
+                                                           overrides an Off-Peak, route, operator,
+                                                           Advance or class restriction)
+      C. if something is wrong, what do we DO?            (a Chiltern revenue question)
+
+    Collapsing A into B is what produced the old legend ("£ = travel OK"), which reads as though a
+    Railcard could make an invalid ticket valid. Collapsing B into A produced the "~10:00" shortcuts
+    on Family & Friends and Senior, which have no Railcard time of their own and follow the TICKET.
+
+    Everything below is arranged around that split, and the banner states which of the three each
+    block is answering. Full reasoning + the source audit: `.claude/rules/guide-pages.md`.
+-->
+<div class="source-banner" role="note">
+    <div class="draft-title"><span aria-hidden="true">✓</span> Sources checked August 2026</div>
+    <p>Every card below has been checked against <strong>that Railcard's own current conditions</strong>,
+    and the Marylebone rules against <strong>Chiltern's own published pages</strong>. Where a rule is
+    Chiltern's rather than national it is marked <span class="tl-tag local">Marylebone</span>. One item could not be sourced and is marked <em>Draft</em>. <strong>A Railcard discount is not the
+    same thing as a valid ticket</strong> — check both.</p>
+</div>
+
+<nav class="chip-bar" aria-label="Jump to section">
+    <button class="chip" type="button" data-target="rc-quick">Quick check</button>
+    <button class="chip" type="button" data-target="rc-mornings">MYB mornings</button>
+    <button class="chip" type="button" data-target="rc-cards">A&ndash;Z</button>
+    <button class="chip" type="button" data-target="rc-checks">How to check</button>
+    <button class="chip" type="button" data-target="rc-wrong">If it's wrong</button>
     <button class="chip" type="button" data-target="rc-digital">Digital</button>
 </nav>
 
 <main class="content">
 
-    <div class="key">
-        <span class="key-item"><span class="key-swatch green"></span>Any time</span>
-        <span class="key-item"><span class="key-swatch amber"></span>Morning restriction Mon&ndash;Fri</span>
-        <span class="key-item"><span class="key-swatch red"></span>Network (strictest)</span>
+    <!-- THE QUICK CHECK GROUPS BY THE *KIND* OF RULE, NOT BY CARD (v20.38). Alphabetical A–Z is the
+         right order when somebody hands you a named card; it is the wrong order for the actual
+         morning question, which is "what sort of restriction am I dealing with?". The three kinds
+         behave completely differently and the old page rendered all three as an amber stripe with a
+         time in it, which is what made Family & Friends look like it had a 10:00 cutoff. -->
+    <h2 class="section" id="rc-quick">The quick check</h2>
+
+    <div class="qc-intro" data-guide-source="rc-myb-restrictions">
+        <p><strong>There are only three kinds of morning rule.</strong> Work out which one you are
+        looking at and the rest follows. Weekends and bank holidays are clear for all of them.</p>
     </div>
+
+    <div class="qc-group qc-none">
+        <div class="qc-head"><span class="qc-tok" aria-hidden="true">✓</span> No Railcard time limit at all</div>
+        <div class="qc-cards">16&ndash;17 Saver &middot; Disabled Persons</div>
+        <div class="qc-note">The discount works at any time. <strong>The ticket can still be
+        restricted</strong> — an Off-Peak into Marylebone before 10:00 is invalid whatever card
+        paid for it.</div>
+    </div>
+
+    <div class="qc-group qc-min">
+        <div class="qc-head"><span class="qc-tok" aria-hidden="true">£</span> Minimum fare before 10:00 &mdash; not a ban</div>
+        <div class="qc-cards">16&ndash;25 &middot; 26&ndash;30 &middot; HM Forces &middot; Veterans</div>
+        <div class="qc-note">They <strong>may</strong> travel; the discounted fare just cannot fall
+        below <strong>£12</strong>. Never on Advance. Waived in July &amp; August for 16&ndash;25,
+        HM Forces and Veterans &mdash; <strong>not</strong> for 26&ndash;30.</div>
+    </div>
+
+    <div class="qc-group qc-fixed">
+        <div class="qc-head"><span class="qc-tok" aria-hidden="true">⊘</span> Fixed Railcard cutoff &mdash; same everywhere</div>
+        <div class="qc-cards">Two Together <strong>09:30</strong> &middot; Annual Gold Card <strong>09:30</strong> &middot; Network <strong>10:00</strong></div>
+        <div class="qc-note">A clock time set by the Railcard itself, not by the ticket. Network also
+        carries a <strong>£13</strong> minimum fare Mon&ndash;Fri.</div>
+    </div>
+
+    <div class="qc-group qc-fare">
+        <div class="qc-head"><span class="qc-tok" aria-hidden="true">↳</span> Follows the ticket &mdash; no Railcard time of its own</div>
+        <div class="qc-cards">Family &amp; Friends &middot; Senior &middot; GroupSave</div>
+        <div class="qc-note">The discount becomes available <strong>when the equivalent Off-Peak fare
+        does</strong>. So the answer is the <em>ticket's</em> rule, and at Marylebone that depends on
+        <strong>which way they are going</strong> &mdash; see below.</div>
+    </div>
+
+    <div class="qc-group qc-other">
+        <div class="qc-head"><span class="qc-tok" aria-hidden="true">·</span> Other concession</div>
+        <div class="qc-cards">Jobcentre Plus</div>
+        <div class="qc-note">50% off <strong>selected</strong> ticket types. There is no blanket
+        morning rule to apply &mdash; check the ticket type is one the card discounts.</div>
+    </div>
+
+    <!-- THE PANEL THAT MAKES THE "FOLLOWS THE TICKET" GROUP USABLE (v20.38). Family & Friends,
+         Senior and GroupSave used to carry an invented Marylebone time (~10:00 / ~09:30) because
+         without one the card said nothing actionable. The honest fix is not to delete the local
+         layer but to print the rule it should have been pointing at all along — Chiltern's own
+         Off-Peak restriction, which is DIRECTIONAL and which no national Railcard page states.
+         Sourced to Chiltern, labelled as Chiltern's, and explicitly not a Railcard rule. -->
+    <h2 class="section" id="rc-mornings">Marylebone mornings &mdash; the ticket's rule</h2>
+
+    <div class="myb-panel" data-guide-source="rc-myb-offpeak">
+        <div class="myb-panel-head">
+            <span class="tl-tag local">Marylebone</span>
+            <span class="myb-panel-title">Ordinary Off-Peak on Chiltern, weekdays</span>
+            <span class="pill pill-local">Chiltern checked · Aug 2026</span>
+        </div>
+        <div class="myb-dir">
+            <div class="myb-row">
+                <span class="myb-way">Into Marylebone</span>
+                <span class="myb-rule myb-rule--late">Must <strong>arrive after 10:00</strong></span>
+            </div>
+            <div class="myb-row">
+                <span class="myb-way">Out, to south of Banbury</span>
+                <span class="myb-rule myb-rule--mid">Cannot depart <strong>04:29&ndash;08:30</strong></span>
+            </div>
+            <div class="myb-row">
+                <span class="myb-way">Out, to Banbury &amp; north</span>
+                <span class="myb-rule myb-rule--ok">No morning restriction</span>
+            </div>
+            <div class="myb-row">
+                <span class="myb-way">Pay-as-you-go area <span class="myb-way-sub">Aylesbury Vale Parkway, Aylesbury, Princes Risborough, High Wycombe and south</span></span>
+                <span class="myb-rule myb-rule--mid">Cannot depart before <strong>09:30</strong>, or <strong>16:00&ndash;19:00</strong></span>
+            </div>
+        </div>
+        <p class="myb-foot"><strong>Super Off-Peak is a different, later ticket:</strong> weekdays it
+        cannot be used arriving Marylebone <strong>before 11:30</strong>, or departing London
+        04:30&ndash;08:30 or 16:00&ndash;19:00. Weekends and bank holidays are Off-Peak all day.</p>
+        <p class="myb-foot myb-foot--warn"><strong>This is the ticket's rule, not the Railcard's</strong>,
+        and it is a guide to the common case. Individual restriction codes, contactless and
+        pay-as-you-go all differ &mdash; <strong>the fare and restriction shown by the retail system
+        is the authority</strong>.</p>
+    </div>
+
+    <!-- THE LEGEND IS WHERE THE DISCOUNT/TICKET CONFUSION STARTED (v20.38). It said "£ = travel OK,
+         but a minimum fare applies" and "⊘ = no discount before this time". The first implies the
+         Railcard settles whether they may travel; the second is fine but sat beside it, so the pair
+         read as one scale. Both now name what they are about — the DISCOUNT — and the ticket gets
+         its own line. -->
     <div class="key">
-        <span class="key-item"><strong>£</strong> = travel OK, but a minimum fare applies</span>
-        <span class="key-item"><strong>⊘</strong> = no discount before this time</span>
+        <span class="key-item"><strong>£</strong> = the discount still applies, subject to a minimum fare</span>
+        <span class="key-item"><strong>⊘</strong> = the discount is not available yet</span>
+        <span class="key-item"><strong>↳</strong> = follows the ticket's own Off-Peak rule</span>
+    </div>
+    <div class="key key--ticket">
+        <span class="key-item"><strong>Neither symbol says the passenger cannot travel.</strong> They may travel on any ticket that is valid for that train &mdash; at the undiscounted price if the discount does not apply.</span>
     </div>
     <div class="weekend-note">
-        <strong>Weekends &amp; bank holidays</strong> — the morning time &amp; minimum-fare limits shown here usually don't apply. But <strong>who can travel</strong>, the card's <strong>area</strong>, and any <strong>companion/child</strong> rules still apply. The <strong>When</strong> row gives the weekday cutoff.
+        <strong>Weekends &amp; bank holidays</strong> — the morning and minimum-fare limits on this
+        page do not apply. <strong>Who can travel</strong>, the card's <strong>area</strong>, and any
+        <strong>companion/child</strong> rules still do.
     </div>
 
-    <div class="time-explainer">
-        <strong>Reading the morning time rules</strong>
-        Some cards have a <strong>fixed national morning cutoff</strong> — Network Railcard (10:00 Mon&ndash;Fri) and Two Together (09:30 Mon&ndash;Fri) are the same everywhere. For others the rule is only "no discount in the morning peak" and the exact off-peak start <strong>varies by route</strong> — those are the ones where a shown Marylebone time is a <em>local shortcut</em>, not a national rule. The genuinely-varying cards below (Family &amp; Friends, Senior, GroupSave) spell it out in three layers: <span class="tl-tag official">Official</span> the national rule &middot; <span class="tl-tag local">Marylebone</span> the local cutoff you'll normally use &middot; <span class="tl-tag check">Check</span> what the retail system confirms. When unsure, the ticket system decides.
-    </div>
+    <h2 class="section" id="rc-cards">Railcards &amp; discount cards (A–Z)</h2>
 
-    <h2 class="section">Railcards &amp; discount cards (A–Z)</h2>
-
-    <div class="rc" id="rc-1617">
+    <div class="rc" id="rc-1617" data-guide-source="rc-1617 rc-1617-2026-change">
         <div class="rc-top">
             <span class="rc-name">16&ndash;17 Saver</span>
-            <span class="rc-cost">Digital only</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
-        <div class="rc-who">Anyone aged 16 or 17</div>
+        <div class="rc-who">Anyone aged 16 or 17 when they bought it</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">50% off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val green">Any time</span></div>
+            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val green">Any time — no minimum fare</span></div>
+            <div class="rc-row"><span class="rc-lbl">Card</span><span class="rc-val"><strong>Physical or digital</strong> — both are genuine. Not sold at stations</span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val">Standard only on ordinary tickets. It <em>can</em> discount Season Tickets — check the card's own second date</span></div>
+        </div>
+        <div class="rc-chiltern rc-correction">
+            <span class="ct-label">Changed Aug 2026:</span> this guide used to say the Saver was
+            <strong>digital only</strong> and that a physical one was not genuine. That was wrong.
+            The official conditions describe a physical Saver throughout — it is invalid only until
+            it is <strong>signed</strong>. <strong>Do not refuse a physical 16&ndash;17 Saver.</strong>
+        </div>
+        <div class="rc-chiltern rc-transition">
+            <span class="ct-label">Age rule changes 17 August 2026:</span> from that date a Saver can
+            be bought up to the day before the holder's 18th birthday and <strong>runs a full
+            year</strong> — so an <strong>18-year-old can hold a valid Saver</strong>.
+            <strong>Check the expiry date printed on the card, not how old they look.</strong>
         </div>
     </div>
 
-    <div class="rc amber" id="rc-1625">
+    <div class="rc amber" id="rc-1625" data-guide-source="rc-1625 rc-1625-photocard">
         <div class="rc-top">
             <span class="rc-name">16&ndash;25</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
-        <div class="rc-who">Ages 16&ndash;25, or any age in full-time education</div>
+        <div class="rc-who">Ages 16&ndash;25, or a mature full-time student aged 26+</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off</span></div>
             <div class="rc-row">
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
-                    <span class="rc-cutoff amber">£ before <strong>10:00</strong> Mon&ndash;Fri</span>
-                    <span class="rc-sub">min fare £12 (not on Advance) &middot; waived Jul &amp; Aug</span>
+                    <span class="rc-cutoff amber">£ min fare <strong>04:30&ndash;10:00</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">£12 &middot; never on Advance &middot; not on public holidays &middot; waived all July &amp; August</span>
                 </span>
             </div>
+            <div class="rc-row"><span class="rc-lbl">Card</span><span class="rc-val">Physical or digital. A physical one <strong>bought at a station</strong> has a separate <strong>16&ndash;25 Photocard</strong> that must be shown with it</span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val">Standard walk-up fares; <strong>First Class Advance is discounted</strong></span></div>
+        </div>
+        <div class="rc-chiltern">
+            <span class="ct-label">Don't refuse on age:</span> the conditions say a 1-year card bought
+            <strong>while 25</strong> stays valid for its full year, and a 3-year card bought the day
+            before the 24th birthday runs the full three. <strong>A 26- or 27-year-old can hold a
+            perfectly valid 16&ndash;25.</strong> Check the expiry.
         </div>
     </div>
 
-    <div class="rc amber" id="rc-2630">
+    <div class="rc amber" id="rc-2630" data-guide-source="rc-2630">
         <div class="rc-top">
             <span class="rc-name">26&ndash;30</span>
-            <span class="rc-cost">Digital only</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
-        <div class="rc-who">Ages 26&ndash;30 only</div>
+        <div class="rc-who">Ages 26&ndash;30 when they bought it</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off</span></div>
             <div class="rc-row">
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
-                    <span class="rc-cutoff amber">£ before <strong>10:00</strong> Mon&ndash;Fri</span>
-                    <span class="rc-sub">min fare £12 (not on Advance) &middot; not waived Jul/Aug</span>
+                    <span class="rc-cutoff amber">£ min fare <strong>04:30&ndash;10:00</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">£12 &middot; never on Advance &middot; not on public holidays &middot; <strong>no July/August waiver</strong></span>
                 </span>
             </div>
+            <div class="rc-row"><span class="rc-lbl">Card</span><span class="rc-val"><strong>Digital only</strong> — there is no physical 26&ndash;30</span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val">Ordinary First Class fares are excluded; First Class Advance and some Weekend First arrangements are not</span></div>
+        </div>
+        <div class="rc-chiltern">
+            <span class="ct-label">Don't refuse on age:</span> a card bought <strong>while 30</strong>
+            stays valid for its full year, so a 31-year-old can hold a valid one. Check the expiry.
         </div>
     </div>
 
-    <div class="rc" id="rc-disabled">
+    <div class="rc" id="rc-disabled" data-guide-source="rc-disabled">
         <div class="rc-top">
             <span class="rc-name">Disabled Persons</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
-        <div class="rc-who">People with a qualifying disability</div>
+        <div class="rc-who">Holders of a Disabled Persons Railcard</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val green">Any time</span></div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">+ 1 adult companion (same 1/3 off — no card needed)</span></div>
+            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val green">Any time — no minimum fare</span></div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">+ 1 adult companion at the same 1/3 off — the companion <strong>must travel with the holder for the whole journey</strong></span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val">Standard and First Class eligible fares</span></div>
+        </div>
+        <div class="rc-chiltern rc-correction">
+            <span class="ct-label">Removed Aug 2026:</span> this guide used to tell staff to check
+            that "age/eligibility looks right" on a physical card. <strong>Never assess whether
+            somebody appears disabled or eligible.</strong> The card <em>is</em> the evidence that
+            the eligibility process was completed. Check the card, its expiry, the photo, and whether
+            a companion discount is being used with the companion present.
         </div>
     </div>
 
-    <div class="rc amber" id="rc-ff" data-guide-source="rc-ff-peak">
+    <div class="rc amber" id="rc-ff" data-guide-source="rc-ff rc-ff-peak">
         <div class="rc-top">
             <span class="rc-name">Family &amp; Friends</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
-        <div class="rc-who">1&ndash;4 adults travelling with 1&ndash;4 children aged 5&ndash;15</div>
+        <div class="rc-who">Up to two named adults 16+ on the card</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off (£1 min child fare)</span></div>
             <div class="rc-row">
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
-                    <span class="rc-cutoff amber">⊘ around <strong>10:00</strong> Mon&ndash;Fri</span>
-                    <span class="rc-sub">Typical MYB — Network-area journeys; check the ticket's restriction</span>
+                    <span class="rc-cutoff fare">↳ Follows the <strong>Off-Peak</strong> fare</span>
+                    <span class="rc-sub">No Railcard cutoff of its own — see Marylebone mornings above</span>
                 </span>
             </div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">At least 1 adult + 1 child aged 5&ndash;15</span></div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">At least <strong>1 cardholder + 1 child aged 5&ndash;15</strong>. Max 4 adults (incl. cardholders) + 4 children, <strong>travelling with the holder throughout</strong></span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val">No First Class discount, <strong>except</strong> a weekend upgrade on payment of the supplement</span></div>
         </div>
         <div class="rc-layers">
-            <div class="rc-layer"><span class="rc-layer-lbl official">Official</span><span>No discount in the <strong>weekday morning peak</strong> for journeys <strong>wholly within</strong> the Network Railcard area. The off-peak start varies by route.</span></div>
-            <div class="rc-layer"><span class="rc-layer-lbl local">Marylebone</span><span>Within Marylebone&ndash;Banbury, treat it as <strong>no discount before ~10:00</strong> Mon&ndash;Fri.</span></div>
-            <div class="rc-layer"><span class="rc-layer-lbl check">Check</span><span>The ticket system sets the exact time. Through journeys to Birmingham and all weekend &amp; bank-holiday travel are unrestricted.</span></div>
+            <div class="rc-layer"><span class="rc-layer-lbl official">Official</span><span>No discount on <strong>morning peak services for journeys that start and end within the Network Railcard area</strong>, Mon&ndash;Fri except public holidays. <strong>The time off-peak starts varies by station.</strong></span></div>
+            <div class="rc-layer"><span class="rc-layer-lbl local">Marylebone</span><span><strong>Direction decides it.</strong> Inbound needs to arrive after 10:00; outbound south of Banbury lifts after 08:30; outbound to Banbury and north has no morning restriction. See the panel above.</span></div>
+            <div class="rc-layer"><span class="rc-layer-lbl check">Check</span><span>Super Off-Peak, pay-as-you-go and individual restriction codes differ. Use the fare the retail system actually offers.</span></div>
+        </div>
+        <div class="rc-chiltern">
+            <span class="ct-label">Which journeys the peak rule covers:</span> only those that
+            <strong>start and end inside the Network Railcard area</strong> &mdash; which on our line
+            ends at <strong>Banbury</strong>. A journey continuing to Leamington or Birmingham is not
+            wholly within it, so <strong>let the retail system price that one</strong>.
         </div>
     </div>
 
-    <div class="rc amber" id="rc-gold" data-guide-source="rc-gold">
+    <div class="rc amber" id="rc-gold" data-guide-source="rc-gold rc-gold-first">
         <div class="rc-top">
-            <span class="rc-name">Gold Card</span>
+            <span class="rc-name">Annual Gold Card</span>
             <span class="rc-cost">With annual season ticket</span>
         </div>
-        <div class="rc-who">Holders of an annual season ticket in the London &amp; South East area</div>
+        <div class="rc-who">Holders of a qualifying annual season ticket or Annual Travelcard</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off (£1 min child fare)</span></div>
             <div class="rc-row">
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
                     <span class="rc-cutoff amber">⊘ before <strong>09:30</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">Any time weekends &amp; bank holidays</span>
                 </span>
             </div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">+ up to 3 adults &amp; 4 kids (£1 min child fare)</span></div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">+ up to 3 adults &amp; 4 kids, for journeys starting <strong>and ending</strong> in the Gold Card area</span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val"><strong>Standard and First Class</strong> Anytime and Off-Peak tickets</span></div>
+            <div class="rc-row"><span class="rc-lbl">Card</span><span class="rc-val">A paper annual season <em>is</em> the Gold Card (+ Photocard); a Smartcard or Oyster season carries a <strong>Gold Record Card</strong> instead, with the same benefits</span></div>
         </div>
         <div class="rc-chiltern">
-            <span class="ct-label">Chiltern:</span>Covers the <strong>Chiltern route within the Gold Card area, including Birmingham</strong> — bigger than the Network Railcard. Evidence depends on the season: a <strong>paper</strong> annual season is the Gold Card itself (+ a Photocard); a season on a <strong>Smartcard/Oyster</strong> instead carries a <strong>Gold Record Card</strong> (physical card or digital). <a href="https://assets.nationalrail.co.uk/e8xgegruud3g/23LngqwDfggHprWTDmhnLP/cb14d3813ce376a5d319790c0955dada/Gold_Card_Area_of_Validity_Map_June_2023.pdf" target="_blank" rel="noopener">Area map (PDF)</a>
+            <span class="ct-label">A different product, not a bigger one:</span> the Gold Card
+            and the Network Railcard have <strong>different areas, times, group rules, ticket types
+            and classes</strong>. Check each against its own map and conditions rather than treating
+            one as a larger version of the other.
+            <a href="https://assets.nationalrail.co.uk/e8xgegruud3g/23LngqwDfggHprWTDmhnLP/cb14d3813ce376a5d319790c0955dada/Gold_Card_Area_of_Validity_Map_June_2023.pdf" target="_blank" rel="noopener">Gold Card area map (PDF)</a>
         </div>
     </div>
 
-    <div class="rc amber" id="rc-forces" data-guide-source="rc-forces">
+    <div class="rc amber" id="rc-forces" data-guide-source="rc-forces rc-forces-children rc-forces-photocard">
         <div class="rc-top">
             <span class="rc-name">HM Forces</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
-        <div class="rc-who">Serving UK military (a spouse/partner can get their own card)</div>
+        <div class="rc-who">Serving personnel, their partners, and eligible dependants</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Holder 1/3 off &middot; up to 4 kids 5&ndash;15 at <strong>81% off</strong> (£1 min)</span></div>
             <div class="rc-row">
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
-                    <span class="rc-cutoff amber">£ before <strong>10:00</strong> Mon&ndash;Fri</span>
-                    <span class="rc-sub">min fare £12 (not on Advance) &middot; waived Jul &amp; Aug</span>
+                    <span class="rc-cutoff amber">£ min fare <strong>04:30&ndash;09:59</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">£12 &middot; never on Advance &middot; not on public holidays &middot; waived all July &amp; August</span>
                 </span>
             </div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val"><strong>No discount for a 2nd adult</strong> &mdash; children travel with the holder</span></div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val"><strong>No discount for a 2nd adult</strong> — children travel with the holder</span></div>
+            <div class="rc-row"><span class="rc-lbl">Card</span><span class="rc-val">No photo on the Railcard — a separate <strong>Photocard is mandatory</strong> and must be shown with it</span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val">First or Standard — the 81% child discount applies in both</span></div>
+        </div>
+        <div class="rc-chiltern">
+            <span class="ct-label">The 81% children rule has a condition:</span> it applies where the
+            holder is a <strong>serving member or their spouse/civil/recognised partner</strong>. It
+            does <strong>not</strong> apply where the holder is a <strong>dependant</strong> — and
+            dependants aged 16&ndash;17 can hold this Railcard, so it is a real case. Also:
+            <strong>leisure travel only</strong>, not commuting to work or place of duty.
         </div>
     </div>
 
-    <div class="rc" id="rc-jcp">
+    <div class="rc" id="rc-jcp" data-guide-source="rc-jcp">
         <div class="rc-top">
             <span class="rc-name">Jobcentre Plus</span>
-            <span class="rc-cost">Free &middot; 3-month card</span>
+            <span class="rc-cost">Card costs nothing</span>
         </div>
-        <div class="rc-who">Eligible jobseekers — issued by a Work Coach</div>
+        <div class="rc-who">Eligible claimants — issued by a Work Coach, not sold</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">50% off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val green">Any time</span></div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Cardholder only &middot; day &amp; short-season tickets</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">50% off <strong>selected</strong> ticket types</span></div>
+            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val green">No Railcard morning rule</span></div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Cardholder only</span></div>
+            <div class="rc-row"><span class="rc-lbl">Card</span><span class="rc-val">Physical only — no app. <strong>Check the dates printed on it</strong></span></div>
+        </div>
+        <div class="rc-chiltern rc-unsourced" data-guide-source="rc-jcp-validity">
+            <span class="ct-label">How long it lasts — not established:</span> this guide used to
+            state "valid 3 months" as a national rule. National Rail's current page describes the
+            <strong>length of benefit claim that qualifies you</strong> (3&ndash;9 months for 18&ndash;24s,
+            3&ndash;12 months for over-25s), <strong>not the life of the card</strong>. No current
+            source for the card's own validity period was found, so <strong>read the dates on the
+            card</strong> rather than applying a remembered three months.
         </div>
     </div>
 
-    <div class="rc red" id="rc-network" data-guide-source="rc-network-area">
+    <div class="rc red" id="rc-network" data-guide-source="rc-network-area rc-network-map rc-network-easements">
         <div class="rc-top">
             <span class="rc-name">Network</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
         <div class="rc-who">Aged 16+ — London &amp; South East area only</div>
         <div class="rc-facts">
@@ -217,19 +399,35 @@
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
                     <span class="rc-cutoff red">⊘ before <strong>10:00</strong> Mon&ndash;Fri</span>
-                    <span class="rc-sub">£13 adult / £1 child min after 10:00</span>
+                    <span class="rc-sub">Any time weekends &amp; public holidays &middot; <strong>£13</strong> adult / £1 child minimum fare Mon&ndash;Fri</span>
                 </span>
             </div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Up to 4 adults + 4 kids</span></div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Holder + up to 3 adults &amp; 4 children 5&ndash;15, <strong>travelling with the holder throughout</strong></span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val"><strong>Standard Class only</strong></span></div>
         </div>
-        <div class="rc-chiltern" data-guide-source="rc-chiltern-area">
-            <span class="ct-label">Chiltern:</span>Valid as far as <strong>Banbury</strong> and <strong>Kings Sutton</strong>. <strong>Not valid</strong> for Leamington Spa, Warwick, Warwick Parkway, Hatton, Lapworth, Dorridge, Solihull, or Birmingham Moor Street/Snow Hill. (For the whole route, see <strong>Gold Card</strong> above.) <a href="https://www.network-railcard.co.uk/clientfiles/files/Map.pdf" target="_blank" rel="noopener">Area map (PDF)</a>
+        <div class="rc-chiltern">
+            <span class="ct-label">How far up our line:</span> the area reaches <strong>Banbury and
+            Kings Sutton</strong> and stops. <strong>Leamington Spa, Warwick, Warwick Parkway,
+            Hatton, Lapworth, Dorridge, Solihull and Birmingham Moor Street / Snow Hill are outside
+            it.</strong> <strong>Banbury is the boundary station</strong> &mdash; which is what makes
+            the rule below usable: a passenger going further needs the onward ticket bought before
+            they pass it, on a train that calls there.
+        </div>
+        <div class="rc-chiltern">
+            <span class="ct-label">At Marylebone, 10:00 means 10:00:</span> the Railcard publishes a
+            list of stations that may use the discount earlier on a named service.
+            <strong>No Chiltern service and no station on our route is on it</strong> — so there is no
+            early exception to look for here.
+            <br><span class="ct-label">Leaving the area:</span> a Network Railcard may be used
+            <strong>as far as the boundary</strong>; the ticket for the rest must be bought
+            <strong>before crossing it</strong>, and the train must stop at the boundary station.
         </div>
     </div>
 
     <div class="rc amber" id="rc-senior" data-guide-source="rc-senior-peak">
         <div class="rc-top">
             <span class="rc-name">Senior</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
         <div class="rc-who">Anyone who was 60+ when they bought it</div>
         <div class="rc-facts">
@@ -237,75 +435,86 @@
             <div class="rc-row">
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
-                    <span class="rc-cutoff amber">⊘ around <strong>09:30</strong> Mon&ndash;Fri</span>
-                    <span class="rc-sub">Typical MYB — Network-area journeys; check the ticket's restriction</span>
+                    <span class="rc-cutoff fare">↳ Follows the <strong>Off-Peak</strong> fare</span>
+                    <span class="rc-sub">No minimum fare, and no Railcard cutoff of its own</span>
                 </span>
             </div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val">Standard and First Class eligible fares</span></div>
         </div>
         <div class="rc-layers">
-            <div class="rc-layer"><span class="rc-layer-lbl official">Official</span><span>No general minimum fare. No discount in the <strong>weekday morning peak</strong> for journeys <strong>within the Network area</strong>; the off-peak start varies by route.</span></div>
-            <div class="rc-layer"><span class="rc-layer-lbl local">Marylebone</span><span>Within Marylebone&ndash;Banbury / Kings Sutton, treat it as <strong>no discount before ~09:30</strong> Mon&ndash;Fri.</span></div>
-            <div class="rc-layer"><span class="rc-layer-lbl check">Check</span><span>The ticket system is authoritative. Weekends, bank holidays, and through journeys beyond the area (e.g. Birmingham) differ — check before selling.</span></div>
+            <div class="rc-layer"><span class="rc-layer-lbl official">Official</span><span>No discount on <strong>morning peak services for journeys starting and ending within the Network Railcard area</strong>, Mon&ndash;Fri except public holidays. <strong>The time off-peak starts varies by station.</strong></span></div>
+            <div class="rc-layer"><span class="rc-layer-lbl local">Marylebone</span><span><strong>Direction decides it</strong> — the same Chiltern Off-Peak rule as Family &amp; Friends. See the panel above.</span></div>
+            <div class="rc-layer"><span class="rc-layer-lbl check">Check</span><span>The retail system is authoritative. Same start-and-end-inside-the-area rule as Family &amp; Friends, and the same <strong>Banbury</strong> limit on our line.</span></div>
         </div>
     </div>
 
     <div class="rc amber" id="rc-twotogether" data-guide-source="rc-twotogether">
         <div class="rc-top">
             <span class="rc-name">Two Together</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
-        <div class="rc-who">Two named adults — both names on the card</div>
+        <div class="rc-who">Two named adults 16+ — both names on the card</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off each</span></div>
             <div class="rc-row">
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
-                    <span class="rc-cutoff amber">⊘ before <strong>09:30</strong> Mon&ndash;Fri</span>
+                    <span class="rc-cutoff amber">⊘ <strong>04:30&ndash;09:29</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">Any time on public holidays and at weekends</span>
                 </span>
             </div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Both must travel together</span></div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Only <strong>those same two people, travelling together</strong> — for the whole journey, not just at the gate</span></div>
+            <div class="rc-row"><span class="rc-lbl">Card</span><span class="rc-val">A physical card <strong>bought at a station</strong> has a separate Two Together Photocard that must be shown with it</span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val">Standard and First Class eligible fares</span></div>
         </div>
     </div>
 
-    <div class="rc amber" id="rc-veterans">
+    <div class="rc amber" id="rc-veterans" data-guide-source="rc-veterans">
         <div class="rc-top">
             <span class="rc-name">Veterans</span>
+            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
         </div>
         <div class="rc-who">Anyone who served at least one day in HM Armed Forces</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off (£1 min)</span></div>
             <div class="rc-row">
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
-                    <span class="rc-cutoff amber">£ before <strong>10:00</strong> Mon&ndash;Fri</span>
-                    <span class="rc-sub">min fare £12 (not on Advance) &middot; waived Jul &amp; Aug</span>
+                    <span class="rc-cutoff amber">£ min fare <strong>04:30&ndash;09:59</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">£12 &middot; never on Advance &middot; not on public holidays &middot; waived all July &amp; August</span>
                 </span>
             </div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">+ 1 <strong>named</strong> companion &amp; up to 4 kids — companion must be named on the card &amp; must travel with the cardholder</span></div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">+ 1 <strong>named</strong> companion &amp; up to 4 kids. The companion and children <strong>cannot travel without the cardholder</strong></span></div>
+            <div class="rc-row"><span class="rc-lbl">Card</span><span class="rc-val">A physical card must be signed by <strong>both</strong> the veteran and the named companion</span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val">Standard and First Class eligible fares</span></div>
         </div>
     </div>
 
     <h2 class="section">Not a railcard — but you'll see it</h2>
 
-    <div class="rc rc-navy" id="rc-groupsave" data-guide-source="rc-groupsave">
+    <div class="rc rc-navy" id="rc-groupsave" data-guide-source="rc-groupsave rc-groupsave-terms">
         <div class="rc-top">
             <span class="rc-name">GroupSave</span>
             <span class="rc-cost">No card needed</span>
         </div>
         <div class="rc-who">3 to 9 people travelling together on the same journey</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off the group's adult fares</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Up to 1/3 off the group's adult fares</span></div>
             <div class="rc-row">
                 <span class="rc-lbl">When</span>
                 <span class="rc-val">
-                    <span class="rc-cutoff amber">Follows the <strong>Off-Peak</strong> ticket's times</span>
-                    <span class="rc-sub">no Off-Peak fare? then after <strong>09:30</strong> Mon&ndash;Fri &middot; any time weekends &amp; BH</span>
+                    <span class="rc-cutoff fare">↳ Follows the <strong>Off-Peak</strong> ticket</span>
+                    <span class="rc-sub">Where no Off-Peak fare exists, it rides another ticket valid after 09:30 Mon&ndash;Fri</span>
                 </span>
             </div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Same <strong>origin, destination and route</strong>, travelling together <strong>at all times</strong></span></div>
+            <div class="rc-row"><span class="rc-lbl">Class</span><span class="rc-val"><strong>No First Class</strong>. Cannot be combined with a Railcard</span></div>
         </div>
-        <div class="rc-layers">
-            <div class="rc-layer"><span class="rc-layer-lbl official">Official</span><span>The discount rides the relevant <strong>Off-Peak / Off-Peak Day ticket</strong>, so <strong>that ticket's own restriction controls</strong> the journey.</span></div>
-            <div class="rc-layer"><span class="rc-layer-lbl local">Marylebone</span><span>Where <strong>no Off-Peak fare exists</strong> for the journey, allow after <strong>09:30</strong> Mon&ndash;Fri; any time at weekends &amp; bank holidays.</span></div>
-            <div class="rc-layer"><span class="rc-layer-lbl check">Check</span><span>The retail system prices it. Whole group on the <strong>same tickets for the same journey</strong> &middot; can't combine with a railcard &middot; subject to operator availability.</span></div>
+        <div class="rc-chiltern">
+            <span class="ct-label">09:30 is not a GroupSave cutoff:</span> the discount normally rides
+            an Off-Peak ticket, so <strong>that ticket's restriction controls</strong>. The 09:30
+            figure only appears where the journey has <em>no</em> Off-Peak fare at all, and then it
+            describes <strong>the replacement ticket</strong>, not the discount.
         </div>
     </div>
 
@@ -313,130 +522,152 @@
     <div class="gotchas">
         <div class="gotcha">
             <span class="gotcha-tag">Two Together</span>
-            <span class="gotcha-text">If only <strong>one</strong> named passenger is travelling, the card is <strong>invalid</strong> — full fare due. Most common misuse. Check both named adults are travelling; a physical card has a <strong>separate Two Together Photocard</strong> (both photos) that must be shown too.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">HM Forces</span>
-            <span class="gotcha-text">The plastic Railcard has <strong>no photo on it</strong>. A separate <strong>Photocard</strong> (free, issued alongside) must always be carried too. Without the Photocard the discount is not valid.</span>
+            <span class="gotcha-text">If only <strong>one</strong> named person is travelling, the discount is invalid — full fare due. Most common misuse. The rule is that both travel <strong>the whole journey together</strong>, not that both are standing at the barrier now.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">Family &amp; Friends</span>
-            <span class="gotcha-text">Adults cannot use it alone — at least one child aged <strong>5&ndash;15</strong> must be present. <strong>Under-5s exception:</strong> if the only children travelling are under 5, buy a child ticket for <strong>one</strong> of them so the adults still get the discount.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">26&ndash;30</span>
-            <span class="gotcha-text">No physical card — a paper "26–30 Railcard" is <strong>not genuine</strong>. Unlike 16–25, its £12 minimum fare is <strong>not</strong> waived in July &amp; August.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">Jobcentre+</span>
-            <span class="gotcha-text">Issued by a Work Coach — <strong>not sold</strong> at ticket offices or online. <strong>Physical card only</strong> (no app). Valid <strong>3 months</strong> — check expiry. Accepted by participating operators only; Chiltern is one.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">16&ndash;17 Saver</span>
-            <span class="gotcha-text">Expires on their <strong>18th birthday</strong> or after 1 year, whichever comes first. Digital only — no physical card. Exception: a season ticket bought before the railcard expired stays valid for up to <strong>4 months after</strong> the railcard expires.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">Network</span>
-            <span class="gotcha-text">Treat as <strong>no discount before 10:00 Mon&ndash;Fri</strong> — this is a complete restriction, not just a minimum fare. After 10:00, minimum adult fare is <strong>£13</strong>. Area ends after <strong>Banbury / Kings Sutton</strong> — not valid to Leamington, Warwick or Birmingham.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">Gold Card</span>
-            <span class="gotcha-text">Not the same as the Network Railcard. <strong>Issued with a qualifying annual season ticket</strong>, covers the <strong>whole Chiltern route incl. Birmingham</strong>, discount not valid <strong>04:30&ndash;09:29 Mon&ndash;Fri</strong>. Evidence: a paper season shows the Gold Card + Photocard; a Smartcard/Oyster season shows a <strong>Gold Record Card</strong> (card or digital).</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">Senior</span>
-            <span class="gotcha-text">Age is checked at purchase, not at travel — a young-looking cardholder may still be valid. Physical cards have <strong>no photo</strong>.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">Season tickets</span>
-            <span class="gotcha-text">Standard railcards <strong>do not discount season tickets</strong>. Only exceptions: <strong>Jobcentre Plus</strong> (seasons up to 3 months) and <strong>16&ndash;17 Saver</strong> (50% off, standard class). A Gold Card is <em>issued with</em> a qualifying annual season ticket — it doesn't discount one.</span>
-        </div>
-        <div class="gotcha" data-guide-source="rc-minfare">
-            <span class="gotcha-tag">Minimum fare</span>
-            <span class="gotcha-text">Where a minimum fare applies — <strong>£12</strong> on the age &amp; Forces cards (16&ndash;25, 26&ndash;30, HM Forces, Veterans), <strong>£13</strong> on Network — charge the <strong>higher</strong> of the discounted fare or the minimum. Senior, Two Together and Family &amp; Friends have <strong>no adult minimum</strong>. It bites on weekday mornings and <strong>never on Advance tickets</strong>.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">First Class</span>
-            <span class="gotcha-text">Most cards give the same 1/3 off in <strong>First Class</strong> too. <strong>Standard class only:</strong> 16&ndash;17 Saver, Family &amp; Friends, Jobcentre Plus, Network, and GroupSave.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">Digital</span>
-            <span class="gotcha-text">A <strong>screenshot</strong> is not valid — see the Digital railcards section below.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">No card</span>
-            <span class="gotcha-text"><strong>Outbound:</strong> full-fare ticket required before boarding. <strong>Inbound:</strong> journey has happened — follow excess or penalty fare procedure. They can claim a refund online within 28 days if they prove the railcard was valid.</span>
+            <span class="gotcha-text">Adults cannot use it alone — at least one child aged <strong>5&ndash;15</strong> must be travelling with a cardholder, for the whole journey. <strong>Under-5s exception:</strong> if the only children travelling are under 5, buy a child ticket for <strong>one</strong> of them to unlock the adult discount.</span>
         </div>
         <div class="gotcha" data-guide-source="rc-ff-under5">
             <span class="gotcha-tag">Under-5s</span>
-            <span class="gotcha-text">Children under 5 travel <strong>free</strong> with any fare-paying adult — no railcard, no ticket needed. <strong>But</strong> on a Family &amp; Friends Railcard where every child is under 5, buy a discounted child ticket for one of them to unlock the adult discount.</span>
+            <span class="gotcha-text">Children under 5 travel <strong>free</strong> with a fare-paying adult — no railcard, no ticket. <strong>But</strong> on Family &amp; Friends, where every child is under 5, buy a discounted child ticket for one of them to unlock the adult discount.</span>
+        </div>
+        <div class="gotcha">
+            <span class="gotcha-tag">Age</span>
+            <span class="gotcha-text"><strong>Don't judge validity by how old somebody looks.</strong> 16&ndash;25 and 26&ndash;30 both stay valid past their upper age; the 16&ndash;17 Saver will too from 17 August 2026; and Family &amp; Friends can keep discounting a child who has turned 16 during the card's life. <strong>The expiry date is the check.</strong></span>
+        </div>
+        <div class="gotcha" data-guide-source="rc-minfare">
+            <span class="gotcha-tag">Minimum fare</span>
+            <span class="gotcha-text">Charge the <strong>higher</strong> of the discounted fare or the minimum: <strong>£12</strong> on 16&ndash;25, 26&ndash;30, HM Forces and Veterans; <strong>£13</strong> on Network. Senior, Two Together, Family &amp; Friends, Disabled Persons and 16&ndash;17 have <strong>no adult minimum</strong>. Never on Advance.</span>
+        </div>
+        <div class="gotcha" data-guide-source="rc-london-discounts">
+            <span class="gotcha-tag">London &amp; Oyster</span>
+            <span class="gotcha-text">A Railcard discount can be set on an <strong>Oyster</strong> card, but is <strong>not available on contactless pay as you go at all</strong>. And four of these cards are excluded from the London discount entirely: <strong>16&ndash;17 Saver, Two Together, Family &amp; Friends and Network</strong>. Travelcards can carry their own special minimum fares — check the current fare rather than a remembered figure.</span>
+        </div>
+        <div class="gotcha" data-guide-source="rc-1617-season">
+            <span class="gotcha-tag">Season tickets</span>
+            <span class="gotcha-text">Most railcards <strong>do not discount season tickets</strong> — Chiltern lists Season, Duo and Flexi-Season as "railcard discount not applicable". The exceptions are <strong>Jobcentre Plus</strong> and the <strong>16&ndash;17 Saver</strong>, whose card shows a separate <em>"Season ticket valid to date"</em>. A Gold Card is <em>issued with</em> an annual season — it doesn't discount one.</span>
+        </div>
+        <div class="gotcha">
+            <span class="gotcha-tag">First Class</span>
+            <span class="gotcha-text">There is <strong>no single First Class rule</strong> — each card's <strong>Class</strong> row says what it does. Network and GroupSave are Standard only; Family &amp; Friends is Standard with a weekend upgrade option; 16&ndash;17 is Standard on ordinary tickets; the rest vary by fare type.</span>
+        </div>
+        <div class="gotcha">
+            <span class="gotcha-tag">Digital</span>
+            <span class="gotcha-text">A <strong>screenshot</strong> is not a Railcard — see Digital railcards below.</span>
         </div>
     </div>
 
-    <h2 class="section">Checking railcards — gateline &amp; selling</h2>
-    <p class="check-note">Same checks whether you're selling (outbound) or inspecting at the gate (inbound). Outbound: resolve before the passenger travels. Inbound: journey has happened — follow excess or penalty fare procedure.</p>
+    <!-- THE SEQUENCE NOW STARTS WITH THE TICKET (v20.38). The old list opened with "check the time —
+         amber and red cards", which trains the eye on the Railcard and quietly assumes the ticket is
+         fine. Most of what is actually wrong at this gateline is the TICKET; the Railcard is the
+         second question. Step 4 used to be "age looks right — use judgement", which is removed
+         rather than softened: it is wrong on four of the products on this page. -->
+    <h2 class="section" id="rc-checks">How to check one</h2>
     <div class="check">
         <div class="check-item">
             <div class="check-num">1</div>
-            <div><strong>Check the time — amber and red cards, Mon&ndash;Fri only.</strong> <strong>£</strong> = min £12 fare applies (travel allowed, must pay at least £12). <strong>⊘</strong> = no discount before the cutoff (full fare due). Red (Network): ⊘ before 10:00. Time restrictions don't apply at weekends or bank holidays.</div>
+            <div><strong>Check the ticket first.</strong> Right journey, date, route, class — and is it valid on <em>this</em> train? An Off-Peak into Marylebone before 10:00 is invalid no matter which Railcard bought it.</div>
         </div>
         <div class="check-item">
             <div class="check-num">2</div>
-            <div><strong>Expiry date</strong> — printed on the card or shown in the app.</div>
+            <div><strong>Which discount does the ticket claim?</strong> The ticket names the Railcard it was priced with. That is the one to check — not whichever card they happen to produce.</div>
         </div>
         <div class="check-item">
             <div class="check-num">3</div>
-            <div>
-                <strong>Photo check.</strong>
-                <div class="photo-table">
-                    <div class="pt-row">
-                        <span class="pt-card">Any digital card (in the app)</span>
-                        <span class="pt-photo green">Photo shows in the app — check it matches</span>
-                    </div>
-                    <div class="pt-row">
-                        <span class="pt-card">Physical 16&ndash;25 (bought online), Veterans</span>
-                        <span class="pt-photo green">Photo on the card — check it matches</span>
-                    </div>
-                    <div class="pt-row">
-                        <span class="pt-card">Physical HM Forces, Gold Card</span>
-                        <span class="pt-photo amber">Check the photo on the separate Photocard (a Smartcard/Oyster Gold season shows a Gold Record Card instead)</span>
-                    </div>
-                    <div class="pt-row">
-                        <span class="pt-card">Physical Two Together</span>
-                        <span class="pt-photo amber">Separate Two Together Photocard carries both photos — check it, and that both named holders are travelling</span>
-                    </div>
-                    <div class="pt-row">
-                        <span class="pt-card">Physical Senior, Network, Disabled, F&amp;F</span>
-                        <span class="pt-photo red">Usually no photo — check age/eligibility looks right</span>
-                    </div>
-                </div>
-                <div class="check-note">If they show a <strong>digital</strong> version of any card, check the live app — never a screenshot.</div>
-            </div>
+            <div><strong>Check that Railcard.</strong> Right product, <strong>in date</strong>, and shown properly — a live digital card in its own app or account, or a valid physical card (signed, where the card requires it) with any <strong>separate Photocard</strong> it needs.</div>
         </div>
         <div class="check-item">
             <div class="check-num">4</div>
-            <div><strong>Age looks right</strong> for the card type — use judgement, ask politely for ID if in doubt.</div>
+            <div><strong>Check the required people are travelling.</strong> Two Together — both named holders, whole journey. Family &amp; Friends — a cardholder and a child 5&ndash;15. Network, Gold, Veterans, Disabled — the discounted group travels <strong>with</strong> the holder.</div>
         </div>
         <div class="check-item">
             <div class="check-num">5</div>
-            <div><strong>Companions are present</strong> — Two Together: both named adults must travel together. Family &amp; Friends: at least one child aged 5&ndash;15 must be in the group. Check this inbound too.</div>
+            <div><strong>Then the morning rule</strong> — and use the right kind. Fixed cutoff, minimum fare, or follows-the-ticket. The quick check at the top sorts them.</div>
         </div>
         <div class="check-item">
             <div class="check-num">6</div>
-            <div><strong>Digital-only cards</strong> — 16&ndash;17 Saver and 26&ndash;30 exist only as digital cards. No physical version is genuine.</div>
+            <div><strong>Still unsure? Check it in the retail system before refusing.</strong> Refusing a valid discounted ticket is the worse mistake, and it is the one this page could cause.</div>
         </div>
     </div>
 
+    <div class="photo-note">
+        <strong>Photo and identity — what to actually check</strong>
+        <div class="photo-table">
+            <div class="pt-row">
+                <span class="pt-card">Any digital card</span>
+                <span class="pt-photo green">Photo shows in the app — check it matches the traveller</span>
+            </div>
+            <div class="pt-row">
+                <span class="pt-card">Physical 16&ndash;25 or Two Together <strong>bought at a station</strong></span>
+                <span class="pt-photo amber">Separate Photocard required — must be shown with the Railcard</span>
+            </div>
+            <div class="pt-row">
+                <span class="pt-card">Physical HM Forces</span>
+                <span class="pt-photo amber">Separate Photocard <strong>always</strong> required</span>
+            </div>
+            <div class="pt-row">
+                <span class="pt-card">Gold Card</span>
+                <span class="pt-photo amber">Paper season = Gold Card + Photocard; Smartcard/Oyster season = Gold Record Card</span>
+            </div>
+            <div class="pt-row">
+                <span class="pt-card">Physical 16&ndash;17 Saver, Veterans</span>
+                <span class="pt-photo green">Must be <strong>signed</strong> — Veterans by both the holder and named companion</span>
+            </div>
+            <div class="pt-row">
+                <span class="pt-card">Everything else</span>
+                <span class="pt-photo">Check the card, its dates, and that the right people are travelling</span>
+            </div>
+        </div>
+        <p class="check-note"><strong>Inspect the evidence the product requires — never whether somebody
+        visually fits the card.</strong> Age, disability and eligibility are not gateline judgements.</p>
+    </div>
+
+    <!-- SELLING AND GATELINE ARE DIFFERENT JOBS (v20.38). The page used to say "same checks whether
+         selling or inspecting", which is true of the entitlement and false of the task: before travel
+         you can still fix it, after travel you cannot. The revenue half is deliberately thin and
+         points at Chiltern procedure — a national Railcard guide must not invent an excess type, a
+         Penalty Fare decision, or an escalation route. -->
+    <h2 class="section" id="rc-wrong">If something is wrong</h2>
+    <div class="split">
+        <div class="split-half">
+            <div class="split-head">Before travel — selling or at the barrier outbound</div>
+            <p>The goal is a <strong>valid ticket before they travel</strong>. Check the Railcard, the
+            fare available for that train, the time restriction, any minimum fare, the route, the
+            group and the class. If the discount doesn't apply, sell what does.</p>
+        </div>
+        <div class="split-half">
+            <div class="split-head">After travel — inbound at the gateline</div>
+            <p>The journey has happened, so the question is whether the discounted ticket was valid,
+            and then <strong>current Chiltern revenue procedure</strong> — excess or Penalty Fare.
+            That is a Chiltern decision, not one this page makes.</p>
+        </div>
+    </div>
+    <div class="gotcha gotcha--wide" data-guide-source="rc-forgotten-chiltern">
+        <span class="gotcha-tag">Forgotten Railcard</span>
+        <span class="gotcha-text">No valid Railcard shown means the discounted ticket <strong>cannot simply be treated as valid</strong> — follow current Chiltern excess/Penalty Fare procedure. A customer who genuinely held a valid Railcard may reclaim the extra charge: Chiltern's Passenger Charter allows <strong>one claim per customer in a 12-month period</strong>. <strong>There is no 28-day deadline</strong> — this guide used to say there was, and no source supports it.</span>
+    </div>
+
     <h2 class="section" id="rc-digital">Digital railcards</h2>
-    <div class="digital">
-        <p>Digital railcards live in the official <strong>Railcard app</strong> (by National Rail) — this is the primary app. Some passengers carry them in the <strong>Trainline app</strong> instead; this is accepted but Trainline's display varies. Both are valid — accept either.</p>
-        <p>The official <strong>Railcard app</strong> displays an <strong>animated shimmer</strong> on the railcard — very hard to fake. A static screenshot is <strong>not valid</strong>. If they're showing a Trainline display, check the expiry date and photo carefully.</p>
-        <p>When <strong>selling</strong> a discounted ticket, ask to see the railcard on-screen before pricing the journey.</p>
-        <p>If the phone is dead or the app won't open — full fare outbound, excess/penalty fare procedure inbound.</p>
+    <div class="digital" data-guide-source="rc-digital-display">
+        <p>A digital Railcard is held in the official <strong>Railcard app</strong> or in the account
+        of the <strong>retailer it was bought from</strong> — Trainline and others are legitimate.
+        Ask to see the <strong>live card in that app or account</strong>.</p>
+        <p>What you are checking is the same in every app: <strong>the right product</strong>,
+        <strong>in date</strong>, the <strong>photo and name</strong>, and the
+        <strong>right people travelling</strong>. A static <strong>screenshot</strong> is not a
+        Railcard — the card has to be displayed live.</p>
+        <p class="check-note">Don't rely on one app's animation as a test of authenticity. Retailer
+        displays differ and change; the product, the dates and the photo do not.</p>
+        <p>When <strong>selling</strong> a discounted ticket, ask to see the Railcard on screen before
+        pricing the journey. If the phone is dead or the app won't open, treat it as no Railcard
+        shown — full fare outbound, Chiltern procedure inbound.</p>
     </div>
 
     <div class="foot">
-        <strong>Verified July 2026.</strong> Check nationalrail.co.uk/railcards for updates.<br>
+        <strong>Checked against the individual Railcard conditions, National Rail and Chiltern —
+        August 2026.</strong> Times, minimum fares and Travelcard amounts change; the retail system
+        is always the authority.<br>
         For staff reference only. If in doubt, ask your supervisor.
     </div>
 
