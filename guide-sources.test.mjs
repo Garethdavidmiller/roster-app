@@ -728,7 +728,7 @@ const RC_TEXT_LIVE = RC_HTML
     .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 test('railcard: a correction callout must actually negate what it quotes', () => {
-    assert.ok(CORRECTIONS.length >= 3,
+    assert.ok(CORRECTIONS.length >= 2,
         `expected the shipped-error corrections to be present, found ${CORRECTIONS.length}`);
     for (const c of CORRECTIONS) {
         assert.match(c, /was wrong|that was wrong|used to say|removed|corrected/i,
@@ -738,38 +738,42 @@ test('railcard: a correction callout must actually negate what it quotes', () =>
     }
 });
 
-test('railcard: the Network area is not truncated at Banbury (the v20.38 P1 correction)', () => {
-    // THE ERROR THIS PREVENTS: the guide told staff the Network Railcard was "not valid" beyond
-    // Banbury/Kings Sutton — for Leamington, Warwick, Solihull or Birmingham. Three current sources
-    // say otherwise (Chiltern is a named participating operator; Chiltern's own railcard page gives
-    // Network a time restriction and no geographic limit; the railcard's own area map indexes the
-    // whole Chiltern route incl. Birmingham Moor Street and Snow Hill). A staff member acting on
-    // the old text would have refused a valid ticket to Birmingham.
+test('railcard: the Network area is stated as UNSETTLED, never as a certainty either way', () => {
+    // THIS TEST WAS WRITTEN BACKWARDS FIRST, AND THAT IS WHY IT READS LIKE THIS.
+    // v20.38 initially "corrected" the Network card to say the area reaches Birmingham, and pinned
+    // that claim here — on the strength of the railcard map's station index listing Birmingham Moor
+    // Street and Snow Hill. The inference was invalid: the SAME index lists Bristol, Taunton and
+    // Exeter, so it indexes the rail-services map, not the railcard boundary. The boundary itself is
+    // a filled polygon on a map whose station names are vector artwork, and could not be read.
+    //
+    // Both certainties are forbidden, because each fails differently at the barrier: "not valid past
+    // Banbury" refuses valid tickets, "valid to Birmingham" accepts invalid ones. The card's job is
+    // to give the working answer and route the doubt to the retail system.
     const card = RC_HTML.slice(RC_HTML.indexOf('id="rc-network"'));
-    const body = card.slice(0, card.indexOf('<h2'))
-        .replace(/<!--[\s\S]*?-->/g, ' ')
-        .replace(/<div class="rc-chiltern rc-correction">[\s\S]*?<\/div>/g, ' ');
-    for (const claim of [
-        /not valid[^.]{0,80}Leamington/i,
-        /area (?:ends|stops)[^.]{0,40}Banbury/i,
-        /valid as far as[^.]{0,30}Banbury/i,
-        /Birmingham[^.]{0,60}outside the (?:Network )?area/i,
-    ]) {
-        assert.doesNotMatch(body, claim,
-            `the Network card has re-acquired a truncated area claim matching ${claim}. The railcard's ` +
-            'own map indexes the whole Chiltern route to Birmingham — re-check the source before editing.');
-    }
-    // …and it must positively say the correction, because silence would read as the old rule.
-    assert.match(body, /Birmingham/,
-        'the Network card no longer mentions Birmingham at all — the correction has been lost, and a ' +
-        'reader carrying the old rule has nothing to contradict it');
+    const body = card.slice(0, card.indexOf('<h2')).replace(/<!--[\s\S]*?-->/g, ' ');
+
+    assert.doesNotMatch(body, /Birmingham Moor Street and Snow/i,
+        'the Network card asserts the area reaches Birmingham again. That came from the map\'s ' +
+        'station index, which also lists Bristol and Exeter — it is not the boundary.');
+    assert.doesNotMatch(body, /<strong>Not valid<\/strong> for Leamington/i,
+        'the flat "not valid for Leamington/Birmingham" claim is back. No current source states it ' +
+        'in those words, and acting on it refuses valid tickets.');
+
+    assert.match(body, /could not be read|not settled/i,
+        'the Network card must say the boundary is unsettled — silence reads as certainty');
+    assert.match(body, /check the retail system before refusing/i,
+        'the unsettled case must resolve to "check", which is safe whichever way the boundary runs');
+    assert.match(body, /Banbury/,
+        'the working answer (Banbury/Kings Sutton) must still be given — an unsettled note with no ' +
+        'default leaves a gateline with nothing to act on');
 });
 
-test('railcard: Birmingham is never used as an example of leaving the Network area', () => {
-    // The boundary error contaminated Family & Friends and Senior too: both used a "through journey
-    // to Birmingham" as the example of travelling BEYOND the area, which is exactly backwards.
-    assert.doesNotMatch(RC_TEXT_LIVE, /beyond the area[^.]{0,40}Birmingham/i);
-    assert.doesNotMatch(RC_TEXT_LIVE, /Birmingham[^.]{0,50}unrestricted/i);
+test('railcard: no card claims Birmingham is inside the Network area', () => {
+    // The bad inference had already spread to Family & Friends, Senior and the Gold comparison
+    // before it was caught. Asserted page-wide so it cannot return through any one of them.
+    assert.doesNotMatch(RC_TEXT_LIVE, /Birmingham is inside the (?:Network )?area/i);
+    assert.doesNotMatch(RC_TEXT_LIVE, /wholly within it and the peak rule applies/i);
+    assert.doesNotMatch(RC_TEXT_LIVE, /both the Gold Card area and the Network Railcard area include/i);
 });
 
 test('railcard: a physical 16-17 Saver is never described as not genuine', () => {

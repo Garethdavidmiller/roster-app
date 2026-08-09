@@ -182,22 +182,46 @@ what those cards should have pointed at all along: Chiltern's own Off-Peak restr
 04:29–08:30; outbound to **Banbury and north has no morning restriction**. It is styled as a ticket
 rule, not a railcard card, and says twice that the retail system is the authority.
 
-### The two errors that shipped, and what stops them returning
+### The Network boundary: an error corrected, then a WORSE one nearly shipped
 
-**Network was truncated at Banbury.** The guide said the area ended after Banbury/Kings Sutton and
-was "not valid" for Leamington, Warwick, Solihull or Birmingham. Three current sources say otherwise:
-Chiltern is a named participating operator; **Chiltern's own railcard page gives Network a time and
-minimum-fare restriction and no geographic limit**; and the railcard's own area map indexes the whole
-Chiltern route including Birmingham Moor Street and Snow Hill. A staff member acting on the old text
-refused valid tickets.
+The guide said the Network Railcard area ended after Banbury/Kings Sutton and was "not valid" for
+Leamington, Warwick, Solihull or Birmingham. v20.38 set out to correct that, concluded the area
+**does** reach Birmingham, rewrote the card, and pinned the new claim with a regression test. **That
+conclusion was wrong, and it was caught only because the owner said "surely it only goes up to
+Banbury?"**
+
+The reasoning that produced it: the railcard's area map has a machine-readable **station index**,
+and that index lists Birmingham Moor Street and Snow Hill. But the map is the *London & the South
+East rail services* map with the railcard area drawn on it as an overlay, so **the index is the
+map's index, not the boundary** — a caveat that was identified, written down, and then leaned past
+anyway. The disproof is one line: **the same index lists Bristol, Taunton, Weston-super-Mare and
+Exeter**, none of which can be in a London & South East railcard area.
+
+**Neither certainty may be stated, because they fail in opposite directions.** "Not valid past
+Banbury" refuses valid tickets. "Valid to Birmingham" accepts invalid ones — and for a revenue-facing
+page that is the worse of the two. So the card gives the working answer (Banbury/Kings Sutton, which
+matches the historic Network SouthEast limit), says the boundary could not be read, and resolves the
+doubt to **check the retail system before refusing**. All three properties are pinned by tests, each
+teeth-verified.
+
+**What would settle it:** the boundary IS in the PDF — a 41-vertex filled polygon, extractable — but
+the map's station names are drawn as **vector artwork rather than text**, so nothing can be located
+inside it, and Chromium here downloads PDFs instead of rendering them. A rendered copy read by eye,
+or a textual statement of the area's northern limit, closes it. Until then it is `Draft`.
+
+**The lesson, which is not "check harder".** The caveat was already written down; what failed was
+that a convenient inference was allowed to outrank it. When a source *nearly* answers the question,
+state what it actually establishes and mark the rest unsettled — an honest Draft is worth more than
+a confident answer that has to be retracted, and on this page a confident wrong answer costs money
+or costs a passenger their journey.
+
+### The other error that shipped
 
 **"16-17 Saver is digital only, a physical one is not genuine."** The official conditions describe a
 physical Saver in six clauses. Both formats are genuine; the real constraint is that it is **not sold
-at stations**.
-
-Both are pinned as concepts, and both are **teeth-verified by reintroduction**. So are the removal of
-the 28-day forgotten-Railcard deadline (Chiltern's Charter says one claim per 12 months and states no
-deadline) and of every appearance-based check.
+at stations**. Pinned and teeth-verified, along with the removal of the 28-day forgotten-Railcard
+deadline (Chiltern's Charter says one claim per 12 months and states no deadline) and of every
+appearance-based check.
 
 ### Never ask staff to judge how somebody looks
 
