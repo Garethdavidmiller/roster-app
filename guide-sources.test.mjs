@@ -349,6 +349,52 @@ test('the FIP country-finder note makes NO page-wide checked claim', () => {
         'the note must say what an UNDATED card means — silence reads as "fine" otherwise');
 });
 
+// ── THE QUALIFYING PERIOD IS PUBLISHED, AND THE GUIDE MUST STATE IT (v20.34) ─────────────────────
+//
+// The guide carried "you generally qualify after 12 months' service" for its whole life. v20.32
+// removed it and asserted — in the guide AND, more damagingly, in the register — that NO qualifying
+// period was published in any Rail Staff Travel source. An external review caught it: RST's FAQ page
+// answers it directly, under "When am I eligible for FIP cards and International Coupons?".
+//
+// **The mistake was not the claim, it was the confidence.** Three RST pages had been read in full,
+// the term grepped across them, and an absence concluded from their silence — without ever fetching
+// `/rst/faqs.html`. A citation framework proves a claim HAS a source; it can never prove the search
+// space was complete. That is a permanent property of this register, so the one conclusion it cannot
+// safely reach on its own is "nobody publishes this".
+//
+// Hence a test rather than a comment: this is the first fact in the guide a new starter reads, both
+// directions are actively harmful (turning away someone who qualifies; promising someone who does
+// not), and it has now been wrong TWICE in opposite directions. It guards the CONCEPT — a year of
+// continuous service — and the source, not a form of words.
+test('FIP eligibility states the published one-year qualifying period, cited to the RST FAQ', () => {
+    const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
+    const rows = readFileSync(new URL('./GUIDE_SOURCES.md', import.meta.url), 'utf8')
+        .split('\n').filter(l => l.startsWith('| fip-eligibility '));
+    assert.equal(rows.length, 1, 'exactly one fip-eligibility row');
+
+    // The register must cite the page that actually answers it. The FAQ is where RST publish the
+    // period; the Europe-and-FIP landing page (cited until v20.34) does not mention it, which is
+    // precisely how the absence was mis-concluded.
+    assert.match(rows[0], /raildeliverygroup\.com\/rst\/faqs\.html/,
+        'fip-eligibility must cite the RST FAQ — the page that states the qualifying period');
+    assert.match(rows[0], /continuous service/i, 'the register row must record the RULE, not just the source');
+
+    // The rendered block a member reads. Match the CONCEPT (a year, continuous service) rather than
+    // a sentence, so the copy stays free to change.
+    const block = html.match(/data-guide-source="fip-eligibility"[\s\S]*?<\/div>/);
+    assert.ok(block, 'the eligibility block is missing or no longer cites fip-eligibility');
+    assert.match(block[0], /one year|1 year|1-year|12 months/i,
+        'the guide must state the qualifying period — it is the first eligibility fact a new starter reads');
+    assert.match(block[0], /continuous service/i,
+        '"continuous" is the load-bearing word: broken service does not accrue');
+
+    // And the specific false claim must never return, in the guide or the register.
+    for (const [what, text] of [['fip.html', html], ['GUIDE_SOURCES.md', rows[0]]]) {
+        assert.doesNotMatch(text, /no published qualifying period/i,
+            `${what}: the v20.32 claim that no qualifying period is published is FALSE — RST's FAQ states one`);
+    }
+});
+
 // Non-failing diagnostic: surface rows whose manual review is overdue. Deliberately NOT an
 // assertion — a today-driven failure would break unrelated commits (the same reason the whole
 // file is a structural guard, not a date tripwire). It just prints a reminder so the manual

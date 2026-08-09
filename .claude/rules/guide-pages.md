@@ -118,9 +118,24 @@ against their live Rail Staff Travel country page):
 
 - **Never soften an unsourced claim — remove it.** Four survived years of review by sounding
   plausible: Denmark refusing SJ/Snälltåget night trains, Czech "ARRIVA vlaky and Trilex", Croatia
-  bookable "via Trainseurope", Romania's "trains are slow". None is in the source. The worst was
-  eligibility: **"you generally qualify after 12 months' service"** appears in no RST page at all,
-  and it was the first thing a new starter read.
+  bookable "via Trainseurope", Romania's "trains are slow". None is in the source.
+- **But "I could not find it" is NOT "it is not published"** — the rule above has a failure mode, and
+  v20.32 hit it hard enough to need an external review to catch. The guide's long-standing "you
+  generally qualify after 12 months' service" was struck out, and the register was made to say the
+  rule appeared in **no** RST source and must not be reinstated. It is published — plainly, under
+  "When am I eligible for FIP cards and International Coupons?" on `/rst/faqs.html`, a page nobody
+  had fetched. Three pages had been read *in full*, the term grepped across them, and an absence
+  concluded from their silence. **A citation framework proves a claim has a source; it can never
+  prove the search was complete**, so "nobody publishes this" is the one conclusion this register
+  cannot safely reach on its own. Before recording an absence, enumerate the site's pages (the RST
+  nav lists them) rather than the pages you happen to have open — and prefer "we could not find X"
+  in the register over "X does not exist". Corrected v20.34; pinned by a test in
+  `guide-sources.test.mjs` because it has now been wrong twice, in opposite directions.
+- **"Private operator" is not the test for FIP validity** (v20.34, same review). The mental model the
+  guide taught — private/low-cost operators are outside FIP — is wrong in both directions and the
+  country audit itself disproved it: GySEV, Euskotren, the five Polish regionals and Switzerland's
+  BLS are all in FIP. The operative rule is **check the undertaking**, with Italo/OUIGO/RegioJet/Leo
+  Express as examples rather than as a category.
 - **A country is not an undertaking.** Hungary has two (MÁV and GySEV), so does Spain (RENFE and
   Euskotren), Bosnia (ŽRS and ŽFBH) and Ireland (CIÉ and NIR); Poland has six. A card naming one
   operator reads as though the country has one, and coupons do not transfer between them.
