@@ -27,6 +27,13 @@ import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys
 import { perfSampleKey, summarisePerf } from './perf-stats.js';
 import { APP_VERSION } from './roster-data.js';
 
+// Boot-phase waypoint (v20.33): the moment this module's body runs is the moment the Firebase SDK
+// has finished loading, parsing and executing — static imports execute before their importer's body.
+// perf-reporter.js reads this mark to split a slow cold start into "reaching the app's engine" vs
+// "the app's own modules after it" (the phases the App Speed card can now allocate). A mark, not an
+// export, so nothing couples to it: absence simply records no phase samples.
+try { performance.mark('myb-sdk-ready'); } catch { /* Performance API unavailable — phases skipped */ }
+
 const firebaseConfig = {
     apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
     authDomain:        'myb-roster.firebaseapp.com',

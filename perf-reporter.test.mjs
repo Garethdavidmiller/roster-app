@@ -74,3 +74,53 @@ describe('recordPageLatency — admin exclusion + one-shot login marker', () => 
         assert.ok(_samples.find(s => s.page === 'login'), 'anonymous is a real session, not the developer');
     });
 });
+
+describe('recordPageLatency — boot phases (v20.33)', () => {
+    // Swap in a performance stub carrying a navigation entry and (optionally) the SDK-ready mark.
+    // The phase SPLIT itself is pure and tested in perf-stats.test.mjs; what's under test here is
+    // the reporter's WIRING — that the mark is read, the spans reach recordPerfSample as their own
+    // metrics, and an absent mark or SW degrades to fewer samples rather than wrong ones.
+    const nav = { responseStart: 220, domContentLoadedEventEnd: 1600, workerStart: 40 };
+    /** @param {any} navEntry @param {number|null} markMs */
+    function stubPerformance(navEntry, markMs) {
+        global.performance = /** @type {any} */ ({
+            getEntriesByType: (/** @type {string} */ t) => t === 'navigation' && navEntry ? [navEntry] : [],
+            getEntriesByName: (/** @type {string} */ n) =>
+                n === 'myb-sdk-ready' && markMs != null ? [{ startTime: markMs }] : [],
+        });
+    }
+
+    test('records all three phase spans alongside ttfb/domReady', () => {
+        stubPerformance(nav, 1100);
+        recordPageLatency('calendar', 'S. Silva');
+        const byMetric = Object.fromEntries(_samples.map(s => [s.metric, s]));
+        assert.equal(byMetric.swBoot?.bucket,  'lt500ms');   // 180ms
+        assert.equal(byMetric.sdkLoad?.bucket, '500ms-1s');  // 880ms
+        assert.equal(byMetric.appBoot?.bucket, '500ms-1s');  // 500ms
+        assert.equal(byMetric.swBoot?.page, 'calendar', 'phases carry the page dimension like every metric');
+        assert.ok(byMetric.ttfb && byMetric.domReady, 'the existing metrics still record beside the phases');
+    });
+
+    test('no SDK mark → nav-only metrics record, mark-based phases are absent', () => {
+        stubPerformance(nav, null);
+        recordPageLatency('calendar', 'S. Silva');
+        const metrics = _samples.map(s => s.metric);
+        assert.ok(metrics.includes('swBoot'), 'the SW span needs no mark');
+        assert.ok(!metrics.includes('sdkLoad') && !metrics.includes('appBoot'),
+            'a missing mark must drop the spans it defines — recording them from garbage would be worse than a gap');
+    });
+
+    test('no service worker (workerStart 0) → no swBoot sample', () => {
+        stubPerformance({ ...nav, workerStart: 0 }, 1100);
+        recordPageLatency('calendar', 'S. Silva');
+        assert.ok(!_samples.some(s => s.metric === 'swBoot'),
+            'a first visit has no SW wake to measure — a fabricated span would flatter or smear it');
+        assert.ok(_samples.some(s => s.metric === 'sdkLoad'), 'mark-based spans unaffected');
+    });
+
+    test('admin exclusion covers the phases too', () => {
+        stubPerformance(nav, 1100);
+        recordPageLatency('calendar', 'G. Miller');
+        assert.deepEqual(_samples, [], 'the developer’s own boot phases must not pollute the diagnosis');
+    });
+});
