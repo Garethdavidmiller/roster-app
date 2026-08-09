@@ -127,6 +127,24 @@ service cloud.firestore {
       // IndexedDB cache hit never reaches this line — a browser that unlocked yesterday still holds
       // every override it saw. calendar-overrides.js refuses those reads separately
       // (`setOverrideAccess`). Tightening this rule without that gate would look secure and leak.
+      //
+      // ⚠️⚠️ TEMPORARY HOLD (v20.16) — THE `allow read;` LINE BELOW KEEPS THIS COLLECTION PUBLIC.
+      //
+      // Firestore ORs every matching allow rule, so while that line is present the tightened rule
+      // beneath it decides nothing and override data is as public as it was before v20.12.
+      //
+      // It is here because all three deploy workflows fire in PARALLEL from one push to main, with
+      // no ordering between them. Merging the tightened rule alongside the client would collapse
+      // steps 2, 3 and 4 of the rollout into one moment — the exact thing RECOVERY_RUNBOOK.md →
+      // "The Calendar PIN" says never to do, because a rules deploy that lands before the hosting
+      // deploy shows every staff phone the BASE ROSTER under a "Couldn't update" chip: a roster
+      // that is wrong rather than obviously broken.
+      //
+      // TO ENFORCE: delete this comment block and the `allow read;` line, set
+      // `OVERRIDES_READ_HELD_OPEN = false` in firestore.rules.test.mjs (the two are checked against
+      // each other in both directions, so they cannot silently disagree), and deploy rules ON THEIR
+      // OWN — after the client carrying `CALENDAR_PIN_ACCESS: true` has soaked in production.
+      allow read;
       allow read: if request.auth != null && (
         'name' in request.auth.token ||
         request.auth.token.admin == true ||

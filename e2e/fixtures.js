@@ -381,6 +381,22 @@ export async function disableCalendarPin(page) {
 }
 
 /**
+ * Switch the staff Calendar PIN ON for one test.
+ *
+ * The shipped default is `false` while the feature is deployed dark (v20.17), so the specs that
+ * exercise the unlock card have to turn it on — the mirror of `disableCalendarPin`, and the reason
+ * both exist rather than one: whichever way the production default points, the tests for the OTHER
+ * state must say so explicitly instead of inheriting it. When the flag goes live these keep working
+ * unchanged, and the pair is what stops the dark-deploy tests quietly becoming no-ops at that point.
+ * Call BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ */
+export async function enableCalendarPin(page) {
+    _setConfigOverride(page, 'CALENDAR_PIN_ACCESS',
+        /CALENDAR_PIN_ACCESS:\s*(?:true|false)/, 'CALENDAR_PIN_ACCESS: true');
+}
+
+/**
  * Turn in-place sign-in ON (for ALL coordinators) for one test by rewriting roster-data.js as it is
  * served — flips every per-page key in the `INPLACE_LOGIN: { … }` object to `true` without touching the
  * real file or the production default. Call BEFORE page.goto(). Each test only exercises one page, so

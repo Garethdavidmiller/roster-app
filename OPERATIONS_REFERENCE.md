@@ -504,6 +504,13 @@ no longer re-opens anything — the client stops asking for a PIN while the serv
 reads, which shows every visitor a base roster under a "couldn't update" chip. Rolling back after
 that point means rolling back the rules: RECOVERY_RUNBOOK.md → "The Calendar PIN".
 
+**As shipped (v20.17) the flag is `false` and the `overrides` read rule carries a matching
+`allow read;` hold line**, so the whole feature is deployed and dormant. Releasing the two brakes in
+order — client first, rules second, one push each — is steps 3 and 4 of the rollout in
+RECOVERY_RUNBOOK.md → "The Calendar PIN". Do not release them in one push: the deploy workflows run
+in parallel, so which lands first is a coin toss, and the wrong order is the state that shows every
+staff phone a roster that is wrong rather than obviously broken.
+
 ### Setting the PIN (do this FIRST — the function will not work without it)
 
 The value lives only in Secret Manager. It is deliberately **not** in the repository, in any

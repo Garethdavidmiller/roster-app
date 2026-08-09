@@ -11,7 +11,7 @@
 
 // test/expect come from fixtures.js (NOT @playwright/test) so the hermetic Firebase stub is
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
-import { test, expect } from './fixtures.js';
+import { test, expect, enableCalendarPin } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
 import { seedSession, seedMember, seedViewerAccess, stubPinExchange, enterPin } from './helpers.js';
 
@@ -24,7 +24,11 @@ import { seedSession, seedMember, seedViewerAccess, stubPinExchange, enterPin } 
 // The gate itself is covered end-to-end in calendar-pin.spec.js.
 // A test that also seeds a member session still gets the member: the stub ranks them that way,
 // exactly as `decideAccess` does.
-test.beforeEach(async ({ page }) => { await seedViewerAccess(page); });
+// The staff PIN is switched OFF in the shipped config while the feature is deployed dark
+// (v20.17). Turn it on here so these keep covering the configuration the app is heading for,
+// and seed a viewer session to satisfy it — otherwise every calendar test silently starts
+// running against the old open model and the gate goes untested.
+test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedViewerAccess(page); });
 
 
 // WCAG 2.0 + 2.1, levels A and AA — the standard staff-facing target.

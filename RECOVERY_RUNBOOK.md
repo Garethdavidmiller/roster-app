@@ -330,13 +330,36 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 directly; tightening the rule ahead of the client that can satisfy it means every staff phone shows
 the base roster with a "Couldn't update" chip — a roster that is *wrong*, not obviously broken.
 
+**That ordering has to be made by hand, because the three deploy workflows do not provide it.**
+`deploy-functions.yml`, `deploy-hosting.yml` and `deploy-rules.yml` all fire from the same push to
+`main`, in parallel, with no sequencing between them — so a single merge carrying the function, the
+client and the rules performs steps 2, 3 and 4 *simultaneously*, and whether the rules land before
+or after the hosting deploy is a coin toss. The branch therefore ships with two brakes on, and the
+steps below are three separate pushes rather than one:
+
+| Brake | Where | Ships as | Released at |
+|---|---|---|---|
+| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | `false` — Calendar behaves exactly as pre-v20.12 | step 3 |
+| `allow read;` hold line | `firestore.rules` overrides block | present — collection still public | step 4 |
+
+The hold line is declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
+and `calendar-viewer-parity.test.mjs` fails if the two disagree in either direction. That is what
+stops the hold outliving the rollout: it cannot be forgotten quietly, only removed deliberately.
+
 1. **Secret.** `firebase functions:secrets:set CALENDAR_VIEWER_PIN`. Nothing else works without it.
-2. **Function.** Deploy `unlockCalendarViewer` and prove it from the production origin. Rules are
-   still permissive at this point, so nothing staff-facing depends on it yet.
-3. **Client.** Deploy hosting. The new Calendar now asks for the PIN and mints a viewer session —
-   and because the rule is still permissive, a stale cached client keeps working. Let this soak.
-4. **Rules.** Only now change `overrides` read. From this moment an old cached client cannot read
-   overrides.
+2. **Merge the branch, and the function goes live with it.** Prove `unlockCalendarViewer` from the
+   production origin. Both brakes are still on, so staff see no change whatsoever — this is the dark
+   deploy, and its job is to prove the *rest* of the release (session handling, the nav drawer, the
+   calendar bootstrap) against real devices while the feature itself is invisible.
+3. **Client.** Set `CALENDAR_PIN_ACCESS: true` and push — hosting only, one line, no rules change.
+   The Calendar now asks for the PIN and mints a viewer session, and because the rule is still
+   permissive a stale cached client keeps working. **Let this soak.** Rolling back is the same one
+   line, and while the rules are still permissive that rollback genuinely re-opens the Calendar.
+4. **Rules.** Remove the `allow read;` hold line and set `OVERRIDES_READ_HELD_OPEN = false` in the
+   same commit; push with nothing else in it. From this moment an old cached client cannot read
+   overrides — and from this moment `CALENDAR_PIN_ACCESS: false` is **no longer a rollback**, because
+   the reads are denied by the server whatever the client asks for. After step 4 the rollback is
+   step 4's own revert.
 5. **Verify in production**, in a fresh private window: PIN → roster → reload → still unlocked →
    Team View → month navigation → Admin (must demand a member sign-in) → close the browser →
    PIN again. Then on a phone, and at an office-desktop width.

@@ -114,17 +114,34 @@ describe('overrides', () => {
     // to sign every visitor in anonymously, so a rule written as `request.auth != null` would look
     // closed and admit exactly the people it was meant to exclude (the trap linkDesigns fell into
     // until v19.39).
+    // ── THE HOLD (v20.16) ────────────────────────────────────────────────────────────────────
+    //
+    // `firestore.rules` currently carries a `allow read;` line ABOVE the tightened rule, holding
+    // this collection public until the client that can satisfy the tightened rule has soaked in
+    // production (RECOVERY_RUNBOOK.md → "The Calendar PIN"; the three deploy workflows fire in
+    // parallel, so the ordering has to be made by hand).
+    //
+    // This constant states which of the two is deployed, and the three tests below assert the
+    // matching outcome rather than being skipped. That is deliberate: `assertSucceeds` here fails
+    // the moment the hold line is removed while this still says `true`, and `assertFails` fails if
+    // it is set to `false` while the hold line is still there — so the two cannot silently
+    // disagree in EITHER direction, which a skip or a deletion would allow.
+    //
+    // TO ENFORCE: set this to false in the same commit that removes the `allow read;` line.
+    const OVERRIDES_READ_HELD_OPEN = true;
+    const readWhileHeld = OVERRIDES_READ_HELD_OPEN ? assertSucceeds : assertFails;
+
     test('UNAUTHENTICATED cannot read the collection', async () => {
-        await assertFails(getDocs(collection(anonDb(), 'overrides')));
+        await readWhileHeld(getDocs(collection(anonDb(), 'overrides')));
     });
 
     test('UNAUTHENTICATED cannot read a specific document', async () => {
-        await assertFails(getDoc(doc(anonDb(), 'overrides', uid())));
+        await readWhileHeld(getDoc(doc(anonDb(), 'overrides', uid())));
     });
 
     test('ANONYMOUS auth cannot read — a session with no claims grants nothing', async () => {
-        await assertFails(getDocs(collection(staffDb(), 'overrides')));
-        await assertFails(getDoc(doc(staffDb(), 'overrides', uid())));
+        await readWhileHeld(getDocs(collection(staffDb(), 'overrides')));
+        await readWhileHeld(getDoc(doc(staffDb(), 'overrides', uid())));
     });
 
     test('a NAMED member can read', async () => {

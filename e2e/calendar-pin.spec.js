@@ -15,7 +15,15 @@
  */
 import { test, expect } from './fixtures.js';
 import { seedMember, seedMemberSession, stubPinExchange, enterPin, collectFatalErrors } from './helpers.js';
-import { disableCalendarPin } from './fixtures.js';
+import { disableCalendarPin, enableCalendarPin } from './fixtures.js';
+
+// The shipped default is OFF while the feature is deployed dark (v20.17), so every test here that
+// exercises the unlock card turns it on explicitly. That is the right way round: these describe the
+// configuration the feature is FOR, and the flag's current value is a deployment decision rather
+// than a product one — the suite should not quietly stop testing the card the day it ships dark.
+// The four "switched OFF" tests below call disableCalendarPin, which writes the same map key, so
+// the later call simply wins.
+test.beforeEach(async ({ page }) => { await enableCalendarPin(page); });
 
 // ── Locked ──────────────────────────────────────────────────────────────────────────────────────
 

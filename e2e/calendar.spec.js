@@ -1,4 +1,4 @@
-import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
+import { test, expect, enforceNamedSession, enableInplaceLogin, enableCalendarPin } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
@@ -10,7 +10,11 @@ import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword
 // The gate itself is covered end-to-end in calendar-pin.spec.js.
 // A test that also seeds a member session still gets the member: the stub ranks them that way,
 // exactly as `decideAccess` does.
-test.beforeEach(async ({ page }) => { await seedViewerAccess(page); });
+// The staff PIN is switched OFF in the shipped config while the feature is deployed dark
+// (v20.17). Turn it on here so these keep covering the configuration the app is heading for,
+// and seed a viewer session to satisfy it — otherwise every calendar test silently starts
+// running against the old open model and the gate goes untested.
+test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedViewerAccess(page); });
 
 
 // ── CALENDAR (index.html) ──────────────────────────────────────────────────

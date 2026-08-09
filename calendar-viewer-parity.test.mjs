@@ -52,12 +52,31 @@ describe('Contract A — one identity, three languages', () => {
             `firestore.rules never reads \`${CALENDAR_VIEWER_CLAIM}\` — the minted token would grant nothing`);
     });
 
-    test('the overrides READ rule requires an identity — it is not open any more', () => {
+    test('the overrides READ rule requires an identity — and the HOLD is declared in both places', () => {
         const rules = read('./firestore.rules').replace(/\/\/[^\n]*/g, '');
         const block = rules.slice(rules.indexOf('match /overrides/'), rules.indexOf('match /huddles/'));
         assert.ok(block.length > 200, 'could not locate the overrides block — this test is checking nothing');
-        assert.doesNotMatch(block, /allow read;/,
-            'overrides read is public again — the staff PIN would be guarding a door that is open');
+
+        // ── THE HOLD, CHECKED STATICALLY (v20.16) ────────────────────────────────────────────
+        //
+        // A bare `allow read;` above the tightened rule holds the collection public during the
+        // deploy window (RECOVERY_RUNBOOK.md → "The Calendar PIN"). It is legitimate, and it is
+        // also the single most dangerous line in this file — it makes the staff PIN guard a door
+        // that is open, and it looks like documentation of a rule rather than a rule.
+        //
+        // So it is allowed only when firestore.rules.test.mjs DECLARES it. That file's constant is
+        // what its own three read tests assert against, so declaring it there means the emulator
+        // suite proves the hold is real; checking it from here means `npm test` — which runs with
+        // no emulator, on every branch — fails the moment the two disagree in either direction.
+        // Removing the hold is therefore two edits that must land together, and forgetting either
+        // one is loud rather than silent.
+        const held = /const OVERRIDES_READ_HELD_OPEN\s*=\s*true\b/
+            .test(read('./firestore.rules.test.mjs'));
+        const open = /allow read;/.test(block);
+        assert.equal(open, held, open
+            ? 'overrides read is public and nothing declares it — the staff PIN would be guarding a door that is open'
+            : 'firestore.rules.test.mjs still declares OVERRIDES_READ_HELD_OPEN = true, but the hold line is gone — its read tests now assert the wrong outcome');
+
         assert.match(block, /allow read: if request\.auth != null/,
             'the overrides read rule must require an authenticated identity');
         assert.ok(block.includes(`request.auth.token.${CALENDAR_VIEWER_CLAIM} == true`),

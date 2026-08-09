@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '20.16';
+export const APP_VERSION = '20.17';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -109,7 +109,12 @@ export const CONFIG = {
     //     chip — a roster that is WRONG rather than obviously broken, which is the one outcome this
     //     feature exists to prevent. Rolling back AFTER the rules have shipped means rolling back
     //     the RULES (RECOVERY_RUNBOOK.md → "The Calendar PIN").
-    CALENDAR_PIN_ACCESS:              true,
+    // SHIPPED DARK (v20.16). The feature is deployed and the Cloud Function is live, but the
+    // Calendar behaves exactly as it did before v20.12. Flip to true — hosting deploy, one line —
+    // once the secret is set and the function has been proved from the production origin. The
+    // `overrides` read rule is held permissive to match (see the HOLD block in firestore.rules);
+    // tighten that AFTER this flag has soaked, never in the same push.
+    CALENDAR_PIN_ACCESS:              false,
     // How long the calendar's `pw-own-2026` notice keeps showing on a device that has not yet seen
     // it, in days from its 6 Aug 2026 posting date (calendar-app.js). CONFIGURABLE ON PURPOSE
     // (v19.91, external review): `isNoticeExpired` marks a notice seen WITHOUT showing it, so on the
