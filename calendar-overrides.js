@@ -44,7 +44,17 @@ let _accessGranted = false;
  * the same data, so a second parameter would only be a second thing to get wrong.
  * @param {boolean} granted
  */
-export function setOverrideAccess(granted) { _accessGranted = granted === true; }
+export function setOverrideAccess(granted) {
+    _accessGranted = granted === true;
+    // A GRANT is a fresh start (v20.41), and it has to be, because a re-grant follows a re-lock.
+    // `fetchedMonths` is a "we already have this" claim: months claimed before access was lost are
+    // still claimed after it returns, so without this every `ensureOverridesCached` would no-op and
+    // the re-unlocked Calendar would never read anything again — its knowledge having been forgotten
+    // at the same moment, that is a permanent wait state. `_failureRepainted` goes with it for the
+    // same reason: a failure that happened under the old session is not news the new one has heard.
+    // Harmless at boot — the first grant runs before the initial fetch claims anything.
+    if (_accessGranted) { fetchedMonths.clear(); _failureRepainted.clear(); }
+}
 
 /** @returns {boolean} whether override reads are currently permitted. */
 export function hasOverrideAccess() { return _accessGranted; }

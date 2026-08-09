@@ -6,7 +6,7 @@
  * duplicate override resolution (manual beats import; newer beats older),
  * and getShiftTypesInMonth type detection including Sunday sick suppression.
  */
-import { test, describe, mock, beforeEach } from 'node:test';
+import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 // Controllable getDocs mock — tests set _mockDocs before each async call.
@@ -281,6 +281,49 @@ describe('fetchOverridesForRange deletion reconciliation', () => {
 // silently — no partial paint, no cache poisoning, and it must stay retryable.
 // The app deliberately has NO override-load status indicator (CLAUDE.md, Team Week
 // View), so the guarantee here is clean silent fallback, verified by test.
+
+describe('a GRANT is a fresh start (v20.41)', () => {
+    // The bug this pins: `handleAccessLost` re-locks the Calendar and forgets what every month knew,
+    // but the months stayed CLAIMED in fetchedMonths. Re-entering the PIN therefore came back to a
+    // Calendar that would never read anything again — every ensureOverridesCached a no-op against a
+    // claim from the previous session, every month stuck on "Checking this month", and a Try again
+    // that could not win. Revoking the viewer's tokens is a documented step of rotating the PIN, so
+    // this is the ordinary path, not a corner.
+    beforeEach(() => { rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false; });
+    // These are the only tests in the file that SHUT the gate, and the module holds it process-wide —
+    // leaving it shut silently disabled every read in every suite that ran afterwards.
+    afterEach(() => { setOverrideAccess(true); });
+
+    test('re-granting access releases months claimed before it was lost', async () => {
+        setOverrideAccess(true);
+        _mockDocs = [];
+        let renders = 0;
+        await ensureOverridesCached(2031, 4, () => { renders++; });   // claims 2031-05
+        assert.equal(renders, 1, 'first read settles and repaints');
+
+        // Same month again — correctly a no-op while the claim stands.
+        await ensureOverridesCached(2031, 4, () => { renders++; });
+        assert.equal(renders, 1);
+
+        // Access lost, then returns (the member entered the rotated PIN).
+        setOverrideAccess(false);
+        setOverrideAccess(true);
+
+        await ensureOverridesCached(2031, 4, () => { renders++; });
+        assert.equal(renders, 2, 'the re-granted session must be able to read the month again');
+    });
+
+    test('revoking access does NOT clear the claims — only a grant does', async () => {
+        // Deliberate asymmetry. Clearing on revoke would let anything that ran between the revoke and
+        // the next grant re-claim months against a shut gate.
+        setOverrideAccess(true);
+        let renders = 0;
+        await ensureOverridesCached(2032, 4, () => { renders++; });
+        setOverrideAccess(false);
+        await ensureOverridesCached(2032, 4, () => { renders++; });
+        assert.equal(renders, 1, 'a shut gate reads nothing at all, claims or no claims');
+    });
+});
 
 describe('ensureOverridesCached fetch failure', () => {
     beforeEach(() => {

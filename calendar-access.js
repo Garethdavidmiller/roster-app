@@ -66,6 +66,8 @@ let _resolveAccess = null;
 let _consecutiveFailures = 0;
 /** @type {(() => void)|null} */
 let _onGranted = null;
+/** Runs on EVERY grant, where `_onGranted` runs once. @type {(() => void)|null} */
+let _onEveryGrant = null;
 /** @type {(() => void)|null} */
 let _resolveAuth = null;
 /** In `open` mode, the un-awaited anonymous sign-in — held so `calendarAuthReady` can wait on the
@@ -158,6 +160,15 @@ function grant(/** @type {'named'|'viewer'|'open'} */ type) {
     document.body.classList.add('calendar-unlocked');
     hideLockPanel();
     setWorkspaceHidden(false);
+    // TWO hooks, because a grant is two different things (v20.41). Building the workspace must happen
+    // ONCE — running it twice would re-wire the swipe handler and re-launch the initial fetch. But
+    // REOPENING the override gate must happen EVERY time, and bundling the two into one one-shot
+    // callback was a real dead end: after `handleAccessLost` re-locked, a viewer who entered the new
+    // PIN got the workspace back with `_accessGranted` still false, so every read was refused at
+    // source and every month sat on "Checking this month" for ever. That is not a corner — revoking
+    // the viewer's tokens is a documented step of rotating the PIN, so it is the NORMAL path, and it
+    // is the one place the user has already done everything right.
+    if (_onEveryGrant) { try { _onEveryGrant(); } catch (e) { console.error('[CalendarAccess] gate reopen failed', e); } }
     if (_onGranted) { const fn = _onGranted; _onGranted = null; try { fn(); } catch (e) { console.error('[CalendarAccess] start failed', e); } }
     if (_resolveAccess) { const r = _resolveAccess; _resolveAccess = null; r(); }
     // The WRITE gate. `named`/`viewer` already hold a user, so it is the same instant; `open` has a
@@ -523,13 +534,18 @@ export function handleAccessLost() {
 /**
  * Decide access and either start the Calendar or show the unlock panel.
  *
- * @param {{ onGranted: () => void }} deps  onGranted runs ONCE, the first time access is granted.
- *   It is how `calendar-app.js` defers every piece of Calendar initialisation — the member
- *   dropdown, the render, the fetch, the swipe handler — so that none of it exists while locked.
+ * @param {{ onGranted: () => void, onEveryGrant?: (() => void)|null }} deps
+ *   onGranted runs ONCE, the first time access is granted. It is how `calendar-app.js` defers every
+ *   piece of Calendar initialisation — the member dropdown, the render, the fetch, the swipe handler
+ *   — so that none of it exists while locked. Running it twice would duplicate all of that.
+ *   onEveryGrant runs on EVERY grant, including one that follows a re-lock. Anything that a re-lock
+ *   TURNS OFF has to be turned back on here rather than in `onGranted`, or it stays off for the rest
+ *   of the session — see the note in `grant`.
  * @returns {Promise<'named'|'viewer'|'open'|'none'>}
  */
-export async function initCalendarAccess({ onGranted }) {
+export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     _onGranted = onGranted;
+    _onEveryGrant = onEveryGrant;
     // Hide the workspace SYNCHRONOUSLY, before any await. The decision below is asynchronous, and
     // between here and there the browser paints — so leaving the workspace visible would flash an
     // empty Calendar shell at a member who is about to be shown their roster, and worse, would show
