@@ -78,6 +78,7 @@ mock.module('./roster-data.js', { namedExports: { CONFIG } });
 
 const {
     unlockWithPin, getAccessType, isViewerMode, initCalendarAccess, lockCalendar, handleAccessLost,
+    calendarAccessReady, calendarAuthReady,
 } = await import('./calendar-access.js');
 
 // A DOM just rich enough for the module to build and query its card.
@@ -149,6 +150,47 @@ beforeEach(() => {
         if (next instanceof Error) throw next;
         return next || { ok: true, status: 200, json: async () => ({ token: 'GOOD_TOKEN' }) };
     };
+});
+
+// ── MUST BE THE FIRST TEST IN THIS FILE ─────────────────────────────────────────────────────────
+//
+// `calendarAccessReady` and `calendarAuthReady` are module-level promises that resolve ONCE, for the
+// lifetime of the import. `beforeEach` can reset `_accessType`, but nothing can un-resolve a
+// promise — so any test that grants access ahead of this one leaves both already settled and the
+// distinction unobservable. Hence the position, and hence the guard assertion below, which fails
+// loudly rather than passing vacuously if this ever stops being first.
+describe('open mode: the render gate and the WRITE gate are different instants', () => {
+    test('ACCESS resolves immediately; AUTH waits for the anonymous sign-in', async () => {
+        // ── THE REGRESSION THIS PINS ────────────────────────────────────────────────────────────
+        //
+        // v20.18 stopped awaiting the anonymous sign-in so the grid could paint without a network
+        // round trip. Right for RENDERING, wrong for everything that WRITES: the error reporter, the
+        // usage counters, the latency sampler, the document-open counters and the push renewal all
+        // need `request.auth != null`, and every one of them was gated on the access promise. So for
+        // one release they fired into a window with no token and were silently rejected — the same
+        // race as the v14.23–28 push-subscription bug, re-opened from the other side.
+        //
+        // The distinction exists ONLY in `open` mode. In `named` and `viewer` the two resolve
+        // together, so nothing else in this file would notice either promise being wired wrongly.
+        CONFIG.CALENDAR_PIN_ACCESS = false;
+        signInAnonymouslyHangs = true;
+        let accessResolved = false, authResolved = false;
+        calendarAccessReady.then(() => { accessResolved = true; });
+        calendarAuthReady.then(() => { authResolved = true; });
+        await Promise.resolve();
+        assert.equal(accessResolved, false,
+            'a previous test already granted access — move this describe back to the top of the file');
+
+        await initCalendarAccess({ onGranted: () => {} });
+        await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+        assert.equal(accessResolved, true, 'the render gate waited for the network — the v20.18 fix is undone');
+        assert.equal(authResolved, false, 'the WRITE gate opened before any session existed');
+
+        // And it DOES open once the sign-in lands — a gate, not a permanent block.
+        signInAnonymouslyHangs = false;
+        handleAccessLost();
+    });
 });
 
 // ── The exchange ────────────────────────────────────────────────────────────────────────────────

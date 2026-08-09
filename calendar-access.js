@@ -66,6 +66,11 @@ let _resolveAccess = null;
 let _consecutiveFailures = 0;
 /** @type {(() => void)|null} */
 let _onGranted = null;
+/** @type {(() => void)|null} */
+let _resolveAuth = null;
+/** In `open` mode, the un-awaited anonymous sign-in — held so `calendarAuthReady` can wait on the
+ *  thing `calendarAccessReady` deliberately does not. @type {Promise<any>|null} */
+let _anonSettled = null;
 
 /** Resolves the FIRST time Calendar access is granted, and never rejects.
  *  Never-rejecting is deliberate: every consumer uses it as a gate, and a rejection would have each
@@ -73,6 +78,28 @@ let _onGranted = null;
  *  app's start page. Access that is never granted simply never resolves, and the locked UI is the
  *  user-visible half of that. */
 export const calendarAccessReady = /** @type {Promise<void>} */ (new Promise(resolve => { _resolveAccess = () => resolve(); }));
+
+/**
+ * Resolves when this browser holds a Firebase identity the app's best-effort WRITES can use.
+ *
+ * **Two promises, because v20.18 split what used to be one thing.** `calendarAccessReady` answers
+ * "may this browser SEE the roster", and the whole point of that release was to stop it waiting on
+ * a network round trip — the Calendar draws from a local roster and needs no identity to do it.
+ * But the error reporter, the usage counters, the latency sampler, the document-open counters and
+ * the push-subscription renewal all write to Firestore, and every one of those rules requires
+ * `request.auth != null`.
+ *
+ * In `named` and `viewer` mode the two are the same instant: access is only granted once a real
+ * user exists. In `open` mode they are NOT — the anonymous sign-in is deliberately left in flight
+ * so the grid can paint — and a write issued in that window has no token. Anything that writes must
+ * therefore await THIS, and anything that renders should await the other. Getting it backwards is
+ * silent in both directions: a render that waits costs latency nobody attributes, and a write that
+ * does not is simply rejected.
+ *
+ * Like its sibling it never rejects, and while the Calendar is locked it never resolves — a browser
+ * that was never shown the roster has nothing worth recording.
+ */
+export const calendarAuthReady = /** @type {Promise<void>} */ (new Promise(resolve => { _resolveAuth = () => resolve(); }));
 
 /** @returns {'named'|'viewer'|'open'|'none'} the access this browser currently holds.
  *  `open` means the staff PIN is switched OFF (`CONFIG.CALENDAR_PIN_ACCESS`) and the Calendar is
@@ -133,6 +160,14 @@ function grant(/** @type {'named'|'viewer'|'open'} */ type) {
     setWorkspaceHidden(false);
     if (_onGranted) { const fn = _onGranted; _onGranted = null; try { fn(); } catch (e) { console.error('[CalendarAccess] start failed', e); } }
     if (_resolveAccess) { const r = _resolveAccess; _resolveAccess = null; r(); }
+    // The WRITE gate. `named`/`viewer` already hold a user, so it is the same instant; `open` has a
+    // sign-in still in flight, so it waits for that to SETTLE — settle, not succeed, because a
+    // failed anonymous sign-in must let the writes attempt and fail rather than hang for ever.
+    if (_resolveAuth) {
+        const r = _resolveAuth; _resolveAuth = null;
+        if (type === 'open' && _anonSettled) _anonSettled.then(r, r);
+        else r();
+    }
 }
 
 // ── The unlock exchange ─────────────────────────────────────────────────────────────────────────
@@ -513,7 +548,8 @@ export async function initCalendarAccess({ onGranted }) {
             // are gated separately, and every write that needs a session already awaits its own
             // promise. The `.catch` is what "best effort" means — a failed anonymous sign-in must
             // not reject an unhandled promise, and it must not stop the Calendar.
-            try { Promise.resolve(signInAnonymously(auth)).catch(() => {}); } catch { /* noop */ }
+            try { _anonSettled = Promise.resolve(signInAnonymously(auth)).catch(() => {}); }
+            catch { _anonSettled = Promise.resolve(); }
             type = 'open';
         }
         console.warn('[CalendarAccess] staff PIN is switched OFF (CONFIG.CALENDAR_PIN_ACCESS)');
