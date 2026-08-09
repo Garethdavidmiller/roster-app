@@ -586,16 +586,57 @@ The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Box
 Standard weekday contracted hours are not pre-filled — staff enter those manually.
 The suggestion is advisory; staff should verify it against their actual payslip.
 
-### Tax band model is approximate for 0T and K codes (flagged v12.49 — check later)
-In `computeTax()` (`paycalc-calc.js`), the basic-rate band width is computed as
-`income threshold − personal allowance` (e.g. £50,270 − £12,570 = £37,700 for 1257L).
-HMRC actually applies the bands to **taxable pay**: the first £37,700 of taxable income
-is at 20% regardless of the tax code. The two models agree exactly for ordinary `nL`
-codes, but diverge for **0T** and **K codes** — there the current model makes the 20%
-band the full £50,270 wide, under-taxing anyone on those codes who crosses into the
-40% band. The existing tests in `paycalc.test.mjs` encode the current behaviour, so
-changing this means updating tests too. Rare codes at Marylebone; **verify against a
-real payslip from someone on a 0T/K code before changing** — do not fix speculatively.
+### The Calendar can briefly show the BASE roster before it knows about overrides (v20.39 audit)
+
+**Severity:** the highest-value item outstanding — it can show a member a shift they are not working.
+**Status:** open, deliberately not rushed. **Module:** `calendar-app.js` → `calendar-initial-fetch.js`.
+
+`_startCalendarWorkspace()` starts the three-month override fetch and then calls `renderCalendar()`
+synchronously. The v19.01 two-phase load paints from the local Firestore cache first, so a returning
+device is fine — but on a **fresh browser there is no cache**, phase 1 paints nothing, and the base
+roster goes up while the authoritative read is still in flight. `.calendar-fetching` shimmers the
+cells, which reads as *loading*, not as *this may be wrong*: the shift times underneath stay legible.
+
+**User impact.** Someone on annual leave, absent, or moved to a different shift can see their old
+shift presented as current. On a good connection the window is a few hundred milliseconds. The case
+that matters is the **failed** read: the base roster stays on screen indefinitely beside a
+"Couldn't update" chip, and `calendar-initial-fetch.js` says so in as many words — *"Initial override
+fetch failed — base roster will be used"*. The same gap applies to a month navigated outside the
+fetched window, and to Team View.
+
+**The invariant to implement:** *cache absence is not evidence that no override exists.* A month may
+only be presented as current when its override state is known — authoritatively, or from cache and
+labelled stale.
+
+**Workaround today:** none for the user. Pull-to-refresh once the network returns.
+
+**Why it is not fixed in this pass.** The fix is not a delay; it is a data-readiness state
+(`unknown` / `cached` / `authoritative` / `error`) owned outside the coordinator, plus first-paint
+gating, month-range knowledge, Team View, retry, and late-response cache ownership. That is a change
+to the boot path of the app's most-used surface, which has produced several subtle bugs already (the
+v16.23 competing fetch, the swipe race, the v18.21 Team View stand-down). It wants characterisation
+tests captured first and its own commit — doing it at the tail of a long session is how the next
+entry on this list gets written.
+
+**Trigger for fixing:** next Calendar work of any size, before any further feature is added to the
+boot path.
+
+### ~~Tax band model is approximate for 0T and K codes~~ — CLOSED (flagged v12.49, fixed since)
+
+**Closed.** This described `computeTax()` deriving the basic-rate band as
+`threshold − personal allowance`, which is right for ordinary `nL` codes and wrong for **0T** and
+**K** codes — there HMRC applies the bands to *taxable pay*, so the old model made the 20% band a
+full personal allowance too wide and under-taxed anyone on those codes who crossed into 40%.
+
+`paycalc-calc.js` now handles both explicitly (`0T`/`S0T` take a zero allowance; `Kn` adds its
+negative allowance to taxable pay; the band arithmetic works from taxable pay, not from the code's
+own PA), and `paycalc.test.mjs` pins it — 0T, K500, the Welsh `C`-prefixed equivalents and the
+month-1/cumulative paths all have cases.
+
+**Recorded as closed rather than deleted** because the entry survived its own fix by several
+releases and was still being read as a live defect at the v20.32 audit. That is the failure mode
+this file has to guard against: an old finding is indistinguishable from a current one, so a stale
+entry costs more here than a missing one.
 
 ### ~~Pension default is frozen onto a period once it is touched~~ — CLOSED v18.43
 
