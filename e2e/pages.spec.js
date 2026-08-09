@@ -1008,6 +1008,88 @@ test('fip: a "popular" shortcut opens its country, clearing an active filter fir
     await expect(page.locator('#countrySearch')).toHaveValue('');
 });
 
+// ── FIP: the booking-reach table (v20.31–32) ───────────────────────────────────────────────────
+//
+// This is the only table on the guide, and it exists because "can I book this before I leave?" was
+// the question the page could not answer. Two things about it can break WITHOUT anything throwing,
+// which is why they are tested rather than eyeballed:
+//
+//   1. The country finder selects cards by `[id^="country-"]`. The table is a <details> sitting in
+//      a different section, so it must be invisible to the filter — if a future id or selector
+//      change swept it in, typing a country name would hide the table that answers the question
+//      about that country. Nothing would error; the table would just vanish.
+//
+//   2. Below 560px the rows STACK, and each cell states its own column through a `data-label`
+//      ::before. Before that, the international column clipped at the card edge with no scroll
+//      affordance — so "Trains to Romania only" read as "Trai…", and a truncated answer looks like
+//      a whole one. The stacked layout is a CSS media query over generated content: a static test
+//      cannot see it and a unit test has no layout, so it takes a real browser at a real width.
+test('fip: the booking-reach table answers per country, and the finder leaves it alone', async ({ page }) => {
+    await page.goto('/fip.html');
+    const table = page.locator('#booking-table');
+    await table.evaluate(el => { el.open = true; });
+
+    // Every country RST lists gets a row, and the three answer classes all render.
+    await expect(table.locator('tbody tr')).toHaveCount(22);
+    // Match on the ROW HEADER, not row text: several rows name another country in their
+    // international column ("TER/IC to Belgium"), so `hasText` picks up three rows for Belgium.
+    const rowFor = name => table.locator('tbody tr').filter({
+        has: page.locator(`td[role="rowheader"]:text-is("${name}")`),
+    });
+    await expect(rowFor('Belgium').locator('td[data-label="Domestic"]'))
+        .toContainText('75% is ticket offices only');
+    await expect(rowFor('France').locator('td[data-label="Domestic"]'))
+        .toContainText('SNCF Contact Centre');
+    await expect(rowFor('Spain').locator('td[data-label="Domestic"]')).toHaveClass(/t-yes/);
+
+    // A "no" must never be presented as a refusal of FIP — the caption carries that, and it is the
+    // difference between "you cannot go" and "buy it when you arrive".
+    await expect(table).toContainText('buy it at a ticket office when you get there');
+
+    // The finder must not touch it: filter to one country and the table stays put.
+    await page.locator('#countrySearch').fill('spain');
+    await expect(page.locator('#country-fr')).toBeHidden();
+    await expect(table).toBeVisible();
+});
+
+test('fip: the booking table stacks with labelled cells on a phone', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 900 });
+    await page.goto('/fip.html');
+    await page.locator('#booking-table').evaluate(el => { el.open = true; });
+
+    // The stacked layout announces each column per cell. Read the generated content, because that
+    // IS the header on this layout — the real <thead> is clipped away.
+    const label = await page.locator('#booking-table tbody td[data-label]').first()
+        .evaluate(el => getComputedStyle(el, '::before').content);
+    expect(label).toContain('Domestic');
+
+    // Rows must be blocks, not table-rows — that is what proves the media query applied.
+    const display = await page.locator('#booking-table tbody tr').first()
+        .evaluate(el => getComputedStyle(el).display);
+    expect(display).toBe('block');
+
+    // And nothing may clip: the answer text must fit inside its own cell at this width.
+    const overflow = await page.locator('#booking-table tbody td[data-label]')
+        .evaluateAll(tds => tds.filter(td => td.scrollWidth > td.clientWidth + 1).length);
+    expect(overflow).toBe(0);
+
+    // The page itself must not scroll sideways either.
+    const bodyOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(bodyOverflow).toBeLessThanOrEqual(0);
+});
+
+// Every country and ferry card states when it was checked. guide-sources.test.mjs proves the line is
+// PRESENT in the markup and that its date matches the register; this proves it is actually VISIBLE
+// once the card is open — a static check cannot tell an evidence line from one a stylesheet hides.
+test('fip: an opened country card shows its checked date', async ({ page }) => {
+    await page.goto('/fip.html');
+    await page.locator('#country-cz').evaluate(el => { el.open = true; });
+    const line = page.locator('#country-cz .country-reviewed');
+    await expect(line).toBeVisible();
+    await expect(line).toContainText('Checked Aug 2026');
+});
+
 // ── OPERATIONS: Password Reset Requests card WITH ROWS (v18.94) ────────────────────────────────
 // This card shipped at v18.93 rendered only at 1280px, and its row collapsed at 375px — the name
 // column squeezed to 18px, names broke mid-word and the text painted over the remedy label. Nothing
