@@ -762,7 +762,7 @@ async function initPageSpeedCard() {
      *  @param {Record<string, number>} samples @param {string} page
      *  @param {'conn'|'mode'|'version'} dimension */
     const breakdownRows = (samples, page, dimension) => {
-        const { rows } = summarisePerfBy(samples, { page, metric: 'domReady', dimension });
+        const { rows } = summarisePerfBy(samples, { page, metric: 'domReady', dimension, minSamples: THIN_SAMPLE });
         if (rows.length < 2) return null;   // one group explains nothing — it IS the page total
         const frag = document.createDocumentFragment();
         const heading = document.createElement('p');
@@ -776,13 +776,24 @@ async function initPageSpeedCard() {
             const row = document.createElement('div');
             row.className = 'speed-row speed-row--why';
             const thin = r.total < THIN_SAMPLE;
-            // The SLOW percentage is the number being hunted, so it is stated as a number rather
-            // than left to be eyeballed off a bar. The card had only ever exposed "% quick", in an
-            // aria-label, which is the one figure that cannot answer "why is this slow".
+            // ── WHICH NUMBER GOES HERE ──────────────────────────────────────────────────────
+            //
+            // It said "% slow" first, and the first real data showed that was the wrong band. Every
+            // row read 0–3% slow while its bar carried a wide amber middle: the Calendar's tail is
+            // not "over 3 seconds", it is "over ONE second", which is 13% of loads and the band the
+            // whole card is framed around ("86% within a second"). A number reporting 3% next to a
+            // bar that is visibly a quarter amber makes the reader trust the number and miss the
+            // finding.
+            //
+            // So the row states the complement of the headline — everything NOT under a second —
+            // and the bar keeps showing how that splits. The full three-way breakdown stays in the
+            // aria-label, which is where a screen-reader user gets what sighted users read off the
+            // bar.
+            const overOneSecond = 100 - r.pctQuick;
             row.innerHTML =
                 `<span class="speed-row-label">${escapeHtml(r.label)}${thin ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
                 `<span class="speed-bar" role="img" aria-label="${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
-                `<span class="speed-row-count">${r.pctSlow}% slow · ${r.total.toLocaleString('en-GB')}</span>`;
+                `<span class="speed-row-count">${overOneSecond}% over 1s · ${r.total.toLocaleString('en-GB')}</span>`;
             list.appendChild(row);
         });
         frag.appendChild(list);
@@ -804,7 +815,8 @@ async function initPageSpeedCard() {
         frag.appendChild(subMilestone('🔍', `Why some are slower — ${meta ? meta.emoji + ' ' + meta.label : busiest.page}`));
         frag.appendChild(noteLine(
             'The busiest page, split by the things that were already being recorded with each load. '
-            + 'Small groups are marked "(few)" — a handful of loads can read 100% slow and mean nothing.'));
+            + '"Over 1s" is the complement of the headline above — everything that did not open within a second. '
+            + 'Small groups are marked "(few)": a handful of loads can read 100% and mean nothing.'));
         let any = false;
         for (const dim of /** @type {Array<'conn'|'mode'|'version'>} */ (['conn', 'mode', 'version'])) {
             const block = breakdownRows(samples, busiest.page, dim);

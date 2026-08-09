@@ -171,10 +171,11 @@ export const PERF_DIMENSIONS = {
  * present that with exactly the confidence of a real finding.
  *
  * @param {Record<string, number>} samples raw `analytics/perf_<month>.samples`
- * @param {{ page: string, metric?: string, dimension?: 'conn'|'mode'|'version' }} opts
+ * @param {{ page: string, metric?: string, dimension?: 'conn'|'mode'|'version', minSamples?: number }} opts
+ *   `minSamples` only affects `version` — see `_bucketVersions`.
  * @returns {{ total: number, rows: Array<{ value: string, label: string } & ReturnType<typeof _withPct>> }}
  */
-export function summarisePerfBy(samples, { page, metric = 'domReady', dimension = 'conn' }) {
+export function summarisePerfBy(samples, { page, metric = 'domReady', dimension = 'conn', minSamples = 0 }) {
     const dim = PERF_DIMENSIONS[dimension];
     /** @type {Record<string, {quick:number, ok:number, slow:number}>} */
     const groups = {};
@@ -193,6 +194,9 @@ export function summarisePerfBy(samples, { page, metric = 'domReady', dimension 
         (groups[value] || (groups[value] = { quick: 0, ok: 0, slow: 0 }))[group] += n;
         total += n;
     }
+    // Versions get ROLLED UP rather than listed. See `_bucketVersions`.
+    if (dimension === 'version') return { total, rows: _bucketVersions(groups, minSamples) };
+
     const keys = Object.keys(groups);
     const order = /** @type {string[]|null} */ (dim.order);
     const ordered = order
@@ -208,6 +212,57 @@ export function summarisePerfBy(samples, { page, metric = 'domReady', dimension 
             ..._withPct(groups[v]),
         })),
     };
+}
+
+/**
+ * Roll the version dimension into buckets big enough to mean something.
+ *
+ * **Listing versions individually does not work here, and shipping it that way proved it.** The
+ * version bumps by 0.01 on every change, so a month spans ~30 releases and 480 samples spread
+ * across them gives rows of 1–9 loads each — every one flagged "(few)", none comparable to any
+ * other, and the dimension that was supposed to answer "did a release make this worse" answering
+ * nothing at all while occupying more screen than the other two dimensions combined.
+ *
+ * So: walk newest→oldest, accumulating into a bucket, and close it once it holds enough samples to
+ * be worth reading. That yields a handful of contiguous ranges — `v20.10–v20.19` — which is the
+ * shape the question actually has ("recent releases vs before"), since nobody cares whether it was
+ * v20.14 or v20.15 specifically. Newest-first accumulation matters: the current release must not be
+ * diluted by being averaged into a bucket with old ones, because it is the one being judged.
+ *
+ * The oldest remainder is MERGED into the previous bucket rather than emitted as a thin row — a
+ * trailing "(few)" row is exactly what this exists to remove. Unless it is the only bucket, in
+ * which case it is shown as-is: a month with barely any data should look like one.
+ *
+ * @param {Record<string, {quick:number, ok:number, slow:number}>} groups
+ * @param {number} minSamples
+ */
+function _bucketVersions(groups, minSamples) {
+    const versions = Object.keys(groups).sort(_compareVersionsDesc);
+    /** @type {Array<{ newest: string, oldest: string, quick: number, ok: number, slow: number }>} */
+    const buckets = [];
+    /** @type {{ newest: string, oldest: string, quick: number, ok: number, slow: number }|null} */
+    let cur = null;
+    for (const v of versions) {
+        if (!cur) cur = { newest: v, oldest: v, quick: 0, ok: 0, slow: 0 };
+        cur.oldest = v;
+        cur.quick += groups[v].quick; cur.ok += groups[v].ok; cur.slow += groups[v].slow;
+        if (cur.quick + cur.ok + cur.slow >= minSamples) { buckets.push(cur); cur = null; }
+    }
+    if (cur) {
+        const last = buckets[buckets.length - 1];
+        if (last) {
+            last.oldest = cur.oldest;
+            last.quick += cur.quick; last.ok += cur.ok; last.slow += cur.slow;
+        } else {
+            buckets.push(cur);
+        }
+    }
+    const v = (/** @type {string} */ x) => 'v' + String(x).replace(/_/g, '.');
+    return buckets.map(b => ({
+        value: b.newest,
+        label: b.newest === b.oldest ? v(b.newest) : `${v(b.oldest)}–${v(b.newest)}`,
+        ..._withPct(b),
+    }));
 }
 
 /** Versions are stored dot-swapped (`20_18`) because a `.` is a Firestore field-path hazard.

@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v20.10 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.20 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -52,12 +52,23 @@ will not retry it, so production can stay stale indefinitely until an unrelated 
 > **`SECURITY_RELEASE_PLAN.md`**. The entries below remain the authoritative *post-mortems and
 > rationale*; that file is the *ordering* that keeps a fix from re-creating the v10.94 outage.
 
-### Override data was publicly readable — CLOSED at v20.12 (staff PIN access)
-The `overrides` collection — annual leave, absence and shift changes for every member — was
-readable with no authentication at all: `allow read;`, so anyone who found the app URL could read
-all of it. That is no longer true. Reads now require **either** a real member `name` claim **or**
-the shared `calendarViewer` capability, minted server-side by the `unlockCalendarViewer` Cloud
-Function in exchange for a four-digit staff PIN.
+### Override data is publicly readable — FIX BUILT at v20.12, NOT YET IN EFFECT (staff PIN access)
+> ⚠️ **STILL OPEN AS DEPLOYED (v20.20).** The whole feature is merged, deployed and dormant: the
+> client ships with `CONFIG.CALENDAR_PIN_ACCESS: false` and the `overrides` read rule carries a
+> matching `allow read;` hold line. **Override data is readable by anyone with the app URL today**,
+> exactly as it was before v20.12. This entry closes when the two brakes are released — client
+> first, rules second, one push each (RECOVERY_RUNBOOK.md → "The Calendar PIN", steps 3 and 4).
+>
+> Written this way on purpose. An entry that read "CLOSED at v20.12" while the rule was still
+> permissive is worse than no entry: it is the one document someone checks to decide whether the
+> roster is exposed, and it would have answered no when the answer was yes. Do not re-word this to
+> past tense until `firestore.rules` says so.
+
+The `overrides` collection — annual leave, absence and shift changes for every member — is readable
+with no authentication at all: `allow read;`, so anyone who finds the app URL can read all of it.
+The fix, built and waiting: reads require **either** a real member `name` claim **or** the shared
+`calendarViewer` capability, minted server-side by the `unlockCalendarViewer` Cloud Function in
+exchange for a four-digit staff PIN.
 
 **Why it stayed open for so long, and what changed.** Requiring auth was tried at v12.04 using an
 anonymous session and reverted at v12.05, correctly: an anonymous session is obtainable by anyone,
@@ -77,7 +88,7 @@ What it buys is that the roster is no longer readable by the open internet, and 
 at minimum be someone who has been told the code. It buys nothing else, and nothing in the app
 claims otherwise.
 
-**Residual limitations, all deliberate:**
+**Residual limitations once it is switched on, all deliberate:**
 - **Rotation is manual.** Changing the PIN is a Secret Manager update (no client release —
   OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN"). Existing viewer sessions survive a
   rotation until their browser closes unless the viewer account's refresh tokens are revoked.
