@@ -178,6 +178,65 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
 }
 .fare-note { font-size: 12px; color: var(--mid); margin: 6px 0 0; }
 
+/* ── Booking-reach table (v20.31) ────────────
+   The one table on this page. It answers a yes/no/partly question per country, so the answer
+   column carries the colour and the country column stays neutral — the reverse would tint the
+   whole row and make "partly" look like a warning about the country rather than about the
+   booking channel. The wrapper scrolls rather than the page: three columns of prose will not
+   fit 360px, and a horizontally-scrolling BODY is the one layout failure a reader cannot undo. */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.fip-table {
+    width: 100%;
+    min-width: 460px;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.fip-table th,
+.fip-table td {
+    padding: 7px 10px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+}
+.fip-table th {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mid);
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+}
+.fip-table tbody tr:last-child td { border-bottom: 0; }
+.fip-table td:first-child { font-weight: 700; white-space: nowrap; }
+.t-yes  { color: var(--green-text); font-weight: 700; }
+.t-no   { color: var(--red-text); }
+.t-part { color: var(--warn-text); }
+
+/* Below ~560px three columns of prose cannot fit, and the scrolling wrapper above is not enough on
+   its own: the answers clip at the edge with nothing to say they continue, so a phone reader sees a
+   truncated word and takes it for the whole answer. Rows therefore STACK, each cell announcing its
+   own column via data-label. The explicit role="table"/"row"/"cell" attributes on the markup are
+   what make that safe — `display: block` strips a table's semantics from the accessibility tree,
+   so without them the stacked version would read as a run of unrelated text. */
+@media (max-width: 560px) {
+    .fip-table { min-width: 0; }
+    .fip-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .fip-table tr { display: block; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .fip-table tbody tr:last-child { border-bottom: 0; }
+    .fip-table td { display: block; border: 0; padding: 1px 0; }
+    .fip-table td:first-child { font-size: 14px; padding-bottom: 3px; white-space: normal; }
+    .fip-table td[data-label]::before {
+        content: attr(data-label) ": ";
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--mid);
+    }
+}
+
 .detail-list { padding: 12px 16px; }
 .detail-row {
     display: flex;

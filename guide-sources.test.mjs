@@ -272,6 +272,44 @@ test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed da
     assert.ok(checked >= 9, `expected the nine sourced FIP country cards to show a date, found ${checked}`);
 });
 
+// ── EVERY COUNTRY AND FERRY CARD SHOWS ITS EVIDENCE STATE (v20.31) ──────────────────────────────
+//
+// The test above proves a date that IS shown is honest. It says nothing about a card that shows
+// none — and that is the gap the page fell into. Between v20.25 and v20.30 the country audit ran a
+// card at a time, each pass adding a "✓ Checked …" line to the cards it had just verified. By the
+// end all 33 country and ferry cards had been read against their live Rail Staff Travel page and
+// eleven of them still carried no line, purely because of which pass had touched them.
+//
+// That is worse than it sounds. The page's own country-finder note tells the reader, correctly,
+// that "a card with no date has not yet been re-verified — treat it as a starting point, not a
+// ruling". So eleven fully-sourced cards were actively telling staff to trust them less. An
+// evidence marker that is present or absent by accident does not merely fail to inform; it
+// misinforms, and it does so in the direction of the reader dismissing good information.
+//
+// The failure mode is silent both ways, which is why it needs a test rather than a convention:
+// nothing renders wrong, nothing throws, and the missing line looks exactly like a deliberate
+// "not checked". So the invariant is now structural — a country or ferry card carries an evidence
+// line, or this fails. Adding a new card means deciding its evidence state, which is the decision
+// that was being skipped.
+test('every FIP country and ferry card states its evidence state', () => {
+    const html = readFileSync(new URL('./fip.html', import.meta.url), 'utf8');
+    const cards = [...html.matchAll(/<details id="((?:country-|ferry-)[^"]+)"[^>]*>([\s\S]*?)<\/details>/g)];
+    assert.ok(cards.length >= 30,
+        `expected the country/ferry cards to be found, got ${cards.length} — has the markup changed?`);
+    const bare = cards.filter(m => !/class="country-reviewed"/.test(m[2])).map(m => m[1]);
+    assert.deepEqual(bare, [],
+        `these FIP cards render no evidence line: ${bare.join(', ')}. The country-finder note tells ` +
+        `readers an undated card is unverified, so a sourced card without one understates itself. ` +
+        `Add the "✓ Checked <Mon> <Year> against Rail Staff Travel" line — or, if it genuinely is ` +
+        `unverified, say so in the card rather than leaving the reader to infer it from silence`);
+    // And every card must also cite the register row that backs it — an evidence line with no
+    // anchor is a claim about a review nothing records.
+    const unanchored = cards.filter(m => !/data-guide-source=/.test(m[0].slice(0, m[0].indexOf('>'))))
+        .map(m => m[1]);
+    assert.deepEqual(unanchored, [],
+        `these FIP cards show an evidence line but cite no register row: ${unanchored.join(', ')}`);
+});
+
 // The FIP country finder also states a GUIDE-LEVEL review date, because the 16 lower-use country
 // cards carry no date of their own (they sit under the sampled `fip-carrier-accept` row). Same
 // hazard, same guard: it must equal the newest Reviewed date across the rows that back the COUNTRY
