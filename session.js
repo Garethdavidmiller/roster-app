@@ -255,7 +255,22 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // tidiness one. This is the single choke point for the viewer→member transition: every member
     // sign-in in the app reaches Firebase through here, so there is no second path that could set
     // long-lived persistence with the viewer still current.
-    await shedCalendarViewer();
+    //
+    // `shedCalendarViewer` THROWS when it cannot confirm the viewer is gone (v20.35 — it used to
+    // warn and carry on, which migrated the shared viewer into long-lived persistence on exactly
+    // the path that must not). Convert that to a clean failed sign-in rather than letting it reject:
+    // four coordinators hand this promise straight to `resolveSession()` with no catch, so a
+    // rejection here would reject `sessionReady` app-wide and surface as unhandled. Returning
+    // 'none' keeps the security property (persistence untouched, no viewer promoted) AND keeps the
+    // failure inside the sign-in flow, where the login overlay already reports it and offers a retry.
+    try {
+        await shedCalendarViewer();
+    } catch (err) {
+        console.warn('[Auth] could not shed the Calendar viewer — sign-in abandoned:',
+            /** @type {any} */ (err)?.message);
+        recordError('auth/viewer-shed-failed');
+        return commit('none', false);
+    }
     // First auth state for this restore. Fast path: if auth.currentUser is ALREADY populated (a live
     // session — e.g. the SECOND ensureFirebaseSession of an in-place sign-in, where the first call just
     // established it), use it synchronously and skip the onAuthStateChanged wait entirely. It is null
@@ -552,7 +567,22 @@ export function clearSession() {
  * If the member sign-in then FAILS, this browser is left with no identity and the long-lived chain
  * armed. That is the correct resting state, not a leak: the Calendar re-locks (there is no viewer to
  * find), and the next unlock explicitly asks for session persistence again.
+ *
+ * ── IT FAILED OPEN UNTIL v20.35, WHICH DEFEATED ITS OWN ORDERING ────────────────────────────────
+ *
+ * The sign-out was wrapped in a `try/catch` that only warned, and the persistence restore then ran
+ * regardless. So on the one path that matters — sign-out rejects, the viewer is STILL the current
+ * user — the code went on to do precisely what the paragraph above says must never happen: migrate
+ * the shared viewer into IndexedDB, where it survives the browser closing. An external review
+ * caught it. The ordering was right and documented; the error handling quietly undid it.
+ *
+ * **A failed sign-out now ABORTS the transition and throws.** The caller
+ * (`ensureFirebaseSession`) is the single choke point every member sign-in passes through, so a
+ * throw there fails the sign-in — the member sees a sign-in failure and can retry, which is a far
+ * better outcome than a shared viewer silently promoted to a long-lived session on an office PC.
+ * Refusing to cross a security boundary beats degrading it quietly.
  * @returns {Promise<void>}
+ * @throws {Error} if the viewer could not be signed out — persistence is then left untouched
  */
 export async function shedCalendarViewer() {
     const u = auth.currentUser;
@@ -562,8 +592,22 @@ export async function shedCalendarViewer() {
     // viewer into IndexedDB — where it outlives the browser session, which is the one property that
     // makes unlocking a shared office PC safe in the first place. This is the ONLY ordering that is
     // correct here and it is not obvious from either call on its own.
-    try { await firebaseSignOut(auth); }
-    catch (err) { console.warn('[Auth] viewer signOut failed:', /** @type {any} */ (err)?.message); }
+    try {
+        await firebaseSignOut(auth);
+    } catch (err) {
+        console.warn('[Auth] viewer signOut failed — aborting member transition, persistence left as-is:',
+            /** @type {any} */ (err)?.message);
+        throw err instanceof Error ? err : new Error('viewer sign-out failed');
+    }
+    // Belt-and-braces: `signOut` resolving is the contract, but the invariant this function exists
+    // to hold is that the viewer is GONE before persistence changes — so assert the state rather
+    // than trust the call. Cheap, synchronous, and the only check that survives an SDK that resolves
+    // without clearing.
+    if (isViewerUser(auth.currentUser)) {
+        throw new Error('viewer still current after sign-out — persistence not changed');
+    }
+    // The restore may still fail open: at this point the viewer is definitely gone, so the worst
+    // case is a member session on a shorter-lived persistence — an inconvenience, not a leak.
     try { await restoreMemberPersistence(); }
     catch (err) { console.warn('[Auth] member persistence restore failed:', /** @type {any} */ (err)?.message); }
 }

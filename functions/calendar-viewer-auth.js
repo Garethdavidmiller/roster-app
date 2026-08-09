@@ -132,13 +132,39 @@ function sourceKeyFor(ip) {
 }
 
 /**
- * Read the caller's address from the request, preferring the proxy header Cloud Run sets.
+ * Read the caller's address from the request — from the END of the forwarding chain.
  *
- * `x-forwarded-for` is a comma-separated chain and the CLIENT is the first entry. Taking the last
- * would read our own load balancer and put every caller on earth in one bucket; taking a middle
- * entry would trust something the client can spoof either way. The first entry is spoofable too —
- * which is exactly why the throttle is a speed bump rather than the security boundary, and why the
- * PIN itself is validated server-side regardless.
+ * ── THIS TOOK THE FIRST ENTRY UNTIL v20.35, AND THAT WAS A REAL BYPASS ──────────────────────────
+ *
+ * `x-forwarded-for` is a comma-separated chain. The old code took the FIRST entry, on the reasoning
+ * that the first entry is the client — with a comment conceding it was spoofable and arguing the
+ * throttle was "a speed bump rather than the security boundary". That argument is wrong here, and
+ * an external review was right to call it: against a FOUR-DIGIT secret the throttle **is** the
+ * security boundary. Nothing else bounds 10,000 guesses, because the PIN cannot be made stronger
+ * without making it unusable on a shared office PC.
+ *
+ * The bypass is trivial. Google's load balancer RETAINS any `X-Forwarded-For` the caller supplied
+ * and appends the address it observed, and its own documentation warns the preceding values are not
+ * verified. So a caller sending `X-Forwarded-For: 1.1.1.1`, then `1.1.1.2`, and so on, minted a
+ * fresh throttle bucket per request and had no effective limit at all.
+ *
+ * **The direction of the chain is the fix.** A caller can only PREPEND — whatever they send ends up
+ * at the front, and the platform's own observation is appended after it. Everything the caller
+ * controls is therefore at the START, and the LAST entry is always platform-derived. So the last
+ * entry is the only one worth keying on.
+ *
+ * **What the last entry actually is depends on the deployment chain, and coarse is the safe way to
+ * be wrong.** It is the observed client address on a direct Cloud Run/Functions URL, and may be a
+ * load-balancer address behind a GCLB — in which case every caller lands in ONE bucket. That is
+ * acceptable *here specifically*, because the whole station already shares one corporate NAT
+ * address, so `DEFAULT_THROTTLE` was sized for the everyone-in-one-bucket case from the start (see
+ * the constant). Being coarser than intended over-throttles; being finer than intended, which is
+ * what taking the first entry did, does not throttle at all.
+ *
+ * **And the throttle no longer rests on getting this right.** `GLOBAL_SOURCE_KEY` below counts
+ * failures across every source under a fixed key that no header can influence, so even a chain
+ * shape this function reads wrongly cannot produce an unbounded guess rate. Verify the real chain
+ * against the deployed function before relying on the per-source granularity for anything.
  *
  * @param {{ headers?: Record<string, any>, ip?: string, socket?: { remoteAddress?: string } }} req
  * @returns {string|null}
@@ -146,17 +172,65 @@ function sourceKeyFor(ip) {
 function clientIpOf(req) {
     const h = (req && req.headers) || {};
     const fwd = h['x-forwarded-for'];
-    if (typeof fwd === 'string' && fwd.trim()) {
-        const first = fwd.split(',')[0].trim();
-        if (first) return first;
+    // Node lower-cases header names; a repeated header arrives as an array, in arrival order, so the
+    // platform's own value is in the LAST element — take the last entry of the last element.
+    const chain = Array.isArray(fwd) ? fwd[fwd.length - 1] : fwd;
+    if (typeof chain === 'string' && chain.trim()) {
+        const parts = chain.split(',').map(s => s.trim()).filter(Boolean);
+        if (parts.length) return parts[parts.length - 1];
     }
-    if (Array.isArray(fwd) && fwd.length && typeof fwd[0] === 'string' && fwd[0].trim()) {
-        return fwd[0].split(',')[0].trim();
-    }
+    // No usable header: `req.ip` and the socket address are observed by the platform, not supplied
+    // by the caller, so both are trustworthy.
     if (req && typeof req.ip === 'string' && req.ip.trim()) return req.ip.trim();
     const remote = req && req.socket && req.socket.remoteAddress;
     return typeof remote === 'string' && remote.trim() ? remote.trim() : null;
 }
+
+/**
+ * The fixed key for the ALL-SOURCES failure counter (v20.35).
+ *
+ * Deliberately a constant, not derived from the request: that is the entire point. Every per-source
+ * control on an internet-facing endpoint depends on attributing the request correctly, and that
+ * attribution rests on a header chain whose exact shape depends on the deployment. This counter
+ * depends on nothing the caller can influence, so it holds even if `clientIpOf` reads the chain
+ * wrongly, if the chain shape changes under us, or if an attacker has genuinely distinct addresses
+ * to rotate through — none of which the per-source throttle survives on its own.
+ *
+ * It is a BACKSTOP and is sized to stay out of the way: it must never be what stops ordinary use.
+ * Not a valid Firestore document id by accident — it is written under the same collection as the
+ * hashed per-source keys, and `sourceKeyFor` produces 32 hex chars, so a name that cannot collide
+ * with one is used instead of a hash of some sentinel string.
+ */
+const GLOBAL_SOURCE_KEY = '_all-sources';
+
+/**
+ * The all-sources ceiling, and the arithmetic behind it.
+ *
+ * **200 failures per 15 minutes, then a 15-minute block.**
+ *
+ *   · **Against automation.** 200 per 15 minutes caps the whole endpoint at 800 guesses an hour, so
+ *     walking all 10,000 combinations takes upwards of twelve hours of sustained traffic against a
+ *     function whose normal volume is a handful of calls a day — and it holds no matter how many
+ *     source identities the caller can manufacture. Before this, a caller who forged the header had
+ *     no bound at all and could finish in minutes.
+ *   · **For Marylebone.** Only FAILURES count, and a correct PIN writes nothing. 200 wrong entries
+ *     inside fifteen minutes, across the entire station, is roughly four each from fifty people —
+ *     which does not mean fumbling, it means the code in circulation is wrong. Stopping is then the
+ *     correct behaviour, and the block clears itself in fifteen minutes.
+ *
+ * Set ABOVE `DEFAULT_THROTTLE.maxFailures` on purpose: if the chain collapses every caller into one
+ * bucket, the per-source limit binds first and this never fires; if the chain is per-client, this is
+ * the only thing bounding the total. Both shapes are covered without needing to know which one is
+ * live.
+ *
+ * Like the per-source block, it EXPIRES on its own — a control that could be driven into a
+ * permanent state by any passer-by is a denial-of-service handle pointed at the staff it protects.
+ */
+const GLOBAL_THROTTLE = Object.freeze({
+    maxFailures:  200,
+    windowMs:     15 * 60 * 1000,
+    blockMs:      15 * 60 * 1000,
+});
 
 /**
  * Decide whether a source may attempt right now, given its recorded failure state.
@@ -263,6 +337,8 @@ module.exports = {
     CALENDAR_VIEWER_UID,
     PIN_LENGTH,
     DEFAULT_THROTTLE,
+    GLOBAL_SOURCE_KEY,
+    GLOBAL_THROTTLE,
     isValidPinShape,
     pinMatches,
     sourceKeyFor,

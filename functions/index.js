@@ -60,6 +60,8 @@ const {
     clientIpOf,
     throttleDecision,
     recordFailure,
+    GLOBAL_SOURCE_KEY,
+    GLOBAL_THROTTLE,
     isThrottleStateStale,
     viewerClaims,
 } = require('./calendar-viewer-auth');
@@ -2069,15 +2071,25 @@ exports.unlockCalendarViewer = onRequest(
         const now       = Date.now();
         const sourceKey = sourceKeyFor(clientIpOf(req));
         const throttleRef = admin.firestore().collection('viewerAttempts').doc(sourceKey);
+        // The ALL-SOURCES ceiling (v20.35). Every per-source control depends on attributing the
+        // request correctly, and that attribution rests on a forwarding header whose exact shape
+        // depends on the deployment — so it is checked and recorded ALONGSIDE the per-source bucket,
+        // never instead of it. This one is keyed on a constant, so no header can mint a fresh
+        // allowance. See GLOBAL_SOURCE_KEY in calendar-viewer-auth.js.
+        const globalRef = admin.firestore().collection('viewerAttempts').doc(GLOBAL_SOURCE_KEY);
 
         // ── Throttle check, BEFORE the comparison ───────────────────────────────────────────────
         // Order matters: a blocked source must not get its guess compared at all, or the block
         // would still leak one bit per request through response timing.
         let blocked = null;
         try {
-            const snap = await throttleRef.get();
+            // Both buckets, in one round trip. EITHER being blocked blocks the attempt: the ceiling
+            // is not an average, it is a ceiling.
+            const [snap, gSnap] = await Promise.all([throttleRef.get(), globalRef.get()]);
             const decision = throttleDecision(snap.exists ? snap.data() : null, now);
+            const gDecision = throttleDecision(gSnap.exists ? gSnap.data() : null, now);
             if (!decision.allowed) blocked = decision;
+            else if (!gDecision.allowed) blocked = gDecision;
         } catch (e) {
             // FAIL OPEN on a throttle-store read failure, deliberately, and this is the one place in
             // this handler that does. The alternative — deny — hands anyone who can make Firestore
@@ -2114,8 +2126,12 @@ exports.unlockCalendarViewer = onRequest(
         if (!ok) {
             try {
                 await admin.firestore().runTransaction(async tx => {
-                    const snap = await tx.get(throttleRef);
+                    // Firestore requires every read in a transaction before any write.
+                    const [snap, gSnap] = await Promise.all([tx.get(throttleRef), tx.get(globalRef)]);
                     tx.set(throttleRef, recordFailure(snap.exists ? snap.data() : null, now));
+                    // The global bucket carries its OWN, higher limit — passing GLOBAL_THROTTLE is
+                    // what makes it a backstop rather than a second copy of the per-source rule.
+                    tx.set(globalRef, recordFailure(gSnap.exists ? gSnap.data() : null, now, GLOBAL_THROTTLE));
                 });
             } catch (e) {
                 console.warn('[unlockCalendarViewer] failure record failed:', e && e.code);

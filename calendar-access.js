@@ -242,7 +242,30 @@ export async function unlockWithPin(pin) {
         // new persistence, so setting session-only while some other identity is live would demote
         // that identity instead of preparing for ours. There should be nobody here (we are locked),
         // but "should be" is not a guarantee worth betting the boundary on.
-        if (auth.currentUser) { try { await signOut(auth); } catch { /* best effort */ } }
+        //
+        // **And a failed sign-out ABORTS — it used to be swallowed (v20.35).** The `catch {}` here
+        // said "best effort", which meant the very next line changed persistence with an unexpected
+        // identity still live: the exact move the paragraph above and the module header both say
+        // must never happen. It is the mirror of the fail-open in `shedCalendarViewer`, found in
+        // the same review. Refusing to unlock is the safe failure — the member sees the PIN card
+        // again and retries, and no identity has been moved between persistence modes.
+        if (auth.currentUser) {
+            try {
+                await signOut(auth);
+            } catch (err) {
+                console.warn('[CalendarAccess] could not clear the existing identity; not switching persistence:',
+                    /** @type {any} */ (err)?.message);
+                const f = classifyUnlockFailure({ code: 'signout-failed' });
+                return { ok: false, kind: f.kind, message: f.message };
+            }
+            // Assert the state rather than trust the call — the invariant is that nobody is current
+            // when persistence changes, not merely that signOut resolved.
+            if (auth.currentUser) {
+                console.warn('[CalendarAccess] identity survived sign-out; not switching persistence');
+                const f = classifyUnlockFailure({ code: 'signout-failed' });
+                return { ok: false, kind: f.kind, message: f.message };
+            }
+        }
         await setViewerPersistence();
         const cred = await signInWithCustomToken(auth, token);
 
