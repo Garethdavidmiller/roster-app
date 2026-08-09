@@ -346,7 +346,15 @@ The hold line is declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firest
 and `calendar-viewer-parity.test.mjs` fails if the two disagree in either direction. That is what
 stops the hold outliving the rollout: it cannot be forgotten quietly, only removed deliberately.
 
-1. **Secret.** `firebase functions:secrets:set CALENDAR_VIEWER_PIN`. Nothing else works without it.
+1. **Secret — BEFORE the merge, not after.** `firebase functions:secrets:set CALENDAR_VIEWER_PIN`.
+   This is not merely "nothing works without it": `firebase deploy --only functions` resolves the
+   `latest` version of every secret bound to a deploying endpoint (`validateSecretVersions` in
+   firebase-tools) and throws if one has no version. `defineSecret` creating the container is not
+   enough — an empty secret still fails. And the check covers the WHOLE deploy, so an unset PIN does
+   not fail just `unlockCalendarViewer`; it fails `ingestHuddle`, `parseRosterPDF` and everything
+   else in the same run. The live functions keep serving their current revision, so nothing breaks
+   for staff, but the push ships no function code and opens a deploy-failure issue. Recoverable —
+   set the secret and re-run the workflow — but the cheap move is to set it first.
 2. **Merge the branch, and the function goes live with it.** Prove `unlockCalendarViewer` from the
    production origin. Both brakes are still on, so staff see no change whatsoever — this is the dark
    deploy, and its job is to prove the *rest* of the release (session handling, the nav drawer, the
