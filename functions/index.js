@@ -2098,7 +2098,9 @@ exports.unlockCalendarViewer = onRequest(
         }
         const supplied = body && typeof body.pin === 'string' ? body.pin : null;
 
-        const expected = CALENDAR_VIEWER_PIN.value();
+        // Trimmed here as well as inside `pinMatches`, so the two agree on what "configured" means:
+        // a secret of nothing but whitespace is a DEPLOYMENT fault (503 below), not a wrong PIN.
+        const expected = (CALENDAR_VIEWER_PIN.value() || '').trim();
         if (!expected) {
             // The secret is missing or empty. 503, and NOT 401: telling a member their PIN is wrong
             // when the server has no PIN configured would send the whole station looking for a code

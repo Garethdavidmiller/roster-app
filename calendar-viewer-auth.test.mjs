@@ -53,6 +53,31 @@ describe('pinMatches — constant time, and safe on every wrong input', () => {
         assert.equal(pinMatches('4821', '1284'), false);
     });
 
+    test('a STORED value with surrounding whitespace still matches — the deploy-day trap', () => {
+        // `echo 4821 | gcloud secrets versions add` stores "4821\n", and a console paste can pick
+        // up a space. Untrimmed, that refuses every unlock with a flat "PIN not recognised" — which
+        // reads as a wrong code rather than a bad deploy, and cannot be diagnosed by logging,
+        // because this module must never log a PIN. The one plausible operator error, and the one
+        // with no visible cause.
+        assert.equal(pinMatches('4821', '4821\n'), true);
+        assert.equal(pinMatches('4821', '4821\r\n'), true);
+        assert.equal(pinMatches('4821', ' 4821 '), true);
+    });
+
+    test('trimming the stored value cannot admit a WRONG PIN', () => {
+        // The whole safety argument for the trim. It only ever lets the intended value through.
+        assert.equal(pinMatches('4821', ' 4822 '), false);
+        assert.equal(pinMatches('4821', '48 21'), false, 'inner whitespace must not be collapsed');
+        assert.equal(pinMatches('4821', '   '), false, 'a whitespace-only secret is not a match');
+    });
+
+    test('the SUPPLIED value is NOT trimmed — that would widen what the endpoint accepts', () => {
+        // Asymmetric on purpose: `supplied` is client input and `isValidPinShape` already requires
+        // exactly four digits. Trimming here would make the pair disagree about what a PIN is.
+        assert.equal(pinMatches('4821 ', '4821'), false);
+        assert.equal(pinMatches(' 4821', '4821'), false);
+    });
+
     test('DIFFERENT LENGTHS do not throw — that would itself be a length oracle', () => {
         // `timingSafeEqual` throws on unequal buffer lengths, which would turn a wrong-length guess
         // into a 500 while a wrong-value guess returned 401. Both sides are hashed to 32 bytes

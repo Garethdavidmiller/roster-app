@@ -86,12 +86,23 @@ function isValidPinShape(v) {
  * a misconfigured secret of the wrong length compares safely instead of throwing a 500 that would
  * distinguish "server misconfigured" from "wrong PIN".
  *
+ * **`expected` is TRIMMED; `supplied` is not.** The stored secret is typed or piped in by a human
+ * at deploy time, and the ordinary ways of doing that add a trailing newline —
+ * `echo 1234 | gcloud secrets versions add` does, and a console text box can pick up a stray space
+ * on a paste. The failure that causes is the worst kind available here: every unlock is refused
+ * with a flat "PIN not recognised", which reads as a wrong code rather than a bad deploy, and the
+ * one thing that would diagnose it — logging what was actually stored — is precisely what this
+ * module must never do. Trimming cannot admit a wrong PIN; it can only let the intended one work.
+ * `supplied` is deliberately left alone: it arrives from the client, `isValidPinShape` already
+ * requires exactly four digits, and trimming it would quietly widen what the endpoint accepts.
+ *
  * @param {unknown} supplied
  * @param {unknown} expected
  * @returns {boolean}
  */
 function pinMatches(supplied, expected) {
     if (typeof supplied !== 'string' || typeof expected !== 'string') return false;
+    expected = expected.trim();
     if (!supplied.length || !expected.length) return false;
     const a = crypto.createHash('sha256').update(supplied, 'utf8').digest();
     const b = crypto.createHash('sha256').update(expected, 'utf8').digest();
