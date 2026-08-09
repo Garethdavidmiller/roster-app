@@ -206,17 +206,72 @@ const _e2eAuth = (code) => () => {
 // caller, which bails with "Not signed in" before it ever fetches) opts in with
 // window.__E2E = { authUser: true }; everything else is unchanged.
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
-export const getAuth = () => ({
-    currentUser: (globalThis.__E2E || {}).authUser
-        ? { uid: 'test', getIdTokenResult: () => Promise.resolve({ token: 'e2e-token', claims: { admin: true } }) }
-        : null,
+const _viewerUser = () => ({
+    uid: 'calendar-viewer',
+    isAnonymous: false,
+    getIdTokenResult: () => Promise.resolve({
+        token: 'e2e-viewer-token',
+        claims: (globalThis.__E2E || {}).viewerClaimMissing ? {} : { calendarViewer: true },
+    }),
 });
-export const onAuthStateChanged = (_auth, cb) => { Promise.resolve().then(() => cb && cb(null)); return noop; };
+const _currentUser = () => {
+    const e2e = globalThis.__E2E || {};
+    // The viewer flag lives in sessionStorage, not only on __E2E. That is not a convenience — it is
+    // what makes the stub MODEL the thing under test: the real viewer runs on browserSessionPersistence,
+    // so it must survive a reload and die with the browser context. A flag on window would be lost on
+    // reload, and the "stays unlocked across a reload" spec would fail against correct code.
+    // A MEMBER outranks the viewer, mirroring decideAccess's own precedence. A spec that seeds both
+    // (the common case once seedViewerAccess is a blanket beforeEach) must get the member, or every
+    // signed-in assertion would silently be testing viewer mode instead.
+    // getIdToken as well as getIdTokenResult (v20.12). The admin Cloud-Function callers are split
+    // between the two — operations' roster upload uses getIdToken(), the sign-in stats card uses
+    // getIdTokenResult() — and a stub with only one of them fails whichever path it does not cover
+    // with an unhelpful TypeError halfway through an upload.
+    if (e2e.authUser) return {
+        uid: 'test', isAnonymous: false,
+        getIdToken: () => Promise.resolve('e2e-token'),
+        getIdTokenResult: () => Promise.resolve({ token: 'e2e-token', claims: { admin: true } }),
+    };
+    let stored = false;
+    try { stored = sessionStorage.getItem('__e2e_viewer') === '1'; } catch (_) { stored = false; }
+    if (e2e.viewerUser || stored) return _viewerUser();
+    return null;
+};
+export const getAuth = () => ({ get currentUser() { return _currentUser(); } });
+// Emits the CURRENT user, not a hardcoded null (v20.12). calendar-access.js resolves the first
+// emission to decide access, so a stub that always said null would report every seeded member and
+// every restored viewer as locked out — and the whole PIN suite would pass for the wrong reason.
+export const onAuthStateChanged = (_auth, cb) => { Promise.resolve().then(() => cb && cb(_currentUser())); return noop; };
 export const signInWithEmailAndPassword = _e2eAuth('auth/invalid-credential');
 export const createUserWithEmailAndPassword = _e2eAuth('auth/operation-not-allowed');
 export const signInAnonymously = _e2eAuth('auth/operation-not-allowed');
-export const signOut = () => Promise.resolve();
+// Clears the VIEWER only, never the opt-in authUser flag. authUser is a test's declaration
+// that a member is signed in on this page, and session.js legitimately signs a restored identity
+// out and back in during ensureFirebaseSession — so clearing it here made the member vanish
+// mid-init and took the Operations Usage card down with it.
+// NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
+export const signOut = () => {
+    const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+    e2e.signOutCount = (e2e.signOutCount || 0) + 1;
+    e2e.viewerUser = false;
+    try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* private mode */ }
+    return Promise.resolve();
+};
 export const setPersistence = () => Promise.resolve();
+// Staff Calendar PIN (v20.12). Signing in with a custom token flips a flag that getAuth reads back,
+// so a spec can drive the REAL unlock path — fetch is stubbed separately per spec, because the
+// exchange is an ordinary HTTPS call to a Cloud Function and Playwright can intercept it directly.
+// window.__E2E.viewerClaimMissing makes the token sign in WITHOUT its claim: the one failure that
+// looks completely successful and then has every override read denied.
+// NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
+export const signInWithCustomToken = (_auth, token) => {
+    const e2e = globalThis.__E2E || (globalThis.__E2E = {});
+    if (e2e.failCustomToken) return Promise.reject(Object.assign(new Error('e2e'), { code: 'auth/invalid-custom-token' }));
+    e2e.viewerUser = true;
+    e2e.lastCustomToken = token;
+    try { sessionStorage.setItem('__e2e_viewer', '1'); } catch (_) { /* private mode */ }
+    return Promise.resolve({ user: _viewerUser() });
+};
 export const indexedDBLocalPersistence = marker('idb');
 export const browserLocalPersistence = marker('local');
 export const browserSessionPersistence = marker('session');
@@ -310,6 +365,35 @@ export const test = base.extend({
 export async function enforceNamedSession(page) {
     _setConfigOverride(page, 'ENFORCE_NAMED_SESSION',
         /ENFORCE_NAMED_SESSION:\s*(?:true|false)/, 'ENFORCE_NAMED_SESSION: true');
+}
+
+/**
+ * Switch the staff Calendar PIN OFF for one test — the "deploy dark" state (v20.16).
+ *
+ * Rewrites `CONFIG.CALENDAR_PIN_ACCESS` in roster-data.js as it is served, the same way
+ * `enforceNamedSession` does, so the real file and the production default are untouched. Call
+ * BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ */
+export async function disableCalendarPin(page) {
+    _setConfigOverride(page, 'CALENDAR_PIN_ACCESS',
+        /CALENDAR_PIN_ACCESS:\s*(?:true|false)/, 'CALENDAR_PIN_ACCESS: false');
+}
+
+/**
+ * Switch the staff Calendar PIN ON for one test.
+ *
+ * The shipped default is `false` while the feature is deployed dark (v20.17), so the specs that
+ * exercise the unlock card have to turn it on — the mirror of `disableCalendarPin`, and the reason
+ * both exist rather than one: whichever way the production default points, the tests for the OTHER
+ * state must say so explicitly instead of inheriting it. When the flag goes live these keep working
+ * unchanged, and the pair is what stops the dark-deploy tests quietly becoming no-ops at that point.
+ * Call BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ */
+export async function enableCalendarPin(page) {
+    _setConfigOverride(page, 'CALENDAR_PIN_ACCESS',
+        /CALENDAR_PIN_ACCESS:\s*(?:true|false)/, 'CALENDAR_PIN_ACCESS: true');
 }
 
 /**

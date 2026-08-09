@@ -52,31 +52,57 @@ will not retry it, so production can stay stale indefinitely until an unrelated 
 > **`SECURITY_RELEASE_PLAN.md`**. The entries below remain the authoritative *post-mortems and
 > rationale*; that file is the *ordering* that keeps a fix from re-creating the v10.94 outage.
 
-### Override data is publicly readable (intentional trade-off)
-The `overrides` Firestore collection — which contains AL dates, sick days, and shift
-changes for all staff members — is readable without any authentication. Anyone who
-finds the app URL can view any staff member's recorded absences and leave.
+### Override data was publicly readable — CLOSED at v20.12 (staff PIN access)
+The `overrides` collection — annual leave, absence and shift changes for every member — was
+readable with no authentication at all: `allow read;`, so anyone who found the app URL could read
+all of it. That is no longer true. Reads now require **either** a real member `name` claim **or**
+the shared `calendarViewer` capability, minted server-side by the `unlockCalendarViewer` Cloud
+Function in exchange for a four-digit staff PIN.
 
-**Why:** Requiring auth to read overrides was attempted at v12.04 using an anonymous
-Firebase Auth session established at app startup. This was reverted at v12.05 because:
-- The anonymous session workaround added complexity without meaningfully improving
-  security (a malicious user could obtain an anonymous session just as easily as the
-  app does).
-- The correct fix — requiring a *named* staff login before viewing the calendar — was
-  considered and declined as it adds friction to the primary daily workflow.
+**Why it stayed open for so long, and what changed.** Requiring auth was tried at v12.04 using an
+anonymous session and reverted at v12.05, correctly: an anonymous session is obtainable by anyone,
+so it was complexity with no security. The real alternative — a full named login before viewing the
+Calendar — was declined because it puts a name, a grade and a password in front of a thirty-second
+glance, and staff at Marylebone take that glance on shared office PCs where signing into a corporate
+Windows account gives them a fresh browser every time.
 
-**Current mitigations:** The URL is not publicly advertised; the team is small and
-known; writes still require a named Firebase Auth session (`request.auth != null`).
-**Search engines are now excluded (v19.00, SECURITY_RELEASE_PLAN "E0")** — `X-Robots-Tag:
-noindex, nofollow` on Firebase Hosting plus a mirrored `<meta name="robots">` in all ten
-served pages (the mirror gets no headers), with a `robots.txt` that deliberately *permits*
-crawling so the noindex can actually be read. That closes the **casual** half of this exposure
-(a page turning up in a search result); it does nothing about a deliberate reader, which is
-still what the paragraphs above are about.
+The staff PIN is the thing that was missing: a **server-validated** shared credential, low enough
+friction for a shared PC and real enough to hang a security rule on. It is the whole reason this
+entry can now be closed rather than restated.
 
-**If this becomes a concern:** Gate the calendar on a named session, remove the
-anonymous read from `firestore.rules`, and remove the anonymous auth block from
-`calendar-app.js`. See the June 2026 conversation for the full trade-off analysis.
+**Be precise about what it is, because overstating it would be worse than the old note.** It is a
+shared code, not individual authentication. Everyone at Marylebone has it, it cannot attribute an
+action, it cannot be revoked for one person, and it will eventually be known outside the station.
+What it buys is that the roster is no longer readable by the open internet, and that the reader must
+at minimum be someone who has been told the code. It buys nothing else, and nothing in the app
+claims otherwise.
+
+**Residual limitations, all deliberate:**
+- **Rotation is manual.** Changing the PIN is a Secret Manager update (no client release —
+  OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN"). Existing viewer sessions survive a
+  rotation until their browser closes unless the viewer account's refresh tokens are revoked.
+- **A calendar-only member now has to unlock, or sign in.** Before this, a member who never signed
+  in anywhere could use the Calendar indefinitely. Now they either sign in once (a 30-day session,
+  and no PIN thereafter) or enter the PIN each browser session. On a personal phone signing in is
+  clearly the better deal, and the `pw-own-2026` notice already nudges exactly this group — but it
+  IS a change for the largest group of users and should be expected in support questions.
+- **Viewer sessions cannot subscribe to push**, by rule as well as by UI. Every office PC unlocking
+  with the PIN signs in as the same uid, so a subscription written under it would be owned by an
+  identity fifty people share.
+- **Telemetry is quiet on a locked Calendar.** With no identity, the error reporter, the usage
+  counter and the latency sampler cannot write — so a failing PIN exchange does NOT appear in the
+  Operations Error Log. Diagnose one from the Cloud Function logs.
+- **App Check is still the missing integrity control** for the write side (below, task #4).
+
+**Search engines** were excluded separately at v19.00 (`X-Robots-Tag: noindex` plus a mirrored
+`<meta name="robots">`, with a `robots.txt` that deliberately permits crawling so the noindex can
+be read). That closed the casual half of the exposure; this closes the deliberate half.
+
+**Rollback**, if viewer authentication fails catastrophically in production: restore `allow read;`
+on the `overrides` block and redeploy rules. That re-opens the data and restores availability, which
+is the right order of preference — an unreadable Calendar is obvious, whereas a Calendar showing the
+base roster without overrides shows somebody a shift they are not working. See RECOVERY_RUNBOOK.md.
+
 
 **Re-reviewed July 2026 (A2 / F-SEC-2) — decision stands, leave-as-is.** Note for future
 reviewers: the calendar now *does* establish an anonymous session (added v13.78 for error/usage

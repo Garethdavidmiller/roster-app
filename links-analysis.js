@@ -14,6 +14,23 @@
  * every pattern change. `getBaseline` (v19.46) supplies the CURRENT link's fatigue profile so a
  * design's findings can be read against what today's roster already scores — without it, a proposal
  * reporting "15 consecutive shifts" reads as something the proposal introduced.
+ *
+ * ── TWO CONTRACTS THIS MODULE IS HELD TO (moved from CLAUDE.md's file tree, v20.11) ────────────
+ *
+ * **Every class this module emits must exist in `links.css`.** v19.46 shipped ~15 rows on
+ * `check-info`, a class no stylesheet defines: nothing threw, every behavioural test passed (they
+ * assert text), and those rows rendered with NO surface beside neighbours that had one. The guard
+ * in `links-analysis.test.mjs` covers a PREFIX SET rather than one family — it was `check-*`-only,
+ * and the demand rows then arrived under `dem-*` / `cov-demand` and not one of them was policed. A
+ * new family is a loud failure rather than an invisible hole.
+ *
+ * **Anything rendered as a limit that *must be met* has to name whose requirement it is, and every
+ * row beneath it has to carry a source in a `.check-note`.** ROADMAP.md's evidence gate puts that
+ * phrase at class A or B. The rule is applied to whatever the panel RENDERS, not to the one section
+ * that exists today: three more limits in that family are already computed and waiting to be
+ * promoted, and each would otherwise be able to arrive as a bare number in red on a manager's
+ * sheet. Not keyed on the section's name — a section that renamed itself would slip a hardcoded
+ * list while making the identical claim.
  */
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChecks,
     weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';

@@ -27,6 +27,19 @@ const SYNC_TIMEOUT_MS = 10000;
  *  budget before an unresponsive control reads as broken. The READ itself is never bounded here. */
 const RETRY_AUTH_WAIT_MS = 2000;
 
+/** Is this failure "you may no longer read the Calendar" rather than "the network is poor"?
+ *
+ *  Matched on Firestore's own `permission-denied` code plus the local gate's sentinel, because the
+ *  two arrive by different routes and mean the same thing to the member: the session that was
+ *  letting them see the roster has gone. Anything else — offline, timeout, a transient 5xx — is a
+ *  network failure and keeps the ordinary retry chip, which is the right answer for those.
+ *  @param {any} err @returns {boolean} */
+function isAccessFailure(err) {
+    const code = err && (err.code || err.message);
+    return code === 'permission-denied' || code === 'calendar-access-required'
+        || (typeof code === 'string' && code.includes('permission-denied'));
+}
+
 /**
  * Kick off the initial 3-month Firestore fetch and wire the sync chip + visibility handler.
  *
@@ -39,10 +52,16 @@ const RETRY_AUTH_WAIT_MS = 2000;
  * that the cached roster paints sooner.
  *
  * @param {{ isTeamViewMode: () => boolean, renderCalendar: () => void, renderTeamView?: () => void,
- *           authReady?: Promise<any> }} deps
+ *           authReady?: Promise<any>, onAccessLost?: (() => void)|null }} deps
  *   authReady — resolves once a usable Firebase Auth session exists (the calendar passes
  *   `calendarAuthReady`). Defaults to already-resolved, so callers and tests that don't care are
  *   unaffected. Phase 2 waits on it; phase 1 deliberately does NOT.
+ *   onAccessLost — called when a read is refused because Calendar ACCESS has gone (v20.12), rather
+ *   than because the network is poor. The distinction is the whole reason it exists: an expired
+ *   viewer session produces `permission-denied`, and left in the generic retry state that is a loop
+ *   the member cannot win — tap, denied, tap, denied — from which they reasonably conclude the app
+ *   is broken. Handing it to the access layer re-opens the unlock card instead, which they CAN act
+ *   on. Optional, so tests and any future caller without an access layer behave exactly as before.
  *   renderTeamView — re-renders the Team Week View grid from the (now-populated) cache
  *   WITHOUT re-fetching (v18.21). Without it, a user in team view when this fetch resolved
  *   was stranded on a base-roster grid: this success path rendered nothing in team view,
@@ -52,7 +71,7 @@ const RETRY_AUTH_WAIT_MS = 2000;
  *   IndexedDB persistence makes this 3-month read reliably beat the week query — which is
  *   why a refresh never recovered.
  */
-export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamView = () => {}, authReady = Promise.resolve() }) {
+export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamView = () => {}, authReady = Promise.resolve(), onAccessLost = null }) {
   const now  = new Date();
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -272,6 +291,15 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // render/navigation can re-fetch them — otherwise a failed retry re-strands all three
       // for the session (the chip is a recovery path only while the calendar header exists).
       _initialMonthKeys.forEach(clearFetchedMonth);
+      // Access gone, not network. Hand it to the access layer and take the chip away: leaving a
+      // "tap to retry" beside the unlock card would offer two competing recoveries, only one of
+      // which can work.
+      if (onAccessLost && isAccessFailure(err)) {
+        setChipState(null);
+        if (syncChip) { syncChip.remove(); syncChip = null; }
+        onAccessLost();
+        return;
+      }
       setChipState({
         text: '⚠ Couldn\'t update — tap to retry',
         className: 'sync-chip sync-chip-error',
@@ -329,6 +357,13 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // load for the session — and the retry chip below only exists inside `.calendar-header`, which
       // is absent in team-view and first-run, leaving those states with NO recovery path at all.
       _initialMonthKeys.forEach(clearFetchedMonth);
+      // Access gone, not network — see the retry path above for why these must not share a state.
+      if (onAccessLost && isAccessFailure(err)) {
+        setChipState(null);
+        if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
+        onAccessLost();
+        return;
+      }
       // A renderCalendar() call between the fetch start and the catch (e.g. from visibilitychange)
       // rebuilds the calendar header, detaching the chip — setChipState re-creates it. When there
       // is NO header at all (first run, Team View) the state is still recorded and rendered the

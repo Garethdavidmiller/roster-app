@@ -170,6 +170,13 @@
     --error-red:    oklch(56.8% 0.2002 26.4deg);
     --error-banner: color-mix(in oklch, var(--error-red) 95%, black);
     --error-bg:     color-mix(in oklch, var(--error-red) 12%, white);
+    /* Error TEXT on --error-bg. Not --error-red itself: measured by axe at 4.24:1 against the
+       4.5:1 AA floor (v20.14) — under by a quarter of a point, which is invisible to a human
+       reviewer and is why it survived from the login overlay's first release. It had never been
+       scanned: axe sees a settled page, and `.login-error` only appears AFTER a failed sign-in, so
+       no gate in the suite had ever put it in front of one. The Calendar's staff-PIN card is the
+       first surface with an axe scan of its error state, and it found this on the shared recipe. */
+    --error-text:   color-mix(in oklch, var(--error-red) 82%, black);
 
     /* Success */
     --success-text: oklch(42.5% 0.1159 144.3deg);
@@ -1926,6 +1933,16 @@ button.nav-panel-link--notices {
     min-width: 0;
 }
 
+/* Lock Calendar is rendered hidden and revealed on drawer open (viewer mode only). `.nav-panel-signout`
+   sets a display, which beats the `hidden` attribute's UA rule — so without this the button shows to
+   every signed-in member and offers them an action that does nothing. Same trap as the calendar
+   workspace gate in index.css. */
+.nav-panel-lock[hidden] { display: none !important; }
+/* Same reason as the lock button: `.nav-panel-footer` sets a display, which beats the `hidden`
+   attribute's UA rule — so a footer rendered hidden for a locked visitor would show anyway, as an
+   empty bar with a blank name. */
+.nav-panel-footer[hidden] { display: none !important; }
+
 .nav-panel-signout {
     background: none;
     border: none;
@@ -1989,8 +2006,20 @@ button.nav-panel-link--notices {
 #loginOverlay.visible, #pwForceOverlay.visible { display: flex; }
 
 /* Overlay, not a card — --radius-xl with the other compact dialogs (v18.90; was --radius-lg, the
-   card radius). */
-#loginCard, #pwForceContent {
+   card radius).
+
+   `.cal-lock-card` (the Calendar's staff-PIN panel) JOINS this recipe rather than carrying a
+   parallel one (v20.14). It is the same moment in the app — "this page is not available to you yet;
+   do this one thing" — and staff meet that moment on five other pages wearing exactly this panel.
+   Written separately it had drifted on every axis at once: a tinted surface instead of white, a
+   hardcoded 420px where the modal tokens exist, a hardcoded shadow where --shadow-3 exists, tighter
+   padding, and a different title rank. Joining the selector is the precedent `#pwForceContent`
+   already set for a second do-this-first panel.
+
+   What does NOT join: the fixed full-screen `#loginOverlay` wrapper. The lock card stays in the
+   page flow, because the nav drawer, the guides and the documents must stay reachable while the
+   Calendar is locked — an `inset: 0` overlay would cover the burger. */
+#loginCard, #pwForceContent, .cal-lock-card {
     background: white;
     border-radius: var(--radius-xl);
     padding: 36px 32px 28px;
@@ -1999,7 +2028,7 @@ button.nav-panel-link--notices {
     text-align: center;
     box-shadow: var(--shadow-3);
 }
-#loginCard img, #pwForceContent img {
+#loginCard img, #pwForceContent img, .cal-lock-card img {
     width: 72px;
     height: 72px;
     border-radius: 16px;
@@ -2099,7 +2128,7 @@ button.nav-panel-link--notices {
 }
 .login-error {
     font-size: var(--type-label);
-    color: var(--error-red);
+    color: var(--error-text);
     background: var(--error-bg);
     border-radius: var(--radius-sm);
     padding: 8px 12px;
@@ -2109,7 +2138,7 @@ button.nav-panel-link--notices {
     line-height: 1.4;
 }
 .login-error.visible { display: block; }
-#loginSubmit, #pwfSave {
+#loginSubmit, #pwfSave, #calLockSubmit {
     width: 100%;
     padding: 13px;
     background: var(--primary-blue);
@@ -2125,9 +2154,19 @@ button.nav-panel-link--notices {
     margin-bottom: 16px;
 }
 @media (hover: hover) and (pointer: fine) {
-    #loginSubmit:hover, #pwfSave:hover { background: var(--primary-blue-dark); }
+    #loginSubmit:hover, #pwfSave:hover, #calLockSubmit:hover { background: var(--primary-blue-dark); }
 }
-#loginSubmit:active, #pwfSave:active { transform: scale(var(--press-scale)); }
+#loginSubmit:active, #pwfSave:active, #calLockSubmit:active { transform: scale(var(--press-scale)); }
+/* Scoped to the PIN button, deliberately. It is the only one of the three that is disabled at REST
+   (until four digits are entered) rather than only mid-submit, so it is the only one that needs a
+   resting disabled look. Giving `#loginSubmit` the same treatment would restyle a screen staff use
+   daily for a state it barely occupies. */
+#calLockSubmit:disabled {
+    background: var(--field-bg-disabled);
+    color: var(--text-light);
+    cursor: default;
+    transform: none;
+}
 #loginName:disabled {
     background: white;
     color: var(--text-light);

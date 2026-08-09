@@ -28,6 +28,52 @@
  * two harshest lines in the design and report a beautiful number. That is precisely the false
  * assurance `links-fatigue.js` exists to avoid. Unmeasurable steps are counted and reported
  * SEPARATELY, never folded into the mean.
+ *
+ * ── THREE MORE RULES, MOVED HERE FROM CLAUDE.md's FILE TREE (v20.11) ───────────────────────────
+ *
+ * **The spare spread is charged UNCONDITIONALLY, not as a switch.** Every other term here is a
+ * preference; this one protects a guarantee. `generateLink` places the cover weeks evenly and the
+ * reorder used to undo that, because clustering them helped the objectives it had been told about —
+ * measured on the live seed it returned gaps 9,3,1,7,4 with two ADJACENT, against the generator's
+ * 5,5,5,4,5. Two adjacent spare weeks chain into one long run, taking FF11 from 9 to 14: the tool
+ * was reporting a fatigue finding of its own making. It is the only term that can make a design
+ * WORSE than the one the reorder was handed.
+ *
+ * **Its weight is 3000, and the reason it is not 500 is the lesson worth keeping.** 500 was chosen
+ * as "above `variety`'s 400" — true per unit, and not the question, because these terms ACCUMULATE.
+ * Two units of block excess bid 800, `variety` won, and the default came back uneven. The unit test
+ * asserting the priority compared one unit against one unit and passed throughout; **comparing
+ * rates between terms that accumulate at different rates is the mistake**, and writing the assertion
+ * that way is what made it look settled. 3000 came from measuring 16 design shapes reordered two
+ * ways each: total excess 10 at w=500, 7 at 800, 8 at 1200, 7 at 1500, and 0 from 2000 upward — so
+ * 3000 sits one step inside the dominating plateau rather than on its edge. Safe to treat as a
+ * constraint because excess 0 is ALWAYS reachable (the target is `floor(lines / spares)`) — a
+ * dominating weight over an unreachable target sets the optimiser chasing a residual it can never
+ * clear. Two tests guard it and neither replaces the other: one pins 3000 against all six switches
+ * slipping a unit each, the other drives a real generated design through the real optimiser. The
+ * first is necessary and not sufficient — 1500 passes it while still leaving designs uneven.
+ *
+ * **`variety` and `gentle` are opposite ends of ONE dial, and `variety` must stay on by default.**
+ * Minimising the week-to-week step, taken to its limit, IS a long block of the same shift — the
+ * smallest possible step is no step at all. Settling each week and laying the waves out contiguously
+ * gave a person 11 straight weeks of mornings and 11 of afternoons; the live roster's longest run on
+ * much the same shift is 3, which is `DEFAULT_BLOCK_TARGET`. So `variety` is weighted as a
+ * CONSTRAINT (excess × 400): the optimiser alternates, but by the smallest step available — early →
+ * middles → late rather than early → late. `blockRuns` treats a SPARE line as TRANSPARENT: a cover
+ * week interrupts but does not change what you go back to, and counting it as a break would let four
+ * spare weeks hide a 20-week block behind a reported maximum of 4.
+ *
+ * `runExcess` is a GRADIENT, never a statistic — it sums excess over every start (a 14-day run also
+ * shows as a 13, a 12…) because a maximum is a plateau the 2-opt cannot climb: measured, it stalled
+ * at 8 where a random search found 6.
+ *
+ * Deterministic PER ATTEMPT: attempt 0 is the greedy start, byte-identical to the pre-v20.07
+ * behaviour, so every measured figure in the docs still describes the first press; attempt N ≥ 1 is
+ * best-of-three seeded shuffles (mulberry32 on the attempt number — **never `Math.random`, never the
+ * clock**), so "design 3" is the same design on every device. The spare spread is a FILTER on
+ * candidates as well as a weight: a local search can only pay a price it can find a path away from,
+ * and attempt 6's three starts all converged into minima that broke the spread. If all three fail,
+ * the attempt falls back to attempt 0 and the status line says so.
  */
 import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN } from './links-design.js';
 

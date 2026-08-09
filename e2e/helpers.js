@@ -199,3 +199,73 @@ export async function openReference(page) {
     const toggle = page.locator('#navGuidesToggle');
     if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
 }
+
+// ── Staff Calendar PIN (v20.12) ─────────────────────────────────────────────────────────────────
+
+/**
+ * Seed a signed-in MEMBER for the Calendar: the local session AND the Firebase identity.
+ *
+ * BOTH are required, and that is the point rather than an inconvenience. `decideAccess` demands a
+ * live local session *and* a restorable named identity — a member holding only one of the two sees
+ * the PIN, which is a real state (iOS ITP evicts IndexedDB after ~7 days of no PWA use). A helper
+ * that seeded only the session would make every "member sees no PIN" test fail for a reason that
+ * has nothing to do with what it was written to check.
+ */
+export function seedMemberSession(page, name = 'G. Miller') {
+    return page.addInitScript((n) => {
+        localStorage.setItem('myb_admin_session', JSON.stringify({
+            name: n, ver: 2,
+            expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+            lastActivity: Date.now(),
+        }));
+        localStorage.setItem('myb_roster_selected_member', n);
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
+    }, name);
+}
+
+/**
+ * Intercept the PIN exchange so a spec can drive the REAL unlock path without a Cloud Function.
+ *
+ * The endpoint is an ordinary HTTPS POST, so Playwright routes it directly — which means the spec
+ * exercises `calendar-access.js`'s whole ladder (fetch → persistence switch → custom-token sign-in
+ * → claim verification), not a shortcut around it. `status` lets a spec produce the three failures
+ * that matter: 401 (wrong PIN), 429 (throttled) and a transport failure.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {{ status?: number, token?: string|null, abort?: boolean }} [opts]
+ */
+export async function stubPinExchange(page, { status = 200, token = 'E2E_VIEWER_TOKEN', abort = false } = {}) {
+    await page.route('**/unlockCalendarViewer', async (route) => {
+        if (abort) return route.abort('failed');
+        await route.fulfill({
+            status,
+            contentType: 'application/json',
+            body: JSON.stringify(status === 200 ? (token ? { token } : {}) : { error: 'nope' }),
+        });
+    });
+}
+
+/** Type the PIN and press Unlock. Uses the real form, so the digits-only filter and the
+ *  disabled-until-complete button are exercised rather than bypassed. */
+export async function enterPin(page, pin = '1234') {
+    await page.locator('#calLockPin').fill(pin);
+    await page.locator('#calLockSubmit').click();
+}
+
+/**
+ * Give this page Calendar access as the shared staff-PIN VIEWER, with no member session.
+ *
+ * The default state for every Calendar spec that is not specifically about a signed-in member,
+ * because it is the state most of them were implicitly written against: the roster is on screen and
+ * `getSession()` is null. Before v20.12 that was simply what an unauthenticated visitor got; now it
+ * takes an unlock, and a viewer session is exactly what an unlocked shared PC holds.
+ *
+ * Seeded through sessionStorage rather than by driving the PIN card, so a spec about first-run
+ * behaviour or the stale-member banner does not have to type four digits before it can begin. The
+ * flow itself is covered end-to-end in calendar-pin.spec.js.
+ */
+export function seedViewerAccess(page) {
+    return page.addInitScript(() => {
+        try { sessionStorage.setItem('__e2e_viewer', '1'); } catch (_) { /* private mode */ }
+    });
+}

@@ -2528,3 +2528,86 @@
 
 
 
+
+        /* ── Staff PIN access card (v20.12; rebuilt on the login panel recipe v20.14) ──────────
+           The PANEL itself lives in shared.css, joined to `#loginCard`/`#pwForceContent` — same
+           moment, same shape, one recipe. Everything here is the small set of genuine DELTAS.
+
+           Shown INSTEAD of the calendar workspace, never over it: while this is on screen the
+           calendar has not been built, so there is nothing underneath to obscure. It is a card in
+           the PAGE, not the fixed full-screen overlay the login uses, because the nav drawer must
+           stay reachable — locking the building to reach the noticeboard would be absurd. */
+        .cal-lock {
+            display: flex;
+            justify-content: center;
+            /* Toward the top of the space the calendar would fill, not vertically centred: centring
+               on a tall desktop viewport pushes it below the fold on a short laptop. */
+            padding: 8px 0 48px;
+        }
+
+        /* ONE field, not four PIN cells. Four cells look sharper and cost real robustness: per-cell
+           focus juggling, they fight paste and autofill, and screen readers announce four unlabelled
+           boxes. A single field styled AS a PIN reads the same and behaves like the input it is.
+           Everything not listed here comes from `.login-field input`. */
+        .cal-lock-pin {
+            /* --type-xl (24px) against the shared 16px. A PIN is four characters read at a glance,
+               and it is comfortably over the iOS focus-zoom floor either way (css-tokens.md → the
+               16px rule). Through the token, not a literal: a repeated raw size is how the scale
+               stopped meaning anything (type-scale-parity.test.mjs). */
+            font-size: var(--type-xl);
+            font-weight: 700;
+            /* Tracking wide enough that four masked dots read as four separate characters. The extra
+               padding-left compensates for the trailing letter-space, which would otherwise push the
+               visual centre left of the box's centre. */
+            letter-spacing: 0.5em;
+            padding: 10px 10px 10px 20px;
+            text-align: center;
+            color: var(--primary-blue);
+        }
+
+        /* The message channel wears `.login-error` — the app's soft-red box. A NON-error message
+           (the in-flight "Checking the PIN…") is the same box in a neutral navy tint rather than a
+           second element: one live region, and no red on a screen where nothing has gone wrong. */
+        .cal-lock-msg--info {
+            color: var(--text-mid);
+            background: var(--bg-faint);
+        }
+
+        /* Sits under the primary button, where `.login-back` sits on the login card. The extra
+           padding is the 44px touch target a bare text link would not have. */
+        .cal-lock-alt {
+            display: inline-block;
+            padding: 10px 8px;
+            background: none;
+            border: none;
+            font-family: inherit;
+            font-weight: 600;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .cal-lock-alt:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+        /* The lock card is not part of a printed roster, and a printed page cannot be unlocked. */
+        @media print {
+            .cal-lock { display: none !important; }
+        }
+
+        /* ── The workspace gate has to BEAT the author display rules (v20.12) ───────────────────
+           `hidden` is a UA `display: none`, and any author `display` rule beats it — `.controls`
+           is `display: flex`, so `nav.controls[hidden]` rendered in full. This is the same trap
+           `.win-editor[hidden]` hit on the links page, and here it is load-bearing rather than
+           cosmetic: these six elements are the Calendar workspace, and `calendar-access.js` hides
+           them before the access decision resolves.
+
+           They contain nothing while locked (the workspace is never built), so this is the second
+           layer rather than the only one — but a gate that works only because the thing behind it
+           happens to be empty is one refactor away from not being a gate.
+
+           `!important` because two of them (#notifPrompt, #swipeHint) carry an inline `display`,
+           which nothing else can outrank. */
+        #calendarControls[hidden],
+        #notifPrompt[hidden],
+        #payPeriodStrip[hidden],
+        #swipeHint[hidden],
+        #calendarDisplay[hidden],
+        #calendarLegend[hidden] { display: none !important; }

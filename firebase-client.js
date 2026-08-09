@@ -20,7 +20,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // `_transactionalUpload` engine behind huddle/circular/newsletter uploads, v16.38) — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
 import { runWithClaimRetry } from './claim-retry.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
@@ -108,17 +108,56 @@ export { isSafeStorageUrl, officeViewerUrl };
 /** Shared Firebase Auth instance. */
 export const auth = getAuth(app);
 
-// Explicit persistence chain: IndexedDB (longest-lived) → localStorage → sessionStorage.
-// iOS ITP can evict IndexedDB after 7 days of no PWA use, causing silent sign-outs.
+/**
+ * Explicit persistence chain for a MEMBER identity: IndexedDB (longest-lived) → localStorage →
+ * sessionStorage. iOS ITP can evict IndexedDB after 7 days of no PWA use, causing silent sign-outs,
+ * so the fallbacks are real rather than theoretical.
+ *
+ * Factored into a function at v20.12 because there are now TWO persistence modes and the app has to
+ * be able to move between them (see `setViewerPersistence`). Signing a member in after a Calendar
+ * viewer session must restore THIS chain — and the member paths call it through
+ * `restoreMemberPersistence`, never by repeating the three-step ladder, so the fallback order
+ * cannot drift between the two call sites.
+ * @returns {Promise<void>}
+ */
+function _setMemberPersistence() {
+    return setPersistence(auth, indexedDBLocalPersistence)
+        .catch(() => setPersistence(auth, browserLocalPersistence))
+        .catch(() => setPersistence(auth, browserSessionPersistence))
+        .catch(/** @param {any} err */ err => { console.warn('[Auth] persistence setup failed:', err); });
+}
+
 // Exported so callers can `await authReady` before signing in — guarantees persistence
 // is configured before the auth token is written, otherwise iOS may drop the session.
-export const authReady = setPersistence(auth, indexedDBLocalPersistence)
-    .catch(() => setPersistence(auth, browserLocalPersistence))
-    .catch(() => setPersistence(auth, browserSessionPersistence))
-    .catch(/** @param {any} err */ err => { console.warn('[Auth] persistence setup failed:', err); });
+export const authReady = _setMemberPersistence();
+
+/**
+ * Re-arm the long-lived MEMBER persistence chain.
+ *
+ * Called by `session.js` immediately AFTER shedding a Calendar viewer and BEFORE signing a member
+ * in. The order is the whole point: `setPersistence` migrates the CURRENT user into the new
+ * persistence, so doing this while the viewer is still signed in would move the shared viewer
+ * session into IndexedDB — where it would survive the browser closing, which is exactly the
+ * property that makes unlocking a shared office PC safe to do.
+ * @returns {Promise<void>}
+ */
+export function restoreMemberPersistence() { return _setMemberPersistence(); }
+
+/**
+ * Switch to SESSION-ONLY persistence, for the shared Calendar viewer.
+ *
+ * This is the security boundary of the whole PIN feature: the viewer must die with the browser
+ * session so that a PC left signed into a Windows account does not carry the roster into the next
+ * person's day. There is deliberately NO fallback ladder here — if session persistence cannot be
+ * set, the correct outcome is a rejected promise and a failed unlock, because every fallback
+ * available is LONGER-lived than what was asked for. Degrading a security boundary quietly is worse
+ * than refusing to cross it.
+ * @returns {Promise<void>}
+ */
+export function setViewerPersistence() { return setPersistence(auth, browserSessionPersistence); }
 
 // Re-export auth operations so callers import from one place.
-export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider };
+export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signInWithCustomToken, signOut, onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider };
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once

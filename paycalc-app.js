@@ -1886,7 +1886,10 @@ export function init() {
       const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
       const p = periodSel ? getPeriods().find(/** @param {any} x */ x => x.num === +periodSel.value) : null;
       const now = fdLong(new Date());
-      const label = p ? `Paid ${fd(p.payday)} (P${payslipPeriodNum(p)}) · Printed ${now}` : `MYB Pay Calculator · Printed ${now}`;
+      // "Pay Calculator", not "MYB Pay Calculator" (v20.13). The app's on-screen name is
+      // "Marylebone Roster" and "MYB" is not used for it in staff-facing copy — and a print header
+      // is the one place a stale product name is carried out of the app on paper.
+      const label = p ? `Paid ${fd(p.payday)} (P${payslipPeriodNum(p)}) · Printed ${now}` : `Pay Calculator · Printed ${now}`;
       hdr.setAttribute('data-print-line', label);
     }
     stampPaycalcPrintLine();

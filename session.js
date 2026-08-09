@@ -14,7 +14,12 @@
  *   must be accompanied by a password reset for all affected users.
  */
 
-import { auth, authReady, onAuthStateChanged, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
+import { auth, authReady, onAuthStateChanged, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut, restoreMemberPersistence } from './firebase-client.js';
+// PURE, and imported rather than re-derived: `isViewerUser` decides whether an identity may be
+// PRESERVED across the expired-identity teardown, so a second local copy of that predicate is a
+// second place a bypass could be introduced. calendar-access-core.js imports nothing, so this adds
+// no cycle (asserted by import-graph.test.mjs).
+import { isViewerUser } from './calendar-access-core.js';
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection } from './auth-identity.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CONFIG } from './roster-data.js';
@@ -245,6 +250,12 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // the global reads 'none' — the exact disagreement the guard exists to prevent). Found in review.
     if (fresh()) { _fbIdentity = 'none'; _fbAuthError = undefined; }
     await authReady;
+    // A member is signing in, so the shared Calendar viewer (if this browser holds one) must go
+    // FIRST — see the function's own comment for why the order is the security property, not a
+    // tidiness one. This is the single choke point for the viewer→member transition: every member
+    // sign-in in the app reaches Firebase through here, so there is no second path that could set
+    // long-lived persistence with the viewer still current.
+    await shedCalendarViewer();
     // First auth state for this restore. Fast path: if auth.currentUser is ALREADY populated (a live
     // session — e.g. the SECOND ensureFirebaseSession of an in-place sign-in, where the first call just
     // established it), use it synchronously and skip the onAuthStateChanged wait entirely. It is null
@@ -527,15 +538,45 @@ export function clearSession() {
 }
 
 /**
+ * Drop the shared Calendar viewer, if this browser holds one, before a MEMBER signs in (v20.12).
+ *
+ * Called from `ensureFirebaseSession`, which is the single choke point every member sign-in in the
+ * app passes through — so there is no second path that could reach Firebase with the viewer still
+ * current. A no-op for every other identity, which is why it is safe to run unconditionally there.
+ *
+ * Why a member sign-in cannot simply overwrite the viewer: Firebase holds one current user, so
+ * signing in DOES replace it — the problem is the PERSISTENCE, not the user. The viewer runs under
+ * session-only persistence and the member needs the long-lived chain, and the order in which those
+ * two facts are reconciled decides whether the shared viewer ends up in IndexedDB.
+ *
+ * If the member sign-in then FAILS, this browser is left with no identity and the long-lived chain
+ * armed. That is the correct resting state, not a leak: the Calendar re-locks (there is no viewer to
+ * find), and the next unlock explicitly asks for session persistence again.
+ * @returns {Promise<void>}
+ */
+export async function shedCalendarViewer() {
+    const u = auth.currentUser;
+    if (!isViewerUser(u)) return;
+    // Sign out BEFORE restoring the member persistence chain. `setPersistence` migrates the CURRENT
+    // user into the new persistence, so doing these two the other way round would move the shared
+    // viewer into IndexedDB — where it outlives the browser session, which is the one property that
+    // makes unlocking a shared office PC safe in the first place. This is the ONLY ordering that is
+    // correct here and it is not obvious from either call on its own.
+    try { await firebaseSignOut(auth); }
+    catch (err) { console.warn('[Auth] viewer signOut failed:', /** @type {any} */ (err)?.message); }
+    try { await restoreMemberPersistence(); }
+    catch (err) { console.warn('[Auth] member persistence restore failed:', /** @type {any} */ (err)?.message); }
+}
+
+/**
  * Sign out a Firebase identity that has OUTLIVED its local app session (Finding #9).
  *
  * getSession() clears only localStorage on passive expiry — the IndexedDB-persisted Firebase identity
  * survives, so a NAMED/admin/manager/designer session keeps its real Firestore privileges (read all
  * staff emails, on-behalf override writes, admin uploads, Links writes) after the app session expired.
  * This is the COORDINATED teardown the getSession() note prescribes: run it AFTER authReady — never an
- * async signOut inside the synchronous getSession(), which would race the calendar's anon bootstrap. If
- * the restored user is NAMED but there is no valid local session, sign it out; the caller re-establishes
- * an anonymous session where it needs one (the calendar) once this resolves.
+ * async signOut inside the synchronous getSession(), which would race the page's own auth bootstrap.
+ * If the restored user is NAMED but there is no valid local session, sign it out.
  *
  * The calendar is the PWA `start_url`, so this runs on virtually every launch — the dominant path by
  * which an expired session's lingering privileges are dropped. Every protected coordinator (admin,
@@ -547,10 +588,18 @@ export function clearSession() {
  *
  * Login-safe: snapshots `_authGen` and stands down if a login/logout transition (both bump it) started
  * meanwhile, and re-checks getSession() so a just-completed login (which writes a fresh session) is
- * never torn down. Anonymous identities are left alone — the calendar depends on them.
+ * never torn down. Anonymous identities are left alone.
+ *
+ * @param {{ preserveCalendarViewer?: boolean }} [opts]  `preserveCalendarViewer` is passed ONLY by
+ *   the Calendar (v20.12). The shared viewer is a non-anonymous Firebase identity with no local
+ *   session BY CONSTRUCTION — exactly the shape this function exists to tear down — so without the
+ *   flag the staff PIN would be demanded again on every single navigation. Protected pages take the
+ *   DEFAULT, so a viewer who walks to Admin, Settings, Operations or Links is still torn down there
+ *   and can never masquerade as a member. Do not make preserving it the default to "simplify" this:
+ *   the whole value of the flag is that it is opt-in, per page, at the one page that wants it.
  * @returns {Promise<void>}
  */
-export async function reconcileExpiredIdentity() {
+export async function reconcileExpiredIdentity({ preserveCalendarViewer = false } = {}) {
     const gen = _authGen;
     try { await authReady; } catch { return; }
     // `authReady` only guarantees persistence is SET — on a COLD restore the IndexedDB-persisted user
@@ -563,6 +612,7 @@ export async function reconcileExpiredIdentity() {
     const u = auth.currentUser || (gen === _authGen ? await restoreFirstAuthUser().catch(() => null) : null);
     if (gen !== _authGen) return;                    // a login/logout now owns the identity — stand down
     if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
+    if (preserveCalendarViewer && isViewerUser(u)) return;   // the Calendar's own viewer — see the JSDoc
     try {
         await firebaseSignOut(auth);
         console.warn('[Auth] Signed out a Firebase identity whose local session had expired (Finding #9).');

@@ -1,5 +1,37 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
+//
+// ── SWEEP v20.12: the Calendar stops being public, and the `calendarViewer` audit ───────────────
+//
+// `overrides` read was `allow read;` — no auth of any kind — and is now a `name` claim (a real
+// member) OR the `calendarViewer` capability (the shared staff PIN, minted server-side by the
+// unlockCalendarViewer function). Anonymous is DENIED, which is the substance of the change: the
+// Calendar used to sign every visitor in anonymously, so `request.auth != null` here would have
+// re-admitted precisely the people it closes out.
+//
+// A new authenticated identity means every `request.auth != null` in this file had to be re-read,
+// because each one silently widened. The audit, in full — do this again if another capability is
+// ever added, and do not skip a collection because it "obviously" does not matter:
+//
+//   COLLECTION          VIEWER GETS            WHY THAT IS RIGHT
+//   overrides           READ only              the point of the feature; writes need name/admin/manager
+//   huddles             read (already open)    unchanged — open by design, notification taps have no session
+//   circulars           read (already open)    unchanged, same reason
+//   newsletters         read (already open)    unchanged, same reason
+//   linkDesigns         nothing                needs `name` or admin (v19.39) — the viewer has neither
+//   staffContact        nothing                owner (`name`) or admin
+//   passwordStatus      nothing                owner (`name`) or admin
+//   resetRequests       nothing                admin read, server-only write
+//   clientErrors        WRITE only             deliberate: an office PC hitting a bug should still be
+//                                              able to report it. Read/update stay admin-only, so the
+//                                              viewer can post an error and never read one.
+//   analytics           WRITE only             deliberate: usage from shared PCs is real usage. The
+//                                              writes are counters, carry no identity, and read is
+//                                              admin-only. Same posture anonymous sessions had.
+//   pushSubscriptions   nothing (TIGHTENED)    every office PC shares one uid, so a subscription
+//                                              written under it is owned by fifty people — see the block
+//   viewerAttempts      nothing (NEW)          the throttle store; server-only in both directions
+//
 // Last swept v19.41 (Aug 2026): linkDesigns create/update accepts the optional `deletedAt`/
 // `deletedBy` soft-delete pair (present = in the bin, absent = live), type-checked when present.
 // Sweep v19.95: the analytics pv_ counts allowlist gains `guide-staff` and `guide-paycalc` — the
@@ -71,13 +103,53 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /overrides/{document=**} {
-      // Read is intentionally open — no auth required. Override data (AL dates,
-      // sick days, shift changes) is readable by anyone with the app URL.
-      // This is a known trade-off: requiring auth broke the anonymous calendar view
-      // and the anonymous session workaround added unnecessary complexity. The app
-      // URL is not publicly advertised and the team is small and known.
-      // See KNOWN_LIMITATIONS.md → "Override data is publicly readable".
+      // ── READ REQUIRES A REAL IDENTITY (v20.12 — was `allow read;`, fully public) ──────────────
+      //
+      // Override data is annual leave, absence and shift changes for fifty named colleagues, and
+      // until now anyone who knew the app URL could read all of it with no credential at all. The
+      // note this replaced defended that as "the URL is not publicly advertised", which is not a
+      // control — it is the absence of one.
+      //
+      // TWO identities qualify, and the second is the reason this could finally be closed:
+      //   · a real MYB member — a `name` claim, set by setupRosterAuth after a password sign-in;
+      //   · the shared staff Calendar viewer — `calendarViewer`, minted by the unlockCalendarViewer
+      //     Cloud Function in exchange for the staff PIN. Staff open the roster on shared office
+      //     PCs for a thirty-second look, and requiring a full member sign-in for that would have
+      //     made this change cost more usability than it bought security.
+      //
+      // ANONYMOUS IS DENIED, and that is the whole point: the Calendar used to sign every visitor
+      // in anonymously, so `request.auth != null` here would have re-admitted exactly the people
+      // this closes out — the same trap the linkDesigns read rule fell into until v19.39, where a
+      // rule that read as "any signed-in member" in fact meant "anybody who can open the app".
+      // `admin` is listed for symmetry with that rule; claimsForTier gives every admin a `name` too.
+      //
+      // ⚠️ THE RULE IS NOT THE WHOLE GATE. Firestore evaluates rules on the SERVER, so a LOCAL
+      // IndexedDB cache hit never reaches this line — a browser that unlocked yesterday still holds
+      // every override it saw. calendar-overrides.js refuses those reads separately
+      // (`setOverrideAccess`). Tightening this rule without that gate would look secure and leak.
+      //
+      // ⚠️⚠️ TEMPORARY HOLD (v20.16) — THE `allow read;` LINE BELOW KEEPS THIS COLLECTION PUBLIC.
+      //
+      // Firestore ORs every matching allow rule, so while that line is present the tightened rule
+      // beneath it decides nothing and override data is as public as it was before v20.12.
+      //
+      // It is here because all three deploy workflows fire in PARALLEL from one push to main, with
+      // no ordering between them. Merging the tightened rule alongside the client would collapse
+      // steps 2, 3 and 4 of the rollout into one moment — the exact thing RECOVERY_RUNBOOK.md →
+      // "The Calendar PIN" says never to do, because a rules deploy that lands before the hosting
+      // deploy shows every staff phone the BASE ROSTER under a "Couldn't update" chip: a roster
+      // that is wrong rather than obviously broken.
+      //
+      // TO ENFORCE: delete this comment block and the `allow read;` line, set
+      // `OVERRIDES_READ_HELD_OPEN = false` in firestore.rules.test.mjs (the two are checked against
+      // each other in both directions, so they cannot silently disagree), and deploy rules ON THEIR
+      // OWN — after the client carrying `CALENDAR_PIN_ACCESS: true` has soaked in production.
       allow read;
+      allow read: if request.auth != null && (
+        'name' in request.auth.token ||
+        request.auth.token.admin == true ||
+        request.auth.token.calendarViewer == true
+      );
       allow create, update: if
         request.auth != null &&
         // hasOnly (not hasAll) — reject any field beyond the known override shape.
@@ -444,6 +516,22 @@ service cloud.firestore {
       allow read: if false;
       allow create, update: if
         request.auth != null &&
+        // NOT the shared Calendar viewer (v20.12). Every office PC that unlocks with the staff PIN
+        // signs in as the SAME uid, so a subscription written under it would be `owner`ed by an
+        // identity fifty people share — any of them could then delete any other's, and the
+        // subscription itself would sit on a shared machine pushing one person's Huddle to the mess
+        // room with nobody able to turn it off. The client already declines to offer this in viewer
+        // mode (calendar-app.js); this is the half that does not depend on the client being right.
+        // Written as `!= true` rather than requiring a `name` claim so a stale cached client still
+        // running the old anonymous bootstrap can keep renewing its subscription through the
+        // mixed-version window.
+        // The `in` guard is NOT optional. Reading an ABSENT custom claim is an evaluation ERROR in
+        // Rules ("Property calendarViewer is undefined on object"), and inside an `&&` chain an
+        // error denies the whole clause — so a bare `token.calendarViewer != true` broke every
+        // ordinary subscription write, member and anonymous alike. It survives inside an `||` chain
+        // (an error loses to a true branch), which is why the overrides READ rule above can use the
+        // shorter form and this one cannot. Caught by the emulator suite, invisible to static checks.
+        (!('calendarViewer' in request.auth.token) || request.auth.token.calendarViewer != true) &&
         // hasOnly prevents injecting extra fields (e.g. memberName, metadata). `owner` is
         // permitted (see below) but not required — older cached clients omit it.
         request.resource.data.keys().hasOnly(['endpoint', 'keys', 'subscribedAt', 'owner']) &&
@@ -475,7 +563,19 @@ service cloud.firestore {
       // locked out. Orphans left by a uid change are swept server-side by fanOutPush's 410/404
       // cleanup, so nothing accumulates. (A5, F-SEC-5 — was `request.auth != null` for any id.)
       allow delete: if request.auth != null &&
+        // Same `in` guard as create/update above, for the same reason.
+        (!('calendarViewer' in request.auth.token) || request.auth.token.calendarViewer != true) &&
         (!('owner' in resource.data) || resource.data.owner == request.auth.uid);
+    }
+
+    // ── viewerAttempts — the staff-PIN throttle store (v20.12) ─────────────────────────────────
+    // Written ONLY by the unlockCalendarViewer Cloud Function through the Admin SDK, which bypasses
+    // these rules entirely. Closed to every client in both directions, and BOTH halves matter:
+    // a client that could READ it would learn how close a source is to being blocked (which is how
+    // an automated traversal would pace itself under the limit), and one that could WRITE it could
+    // clear its own failure count between guesses, which would remove the limit altogether.
+    match /viewerAttempts/{sourceKey} {
+      allow read, write: if false;
     }
 
     match /analytics/{docId} {

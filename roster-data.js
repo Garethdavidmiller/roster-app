@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '20.10';
+export const APP_VERSION = '20.17';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -84,6 +84,37 @@ export const CONFIG = {
     // an expired session forces a real typed login, so coverage completes itself inside 30 days and
     // staggers by each member's own expiry rather than landing on everyone at once.
     FORCE_PASSWORD_SET:               true,
+    // ── Staff PIN access for the Calendar — THE ON/OFF SWITCH (v20.12; made real v20.16) ────────
+    //
+    // true  → the Calendar opens for a named member session or the shared staff PIN, and for
+    //         nothing else. Everyone else gets the unlock card.
+    // false → the Calendar is back on its pre-v20.12 model: an anonymous session, no gate, no card.
+    //         Exactly what staff had before, with the feature shipped but invisible.
+    //
+    // Both directions are a HOSTING deploy of this one line. Neither touches `firestore.rules`,
+    // which is what makes it usable as a same-day rollback: if the exchange misbehaves in
+    // production, flipping this to false restores the Calendar in the time a deploy takes, with no
+    // rules change and nothing to wait for.
+    //
+    // **IT CONTROLS FRICTION, NOT PROTECTION**, and confusing the two is how this gets somebody
+    // hurt. Whether the roster is actually protected is decided by `firestore.rules`, and the two
+    // are separate deploys on purpose:
+    //
+    //   · flag ON  + rules permissive → the card is up, the data is NOT yet protected. The soak
+    //     state: prove the exchange against real staff and a real secret, with an instant undo.
+    //   · flag ON  + rules tightened  → the shipped state. The roster is protected.
+    //   · flag OFF + rules permissive → fully open, as it always was. Deploy-dark, or undo.
+    //   · flag OFF + rules tightened  → DO NOT. The client stops asking for a PIN while the server
+    //     keeps refusing the reads, so every visitor gets the base roster under a "couldn't update"
+    //     chip — a roster that is WRONG rather than obviously broken, which is the one outcome this
+    //     feature exists to prevent. Rolling back AFTER the rules have shipped means rolling back
+    //     the RULES (RECOVERY_RUNBOOK.md → "The Calendar PIN").
+    // SHIPPED DARK (v20.16). The feature is deployed and the Cloud Function is live, but the
+    // Calendar behaves exactly as it did before v20.12. Flip to true — hosting deploy, one line —
+    // once the secret is set and the function has been proved from the production origin. The
+    // `overrides` read rule is held permissive to match (see the HOLD block in firestore.rules);
+    // tighten that AFTER this flag has soaked, never in the same push.
+    CALENDAR_PIN_ACCESS:              false,
     // How long the calendar's `pw-own-2026` notice keeps showing on a device that has not yet seen
     // it, in days from its 6 Aug 2026 posting date (calendar-app.js). CONFIGURABLE ON PURPOSE
     // (v19.91, external review): `isNoticeExpired` marks a notice seen WITHOUT showing it, so on the

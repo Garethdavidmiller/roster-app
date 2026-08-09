@@ -13,10 +13,10 @@
  */
 
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
-import { auth, authReady, signInAnonymously } from './firebase-client.js';
+import { authReady } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
-import { getSession, clearSession, reconcileExpiredIdentity } from './session.js';
+import { getSession, clearSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
@@ -28,7 +28,8 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
-import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress } from './calendar-overrides.js';
+import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler } from './calendar-overrides.js';
+import { initCalendarAccess, calendarAccessReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
@@ -37,24 +38,24 @@ import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
-// Resolves once a usable Firebase Auth user exists: a named account if one is already
-// signed in (e.g. Admin/Paycalc opened first — an existing user already has a token, so
-// signInAnonymously would race or replace them), otherwise a fresh anonymous session.
-// EVERY Firestore write on the calendar — error reporter, usage counter, AND the push-
-// subscription renewal — awaits this so none runs before request.auth is set. Without it,
-// an already-installed PWA re-saved its push subscription with no auth user → the write was
-// rejected by the `request.auth != null` rule → the bell stuck "off-lapsed" with no retry.
-// See ROADMAP_HISTORY.md → "Deferred security/reliability backlog (v14.11 review)"
-// (the v14.23–28 push-subscription auth race fix).
-// reconcileExpiredIdentity() FIRST (Finding #9): if a NAMED Firebase identity was restored from
-// IndexedDB but the local app session has expired, sign it out here — the coordinated teardown the
-// getSession() note prescribes (the calendar is the PWA start_url, so this runs on nearly every
-// launch). The anon bootstrap then re-establishes an anonymous session in its place, so the calendar's
-// best-effort writes still satisfy `request.auth != null` without carrying stale named privileges.
-const calendarAuthReady = authReady
-    .then(() => reconcileExpiredIdentity())
-    .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
-    .catch(() => {});
+// ── THE CALENDAR ACCESS BOOTSTRAP (v20.12) ──────────────────────────────────────────────────────
+//
+// This replaced an unconditional `signInAnonymously` fallback. That existed because `overrides` was
+// world-readable (`allow read;`) and the Calendar's best-effort WRITES — the error reporter, the
+// usage counter, the push-subscription renewal — still needed `request.auth != null`. Override reads
+// now require a real member `name` claim or the shared `calendarViewer` capability, so an anonymous
+// identity would grant nothing at all: it would be a round trip that buys a token no rule accepts.
+// Do not re-add it "so telemetry keeps working" — a locked Calendar recording a page view it never
+// showed is not a measurement worth an authenticated session for.
+//
+// `calendarAccessReady` (calendar-access.js) is the replacement, and it is a stronger promise than
+// the one it replaces: it resolves only when this browser may actually SEE the roster.
+//
+// `_startCalendarWorkspace` is assigned inside the init try-block below and invoked once, from the
+// access callback at the module tail. It is a `let` rather than a hoisted function declaration
+// precisely so that the assignment sits with the code it initialises.
+/** @type {(() => void)|null} */
+let _startCalendarWorkspace = null;
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -79,6 +80,13 @@ let openAboutLightbox = null;
 // surface the same shift label / extras / override note that desktop users get
 // from the hover tooltip, and lets renderCalendar() close the AL lightbox on
 // member change (stale data). Both handles are ready before the swipe init.
+// NOT deferred behind Calendar access, and checked rather than assumed (v20.12). This attaches
+// handlers; it fetches nothing. The AL lightbox's own Firestore read happens in its `onOpen`, fired
+// by `#alBtn`, which lives inside `#calendarControls` — hidden while locked, so out of the
+// accessibility tree and out of tab order. And that read is a plain `getDocs`, which is SERVER-first,
+// so the tightened rule denies it outright: there is no cache path here for the gate to have to
+// cover. Same reasoning for `initCalendarTooltip`/`initCalendarKeyboard` further down — with
+// `#calendarDisplay` empty they have nothing to act on.
 const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc });
 
 // (Calendar display state lives in calendar-state.js; swipe cooldown in calendar-swipe.js)
@@ -546,6 +554,24 @@ document.getElementById('teamViewBtn')?.addEventListener('click', teamView.toggl
 // Modules are always deferred — the DOM is fully parsed before this code runs.
 // No DOMContentLoaded wrapper needed; initialize directly.
 try {
+    // ── THE CALENDAR WORKSPACE — deferred until access is granted (v20.12) ───────────────────────
+    //
+    // Everything that puts ROSTER DATA on screen lives in here, and none of it runs until
+    // `calendar-access.js` says this browser may see it. That is the primary gate, and it is a
+    // structural one: while the Calendar is locked there is no member dropdown, no rendered grid, no
+    // Team View and no override fetch — not hidden ones, ABSENT ones. Hiding a rendered Calendar
+    // behind an overlay would leave the data in the DOM for a screen reader, a devtools pane, or one
+    // CSS rule going missing; there is nothing to reveal here because nothing was built.
+    //
+    // The SECOND gate is `setOverrideAccess` in calendar-overrides.js, which refuses the reads at
+    // source. Both exist because they fail differently: this one is a call-ORDER property that a
+    // future edit could break silently, and that one is a refusal that it could not.
+    //
+    // What stays OUTSIDE: the header, the nav drawer, the About panel, the document viewers and the
+    // splash dismissal. The guides, the Huddle, the Circular and the Newsletter are reachable
+    // without Calendar access on purpose — making somebody type the staff PIN to read the Railcard
+    // guide would be locking the building to reach the noticeboard.
+    _startCalendarWorkspace = function startCalendarWorkspace() {
         // validateRosterPatterns() already ran at module load in roster-data.js.
         // Only run the team-member shape check here — it's unique to this file.
         const allErrors = validateTeamMembers();
@@ -584,8 +610,16 @@ try {
             // initInitialFetch's JSDoc for the two-sided stand-down).
             renderTeamView: () => teamView.refreshFromCache(),
             // Phase 2 (the authoritative server read) waits for this; phase 1 (the local-cache
-            // paint) deliberately does not — see AUTH_PLAN.md → E1.
-            authReady: calendarAuthReady,
+            // paint) deliberately does not — see AUTH_PLAN.md → E1. Since v20.12 the promise is
+            // `calendarAccessReady`, which is ALREADY RESOLVED whenever this runs: the whole
+            // workspace is deferred behind it. It is still passed rather than dropped, because the
+            // retry path re-reads it and the two-phase structure is what makes the gate legible.
+            authReady: calendarAccessReady,
+            // A read refused because ACCESS has gone reopens the unlock card instead of looping on
+            // the sync chip's retry, which an expired session can never satisfy (v20.12). The gate
+            // is CLOSED first: re-locking the UI while override reads stayed permitted would leave
+            // the local-cache path open behind the card.
+            onAccessLost: () => { setOverrideAccess(false); handleAccessLost(); },
         });
 
         // Restore team view if the user was in it before the last refresh; else render the
@@ -595,21 +629,6 @@ try {
             teamView.restoreTeamView();
         } else {
             renderCalendar();
-        }
-
-        // Dismiss splash screen after first render — rAF ensures the calendar
-        // is painted before the fade starts (setTimeout(300) was arbitrary).
-        const splash = document.getElementById('splash');
-        if (splash) {
-            requestAnimationFrame(() => {
-                splash.classList.add('hidden');
-                // Fallback timer — iOS may not fire transitionend if the tab is backgrounded mid-fade.
-                const splashFallback = setTimeout(() => splash.remove(), 1000);
-                splash.addEventListener('transitionend', () => {
-                    clearTimeout(splashFallback);
-                    splash.remove();
-                }, { once: true });
-            });
         }
 
         // Swipe gesture handler — see calendar-swipe.js for full implementation.
@@ -624,7 +643,26 @@ try {
             navigateToPaycalc,
             openDayDetail: (cell) => openDayDetail?.(/** @type {HTMLElement} */ (cell)),
         });
+    };
 
+    // ── The splash comes down either way ────────────────────────────────────────────────────────
+    // Outside the workspace function DELIBERATELY. It used to sit after the first render, which was
+    // right when the first render was unconditional; now a locked Calendar would sit behind the
+    // splash for ever and the PIN panel would never be seen. Clearing it here means the member sees
+    // either their roster or the unlock card, and never a loading screen with no way out.
+    // (splash-watchdog.js is the backstop for the module graph failing entirely, not for this.)
+    const splash = document.getElementById('splash');
+    if (splash) {
+        requestAnimationFrame(() => {
+            splash.classList.add('hidden');
+            // Fallback timer — iOS may not fire transitionend if the tab is backgrounded mid-fade.
+            const splashFallback = setTimeout(() => splash.remove(), 1000);
+            splash.addEventListener('transitionend', () => {
+                clearTimeout(splashFallback);
+                splash.remove();
+            }, { once: true });
+        });
+    }
 
         // ============================================
         // ICON LIGHTBOX / ABOUT PANEL
@@ -849,18 +887,22 @@ const _entryHash = window.location.hash;
 // ============================================
 // HUDDLE VIEWER — initialised via calendar-huddle-viewer.js
 // ============================================
-initHuddleViewer({ authReady: calendarAuthReady });
+// `authReady` (persistence configured), NOT `calendarAccessReady`. The Huddle, Circular and
+// Newsletter collections are openly readable by design (OPERATIONS_REFERENCE.md → "Huddle
+// notification tap behaviour"), so these viewers need no Calendar access — and gating them on it
+// would strand a locked visitor: this subscription does a plain `await`, so a promise that never
+// resolves would leave a nav-drawer tap loading for ever. What they DO need is persistence to be
+// configured before any token work, which is exactly what `authReady` is.
+initHuddleViewer({ authReady });
 
 // ============================================
 // CIRCULAR / NEWSLETTER VIEWER — opened from a #circular/#newsletter notification deep link
 // ============================================
-initDocViewer({ authReady: calendarAuthReady });
+initDocViewer({ authReady });   // same reasoning as the Huddle viewer above
 
 
-// calendarAuthReady is declared at the top of the module (just below the imports) — it is consumed
-// by initInitialFetch and both document viewers, all of which run ABOVE this point (v19.01). Moving
-// the declaration up was required to avoid a temporal-dead-zone ReferenceError; the promise chain
-// itself is unchanged, it simply starts a few statements earlier.
+// `calendarAccessReady` is imported at the top of the module — it is consumed by initInitialFetch
+// and by the telemetry block below.
 
 
 // ============================================
@@ -880,7 +922,19 @@ initDocViewer({ authReady: calendarAuthReady });
     // Already granted — getNotifState() handles VAPID rotation and keeps the
     // subscription fresh. Early-return avoids showing the prompt.
     if (Notification.permission === 'granted') {
-        calendarAuthReady.then(() => getNotifState()).catch((/** @type {any} */ err) => console.warn('[Notifications] Renewal failed:', err.message));
+        // NAMED sessions only (v20.12). This renews the subscription and re-stamps its `owner` with
+        // the current Firebase uid, and under a shared Calendar viewer that uid is the SAME for
+        // every office PC in the building — so one machine's renewal would overwrite the owner of a
+        // real member's subscription, and any viewer anywhere could then delete it. Skipping is a
+        // no-op write-wise, so an existing subscription is left exactly as it was; the only thing
+        // lost is VAPID-rotation self-healing during a viewer session, which is a rare manual event
+        // on a machine that should not be carrying somebody's notifications anyway.
+        calendarAccessReady
+            // `open` too (v20.16): with the staff PIN switched off the Calendar is back on its
+            // pre-v20.12 anonymous model, and renewal under an anonymous uid is exactly what it did
+            // then. Only VIEWER mode is excluded, because that uid is shared by every office PC.
+            .then(() => { const t = getAccessType(); if (t === 'named' || t === 'open') return getNotifState(); })
+            .catch((/** @type {any} */ err) => console.warn('[Notifications] Renewal failed:', err.message));
         return;
     }
 
@@ -893,15 +947,26 @@ initDocViewer({ authReady: calendarAuthReady });
     if (!prompt || !enableBtn || !dismissBtn) return;
     const _prompt = /** @type {HTMLElement} */ (prompt);
 
-    _prompt.style.display = 'flex';
+    // Offered to NAMED sessions only, and only once access is settled (v20.12). Two reasons, and
+    // the second is the one that would not occur to you: a subscription made under the shared
+    // viewer is owned by an identity fifty people share, so it can be deleted by any of them — and
+    // it would sit on a shared office PC pushing one person's Huddle to a machine in the mess room
+    // indefinitely, with nobody who could turn it off. A staff member who wants notifications wants
+    // them on their own phone, where they are signed in.
+    calendarAccessReady.then(() => {
+        // Same rule as the renewal above: everyone EXCEPT the shared viewer. With the PIN switched
+        // off that restores the prompt to every calendar visitor, which is what it was before.
+        const t = getAccessType();
+        if (t !== 'named' && t !== 'open') return;
+        _prompt.style.display = 'flex';
+    });
     function hide() { _prompt.style.display = 'none'; }
 
     enableBtn.addEventListener('click', async () => {
         hide();
         try {
             // Request the permission FIRST, inside the click's transient user activation (v16.23).
-            // Awaiting calendarAuthReady first (a live signInAnonymously round-trip on a first
-            // visit — exactly when this prompt shows) ran requestPermission outside the gesture:
+            // Awaiting an auth round-trip first ran requestPermission outside the gesture:
             // iOS/WebKit silently rejects a no-gesture request and Chrome demotes it to the quiet
             // UI, so the tap did nothing. Only the Firestore subscription SAVE needs auth.
             const perm = await Notification.requestPermission();
@@ -909,7 +974,10 @@ initDocViewer({ authReady: calendarAuthReady });
                 lsSet('myb_notif_prompt_done', '1');   // asked and declined — don't re-prompt
                 return;
             }
-            await calendarAuthReady;
+            // Already resolved — the prompt is only shown from inside a `calendarAccessReady`
+            // callback — but kept so the gesture/auth ordering above stays explicit at the one
+            // place it matters.
+            await calendarAccessReady;
             await enableNotifications();   // permission already granted → goes straight to subscribe
         } catch (err) {
             console.warn('[Notifications] Enable failed:', /** @type {any} */ (err).message);
@@ -927,7 +995,13 @@ initCalendarTooltip();
 initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 // Error reporter + usage counter both write to Firestore (need request.auth) — gate them
 // on the shared auth promise defined above, the same one the push renewal awaits.
-calendarAuthReady.finally(() => {
+// Telemetry waits for ACCESS, not merely for auth (v20.12), and on a locked Calendar it therefore
+// never runs. That is the honest reading: with no identity at all these writes would be rejected by
+// every rule, and a page view for a Calendar nobody was shown is not a figure worth an
+// authenticated session to collect. The cost is real and worth stating — an unlock that FAILS is
+// invisible to the error log, so a broken PIN exchange shows up in the Cloud Function logs and in
+// staff reports rather than in the Operations Error Log card.
+calendarAccessReady.finally(() => {
     initErrorReporter();
     // The calendar has no Auth session of its own, and since v19.95 that no longer keeps its
     // visitors out of the account figures: `recordUsage` takes ONE identity and counts it. For the
@@ -953,7 +1027,7 @@ calendarAuthReady.finally(() => {
 
 const _calendarSession = getSession();
 initNavPanel({
-    authReady: calendarAuthReady,
+    authReady: calendarAccessReady,
     currentPage: 'calendar',
     memberName:  _calendarSession?.name || null,
     // Open-counter exclusion identity: the session name, else the SELECTED member — but null on
@@ -968,6 +1042,29 @@ initNavPanel({
         clearSession();
         window.location.reload();
     } : null,
+    // "Lock Calendar" — viewer mode only, and the nav drawer is the right home for it: it is a
+    // leaving-the-desk action, not a Calendar control, and putting it in the header would give every
+    // member a button they can never use. `isViewerMode()` is read at DRAWER-OPEN time (the thunk),
+    // not at init, because access is resolved asynchronously and this call runs before it settles.
+    onLockCalendar: { isViewer: isViewerMode, lock: lockCalendar },
+});
+
+// ── Start the Calendar, or ask for the staff PIN ─────────────────────────────────────────────────
+// The LAST thing the module does, deliberately: every shell subsystem above is wired first, so a
+// locked visitor still has the nav drawer, the guides, the documents and the About panel. Only then
+// is access decided, and only on `named`/`viewer` does the workspace exist at all.
+initCalendarAccess({
+    onGranted: () => {
+        // Open the override reads BEFORE building the workspace. The reverse order would let the
+        // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
+        // and leave the month unfetched for the session.
+        setOverrideAccess(true);
+        // Month navigation and Team View reach Firestore through `ensureOverridesCached`, not
+        // through the initial fetch — so they need the same access-lost recovery, and they are the
+        // likelier path once a session has been open for a while (v20.15).
+        setOverrideAccessLostHandler(handleAccessLost);
+        _startCalendarWorkspace?.();
+    },
 });
 
 
@@ -1033,5 +1130,8 @@ initNavPanel({
     // Deferred so it cannot land on top of the Huddle viewer's auto-open, and opened through
     // `openNoticeIfClear` rather than `open()` — with two overlays up, one Escape ran both onClose
     // callbacks and flagged the buried one seen for good (v19.53).
-    setTimeout(() => openNoticeIfClear(lb), 1500);
+    // Behind `calendarAccessReady` (v20.12): on a locked Calendar this would open over the staff-PIN
+    // card, covering the one control on the page. It is a nudge about signing in, which is the
+    // second thing somebody needs, not the first.
+    calendarAccessReady.then(() => setTimeout(() => openNoticeIfClear(lb), 1500));
 }());

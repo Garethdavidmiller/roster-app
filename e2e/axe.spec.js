@@ -11,9 +11,25 @@
 
 // test/expect come from fixtures.js (NOT @playwright/test) so the hermetic Firebase stub is
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
-import { test, expect } from './fixtures.js';
+import { test, expect, enableCalendarPin } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
-import { seedSession, seedMember } from './helpers.js';
+import { seedSession, seedMember, seedViewerAccess, stubPinExchange, enterPin } from './helpers.js';
+
+// ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
+// Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
+// simply loads index.html now gets the unlock card and none of the roster. Every test in this file
+// is about what the Calendar DOES once it is open, not about the gate, so each page starts with a
+// viewer session already in place — the state an unlocked shared office PC is in, and the closest
+// match to what these tests were implicitly written against (roster on screen, `getSession()` null).
+// The gate itself is covered end-to-end in calendar-pin.spec.js.
+// A test that also seeds a member session still gets the member: the stub ranks them that way,
+// exactly as `decideAccess` does.
+// The staff PIN is switched OFF in the shipped config while the feature is deployed dark
+// (v20.17). Turn it on here so these keep covering the configuration the app is heading for,
+// and seed a viewer session to satisfy it — otherwise every calendar test silently starts
+// running against the old open model and the gate goes untested.
+test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedViewerAccess(page); });
+
 
 // WCAG 2.0 + 2.1, levels A and AA — the standard staff-facing target.
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
@@ -60,6 +76,35 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // month" cue) AND `aria-hidden` (never announced), so darkening them to meet AA would defeat
         // the design for zero screen-reader benefit. Documented in A11Y_FINDINGS.md.
         const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    // The LOCKED Calendar (v20.12). The one state a visitor with no session and no PIN ever sees,
+    // and it would be invisible to every other scan in this file — they all establish access first.
+    // It is also the app's front door for anyone who has never used it, which is exactly the
+    // audience least able to work around an accessibility fault.
+    test('calendar — staff PIN unlock card', async ({ page }) => {
+        await page.addInitScript(() => {
+            try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* noop */ }
+        });
+        await page.goto('/');
+        await expect(page.locator('#calLockPin')).toBeVisible();
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    test('calendar — unlock card showing an ERROR', async ({ page }) => {
+        // The error message is the one piece of this card that is announced rather than read, and it
+        // arrives after the page has settled — so a scan of the resting state cannot see it. Colour
+        // contrast on the error text is checked here and nowhere else.
+        await page.addInitScript(() => {
+            try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* noop */ }
+        });
+        await stubPinExchange(page, { status: 401 });
+        await page.goto('/');
+        await enterPin(page, '0000');
+        await expect(page.locator('#calLockMsg')).toContainText(/not recognised/i);
+        const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });
 

@@ -6,6 +6,12 @@
  * factors in five families (time of day, duty length, recovery time, intervals between duties,
  * cumulative, circadian phase shift).
  *
+ * **The panel renders 23 of those 24, and that gap is UNRESOLVED — do not "correct" either number
+ * from memory.** It has stood since v19.46 and is recorded in KNOWN_LIMITATIONS.md → Links; settling
+ * it needs the ORR source, which is not reachable from this environment. Reconciling the count by
+ * adjusting the one that is easier to change would produce a panel that agrees with itself and
+ * misstates the guidance it cites, which is this module's whole failure mode.
+ *
  * WHY THIS IS ITS OWN MODULE, and what it deliberately does NOT do.
  *
  * 1. **It reports factors PRESENT. It does not pass or fail a design.** The ORR is explicit that
@@ -26,7 +32,9 @@
  *    half the rotation on every design is how a check gets ignored; it is reported with a count and
  *    marked `standing`.
  *
- * 4. **Two rules carry an interpretation that is NOT settled** (FF17, FF19 — see below). They are
+ * 4. **Three rules carry an interpretation that is NOT settled** (FF17, FF18, FF19 — see below;
+ *    this said "two" and named FF17/FF19 until v20.11, while the code has carried the flag on all
+ *    three since v19.46). They are
  *    marked `confirm: true` so the UI can say so. Shipping a number whose definition is unagreed,
  *    unlabelled, is the false-assurance failure in miniature.
  *

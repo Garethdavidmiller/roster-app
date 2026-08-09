@@ -2,8 +2,18 @@
 // (config: playwright.visual.mjs) — excluded from the smoke run because pixel diffs are
 // environment-sensitive. Locks the composition of every key surface (including the accepted
 // desktop "voids") so a CSS/layout change like the Section C token sweep can't silently
-// restyle a page. When an intentional visual change lands, regenerate the affected baseline
-// with `npm run test:visual -- --update-snapshots` and eyeball the new PNG in review.
+// restyle a page. When an intentional visual change lands, regenerate with
+// `npm run test:visual -- --update-snapshots=all` and eyeball the new PNGs in review.
+//
+// TWO THINGS ABOUT REGENERATING, both learned the hard way (this header said a bare
+// `--update-snapshots` until v20.11, which is the wrong half of both of them):
+//   · `=all` is LOAD-BEARING. A bare `--update-snapshots` only rewrites baselines whose comparison
+//     FAILED, so a baseline that drifted INSIDE the tolerance can never be refreshed by it.
+//   · `=all` rewrites every baseline including the ones that PASSED. So afterwards run
+//     `git status e2e/visual-baselines/` and REVERT anything you cannot explain — a v19.62 run
+//     intended to capture one change came back with five modified, four of them sub-tolerance
+//     rendering noise that would have been committed as though reviewed. Reverting a file and
+//     re-running is the check: still passes ⇒ it was noise and does not belong in the diff.
 //
 // Determinism: the clock is pinned so the calendar + pay period are fixed; Firebase is stubbed
 // (fixtures.js) so reads are empty; a fixed member is seeded; every one-time overlay is
@@ -56,6 +66,10 @@ async function prep(page, { width, height }) {
     await page.setViewportSize({ width, height });
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
+    // The Calendar needs a restorable Firebase identity as well as a local session since v20.12 —
+    // `decideAccess` requires BOTH, so a baseline seeded with only the session would capture the
+    // staff-PIN card on every calendar surface instead of the roster.
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authUser: true }); });
     await dismissOneTimeOverlays(page);
 }
 
@@ -682,4 +696,27 @@ test('overlay — Tips panel (settings, desktop 1280)', async ({ page }) => {
     await expect(page.locator('#tipsLightbox')).toBeVisible();
     await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
     await expect(page).toHaveScreenshot('overlay-tips-desktop-1280.png');
+});
+
+// ── The staff PIN unlock card (v20.12) ──────────────────────────────────────────────────────────
+//
+// Baselined because it is the app's front door for anybody who is not signed in, it is composed of
+// nothing the rest of the suite covers, and the behavioural specs provably cannot see it: they
+// assert the field exists, is labelled and is 16px+, none of which would notice the card losing its
+// padding, its badge, or its surface — the exact way the links "Recently deleted" panel shipped as
+// a transparent box at v19.41 with every behavioural test green.
+test('calendar — staff PIN unlock card @1280', async ({ page }) => {
+    await page.clock.setFixedTime(FIXED_TIME);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/index.html');
+    await settle(page, '#calLockPin');
+    await expect(page).toHaveScreenshot('calendar-lock-desktop-1280.png');
+});
+
+test('calendar — staff PIN unlock card @390', async ({ page }) => {
+    await page.clock.setFixedTime(FIXED_TIME);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/index.html');
+    await settle(page, '#calLockPin');
+    await expect(page).toHaveScreenshot('calendar-lock-mobile-390.png');
 });

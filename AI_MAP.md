@@ -144,6 +144,31 @@ Keyboard navigation and hover tooltip for `index.html` — extracted from `calen
 - `initCalendarKeyboard({ navigateToPaycalc, openDayDetail })` — arrow-key cell navigation (roving tabindex), PageUp/Down month jump, Enter/Space cell activation (payday → paycalc, cutoff → paycalc, other → day-detail lightbox)
 - Imports: `calendar-swipe.js` (isSwipeCooldown), `roster-data.js` (paydayForCutoff, formatISO)
 
+### `calendar-access.js`
+
+The Calendar's **access gate** (v20.12) — decide at boot, ask for the staff PIN, hold the shared viewer session.
+
+- `initCalendarAccess({ onGranted })` — the bootstrap. Resolves what this browser holds and either starts the Calendar or shows the unlock card. `onGranted` runs ONCE and is how `calendar-app.js` defers every piece of Calendar initialisation.
+- `calendarAccessReady` — resolves the first time access is granted, and NEVER rejects (every consumer uses it as a gate; one missing catch would be an unhandled rejection on the app's start page). Access that never comes simply never resolves, and the unlock card is the visible half of that.
+- `unlockWithPin(pin)` → `{ok:true}` or `{ok:false, kind, message}`. POSTs to `unlockCalendarViewer`, switches Firebase to session-only persistence, signs in with the custom token, then VERIFIES the claim arrived.
+- `getAccessType()` → `'named'|'viewer'|'none'` · `isViewerMode()` · `lockCalendar()` (the nav drawer's action) · `handleAccessLost()` (a read refused because the session went, not because the network is poor).
+- **Why `overrides` could finally stop being world-readable.** Staff glance at the roster on shared office PCs where a corporate Windows sign-in means a fresh browser every time, so a full member login for a thirty-second look was never going to be accepted — and that was the standing reason the collection stayed public. A server-validated shared code is low enough friction for that use and real enough to hang a rule on.
+- **The gate is STRUCTURAL, not cosmetic.** While access is `none` the Calendar is not initialised at all: no member dropdown, no grid, no Team View, no fetch. Not hidden — absent. `calendar-overrides.js` independently refuses the reads (`setOverrideAccess`), because the dangerous path is the LOCAL Firestore cache: rules are evaluated server-side, so `getDocsFromCache` never consults them and a browser that unlocked yesterday still holds everything it saw.
+- **Two orderings are the security properties.** Sign the old identity out BEFORE switching persistence (`setPersistence` migrates the current user, so the reverse order moves the shared viewer into IndexedDB, where it outlives the browser session). And verify the claim BEFORE granting — a token without it signs in perfectly and then has every read denied, leaving an unlocked-looking Calendar with no shifts on it and no error anywhere.
+- **It is deliberately NOT a lightbox.** No backdrop, no focus trap, no Escape: there is nothing behind it to return to, and a trap on a one-field screen is a cage. It is a card in the place the Calendar will appear, which is also what makes unlocking read as the page filling in.
+- Full operational detail (setting the secret, rotation, diagnosis): OPERATIONS_REFERENCE.md → "Staff PIN access for the Calendar".
+
+### `calendar-access-core.js`
+
+The **pure** half — no DOM, no Firebase, no storage, so it loads in Node. Same split, and the same reason, as `auth-state-core.js` vs `auth-state.js`. Tested by `calendar-access-core.test.mjs`.
+
+- `CALENDAR_VIEWER_UID` (`'calendar-viewer'`) · `CALENDAR_VIEWER_CLAIM` (`'calendarViewer'`) · `PIN_LENGTH`.
+- `isViewerUser(user)` — uid match AND non-anonymous. `session.js` imports THIS rather than keeping a second copy, because it is the predicate deciding which identities survive `reconcileExpiredIdentity`.
+- `decideAccess({ session, firebaseUser })` → `'named'|'viewer'|'none'`. Named beats viewer; anything missing resolves to `none`.
+- `normalisePin` / `isCompletePin` — shape only. **The PIN is never compared here or in any client file**: four digits is 10,000 candidates, so a verifier in the browser is an offline brute force that needs no network and leaves no trace.
+- `classifyUnlockFailure` — the words a member reads. Offline beats any status; a sign-in failure after a correct PIN never says "not recognised"; no branch reveals a rate-limit number.
+- `attemptBackoffMs` — a UX brake, NOT a security control. Trivially bypassed, and nothing depends on it; the real limit is the server's.
+
 ### `calendar-overrides.js`
 Firestore override cache for `index.html` — extracted from `calendar-app.js` at v13.82.
 - `rosterOverridesCache` — exported `Map` keyed `"memberName|YYYY-MM-DD"`; imported by `calendar-renderer.js` for cell rendering and by the coordinator
@@ -470,9 +495,9 @@ The **SHAPE of a link design** — in memory and in Firestore — and every conv
 
 ### `rangers-guide.js` / `rangers-guide.css`
 The **Rangers & Rovers guide** (v20.05) — the ranger/rover area passes staff accept or refuse at the gateline. Static page; no modules, no Firebase. `rangers-guide.js` is a near-copy of `railcard-guide.js` (PDF button + chip-bar scroll + the sticky-stack `ResizeObserver`), deliberately: that stack has already produced a real bug (v18.82, a stale sticky `top` after a late font swap), and re-deriving it here would re-open it. The only differences are the card selectors.
-- **It ships as a structural DRAFT.** Every claim is a rule a passenger could be refused travel by — Evidence class A/B — and the content was triangulated from public summaries because the official pages are unreachable from the build environment. The state is carried in THREE places and all three are enforced by `guide-sources.test.mjs`: a `.draft-banner` that also prints, a `to confirm` pill on every card (so it survives a screenshot, a print, or a reader who scrolled past the banner), and a `Draft` class on each `GUIDE_SOURCES.md` row. The test asserts a Draft row's page shows the banner AND that every Draft-anchored block carries the per-card marker — the banner alone is not enough, which is the `links-deletion.js` lesson (the bin promised a 30-day countdown for ten versions after the purge was switched off; what that cost was the reason to believe the next thing the panel said).
-- **`Draft` is a new register class** (v20.05) meaning *recorded, source identified, not yet verified against it*. The alternative was worse both ways: classify the rows `National` and the register certifies something nobody read, or omit them and the guide's riskiest claims have no rows at all.
-- **Leads with "usually no".** ~90 products exist nationally, a handful touch Chiltern, and a staff member who cannot find their ticket in a long list cannot tell *not valid* from *not listed*. The near-misses section is the point of the page, not an appendix.
+- **Evidence state is PER PRODUCT, not per page** (v20.10 — it shipped at v20.05 as a page-wide structural draft, because the official pages are unreachable from the build environment; the owner then read every product at source). A page-wide marker says the same thing about a claim that was verified and one that was not, so it stops being information the moment either exists. Each card now carries its own state, and the state is in THREE places that `guide-sources.test.mjs` holds together: the register row's class, the card's status pill (it survives a screenshot, a print, or a reader who scrolled past the banner), and the page banner, which may not be removed while any provisional card remains.
+- **`Conflict` is the register class that matters here** — *the source contradicts itself*. Re-reading fixes an unchecked claim and cannot fix a publisher disagreeing with its own page, so the two must never wear one marker: a reader sent back to a page they have already read learns nothing and loses time at a gateline. Two rows hold it — `rr-shakespeare` (break of journey permitted in the description, not permitted in the detailed conditions on the same page) and `rr-thames-7` (the current 7-Day promotion page lists Chiltern; the older TR3/TR7 terms page says GWR only). **A Conflict card may never be used to refuse travel** — it says check the retail system, and the register row has to describe the disagreement, which is its own test.
+- **Leads with "usually no".** A staff member who cannot find their ticket in a long list cannot tell *not valid* from *not listed*, so the page is the Chiltern-relevant products and the near-misses, stated as non-exhaustive — never a count of the national set, which is re-set upstream and stale the moment it is written down. The near-misses section is the point of the page, not an appendix.
 - **No prices** — annually re-set, three-way variable, and a stale one is a mis-sell. Stricter than the railcard guide on purpose.
 - Design + the unblock path: `RANGERS_ROVERS_PLAN.md`.
 

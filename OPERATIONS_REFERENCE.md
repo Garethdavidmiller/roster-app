@@ -458,3 +458,123 @@ per-origin. The counters are how you tell whether that has happened yet.
 The `@myb-roster.local` domain is synthetic — not real email addresses. Firebase Auth accepts them as valid email format.
 
 Migration history (v7.61 → v7.94) is in `ROADMAP_HISTORY.md` → Completed phases.
+
+---
+
+## Staff PIN access for the Calendar (v20.12)
+
+The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Everything
+privileged — Admin, Settings, Operations, Links — still needs a real member sign-in; the PIN grants
+one capability and one only: *read the Calendar's override data*.
+
+### Why it exists
+
+Staff open the roster on shared office PCs for a quick look. Signing into a corporate Windows
+account gives them a fresh browser every time, so a full member sign-in for a thirty-second glance
+is friction nobody would accept. Until v20.12 the alternative was that override data — annual leave,
+absence and shift changes for every member — was readable by anyone with the URL. The PIN is what
+lets both be fixed at once.
+
+### What a member experiences
+
+| Situation | What happens |
+|---|---|
+| Signed-in member, live session | Nothing changes. No PIN, no interruption; the 30-day / 7-day-idle session rules are untouched. |
+| Shared PC, fresh browser | The Calendar area shows a small "Enter the staff PIN" card. Four digits → the roster, including whichever member was last selected on that machine. |
+| Same browser, reload or navigation | Stays unlocked. The viewer session lives as long as the browser session. |
+| Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |
+| Guides, Huddle, Circular, Newsletter | Reachable **without** the PIN. The nav drawer is never locked. |
+
+A member on a shared PC can also use **"Sign in instead"** on the unlock card, and a viewer can
+press **Lock Calendar** in the nav drawer before walking away.
+
+### Switching it on and off
+
+`CONFIG.CALENDAR_PIN_ACCESS` in `roster-data.js` is the on/off switch, and both directions are a
+hosting deploy of one line:
+
+- **`false`** — the Calendar is on its pre-v20.12 model: anonymous session, no gate, no card. Staff
+  see no change at all. This is how the feature ships DARK, and it is the fast rollback while the
+  `overrides` rule is still permissive.
+- **`true`** — the card is up: a member session or the staff PIN, and nothing else.
+
+**It controls friction, not protection.** Whether the roster is actually protected is decided by
+`firestore.rules`, which is a separate deploy. Once the rules are tightened, switching the flag off
+no longer re-opens anything — the client stops asking for a PIN while the server keeps refusing the
+reads, which shows every visitor a base roster under a "couldn't update" chip. Rolling back after
+that point means rolling back the rules: RECOVERY_RUNBOOK.md → "The Calendar PIN".
+
+**As shipped (v20.17) the flag is `false` and the `overrides` read rule carries a matching
+`allow read;` hold line**, so the whole feature is deployed and dormant. Releasing the two brakes in
+order — client first, rules second, one push each — is steps 3 and 4 of the rollout in
+RECOVERY_RUNBOOK.md → "The Calendar PIN". Do not release them in one push: the deploy workflows run
+in parallel, so which lands first is a coin toss, and the wrong order is the state that shows every
+staff phone a roster that is wrong rather than obviously broken.
+
+### Setting the PIN (do this FIRST — the function will not work without it)
+
+The value lives only in Secret Manager. It is deliberately **not** in the repository, in any
+documentation, in any test, or in any client asset.
+
+```
+firebase functions:secrets:set CALENDAR_VIEWER_PIN
+# paste the four digits when prompted, then redeploy the function so it picks the version up:
+firebase deploy --only functions:unlockCalendarViewer
+```
+
+### Rotating the Calendar PIN
+
+No client release is needed — the client never knows the value.
+
+1. `firebase functions:secrets:set CALENDAR_VIEWER_PIN` (enter the new value).
+2. Redeploy the bound function so it picks up the new secret version:
+   `firebase deploy --only functions:unlockCalendarViewer`.
+3. Tell staff the new code.
+
+New unlock attempts use the new PIN immediately. **Sessions already unlocked are not affected** —
+they hold a Firebase token, not the PIN. If you need to invalidate those too (someone left, the code
+got out), also revoke the shared account's refresh tokens:
+
+```
+# Google Cloud Shell, or anywhere with the Admin SDK and project credentials:
+firebase auth:export /tmp/u.json --project myb-roster    # (optional, to confirm the uid exists)
+# then, in a Node shell with firebase-admin initialised:
+await admin.auth().revokeRefreshTokens('calendar-viewer')
+```
+
+Every viewer session is then rejected on its next token refresh (within the hour) and must re-enter
+the new PIN. Member sessions are untouched.
+
+### How it works
+
+1. The browser POSTs `{ pin }` to `unlockCalendarViewer` (europe-west2). CORS is restricted to the
+   app's own hosting origins; the PIN is compared **server-side**, in constant time, against the
+   `CALENDAR_VIEWER_PIN` secret. Nothing is compared in the browser and no verifier is shipped to it.
+2. On success the function ensures a dedicated Firebase Auth account (`calendar-viewer`, **no
+   email**), re-applies its claims — exactly `{ calendarViewer: true }` — and returns a custom token.
+3. The client switches Firebase Auth to **session-only persistence**, signs in with the token, and
+   verifies the claim actually arrived before showing anything.
+4. `firestore.rules` allows `overrides` reads for a `name` claim (a real member) or `calendarViewer`.
+   The viewer can write nothing, anywhere.
+
+### Abuse protection
+
+A four-digit PIN is 10,000 combinations, so the endpoint is throttled server-side: **30 failed
+attempts per source per 15 minutes, then a 15-minute block**, recorded in the server-only
+`viewerAttempts` collection. Only *failures* are recorded — a correct PIN writes nothing.
+
+The numbers are sized for a station behind one corporate NAT address: thirty *wrong* entries in
+fifteen minutes from the whole building is not fumbling, and a correct PIN never counts. Blocks
+expire on their own; there is no permanent or global lock, deliberately, because a shared-source
+control that anyone can drive into a permanent state is a denial-of-service handle pointed at staff.
+
+### Diagnosing a problem
+
+- **"PIN not recognised" for everybody** → the secret is unset or was changed without redeploying
+  the function. Check `firebase functions:secrets:access CALENDAR_VIEWER_PIN` and redeploy.
+- **"Calendar access is not configured" (503)** → the secret is genuinely missing.
+- **Unlock succeeds, Calendar shows no shifts** → the token minted without its claim, or the rules
+  and the client disagree about the claim name. `calendar-viewer-parity.test.mjs` is the guard for
+  the second; the Cloud Function log line `[unlockCalendarViewer] unlocked <hash>` confirms the first.
+- **Nothing in the Operations Error Log** → expected. A locked Calendar has no Firebase identity, so
+  it cannot write client errors. Use the Cloud Function logs.

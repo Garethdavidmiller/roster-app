@@ -319,3 +319,85 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 - `SECURITY_RELEASE_PLAN.md` — WIF deploy identity, claim model, the deferred security work.
 - `KNOWN_LIMITATIONS.md` — "The installed PWA masks live-site breakage" (why you must verify
   in a fresh window).
+
+---
+
+## The Calendar PIN — deployment order, and breaking glass
+
+### Deploying it (the order is the whole safety story)
+
+**Never deploy the rules first.** The old client signs in anonymously and reads `overrides`
+directly; tightening the rule ahead of the client that can satisfy it means every staff phone shows
+the base roster with a "Couldn't update" chip — a roster that is *wrong*, not obviously broken.
+
+**That ordering has to be made by hand, because the three deploy workflows do not provide it.**
+`deploy-functions.yml`, `deploy-hosting.yml` and `deploy-rules.yml` all fire from the same push to
+`main`, in parallel, with no sequencing between them — so a single merge carrying the function, the
+client and the rules performs steps 2, 3 and 4 *simultaneously*, and whether the rules land before
+or after the hosting deploy is a coin toss. The branch therefore ships with two brakes on, and the
+steps below are three separate pushes rather than one:
+
+| Brake | Where | Ships as | Released at |
+|---|---|---|---|
+| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | `false` — Calendar behaves exactly as pre-v20.12 | step 3 |
+| `allow read;` hold line | `firestore.rules` overrides block | present — collection still public | step 4 |
+
+The hold line is declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
+and `calendar-viewer-parity.test.mjs` fails if the two disagree in either direction. That is what
+stops the hold outliving the rollout: it cannot be forgotten quietly, only removed deliberately.
+
+1. **Secret — BEFORE the merge, not after.** `firebase functions:secrets:set CALENDAR_VIEWER_PIN`.
+   This is not merely "nothing works without it": `firebase deploy --only functions` resolves the
+   `latest` version of every secret bound to a deploying endpoint (`validateSecretVersions` in
+   firebase-tools) and throws if one has no version. `defineSecret` creating the container is not
+   enough — an empty secret still fails. And the check covers the WHOLE deploy, so an unset PIN does
+   not fail just `unlockCalendarViewer`; it fails `ingestHuddle`, `parseRosterPDF` and everything
+   else in the same run. The live functions keep serving their current revision, so nothing breaks
+   for staff, but the push ships no function code and opens a deploy-failure issue. Recoverable —
+   set the secret and re-run the workflow — but the cheap move is to set it first.
+2. **Merge the branch, and the function goes live with it.** Prove `unlockCalendarViewer` from the
+   production origin. Both brakes are still on, so staff see no change whatsoever — this is the dark
+   deploy, and its job is to prove the *rest* of the release (session handling, the nav drawer, the
+   calendar bootstrap) against real devices while the feature itself is invisible.
+3. **Client.** Set `CALENDAR_PIN_ACCESS: true` and push — hosting only, one line, no rules change.
+   The Calendar now asks for the PIN and mints a viewer session, and because the rule is still
+   permissive a stale cached client keeps working. **Let this soak.** Rolling back is the same one
+   line, and while the rules are still permissive that rollback genuinely re-opens the Calendar.
+4. **Rules.** Remove the `allow read;` hold line and set `OVERRIDES_READ_HELD_OPEN = false` in the
+   same commit; push with nothing else in it. From this moment an old cached client cannot read
+   overrides — and from this moment `CALENDAR_PIN_ACCESS: false` is **no longer a rollback**, because
+   the reads are denied by the server whatever the client asks for. After step 4 the rollback is
+   step 4's own revert.
+5. **Verify in production**, in a fresh private window: PIN → roster → reload → still unlocked →
+   Team View → month navigation → Admin (must demand a member sign-in) → close the browser →
+   PIN again. Then on a phone, and at an office-desktop width.
+
+**The mixed-version window at step 4** is one page load wide: the service worker claims immediately
+on activate and reloads the page, so a device is on the new client by its next open. Within that one
+load an old client shows the base roster plus the sync chip's "Couldn't update — tap to retry". That
+is visible and recoverable, and step 3's soak is what keeps the window to a single load rather than
+a deploy cycle.
+
+### If viewer authentication fails in production
+
+**Restore availability first.** An unreadable Calendar is obvious; a Calendar quietly showing the
+base roster without overrides shows somebody a shift they are not working, and they will act on it.
+
+1. In `firestore.rules`, replace the `overrides` read rule with `allow read;` and deploy rules.
+   The Calendar is public again and correct again. Say so to staff — it is a real, if temporary,
+   loss of the protection.
+2. Diagnose from the Cloud Function logs (`unlockCalendarViewer`). A locked Calendar has no Firebase
+   identity, so **nothing appears in the Operations Error Log** — do not read its silence as health.
+   The usual causes are an unset or un-redeployed secret (`503`, or every PIN rejected) and a
+   claim/uid mismatch between the function and the rules (unlock succeeds, no shifts appear).
+3. Fix, redeploy the function, confirm from a fresh private window, then re-tighten the rule.
+
+Do **not** leave it half-working: a Calendar that renders without its overrides is the one outcome
+worse than a Calendar that will not open.
+
+### If the PIN gets out
+
+Rotation needs no client release — OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN". Set the new
+secret, redeploy the function, tell staff. Existing unlocked sessions keep working until their
+browsers close; to kill those too, revoke the shared account's refresh tokens
+(`admin.auth().revokeRefreshTokens('calendar-viewer')`). Member sessions are untouched either way.
