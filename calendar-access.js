@@ -298,7 +298,16 @@ export async function unlockWithPin(pin) {
  */
 export async function lockCalendar() {
     if (_accessType !== 'viewer') return;
-    try { await signOut(auth); } catch { /* best effort — the reload re-decides from ground truth */ }
+    // FAIL CLOSED, BECAUSE THE ALTERNATIVE IS A CONTROL THAT LIES (v20.39, audit §13).
+    // This used to swallow a failed sign-out and reload anyway, on the reasoning that the reload
+    // re-decides from ground truth. It does — and if the sign-out did not take, that ground truth is
+    // "still a viewer", so the Calendar comes back UNLOCKED. Somebody walks away from a shared
+    // machine having pressed Lock and watched the page reload. A button that reports success it did
+    // not achieve is worse than one that fails visibly.
+    await signOut(auth);
+    if (isViewerUser(auth.currentUser)) {
+        throw new Error('viewer still current after sign-out — Calendar not locked');
+    }
     window.location.replace('./');
 }
 

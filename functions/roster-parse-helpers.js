@@ -39,6 +39,20 @@ function normaliseShift(raw) {
     // become a real working shift.
     const validHHMM = (h, m) => +h >= 0 && +h <= 23 && +m >= 0 && +m <= 59;
 
+    // A WORKED RANGE NEEDS TWO DIFFERENT CLOCK TIMES (v20.39). Both times valid is not enough:
+    // every duration helper in this app reads `end <= start` as an OVERNIGHT WRAP, which is right
+    // for 22:00-06:00 and catastrophic for 08:00-08:00 — the wrap turns a zero-length range into a
+    // TWENTY-FOUR HOUR one, and it reaches pay. Manual entry has always refused equal times; this
+    // path did not, and nothing downstream re-checked, so an OCR slip or a mis-typed paper roster
+    // could be applied by an admin and later paid as a full day (and as OVERTIME on the RDW form).
+    //
+    // Equality only — `end < start` stays legal, because a genuine overnight shift is ordinary here.
+    // A failure falls through to the UNKNOWN sentinel rather than being corrected: nobody knows what
+    // the cell really said, so it belongs in human review with every other unreadable value.
+    const workedRange = (h1, m1, h2, m2) =>
+        validHHMM(h1, m1) && validHHMM(h2, m2)
+        && !(+h1 === +h2 && +m1 === +m2);
+
     // RDW with time, RDW on EITHER side: "RDW 14:30-22:00" / "RDW 1430-2200" AND the
     // time-first paper-roster form "14:30-22:00 RDW" → "RDW|14:30-22:00". Matching only the
     // RDW-first form silently dropped a time-first RDW to a plain worked shift (a pay-
@@ -47,7 +61,7 @@ function normaliseShift(raw) {
     // Hours may be 1 or 2 digits (OCR sometimes drops the leading zero, e.g. "6:30");
     // pad to 2 so a single-digit hour isn't silently lost as a rest day.
     const rdwMatch = s.match(/^(?:RDW\s+)?(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})(?:\s+RDW)?$/);
-    if (rdwMatch && s.includes('RDW') && validHHMM(rdwMatch[1], rdwMatch[2]) && validHHMM(rdwMatch[3], rdwMatch[4])) {
+    if (rdwMatch && s.includes('RDW') && workedRange(rdwMatch[1], rdwMatch[2], rdwMatch[3], rdwMatch[4])) {
         return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
     }
 
@@ -104,7 +118,7 @@ function normaliseShift(raw) {
     // Plain time range: "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130",
     // "6:30-12:30" (single-digit hour). Pad single-digit hours to 2 digits.
     const match = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})$/);
-    if (match && validHHMM(match[1], match[2]) && validHHMM(match[3], match[4])) {
+    if (match && workedRange(match[1], match[2], match[3], match[4])) {
         return `${match[1].padStart(2, '0')}:${match[2]}-${match[3].padStart(2, '0')}:${match[4]}`;
     }
 
@@ -119,7 +133,7 @@ function normaliseShift(raw) {
     // shifts, which is the error we have actually observed. If cancellation-style annotations ever
     // appear in these PDFs, gate the extraction on the trailing text instead of removing it.
     const lead = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})\b/);
-    if (lead && validHHMM(lead[1], lead[2]) && validHHMM(lead[3], lead[4])) {
+    if (lead && workedRange(lead[1], lead[2], lead[3], lead[4])) {
         const time = `${lead[1].padStart(2, '0')}:${lead[2]}-${lead[3].padStart(2, '0')}:${lead[4]}`;
         // Preserve an RDW marker carried in the trailing content: "06:00-12:00 RDW GER" is rest-day-
         // worked OVERTIME with a depot annotation. The anchored rdwMatch above ($-terminated) rejects

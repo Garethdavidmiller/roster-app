@@ -49,7 +49,7 @@ const DOC_FETCH_TIMEOUT_MS = 8000;
 /** @param {number} ms */
 const _delay = (ms) => new Promise(r => setTimeout(r, ms));
 
-export function initDocViewer({ authReady = Promise.resolve() } = {}) {
+export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise.resolve()) } = {}) {
     const overlay  = /** @type {HTMLElement|null} */ (document.getElementById('docViewer'));
     const content  = /** @type {HTMLElement|null} */ (document.getElementById('docViewerContent'));
     if (!overlay || !content) return;
