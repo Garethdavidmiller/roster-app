@@ -1260,6 +1260,20 @@ select:focus-visible, input:focus-visible {
     text-align: right;
 }
 
+/* ── The "why some are slower" breakdown (v20.19) ──────────────────────────────────────────────
+   Same three-column grid as a per-page row, but the count column carries "12% slow · 473" rather
+   than a bare number, so it needs room and should not shout: the SLOW share is the figure being
+   read here, and the sample size beside it is what stops a four-load group being mistaken for a
+   finding. */
+.speed-row--why { grid-template-columns: minmax(84px, 30%) 1fr auto; }
+.speed-row--why .speed-row-count {
+    font-weight: 600;
+    color: var(--text-mid);
+    min-width: 10ch;
+    font-size: var(--type-micro);
+}
+.speed-thin { color: var(--text-mid); font-weight: 400; }
+
 /* Window toggle: This month / Last month. A simple segmented control. */
 .speed-toggle {
     display: inline-flex;
@@ -1296,6 +1310,11 @@ select:focus-visible, input:focus-visible {
     line-height: 1.4;
     margin: 0 0 10px;
 }
+/* Each dimension heading needs air ABOVE it: flush under the previous dimension's last row, "By how
+   it was opened" reads as that row's label rather than the start of a new group.
+   MUST stay after `.speed-note` — same specificity, and that rule's `margin` SHORTHAND resets
+   margin-top, so declared earlier this silently does nothing. */
+.speed-dim-label { margin-top: 16px; }
 
 /* Per-page dual bars: label | appears bar | ready bar | count. */
 .speed-row--dual { grid-template-columns: minmax(78px, 34%) 1fr 1fr auto; }

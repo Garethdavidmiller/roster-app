@@ -33,7 +33,7 @@
 // A flaky baseline is worse than none, so mobile-calendar coverage stays with the geometry-based
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
-import { test, expect } from './fixtures.js';
+import { test, expect, enableCalendarPin } from './fixtures.js';
 import { seedSession, seedMember, openRosterReview, openReference} from './helpers.js';
 import { ROTATING_LINES } from '../links-design.js';
 
@@ -705,8 +705,12 @@ test('overlay — Tips panel (settings, desktop 1280)', async ({ page }) => {
 // assert the field exists, is labelled and is 16px+, none of which would notice the card losing its
 // padding, its badge, or its surface — the exact way the links "Recently deleted" panel shipped as
 // a transparent box at v19.41 with every behavioural test green.
+// The PIN ships switched OFF (v20.17, deployed dark), so these must turn it on rather than inherit
+// the default — otherwise the front door stops being baselined the day it ships and nobody notices,
+// which is the failure mode this whole file exists to prevent.
 test('calendar — staff PIN unlock card @1280', async ({ page }) => {
     await page.clock.setFixedTime(FIXED_TIME);
+    await enableCalendarPin(page);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/index.html');
     await settle(page, '#calLockPin');
@@ -715,6 +719,7 @@ test('calendar — staff PIN unlock card @1280', async ({ page }) => {
 
 test('calendar — staff PIN unlock card @390', async ({ page }) => {
     await page.clock.setFixedTime(FIXED_TIME);
+    await enableCalendarPin(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/index.html');
     await settle(page, '#calLockPin');

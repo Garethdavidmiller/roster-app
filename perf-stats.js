@@ -117,6 +117,114 @@ export function summarisePerf(samples, { metric = 'domReady' } = {}) {
     return { total, overall: _withPct(overall), byPage };
 }
 
+// ── WHY a page is slow, not just THAT it is ─────────────────────────────────────────────────────
+//
+// Every sample already carries three dimensions beyond page/metric/bucket — app VERSION, PWA MODE
+// (installed app vs browser tab) and CONNECTION class — because `perfSampleKey` has written them
+// since Project 0 shipped. `summarisePerf` destructured `{ page, metric, bucket }` and dropped the
+// rest on the floor, so the card could say the Calendar was slower than every other page and had
+// nothing whatever to say about why.
+//
+// That gap mattered because the candidate fixes are wildly different in cost — vendoring the
+// Firebase SDK off the cold path is a large change that bumps into the no-bundler rule, trimming
+// network before first paint is a targeted one, and a version regression is a bisect — and the
+// only thing that distinguishes them is a breakdown of samples that were ALREADY BEING COLLECTED.
+//
+// Read-side only. Nothing new is recorded, so this adds no privacy surface: the dimensions are
+// coarse, non-identifying, and were chosen for exactly this at the time.
+
+/** The dimensions a breakdown can group by, and how each renders for a non-technical reader. */
+export const PERF_DIMENSIONS = {
+    conn: {
+        label: 'By connection',
+        /** `navigator.connection.effectiveType`. It reports how the network BEHAVES, not the radio
+         *  in use — a 4G phone in a basement reports `3g` — so the labels say "-like" rather than
+         *  naming a technology the number does not actually claim. */
+        labels: {
+            '4g': '4G-like', '3g': '3G-like', '2g': '2G-like', 'slow-2g': 'Very slow',
+            unknown: 'Not reported',
+        },
+        /** Fast → slow, so the rows read like the bars do. Unknown last: it is not a speed. */
+        order: ['4g', '3g', '2g', 'slow-2g', 'unknown'],
+    },
+    mode: {
+        label: 'By how it was opened',
+        labels: { standalone: 'Installed app', browser: 'Browser tab' },
+        order: ['standalone', 'browser'],
+    },
+    version: {
+        label: 'By app version',
+        labels: {},
+        order: null,   // newest first, computed — versions are not a fixed set
+    },
+};
+
+/**
+ * Break ONE page's samples down by one dimension.
+ *
+ * The counterpart to `summarisePerf`'s `byPage`: that answers "which page is slow", this answers
+ * "slow for whom". Same three speed bands, same shape per row, so the card renders both with one
+ * bar builder.
+ *
+ * **Rows carry their own `total` and the card must show it.** A dimension value with four samples
+ * can read 100% slow and mean nothing, and a breakdown that displayed only percentages would
+ * present that with exactly the confidence of a real finding.
+ *
+ * @param {Record<string, number>} samples raw `analytics/perf_<month>.samples`
+ * @param {{ page: string, metric?: string, dimension?: 'conn'|'mode'|'version' }} opts
+ * @returns {{ total: number, rows: Array<{ value: string, label: string } & ReturnType<typeof _withPct>> }}
+ */
+export function summarisePerfBy(samples, { page, metric = 'domReady', dimension = 'conn' }) {
+    const dim = PERF_DIMENSIONS[dimension];
+    /** @type {Record<string, {quick:number, ok:number, slow:number}>} */
+    const groups = {};
+    let total = 0;
+    for (const [key, raw] of Object.entries(samples || {})) {
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n <= 0) continue;
+        const parsed = parsePerfSampleKey(key);
+        if (parsed.page !== page || parsed.metric !== metric) continue;
+        const group = _BUCKET_GROUP[parsed.bucket];
+        if (!group) continue;
+        // A key written by an older/odd client may be missing a component entirely. Bucket those as
+        // 'unknown' rather than dropping them: a silently shrinking total would make the breakdown
+        // disagree with the per-page count above it, and the reader would have no way to tell.
+        const value = /** @type {any} */ (parsed)[dimension] || 'unknown';
+        (groups[value] || (groups[value] = { quick: 0, ok: 0, slow: 0 }))[group] += n;
+        total += n;
+    }
+    const keys = Object.keys(groups);
+    const order = /** @type {string[]|null} */ (dim.order);
+    const ordered = order
+        // Declared order first (fast→slow), then anything unrecognised, so a new effectiveType
+        // value appears rather than vanishing.
+        ? [...order.filter(k => keys.includes(k)), ...keys.filter(k => !order.includes(k)).sort()]
+        : keys.sort(_compareVersionsDesc);
+    return {
+        total,
+        rows: ordered.map(v => ({
+            value: v,
+            label: /** @type {Record<string,string>} */ (dim.labels)[v] || _versionLabel(v, dimension),
+            ..._withPct(groups[v]),
+        })),
+    };
+}
+
+/** Versions are stored dot-swapped (`20_18`) because a `.` is a Firestore field-path hazard.
+ *  @param {string} value @param {string} dimension */
+function _versionLabel(value, dimension) {
+    return dimension === 'version' ? 'v' + String(value).replace(/_/g, '.') : String(value);
+}
+
+/** Newest version first. Numeric per segment, so `20_9` sorts below `20_18` (string sort does not).
+ *  @param {string} a @param {string} b */
+function _compareVersionsDesc(a, b) {
+    const parts = (/** @type {string} */ v) => String(v).split('_').map(Number);
+    const [aMaj = 0, aMin = 0] = parts(a);
+    const [bMaj = 0, bMin = 0] = parts(b);
+    return (bMaj - aMaj) || (bMin - aMin) || String(b).localeCompare(String(a));
+}
+
 /**
  * Plain-English verdict copy per journey:
  *   'login' = signing in · 'fcp' = a page first appearing on screen · 'pages' = a page being fully ready.

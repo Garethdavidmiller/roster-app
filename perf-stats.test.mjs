@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, perfVerdict, loginDurationBucket, LOGIN_MAX_MS } from './perf-stats.js';
+import { PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -93,6 +93,109 @@ describe('summarisePerf', () => {
         assert.equal(r.total, 0);
         assert.deepEqual(r.byPage, []);
         assert.equal(summarisePerf({}).total, 0);
+    });
+});
+
+/** Like samplesFrom, but every dimension is settable — this is the suite for the dimensions the
+ *  card used to discard, so they cannot be pinned to one value. */
+function dimSamples(rows) {
+    /** @type {Record<string, number>} */ const s = {};
+    for (const [page, bucket, mode, conn, count, version = '20.19'] of rows) {
+        s[perfSampleKey({ version, page, metric: 'domReady', bucket, mode, conn })] = count;
+    }
+    return s;
+}
+
+describe('summarisePerfBy — WHY a page is slow, not just that it is', () => {
+    // The dimensions were written into every key from the start and thrown away at read time, so
+    // the card could say the Calendar was the slowest page and nothing about who it was slow for.
+
+    test('splits ONE page by connection, and leaves other pages out of it', () => {
+        const s = dimSamples([
+            ['calendar', 'lt500ms', 'standalone', '4g', 10],
+            ['calendar', 'over8s',  'standalone', '3g', 4],
+            ['calendar', '1-3s',    'browser',    '3g', 6],
+            ['admin',    'over8s',  'browser',    '2g', 99],   // another page — must not appear
+        ]);
+        const r = summarisePerfBy(s, { page: 'calendar', dimension: 'conn' });
+        assert.equal(r.total, 20, 'the admin samples leaked into the calendar breakdown');
+        assert.deepEqual(r.rows.map(x => x.value), ['4g', '3g']);
+        assert.equal(r.rows[0].pctSlow, 0);
+        assert.equal(r.rows[1].total, 10);
+        assert.equal(r.rows[1].pctSlow, 40);   // 4 of 10
+    });
+
+    test('rows are ordered FAST → SLOW, not by size — the shape is the finding', () => {
+        // A breakdown sorted by volume would put the biggest group first and scatter the gradient,
+        // which is exactly the pattern being looked for ("it degrades with the connection").
+        const s = dimSamples([
+            ['calendar', 'over8s',  'browser', 'slow-2g', 1],
+            ['calendar', 'lt500ms', 'browser', '4g', 500],
+            ['calendar', '1-3s',    'browser', '2g', 3],
+        ]);
+        const r = summarisePerfBy(s, { page: 'calendar', dimension: 'conn' });
+        assert.deepEqual(r.rows.map(x => x.value), ['4g', '2g', 'slow-2g']);
+    });
+
+    test('an UNRECOGNISED connection value still appears rather than vanishing', () => {
+        // effectiveType is a browser-supplied string. A value the label table has never heard of
+        // must not be silently dropped, or the rows would stop adding up to the page total and
+        // nothing on screen would say so.
+        const s = dimSamples([
+            ['calendar', 'lt500ms', 'browser', '4g', 5],
+            ['calendar', 'over8s',  'browser', '5g', 2],
+        ]);
+        const r = summarisePerfBy(s, { page: 'calendar', dimension: 'conn' });
+        assert.equal(r.total, 7);
+        assert.ok(r.rows.some(x => x.value === '5g'), '5g was dropped');
+        assert.equal(r.rows.find(x => x.value === '5g').label, '5g', 'falls back to the raw value');
+    });
+
+    test('install mode separates the installed app from a browser tab', () => {
+        const s = dimSamples([
+            ['calendar', 'lt500ms', 'standalone', '4g', 8],
+            ['calendar', 'over8s',  'browser',    '4g', 2],
+        ]);
+        const r = summarisePerfBy(s, { page: 'calendar', dimension: 'mode' });
+        assert.deepEqual(r.rows.map(x => x.label), ['Installed app', 'Browser tab']);
+        assert.equal(r.rows[1].pctSlow, 100);
+    });
+
+    test('versions read newest-first and NUMERICALLY — 20.9 is older than 20.18', () => {
+        // The reason this needs saying: versions are stored dot-swapped ('20_18'), and a string
+        // sort puts '20_9' after '20_18'. A regression hunt reading the newest row first would
+        // then be reading the wrong release.
+        const s = dimSamples([
+            ['calendar', 'lt500ms', 'browser', '4g', 3, '20.9'],
+            ['calendar', 'over8s',  'browser', '4g', 3, '20.18'],
+            ['calendar', '1-3s',    'browser', '4g', 3, '19.100'],
+        ]);
+        const r = summarisePerfBy(s, { page: 'calendar', dimension: 'version' });
+        assert.deepEqual(r.rows.map(x => x.label), ['v20.18', 'v20.9', 'v19.100']);
+    });
+
+    test('a key missing its dimension is counted as unknown, never dropped', () => {
+        // A short key (an older or non-conforming client) must not shrink the total, or the
+        // breakdown would silently disagree with the per-page count printed right above it.
+        const s = { '20_19|calendar|domReady|over8s': 4 };
+        const r = summarisePerfBy(s, { page: 'calendar', dimension: 'conn' });
+        assert.equal(r.total, 4);
+        assert.equal(r.rows[0].value, 'unknown');
+    });
+
+    test('every declared dimension label set is complete for the values it orders', () => {
+        // A dimension whose `order` names a value with no label would render a raw token like
+        // 'slow-2g' to an admin who reads plain English everywhere else on this card.
+        for (const [name, dim] of Object.entries(PERF_DIMENSIONS)) {
+            if (!dim.order) continue;
+            for (const v of dim.order) {
+                assert.ok(dim.labels[v], `${name}.${v} has no plain-language label`);
+            }
+        }
+    });
+
+    test('no data → no rows, and no throw', () => {
+        assert.deepEqual(summarisePerfBy({}, { page: 'calendar' }), { total: 0, rows: [] });
     });
 });
 

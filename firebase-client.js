@@ -1049,7 +1049,7 @@ export function recordPerfSample({ page, metric, bucket, mode, conn }) {
  * `fcp` (a page first appearing on screen) and `pages` (a page being fully ready, the 'domReady'
  * metric). Computed by the pure perf-stats module. No identity is involved.
  * @returns {Promise<{ thisMonth: PerfWindow, lastMonth: PerfWindow }>}
- * @typedef {{ month: string, login: ReturnType<typeof summarisePerf>, fcp: ReturnType<typeof summarisePerf>, pages: ReturnType<typeof summarisePerf> }} PerfWindow
+ * @typedef {{ month: string, login: ReturnType<typeof summarisePerf>, fcp: ReturnType<typeof summarisePerf>, pages: ReturnType<typeof summarisePerf>, samples: Record<string, number> }} PerfWindow
  */
 export async function getPerfStats() {
     const now = new Date();
@@ -1067,6 +1067,12 @@ export async function getPerfStats() {
             login: summarisePerf(samples, { metric: 'loginTotal' }),
             fcp:   summarisePerf(samples, { metric: 'fcp' }),
             pages: summarisePerf(samples, { metric: 'domReady' }),
+            // The RAW map, carried through so the card can break the busiest page down by
+            // connection / install mode / version (`summarisePerfBy`). Summarising every dimension
+            // here instead would mean deciding in the data layer which page the admin is asking
+            // about, and re-reading the document to change that answer. The map is a few hundred
+            // small integer counters and is already in memory.
+            samples,
         };
     };
     return { thisMonth: windowFor(thisSnap, m), lastMonth: windowFor(lastSnap, pm) };

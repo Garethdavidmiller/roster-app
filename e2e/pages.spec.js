@@ -130,6 +130,54 @@ test('operations: App speed card renders both sections + empty-state verdict (no
     await expect(page.locator('#pageSpeedContent')).toContainText('Not enough data yet');       // pages empty state
 });
 
+// ── "Why some are slower" (v20.19) ──────────────────────────────────────────────────────────────
+// The card recorded connection, install mode and app version with every load and threw all three
+// away at render time, so it could say the Calendar was the slowest page and nothing about why.
+// The maths is unit-tested; only a browser proves the section is REACHED and populated — it hangs
+// off `w.samples`, a field that did not previously survive `getPerfStats`, so a wiring slip here
+// leaves every unit test green and the section simply absent.
+test('operations: App speed breaks the busiest page down by connection, install mode and version', async ({ page }) => {
+    await page.addInitScript(() => {
+        // A shape with a finding in it: fine on 4G, bad on 3G, and one tiny group that must be
+        // MARKED rather than presented as though it meant something.
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '20_18|calendar|domReady|lt500ms|standalone|4g': 300,
+            '20_18|calendar|domReady|over8s|standalone|3g': 80,
+            '20_18|calendar|domReady|1-3s|browser|4g': 90,
+            '20_18|calendar|domReady|over8s|browser|slow-2g': 3,
+            // A second version, because a single-value dimension is suppressed by design (one row
+            // is the page total restated). Also the realistic case: staff straggle on an old
+            // release for days, and "is it worse since the last deploy" is the question that
+            // dimension exists to answer.
+            '20_9|calendar|domReady|1-3s|standalone|4g': 40,
+            '20_18|paycalc|domReady|lt500ms|standalone|4g': 20,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('Why some are slower');
+    // The BUSIEST page, named — not a hardcoded id. Calendar (473) outranks paycalc (20).
+    await expect(speed).toContainText('Calendar');
+    // All three dimensions rendered, in plain English rather than raw tokens.
+    await expect(speed).toContainText('By connection');
+    await expect(speed).toContainText('By how it was opened');
+    await expect(speed).toContainText('By app version');
+    await expect(speed).toContainText('Installed app');
+    await expect(speed).toContainText('3G-like');
+    await expect(speed).toContainText('v20.18');
+    // Newest first, and NUMERICALLY: a string sort would put v20.9 above v20.18 and send a
+    // regression hunt to the wrong release.
+    const versions = await speed.locator('.speed-row--why .speed-row-label').allTextContents();
+    const vs = versions.filter(t => t.startsWith('v'));
+    expect(vs.slice(0, 2)).toEqual(['v20.18', 'v20.9']);
+    // The number the card never used to show. 80 of 80 3G loads are slow.
+    await expect(speed).toContainText('100% slow');
+    // And the honesty marker on the three-sample group, without which that row reads exactly as
+    // confidently as the 380-sample one next to it.
+    await expect(speed).toContainText('(few)');
+});
+
 // Account-status email rows must not overflow the card on a narrow phone (merged card, v18.65).
 // Regression guard for the original v14.35 bug class: a long-email row must ellipsise so the
 // fixed-width Edit/Remove buttons stay on-screen instead of being clipped by overflow:hidden.
