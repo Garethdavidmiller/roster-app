@@ -2526,6 +2526,62 @@
             margin: 0;
         }
 
+        /* ---- Withheld month grid (v20.40) ------------------------------------------------------
+           Shown in place of the calendar grid while this month's annual leave / absences / shift
+           changes are unknown, and after a read for them has failed. It deliberately borrows the
+           first-run prompt's shape rather than the `.calendar-fetching` shimmer: the shimmer leaves
+           the shift times legible underneath, which reads as "loading, here is your roster" when the
+           truthful message is "this is not your roster yet".
+           It sits BELOW `.calendar-header`, which is kept in every state (it holds the month label
+           and is the sync chip's mount point). */
+        .calendar-pending {
+            text-align: center;
+            max-width: 420px;
+            margin: 20px auto 28px;
+            padding: 36px 24px;
+            background: var(--surface);
+            border-radius: 14px;
+        }
+        .calendar-pending-emoji { font-size: 34px; margin-bottom: 6px; }
+        .calendar-pending h2 {
+            font-size: var(--type-large);
+            color: var(--text-dark);
+            margin: 0 0 8px;
+        }
+        .calendar-pending p {
+            font-size: var(--type-body);
+            color: var(--text-mid);
+            line-height: 1.4;
+            margin: 0;
+        }
+        .calendar-pending--failed h2 { color: var(--error-banner); }
+        .calendar-pending-retry,
+        .tv-retry {
+            display: inline-block;
+            margin-top: 14px;
+            font-family: inherit;
+            font-size: var(--type-body);
+            font-weight: 600;
+            -webkit-appearance: none;
+            appearance: none;
+            color: var(--primary-blue);
+            background: var(--accent-gold);
+            border: none;
+            border-radius: var(--radius-pill);
+            padding: 9px 20px;
+            cursor: pointer;
+            transition: transform var(--dur-fast) var(--ease-standard);
+        }
+        .calendar-pending-retry:active,
+        .tv-retry:active { transform: scale(var(--press-scale)); }
+        .calendar-pending-retry:focus-visible,
+        .tv-retry:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+        /* Team view's equivalent — a row inside the week table, so the grade tabs and week
+           navigation stay usable and somebody can move to a week that IS known. */
+        .tv-pending { line-height: 1.5; }
+        .tv-retry { margin-top: 10px; display: block; margin-inline: auto; }
+
 
 
 

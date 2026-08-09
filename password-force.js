@@ -41,9 +41,10 @@
  * never resurface on a later non-login load. That costs a compel cycle on a failed read; leaving the
  * marker set would re-create Fix 4, which is worse.
  *
- * Coverage note: this reaches anyone who signs in. Sessions are capped at 30 days absolute / 7 days
- * idle (session.js), and an expired session forces a real typed login (`reconcileExpiredIdentity`),
- * so the rollout completes itself within 30 days and staggers naturally by each member's own expiry.
+ * Coverage note: this reaches anyone who signs in. Sessions are capped at 30 days absolute
+ * (session.js — the 7-day idle cutoff was removed at v20.41), and an expired session forces a real
+ * typed login (`reconcileExpiredIdentity`), so the rollout completes itself within 30 days and
+ * staggers naturally by each member's own expiry.
  * A member who only ever views the roster never signs in anywhere and is never compelled — accepted;
  * reaching them means putting the calendar behind a login (SECURITY_RELEASE_PLAN.md → Track E).
  */

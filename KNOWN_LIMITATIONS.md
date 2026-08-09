@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v20.30 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.40 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -317,6 +317,33 @@ non-security controls. Practical risk is low for a small known team. The per-mem
 rules are tracked in `SECURITY_RELEASE_PLAN.md` → B2/B3, and task #2 below for the suspended
 first attempt.
 
+### A signed-in session now lasts 30 days regardless of use (v20.41 — accepted trade)
+
+The 7-day inactivity cutoff was removed by owner decision. `SESSION_MS` (30 days, absolute, set once
+at sign-in) is the only clock; the `IDLE_MS` constant, the `lastActivity` timestamp and the
+write-back inside `getSession()` are gone rather than left dormant.
+
+**What this does not change.** Every path that genuinely REVOKES access is immediate and was never
+the idle clock's job: an explicit sign-out (`clearSession`, which signs Firebase out too), a disabled
+or deleted Firebase account, revoked credentials, and the `CLAIM_EPOCH` sweep. The **Calendar
+viewer** is untouched — it is not a member session, holds no `name` claim, and its persistence is
+session-only, so it ends when the browser session does.
+
+**What it does change, stated plainly.** A LEAVER whose device still holds a local session keeps the
+signed-in *UI* for up to 30 days instead of up to 7. That was never the control it looked like: the
+real remedy is Operations → Set up accounts → "Disable accounts for leavers", and once an account is
+disabled the ID token stops refreshing (≤1 hour) and every authenticated read and write fails. The
+Admin page independently blocks a signed-in name that is no longer a selectable roster member
+(v16.21). So the exposure is bounded by the account disable, not by our localStorage timer — which
+is why lengthening the timer is a UX change, not a security one.
+
+**Why removed rather than lengthened.** A policy left in place with no effect is the thing a later
+reader "restores" on the assumption it was load-bearing. `session.test.mjs` pins the replacement
+properties instead: a long-untouched session inside its 30 days is still valid, a pre-v20.41 session
+carrying the old field is accepted and the field ignored (no `SESSION_VER` bump, so nobody is signed
+out by this change), a read leaves the stored session byte-identical, and a newly-written session
+contains exactly `name`/`ver`/`expiry`.
+
 ### Firebase Auth session is re-established on page load (v10.93)
 A returning user with a valid 30-day localStorage session skips the login click handler on
 every subsequent open, which would leave `auth.currentUser` null and break all Firestore
@@ -586,40 +613,38 @@ The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Box
 Standard weekday contracted hours are not pre-filled — staff enter those manually.
 The suggestion is advisory; staff should verify it against their actual payslip.
 
-### The Calendar can briefly show the BASE roster before it knows about overrides (v20.39 audit)
+### ~~The Calendar can show the BASE roster before it knows about overrides~~ — CLOSED (flagged v20.39, fixed v20.40)
 
-**Severity:** the highest-value item outstanding — it can show a member a shift they are not working.
-**Status:** open, deliberately not rushed. **Module:** `calendar-app.js` → `calendar-initial-fetch.js`.
+**Was:** the highest-value item outstanding — it could show a member a shift they were not working.
 
-`_startCalendarWorkspace()` starts the three-month override fetch and then calls `renderCalendar()`
+`_startCalendarWorkspace()` started the three-month override fetch and then called `renderCalendar()`
 synchronously. The v19.01 two-phase load paints from the local Firestore cache first, so a returning
-device is fine — but on a **fresh browser there is no cache**, phase 1 paints nothing, and the base
-roster goes up while the authoritative read is still in flight. `.calendar-fetching` shimmers the
-cells, which reads as *loading*, not as *this may be wrong*: the shift times underneath stay legible.
+device was fine — but on a **fresh browser there is no cache**, phase 1 painted nothing, and the base
+roster went up while the authoritative read was still in flight. `.calendar-fetching` shimmers the
+cells, which reads as *loading*, not as *this may be wrong*: the shift times underneath stayed
+legible. Someone on annual leave, absent, or moved to a different shift could see their old shift
+presented as current. The case that mattered was the **failed** read, where the base roster stayed
+indefinitely beside a "Couldn't update" chip — and `calendar-initial-fetch.js` said so in as many
+words: *"Initial override fetch failed — base roster will be used"*. The same gap applied to a month
+navigated outside the fetched window, and to Team View.
 
-**User impact.** Someone on annual leave, absent, or moved to a different shift can see their old
-shift presented as current. On a good connection the window is a few hundred milliseconds. The case
-that matters is the **failed** read: the base roster stays on screen indefinitely beside a
-"Couldn't update" chip, and `calendar-initial-fetch.js` says so in as many words — *"Initial override
-fetch failed — base roster will be used"*. The same gap applies to a month navigated outside the
-fetched window, and to Team View.
+**Fixed by making the invariant explicit rather than by adding a delay.** *Cache absence is not
+evidence that no override exists.* `calendar-data-state.js` holds a four-state model per month —
+`unknown` / `cached` / `authoritative` / `error` — recorded by the two fetch paths and read by the two
+renderers, and a month may only be drawn when a read has settled or the device holds cached data. The
+withheld states draw a wait or failure panel in place of the grid, keeping `.calendar-header` (and so
+the sync chip) in every state. Team View takes the WORST knowledge across the months its week
+straddles. Both withheld failure states carry a "Try again".
 
-**The invariant to implement:** *cache absence is not evidence that no override exists.* A month may
-only be presented as current when its override state is known — authoritatively, or from cache and
-labelled stale.
+**What is deliberately NOT withheld:** a `cached` month renders its grid with no added banner. Hiding
+good data behind a spinner is its own failure, and a staleness banner would flash on every single app
+open — phase 1 marks `cached` and phase 2 overrules it a moment later. The sync chip is the honest
+running commentary there, and it already existed.
 
-**Workaround today:** none for the user. Pull-to-refresh once the network returns.
-
-**Why it is not fixed in this pass.** The fix is not a delay; it is a data-readiness state
-(`unknown` / `cached` / `authoritative` / `error`) owned outside the coordinator, plus first-paint
-gating, month-range knowledge, Team View, retry, and late-response cache ownership. That is a change
-to the boot path of the app's most-used surface, which has produced several subtle bugs already (the
-v16.23 competing fetch, the swipe race, the v18.21 Team View stand-down). It wants characterisation
-tests captured first and its own commit — doing it at the tail of a long session is how the next
-entry on this list gets written.
-
-**Trigger for fixing:** next Calendar work of any size, before any further feature is added to the
-boot path.
+**Residual, accepted:** a device whose local Firestore cache is empty *because the member genuinely
+has no overrides in the window* is indistinguishable from one with no cache at all, so it waits for
+phase 2 rather than painting at once. That is the safe direction and the wait is the length of one
+Firestore read.
 
 ### ~~Tax band model is approximate for 0T and K codes~~ — CLOSED (flagged v12.49, fixed since)
 

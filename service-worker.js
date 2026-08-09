@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '20.39';
+const APP_VERSION = '20.41';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -119,7 +119,7 @@ const NETWORK_FIRST_FILES = [
     'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css',
     'calendar-app.js', 'calendar-state.js', 'calendar-swipe.js',
     'calendar-overrides.js', 'calendar-member.js', 'calendar-renderer.js',
-    'calendar-access.js', 'calendar-access-core.js',
+    'calendar-access.js', 'calendar-access-core.js', 'calendar-data-state.js',
     'calendar-al-lightbox.js', 'calendar-initial-fetch.js', 'calendar-keyboard.js',
     'calendar-team-view.js', 'override-utils.js', 'calendar-huddle-viewer.js', 'calendar-doc-viewer.js',
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
@@ -181,6 +181,7 @@ const CORE_ASSETS = [
     "./calendar-overrides.js",
     "./calendar-access.js",
     "./calendar-access-core.js",
+    "./calendar-data-state.js",
     "./calendar-member.js",
     "./calendar-renderer.js",
     "./calendar-al-lightbox.js",

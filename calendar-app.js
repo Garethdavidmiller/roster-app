@@ -28,7 +28,8 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
-import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler } from './calendar-overrides.js';
+import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
+import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay } from './calendar-data-state.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
@@ -97,6 +98,8 @@ const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPa
 const teamView = initTeamView({
     rosterOverridesCache,
     ensureOverridesCached,
+    monthKey,
+    clearFetchedMonth,
     getSelectedMemberIndex,
     isFirstRun,
     renderCalendar,
@@ -260,6 +263,25 @@ function showFirstRunPrompt() {
     }
 }
 
+/**
+ * "Try again" from the withheld-grid panel (v20.40) — the recovery for a month whose overrides
+ * could not be read, where before there was nothing to press because the base roster simply went up
+ * as though it were current.
+ *
+ * Forgets the month BEFORE re-fetching, on purpose: that repaints the wait state immediately, so a
+ * press on a slow connection visibly does something instead of leaving the failure panel sitting
+ * there. `clearFetchedMonth` re-arms both the fetch (it releases the claim) and the one-shot failure
+ * repaint, so a second failure is reported rather than swallowed.
+ * @param {number} year
+ * @param {number} month - 0-indexed
+ */
+function retryMonth(year, month) {
+    const key = monthKey(year, month);
+    clearFetchedMonth(key);
+    forgetOverrideKnowledge(key);
+    if (teamView.isTeamViewMode()) teamView.refreshFromCache(); else renderCalendar();
+}
+
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
 // Sets data-member-name for print header then builds and inserts fresh container.
 function renderCalendar() {
@@ -278,6 +300,17 @@ function renderCalendar() {
         // Update legend for current member and month (Night, 🎄, 🐣 are conditional)
         updateLegend();
 
+        // …and hide it entirely while the month's grid is withheld (v20.40). The legend is a KEY to
+        // what is on the grid, so with no grid it keys nothing — and worse, it is derived from the
+        // base roster, so it would go on announcing "this month has Early and Late shifts" beside a
+        // panel saying we do not yet know what this month has. Team View already hides it the same
+        // way (via `.legend`), so the mechanism is the established one.
+        const _legend = /** @type {HTMLElement|null} */ (document.querySelector('.legend'));
+        const _monthKnown = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
+        if (_legend && !teamView.isTeamViewMode()) {
+            _legend.style.display = (_monthKnown === 'render' || _monthKnown === 'stale') ? '' : 'none';
+        }
+
         // Set team member name on header for printing
         const headerElement = document.querySelector('.header');
         if (headerElement) headerElement.setAttribute('data-member-name', (/** @type {any} */ (member)).name);
@@ -293,6 +326,11 @@ function renderCalendar() {
         const calendarContainer = buildCalendarContainer(getDisplayMonth(), getDisplayYear(), {
             navigateToPaycalc,
             onDayDetail: /** @param {any} cell */ (cell) => openDayDetail?.(cell),
+            // No button while the initial 3-month fetch is still running: the sync chip in the
+            // header is already the retry for that, and a second control racing a per-month fetch
+            // against the in-flight range fetch is the v18.76 two-authoritative-reconcilers bug
+            // (the later, staler snapshot evicts what the earlier one just loaded).
+            onRetryMonth: _initialFetchInProgress ? undefined : retryMonth,
         });
         // Preserve keyboard focus across the re-render. Wiping #calendarDisplay drops focus to
         // <body>, after which calendar-app.js's document keydown handler treats arrows as MONTH
@@ -642,6 +680,7 @@ try {
             updateNavButtonState,
             navigateToPaycalc,
             openDayDetail: (cell) => openDayDetail?.(/** @type {HTMLElement} */ (cell)),
+            onRetryMonth: retryMonth,
         });
     };
 

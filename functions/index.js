@@ -1944,7 +1944,7 @@ exports.requestPasswordReset = onRequest(
  * Nothing is written, nothing is cached, and **no identity leaves this function**: the response is
  * four integers.
  *
- * WHAT IT DOES NOT MEASURE. Sign-ins, not activity. Sessions last 30 days absolute / 7 days idle
+ * WHAT IT DOES NOT MEASURE. Sign-ins, not activity. Sessions last 30 days (absolute)
  * (session.js), so most page opens are session RESTORES, not sign-ins — a member can sign in once
  * and use the app daily for a month. Two consequences, both stated on the card rather than hidden:
  *   · Because a live session REQUIRES a sign-in inside 30 days, "signed in within 30 days" is a

@@ -60,9 +60,24 @@ function _syncAuthTerminal(/** @type {string} */ name) {
 }
 
 export const AUTH_KEY    = 'myb_admin_session';
-export const SESSION_MS  = 30 * 24 * 60 * 60 * 1000; // 30 days — absolute outer bound
-export const IDLE_MS     =  7 * 24 * 60 * 60 * 1000; // 7 days — inactivity cutoff
+export const SESSION_MS  = 30 * 24 * 60 * 60 * 1000; // 30 days — the ONE session lifetime
 export const SESSION_VER = 2; // bump to force all existing sessions to re-login
+
+// The 7-day IDLE cutoff was REMOVED at v20.41 (owner decision). It is not a security control that
+// the 30-day absolute bound does not already provide: an attacker holding a device holds the session
+// either way, and the ways a session is genuinely revoked are all IMMEDIATE and unaffected — an
+// explicit sign-out (`clearSession`, which also signs Firebase out), a disabled or deleted account,
+// revoked Firebase credentials, and the claim/epoch sweeps. What the idle clock actually did was
+// sign out the members who use the app LEAST — someone who checks their roster once a fortnight —
+// and each expiry lands them on a password prompt.
+//
+// The Calendar VIEWER is untouched by this and must stay untouched: it is not a member session at
+// all, it holds no `name`, and its persistence is session-only, so it ends when the browser session
+// does. See calendar-access.js — that lifetime is the substance of the shared-PIN design, not a
+// tunable.
+//
+// Removed rather than left at a longer value: a dormant policy with no effect is the kind of thing
+// that gets "restored" later by someone who assumes it was load-bearing.
 
 /**
  * Derive the login password from a staff member's display name.
@@ -472,10 +487,12 @@ export async function refreshClaimsIfStale(epoch) {
 }
 
 /**
- * Read and validate the current localStorage session. Returns null if
- * missing, absolutely expired (30 days), version-stale, or idle (7 days).
- * Auto-touches lastActivity on every valid call so opening the app resets
- * the idle clock — no separate touchSession() needed.
+ * Read and validate the current localStorage session. Returns null if missing, absolutely expired
+ * (30 days) or version-stale.
+ *
+ * PURELY A READ since v20.41. It used to write back on every call, to refresh an idle clock that no
+ * longer exists — a localStorage write on every page load of every page, whose only purpose was to
+ * postpone an expiry we have now removed.
  *
  * ⚠️ Passive expiry only clears localStorage — it does NOT sign Firebase out.
  * getSession() runs synchronously at module eval on every page (incl. the
@@ -506,19 +523,18 @@ export function getSession() {
         const s = JSON.parse(raw);
         if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
         if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
-        // Idle check. Missing lastActivity: Date.now() - undefined = NaN, NaN > IDLE_MS = false → kept active.
-        if (Date.now() - s.lastActivity > IDLE_MS) {
-            lsDel(AUTH_KEY); return null;
-        }
-        // Refresh lastActivity on every valid page-load check.
-        s.lastActivity = Date.now();
-        lsSet(AUTH_KEY, JSON.stringify(s));
+        // `expiry` is absolute and set once at sign-in, so nothing here extends it. A session that
+        // has run its 30 days ends on the next read wherever the member is — no separate clock, and
+        // no write. Sessions written before v20.41 still carry a `lastActivity` field; it is simply
+        // ignored, which is why no migration or SESSION_VER bump is needed (bumping it would sign
+        // every member out, the exact outcome this change exists to reduce).
         return s;
     } catch { return null; }
 }
 
 /**
- * Persist a new session for the named user (30-day absolute expiry, idle clock starts now).
+ * Persist a new session for the named user — 30-day absolute expiry, and nothing else. There is no
+ * second clock to start (v20.41).
  * @param {string} name
  * @returns {boolean} true if the session actually persisted; false when storage is blocked
  *   (e.g. iOS Safari Private Browsing — lsSet swallows the SecurityError, so nothing is written).
@@ -529,9 +545,8 @@ export function saveSession(name) {
     const now = Date.now();
     const payload = JSON.stringify({
         name,
-        ver:          SESSION_VER,
-        expiry:       now + SESSION_MS,
-        lastActivity: now,
+        ver:    SESSION_VER,
+        expiry: now + SESSION_MS,
     });
     lsSet(AUTH_KEY, payload);
     return lsGet(AUTH_KEY) === payload;

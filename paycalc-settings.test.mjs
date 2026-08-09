@@ -31,7 +31,7 @@ mock.module('./firebase-client.js', {
 });
 mock.module('./session.js', {
     namedExports: {
-        AUTH_KEY: 'myb_admin_session', SESSION_MS: 1, IDLE_MS: 1,
+        AUTH_KEY: 'myb_admin_session', SESSION_MS: 1,
         getSession: () => _session, saveSession: () => {}, clearSession: async () => {},
         ensureFirebaseSession: async () => {}, sessionReady: Promise.resolve(),
         resolveSession: () => {}, getSurname: () => '',

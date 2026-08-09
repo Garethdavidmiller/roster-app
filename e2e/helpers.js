@@ -24,14 +24,14 @@ export function collectFatalErrors(page) {
 }
 
 // Seed a valid signed-in session before any page script runs. Shape must match
-// session.js getSession(): { name, ver: SESSION_VER (2), expiry, lastActivity }.
+// session.js getSession(): { name, ver: SESSION_VER (2), expiry }. There is no idle timestamp —
+// the 7-day inactivity cutoff was removed at v20.41, leaving `expiry` as the only clock.
 export function seedSession(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
             name: n,
             ver: 2,
             expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-            lastActivity: Date.now(),
         }));
     }, name);
 }
@@ -216,7 +216,6 @@ export function seedMemberSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_admin_session', JSON.stringify({
             name: n, ver: 2,
             expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
-            lastActivity: Date.now(),
         }));
         localStorage.setItem('myb_roster_selected_member', n);
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });

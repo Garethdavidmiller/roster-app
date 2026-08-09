@@ -45,7 +45,6 @@ mock.module('./session.js', {
     namedExports: {
         AUTH_KEY:             'myb_admin_session',
         SESSION_MS:           30 * 24 * 60 * 60 * 1000,
-        IDLE_MS:               7 * 24 * 60 * 60 * 1000,
         getSession:           () => _session,
         saveSession:          () => {},
         clearSession:         async () => {},

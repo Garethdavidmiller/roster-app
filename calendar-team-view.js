@@ -14,6 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
+import { worstKnowledge, decideDisplay, forget as forgetOverrideKnowledge } from './calendar-data-state.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();
@@ -28,6 +29,13 @@ const _unknownShiftWarned = new Set();
  *   a month's overrides into the shared cache (or no-ops if already fetched) and calls renderFn on a
  *   fresh fetch. The Team view uses THIS (not its own per-week query) so there is ONE authoritative
  *   fetcher per month — see the eviction-race note on renderTeamView.
+ * @param {Function} deps.monthKey            monthKey(year, month) — the ONE spelling of a month's
+ *   cache/knowledge key. Injected alongside the two functions that consume it rather than re-derived
+ *   here: this module used to build its own `${y}-${m}` week-dedupe key, which was harmless while it
+ *   was only a local Set and would silently look up nothing at all now that the same string has to
+ *   match what calendar-overrides.js recorded.
+ * @param {Function} deps.clearFetchedMonth   clearFetchedMonth(key) — releases a month so it can be
+ *   fetched again. Used by the week's "Try again".
  * @param {Function} deps.getSelectedMemberIndex Returns index of logged-in member in teamMembers
  * @param {Function} deps.isFirstRun             True for a brand-new visitor who hasn't picked a name
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
@@ -35,7 +43,8 @@ const _unknownShiftWarned = new Set();
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
  * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any }}
  */
-export function initTeamView({ rosterOverridesCache, ensureOverridesCached, getSelectedMemberIndex, isFirstRun, renderCalendar,
+export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
+                                getSelectedMemberIndex, isFirstRun, renderCalendar,
                                 _pushOverlayState, _clearOverlayHistory }) {
 
     // ── STATE ─────────────────────────────────────────────────────────────────
@@ -185,7 +194,28 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, getS
         const myIdx  = getSelectedMemberIndex();
         const myName = (!isFirstRun?.() && myIdx >= 0) ? teamMembers[myIdx].name : null;
 
-        const tableBody = gradeMembers.length === 0
+        // ── May this week's shifts be drawn? (v20.40) ──────────────────────────────────────────
+        //
+        // A Sun–Sat week can straddle two months, and it is only as trustworthy as its LESS-known
+        // one — hence worstKnowledge rather than a per-cell check. Taking the best, or the first
+        // month's, would let a half-known week render as settled, which is the same defect as
+        // drawing a base-roster month before its overrides land, one surface over.
+        //
+        // The chrome — grade tabs, week navigation, the help button — stays in every state. Only
+        // the shift data is withheld, so somebody who lands here can still move to a week that IS
+        // known instead of being stuck on a dead screen.
+        const _weekMonths  = [...new Set(weekDates.map(d => monthKey(d.getFullYear(), d.getMonth())))];
+        const _weekDisplay = decideDisplay(worstKnowledge(_weekMonths));
+        const _withheld    = _weekDisplay === 'loading' || _weekDisplay === 'unavailable';
+
+        const tableBody = _withheld
+            ? `<tr><td colspan="8" class="tv-empty tv-pending" role="${_weekDisplay === 'unavailable' ? 'alert' : 'status'}">`
+              + (_weekDisplay === 'unavailable'
+                  ? '<span aria-hidden="true">⚠️</span> Couldn\'t check this week — annual leave, absences '
+                    + 'and shift changes couldn\'t be loaded.<button type="button" class="tv-retry" id="tvRetry">Try again</button>'
+                  : '<span aria-hidden="true">⏳</span> Checking this week — loading annual leave, absences and shift changes.')
+              + '</td></tr>'
+            : gradeMembers.length === 0
             ? `<tr><td colspan="8" class="tv-empty">No staff in this grade</td></tr>`
             : gradeMembers.map(member => {
                 const cells = weekDates.map((date, i) => {
@@ -250,6 +280,15 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, getS
                 /** @type {HTMLElement} */ (calendarDisplay.querySelector(`.grade-tab[data-grade="${next.dataset.grade ?? ''}"]`))?.focus();
             });
         }
+
+        // "Try again" for a week whose overrides couldn't be read. Releases the claim on each month
+        // the week touches AND forgets what was known about it, so the next render withholds on a
+        // wait state rather than repeating the failure copy — the press has to look like it did
+        // something. Re-rendering WITHOUT skipFetch is what actually re-queries.
+        calendarDisplay.querySelector('#tvRetry')?.addEventListener('click', () => {
+            _weekMonths.forEach(k => { clearFetchedMonth(k); forgetOverrideKnowledge(k); });
+            renderTeamView(currentTeamGrade);
+        });
 
         const tvPrev  = calendarDisplay.querySelector('#tvPrevWeek');
         const tvNext  = calendarDisplay.querySelector('#tvNextWeek');
@@ -350,7 +389,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, getS
     function ensureTeamWeekCached(weekDates) {
         const seen = new Set();
         for (const d of weekDates) {
-            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            // The SHARED key spelling (v20.40) — this was a local `${y}-${m}`, which deduped fine
+            // but disagreed with every other month key in the app. Now that the same string names a
+            // month's knowledge state, one format is the only safe number of formats.
+            const key = monthKey(d.getFullYear(), d.getMonth());
             if (seen.has(key)) continue;
             seen.add(key);
             ensureOverridesCached(d.getFullYear(), d.getMonth(), refreshFromCache);

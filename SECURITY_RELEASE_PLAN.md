@@ -167,7 +167,7 @@ Three design points that flow from this and still govern any future rule change:
 - **SHIPPED — PASSWORD_PLAN.md Phase 2 (v18.92):** `password-force.js` compels any member still on the
   surname default to set their own password at their NEXT SIGN-IN, on all five authenticated pages,
   behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. No forced sign-out — sessions cap at 30 days
-  absolute / 7 days idle and an expired session forces a real typed login, so coverage completes itself
+  absolute (the 7-day idle cutoff was removed at v20.41) and an expired session forces a real typed login, so coverage completes itself
   inside 30 days and staggers naturally. Shows only for a `named` identity, and fails open on any
   failure it cannot recover from: a mandatory overlay that cannot be satisfied is a lockout, not a
   control. Pure roster-viewers who never sign in anywhere are NOT reached — that needs Track E. This

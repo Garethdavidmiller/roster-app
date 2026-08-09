@@ -113,8 +113,12 @@ export const runTransaction = (_db, fn) => {
 // NOTE: this comment lives INSIDE the FIREBASE_STUB template literal — no backticks, ever.
 // window.__E2E.docsDelayMs holds every collection read open for N ms — the lever that makes a
 // read/delete INTERLEAVING reproducible rather than a matter of luck.
+// window.__E2E.failGetDocs makes every collection read REJECT (v20.40). The pair with docsDelayMs is
+// the point: delay proves the calendar withholds its grid while a read is still running, reject proves
+// it withholds it when the read has lost. Those are two different panels and only one carries a retry.
 export const getDocs = () => {
   const e2e = globalThis.__E2E || {};
+  if (e2e.failGetDocs) return Promise.reject(new Error('e2e: collection read failed'));
   const rows = e2e.docs;
   const wrap = (v) => (e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));
   if (!rows) return wrap({ empty: true, size: 0, docs: [], forEach: noop });

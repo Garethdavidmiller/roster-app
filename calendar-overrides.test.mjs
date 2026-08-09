@@ -289,26 +289,60 @@ describe('ensureOverridesCached fetch failure', () => {
         _getDocsThrows = false;
     });
 
-    test('a failed far-month fetch does not call renderFn and leaves the cache untouched', async () => {
+    test('a failed far-month fetch repaints ONCE and leaves the cache untouched', async () => {
         // A previously-cached override for an already-loaded month must survive: a failed
         // fetch must never poison or clear existing good data (reconcile runs only on success).
+        //
+        // The repaint half inverts what this asserted before v20.40, and the reason is that the
+        // consequence of a failure changed. It used to be "the base roster stays", where a repaint
+        // would have redrawn the same wrong thing; it is now "the grid is withheld", where the
+        // repaint is what turns an indefinite "Checking this month" into a failure panel with a
+        // Try again. ONCE is the load-bearing word — see the loop below.
         rosterOverridesCache.set('A. Smith|2027-01-10',
             { value: 'AL', type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 500 } });
         _getDocsThrows = true;
 
-        let rendered = false;
-        await ensureOverridesCached(2099, 2, () => { rendered = true; });   // far month; getDocs rejects
+        let renders = 0;
+        await ensureOverridesCached(2099, 2, () => { renders++; });   // far month; getDocs rejects
 
-        assert.equal(rendered, false, 'renderFn must not run when the fetch fails (no partial paint)');
+        assert.equal(renders, 1, 'the failure has to reach the screen');
         assert.equal(rosterOverridesCache.get('A. Smith|2027-01-10')?.value, 'AL',
             'existing cached data must survive a failed fetch (no poisoning)');
+    });
+
+    test('the failure repaint is ONE-SHOT — otherwise it is a fetch↔render loop', async () => {
+        // The loop is invisible from either end. renderCalendar calls ensureOverridesCached on
+        // every render; the catch releases the month so a later navigation can retry it; and the
+        // repaint IS a later render. Unguarded that is fetch → fail → paint → fetch → fail → paint
+        // against Firestore for as long as the month is on screen. The month still gets one
+        // automatic second attempt — after that the recovery is the panel's own Try again.
+        _getDocsThrows = true;
+        let renders = 0;
+        const paint = () => { renders++; };
+        await ensureOverridesCached(2098, 5, paint);
+        await ensureOverridesCached(2098, 5, paint);   // the repaint's own render, re-fetching
+        await ensureOverridesCached(2098, 5, paint);   // and again, and again…
+        assert.equal(renders, 1, 'a month may announce its failure once per claim, not per attempt');
+    });
+
+    test('clearFetchedMonth re-arms it — a fresh attempt may report its own outcome', async () => {
+        // "Try again" goes through clearFetchedMonth. Releasing the month and suppressing the
+        // repaint are deliberately separate flags, and this is why: a user who asks for another
+        // attempt must be told how THAT attempt went, not silently left on the previous verdict.
+        _getDocsThrows = true;
+        let renders = 0;
+        await ensureOverridesCached(2097, 5, () => { renders++; });
+        assert.equal(renders, 1);
+        clearFetchedMonth(monthKey(2097, 5));
+        await ensureOverridesCached(2097, 5, () => { renders++; });
+        assert.equal(renders, 2, 'the re-armed attempt reports its own failure');
     });
 
     test('a failed far-month fetch is retryable — the month is not left marked fetched', async () => {
         _getDocsThrows = true;
         let rendered = false;
         await ensureOverridesCached(2099, 3, () => { rendered = true; });   // 2099-04, fails
-        assert.equal(rendered, false);
+        rendered = false;   // the failure's own one-shot repaint — see the test above
 
         // Second attempt with the fetch now succeeding MUST run — proving the month key was
         // released on failure, so navigating back to that month re-queries it.

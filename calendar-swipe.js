@@ -47,9 +47,15 @@ export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown
  *   updateNavButtonState: () => void,
  *   navigateToPaycalc: (str: string) => void,
  *   openDayDetail: ((cell: Element) => void) | null,
+ *   onRetryMonth?: (year: number, month: number) => void,
  * }} deps
+ *   onRetryMonth — forwarded to buildCalendarContainer so the "Try again" button works on a panel
+ *   whose month could not be read. It matters here and not only in calendar-app.js because the
+ *   INCOMING panel is not thrown away after a swipe: restoreIncoming strips its carousel class and
+ *   it becomes the live view, so a panel built without the callback would leave the committed month
+ *   showing a failure with nothing to press.
  */
-export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, navigateToPaycalc, openDayDetail }) {
+export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, navigateToPaycalc, openDayDetail, onRetryMonth }) {
     const calendarDisplay = document.getElementById('calendarDisplay');
     if (!calendarDisplay) return;
 
@@ -92,6 +98,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
         return buildCalendarContainer(m, y, {
             navigateToPaycalc,
             onDayDetail: openDayDetail ?? undefined,
+            onRetryMonth,
         });
     }
 

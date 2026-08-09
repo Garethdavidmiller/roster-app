@@ -34,6 +34,69 @@ test('calendar: renders the current month from roster data', async ({ page }) =>
     expect(errors, 'Uncaught JS exceptions on index.html').toHaveLength(0);
 });
 
+// ── The grid is withheld until the overrides are known (v20.40) ──────────────────────────────────
+//
+// The unit tests prove the DECISION; only a browser proves the WIRING — that a real page open with a
+// slow or failed Firestore read actually withholds, rather than the fetch module recording a state
+// nobody reads. The bug being guarded is precisely one nothing threw on: the base roster is drawn
+// perfectly, and it is somebody else's day.
+
+test('calendar: a month whose overrides have not arrived shows NO shifts', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedMember(page);
+    // Hold every collection read open. This is the fresh-browser case: no local cache to paint from,
+    // so before v20.40 the base roster went straight up while the read was still in flight.
+    await page.addInitScript(() => { (window.__E2E = window.__E2E || {}).docsDelayMs = 30000; });
+    await page.goto('/');
+
+    await expect(page.locator('.calendar-pending')).toBeVisible();
+    await expect(page.locator('.calendar-day')).toHaveCount(0);
+    // The month label survives — the header is kept in every state so the sync chip has a mount point.
+    await expect(page.locator('.month-year')).toBeVisible();
+    // And the legend goes with the grid: it is a key to cells that are not there, derived from the
+    // base roster, so leaving it up would announce this month's shift types while the panel beside it
+    // says we do not know them.
+    await expect(page.locator('.legend')).toBeHidden();
+    expect(errors, 'Uncaught JS exceptions on index.html').toHaveLength(0);
+});
+
+test('calendar: a FAILED override read offers a retry, and still shows no shifts', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedMember(page);
+    await page.addInitScript(() => { (window.__E2E = window.__E2E || {}).failGetDocs = true; });
+    await page.goto('/');
+
+    // The failed panel is a different panel from the wait one — it names the failure and carries the
+    // action. A single "loading" state for both would leave a member waiting on something that has
+    // already lost, which is the shape the old code had (base roster + a chip, indefinitely).
+    await expect(page.locator('.calendar-pending--failed')).toBeVisible();
+    await expect(page.locator('.calendar-pending-retry')).toBeVisible();
+    await expect(page.locator('.calendar-day')).toHaveCount(0);
+    expect(errors, 'Uncaught JS exceptions on index.html').toHaveLength(0);
+});
+
+test('calendar: the retry re-reads, and a grid appears when it succeeds', async ({ page }) => {
+    await seedMember(page);
+    await page.addInitScript(() => { (window.__E2E = window.__E2E || {}).failGetDocs = true; });
+    await page.goto('/');
+    await expect(page.locator('.calendar-pending-retry')).toBeVisible();
+
+    // Let the next read succeed, then press the button the panel offered.
+    await page.evaluate(() => { window.__E2E.failGetDocs = false; });
+    await page.locator('.calendar-pending-retry').click();
+
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.calendar-pending')).toHaveCount(0);
+    await expect(page.locator('.legend')).toBeVisible();
+});
+
+test('calendar: a successful read renders the grid — the withholding is a gate, not a disablement', async ({ page }) => {
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.calendar-pending')).toHaveCount(0);
+});
+
 test('calendar: first run (no saved member, not signed in) shows the choose-your-name prompt', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/');   // fresh context: no saved member, no session → first run

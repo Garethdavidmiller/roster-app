@@ -297,12 +297,17 @@ describe('failure path', () => {
         assert.equal(calls - before, 1, 'one click must issue exactly one retry request');
     });
 
-    test('renderCalendar() NOT called when fetch fails', async () => {
+    test('renderCalendar() IS called when the fetch fails (v20.40 — inverted deliberately)', async () => {
+        // This asserted the OPPOSITE until v20.40, and was right to: while a failed month kept
+        // showing the base roster, repainting it changed nothing. Now the grid is WITHHELD until the
+        // month is known, so the repaint is the only thing that moves it from "Checking this
+        // month" onto the failure panel with its retry. Without it the failure is invisible and
+        // permanent — the exact shape of the bug the withholding was introduced to fix.
         _fetchImpl = () => Promise.reject(new Error('fail'));
         let rendered = false;
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => { rendered = true; } });
         await flushAsync();
-        assert.equal(rendered, false);
+        assert.equal(rendered, true);
     });
 
     test('setInitialFetchInProgress(false) called in finally on failure', async () => {
@@ -704,7 +709,14 @@ describe('recovery without a sync chip (first run · team view)', () => {
             'these users get that the sync is over');
     });
 
-    test('a failed fetch in TEAM VIEW releases the months and repaints nothing', async () => {
+    test('a failed fetch in TEAM VIEW releases the months AND repaints the team grid', async () => {
+        // The repaint half is v20.40 and inverts what this used to assert. Team View has no sync
+        // chip, so before the withholding model its whole recovery story was the month release and
+        // a silent last-good grid. Now a week whose months are unknown withholds its rows, and only
+        // a repaint can replace the wait copy with the failure copy and its "Try again" — so on the
+        // chip-less surface the repaint is not cosmetic, it IS the recovery.
+        // It must still be the TEAM renderer: repainting the personal calendar over a team view
+        // would be the v18.21 stand-down bug from the other direction.
         _fetchImpl = () => Promise.reject(new Error('offline'));
         let teamRendered = false, calRendered = false;
         initInitialFetch({
@@ -715,9 +727,9 @@ describe('recovery without a sync chip (first run · team view)', () => {
         await flushAsync(6);
 
         assert.equal(_clearMonthsHistory.length, 3,
-            'Team View has no chip either — the release is its whole recovery story');
-        assert.equal(teamRendered, false, 'nothing new to paint on failure; keep the last-good grid');
-        assert.equal(calRendered,  false);
+            'Team View has no chip either — the release is half of its recovery story');
+        assert.equal(teamRendered, true, 'the failure has to reach the screen somehow');
+        assert.equal(calRendered,  false, 'and never as the personal calendar');
     });
 });
 
@@ -889,11 +901,11 @@ describe('team view retry recovery', () => {
         // already in flight, so the repaint we assert on can only have come from doRetry.
         let calls = 0;
         _fetchImpl = () => { calls++; return new Promise(() => {}); };
-        let teamRendered = false, calRendered = false;
+        let teamRenders = 0, calRenders = 0;
         initInitialFetch({
             isTeamViewMode: () => true,
-            renderCalendar: () => { calRendered = true; },
-            renderTeamView: () => { teamRendered = true; },
+            renderCalendar: () => { calRenders++; },
+            renderTeamView: () => { teamRenders++; },
         });
         await flushAsync(6);
         assert.equal(calls, 1, 'the original request must already be in flight before we arm the retry');
@@ -903,7 +915,13 @@ describe('team view retry recovery', () => {
 
         const chip = getSyncChip();
         assert.ok(chip, 'the error chip should be present');
-        assert.equal(teamRendered, false, 'nothing has repainted yet — the original is still hung');
+        // Counted, not booleaned (v20.40): the 10s deadline now DECLARES failure — it records the
+        // months as errored and repaints, so a withheld week stops saying "Checking this week" while
+        // the chip beside it offers a retry. So the retry's repaint is the SECOND, and a boolean
+        // could no longer tell the two apart.
+        const teamAtDeadline = teamRenders;
+        assert.equal(teamAtDeadline, 1, 'the deadline itself repaints once, into the failed state');
+        assert.equal(calRenders, 0, 'and never as the personal calendar');
 
         _fetchImpl = () => { calls++; return Promise.resolve(); };
         chip._fire('click');
@@ -913,9 +931,9 @@ describe('team view retry recovery', () => {
 
         assert.equal(calls, 2, 'exactly one further request — the retry');
 
-        assert.equal(teamRendered, true,
+        assert.ok(teamRenders > teamAtDeadline,
             'the retry must repaint whichever view the user is actually looking at');
-        assert.equal(calRendered, false,
+        assert.equal(calRenders, 0,
             'repainting the personal calendar would leave the team grid stale behind a success message');
     });
 

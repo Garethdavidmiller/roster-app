@@ -617,7 +617,8 @@ function _appendSignInSection(content) {
         const note = document.createElement('p');
         note.className = 'usage-note';
         // State the two caveats rather than let the number be read as "active staff". Sessions last
-        // 30 days absolute / 7 idle, so a live session REQUIRES a sign-in inside 30 days — which
+        // 30 days (absolute — the 7-day idle cutoff went at v20.41), so a live session REQUIRES a
+        // sign-in inside 30 days — which
         // makes this a slight over-count of active people (it includes anyone who signed in once and
         // stopped). And `neverSignedIn` is the actionable one: provisioned staff who may not know
         // the app exists.

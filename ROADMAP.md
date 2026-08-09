@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: August 2026 — v20.30 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.40 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -116,7 +116,9 @@ two-month warning, because "must be done by April" reliably becomes "started in 
 ## NEXT — likely, but a trigger is required
 
 ### Rangers & Rovers guide
-**Status:** **SHIPPED; SOURCE-CHECKED PER PRODUCT v20.10** — `RANGERS_ROVERS_PLAN.md` · **Owner:** Gareth · **Trigger:** settle the two source conflicts through Chiltern/retail guidance
+**Status:** **SHIPPED; SOURCE-CHECKED PER PRODUCT v20.10; REBUILT MARYLEBONE-FIRST v20.37** — `RANGERS_ROVERS_PLAN.md` · **Owner:** Gareth · **Trigger:** settle the two source conflicts through Chiltern/retail guidance
+
+The v20.37 rebuild changed what the page answers first — *is this valid FROM MARYLEBONE* — and moved the two conflicts from PRODUCT level to CLAIM level, so an unresolved secondary condition no longer makes a whole card read as doubtful. It also added a fourth evidence state, `unconfirmed`: an absence is not a milder conflict and may not wear the conflict's marker.
 
 A fifth guide page, for the ranger and rover area passes staff have to accept or refuse at the
 gateline. Shipped at v20.05 **entirely unverified** and marked so in three enforced places; the owner
@@ -180,7 +182,7 @@ Staff do not generally know the app has two addresses (`myb-roster.web.app` and 
 notice.
 
 **Why AFTER the password plan, concretely.** The forced set-password overlay fires at next sign-in and
-completes itself within 30 days (sessions cap at 30 days absolute / 7 idle). A new address is a NEW ORIGIN,
+completes itself within 30 days (sessions cap at 30 days). A new address is a NEW ORIGIN,
 so `localStorage` — and therefore the session — does not come with it: everyone who moves is signed out and
 must sign in again there. Migrate first and a member meets an unfamiliar URL, a forced sign-in, and a
 mandatory password overlay in one go; that is the moment someone concludes the app is broken. Doing the
