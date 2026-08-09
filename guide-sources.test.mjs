@@ -738,39 +738,36 @@ test('railcard: a correction callout must actually negate what it quotes', () =>
     }
 });
 
-test('railcard: the Network area is stated as UNSETTLED, never as a certainty either way', () => {
-    // THIS TEST WAS WRITTEN BACKWARDS FIRST, AND THAT IS WHY IT READS LIKE THIS.
-    // v20.38 initially "corrected" the Network card to say the area reaches Birmingham, and pinned
-    // that claim here — on the strength of the railcard map's station index listing Birmingham Moor
-    // Street and Snow Hill. The inference was invalid: the SAME index lists Bristol, Taunton and
-    // Exeter, so it indexes the rail-services map, not the railcard boundary. The boundary itself is
-    // a filled polygon on a map whose station names are vector artwork, and could not be read.
+test('railcard: the Network area ends at Banbury, and Birmingham is outside it', () => {
+    // THIS TEST HAS NOW BEEN WRITTEN THREE TIMES, AND THE HISTORY IS THE USEFUL PART.
+    //   1. It pinned "the area reaches Birmingham" — a v20.38 "correction" inferred from the
+    //      railcard map's station INDEX, which lists Birmingham Moor Street and Snow Hill.
+    //   2. The inference was invalid: the same index lists Bristol, Taunton and Exeter, so it
+    //      indexes the rail-services map, not the boundary. The claim was withdrawn to Draft.
+    //   3. It was then settled properly. The boundary is a 41-vertex filled polygon in the map PDF;
+    //      point-in-polygon against a rendered copy puts Banbury INSIDE and on the edge (it is the
+    //      boundary station), and Leamington Spa, Warwick, Solihull, Coventry and Birmingham
+    //      OUTSIDE. Bristol tests outside too, which is the method checking itself.
     //
-    // Both certainties are forbidden, because each fails differently at the barrier: "not valid past
-    // Banbury" refuses valid tickets, "valid to Birmingham" accepts invalid ones. The card's job is
-    // to give the working answer and route the doubt to the retail system.
+    // So the ORIGINAL guide was right and the "correction" was the error. What this test protects is
+    // the answer, not either author: asserting Birmingham is inside would make a gateline accept
+    // invalid tickets, which is the more expensive direction of the two.
     const card = RC_HTML.slice(RC_HTML.indexOf('id="rc-network"'));
     const body = card.slice(0, card.indexOf('<h2')).replace(/<!--[\s\S]*?-->/g, ' ');
 
-    assert.doesNotMatch(body, /Birmingham Moor Street and Snow/i,
-        'the Network card asserts the area reaches Birmingham again. That came from the map\'s ' +
-        'station index, which also lists Bristol and Exeter — it is not the boundary.');
-    assert.doesNotMatch(body, /<strong>Not valid<\/strong> for Leamington/i,
-        'the flat "not valid for Leamington/Birmingham" claim is back. No current source states it ' +
-        'in those words, and acting on it refuses valid tickets.');
-
-    assert.match(body, /could not be read|not settled/i,
-        'the Network card must say the boundary is unsettled — silence reads as certainty');
-    assert.match(body, /check the retail system before refusing/i,
-        'the unsettled case must resolve to "check", which is safe whichever way the boundary runs');
-    assert.match(body, /Banbury/,
-        'the working answer (Banbury/Kings Sutton) must still be given — an unsettled note with no ' +
-        'default leaves a gateline with nothing to act on');
+    assert.match(body, /reaches <strong>Banbury and\s+Kings Sutton<\/strong> and stops/i,
+        'the Network card must state where the area ends on our line');
+    assert.match(body, /Birmingham Moor Street \/ Snow Hill are outside/i,
+        'the card must name Birmingham as OUTSIDE. Verified by point-in-polygon against the map\'s ' +
+        'own boundary — do not "correct" this from the map\'s station index, which also lists Bristol.');
+    assert.match(body, /Banbury is the boundary station/i,
+        'naming Banbury as THE boundary station is what makes the buy-before-you-cross rule usable');
 });
 
 test('railcard: no card claims Birmingham is inside the Network area', () => {
     // The bad inference had already spread to Family & Friends, Senior and the Gold comparison
     // before it was caught. Asserted page-wide so it cannot return through any one of them.
+    // (The Network card names Birmingham as OUTSIDE, which these patterns deliberately do not match.)
     assert.doesNotMatch(RC_TEXT_LIVE, /Birmingham is inside the (?:Network )?area/i);
     assert.doesNotMatch(RC_TEXT_LIVE, /wholly within it and the peak rule applies/i);
     assert.doesNotMatch(RC_TEXT_LIVE, /both the Gold Card area and the Network Railcard area include/i);
