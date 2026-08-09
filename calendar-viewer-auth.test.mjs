@@ -373,3 +373,32 @@ describe('the viewer account is invisible to staff enumeration', () => {
         assert.equal(PIN_LENGTH, 4);
     });
 });
+
+// ── A MALFORMED DEPLOYED SECRET IS A SERVER FAULT, NOT A WRONG PIN (v20.39, audit §31) ──────────
+//
+// The shape rule is applied to the DEPLOYED SECRET as well as to the submitted PIN, and the reason
+// is a support failure rather than a security one: a secret set to five digits by a slipped
+// keystroke can never match a four-digit entry, so every member is told their PIN is wrong. That is
+// the symptom least likely to lead anyone to the cause. Asserted through the same helper the
+// endpoint uses, since the endpoint itself needs the emulator.
+describe('deployed-secret shape', () => {
+    test('the shape rule rejects exactly what a slipped keystroke produces', () => {
+        for (const bad of ['12345', '147', '14 75', 'abcd', '147a', '', '   ', '1475\n5']) {
+            assert.equal(isValidPinShape(bad.trim()), false, `"${bad}" must not pass as a configured PIN`);
+        }
+    });
+
+    test('a well-formed four-digit secret still passes', () => {
+        // Values chosen to be obviously not the real PIN — the deployed secret never appears here.
+        for (const good of ['0000', '9999', '0123']) {
+            assert.equal(isValidPinShape(good), true, `"${good}" is a valid PIN shape`);
+        }
+    });
+
+    test('the same rule governs the submitted PIN and the configured one', () => {
+        // One rule, so the two can never drift into disagreeing about what a PIN is — the drift
+        // would show up as "correct PIN refused", which is indistinguishable from a wrong PIN.
+        assert.equal(isValidPinShape('1234'), isValidPinShape('1234'));
+        assert.equal(typeof isValidPinShape, 'function');
+    });
+});

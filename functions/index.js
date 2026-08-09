@@ -1944,7 +1944,7 @@ exports.requestPasswordReset = onRequest(
  * Nothing is written, nothing is cached, and **no identity leaves this function**: the response is
  * four integers.
  *
- * WHAT IT DOES NOT MEASURE. Sign-ins, not activity. Sessions last 30 days absolute / 7 days idle
+ * WHAT IT DOES NOT MEASURE. Sign-ins, not activity. Sessions last 30 days (absolute)
  * (session.js), so most page opens are session RESTORES, not sign-ins — a member can sign in once
  * and use the app daily for a month. Two consequences, both stated on the card rather than hidden:
  *   · Because a live session REQUIRES a sign-in inside 30 days, "signed in within 30 days" is a
@@ -2113,11 +2113,16 @@ exports.unlockCalendarViewer = onRequest(
         // Trimmed here as well as inside `pinMatches`, so the two agree on what "configured" means:
         // a secret of nothing but whitespace is a DEPLOYMENT fault (503 below), not a wrong PIN.
         const expected = (CALENDAR_VIEWER_PIN.value() || '').trim();
-        if (!expected) {
-            // The secret is missing or empty. 503, and NOT 401: telling a member their PIN is wrong
-            // when the server has no PIN configured would send the whole station looking for a code
-            // that cannot work, and would hide a deployment fault behind a user-facing one.
-            console.error('[unlockCalendarViewer] CALENDAR_VIEWER_PIN is not configured');
+        // MISSING **AND MALFORMED** ARE BOTH DEPLOYMENT FAULTS (v20.39, audit §31). Emptiness was
+        // already caught; shape was not, and the gap is worse than it sounds. A secret set to five
+        // digits by a slipped keystroke can never match a four-digit entry, so every member at the
+        // station is told their PIN is wrong — the one symptom that leads nowhere near the actual
+        // cause, and the one that would have the whole shift hunting for a code that cannot work.
+        // The shape check is `isValidPinShape`, the same rule the client's entry is held to, so the
+        // two cannot drift into disagreeing about what a PIN is.
+        if (!expected || !isValidPinShape(expected)) {
+            // 503, never 401. The log names the fault; it never contains the value.
+            console.error(`[unlockCalendarViewer] CALENDAR_VIEWER_PIN is ${expected ? 'malformed' : 'not configured'}`);
             return res.status(503).json({ error: 'Calendar access is not configured' });
         }
 

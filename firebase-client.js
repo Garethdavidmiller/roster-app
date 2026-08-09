@@ -125,18 +125,34 @@ export const auth = getAuth(app);
  * viewer session must restore THIS chain — and the member paths call it through
  * `restoreMemberPersistence`, never by repeating the three-step ladder, so the fallback order
  * cannot drift between the two call sites.
- * @returns {Promise<void>}
+ * @returns {Promise<'indexeddb'|'local'|'session'>} the mode that took; rejects if none did
  */
 function _setMemberPersistence() {
-    return setPersistence(auth, indexedDBLocalPersistence)
-        .catch(() => setPersistence(auth, browserLocalPersistence))
-        .catch(() => setPersistence(auth, browserSessionPersistence))
-        .catch(/** @param {any} err */ err => { console.warn('[Auth] persistence setup failed:', err); });
+    // THE RESULT IS OBSERVABLE, AND TOTAL FAILURE IS NOT SUCCESS (v20.39, audit §25).
+    // This used to swallow the final `.catch` and resolve with `undefined`, so a caller could not
+    // distinguish "stored in IndexedDB" from "no persistence could be established at all" — every
+    // outcome looked identical. That is tolerable for an ordinary member login (an in-memory session
+    // still works for this tab) and NOT tolerable for the viewer↔member transitions, which reason
+    // about which persistence mode the identity is in. Resolves with the mode that took; rejects if
+    // none did, so a security-sensitive caller can fail closed.
+    return setPersistence(auth, indexedDBLocalPersistence).then(() => /** @type {const} */ ('indexeddb'))
+        .catch(() => setPersistence(auth, browserLocalPersistence).then(() => /** @type {const} */ ('local')))
+        .catch(() => setPersistence(auth, browserSessionPersistence).then(() => /** @type {const} */ ('session')))
+        .catch(/** @param {any} err */ err => {
+            console.warn('[Auth] persistence setup failed:', err);
+            throw err instanceof Error ? err : new Error('no persistence mode could be established');
+        });
 }
 
 // Exported so callers can `await authReady` before signing in — guarantees persistence
 // is configured before the auth token is written, otherwise iOS may drop the session.
-export const authReady = _setMemberPersistence();
+// BOOT MUST NOT INHERIT THE STRICTER POLICY (v20.39). `_setMemberPersistence` now rejects when no
+// mode could be established, which is what the viewer↔member transitions need — but this promise is
+// awaited at boot by every page, mostly without a catch, so propagating here would turn a rare
+// storage failure into an unhandled rejection and a blank app. An in-memory session still works for
+// the current tab, which is the right trade for ordinary use. Security-sensitive callers use
+// `restoreMemberPersistence()` and get the rejection.
+export const authReady = _setMemberPersistence().catch(() => /** @type {const} */ ('none'));
 
 /**
  * Re-arm the long-lived MEMBER persistence chain.
@@ -146,7 +162,7 @@ export const authReady = _setMemberPersistence();
  * persistence, so doing this while the viewer is still signed in would move the shared viewer
  * session into IndexedDB — where it would survive the browser closing, which is exactly the
  * property that makes unlocking a shared office PC safe to do.
- * @returns {Promise<void>}
+ * @returns {Promise<'indexeddb'|'local'|'session'>} the mode that took; rejects if none did
  */
 export function restoreMemberPersistence() { return _setMemberPersistence(); }
 

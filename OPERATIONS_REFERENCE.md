@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: August 2026 — v20.30 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.40 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -433,7 +433,7 @@ comes from `getSignInStats` (admin-only), which reads Firebase Auth's own `lastS
 uniqueness is a property of the data rather than something the app has to enforce, and nothing new is
 stored. Filtered to an allowlist of the current server-owned roster so an un-swept leaver cannot
 inflate it; returns four integers, no identity. It measures **sign-ins, not activity** (sessions last
-30 days absolute / 7 idle, so most page opens are session *restores*), and there is no history — only
+30 days, so most page opens are session *restores*), and there is no history — only
 the last sign-in is stored. `neverSignedIn` is the actionable figure.
 
 ### Which address staff are on (v19.23, key added v19.29)
@@ -479,7 +479,7 @@ lets both be fixed at once.
 
 | Situation | What happens |
 |---|---|
-| Signed-in member, live session | Nothing changes. No PIN, no interruption; the 30-day / 7-day-idle session rules are untouched. |
+| Signed-in member, live session | Nothing changes. No PIN, no interruption; the 30-day session rule is untouched. |
 | Shared PC, fresh browser | The Calendar area shows a small "Enter the staff PIN" card. Four digits → the roster, including whichever member was last selected on that machine. |
 | Same browser, reload or navigation | Stays unlocked. The viewer session lives as long as the browser session. |
 | Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |

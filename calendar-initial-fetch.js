@@ -9,6 +9,7 @@
  */
 
 import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache } from './calendar-overrides.js';
+import { noteKnowledge } from './calendar-data-state.js';
 import { formatISO } from './roster-data.js';
 
 /** The sync's own failure deadline — the point at which the chip says "Couldn't update" (v19.08).
@@ -234,6 +235,13 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       className: 'sync-chip sync-chip-error',
       announce: 'Couldn\'t update your shifts. Activate to retry.',
     });
+    // Say the same thing in both places (v20.40). This is the moment the sync DECLARES failure, so
+    // a withheld grid must stop saying "Checking this month" beside a chip offering a retry. The
+    // request may still land afterwards — `noteKnowledge` is monotonic, so a late success overrules
+    // this and the grid appears. On a device phase 1 painted, the month is already `cached` and this
+    // is a no-op: the grid stays up, which is exactly right, because there IS something to show.
+    noteKnowledge(_initialMonthKeys, 'error');
+    if (isTeamViewMode()) renderTeamView(); else renderCalendar();
     if (calGrid) calGrid.classList.remove('calendar-fetching');
   }, SYNC_TIMEOUT_MS);
 
@@ -264,6 +272,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // never to wait at all. Bounded-wait is right here precisely because a user is watching.)
       await Promise.race([authReady, new Promise(r => setTimeout(r, RETRY_AUTH_WAIT_MS))]);
       await fetchOverridesForRange(startStr, endStr);
+      noteKnowledge(_initialMonthKeys, 'authoritative');
       syncResolved = true;
       _dataLoaded  = true;
       // Release the in-progress flag before rendering — same reason as the original success path:
@@ -300,6 +309,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
         onAccessLost();
         return;
       }
+      noteKnowledge(_initialMonthKeys, 'error');
       setChipState({
         text: '⚠ Couldn\'t update — tap to retry',
         className: 'sync-chip sync-chip-error',
@@ -308,6 +318,10 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // Only a RETRY moves focus: the user pressed something, so the result belongs under their
       // cursor. The initial fetch's failure is unsolicited and must not steal focus.
       if (syncChip && syncChip.isConnected) syncChip.focus();
+      // Deliberately NO repaint here, unlike the two paths above (v20.40). This chip only exists
+      // because the timeout or the original catch already ran, and both of those recorded `error`
+      // and repainted — so the screen is already in its failed state and a render would change
+      // nothing except to rebuild `.calendar-header` and throw away the focus just set.
     }
   }
 
@@ -321,6 +335,11 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // touches syncResolved/_dataLoaded: those mean "the authoritative read settled", and the chip
       // must still say "Updating…" while phase 2 runs. A cache miss returns false and paints nothing.
       const _painted = await fetchOverridesForRangeFromCache(startStr, endStr);
+      // The device holds a previously-known state for this window, so the grid may be drawn — but
+      // only as `cached`, never as current (v20.40). An EMPTY cache stays `unknown`, deliberately:
+      // "nothing cached" and "no overrides" are indistinguishable from here, and that conflation is
+      // precisely the bug this model exists to stop. The chip already says "Updating…" meanwhile.
+      if (_painted) noteKnowledge(_initialMonthKeys, 'cached');
       // Skip the paint if a retry has already superseded this load (same guard as the catch below).
       if (_painted && _origGen === _fetchGen && !syncResolved) {
         if (isTeamViewMode()) renderTeamView(); else renderCalendar();
@@ -334,6 +353,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // require a session it fails into the catch below, which is the recoverable path.
       await Promise.race([authReady, new Promise(r => setTimeout(r, SYNC_TIMEOUT_MS))]);
       await fetchOverridesForRange(startStr, endStr);
+      noteKnowledge(_initialMonthKeys, 'authoritative');
       syncResolved = true;
       _dataLoaded  = true;
       // Release the in-progress flag BEFORE the success render (v16.23): initInitialFetch now
@@ -351,7 +371,11 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // in-flight — if so, the UI is already in a good state; don't clobber it.
       if (_origGen !== _fetchGen) return;
       syncResolved = true;
-      console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
+      // NOT "base roster will be used" any more (v20.40) — a device with no cache now withholds the
+      // grid instead. `noteKnowledge` is monotonic, so on a device phase 1 DID paint this is a no-op
+      // and the cached grid stays up behind the retry chip, which is the right answer there.
+      noteKnowledge(_initialMonthKeys, 'error');
+      console.error('[Firestore] Initial override fetch failed', err);
       // Release the 3 pre-claimed months so ensureOverridesCached() can re-fetch them on a later
       // render/navigation. Without this they stay marked fetched forever and their overrides never
       // load for the session — and the retry chip below only exists inside `.calendar-header`, which
@@ -373,6 +397,17 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
         className: 'sync-chip sync-chip-error',
         announce: 'Couldn\'t update your shifts. Activate to retry.',
       });
+      // Release the in-progress flag BEFORE the failure render — the same ordering, and the same
+      // reason, as the success path above. The withheld grid's "Try again" is only drawn when a
+      // per-month fetch is safe to start, and that is decided by THIS flag at render time; leaving
+      // it to the `finally` painted the failure panel with no action on it, which is the state the
+      // whole change exists to remove. Caught by e2e/calendar.spec.js, not by any unit test — the
+      // flag, the render and the button live in three different modules.
+      setInitialFetchInProgress(false);
+      // Repaint so a withheld grid moves from "Checking this month" to the failure panel (v20.40).
+      // The months were released just above, so this render re-fetches them once; the one-shot
+      // guard in calendar-overrides.js is what stops that becoming a fetch↔render loop.
+      if (isTeamViewMode()) renderTeamView(); else renderCalendar();
     } finally {
       setInitialFetchInProgress(false);
       clearTimeout(loadingTimer);

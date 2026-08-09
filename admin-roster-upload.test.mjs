@@ -69,7 +69,7 @@ mock.module('./firebase-client.js', {
 });
 
 const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates, detectShiftedRow,
-        shiftDisplay, manualShiftDisplay } = await import('./admin-roster-upload.js');
+        shiftDisplay, manualShiftDisplay, isZeroLengthRange } = await import('./admin-roster-upload.js');
 const { teamMembers, getBaseShift } = await import('./roster-data.js');
 
 // 2026-06-21 is a Sunday; 2026-06-15 is a Monday.
@@ -507,5 +507,36 @@ describe('manualShiftDisplay', () => {
 
     test('an rdw type with a non-time value is not re-encoded', () => {
         assert.equal(manualShiftDisplay({ manualValue: 'RD', manualType: 'rdw' }), shiftDisplay('RD'));
+    });
+});
+
+// ── ZERO-LENGTH RANGES CANNOT REACH FIRESTORE (v20.39, audit §24) ──────────────────────────────
+//
+// The server refuses equal start/end in `normaliseShift`. This is the second lock on the same door,
+// and it is not redundant: the review table's CONFLICT picker lets an admin choose between two
+// candidate readings, and a hand-edited cell takes this path without passing the server normaliser
+// again. Skipping is the safe failure — the day keeps what it had rather than gaining a shift that
+// every duration helper would read as 24 hours.
+describe('isZeroLengthRange', () => {
+    test('catches equal times, in both the bare and RDW-encoded forms', () => {
+        for (const v of ['08:00-08:00', '00:00-00:00', '23:59-23:59', 'RDW|08:00-08:00']) {
+            assert.equal(isZeroLengthRange(v), true, `${v} should be refused`);
+        }
+    });
+
+    test('leaves genuine overnight and ordinary ranges alone', () => {
+        // Equality, not "end < start" — an overnight shift is ordinary on this roster and a guard
+        // that caught it would silently drop real night work.
+        for (const v of ['22:00-06:00', '00:00-08:00', '08:00-16:00', 'RDW|22:00-06:00', '08:00-08:01']) {
+            assert.equal(isZeroLengthRange(v), false, `${v} is legitimate and must be written`);
+        }
+    });
+
+    test('ignores non-time values rather than guessing at them', () => {
+        // AL / SICK / SPARE / the Other family all pass through this path; a loose regex here would
+        // start dropping them.
+        for (const v of ['AL', 'SICK', 'SPARE', 'RD', 'TRG RDW', 'UNKNOWN|08:00', '']) {
+            assert.equal(isZeroLengthRange(v), false, `${v} must not be treated as a zero-length range`);
+        }
     });
 });

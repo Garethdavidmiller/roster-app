@@ -91,7 +91,13 @@ mock.module('./calendar-member.js', {
 });
 
 mock.module('./calendar-overrides.js', {
-    namedExports: { rosterOverridesCache: _overrideCache },
+    namedExports: {
+        rosterOverridesCache: _overrideCache,
+        // The real one — the renderer looks a month's KNOWLEDGE up under this key, so a stubbed
+        // format here would make every lookup miss and the grid would be withheld in every test
+        // for a reason no assertion would name.
+        monthKey: (year, month) => `${year}-${String(month + 1).padStart(2, '0')}`,
+    },
 });
 
 mock.module('./override-utils.js', {
@@ -140,8 +146,18 @@ mock.module('./override-utils.js', {
     },
 });
 
+// NOT mocked — pure, no imports of its own, and the renderer's grid/no-grid decision comes from it.
+// Stubbing it would mean these tests assert against a model that is not the shipped one.
+const { noteKnowledge, _reset: _resetKnowledge } = await import('./calendar-data-state.js');
+
 const { createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer } =
     await import('./calendar-renderer.js');
+
+/** The month every grid test builds. Since v20.40 a container is only POPULATED when the month's
+ *  overrides are known, so the shift-class/marker/structure suites below have to say so — otherwise
+ *  they would all pass against a withheld grid, asserting nothing. */
+const TEST_MONTH = { month: 0, year: 2026 };
+function knowTestMonth() { noteKnowledge('2026-01', 'authoritative'); }
 
 // ── Minimal DOM factory ───────────────────────────────────────────────────────
 
@@ -159,7 +175,10 @@ function makeEl(tag) {
         appendChild(c)     { _children.push(c); return c; },
         remove()           { this._removed = true; },
         focus()            {},
-        addEventListener() {},
+        // Records handlers so a test can FIRE one. A no-op listener meant a button's behaviour was
+        // untestable — the suite could assert a control existed and never that pressing it worked.
+        _listeners: {},
+        addEventListener(type, fn) { this._listeners[type] = fn; },
         querySelectorAll(sel) {
             // Supports '.class' and '.class:not(.other)' patterns.
             const notMatch = sel.match(/^\.([^:]+):not\(\.([^)]+)\)$/);
@@ -196,6 +215,8 @@ function makeEl(tag) {
 }
 
 beforeEach(() => {
+    _resetKnowledge();
+    knowTestMonth();
     _overrideCache.clear();
     _mockGetBaseShift   = () => 'RD';
     _mockIsBeforeMember = () => false;
@@ -255,6 +276,92 @@ describe('createCalendarHeader', () => {
     test('BL Week prefix pluralises correctly → BL Weeks', () => {
         const html = createCalendarHeader(1, 3, 'BL Week', 0, 2026);
         assert.ok(html.includes('BL Weeks 1–3')); // en-dash range (v18.19)
+    });
+});
+
+// ── buildCalendarContainer — the grid is WITHHELD until the month is known (v20.40) ───────────────
+//
+// These are the tests the shipped bug would have failed. Everything else in this file asserts what a
+// day cell looks like; none of it could tell you whether the cells should have been drawn at all.
+
+describe('buildCalendarContainer — withheld grid', () => {
+    test('an UNKNOWN month draws no day cells — the base roster is not a fact yet', () => {
+        _resetKnowledge();                          // nobody has read this month
+        _mockGetBaseShift = () => '06:00-14:00';    // and the base roster would happily show a shift
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.equal(container.querySelectorAll('.calendar-day').length, 0,
+            'a month nobody has read must not paint a single day');
+        assert.equal(container.querySelectorAll('.calendar-grid').length, 0);
+        assert.equal(container.dataset.overrideState, 'loading');
+    });
+
+    test('the month HEADER survives — it holds the label and the sync chip mounts on it', () => {
+        _resetKnowledge();
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        const header = container.querySelectorAll('.calendar-header')[0];
+        assert.ok(header, 'header must exist in the withheld state');
+        assert.ok(header.innerHTML.includes('January 2026'));
+    });
+
+    test('a FAILED month says so, and offers the retry — where unknown only offers a wait', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'error');
+        let retried = null;
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year, {
+            onRetryMonth: (y, m) => { retried = [y, m]; },
+        });
+        assert.equal(container.dataset.overrideState, 'unavailable');
+        const panel = container.querySelectorAll('.calendar-pending')[0];
+        assert.ok(panel, 'a failed month still gets a panel');
+        assert.ok(panel.classList.contains('calendar-pending--failed'));
+        assert.equal(panel.getAttribute('role'), 'alert');
+        const btn = container.querySelectorAll('.calendar-pending-retry')[0];
+        assert.ok(btn, 'a failure the user can act on must carry the action');
+        // The panel reports the month it was BUILT for, not whatever is on display — the swipe
+        // carousel builds panels for adjacent months, so passing the wrong one would retry the
+        // wrong month and look like the button did nothing.
+        btn._listeners.click();
+        assert.deepEqual(retried, [2026, 0]);
+    });
+
+    test('no retry callback ⇒ no button — an inert control is worse than none', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'error');
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.equal(container.querySelectorAll('.calendar-pending-retry').length, 0);
+    });
+
+    test('a wait state is role=status, not alert — it must not interrupt on every load', () => {
+        _resetKnowledge();
+        const panel = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+            .querySelectorAll('.calendar-pending')[0];
+        assert.equal(panel.getAttribute('role'), 'status');
+        assert.ok(!panel.classList.contains('calendar-pending--failed'));
+    });
+
+    test('a CACHED month DOES draw its grid — hiding good data is its own failure', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'cached');
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.ok(container.querySelectorAll('.calendar-day').length > 0,
+            'a device holding cached data must not be reduced to a spinner');
+        assert.equal(container.dataset.overrideState, 'stale');
+        assert.equal(container.querySelectorAll('.calendar-pending').length, 0);
+    });
+
+    test('an authoritative month renders as current', () => {
+        knowTestMonth();
+        const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.ok(container.querySelectorAll('.calendar-day').length > 0);
+        assert.equal(container.dataset.overrideState, 'render');
+    });
+
+    test('knowledge is per MONTH — knowing January says nothing about February', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'authoritative');
+        assert.ok(buildCalendarContainer(0, 2026).querySelectorAll('.calendar-day').length > 0);
+        assert.equal(buildCalendarContainer(1, 2026).querySelectorAll('.calendar-day').length, 0,
+            'February was never read — swiping to it must not inherit January\'s confidence');
     });
 });
 

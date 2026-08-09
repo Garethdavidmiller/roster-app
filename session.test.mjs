@@ -74,7 +74,7 @@ mock.module('./ls.js', {
 });
 
 const {
-    AUTH_KEY, SESSION_MS, IDLE_MS, SESSION_VER,
+    AUTH_KEY, SESSION_MS, SESSION_VER,
     sessionReady, resolveSession,
     getSurname, getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
@@ -91,10 +91,6 @@ const { CONFIG } = await import('./roster-data.js');
 describe('constants', () => {
     test('SESSION_MS is exactly 30 days', () => {
         assert.equal(SESSION_MS, 30 * 24 * 60 * 60 * 1000);
-    });
-
-    test('IDLE_MS is exactly 7 days', () => {
-        assert.equal(IDLE_MS, 7 * 24 * 60 * 60 * 1000);
     });
 
     test('SESSION_VER is an integer >= 2', () => {
@@ -142,10 +138,9 @@ describe('getSession', () => {
     function writeSession(overrides = {}) {
         const now = Date.now();
         const s = {
-            name:         'G. Miller',
-            ver:          SESSION_VER,
-            expiry:       now + SESSION_MS,
-            lastActivity: now,
+            name:   'G. Miller',
+            ver:    SESSION_VER,
+            expiry: now + SESSION_MS,
             ...overrides,
         };
         store.set(AUTH_KEY, JSON.stringify(s));
@@ -162,7 +157,7 @@ describe('getSession', () => {
     // synchronously at module eval on the calendar; an async signOut here would race
     // calendarAuthReady's currentUser check and could leave the page unauthenticated
     // (push/usage/error writes rejected). Firebase signout belongs to clearSession only.
-    test('does NOT sign Firebase out on passive expiry (absolute / stale / idle)', () => {
+    test('does NOT sign Firebase out on passive expiry (absolute / stale)', () => {
         writeSession({ expiry: Date.now() - 1 });
         getSession();
         assert.equal(_signOutCalled, false, 'absolute expiry must not call signOut');
@@ -170,10 +165,6 @@ describe('getSession', () => {
         writeSession({ ver: SESSION_VER - 1 });
         getSession();
         assert.equal(_signOutCalled, false, 'version-stale must not call signOut');
-
-        writeSession({ lastActivity: Date.now() - IDLE_MS - 1 });
-        getSession();
-        assert.equal(_signOutCalled, false, 'idle expiry must not call signOut');
     });
 
     test('returns null when stored value is not valid JSON', () => {
@@ -197,19 +188,24 @@ describe('getSession', () => {
         assert.equal(getSession(), null);
     });
 
-    test('returns null when the session is idle-expired', () => {
-        writeSession({ lastActivity: Date.now() - IDLE_MS - 1 });
-        assert.equal(getSession(), null);
+    // The 7-day idle cutoff was removed at v20.41. These two cases replace the four that pinned it,
+    // and they pin the property that REPLACED it: 30 days is the only clock, and reading the session
+    // does not move it.
+    test('a long-untouched session is still valid inside its 30 days', () => {
+        // 20 days since the last visit. Under the idle rule this was signed out on day 8 — which hit
+        // the members who use the app LEAST, and landed each of them on a password prompt.
+        writeSession({ expiry: Date.now() + 10 * 24 * 60 * 60 * 1000,
+                       lastActivity: Date.now() - 20 * 24 * 60 * 60 * 1000 });
+        const s = getSession();
+        assert.ok(s !== null, 'inactivity alone no longer ends a session');
+        assert.equal(s.name, 'G. Miller');
     });
 
-    test('keeps a session with no lastActivity field (NaN idle check stays active)', () => {
-        // Documented edge: Date.now() - undefined = NaN, and NaN > IDLE_MS is false, so a
-        // session predating the lastActivity field is treated as active, not idle-expired.
-        // (JSON.stringify drops an `undefined` field, so this writes a session without it.)
-        writeSession({ lastActivity: undefined });
-        const s = getSession();
-        assert.ok(s !== null, 'a session without lastActivity must be kept, not purged');
-        assert.equal(s.name, 'G. Miller');
+    test('a session written before v20.41 still carries lastActivity, and it is ignored', () => {
+        // Why no SESSION_VER bump: the old field is inert, so old sessions stay valid. Bumping the
+        // version would sign every member out — the exact outcome this change exists to reduce.
+        writeSession({ lastActivity: 0 });
+        assert.ok(getSession() !== null);
     });
 
     test('returns the session object for a valid, fresh session', () => {
@@ -219,11 +215,18 @@ describe('getSession', () => {
         assert.equal(s.name, 'G. Miller');
     });
 
-    test('refreshes lastActivity on every valid read', () => {
-        const before = Date.now() - 10_000;
-        writeSession({ lastActivity: before });
+    test('reading a session does not WRITE — and cannot extend the 30 days', () => {
+        // getSession used to write back on every call to refresh the idle clock. With that clock
+        // gone the write has no purpose, and its absence is worth pinning both ways: a localStorage
+        // write on every page load of every page, and — the part that would be a real change of
+        // policy — any future edit that let a read push `expiry` forward would quietly turn the
+        // absolute 30-day bound into a rolling one.
+        const written = writeSession();
+        const raw = store.get(AUTH_KEY);
         const s = getSession();
-        assert.ok(s !== null && s.lastActivity > before, 'lastActivity must be bumped forward');
+        assert.ok(s !== null);
+        assert.equal(store.get(AUTH_KEY), raw, 'a read must leave the stored session byte-identical');
+        assert.equal(s.expiry, written.expiry, 'and must never move the absolute expiry');
     });
 
     test('a session expiring in 1 ms is valid until it has elapsed', () => {
@@ -238,7 +241,7 @@ describe('getSession', () => {
 
 describe('reconcileExpiredIdentity', () => {
     const validSession = () => JSON.stringify({
-        name: 'G. Miller', ver: SESSION_VER, expiry: Date.now() + SESSION_MS, lastActivity: Date.now(),
+        name: 'G. Miller', ver: SESSION_VER, expiry: Date.now() + SESSION_MS,
     });
 
     beforeEach(() => { store.clear(); _signOutCalled = false; _existingUser = null; });
@@ -625,11 +628,13 @@ describe('saveSession', () => {
         assert.ok(s.expiry <= before + SESSION_MS + 50, 'expiry should be at most SESSION_MS + 50ms ahead');
     });
 
-    test('sets lastActivity to approximately now', () => {
-        const before = Date.now();
+    test('writes NO idle timestamp — there is one clock, and it is `expiry` (v20.41)', () => {
+        // Asserted by absence rather than deleted outright: a new session carrying a `lastActivity`
+        // again would be the first sign that the idle policy had been reintroduced by halves.
         saveSession('G. Miller');
         const s = JSON.parse(store.get(AUTH_KEY));
-        assert.ok(s.lastActivity >= before - 50 && s.lastActivity <= Date.now() + 50);
+        assert.equal('lastActivity' in s, false);
+        assert.deepEqual(Object.keys(s).sort(), ['expiry', 'name', 'ver']);
     });
 
     test('returns true when the write persists (read-back matches)', () => {

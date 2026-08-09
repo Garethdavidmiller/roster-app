@@ -1554,3 +1554,43 @@ describe('shouldNotifyAdmin', () => {
         assert.equal(shouldNotifyAdmin([NOW - FIVE_MIN], NOW, FIVE_MIN), true);
     });
 });
+
+// ── EQUAL START/END IS NOT A SHIFT (v20.39, whole-app audit §23/24) ─────────────────────────────
+//
+// Duration maths across this app treats end <= start as an OVERNIGHT WRAP — which is right for
+// 22:00-06:00 and catastrophic for 08:00-08:00, because the wrap turns a zero-length range into a
+// TWENTY-FOUR HOUR one. Manual entry already refuses it. The AI roster path did not, and nothing
+// downstream re-checked: the review table renders it as a syntactically fine time, an admin applies
+// it, and the pay calculator later reads a 24-hour worked day.
+//
+// It is a low-probability input (an OCR slip, or a genuinely mis-typed paper roster) with an
+// expensive outcome, which is exactly the shape that earns a guard rather than a comment. The
+// correct result is NOT a silent correction — nobody knows what the cell really said — so it must
+// become UNKNOWN and go to human review, like every other unreadable cell.
+test('normaliseShift: equal start and end is never accepted as a worked shift', () => {
+    for (const raw of ['08:00-08:00', '0800-0800', '8:00-8:00', '00:00-00:00', '23:59-23:59']) {
+        const out = normaliseShift(raw);
+        assert.match(out, /^UNKNOWN\|/,
+            `"${raw}" normalised to "${out}". Equal times are a zero-length range, and every ` +
+            'duration helper in this app reads end <= start as an overnight wrap — so this would ' +
+            'be paid as 24 hours. It must go to review, not be guessed at.');
+    }
+});
+
+test('normaliseShift: an equal-time RDW is refused on BOTH orderings', () => {
+    // RDW is overtime, so a 24-hour reading here is the most expensive version of the bug.
+    for (const raw of ['RDW 08:00-08:00', '08:00-08:00 RDW', 'RDW 0800-0800']) {
+        assert.match(normaliseShift(raw), /^UNKNOWN\|/, `"${raw}" was accepted as an RDW shift`);
+    }
+});
+
+test('normaliseShift: genuine overnight and same-clock-hour ranges still work', () => {
+    // The guard must catch equality, not "end < start" — an overnight shift is legitimate and
+    // common on this roster, and 00:00-08:00 must not be mistaken for an empty range.
+    assert.equal(normaliseShift('22:00-06:00'), '22:00-06:00');
+    assert.equal(normaliseShift('00:00-08:00'), '00:00-08:00');
+    assert.equal(normaliseShift('08:00-16:00'), '08:00-16:00');
+    assert.equal(normaliseShift('RDW 22:00-06:00'), 'RDW|22:00-06:00');
+    // One minute apart is a real (if odd) range and must survive — the rule is equality, not brevity.
+    assert.equal(normaliseShift('08:00-08:01'), '08:00-08:01');
+});

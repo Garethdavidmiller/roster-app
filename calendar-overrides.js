@@ -13,6 +13,7 @@
 import { db, collection, query, where, getDocs, getDocsFromCache, COLLECTIONS } from './firebase-client.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
 import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue, resolveEffectiveShift } from './override-utils.js';
+import { noteKnowledge, forget as forgetKnowledge } from './calendar-data-state.js';
 
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();
@@ -88,9 +89,27 @@ export function addFetchedMonths(keys) { keys.forEach(k => fetchedMonths.add(k))
 
 /**
  * Remove a month from the fetched set so it can be retried on the next render.
+ * Also re-arms the failure repaint (see `_failureRepainted`) — this is the "start again" signal, and
+ * a month that is being offered a fresh attempt must be allowed to report the outcome of it.
  * @param {string} key
  */
-export function clearFetchedMonth(key) { fetchedMonths.delete(key); }
+export function clearFetchedMonth(key) { fetchedMonths.delete(key); _failureRepainted.delete(key); }
+
+// ── The failed-month repaint, exactly once (v20.40) ────────────────────────────────────────────
+//
+// A withheld grid has to move from "Checking this month" to the failure panel, which means the catch
+// below must repaint. That repaint is a LOOP if left unguarded, and the loop is not obvious from
+// either end: `renderCalendar` calls `ensureOverridesCached` on every render, the catch releases the
+// month so a later navigation can retry it, and the repaint IS a later render — fetch, fail, paint,
+// fetch, fail, paint, against a Firestore backend, for as long as the month is on screen.
+//
+// So the repaint is one-shot per claim. The month still gets exactly one automatic second attempt
+// (the repaint's own render re-fetches the released month), and after that the recovery is the
+// panel's "Try again" button, which goes through `clearFetchedMonth` and re-arms this.
+//
+// Releasing the month and suppressing the repaint are deliberately NOT the same flag: the first is
+// about whether we may fetch again, the second about whether anyone still needs telling.
+const _failureRepainted = new Set();
 
 // The month → shift-types memo used to have a public clearShiftTypesCache() for callers that wrote
 // straight into rosterOverridesCache. There are none left: Team Week View was the only one, and it
@@ -193,7 +212,10 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr) {
 
 /**
  * Ensure overrides for a given month are in the cache.
- * No-op if already fetched. Fires a background fetch and calls renderFn() on success.
+ * No-op if already fetched. Fires a background fetch and calls renderFn() when it SETTLES — on
+ * success, and (once per claim) on failure too. Failure used to be render-silent, which was right
+ * while a failed month simply kept showing the base roster; since v20.40 it withholds the grid
+ * instead, so nothing repainting means the month sits on "Checking this month" for ever.
  * The renderFn callback is provided by the coordinator and includes any guards (e.g.
  * team-view check, member-change check) appropriate to the call site.
  * @param {number} year
@@ -212,8 +234,13 @@ export async function ensureOverridesCached(year, month, renderFn) {
         const startStr = formatISO(new Date(year, month, 1));
         const endStr   = formatISO(new Date(year, month + 1, 0));
         await fetchOverridesForRange(startStr, endStr);
+        // The month is now KNOWN (v20.40). Recorded here rather than at the call site because this
+        // is the one place that can tell a settled server read from a cache hit — and the whole
+        // point of the readiness model is that those two are not the same claim.
+        noteKnowledge(key, 'authoritative');
     } catch (err) {
         fetchedMonths.delete(key);  // Allow retry on next navigation
+        noteKnowledge(key, 'error');   // actionable — earns a Retry, where `unknown` earns a wait
         // ACCESS GONE, not a network blip (v20.15). This path had no recovery at all: the month
         // simply rendered from the base roster with a line in the console, which is the one outcome
         // the whole feature exists to prevent — somebody shown a shift they are not working, with
@@ -226,12 +253,18 @@ export async function ensureOverridesCached(year, month, renderFn) {
         // time a session expires the initial fetch is long finished.
         if (_onAccessLost && _isAccessFailure(err)) {
             _accessGranted = false;   // shut the gate before anything can repaint from the cache
+            forgetKnowledge();        // and drop what we knew — see calendar-data-state.js's `forget`
             try { _onAccessLost(); } catch (e) { console.error('[Calendar] access-lost handler failed', e); }
             return;
         }
         console.error('[Firestore] Failed to fetch overrides for', key, err);
+        // Tell the caller to repaint, so a withheld grid can show its failure panel instead of
+        // waiting forever on a fetch that has already lost (v20.40). Once per claim — see
+        // `_failureRepainted` above for the loop this guards.
+        if (!_failureRepainted.has(key)) { _failureRepainted.add(key); renderFn?.(); }
         return;
     }
+    _failureRepainted.delete(key);   // succeeded — a future failure of this month is news again
     // The render is deliberately OUTSIDE the try (v18.91). The fetch succeeded by this point and the
     // cache holds the new data; if the callback then throws mid-DOM-rebuild, treating that as a fetch
     // failure would log the wrong cause AND un-mark the month, so the next navigation re-queries data

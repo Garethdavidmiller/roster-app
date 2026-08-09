@@ -569,10 +569,25 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     // Lock Calendar (viewer mode only). Both the button and the footer label are refreshed on every
     // drawer open — see _refreshLock, called from openPanel beside _refreshBell.
-    const lockBtn = document.getElementById('navLockCalendarBtn');
-    lockBtn?.addEventListener('click', () => {
-        closePanelForNavigation();
-        onLockCalendar?.lock?.();
+    const lockBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('navLockCalendarBtn'));
+    lockBtn?.addEventListener('click', async () => {
+        // THE DRAWER STAYS OPEN UNTIL THE LOCK IS CONFIRMED (v20.39, audit §13). `lock()` now
+        // rejects if the viewer session survives sign-out, and on success it replaces the page — so
+        // closing the drawer first would have hidden the only surface left to report a failure on,
+        // and the user would be looking at an unchanged, still-unlocked Calendar with no explanation.
+        if (!lockBtn) return;
+        const label = lockBtn.textContent;
+        lockBtn.disabled = true;
+        lockBtn.textContent = 'Locking…';
+        try {
+            await onLockCalendar?.lock?.();
+            closePanelForNavigation();      // only reached if `lock()` did not navigate away
+        } catch (err) {
+            console.warn('[nav] Lock Calendar failed:', err);
+            lockBtn.textContent = "Couldn't lock — try again";
+            lockBtn.disabled = false;
+            setTimeout(() => { if (lockBtn.textContent === "Couldn't lock — try again") lockBtn.textContent = label; }, 6000);
+        }
     });
 
     /** Reveal the lock button (and name the mode) when this browser is on the shared staff PIN. */

@@ -18,7 +18,8 @@ import {
 } from './roster-data.js';
 import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 import { getCurrentMember } from './calendar-member.js';
-import { rosterOverridesCache } from './calendar-overrides.js';
+import { rosterOverridesCache, monthKey } from './calendar-overrides.js';
+import { knowledgeOf, decideDisplay } from './calendar-data-state.js';
 
 const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -101,16 +102,62 @@ export function getSwipeDirection(/** @type {any} */ startX, /** @type {any} */ 
 }
 
 /**
+ * The grid we draw INSTEAD of the month when its overrides are not known yet (v20.40).
+ *
+ * Deliberately not a skeleton of the real grid. `.calendar-fetching` already shimmers the cells
+ * during the initial fetch and it does not work for this: the shift times stay perfectly legible
+ * underneath it, so it reads as "loading, and here is your roster" when the truthful message is
+ * "this is not your roster yet". A cell that might be wrong must not be on screen at all.
+ *
+ * The copy names what is missing rather than saying "loading", because that is the part a member
+ * needs in order to judge the screen — a rest day drawn without its overrides looks exactly like a
+ * rest day, and only the absent leave/absence/shift-change layer makes the difference.
+ *
+ * @param {'loading'|'unavailable'} display
+ * @param {() => void} [onRetry]  omit to draw no button (see buildCalendarContainer's opts)
+ * @returns {HTMLElement}
+ */
+function buildGridPlaceholder(display, onRetry) {
+    const panel = document.createElement('div');
+    const failed = display === 'unavailable';
+    panel.className = `calendar-pending${failed ? ' calendar-pending--failed' : ''}`;
+    // status vs alert: a wait is a passing condition and must not interrupt, a failure is the end of
+    // the road for this month and should be spoken when it happens.
+    panel.setAttribute('role', failed ? 'alert' : 'status');
+    panel.innerHTML = failed
+        ? '<div class="calendar-pending-emoji" aria-hidden="true">⚠️</div>'
+          + '<h2>Couldn\'t check this month</h2>'
+          + '<p>Your annual leave, absences and shift changes couldn\'t be loaded, so this month '
+          + 'isn\'t being shown — the rota underneath it may be out of date.</p>'
+        : '<div class="calendar-pending-emoji" aria-hidden="true">⏳</div>'
+          + '<h2>Checking this month</h2>'
+          + '<p>Loading your annual leave, absences and shift changes.</p>';
+    if (failed && onRetry) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'calendar-pending-retry';
+        btn.textContent = 'Try again';
+        btn.addEventListener('click', () => onRetry());
+        panel.appendChild(btn);
+    }
+    return panel;
+}
+
+/**
  * Builds and returns a fully populated calendar-container div.
  * Accepts explicit month/year so callers never need to mutate global display state.
  * @param {number} month - 0-indexed JS month
  * @param {number} year
- * @param {{ navigateToPaycalc?: Function, onDayDetail?: Function }} [opts]
+ * @param {{ navigateToPaycalc?: Function, onDayDetail?: Function, onRetryMonth?: Function }} [opts]
  *   navigateToPaycalc — called when a payday/cutoff cell is tapped
  *   onDayDetail       — called when any other cell is tapped on touch devices
+ *   onRetryMonth      — called as (year, month) from the "Try again" button of the withheld-grid
+ *                       panel. Omitted by callers that have no fetch to re-run (the swipe carousel's
+ *                       off-screen panels), in which case no button is drawn — an inert control is
+ *                       worse than none.
  */
 export function buildCalendarContainer(month, year, opts = {}) {
-    const { navigateToPaycalc, onDayDetail } = opts;
+    const { navigateToPaycalc, onDayDetail, onRetryMonth } = opts;
     const member = /** @type {any} */ (getCurrentMember());
     const firstDay = new Date(year, month, 1);
     const lastDay  = new Date(year, month + 1, 0);
@@ -140,6 +187,27 @@ export function buildCalendarContainer(month, year, opts = {}) {
     header.className = 'calendar-header';
     header.innerHTML = createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year);
     calendarContainer.appendChild(header);
+
+    // ── May this month's shifts be drawn at all? (v20.40) ───────────────────────────────────────
+    //
+    // The base roster below is computed locally and is therefore always available — and for anybody
+    // with leave, an absence, a changed shift or an RDW it is WRONG. Those live only in Firestore.
+    // Until a read has settled for this month, drawing the grid states something the app does not
+    // know. See calendar-data-state.js for the four states and why `cached` is not one of the two
+    // that withhold.
+    //
+    // The HEADER is deliberately built first and kept in every state: it carries the month label and
+    // it is the mount point for the sync chip (calendar-initial-fetch.js watches for it). Withholding
+    // the header as well would take the retry away in exactly the states that need one.
+    const _display = decideDisplay(knowledgeOf(monthKey(year, month)));
+    calendarContainer.dataset.overrideState = _display;
+    if (_display === 'loading' || _display === 'unavailable') {
+        calendarContainer.appendChild(buildGridPlaceholder(_display,
+            // Wrapped only when there IS one — an always-defined arrow would make the panel
+            // draw a button that calls nothing on the callers that deliberately omit it.
+            onRetryMonth ? () => onRetryMonth(year, month) : undefined));
+        return calendarContainer;
+    }
 
     const grid = document.createElement('div');
     grid.className = 'calendar-grid';

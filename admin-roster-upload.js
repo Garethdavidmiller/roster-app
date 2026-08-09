@@ -149,6 +149,18 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                     if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
                     continue;
                 }
+                // DEFENCE IN DEPTH: a zero-length worked range never reaches Firestore (v20.39).
+                // `normaliseShift` refuses equal start/end on the server, and this is the second
+                // lock on the same door — the audit's §24 asks for it here precisely because the
+                // server is not the only way a value arrives: the review table's CONFLICT picker
+                // lets an admin choose between two candidate readings, and a hand-edited cell goes
+                // through this path too. Skipping is the safe failure: the day keeps whatever it
+                // already had rather than gaining a shift the maths would read as 24 hours.
+                if (typeof value === 'string' && isZeroLengthRange(/** @type {string} */ (value))) {
+                    console.warn(`[roster-upload] Refused zero-length shift "${value}" for ${memberName} ${date} — not written`);
+                    continue;
+                }
+
                 // Map shift value to override type — pass date so Sunday shifts are correctly
                 // saved as 'rdw' and an explicit RDW| prefix is honoured. (value is a real string
                 // here — deleteOnly items, the only ones with a null value, continued above.)
@@ -1135,6 +1147,21 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     }
 
     // Card collapse is wired centrally in operations-app.js via initCardCollapse.
+}
+
+/**
+ * Is this a worked-time value whose start and end are the SAME clock time?
+ *
+ * Equal times are the one range shape that is always wrong here: every duration helper in the app
+ * treats `end <= start` as an overnight wrap, so a zero-length range is read as TWENTY-FOUR HOURS
+ * and reaches pay. `end < start` is deliberately NOT caught — a genuine overnight shift is ordinary
+ * on this roster. Accepts the internal `RDW|` encoding as well as a bare time (v20.39).
+ * @param {string} value
+ * @returns {boolean}
+ */
+export function isZeroLengthRange(value) {
+    const m = String(value).replace(/^RDW\|/, '').match(/^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/);
+    return !!m && m[1] === m[3] && m[2] === m[4];
 }
 
 /**
