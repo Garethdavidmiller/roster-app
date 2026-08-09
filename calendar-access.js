@@ -496,11 +496,24 @@ export async function initCalendarAccess({ onGranted }) {
     // `open` (anonymous, running).
     if (CONFIG.CALENDAR_PIN_ACCESS === false) {
         if (type === 'none') {
-            // The pre-v20.12 bootstrap, restored verbatim for this mode. The calendar's best-effort
-            // WRITES — the error reporter, the usage counters, the push-subscription renewal — all
-            // require `request.auth != null`, so without this they would silently stop and the app
-            // would look fine while going quiet on exactly the telemetry that would tell you it had.
-            try { await signInAnonymously(auth); } catch { /* best effort, as it always was */ }
+            // The pre-v20.12 bootstrap, restored for this mode. The calendar's best-effort WRITES —
+            // the error reporter, the usage counters, the push-subscription renewal — all require
+            // `request.auth != null`, so without this they would silently stop and the app would
+            // look fine while going quiet on exactly the telemetry that would tell you it had.
+            //
+            // **STARTED, NOT AWAITED — and that is a latency property, not a style choice.**
+            // `signInAnonymously` is a network POST to identitytoolkit. Awaiting it here put a full
+            // round trip in front of the FIRST PAINT of the grid: hundreds of milliseconds of blank
+            // splash on a station phone, seconds on a bad signal, and on no signal at all the
+            // calendar would not render until the request gave up — a device holding a complete
+            // offline roster showing nothing. The pre-v20.12 code never awaited it either; it was
+            // introduced by this switch and is the one thing here that is pure cost.
+            //
+            // Nothing downstream needs it: rendering reads the local roster module, override reads
+            // are gated separately, and every write that needs a session already awaits its own
+            // promise. The `.catch` is what "best effort" means — a failed anonymous sign-in must
+            // not reject an unhandled promise, and it must not stop the Calendar.
+            try { Promise.resolve(signInAnonymously(auth)).catch(() => {}); } catch { /* noop */ }
             type = 'open';
         }
         console.warn('[CalendarAccess] staff PIN is switched OFF (CONFIG.CALENDAR_PIN_ACCESS)');

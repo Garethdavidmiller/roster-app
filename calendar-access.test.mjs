@@ -31,6 +31,8 @@ let tokenClaims = { calendarViewer: true };
 let sessionValue = null;
 /** Queue of fetch outcomes: `{ ok, status, json }` or an Error to throw. */
 let fetchQueue = [];
+/** When true the fake `signInAnonymously` never settles — see the first-paint ordering test. */
+let signInAnonymouslyHangs = false;
 let lastFetchBody = null;
 
 const auth = { get currentUser() { return currentUser; } };
@@ -50,6 +52,9 @@ mock.module('./firebase-client.js', {
         signOut: async () => { ops.push('signOut'); currentUser = null; },
         signInAnonymously: async () => {
             ops.push('signInAnonymously');
+            // A hang, not a delay: the ordering test needs "has it been awaited?" to be decidable
+            // without a timer, and a promise that never settles makes that a plain assertion.
+            if (signInAnonymouslyHangs) return new Promise(() => {});
             currentUser = { uid: 'anon-1', isAnonymous: true };
             return { user: currentUser };
         },
@@ -129,6 +134,7 @@ beforeEach(() => {
     tokenClaims = { calendarViewer: true };
     sessionValue = null;
     CONFIG.CALENDAR_PIN_ACCESS = true;
+    signInAnonymouslyHangs = false;
     fetchQueue = [];
     lastFetchBody = null;
     fakeDom();
@@ -408,6 +414,34 @@ describe('THE ON/OFF SWITCH — CONFIG.CALENDAR_PIN_ACCESS', () => {
         await initCalendarAccess({ onGranted: () => {} });
         assert.ok(ops.includes('signInAnonymously'),
             `no anonymous session was established: ${JSON.stringify(ops)}`);
+    });
+
+    test('OFF: the Calendar starts WITHOUT waiting for the anonymous sign-in to come back', async () => {
+        // ── A LATENCY PROPERTY, ASSERTED AS ONE ─────────────────────────────────────────────────
+        //
+        // `signInAnonymously` is a network POST to identitytoolkit. Awaiting it before `onGranted`
+        // put a full round trip in front of the FIRST PAINT of the grid — on a phone at the station
+        // that is hundreds of milliseconds of blank splash, and on a bad signal it is seconds. The
+        // pre-v20.12 code never did this: the calendar rendered from the local roster immediately
+        // and auth settled alongside it.
+        //
+        // Nothing depends on the ordering, which is why it is safe to drop. Rendering needs the
+        // roster (a local module) and the override cache (gated separately); the session is needed
+        // only by the best-effort WRITES, which already await their own promise. So the sign-in is
+        // started and deliberately not awaited.
+        //
+        // Asserted by making the sign-in never settle: if `onGranted` is behind it, this test times
+        // out rather than failing loudly — hence the explicit race with a resolved tick, which
+        // turns "still waiting" into a clean assertion.
+        CONFIG.CALENDAR_PIN_ACCESS = false;
+        let started = 0;
+        signInAnonymouslyHangs = true;
+        const init = initCalendarAccess({ onGranted: () => { started++; } });
+        await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+        assert.equal(started, 1,
+            'the Calendar waited for the anonymous sign-in before its first render');
+        signInAnonymouslyHangs = false;
+        await Promise.race([init, Promise.resolve()]);
     });
 
     test('OFF: a signed-in MEMBER is still named — only the fallback moves', async () => {
