@@ -1260,19 +1260,33 @@ select:focus-visible, input:focus-visible {
     text-align: right;
 }
 
-/* ── The "why some are slower" breakdown (v20.19) ──────────────────────────────────────────────
-   Same three-column grid as a per-page row, but the count column carries "12% slow · 473" rather
-   than a bare number, so it needs room and should not shout: the SLOW share is the figure being
-   read here, and the sample size beside it is what stops a four-load group being mistaken for a
-   finding. */
-.speed-row--why { grid-template-columns: minmax(84px, 30%) 1fr auto; }
-.speed-row--why .speed-row-count {
-    font-weight: 600;
+/* ── The "why some are slower" breakdown (v20.19; column layout v20.21) ────────────────────────
+   FOUR columns — label | bar | % over 1s | loads — under a header row, the same idiom the per-page
+   dual bars already use. It first shipped as three columns with "11% over 1s · 315" crammed into
+   the last one: on a 390px screen three words that never change took most of the column and the two
+   numbers were hard to compare down the list. Splitting them lets each be a bare figure, and the
+   header says once what every row would otherwise repeat.
+   The % is the figure being hunted, so it carries the emphasis; the sample size sits beside it in
+   muted weight because its job is only to stop a four-load group being read as a finding. */
+.speed-row--why { grid-template-columns: minmax(76px, 27%) 1fr auto auto; }
+.speed-row--why .speed-row-count { min-width: 4ch; }
+.speed-row-sub {
+    font-size: var(--type-small);
     color: var(--text-mid);
-    min-width: 10ch;
-    font-size: var(--type-micro);
+    font-variant-numeric: tabular-nums;
+    min-width: 4ch;
+    text-align: right;
 }
 .speed-thin { color: var(--text-mid); font-weight: 400; }
+
+/* A divider above a section that starts a NEW subject, mirroring `.usage-section-label--sub` on the
+   Usage card. Without it the whole card is one continuous scroll: "Opening pages" and "Why some are
+   slower" are separate questions and nothing marked where either began. */
+.speed-subhead--rule {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-light);
+}
 
 /* Window toggle: This month / Last month. A simple segmented control. */
 .speed-toggle {
@@ -1312,9 +1326,9 @@ select:focus-visible, input:focus-visible {
 }
 /* Each dimension heading needs air ABOVE it: flush under the previous dimension's last row, "By how
    it was opened" reads as that row's label rather than the start of a new group.
-   MUST stay after `.speed-note` — same specificity, and that rule's `margin` SHORTHAND resets
-   margin-top, so declared earlier this silently does nothing. */
-.speed-dim-label { margin-top: 16px; }
+   MUST stay after `.usage-section-label` — same specificity, and that rule's `margin` SHORTHAND
+   resets margin-top, so declared earlier this silently does nothing. */
+.speed-dim-label { margin-top: 18px; }
 
 /* Per-page dual bars: label | appears bar | ready bar | count. */
 .speed-row--dual { grid-template-columns: minmax(78px, 34%) 1fr 1fr auto; }

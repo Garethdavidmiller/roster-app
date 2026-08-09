@@ -649,9 +649,11 @@ async function initPageSpeedCard() {
                `<span class="speed-seg speed-seg--bad"  style="width:${w(b.slow)}%"></span>`;
     };
     /** A small "🔑 Signing in" / "📄 Opening pages" section heading. @param {string} emoji @param {string} label */
-    const subhead = (emoji, label) => {
+    const subhead = (emoji, label, rule = false) => {
         const p = document.createElement('p');
-        p.className = 'speed-subhead';
+        // `rule` draws a divider above, the way the Usage card separates its bar groups. Without it
+        // the card is one continuous scroll and a new subject has nothing marking where it begins.
+        p.className = 'speed-subhead' + (rule ? ' speed-subhead--rule' : '');
         p.innerHTML = `<span aria-hidden="true">${emoji}</span> ${label}`;
         return p;
     };
@@ -765,13 +767,25 @@ async function initPageSpeedCard() {
         const { rows } = summarisePerfBy(samples, { page, metric: 'domReady', dimension, minSamples: THIN_SAMPLE });
         if (rows.length < 2) return null;   // one group explains nothing — it IS the page total
         const frag = document.createDocumentFragment();
+        // The SAME class the "By page" group above uses. These are the same kind of thing — a label
+        // over a set of bars — and they were styled three ranks apart: bold dark, bold muted, and
+        // plain muted body text. Two structural ranks, five treatments, was the whole problem.
         const heading = document.createElement('p');
-        heading.className = 'speed-note speed-dim-label';
+        heading.className = 'usage-section-label speed-dim-label';
         heading.textContent = PERF_DIMENSIONS[dimension].label;
         frag.appendChild(heading);
 
         const list = document.createElement('div');
         list.className = 'speed-rows';
+        // A column header, borrowing the idiom the per-page dual rows already established. It is
+        // what lets each row drop the repeated "over 1s" and become a number — three words per row
+        // that never change are noise, and on a 390px screen they were most of the column.
+        const head = document.createElement('div');
+        head.className = 'speed-row speed-row--why speed-dual-head';
+        head.innerHTML = '<span></span><span></span>'
+            + '<span class="speed-dual-label">over 1s</span>'
+            + '<span class="speed-dual-label">loads</span>';
+        list.appendChild(head);
         rows.forEach(r => {
             const row = document.createElement('div');
             row.className = 'speed-row speed-row--why';
@@ -793,7 +807,8 @@ async function initPageSpeedCard() {
             row.innerHTML =
                 `<span class="speed-row-label">${escapeHtml(r.label)}${thin ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
                 `<span class="speed-bar" role="img" aria-label="${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
-                `<span class="speed-row-count">${overOneSecond}% over 1s · ${r.total.toLocaleString('en-GB')}</span>`;
+                `<span class="speed-row-count">${overOneSecond}%</span>` +
+                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
             list.appendChild(row);
         });
         frag.appendChild(list);
@@ -812,11 +827,12 @@ async function initPageSpeedCard() {
         if (!busiest || !busiest.total) return null;
         const meta = PAGE_META[busiest.page];
         const frag = document.createDocumentFragment();
-        frag.appendChild(subMilestone('🔍', `Why some are slower — ${meta ? meta.emoji + ' ' + meta.label : busiest.page}`));
+        // A top-level SECTION, at the same rank as "Signing in" and "Opening pages" — it answers a
+        // question of its own. It was rendered at milestone rank (the "First appears" tier), which
+        // put the card's third subject one level below the two it sits beside.
+        frag.appendChild(subhead('🔍', `Why some are slower — ${meta ? meta.emoji + ' ' + meta.label : busiest.page}`, true));
         frag.appendChild(noteLine(
-            'The busiest page, split by the things that were already being recorded with each load. '
-            + '"Over 1s" is the complement of the headline above — everything that did not open within a second. '
-            + 'Small groups are marked "(few)": a handful of loads can read 100% and mean nothing.'));
+            `The busiest page (${busiest.total.toLocaleString('en-GB')} opens), split by what was already being recorded with each load.`));
         let any = false;
         for (const dim of /** @type {Array<'conn'|'mode'|'version'>} */ (['conn', 'mode', 'version'])) {
             const block = breakdownRows(samples, busiest.page, dim);
@@ -844,16 +860,21 @@ async function initPageSpeedCard() {
             const windowLabel = active === 'thisMonth' ? 'this month' : 'last month';
             body.innerHTML = '';
 
+            // The colour key belongs to the WHOLE card — every bar in it uses these three bands. It
+            // used to sit after the sign-in bar, which was ambiguous and became wrong the moment
+            // section dividers arrived: it read as part of "Signing in" rather than as the key to
+            // everything below it. First position, before any bars, is the only place it is
+            // unambiguous.
+            if (w.login.total || w.fcp.total || w.pages.total) body.appendChild(legendEl());
+
             // Section 1 — Signing in (a distinct journey).
             body.appendChild(subhead('🔑', 'Signing in'));
             body.appendChild(noteLine('Only fresh sign-ins are timed — normally fewer than the accounts on the Usage card, since a saved session opens the app without signing in again.'));
             body.appendChild(verdictBanner(perfVerdict(w.login.overall, 'login'), w.login.overall, w.login.total, 'sign-ins', windowLabel));
             if (w.login.total) body.appendChild(overallBar(w.login.overall));
 
-            if (w.login.total || w.fcp.total || w.pages.total) body.appendChild(legendEl());
-
             // Section 2 — Opening a page: two milestones in timeline order (appears → ready).
-            body.appendChild(subhead('📄', 'Opening pages'));
+            body.appendChild(subhead('📄', 'Opening pages', true));
             body.appendChild(noteLine('Two moments when a page opens — when it first appears on screen, then when it’s fully ready to use.'));
             body.appendChild(subMilestone('✨', 'First appears'));
             body.appendChild(verdictBanner(perfVerdict(w.fcp.overall, 'fcp'), w.fcp.overall, w.fcp.total, 'page opens', windowLabel));
@@ -868,7 +889,7 @@ async function initPageSpeedCard() {
 
             const note = document.createElement('p');
             note.className = 'usage-note';
-            note.textContent = 'Speeds are how long the app took to respond. Your own (admin) loads are excluded. Anonymous — we never record who.';
+            note.textContent = 'Speeds are how long the app took to respond. Groups marked "(few)" have too few loads to read into. Your own (admin) loads are excluded. Anonymous — we never record who.';
             body.appendChild(note);
         };
 
