@@ -32,6 +32,7 @@ let sessionValue = null;
 /** Queue of fetch outcomes: `{ ok, status, json }` or an Error to throw. */
 let fetchQueue = [];
 /** When true the fake `signInAnonymously` never settles — see the first-paint ordering test. */
+let signOutBehavior = 'ok';
 let signInAnonymouslyHangs = false;
 let lastFetchBody = null;
 
@@ -49,7 +50,15 @@ mock.module('./firebase-client.js', {
             };
             return { user: currentUser };
         },
-        signOut: async () => { ops.push('signOut'); currentUser = null; },
+        signOut: async () => {
+            ops.push('signOut');
+            // v20.35: the fail-closed tests need a signOut that REJECTS, and one that resolves
+            // without clearing — the two shapes that used to walk into a persistence switch with an
+            // identity still live.
+            if (signOutBehavior === 'reject') { const e = new Error('signout failed'); e.code = 'auth/network-request-failed'; throw e; }
+            if (signOutBehavior === 'noop') return;
+            currentUser = null;
+        },
         signInAnonymously: async () => {
             ops.push('signInAnonymously');
             // A hang, not a delay: the ordering test needs "has it been awaited?" to be decidable
@@ -136,6 +145,7 @@ beforeEach(() => {
     sessionValue = null;
     CONFIG.CALENDAR_PIN_ACCESS = true;
     signInAnonymouslyHangs = false;
+    signOutBehavior = 'ok';
     fetchQueue = [];
     lastFetchBody = null;
     fakeDom();
@@ -212,6 +222,46 @@ describe('unlockWithPin — the happy path', () => {
         await unlockWithPin('1234');
         const relevant = ops.filter(o => o === 'signOut' || o === 'persistence:session' || o.startsWith('signIn:'));
         assert.deepEqual(relevant, ['signOut', 'persistence:session', 'signIn:GOOD_TOKEN']);
+    });
+
+    // ── FAIL CLOSED AT THE PERSISTENCE SWITCH (v20.35) ──────────────────────────────────────────
+    //
+    // The ordering test above proves the sequence when everything works. It says nothing about the
+    // case that matters: the sign-out FAILING and the switch happening anyway. Until v20.35 the
+    // sign-out here sat in a bare `catch { /* best effort */ }` and `setViewerPersistence()` ran on
+    // the next line regardless — so an identity that survived would be MIGRATED into session-only
+    // persistence, which is the mirror of the fail-open found in `shedCalendarViewer` and was found
+    // in the same review. Both assert the ABSENCE of the persistence call, because that is the only
+    // shape that catches it: every happy-path assertion passed throughout.
+    test('a REJECTED sign-out aborts the unlock and never switches persistence', async () => {
+        currentUser = { uid: 'someone-else', isAnonymous: false };
+        signOutBehavior = 'reject';
+        const r = await unlockWithPin('1234');
+        assert.equal(r.ok, false);
+        assert.equal(getAccessType(), 'none', 'the Calendar stays locked');
+        assert.ok(!ops.includes('persistence:session'),
+            'persistence must NOT change while an identity is still live — that is the migration this guards');
+        assert.ok(!ops.some(o => o.startsWith('signIn:')), 'and no viewer session is minted');
+    });
+
+    test('a sign-out that RESOLVES but leaves someone current is refused too', async () => {
+        // The invariant is that nobody is current when persistence changes — not that signOut
+        // resolved. Asserting only the rejection would leave this shape open.
+        currentUser = { uid: 'someone-else', isAnonymous: false };
+        signOutBehavior = 'noop';
+        const r = await unlockWithPin('1234');
+        assert.equal(r.ok, false);
+        assert.ok(!ops.includes('persistence:session'));
+    });
+
+    test('the refusal is honest about WHY — the PIN was right', async () => {
+        // "PIN not recognised" would send the member hunting for a code that does not exist. This
+        // failure is ours, and the message has to say so.
+        currentUser = { uid: 'someone-else', isAnonymous: false };
+        signOutBehavior = 'reject';
+        const r = await unlockWithPin('1234');
+        assert.doesNotMatch(r.message, /not recognised/i);
+        assert.match(r.message, /try again/i);
     });
 
     test('the PIN is sent as the request body and nothing else is', async () => {

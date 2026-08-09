@@ -19,7 +19,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const {
     CALENDAR_VIEWER_UID, PIN_LENGTH, DEFAULT_THROTTLE,
-    isValidPinShape, pinMatches, sourceKeyFor, clientIpOf,
+    isValidPinShape, pinMatches, sourceKeyFor, clientIpOf, GLOBAL_SOURCE_KEY, GLOBAL_THROTTLE,
     throttleDecision, recordFailure, isThrottleStateStale, viewerClaims,
 } = require('./functions/calendar-viewer-auth.js');
 
@@ -127,11 +127,36 @@ describe('sourceKeyFor / clientIpOf', () => {
         assert.equal(sourceKeyFor(null), sourceKeyFor('   '));
     });
 
-    test('clientIpOf takes the FIRST x-forwarded-for entry — the client, not our proxy', () => {
-        // The last entry is our own load balancer, which would put every caller on earth in one
-        // bucket and make the throttle a global outage switch.
-        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1, 10.0.0.2' } }), '1.2.3.4');
-        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '  1.2.3.4  ' } }), '1.2.3.4');
+    // ── THE FORGED-HEADER CASES (v20.35) ────────────────────────────────────────────────────────
+    //
+    // This took the FIRST x-forwarded-for entry until v20.35, which handed any caller an unlimited
+    // supply of throttle buckets: send `X-Forwarded-For: 1.1.1.1`, then `1.1.1.2`, and every request
+    // is a brand-new source with a full allowance. Against a four-digit PIN that is not a weakened
+    // throttle, it is no throttle. Google's load balancer RETAINS a supplied value and appends its
+    // own observation, and its documentation warns the preceding values are not verified.
+    //
+    // The asymmetry is the fix: a caller can only PREPEND. Whatever they send is at the FRONT and
+    // the platform's own value is appended after it, so the LAST entry is the only one they cannot
+    // control. These cases are written as the attack, not as the mechanism.
+    test('a forged x-forwarded-for prefix cannot mint a new throttle bucket', () => {
+        // Same real caller (10.0.0.1 appended by the platform), three different forged prefixes.
+        // All three must land in ONE bucket, or the limit means nothing.
+        const forged = ['1.1.1.1', '1.1.1.2', '203.0.113.9']
+            .map(fake => clientIpOf({ headers: { 'x-forwarded-for': `${fake}, 10.0.0.1` } }));
+        assert.deepEqual(forged, ['10.0.0.1', '10.0.0.1', '10.0.0.1']);
+        assert.equal(new Set(forged.map(sourceKeyFor)).size, 1, 'one source key for one real caller');
+
+        // And a forged value must never BE the key, however many entries are stacked in front.
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '1.1.1.1, 2.2.2.2, 3.3.3.3, 10.0.0.1' } }), '10.0.0.1');
+    });
+
+    test('clientIpOf reads the END of the chain, and tolerates spacing and repeated headers', () => {
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1, 10.0.0.2' } }), '10.0.0.2');
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '  1.2.3.4  ' } }), '1.2.3.4', 'a single entry is both ends');
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': '1.2.3.4,  10.0.0.1  ,' } }), '10.0.0.1', 'trailing comma');
+        // Node surfaces a REPEATED header as an array in arrival order, so the platform's value is
+        // in the last element — taking the first element would be the old bypass wearing a hat.
+        assert.equal(clientIpOf({ headers: { 'x-forwarded-for': ['1.1.1.1', '9.9.9.9, 10.0.0.1'] } }), '10.0.0.1');
     });
 
     test('falls back to req.ip then the socket, and finally null', () => {
@@ -139,6 +164,55 @@ describe('sourceKeyFor / clientIpOf', () => {
         assert.equal(clientIpOf({ headers: {}, socket: { remoteAddress: '9.9.9.9' } }), '9.9.9.9');
         assert.equal(clientIpOf({ headers: {} }), null);
         assert.equal(clientIpOf(/** @type {any} */ ({})), null);
+    });
+});
+
+// ── THE ALL-SOURCES CEILING (v20.35) ────────────────────────────────────────────────────────────
+//
+// The per-source throttle can only ever be as good as the request attribution underneath it, and
+// that attribution rests on a forwarding header whose exact shape depends on the deployment chain.
+// This ceiling exists so the endpoint is bounded even when that attribution is wrong — a different
+// KIND of defence, not a second copy of the same one, which is why it is keyed on a constant.
+describe('the all-sources ceiling — bounded even if attribution is wrong', () => {
+    test('its key is a constant that no request can influence, and cannot collide with a source key', () => {
+        // A per-source key is 32 hex chars. The global key must not be able to be one, or a caller
+        // whose address happened to hash to it would share the ceiling's bucket.
+        assert.match(GLOBAL_SOURCE_KEY, /^[a-z_-]+$/, 'not hex, so no hashed address can collide');
+        assert.notEqual(GLOBAL_SOURCE_KEY.length, 32);
+        for (const ip of ['1.1.1.1', '10.0.0.1', '', null]) {
+            assert.notEqual(sourceKeyFor(ip), GLOBAL_SOURCE_KEY);
+        }
+    });
+
+    test('it sits ABOVE the per-source limit, so both shapes of chain are covered', () => {
+        // If the chain collapses every caller into one bucket, the per-source limit binds first and
+        // this never fires. If the chain is per-client, this is the only thing bounding the total.
+        // Equal or lower would make the per-source rule dead code.
+        assert.ok(GLOBAL_THROTTLE.maxFailures > DEFAULT_THROTTLE.maxFailures,
+            'the ceiling must be a backstop, never the thing that stops ordinary use');
+    });
+
+    test('it actually bounds a brute force — the arithmetic, not the intent', () => {
+        // 10,000 combinations against the ceiling's rate. If a future edit loosens this enough to
+        // make the whole space reachable inside a working day, that is worth failing over.
+        const perHour = GLOBAL_THROTTLE.maxFailures * (3600000 / GLOBAL_THROTTLE.windowMs);
+        assert.ok(10000 / perHour > 8,
+            `at ${perHour}/hour the PIN space falls in ${(10000 / perHour).toFixed(1)}h — too fast`);
+    });
+
+    test('the ceiling trips on the attempt that REACHES it, and expires on its own', () => {
+        const now = 1_000_000;
+        let state = null;
+        for (let i = 0; i < GLOBAL_THROTTLE.maxFailures - 1; i++) {
+            state = recordFailure(state, now, GLOBAL_THROTTLE);
+            assert.equal(state.blockedUntil, 0, `not blocked at ${i + 1} failures`);
+        }
+        state = recordFailure(state, now, GLOBAL_THROTTLE);
+        assert.ok(state.blockedUntil > now, 'the attempt that reaches the limit trips it');
+        assert.equal(throttleDecision(state, now).allowed, false);
+        // No permanent lock: a control any passer-by could pin open would be a denial-of-service
+        // handle pointed at the staff it protects.
+        assert.equal(throttleDecision(state, state.blockedUntil + 1).allowed, true);
     });
 });
 

@@ -164,6 +164,78 @@ test('the count patterns still match something somewhere — guard the guard', (
     });
 });
 
+// ── CONTRACT 2b: no live doc states a SUITE SIZE ───────────────────────────────────────────────
+//
+// Contract 2 above guards counts a CONSTANT owns. A test count has no owner to check against — it
+// is whatever the suite happens to contain — which makes it strictly worse, not exempt: it goes
+// stale on **every commit that adds a test**, which in this repo is most of them.
+//
+// Both live examples were written accurately and rotted anyway. CLAUDE.md said "~2310 tests across
+// 92 root test files" when the real figure had reached 2,358; KNOWN_LIMITATIONS.md still said "76
+// root test files, ~1926 tests" from a much older release. An external reviewer counted the real
+// ones and reported the drift, which is the tell: the number cost a reader time and told them
+// nothing they could act on.
+//
+// **The fix is not to update the numbers, it is to stop writing them.** Nobody decides anything
+// from a suite size, and the useful property — that every test file is routed from CLAUDE.md — is
+// already enforced structurally by CONTRACT 1 above. Removing the figures makes that guarantee the
+// only claim the docs make about the suite, and it is one that cannot drift.
+//
+// Deliberately narrow: it matches a number attached to TESTS or TEST FILES, not any number near the
+// word "test". A doc may say "the suite is broad", may name a single suite, and may state a
+// threshold a test enforces — what it may not do is write down how many there are.
+test('no live doc states how many tests or test files exist', () => {
+    const SUITE_SIZE = [
+        /(?<![.\d])\b(?:~|approx\.?\s*|about\s+)?[\d,]{2,}\s*(?:passing\s+)?tests?\b/gi,
+        /\b[\d,]{2,}\s*(?:root\s+)?test\s+files?\b/gi,
+        /\b[\d,]{2,}\s*(?:spec|suite)s?\b/gi,
+    ];
+    const problems = [];
+    for (const doc of LIVE_DOCS) {
+        let text;
+        // RAW, not prose(). CONTRACT 2 strips fenced code because a filename inside an example is
+        // not a listing — but a suite size inside a fence is still a suite size, and the first
+        // draft of THIS contract used prose() and therefore could not see the line that prompted
+        // it: CLAUDE.md's figure sits in the ```npm test``` block. Teeth-verification caught that
+        // (reintroducing the count did not fail the test), which is the only reason it is not
+        // still decorative — the same written-but-never-called shape as the v20.12 sweep.
+        try { text = read(doc); } catch { continue; }
+        for (const re of SUITE_SIZE) {
+            re.lastIndex = 0;
+            for (const m of text.matchAll(re)) {
+                // Same sentence-scoped escape as CONTRACT 2: a doc stating the RULE must be able to
+                // name the shape it forbids.
+                const start = text.lastIndexOf('.', m.index) + 1;
+                const sentence = text.slice(start, text.indexOf('.', m.index + m[0].length) + 1);
+                if (/\b(?:do not|don't|never|must not|no longer|stop writing)\b/i.test(sentence)) continue;
+                problems.push(`${doc}: "${m[0].trim()}" — a suite size goes stale on the next commit that adds a test`);
+            }
+        }
+    }
+    assert.deepEqual(problems, [],
+        'remove the figure rather than updating it; CONTRACT 1 already guarantees every test file ' +
+        'is routed, which is the part a reader can act on:\n  ' + problems.join('\n  '));
+});
+
+test('the suite-size patterns still match their own examples — guard the guard', () => {
+    // Without this, a regex broken by an edit would leave CONTRACT 2b passing for ever. The
+    // fixtures are the two forms that actually shipped and rotted.
+    const shipped = ['~2310 tests across 92 root test files', '76 root test files, ~1926 tests'];
+    // And the false positive the first draft produced: a VERSION is not a count. "the v18.95 tests
+    // missed" matched as "95 tests", which is how a guard earns an exemption list and stops guarding.
+    const notCounts = ['the v18.95 tests missed', 'fixed in v20.35 tests'];
+    for (const fixture of shipped) {
+        const hit = [/(?<![.\d])\b(?:~|approx\.?\s*|about\s+)?[\d,]{2,}\s*(?:passing\s+)?tests?\b/gi,
+                     /\b[\d,]{2,}\s*(?:root\s+)?test\s+files?\b/gi]
+            .some(re => { re.lastIndex = 0; return re.test(fixture); });
+        assert.ok(hit, `the suite-size patterns no longer match "${fixture}" — they have stopped guarding`);
+    }
+    for (const fixture of notCounts) {
+        const re = /(?<![.\d])\b(?:~|approx\.?\s*|about\s+)?[\d,]{2,}\s*(?:passing\s+)?tests?\b/gi;
+        assert.equal(re.test(fixture), false, `"${fixture}" is a VERSION, not a suite size — the pattern must not fire`);
+    }
+});
+
 // ── CONTRACT 3: the tree ROUTES, it does not explain ───────────────────────────────────────────
 //
 // The property that keeps CLAUDE.md loadable. It is stated as a rule at the top of the tree, and a

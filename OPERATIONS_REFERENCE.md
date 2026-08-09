@@ -559,14 +559,28 @@ the new PIN. Member sessions are untouched.
 
 ### Abuse protection
 
-A four-digit PIN is 10,000 combinations, so the endpoint is throttled server-side: **30 failed
-attempts per source per 15 minutes, then a 15-minute block**, recorded in the server-only
-`viewerAttempts` collection. Only *failures* are recorded — a correct PIN writes nothing.
+A four-digit PIN is 10,000 combinations, so the endpoint is throttled server-side **two ways**, both
+recorded in the server-only `viewerAttempts` collection. Only *failures* are recorded — a correct
+PIN writes nothing.
 
-The numbers are sized for a station behind one corporate NAT address: thirty *wrong* entries in
-fifteen minutes from the whole building is not fumbling, and a correct PIN never counts. Blocks
-expire on their own; there is no permanent or global lock, deliberately, because a shared-source
+1. **Per source — 30 failed attempts per 15 minutes, then a 15-minute block.** Sized for a station
+   behind one corporate NAT address: thirty *wrong* entries in fifteen minutes from the whole
+   building is not fumbling, and a correct PIN never counts.
+2. **All sources — 200 failed attempts per 15 minutes** (v20.35), under a fixed key. This caps the
+   whole endpoint at 800 guesses an hour, so the full PIN space takes upwards of twelve hours of
+   obviously abnormal traffic.
+
+**Why the second one exists.** Every per-source limit depends on identifying the caller, and that
+identification comes from the `x-forwarded-for` header — which a caller can *prepend to*. Until
+v20.35 the code read the **first** entry, so sending a different fake address per request minted a
+fresh bucket each time and there was no effective limit at all. The key is now taken from the **end**
+of the chain (the platform appends; a caller cannot), and the all-sources ceiling holds regardless,
+because it is keyed on a constant no header can touch.
+
+Blocks expire on their own; there is no permanent lock, deliberately, because a shared-source
 control that anyone can drive into a permanent state is a denial-of-service handle pointed at staff.
+If the all-sources ceiling ever *does* trip during normal use, that means the code in circulation is
+wrong — reissue it rather than raising the number.
 
 ### Diagnosing a problem
 

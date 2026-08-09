@@ -13,6 +13,8 @@ import assert from 'node:assert/strict';
 // In-memory store backing the ls.js mock.
 const store = new Map();
 let _signOutCalled = false;
+/** When set, the signOut mock REJECTS with this code — the viewer-shed fail-closed tests. */
+let _signOutBehavior = 'ok';
 /** Ordered log of member-persistence restores (see the mock below). */
 let _persistenceRestores = [];
 
@@ -50,7 +52,11 @@ mock.module('./firebase-client.js', {
         signInWithEmailAndPassword:     async () => { const n = ++_signInCalls; if (_signInGate) await _signInGate; const b = typeof _signInBehavior === 'function' ? _signInBehavior(n) : _signInBehavior; if (b !== 'ok') _authThrow(b); },
         createUserWithEmailAndPassword: async () => { _createCalled = true; if (_createBehavior !== 'ok') _authThrow(_createBehavior); },
         signInAnonymously:              async () => { _anonCalled = true; if (_anonBehavior !== 'ok') _authThrow(_anonBehavior); },
-        signOut:                        async () => { _signOutCalled = true; mockAuth.currentUser = null; },
+        signOut:                        async () => {
+            _signOutCalled = true;
+            if (_signOutBehavior !== 'ok') { const e = new Error(_signOutBehavior); /** @type {any} */ (e).code = _signOutBehavior; throw e; }
+            mockAuth.currentUser = null;
+        },
         // v20.12: `shedCalendarViewer` re-arms the long-lived MEMBER persistence chain after
         // dropping a shared Calendar viewer. Recorded rather than ignored so the ORDER (sign out,
         // THEN restore persistence) is assertable — reversing it would migrate the shared viewer
@@ -73,7 +79,7 @@ const {
     getSurname, getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
     ensureNamedSession, isTransientAuthError, refreshClaimsIfStale, primeAuth,
-    reconcileExpiredIdentity,
+    reconcileExpiredIdentity, shedCalendarViewer,
 } = await import('./session.js');
 const { nameToEmail, auth } = await import('./firebase-client.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
@@ -915,5 +921,70 @@ describe('B5: superseded login is identity-honest, not a spurious failure', () =
         releaseGate();
         const ok = await login;
         assert.equal(ok, false, 'a login superseded by an explicit logout must not report success');
+    });
+});
+
+
+// ── THE VIEWER→MEMBER TRANSITION MUST FAIL CLOSED (v20.35) ──────────────────────────────────────
+//
+// `shedCalendarViewer` signs the shared Calendar viewer out BEFORE re-arming the long-lived member
+// persistence chain, because `setPersistence` migrates the CURRENT user into the new persistence —
+// so doing it the other way round moves the shared viewer into IndexedDB, where it survives the
+// browser closing. That is the one property that makes unlocking a shared office PC safe, and the
+// ordering was correct and documented from the start.
+//
+// The ERROR HANDLING quietly undid it. The sign-out sat in a `try/catch` that only warned, and the
+// persistence restore then ran regardless — so on the single path where the ordering matters (the
+// sign-out fails, the viewer is STILL current) the code did exactly the thing its own comment
+// forbade. An external review found it; nothing in the suite would have.
+//
+// These tests assert the ABSENCE of a call, which is the only shape that can catch it: every
+// positive assertion about the happy path passed throughout the period the bug existed.
+describe('shedCalendarViewer — fail closed, or the shared viewer goes long-lived', () => {
+    const viewer = { uid: 'calendar-viewer', isAnonymous: false, email: null };
+    beforeEach(() => {
+        store.clear();
+        _signOutCalled = false; _signOutBehavior = 'ok'; _persistenceRestores = [];
+        _existingUser = null; _signInBehavior = 'ok'; _anonCalled = false;
+        mockAuth.currentUser = null;
+    });
+    afterEach(() => { _signOutBehavior = 'ok'; });
+
+    test('the happy path still signs out THEN restores member persistence', async () => {
+        mockAuth.currentUser = viewer;
+        await shedCalendarViewer();
+        assert.equal(_signOutCalled, true);
+        assert.deepEqual(_persistenceRestores, ['member'], 'the chain is re-armed once the viewer is gone');
+    });
+
+    test('a FAILED sign-out throws and never touches persistence', async () => {
+        mockAuth.currentUser = viewer;
+        _signOutBehavior = 'auth/network-request-failed';
+        await assert.rejects(() => shedCalendarViewer(), /network-request-failed|sign-out failed/);
+        assert.deepEqual(_persistenceRestores, [],
+            'restoreMemberPersistence must NOT run — it would migrate the shared viewer into IndexedDB');
+    });
+
+    test('a sign-out that RESOLVES but leaves the viewer current is also refused', () => {
+        // Belt-and-braces: the invariant is that the viewer is GONE, not that signOut resolved. An
+        // SDK that resolved without clearing would otherwise walk straight into the same migration.
+        // Modelled by pinning currentUser so the mock's clear has no effect.
+        const orig = Object.getOwnPropertyDescriptor(mockAuth, 'currentUser');
+        Object.defineProperty(mockAuth, 'currentUser', { configurable: true, get: () => viewer, set: () => {} });
+        return assert.rejects(() => shedCalendarViewer(), /still current after sign-out/)
+            .then(() => {
+                assert.deepEqual(_persistenceRestores, [], 'persistence untouched when the viewer survives');
+            })
+            .finally(() => {
+                if (orig) Object.defineProperty(mockAuth, 'currentUser', orig);
+                else delete /** @type {any} */ (mockAuth).currentUser;
+            });
+    });
+
+    test('a non-viewer identity is left entirely alone', async () => {
+        mockAuth.currentUser = { uid: 'someone-else', isAnonymous: false, email: 'a@b.test' };
+        await shedCalendarViewer();
+        assert.equal(_signOutCalled, false, 'this function only ever sheds the shared viewer');
+        assert.deepEqual(_persistenceRestores, []);
     });
 });
