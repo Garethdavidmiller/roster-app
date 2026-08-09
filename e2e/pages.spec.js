@@ -185,6 +185,67 @@ test('operations: App speed breaks the busiest page down by connection, install 
     await expect(speed).toContainText('(few)');
 });
 
+// ── "By stage of start-up" (v20.33) ─────────────────────────────────────────────────────────────
+// The boot phases exist because every explanation of the amber second was inference until now — and
+// the last inference (installed vs browser cold start) was backwards until data arrived. The split
+// maths is unit-tested; only a browser proves the block renders inside the why-section, leads it,
+// states its OWN threshold (½s, not the load rows' 1s), and stays absent while no phase samples
+// exist (every pre-v20.33 client).
+test('operations: App speed shows where the wait goes, by boot stage', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            // The shape the instrumentation was built to expose: SW wake fine, the engine span
+            // carrying the amber, the app's own code fine.
+            '20_33|calendar|domReady|lt500ms|standalone|4g': 300,
+            '20_33|calendar|domReady|1-3s|standalone|4g': 60,
+            '20_33|calendar|swBoot|lt500ms|standalone|4g': 350,
+            '20_33|calendar|swBoot|500ms-1s|standalone|4g': 10,
+            '20_33|calendar|sdkLoad|lt500ms|standalone|4g': 216,
+            '20_33|calendar|sdkLoad|500ms-1s|standalone|4g': 90,
+            '20_33|calendar|sdkLoad|1-3s|standalone|4g': 54,
+            '20_33|calendar|appBoot|lt500ms|standalone|4g': 340,
+            '20_33|calendar|appBoot|500ms-1s|standalone|4g': 20,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('By stage of start-up');
+    // All three stages, in boot order, in the plain-language labels (never the metric ids).
+    const labels = await speed.locator('.speed-row--why .speed-row-label').allTextContents();
+    const stageIdx = ['Waking up', 'Loading code', 'Getting ready']
+        .map(l => labels.findIndex(t => t.includes(l)));
+    expect(stageIdx.every(i => i >= 0)).toBe(true);
+    expect(stageIdx[0]).toBeLessThan(stageIdx[1]);
+    expect(stageIdx[1]).toBeLessThan(stageIdx[2]);
+    // The stages LEAD the section — the dimensional splits gesture at a cause, the stages name it.
+    const dimIdx = labels.findIndex(t => t.includes('4G-like'));
+    if (dimIdx >= 0) expect(stageIdx[2]).toBeLessThan(dimIdx);
+    // The block states its own band. 40% of sdkLoad samples sit over ½s (144 of 360) — the row
+    // must say 40% under an "over ½s" header, not borrow the load rows' 1s band (the v20.19 rule:
+    // a number reporting the wrong band is trusted over the bar beside it).
+    await expect(speed).toContainText('over ½s');
+    const engine = speed.locator('.speed-row--why', { hasText: 'Loading code' }).first();
+    await expect(engine.locator('.speed-row-count')).toHaveText('40%');
+    await expect(engine.locator('.speed-row-sub')).toHaveText('360');
+});
+
+// The stages must stay ABSENT while nothing records them: every device on a pre-v20.33 build. An
+// empty scaffold saying 0% would read as "boot is instant", which is not a finding, it is a gap.
+test('operations: no boot-phase samples → no "By stage of start-up" block', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '20_18|calendar|domReady|lt500ms|standalone|4g': 300,
+            '20_18|calendar|domReady|1-3s|browser|4g': 90,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('Why some are slower');
+    await expect(speed).not.toContainText('By stage of start-up');
+});
+
 // Account-status email rows must not overflow the card on a narrow phone (merged card, v18.65).
 // Regression guard for the original v14.35 bug class: a long-email row must ellipsise so the
 // fixed-width Edit/Remove buttons stay on-screen instead of being clipped by overflow:hidden.

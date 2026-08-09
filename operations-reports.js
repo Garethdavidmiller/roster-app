@@ -9,7 +9,7 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getClientErrors, resolveClientError, getUsageStats, getPerfStats, getSignInStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 
 /**
@@ -815,6 +815,53 @@ async function initPageSpeedCard() {
         return frag;
     };
 
+    /** The boot-phase block (v20.33): the busiest page's opens split into the three STAGES of
+     *  starting up, in boot order. Same row grammar as the dimensional blocks — but where those
+     *  split the LOADS into groups, these rows are contiguous SPANS of every load, so the loads
+     *  column reads near-identical down the rows and each row answers "how often did THIS stage
+     *  run long". The stated number is the share over ½ SECOND — a stage-scaled threshold, named
+     *  in the column header exactly like the dimensional blocks name theirs (the v20.19 rule: a
+     *  number must state its own band): the load-level bands call under-a-second Quick, but one
+     *  STAGE eating 500ms+ is precisely what pushes a whole open into the amber band.
+     *  Renders nothing until updated devices report — no scaffolding for future data.
+     *  @param {Record<string, number>} samples @param {string} page */
+    const phaseRows = (samples, page) => {
+        const { rows } = summariseBootPhases(samples, { page });
+        if (!rows.length) return null;
+        const frag = document.createDocumentFragment();
+        const heading = document.createElement('p');
+        heading.className = 'usage-section-label speed-dim-label';
+        heading.textContent = 'By stage of start-up';
+        frag.appendChild(heading);
+        // This block declares its OWN bands — the one place on the card the top legend does not
+        // apply, so the note must say so or the legend silently lies about these three bars.
+        frag.appendChild(noteLine('Every open passes through all three stages, so these bars use finer bands: green under ½ second, amber to 1 second, red over. One long stage is what makes a slow open slow.'));
+
+        const list = document.createElement('div');
+        list.className = 'speed-rows';
+        const head = document.createElement('div');
+        head.className = 'speed-row speed-row--why speed-dual-head';
+        head.innerHTML = '<span></span><span></span>'
+            + '<span class="speed-dual-label">over ½s</span>'
+            + '<span class="speed-dual-label">loads</span>';
+        list.appendChild(head);
+        rows.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'speed-row speed-row--why';
+            const thin = r.total < THIN_SAMPLE;
+            // The aria-label states the PHASE bands, because this block's bars do not follow the
+            // card legend — a screen-reader user must not be told "quick/a moment/slow" here.
+            row.innerHTML =
+                `<span class="speed-row-label">${escapeHtml(r.label)}${thin ? ' <span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% under half a second, ${r.pctOk}% between half and one second, ${r.pctSlow}% over a second">${segs(r)}</span>` +
+                `<span class="speed-row-count">${r.pctOver500}%</span>` +
+                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
+            list.appendChild(row);
+        });
+        frag.appendChild(list);
+        return frag;
+    };
+
     /** The whole "why" section, for the page with the most samples.
      *
      *  Deliberately NOT hardcoded to the Calendar, even though the Calendar is what prompted it and
@@ -834,6 +881,10 @@ async function initPageSpeedCard() {
         frag.appendChild(noteLine(
             `The busiest page (${busiest.total.toLocaleString('en-GB')} opens), split by what was already being recorded with each load.`));
         let any = false;
+        // Boot stages FIRST — "which part of starting up ran long" is the question the dimensional
+        // splits below can only gesture at, so when the data exists it leads.
+        const phases = phaseRows(samples, busiest.page);
+        if (phases) { frag.appendChild(phases); any = true; }
         for (const dim of /** @type {Array<'conn'|'mode'|'version'>} */ (['conn', 'mode', 'version'])) {
             const block = breakdownRows(samples, busiest.page, dim);
             if (block) { frag.appendChild(block); any = true; }

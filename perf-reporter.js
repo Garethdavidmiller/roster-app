@@ -19,7 +19,7 @@
  */
 
 import { recordPerfSample } from './firebase-client.js';
-import { bucketDuration, loginDurationBucket } from './perf-stats.js';
+import { bucketDuration, loginDurationBucket, bootPhases } from './perf-stats.js';
 import { CONFIG } from './roster-data.js';
 
 // Sign-in timing marker: a wall-clock timestamp stored at the "Sign in" click (login-overlay.js),
@@ -96,6 +96,13 @@ export function recordPageLatency(page, identity = null) {
         // responseStart IS time-to-first-byte; responseEnd is the LAST byte (it silently included
         // the full HTML download on slow connections, inflating the App Speed bands) (v16.23).
         const metrics = { ttfb: nav.responseStart, domReady: nav.domContentLoadedEventEnd };
+        // Boot phases (v20.33) — where a slow start actually goes: waking the SW cache, reaching the
+        // 'myb-sdk-ready' mark (firebase-client.js), then the app's own modules to DCL. The pure
+        // split lives in perf-stats.bootPhases; an uncomputable phase is NaN and bucketDuration
+        // skips it (no SW on a first visit; no mark where the Performance API is missing).
+        let sdkMark;
+        try { sdkMark = performance.getEntriesByName?.('myb-sdk-ready')?.[0]?.startTime; } catch { /* no marks */ }
+        Object.assign(metrics, bootPhases(nav, sdkMark));
         for (const metric of Object.keys(metrics)) {
             const bucket = bucketDuration(metrics[metric]);
             if (bucket) recordPerfSample({ page, metric, bucket, mode, conn });

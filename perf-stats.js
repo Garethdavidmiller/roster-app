@@ -280,6 +280,126 @@ function _compareVersionsDesc(a, b) {
     return (bMaj - aMaj) || (bMin - aMin) || String(b).localeCompare(String(a));
 }
 
+// ── WHERE the wait goes — the boot phases (v20.33) ──────────────────────────────────────────────
+//
+// The dimensional breakdown above told us WHO is slow (installed app, budget devices) and the
+// metrics told us HOW OFTEN — but every explanation of WHERE the amber second goes was inference:
+// "probably SW wake, probably module parse". The last time this card ran on inference it was wrong
+// (the cold-start hypothesis had installed vs browser-tab backwards until the data arrived), so
+// before optimising anything the boot is split into measured phases:
+//
+//   swBoot  — workerStart → responseStart: waking the service worker and serving from its cache.
+//   sdkLoad — responseStart → the 'myb-sdk-ready' mark: HTML parse + fetching the module graph up
+//             through the Firebase SDK finishing execution (the mark fires as firebase-client.js's
+//             body starts, which by ES module semantics is the moment its SDK imports have run).
+//   appBoot — that mark → domContentLoadedEventEnd: the app's own modules executing after the SDK.
+//
+// The three are CONTIGUOUS SPANS of the same load, so each buckets independently with the ordinary
+// PERF_BUCKETS — and that coarseness is the point, not a compromise: a phase under 500ms is never
+// the reason a load went over a second, so `lt500ms` is exactly the "not the culprit" band. The
+// card then asks one question per phase: what fraction of loads had THIS phase run long?
+
+/** The boot-phase metric ids, in boot order, with their staff-facing labels (the Operations card is
+ *  read by a non-technical admin — "SDK" and "service worker" stay out of the copy). Labels are
+ *  parallel gerunds kept ≤13 chars, MEASURED not assumed: the why-rows' label column is
+ *  minmax(76px, 27%) ≈ 89px at 375px, "Waking the app" (14) fit and "Loading the engine" (18)
+ *  ellipsised — a truncated label in one block only would break the rows' shared rhythm. The `sub`
+ *  carries the precision the short label gives up, and reaches readers via the bar's aria-label. */
+export const BOOT_PHASES = /** @type {const} */ ([
+    { metric: 'swBoot',  label: 'Waking up',     sub: 'the saved offline copy starting' },
+    { metric: 'sdkLoad', label: 'Loading code',  sub: 'the shared code every page needs' },
+    { metric: 'appBoot', label: 'Getting ready', sub: 'this page’s own code' },
+]);
+
+/**
+ * Compute the three boot-phase durations (ms) from a PerformanceNavigationTiming entry and the
+ * 'myb-sdk-ready' mark time. PURE — the reporter passes the raw numbers in. Any phase that cannot
+ * be computed honestly is NaN, which bucketDuration then skips:
+ *   - no service worker on this load (workerStart 0 — e.g. the very first visit) → no swBoot;
+ *   - no SDK mark (Performance API unavailable, or a page that never loads firebase-client) → no
+ *     sdkLoad/appBoot rather than a mislabelled span.
+ * Negative spans (clock weirdness, an unpopulated field) also come out NaN-safe via the <= 0 guard
+ * in bucketDuration — never clamped to a fake fast sample.
+ * @param {{ workerStart?: number, responseStart?: number, domContentLoadedEventEnd?: number }} nav
+ * @param {number|undefined} sdkMarkMs  the mark's startTime (ms from timeOrigin), if present
+ * @returns {{ swBoot: number, sdkLoad: number, appBoot: number }}
+ */
+export function bootPhases(nav, sdkMarkMs) {
+    const n = nav || {};
+    const worker   = Number(n.workerStart);
+    const response = Number(n.responseStart);
+    const dcl      = Number(n.domContentLoadedEventEnd);
+    const mark     = Number(sdkMarkMs);
+    return {
+        swBoot:  worker > 0 && response > 0 ? response - worker : NaN,
+        sdkLoad: mark > 0 && response > 0   ? mark - response   : NaN,
+        appBoot: mark > 0 && dcl > 0        ? dcl - mark        : NaN,
+    };
+}
+
+/**
+ * Summarise the boot-phase samples for ONE page: per phase, how many loads there were and what
+ * fraction ran long.
+ *
+ * **The bands here are PHASE-scaled, deliberately finer than the card's load bands** — green under
+ * ½s, amber ½–1s, red over 1s — because a single PHASE eating 500ms+ is precisely what pushes a
+ * whole open into the load-level amber, while the load bands would paint an 800ms stage green and
+ * make the block deny its own finding. The first render proved this the v20.19 way, mirrored: the
+ * stated number (40% over ½s) sat beside a load-banded bar showing 15% non-green, and a number
+ * disagreeing with the bar next to it is the exact defect that rule exists for. So the number IS
+ * the complement of the bar's green — same grammar as every other row on the card — and the block
+ * states its own bands rather than borrowing the card legend's.
+ *
+ * The three band shares are exposed as `pctQuick`/`pctOk`/`pctSlow` — the same property names every
+ * other row uses — so the card's one bar builder renders these rows unchanged. The MEANING of each
+ * band differs (declared in the block's note + each bar's aria-label); the names are kept because a
+ * second bar builder for one block is how render code drifts.
+ *
+ * Phases with no samples are omitted (a pre-v20.33 client records none — the card must not render
+ * empty scaffolding for them).
+ * @param {Record<string, number>} samples raw `analytics/perf_<month>.samples`
+ * @param {{ page: string }} opts
+ * @returns {{ total: number, rows: Array<{ metric: string, label: string, sub: string, total: number,
+ *   quick: number, ok: number, slow: number, pctQuick: number, pctOk: number, pctSlow: number,
+ *   pctOver500: number }> }}
+ */
+export function summariseBootPhases(samples, { page }) {
+    /** @type {Record<string, Record<string, number>>} */
+    const perPhase = {};
+    for (const [key, raw] of Object.entries(samples || {})) {
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n <= 0) continue;
+        const parsed = parsePerfSampleKey(key);
+        if (parsed.page !== page) continue;
+        if (!BOOT_PHASES.some(p => p.metric === parsed.metric)) continue;
+        (perPhase[parsed.metric] || (perPhase[parsed.metric] = {}))[parsed.bucket] =
+            (perPhase[parsed.metric]?.[parsed.bucket] || 0) + n;
+    }
+    const rows = [];
+    let grand = 0;
+    for (const phase of BOOT_PHASES) {
+        const buckets = perPhase[phase.metric];
+        if (!buckets) continue;
+        // Phase bands: under ½s / ½–1s / 1s+. The stored buckets split exactly there (lt500ms,
+        // 500ms-1s, then everything from 1-3s up), so no information is invented.
+        const g = { quick: 0, ok: 0, slow: 0 };
+        for (const [bucket, n] of Object.entries(buckets)) {
+            if (!PERF_BUCKETS.includes(bucket)) continue;
+            const band = bucket === 'lt500ms' ? 'quick' : bucket === '500ms-1s' ? 'ok' : 'slow';
+            g[band] += n;
+        }
+        const p = _withPct(g);
+        if (!p.total) continue;
+        rows.push({
+            metric: phase.metric, label: phase.label, sub: phase.sub,
+            pctOver500: p.total ? Math.round(((p.total - p.quick) / p.total) * 100) : 0,
+            ...p,
+        });
+        grand = Math.max(grand, p.total);
+    }
+    return { total: grand, rows };
+}
+
 /**
  * Plain-English verdict copy per journey:
  *   'login' = signing in · 'fcp' = a page first appearing on screen · 'pages' = a page being fully ready.

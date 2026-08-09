@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS } from './perf-stats.js';
+import { PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -297,6 +297,86 @@ describe('perfVerdict', () => {
         assert.equal(good.tone, 'good');                 // 90% quick → good, same thresholds
         assert.match(good.text, /appear/i);              // FCP-specific wording
         assert.equal(perfVerdict(summarisePerf({}).overall, 'fcp').tone, 'none');
+    });
+});
+
+describe('bootPhases — where a cold start goes (v20.33)', () => {
+    // A realistic slow installed-app open: SW woke at 40ms, served at 220ms, SDK executed by
+    // 1100ms, DCL at 1600ms. The three spans must be contiguous slices of that timeline.
+    const nav = { workerStart: 40, responseStart: 220, domContentLoadedEventEnd: 1600 };
+
+    test('splits a load into three contiguous spans', () => {
+        const p = bootPhases(nav, 1100);
+        assert.equal(p.swBoot, 180);    // 220 − 40
+        assert.equal(p.sdkLoad, 880);   // 1100 − 220
+        assert.equal(p.appBoot, 500);   // 1600 − 1100
+        // Contiguity is the property the card's allocation depends on: the spans plus the
+        // pre-worker time must reconstruct the load, or the phases would double-count.
+        assert.equal(nav.workerStart + p.swBoot + p.sdkLoad + p.appBoot, nav.domContentLoadedEventEnd);
+    });
+
+    test('no service worker on this load (workerStart 0) → swBoot is not invented', () => {
+        const p = bootPhases({ ...nav, workerStart: 0 }, 1100);
+        assert.ok(Number.isNaN(p.swBoot), 'a first visit has no SW to wake — recording 220ms of network as "SW wake" would be a lie');
+        assert.equal(p.sdkLoad, 880);   // the mark-based spans are unaffected
+    });
+
+    test('no SDK mark → both mark-based spans are dropped, not mislabelled', () => {
+        const p = bootPhases(nav, undefined);
+        assert.ok(Number.isNaN(p.sdkLoad));
+        assert.ok(Number.isNaN(p.appBoot));
+        assert.equal(p.swBoot, 180);    // the nav-only span survives
+    });
+
+    test('a negative span never becomes a fake fast sample', () => {
+        // A mark that reads BEFORE responseStart (bfcache restore / clock weirdness): sdkLoad is
+        // negative, and bucketDuration's <=0 guard must drop it — asserted end-to-end here because
+        // the failure mode is silent (a phantom lt500ms count that flatters the phase).
+        const p = bootPhases(nav, 100);
+        assert.equal(bucketDuration(p.sdkLoad), null);
+        assert.equal(bucketDuration(p.appBoot), '1-3s');   // 1600−100 = 1500ms — still honest on its own span
+    });
+});
+
+describe('summariseBootPhases — the "By stage of start-up" rows', () => {
+    test('rows come out in boot order with the ½s share computed from the bucket split', () => {
+        const samples = samplesFrom([
+            // swBoot: 90 fast, 10 in 500ms-1s → 10% over ½s
+            ['calendar', 'swBoot', 'lt500ms', 90], ['calendar', 'swBoot', '500ms-1s', 10],
+            // sdkLoad: 60 fast, 30 in 500ms-1s, 10 in 1-3s → 40% over ½s
+            ['calendar', 'sdkLoad', 'lt500ms', 60], ['calendar', 'sdkLoad', '500ms-1s', 30], ['calendar', 'sdkLoad', '1-3s', 10],
+            // appBoot: all fast
+            ['calendar', 'appBoot', 'lt500ms', 100],
+            // noise that must not leak in: another page, and a non-phase metric on this page
+            ['admin', 'sdkLoad', '1-3s', 50], ['calendar', 'domReady', '1-3s', 50],
+        ]);
+        const { total, rows } = summariseBootPhases(samples, { page: 'calendar' });
+        assert.equal(rows.length, 3);
+        assert.deepEqual(rows.map(r => r.metric), BOOT_PHASES.map(p => p.metric), 'boot order, always');
+        assert.equal(rows[0].pctOver500, 10);
+        assert.equal(rows[1].pctOver500, 40);
+        assert.equal(rows[2].pctOver500, 0);
+        assert.equal(total, 100, 'the section total is loads, not phase-samples summed thrice');
+        // The bands are PHASE-scaled: green is lt500ms ALONE (the load bands put 500ms-1s in green
+        // too, which made the stated 40% disagree with a bar showing 15% non-green — the v20.19
+        // defect class, mirrored). The number must be the complement of the bar's green.
+        assert.equal(rows[1].pctQuick, 60, 'green = under ½s only');
+        assert.equal(rows[1].pctOk, 30, 'amber = ½–1s');
+        assert.equal(rows[1].pctSlow, 10, 'red = everything over 1s');
+        assert.equal(rows[1].pctOver500, 100 - rows[1].pctQuick, 'the stated % is the bar’s non-green share');
+        // The label set is the staff-facing one — jargon staying out of the card is a contract here,
+        // not a style preference (the card states its reader is non-technical).
+        for (const r of rows) assert.doesNotMatch(r.label + r.sub, /SDK|service worker|worker|DCL/i);
+    });
+
+    test('a phase nobody has recorded yet is omitted — no scaffolding rows', () => {
+        const { rows } = summariseBootPhases(samplesFrom([['calendar', 'swBoot', 'lt500ms', 5]]), { page: 'calendar' });
+        assert.deepEqual(rows.map(r => r.metric), ['swBoot'],
+            'pre-v20.33 clients record no phases; the card must not render empty rows for them');
+    });
+
+    test('empty samples → no rows, zero total', () => {
+        assert.deepEqual(summariseBootPhases({}, { page: 'calendar' }), { total: 0, rows: [] });
     });
 });
 
