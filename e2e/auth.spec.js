@@ -355,6 +355,29 @@ test('forced password overlay: never appears while the kill switch is off', asyn
 // two credential failures raise the link's weight, and a network/rate-limit failure never does,
 // because a dropped connection is not a forgotten password.
 
+test('login card: the disabled name select reads as inert and keeps its chevron', async ({ page }) => {
+    // Both halves of one CSS rule broke a documented convention (.claude/rules/css-tokens.md), and
+    // both were visible in a screenshot of the resting card that nobody had looked at:
+    //   · it filled with `white`, which is the FOCUS ceiling in the three-surface model — so the
+    //     DISABLED select was the brightest surface in the card, brighter than the enabled password
+    //     field beside it;
+    //   · it used the `background` SHORTHAND, which wipes a <select>'s background-image, silently
+    //     deleting the dropdown arrow — so the two adjacent selects looked like different controls.
+    // Asserted in CI rather than left to the opt-in visual suite, because that is what missed it.
+    await enforceNamedSession(page);
+    await page.goto('/settings.html');
+    const name = page.locator('#loginName');
+    await expect(name).toBeDisabled();
+    const s = await name.evaluate(el => {
+        const c = getComputedStyle(el);
+        const pw = getComputedStyle(document.querySelector('#loginPassword'));
+        return { bg: c.backgroundColor, img: c.backgroundImage, pwBg: pw.backgroundColor };
+    });
+    expect(s.img, 'the disabled select must keep its dropdown arrow').not.toBe('none');
+    expect(s.bg, 'a disabled field must not wear white — that is the focus ceiling').not.toBe('rgb(255, 255, 255)');
+    expect(s.bg, 'and must not be brighter than the ENABLED field beside it').not.toBe(s.pwBg);
+});
+
 test('reset request link: present from the moment the card opens, before any attempt', async ({ page }) => {
     await enforceNamedSession(page);
     await page.goto('/settings.html');
@@ -460,6 +483,15 @@ test('reset request link: a sent request does not follow the next member', async
     await signInThroughOverlay(page, 'G. Miller', { submit: false });
     await page.locator('#loginResetRequest').click();
     await expect(page.locator('#loginResetStatus')).toContainText('Request sent');
+    // A receipt for a message sent to a real person must not look like the field hint above it —
+    // it wore `.login-hint` until v20.49 and read as a footnote. Success and failure share one box
+    // shape and differ by tint, so the CLASS is what separates them.
+    await expect(page.locator('#loginResetStatus')).toHaveClass(/login-receipt--ok/);
+    // The class alone would still pass if the tint were deleted from the stylesheet, so check it
+    // actually RENDERS as a box: a bare transparent background is the footnote look this replaced.
+    const tint = await page.locator('#loginResetStatus')
+        .evaluate(el => getComputedStyle(el).backgroundColor);
+    expect(tint, 'the receipt must be tinted, not bare text').not.toBe('rgba(0, 0, 0, 0)');
     await expect(page.locator('#loginResetRequest')).toBeHidden();   // nothing more to do here
 
     await page.locator('#loginName').selectOption('L. Springer');
@@ -477,6 +509,7 @@ test('reset request link: a failed send keeps the button and says so', async ({ 
     await signInThroughOverlay(page, 'G. Miller', { submit: false });
     await page.locator('#loginResetRequest').click();
     await expect(page.locator('#loginResetStatus')).toContainText('contact the admin directly');
+    await expect(page.locator('#loginResetStatus')).toHaveClass(/login-receipt--fail/);
     await expect(page.locator('#loginResetRequest')).toBeVisible();
     await expect(page.locator('#loginResetRequest')).toBeEnabled();
     await expect(page.locator('#loginResetRequest')).toContainText('Ask the admin');

@@ -151,7 +151,7 @@ function overlayHtml(/** @type {string} */ pageLabel) {
              access. Those are not the same size of mistake. The repeat throttle and the member-name
              doc id (so the queue can never exceed the roster) are what make the open door safe. -->
         <button type="button" id="loginResetRequest" class="login-reset-request">Can’t get in? Ask the admin to reset your password</button>
-        <div id="loginResetStatus" class="login-hint" aria-live="polite"></div>
+        <div id="loginResetStatus" class="login-receipt" aria-live="polite"></div>
         <a href="./" class="login-back">← Back to roster</a>
     </div>`;
 }
@@ -315,12 +315,22 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             resetBtn.textContent = RESET_BTN_LABEL;
             resetBtn.classList.remove('login-reset-request--prompted');
         }
-        if (resetStatusEl) resetStatusEl.textContent = '';
+        setResetStatus('');
+    }
+
+    /** Write the one outcome line. `kind` picks the tint: 'ok' for a receipt, 'fail' for anything the
+     *  member has to act on. Empty text collapses the box entirely (`:empty`), so the card carries no
+     *  reserved hole before they have tapped anything.
+     *  @param {string} text @param {'ok'|'fail'} [kind] */
+    function setResetStatus(text, kind) {
+        if (!resetStatusEl) return;
+        resetStatusEl.textContent = text;
+        resetStatusEl.className = 'login-receipt' + (text && kind ? ' login-receipt--' + kind : '');
     }
 
     resetBtn?.addEventListener('click', async () => {
         const name = nameSelect.value;
-        if (!name) { resetStatusEl.textContent = 'Choose your name first.'; return; }
+        if (!name) { setResetStatus('Choose your name first.', 'fail'); return; }
         resetBtn.disabled = true;
         const original = resetBtn.textContent;
         resetBtn.textContent = 'Sending…';
@@ -330,10 +340,10 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             // Replace the control rather than leaving a re-tappable button: the request is recorded
             // (the endpoint throttles repeats anyway) and there is nothing more for them to do here.
             resetBtn.hidden = true;
-            resetStatusEl.textContent = 'Request sent. The admin will reset your password and let you know.';
+            setResetStatus('Request sent. The admin will reset your password and let you know.', 'ok');
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
-            resetStatusEl.textContent = 'Couldn’t send the request — check your connection, or contact the admin directly.';
+            setResetStatus('Couldn’t send the request — check your connection, or contact the admin directly.', 'fail');
         } finally {
             // ALWAYS restore, including on success (FIX, v18.94). The success path used to leave the
             // button disabled and reading "Sending…" behind `hidden`, so a later credential failure
@@ -438,6 +448,11 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                 return;
             }
             _failCount = 0;   // a successful sign-in clears the wrong-password streak
+            // …and with it the stuck-member emphasis. The overlay is REUSED, not rebuilt
+            // (`initLoginOverlay` returns early when one exists), and in-place sign-in hides
+            // it without a reload — so a later re-show would otherwise open on a card still
+            // flagging failures that have since been resolved.
+            resetResetRequest();
             // One-shot "a real sign-in just happened" marker for the forced set-password overlay
             // (password-force.js, PASSWORD_PLAN.md Phase 2). Written HERE — the one place every
             // protected page's sign-in passes through — rather than in each coordinator's onSuccess,

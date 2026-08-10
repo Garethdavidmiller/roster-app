@@ -335,7 +335,13 @@ PASSWORD_PLAN.md §12 (the queue) + §14 (the admin push, v18.95).
   than gating a reveal. The click reads `nameSelect.value` **at click time**, which is correct here
   precisely because the link is tied to no failure: it means "I am the person named above". The v18.94
   bug it must not re-create is the other direction — stale state surviving an identity change — so a
-  grade/name change clears the status line and the emphasis (`resetResetRequest`).
+  grade/name change clears the status line and the emphasis (`resetResetRequest`), as does a
+  SUCCESSFUL sign-in — the overlay is reused rather than rebuilt, and in-place sign-in hides it
+  without a reload, so a later re-show would otherwise open flagging failures already resolved.
+  The outcome line is `.login-receipt` (v20.49), not `.login-hint`: a receipt for a message sent to
+  a real person must not render identically to the instruction under the password field. It borrows
+  `.login-error`'s geometry and differs only in tint (`--ok` / `--fail`), so the card keeps ONE
+  message-box shape; `:empty` collapses it so nothing reserves a blank line.
 - **`operations-app.js`** renders the **Password Reset Requests** card directly ABOVE Account status —
   the queue adjacent to its remedy — with a count chip, `_relativeTime` rows (exported from
   operations-reports.js so it reads identically to the Error Log beside it), a per-row Clear, and an

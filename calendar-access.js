@@ -434,7 +434,7 @@ function showLockPanel() {
                 <button id="calLockSubmit" type="submit" disabled>${SUBMIT_LABEL}</button>
             </form>
             <button class="login-back cal-lock-alt" id="calLockSignIn" type="button">Sign in instead</button>
-            <!-- The login card's the login card footer, and it answers a real question this screen
+            <!-- The login family's footer treatment, and it answers a real question this screen
                  otherwise leaves hanging: a new starter opening the app for the first time has no
                  way to know the code or who holds it. "The admin" per the wording conventions —
                  access to the app is an app matter, not a rostering one. -->

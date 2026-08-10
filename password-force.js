@@ -168,11 +168,12 @@ function _mount() {
             <div class="login-app-name">Set your own password</div>
             <div class="login-subtitle">Your password is still your surname, which anyone who knows your name could guess. Choose one only you know — you’ll need it the next time you sign in on any device.</div>
             <div class="login-field">
-                <label for="pwfNew">New password <span class="pwf-req">(at least ${MIN_PASSWORD_LENGTH} characters)</span></label>
+                <label for="pwfNew">New password</label>
                 <div class="login-pw-wrap">
-                    <input type="password" id="pwfNew" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+                    <input type="password" id="pwfNew" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="pwfNewHint">
                     <button type="button" id="pwfToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
                 </div>
+                <div class="login-hint" id="pwfNewHint">At least ${MIN_PASSWORD_LENGTH} characters. Anything you'll remember — it replaces your surname everywhere you sign in.</div>
             </div>
             <div class="login-field">
                 <label for="pwfConfirm">Confirm new password</label>

@@ -791,19 +791,19 @@ body.lb-open #stickyTotal { display: none !important; }
    in" — so it follows the v18.89 rule and left-aligns. The title above it stays centred (masthead). */
 #pwForceContent .login-subtitle { text-align: left; text-wrap: pretty; }
 
-.pwf-req {
-    font-weight: 500;
-    color: var(--text-light);
-    text-transform: none;
-    letter-spacing: 0;
-}
+/* `.pwf-req` was here until v20.49: it un-did the label's uppercase and weight so
+   "(at least 8 characters)" could sit INSIDE the `NEW PASSWORD` eyebrow — two typographic
+   treatments on one line, and the only place in the login family where a label mixed casing. The
+   requirement is now a `.login-hint` under the field, which is where the login card has always put
+   its own ("Your surname in lowercase — or the password you've set yourself") and where the PIN
+   card puts its explanation. One pattern for "what this field wants", in all three cards. */
 /* The escape hatch. Deliberately QUIET and hidden until a failure the member cannot type their way
    out of reveals it (rate-limit / offline / three failures) — it must never read as an equal choice
    to setting a password, but it must exist, or a mandatory overlay becomes a lockout. */
 .pwf-escape {
     display: block;
     width: 100%;
-    margin-top: 12px;
+    margin-top: 14px;   /* == .login-reset-request; same role, same offset (was 12px until v20.49) */
     background: none;
     border: none;
     font-family: inherit;
@@ -856,6 +856,24 @@ body.lb-open #stickyTotal { display: none !important; }
     color: var(--primary-blue);
     font-weight: 600;
 }
+/* The outcome of tapping it. It wore `.login-hint` until v20.49 — the same class as the instruction
+   under the password field — so "Request sent. The admin will reset your password and let you know."
+   rendered as small grey text indistinguishable from "Your surname in lowercase", directly above the
+   Back link, and a completed action read as a footnote. A receipt for a message sent to a real person
+   should look like a receipt. Geometry is deliberately `.login-error`'s: the card already has one
+   message-box shape and this is the same slot, differing only in tint, so success and failure are
+   told apart by colour within one familiar form rather than by two competing layouts. */
+.login-receipt {
+    font-size: var(--type-label);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    margin-top: 12px;
+    text-align: left;
+    line-height: 1.4;
+}
+.login-receipt:empty { display: none; }   /* no reserved blank box before anything is sent */
+.login-receipt--ok   { color: var(--success-text); background: var(--success-green-bg); }
+.login-receipt--fail { color: var(--error-text);   background: var(--error-bg); }
 
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
    Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".
@@ -2037,6 +2055,15 @@ button.nav-panel-link--notices {
     margin: auto;
     text-align: center;
     box-shadow: var(--shadow-3);
+    /* State the type base rather than inherit it (v20.49). These three cards are ONE family and
+       look it, but two are appended to a sub-page `body` (14px, --text-dark) while the PIN card
+       lives in index.html, whose base is 16px and PURE BLACK — a colour this app uses for text
+       nowhere. Every element inside sets its own size, so the only thing this moves is the PIN
+       card: MEASURED at 1px, because the masthead `<img>` is INLINE and the baseline gap beneath
+       an inline image follows the PARENT's font metrics. That 1px is the change working — it is
+       the other two cards' spacing, which the PIN card now shares. */
+    font-size: var(--type-body);
+    color: var(--text-dark);
 }
 #loginCard img, #pwForceContent img, .cal-lock-card img {
     width: 72px;
@@ -2177,8 +2204,18 @@ button.nav-panel-link--notices {
     cursor: default;
     transform: none;
 }
+/* The "— Select grade first —" state. Two long-standing rules were being broken here at once, and
+   both are visible in a screenshot of the resting card (v20.49):
+     · `white` is the FOCUS ceiling in the three-surface model, so a DISABLED control wearing it was
+       the brightest thing in the card — brighter than the enabled password field beside it, and
+       equal to the focused select above it. That reads as the most active field, not the inert one.
+       `--field-bg-disabled` exists for exactly this and is what every other disabled field uses.
+     · `background` is the SHORTHAND, which wipes a `<select>`'s `background-image` — so this rule
+       silently deleted the dropdown arrow that `.login-field select` draws. The two adjacent selects
+       therefore looked like two different kinds of control. Fills on a field are always set with the
+       `background-color` longhand (.claude/rules/css-tokens.md). */
 #loginName:disabled {
-    background: white;
+    background-color: var(--field-bg-disabled);
     color: var(--text-light);
     border-color: var(--border-light);
     cursor: default;
