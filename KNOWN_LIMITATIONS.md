@@ -83,7 +83,14 @@ will not retry it, so production can stay stale indefinitely until an unrelated 
 > Gen-2 does not grant that by default. The function logs the exact code:
 > `[unlockCalendarViewer] token mint failed <code> <message>` — read that before assuming.
 >
-> **Runbook position: steps 1–2 COMPLETE; step 3 attempted and reverted; 2b, 3, 4 and 5 remain.** The
+> **Retry, 10 Aug 2026 (v20.51).** The owner granted
+> `roles/iam.serviceAccountTokenCreator` to `532910998075-compute@developer.gserviceaccount.com` on
+> itself and enabled `iamcredentials.googleapis.com`; the flag went back on to run step 2b — the
+> by-hand unlock — as the test of that grant. **The IAM diagnosis was inferred from the symptom and
+> never confirmed against the function log.** If an unlock fails again, retrieve
+> `[unlockCalendarViewer] token mint failed <code> <message>` first; it may name something else.
+>
+> **Runbook position: steps 1–2 COMPLETE; step 3 attempted and reverted; 2b under test; 3, 4, 5 remain.** The
 > `CALENDAR_VIEWER_PIN` secret is set (owner, 9 Aug 2026) and confirmed present, non-empty and
 > four-digit-shaped. The other activation blockers all remain closed: Lock Calendar fail-closed
 > (v20.39), secret shape-validated (v20.39), Calendar data readiness (v20.40–41), throttle-store

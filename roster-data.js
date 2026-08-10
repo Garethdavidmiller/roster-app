@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '20.50';
+export const APP_VERSION = '20.51';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -133,8 +133,22 @@ export const CONFIG = {
     // not verified the feature.** Before re-enabling, somebody who holds the PIN must unlock the
     // real Calendar from a real browser, once.
     //
-    // Re-enable ONLY after that end-to-end unlock has actually succeeded in production.
-    CALENDAR_PIN_ACCESS:              false,
+    // ON AGAIN (v20.51) — and this switch-on IS runbook step 2b, not step 3. The v20.50 failure was
+    // diagnosed as an IAM gap rather than app code: `admin.initializeApp()` runs on Application
+    // Default Credentials, so `createCustomToken` cannot sign locally — it calls the IAM Credentials
+    // API, which requires the Cloud Run runtime service account
+    // (`532910998075-compute@developer.gserviceaccount.com`) to hold
+    // `roles/iam.serviceAccountTokenCreator` ON ITSELF. Gen-2 does not grant that by default. The
+    // owner granted it, and enabled `iamcredentials.googleapis.com`, on 10 Aug 2026.
+    //
+    // **That diagnosis is INFERRED FROM THE SYMPTOM, not read from a log.** It fits exactly — the
+    // 500 came from the token-mint block, which is the only place a signature is needed — but the
+    // function's own `[unlockCalendarViewer] token mint failed <code> <message>` line was never
+    // retrieved. So this flag is on to RUN THE TEST, and the test is a human unlocking the live
+    // Calendar. If that fails again, go and read the log before changing anything else.
+    //
+    // Rolling back is still this one line while the `overrides` hold line stands.
+    CALENDAR_PIN_ACCESS:              true,
     // How long the calendar's `pw-own-2026` notice keeps showing on a device that has not yet seen
     // it, in days from its 6 Aug 2026 posting date (calendar-app.js). CONFIGURABLE ON PURPOSE
     // (v19.91, external review): `isNoticeExpired` marks a notice seen WITHOUT showing it, so on the
