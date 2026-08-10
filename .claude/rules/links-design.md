@@ -938,10 +938,24 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   see-through — so the caption sat there with the scrolled column showing through it, which reads as
   a fault, not a feature. And `white-space: nowrap` had to go: fine in a cell that sizes to content,
   but in a sticky one it just overflows the fill.
-- **ONE measure on desktop.** The table filled all 1036px of the card, putting a 90px shift time in a
-  477px cell. Capping the table alone then left a 620px table under a 1036px objectives box under a
-  1036px button — a card reading as three unrelated widths. The cap belongs on `.generator-form`, so
-  every part lines up, at 660px beside the ~72ch the intro prose already uses.
+- **The form uses the FULL card width on desktop — the 660px cap is HISTORY** (v19.82, owner:
+  "still not using the full width"; this bullet described the cap as current until v20.54, arguing
+  the opposite of the shipped CSS). The v19.61 cap reasoned that widening "puts a 90px shift time in
+  a 477px cell" — misapplied, because the shift time is a `<select>` that stretches to fill its
+  cell, which reads as a control rather than as gap; capping the select instead looked WORSE
+  (190px of void inside a bordered cell). What SURVIVES from that era is the one-left-edge rule:
+  the intro keeps a 72ch reading measure pinned to the same left edge (`margin-inline: 0`, never
+  centred), and the left-edge e2e still measures all five parts. The full reasoning lives beside
+  the rule in `links.css` ("THE FORM USES THE FULL CARD").
+- **The generate feedback is written beside the BUTTON, and the button is held still** (v20.54).
+  The canonical status lives in the grid card's sticky save row — a full card above the Generate
+  button, and measured after a real press it sat 448px above the viewport at 1280×900 and 569px at
+  390×844, so the whole v20.07 explore-loop voice (design numbering, best-so-far, how to get a
+  variant back) was invisible from the one place it is read; `aria-live` meant screen-reader users
+  were the only ones getting it. `#genStatus` mirrors the same text under the button (aria-hidden —
+  one announcement is enough). And on the FIRST generate the grid card above grows ~1,500px, which
+  used to strand the viewport mid-grid with the button and feedback both off-screen: the handler
+  now re-anchors the scroll so the button stays where the finger is. Both pinned by an e2e.
 - **The objective labels.** Two of the five carry an inline number, and at 390px the tail wrapped
   flush with the CHECKBOX, reading as a sixth objective. The label text is now one `<span>` (a flex
   item) so it wraps as a block, and the numeric clause has its own line — a 40px-tall field cannot
@@ -1054,17 +1068,15 @@ as three empty boxes rather than a page waiting to be used.
 
 Two more from the same pass, both in-use surfaces:
 
-- **The generator form is CENTRED on desktop, not left-aligned — and the INTRO comes with it.** The
-  660px cap is right (measured at v19.61 — a full-width table puts a 90px shift time in a 477px
-  cell), but left-aligning it in the 1100px card dumped the whole remainder on one side: **440px of
-  empty white running 1,794px down** the tallest card on the page, which reads as a rendering fault.
-  Centred, it is 220px of symmetric gutter.
-  **Centring the form ALONE was a regression, caught by re-screenshotting** (v19.67): the intro
-  prose stayed put, so the card had two left edges — intro 122→778 against table/objectives/actions/
-  Generate all at 310→970. Nearly the same WIDTH (656 vs 660) 188px apart, which reads as a mistake
-  rather than as hierarchy. `#generatorCard .links-desc` now shares the form's cap. **Anything added
-  to this card must join that column too**; an e2e measures all five left edges and names the
-  offender, because a whole-card baseline just re-records whatever the alignment happens to be.
+- **The generator card has ONE left edge, whatever width the form is** — the durable rule from a
+  pass whose specific answer was later reversed. v19.66 capped the form at 660px and centred it;
+  v19.67 found centring the form ALONE left the card with two left edges (intro 122→778 against
+  everything else at 310→970 — nearly the same width 188px apart, which reads as a mistake rather
+  than as hierarchy); **v19.82 then removed the cap entirely** (owner: "still not using the full
+  width" — the current design, recorded in `links.css`). This bullet described the 660px-centred
+  era as current until v20.54. What survives every reversal: **anything added to this card must
+  join the one column**; an e2e measures all five left edges and names the offender, because a
+  whole-card baseline just re-records whatever the alignment happens to be.
 - **The target table keeps its column headers — at ≥768px ONLY** (`position: sticky` on
   `thead th`). They scrolled away after the first six rows, leaving three unlabelled number columns
   — and Mon–Fri, Sat and Sun are three different commitments (Sunday is not even contracted), so

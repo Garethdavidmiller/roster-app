@@ -372,6 +372,24 @@ export function dutyMinutes(shift) {
 export const CONTRACTED_HOURS_PER_WEEK = 35;
 
 /**
+ * Decimal hours → "34h 59m", the ONE formatter for every hours-a-week figure.
+ *
+ * WHY IT ROUNDS MINUTES FIRST (v20.54). Three hand-rolled copies formatted this figure as
+ * `Math.floor(h)` + `Math.round((h % 1) * 60)` — two independent roundings, so 34.9917 hours
+ * rendered as "34h 60m", live, wearing the generator row's green "on target" tick. The two copies
+ * in links-analysis.js were safe only by ACCIDENT: `weeklyHours` pre-rounds its figures to 2 dp,
+ * which happens to cap the fraction below the carry point — a dependency nothing recorded and the
+ * next unrounded caller would have broken. Rounding the TOTAL minutes first makes the carry
+ * arithmetic (59.5m → the next hour) instead of a special case.
+ * @param {number} hours - non-negative decimal hours
+ * @returns {string}
+ */
+export function hmFromHours(hours) {
+    const mins = Math.round(hours * 60);
+    return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+}
+
+/**
  * How many hours a week this design actually gives somebody — the question the panel could not
  * answer until v20.04, and the most basic one anybody asks of a roster.
  *

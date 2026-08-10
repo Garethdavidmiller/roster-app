@@ -1061,6 +1061,15 @@ body.auth-ready .container { display: grid; }
     margin-bottom: 10px;
     min-height: 1em;
 }
+/* The generate feedback beside the button (v20.54). Same green as `.links-save-status.ok` — it is
+   the SAME text, mirrored from the sticky save row, which from this button sits a full card
+   off-screen (measured: 448px above the viewport at 1280×900, 569px at 390×844). */
+.gen-status {
+    font-size: var(--type-label);
+    color: var(--success-green);
+    margin: 10px 0 0;
+}
+.gen-status[hidden] { display: none; }
 .gen-note {
     font-size: var(--type-badge);
     color: var(--text-light);

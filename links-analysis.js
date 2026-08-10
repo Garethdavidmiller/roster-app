@@ -33,7 +33,7 @@
  * list while making the identical claim.
  */
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChecks,
-    weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
+    weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, windowMinutes } from './links-window.js';
@@ -391,14 +391,12 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 const wh = weeklyHours(design.patterns, TOTAL_POS);
                 if (wh.exSunday === null) return '';
                 const off = wh.exSunday - CONTRACTED_HOURS_PER_WEEK;
-                const h = Math.floor(wh.exSunday);
-                const m = String(Math.round((wh.exSunday % 1) * 60)).padStart(2, '0');
                 // Same gate as the full row below (v20.08): the chip is the only version of this
                 // figure most edits ever see, so a partial average must not wear the tick HERE
                 // either — that is the copy that would go on being trusted.
                 const ok = Math.abs(off) <= 0.5 && wh.complete;
                 return chip(ok ? 'ok' : 'warn', ok ? '✓' : '⚠',
-                    `${h}h ${m}m${wh.complete ? '' : '*'}`, 'a week');
+                    `${hmFromHours(wh.exSunday)}${wh.complete ? '' : '*'}`, 'a week');
             })()
             + `<a class="sum-jump btn-text-link" href="#coverageCard">Full analysis ↓</a>`;
     }
@@ -578,7 +576,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // read still deserves its figure — what it must not get is the green tick, because the
             // figure was computed over a smaller rotation than the one on screen (v20.08).
             const onTarget = Math.abs(off) <= 0.5 && wh.complete;
-            const hm = (/** @type {number} */ h) => `${Math.floor(h)}h ${String(Math.round((h % 1) * 60)).padStart(2, '0')}m`;
+            const hm = hmFromHours;
             rows.push(
                 `<div class="check-row ${onTarget ? 'check-good' : 'check-warn-row'}">` +
                 `${onTarget ? tick : warn}<div class="check-body">` +

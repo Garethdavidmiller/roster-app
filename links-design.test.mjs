@@ -26,6 +26,7 @@ import {
     weeklyHours,
     dutyMinutes,
     CONTRACTED_HOURS_PER_WEEK,
+    hmFromHours,
 } from './links-design.js';
 import { CONFIG, weeklyRoster } from './roster-data.js';
 
@@ -791,5 +792,30 @@ describe('weeklyHours', () => {
         assert.equal(dutyMinutes('22:00-06:00'), 8 * 60, 'premise: one reading of a wrapping duty');
         assert.equal(wh.exSunday, 8);
         assert.equal(wh.duties, 1, 'SPARE is not a timed duty');
+    });
+});
+
+describe('hmFromHours — the one hours-a-week formatter', () => {
+    test('a fraction just under the hour CARRIES, and never renders "Xh 60m"', () => {
+        // The shipped defect (v20.54): 41,990 total minutes over 20 working lines is 34.99166...
+        // hours, and the old floor-hours + round-minutes pair rendered it "34h 60m each" — live,
+        // wearing the green "on target" tick. Reachable with ordinary 5-minute-granular durations.
+        assert.equal(hmFromHours(41990 / 60 / 20), '35h 00m');
+        // Sweep the whole carry band, not one value — every fraction from .99167 up must carry.
+        for (let m = 59.5; m < 60; m += 0.1) {
+            const s = hmFromHours(34 + m / 60);
+            assert.ok(!s.includes('60m'), `${34 + m / 60} rendered as "${s}"`);
+        }
+    });
+
+    test('ordinary values are unchanged from the old formatter', () => {
+        assert.equal(hmFromHours(35), '35h 00m');
+        assert.equal(hmFromHours(28.85), '28h 51m');   // the seeded design's real figure
+        assert.equal(hmFromHours(0), '0h 00m');
+        assert.equal(hmFromHours(0.25), '0h 15m');
+    });
+
+    test('minutes are always two digits, so columns of figures align', () => {
+        assert.equal(hmFromHours(6.15), '6h 09m');
     });
 });
