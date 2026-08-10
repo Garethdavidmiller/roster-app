@@ -27,8 +27,10 @@
  *    and validate the INPUT (digits, length) so the UI can enable a button; they do not and must
  *    not know the value. A client-side comparison — even against a hash — turns a 10,000-space
  *    secret into an offline brute force that needs no network and leaves no trace. Validation is
- *    the server's, always. `calendar-secret-hygiene.test.mjs` fails the build if a client file
- *    grows a candidate to compare against.
+ *    the server's, always. Contract B of `calendar-viewer-parity.test.mjs` fails the build if the
+ *    PIN's shapes appear anywhere in the repository. (This comment used to name a dedicated
+ *    `calendar-secret-hygiene.test.mjs` that never existed — the kind of phantom citation that gets
+ *    a real guard deleted by someone who believes another file has it covered.)
  */
 
 /** The dedicated Firebase Auth UID for the shared staff Calendar viewer. Not a member, not an email

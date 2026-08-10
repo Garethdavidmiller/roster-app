@@ -76,9 +76,16 @@ mock.module('./firebase-client.js', {
 mock.module('./session.js', {
     namedExports: {
         getSession: () => sessionValue,
-        reconcileExpiredIdentity: async (opts) => { ops.push('reconcile:' + JSON.stringify(opts || {})); },
+        reconcileExpiredIdentity: async (opts) => {
+            ops.push('reconcile:' + JSON.stringify(opts || {}));
+            if (reconcileHangs) await new Promise(() => {});   // never settles — the wedged-auth case
+        },
     },
 });
+
+/** When true, the mocked reconcile never settles — the wedged-auth-layer case the v20.45 bound
+ *  exists for. A flag rather than a per-test mock because mock.module is import-time here. */
+let reconcileHangs = false;
 
 /** Mutable so both sides of the switch are reachable — the whole point of the flag is that it has
  *  two behaviours, and a test that could only ever see one would be checking half a feature. */
@@ -529,11 +536,40 @@ describe('THE ON/OFF SWITCH — CONFIG.CALENDAR_PIN_ACCESS', () => {
         let started = 0;
         signInAnonymouslyHangs = true;
         const init = initCalendarAccess({ onGranted: () => { started++; } });
-        await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+        // A handful of microtask ticks, NOT a count that means anything: the property under test is
+        // "grant does not await the network sign-in", and if it did, no finite number of ticks would
+        // ever see started=1 (the sign-in is hung). The count was exactly 3 until v20.45, when the
+        // bounded-reconcile race added one legitimate microtask hop and the test failed on tick
+        // arithmetic rather than on the latency property it exists for.
+        for (let i = 0; i < 8; i++) await Promise.resolve();
         assert.equal(started, 1,
             'the Calendar waited for the anonymous sign-in before its first render');
         signInAnonymouslyHangs = false;
         await Promise.race([init, Promise.resolve()]);
+    });
+
+    test('a HUNG reconcile cannot hold the Calendar at a blank page (v20.45)', async (t) => {
+        // The wedged-auth case. `reconcileExpiredIdentity` awaits the first auth emission with no
+        // timeout of its own, and it runs BEFORE `firstAuthUser` — so until v20.45 the 6-second
+        // ceiling that exists for exactly this sat behind an unbounded wait on the same emission
+        // and could never fire. The decision must still resolve: a locked-or-open Calendar is
+        // recoverable, a page that never decides is not.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        CONFIG.CALENDAR_PIN_ACCESS = false;
+        reconcileHangs = true;
+        try {
+            let settled = null;
+            const p = initCalendarAccess({ onGranted: () => {} }).then(v => { settled = v; });
+            for (let i = 0; i < 4; i++) await Promise.resolve();
+            assert.equal(settled, null, 'not yet — the bound has not elapsed');
+            t.mock.timers.tick(6500);                    // the reconcile bound fires
+            for (let i = 0; i < 8; i++) await Promise.resolve();
+            t.mock.timers.tick(6000);                    // firstAuthUser's own ceiling, if reached
+            await p;
+            assert.equal(settled, 'open', 'the decision must resolve despite the hung reconcile');
+        } finally {
+            reconcileHangs = false;
+        }
     });
 
     test('OFF: a signed-in MEMBER is still named — only the fallback moves', async () => {

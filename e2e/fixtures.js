@@ -118,7 +118,14 @@ export const runTransaction = (_db, fn) => {
 // it withholds it when the read has lost. Those are two different panels and only one carries a retry.
 export const getDocs = () => {
   const e2e = globalThis.__E2E || {};
-  if (e2e.failGetDocs) return Promise.reject(new Error('e2e: collection read failed'));
+  // failGetDocs true rejects with a generic error (a network-class failure). A STRING rejects with
+  // that string as the message — pass 'permission-denied' to look like an ACCESS failure (v20.45),
+  // a different branch everywhere that matters: the generic error earns a retry chip, the access
+  // one re-locks the Calendar. Both must be reachable or the re-lock path is untestable end to end.
+  // (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+  if (e2e.failGetDocs) {
+    return Promise.reject(new Error(typeof e2e.failGetDocs === 'string' ? e2e.failGetDocs : 'e2e: collection read failed'));
+  }
   const rows = e2e.docs;
   const wrap = (v) => (e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));
   if (!rows) return wrap({ empty: true, size: 0, docs: [], forEach: noop });
@@ -338,6 +345,13 @@ export const test = base.extend({
     page: async ({ page }, use) => {
         await page.route('https://www.gstatic.com/firebasejs/**', route =>
             route.fulfill({ contentType: 'text/javascript', body: FIREBASE_STUB }));
+
+        // The lock card fires a fire-and-forget warm-up GET at the real exchange URL the moment it
+        // shows (v20.45). This suite is hermetic — nothing may leave the test machine — so it is
+        // aborted by default. Specs that stub the exchange register their route AFTER this one and
+        // Playwright consults routes newest-first, so stubPinExchange wins where it is used; the
+        // abort is caught by the pre-warm's own `.catch` and changes nothing it does.
+        await page.route('**/unlockCalendarViewer', route => route.abort('failed'));
 
         await page.route('**/roster-data.js', async route => {
             const res = await route.fetch();

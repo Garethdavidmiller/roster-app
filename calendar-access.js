@@ -127,7 +127,16 @@ export function isViewerMode() { return _accessType === 'viewer'; }
  */
 async function resolveAccess() {
     try {
-        await reconcileExpiredIdentity({ preserveCalendarViewer: true });
+        // BOUNDED, like every other wait on this path (v20.45). `reconcileExpiredIdentity` awaits
+        // the first auth emission with no timeout of its own, and it runs BEFORE `firstAuthUser`
+        // below — so the 6-second ceiling that keeps a wedged auth layer from holding the Calendar
+        // at a blank page sat behind an unbounded wait on the same emission, and could never fire.
+        // The race leaves reconcile running in the background if it is merely slow: it is an
+        // idempotent teardown, and the decision below reads ground truth either way.
+        await Promise.race([
+            reconcileExpiredIdentity({ preserveCalendarViewer: true }),
+            new Promise(resolve => setTimeout(resolve, 6500)),
+        ]);
     } catch { /* best effort — the decision below is made from ground truth either way */ }
     // `auth.currentUser` alone MISSES a cold restore: persistence being configured does not mean the
     // persisted user has loaded, and the first `onAuthStateChanged` emission is what delivers it.
@@ -156,6 +165,11 @@ function firstAuthUser() {
 /** Commit an access decision exactly once, and let the Calendar start. */
 function grant(/** @type {'named'|'viewer'|'open'} */ type) {
     _accessType = type;
+    // A fresh session starts with a clean slate on the CLIENT backoff too. Without this, a member
+    // who fumbled three times at boot, unlocked, and is re-locked hours later (PIN rotation) begins
+    // their next attempt already one failure from the delay — punished for a mistake from a
+    // different sitting. The server's window is authoritative and is not touched by this.
+    _consecutiveFailures = 0;
     document.body.classList.remove('calendar-locked');
     document.body.classList.add('calendar-unlocked');
     hideLockPanel();
@@ -372,6 +386,19 @@ function showLockPanel() {
     if (_panel) return;
     document.body.classList.add('calendar-locked');
     setWorkspaceHidden(true);
+
+    // ── Warm the exchange while the member is still typing (v20.45) ─────────────────────────────
+    //
+    // `unlockCalendarViewer` sees a handful of calls a day, so the instance serving it is usually
+    // COLD, and a cold start is the single largest number in the unlock chain — worth more than
+    // every code path after it combined. The seconds a person spends reading this card and typing
+    // four digits are exactly the seconds that start covers, so spend them: one fire-and-forget GET,
+    // which the handler answers with a bare 405 before touching the throttle store, the secret or
+    // any Firebase surface. Nothing is sent (no PIN — there isn't one yet), nothing is read from
+    // the response, and a failure changes nothing (`catch` and move on) — the submit path neither
+    // knows nor cares whether the warm-up happened.
+    try { fetch(UNLOCK_URL, { method: 'GET', cache: 'no-store' }).catch(() => {}); }
+    catch { /* fetch unavailable — the submit path is unaffected */ }
 
     // Falls back to <body>. `.container` has been there since the app was written, but the cost of
     // it being absent is not "the card is misplaced" — it is a navy page with no card, no calendar

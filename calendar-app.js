@@ -1116,6 +1116,11 @@ initNavPanel({
 // The LAST thing the module does, deliberately: every shell subsystem above is wired first, so a
 // locked visitor still has the nav drawer, the guides, the documents and the About panel. Only then
 // is access decided, and only on `named`/`viewer` does the workspace exist at all.
+// Whether `onGranted` has run — i.e. whether a grant is the FIRST one. Read by `onEveryGrant` to
+// tell "boot" from "re-unlock": on boot the workspace does not exist yet and the repaint below
+// would run against unbuilt state, so it must be skipped there and only there.
+let _workspaceStarted = false;
+
 initCalendarAccess({
     // EVERY grant, not just the first (v20.41). Both of these are things the access-lost path turns
     // OFF, so both have to come back on when access returns — which is precisely what re-entering
@@ -1131,9 +1136,23 @@ initCalendarAccess({
         // through the initial fetch — so they need the same access-lost recovery, and they are the
         // likelier path once a session has been open for a while (v20.15).
         setOverrideAccessLostHandler(handleAccessLost);
+        // A RE-grant also repaints (v20.45). `grant()` un-hides the workspace exactly as the
+        // re-lock left it, and nothing else asks for a render — every fetch in this app is pulled
+        // by one — so without this the member who just entered the rotated PIN looked at the grid
+        // from BEFORE the lock, up to fifteen minutes stale, until their next navigation. The
+        // repaint goes through the ordinary paths on purpose: `setOverrideAccess(true)` has just
+        // cleared the month claims, so `renderCalendar`'s own `ensureOverridesCached` re-fetches
+        // the display month and the readiness model narrates it honestly ("Checking this month" →
+        // grid) rather than this code hand-managing freshness. `restoreTeamView` is the team-side
+        // equivalent — render + week fetch — and is safe to re-enter (`_pushOverlayState` dedupes
+        // its Back handler; the chrome calls are idempotent).
+        if (_workspaceStarted) {
+            if (teamView.isTeamViewMode()) teamView.restoreTeamView();
+            else renderCalendarWhenIdle();
+        }
     },
     // ONCE: re-running this would re-wire the swipe handler and re-launch the initial 3-month fetch.
-    onGranted: () => { _startCalendarWorkspace?.(); },
+    onGranted: () => { _workspaceStarted = true; _startCalendarWorkspace?.(); },
 });
 
 
