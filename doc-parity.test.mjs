@@ -236,6 +236,93 @@ test('the suite-size patterns still match their own examples — guard the guard
     }
 });
 
+// ── CONTRACT 2c: no doc miscounts the GUIDE PAGES ──────────────────────────────────────────────
+//
+// The same failure as CONTRACT 2, with a list rather than a constant as its owner, and it had
+// already happened: `rangers-guide.html` shipped as the FIFTH guide at v20.05, and half a year of
+// releases later there were still SEVEN places calling them four — `guide-shell.css` and `guide-back.js` in both routing
+// docs, the guide-pages and css-tokens rules, and an AI_MAP line that enumerated the four by name
+// and simply omitted the new one. Every one described a file that all five pages load.
+//
+// The tell is in CLAUDE.md's own tree, which carries the note "the fifth, added v20.05, which this
+// line still called 'four' until v20.32". So the miscount WAS found, one copy of it was corrected,
+// and the sweep stopped there — which is the documented shape of every attribution bug in this repo
+// ("each corrected by editing prose in two or three files, each leaving a copy behind").
+//
+// SCOPED TO TOTALS BY REQUIRING THE WORD "all". A subset claim is legitimate and common — "the two
+// document-style guides" load `guide-doc.css`, and that is true — so a bare "N guides" pattern would
+// fire on correct prose, acquire an exemption list, and stop guarding. "all N guides" is only ever a
+// claim about every one of them.
+//
+// The truth comes from NAV_GUIDES, which is what the drawer renders and what
+// `firestore-contract-parity.test.mjs` already checks the analytics ids against — so this compares
+// the docs to the same source the app uses, not to a number typed here.
+const NAV_PANEL = read('./nav-panel.js');
+
+/** How many guides the app actually has, read from the list the drawer renders. */
+function guideCount() {
+    const block = NAV_PANEL.match(/const NAV_GUIDES\s*=\s*\[([\s\S]*?)\n\];/);
+    assert.ok(block, 'NAV_GUIDES not found in nav-panel.js — this test is checking nothing');
+    return [...block[1].matchAll(/url:\s*'\.\/[^']+\.html'/g)].length;
+}
+
+const NUMBER_WORD = {
+    two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+
+test('no doc states a guide-page total that disagrees with NAV_GUIDES', () => {
+    const real = guideCount();
+    assert.ok(real >= 4, `expected at least 4 guides, read ${real} from NAV_GUIDES`);
+
+    // Every doc that describes the guide chrome. `guide-pages.md` is the rules file for these pages
+    // and carried two of the seven, so the list is deliberately wider than LIVE_DOCS.
+    const DOCS = [...LIVE_DOCS, './.claude/rules/guide-pages.md'];
+    const RE = /\ball\s+(\d+|two|three|four|five|six|seven|eight|nine|ten)\s+(?:app\s+)?guides?(?:\s+pages?)?\b/gi;
+
+    const problems = [];
+    for (const doc of DOCS) {
+        let text;
+        try { text = read(doc); } catch { continue; }
+        for (const m of text.matchAll(RE)) {
+            const n = NUMBER_WORD[m[1].toLowerCase()] ?? Number(m[1]);
+            if (n === real) continue;
+            // A doc recording what USED to be true is not making a claim about today. Judged on the
+            // sentence, like CONTRACT 2 — so "it said four until v20.32" passes and a live
+            // "all four guides share this" does not.
+            const start = text.lastIndexOf('.', m.index) + 1;
+            const sentence = text.slice(start, text.indexOf('.', m.index + m[0].length) + 1);
+            if (/\b(?:until|used to|previously|at the time|was written|no longer|do not|don't|never|must not)\b/i.test(sentence)) continue;
+            problems.push(`${doc}: "${m[0].trim()}" — there are ${real}`);
+        }
+    }
+    assert.deepEqual(problems, [],
+        `NAV_GUIDES has ${real} entries. A doc that miscounts them describes a file every guide ` +
+        'loads, and reads as correct:\n  ' + problems.join('\n  '));
+});
+
+test('the guide-count guard still matches the form that shipped — guard the guard', () => {
+    // The exact strings that were live at v20.54, one per file they came from. If the pattern is
+    // ever loosened or tightened past these, it has stopped covering the bug it was written for.
+    const RE = /\ball\s+(\d+|two|three|four|five|six|seven|eight|nine|ten)\s+(?:app\s+)?guides?(?:\s+pages?)?\b/gi;
+    for (const shipped of [
+        'shared chrome for all 4 guide pages (header + gold brand rule',
+        'the page you came from, all 4 guides) | `guide-back.js` |',
+        'All four guide pages share one chrome for consistent behaviour',
+        'all six app pages + all four guides — the guides do not',
+    ]) {
+        RE.lastIndex = 0;
+        assert.ok(RE.test(shipped), `the pattern no longer matches "${shipped}"`);
+    }
+    // And the subset claims it must NOT fire on — these are true and must stay sayable.
+    for (const fine of [
+        'the two document-style guides additionally load `guide-doc.css`',
+        'guide-print.js, shared by three of the guides',
+    ]) {
+        RE.lastIndex = 0;
+        assert.equal(RE.test(fine), false, `"${fine}" is a subset, not a total — the pattern must not fire`);
+    }
+});
+
 // ── CONTRACT 3: the tree ROUTES, it does not explain ───────────────────────────────────────────
 //
 // The property that keeps CLAUDE.md loadable. It is stated as a rule at the top of the tree, and a

@@ -18,11 +18,14 @@ paths:
 
 ## What is in this file
 
-810 lines, loaded whole whenever a Links file is edited, so here is the shape of it:
+A long file, loaded whole whenever a Links file is edited, so here is the shape of it. (This line
+carried its own line count until the v20.54 docs sweep, by which point the figure was out by nearly
+400 — a self-measurement is stale the next time anyone edits the file it measures, which is the same
+rule `doc-parity.test.mjs` applies to suite sizes. Say what is in it, not how big it is.)
 
 | Where | What |
 |---|---|
-| **The module set · Access control** | the twelve modules, and who may read/write a design |
+| **The module set · Access control** | every module, and who may read/write a design |
 | **Design and save model** | the Firestore shape, the grid, paint mode, the operating window, the heat map |
 | **Design checks** | the two halves of the checks card — **hard limits** (meet or cannot run) above **fatigue factors** (advisory, never pass/fail) |
 | **The generator** | what it is, its two constructions, the line-order objectives, the removed uplift control, its layout |
@@ -34,9 +37,14 @@ that shipped wrong once, and the reasoning is usually more load-bearing than the
 
 ## The module set
 
-The workspace is one coordinator over **twelve** pure/extracted modules. Everything except `links-app.js`
+The workspace is one coordinator over the pure/extracted modules below. Everything except `links-app.js`
 is testable without a browser, which is deliberate — the coordinator is where the Firestore and DOM
 state lives, and the rules that have historically produced bugs have been pulled out of it.
+
+**The table is the count.** This sentence read "twelve" while the table under it listed thirteen:
+`links-design-doc.js` was added at v19.94 and the prose was never swept, so the two disagreed for
+the whole of v20. A number written beside the list it describes is a second copy of that list — see
+`doc-parity.test.mjs`.
 
 | Module | Owns |
 |--------|------|
