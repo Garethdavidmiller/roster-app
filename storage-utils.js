@@ -91,3 +91,60 @@ export function sixMonthCutoffISO(now) {
     const cutoff = new Date(now.getFullYear(), tm, Math.min(now.getDate(), daysInTargetMonth));
     return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
 }
+
+/**
+ * The Storage object path for a document uploaded BEFORE the versioned-path scheme (v13.99) —
+ * a fixed `{collection}/{date}.{ext}` per date, honouring the doc's own fileType with a 'pdf'
+ * default (DOCX support postdates storagePath, so a legacy doc with no fileType is a PDF).
+ *
+ * ONE RULE, previously written twice (v20.55). `_transactionalUpload` derived it with `?? 'pdf'`
+ * and `_pruneOldDocs` with `|| 'pdf'` — semantically different spellings (`??` keeps an empty
+ * string, `||` replaces it) of what must be one answer, in the two places that decide which old
+ * Storage object to DELETE. A drift here doesn't error: it quietly orphans a file, or worse,
+ * removes the wrong one. `||` is the correct reading — a doc carrying `fileType: ''` should fall
+ * back to 'pdf', not produce `date..` — so that is the one this keeps.
+ *
+ * @param {string} collectionName - 'huddles' | 'circulars' | 'newsletters'
+ * @param {string} dateId         - the doc id, "YYYY-MM-DD"
+ * @param {string} [fileType]     - the legacy doc's stored fileType, if any
+ * @returns {string}
+ */
+export function legacyDocPath(collectionName, dateId, fileType) {
+    return `${collectionName}/${dateId}.${fileType || 'pdf'}`;
+}
+
+/**
+ * The VERSIONED Storage object path for an upload — `{collection}/{date}-{uploadId}.{ext}`.
+ * The suffix is what keeps the OLD file alive until Firestore commits (a re-upload, including a
+ * PDF↔DOCX swap, never orphans the previous object mid-commit; v13.99).
+ *
+ * Two properties callers rely on, both pinned by tests:
+ *  · it starts with `{collection}/{date}-` — the server-side huddle prune (pruneOldHuddles in
+ *    functions/documents.js) reclaims a date's objects by exactly that prefix, so a versioned
+ *    path that drifted out from under the prefix would never be swept;
+ *  · the uploadId is generated at the CALL site (`Date.now`+`Math.random` — impure), never here,
+ *    so this stays a pure function of its inputs.
+ * @param {string} collectionName
+ * @param {string} date       - "YYYY-MM-DD"
+ * @param {string} uploadId   - short random suffix, caller-generated
+ * @param {string} fileType   - 'pdf' | 'docx'
+ * @returns {string}
+ */
+export function versionedDocPath(collectionName, date, uploadId, fileType) {
+    return `${collectionName}/${date}-${uploadId}.${fileType}`;
+}
+
+/**
+ * The upload Content-Type for a detected fileType. Set EXPLICITLY on every upload — Android
+ * sometimes reports a .docx (a ZIP archive) as application/zip or application/octet-stream,
+ * which trips the Storage content-type rule. (The same map exists server-side in
+ * functions/documents.js's ingestHuddle — CommonJS, so it cannot import this module; the
+ * normaliseSurname boundary, same trade.)
+ * @param {'pdf'|'docx'} fileType
+ * @returns {string}
+ */
+export function uploadMimeType(fileType) {
+    return fileType === 'docx'
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/pdf';
+}

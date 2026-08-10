@@ -13,7 +13,7 @@
     "test:csp": "firebase --project demo-myb-roster emulators:exec --only hosting 'playwright test --config=playwright.csp.mjs'",
     "test:visual": "playwright test --config=playwright.visual.mjs",
     "test:offline": "playwright test --config=playwright.offline.mjs",
-    "test:functions": "node --test roster-parse-helpers.test.mjs",
+    "test:functions": "node --test roster-parse-helpers.test.mjs functions-surface.test.mjs",
     "bump": "node scripts/bump-version.mjs",
     "generate:roster-members": "node scripts/generate-roster-members.mjs",
     "lint": "eslint . --max-warnings=0",

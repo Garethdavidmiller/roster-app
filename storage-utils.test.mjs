@@ -7,7 +7,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, sixMonthCutoffISO } from './storage-utils.js';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, sixMonthCutoffISO, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
 
 describe('isSafeStorageUrl', () => {
     test('accepts a Firebase download URL under this project bucket', () => {
@@ -104,5 +104,48 @@ describe('sixMonthCutoffISO', () => {
     });
     test('zero-pads single-digit month and day', () => {
         assert.equal(sixMonthCutoffISO(new Date(2026, 8, 5)), '2026-03-05'); // 5 Sep → 05 Mar
+    });
+});
+
+describe('legacyDocPath — the pre-v13.99 fixed path, ONE rule for both deciders', () => {
+    // The two call sites that decide which OLD Storage object to delete (the upload engine's
+    // cleanup and the 6-month prune) each hand-wrote this fallback until v20.55 — one with
+    // `?? 'pdf'`, one with `|| 'pdf'`, which disagree exactly on a doc carrying `fileType: ''`.
+    // A drift here never errors: it orphans a file, or deletes the wrong one.
+    test('honours the legacy doc’s own fileType', () => {
+        assert.equal(legacyDocPath('circulars', '2026-06-27', 'docx'), 'circulars/2026-06-27.docx');
+    });
+    test('defaults to pdf when fileType is missing — DOCX support postdates storagePath', () => {
+        assert.equal(legacyDocPath('newsletters', '2026-06-27', undefined), 'newsletters/2026-06-27.pdf');
+    });
+    test('an empty-string fileType falls back to pdf, never "date.." (the ??-vs-|| divergence)', () => {
+        assert.equal(legacyDocPath('circulars', '2026-06-27', ''), 'circulars/2026-06-27.pdf');
+    });
+});
+
+describe('versionedDocPath — the v13.99 upload path', () => {
+    test('shape: {collection}/{date}-{uploadId}.{ext}', () => {
+        assert.equal(versionedDocPath('huddles', '2026-06-25', 'lv9kab12', 'pdf'),
+            'huddles/2026-06-25-lv9kab12.pdf');
+    });
+    test('starts with the {collection}/{date} prefix the server-side huddle prune sweeps by', () => {
+        // pruneOldHuddles (functions/documents.js) reclaims a date's objects with a
+        // `huddles/<date>` prefix listing — versioned AND legacy paths must both sit under it,
+        // or a pruned date leaves its file behind forever.
+        const date = '2026-06-25';
+        for (const p of [versionedDocPath('huddles', date, 'abc123', 'docx'),
+                         legacyDocPath('huddles', date, 'pdf')]) {
+            assert.ok(p.startsWith(`huddles/${date}`), `${p} escapes the prune prefix`);
+        }
+    });
+});
+
+describe('uploadMimeType — the explicit Content-Type map', () => {
+    test('docx gets the Word MIME (Android may report application/zip)', () => {
+        assert.equal(uploadMimeType('docx'),
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    });
+    test('pdf gets application/pdf', () => {
+        assert.equal(uploadMimeType('pdf'), 'application/pdf');
     });
 });

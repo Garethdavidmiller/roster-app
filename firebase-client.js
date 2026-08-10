@@ -107,7 +107,7 @@ export const COLLECTIONS = {
 // importers (nav-panel, calendar-doc-viewer, the Huddle viewer) are unaffected; isDocxUpload is used
 // internally by the upload paths. officeViewerUrl is re-exported for the DOCX circular/newsletter
 // open path (nav-panel, calendar-doc-viewer).
-import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, sixMonthCutoffISO } from './storage-utils.js';
+import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, sixMonthCutoffISO, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
 export { isSafeStorageUrl, officeViewerUrl };
 
@@ -336,23 +336,23 @@ async function _transactionalUpload(collectionName, date, file, uploadedBy, opts
     // mis-detected as 'pdf' and rejected by the signature check with a confusing "not a valid" error.
     const fileType = isDocxUpload(file) ? 'docx' : 'pdf';
     await assertFileSignature(file, fileType);   // reject a renamed/mismatched file before Storage
-    // Set the MIME explicitly — Android sometimes reports a .docx (a ZIP archive) as application/zip
-    // or application/octet-stream, which can trip the Storage content-type rule.
-    const mimeType = fileType === 'docx'
-        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        : 'application/pdf';
+    // Set the MIME explicitly (uploadMimeType) — Android sometimes reports a .docx (a ZIP archive)
+    // as application/zip or application/octet-stream, which can trip the Storage content-type rule.
+    const mimeType = uploadMimeType(fileType);
     const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
 
-    // Read the previous storagePath first (storagePath added v13.99 — fall back for legacy docs, using
-    // the OLD doc's fileType so a PDF↔DOCX swap still finds and cleans up the previous file).
+    // Read the previous storagePath first (storagePath added v13.99 — legacyDocPath is the fallback
+    // for older docs, honouring the OLD doc's fileType so a PDF↔DOCX swap still finds and cleans up
+    // the previous file).
     const oldSnap = await getDoc(doc(db, collectionName, date));
     const oldData = oldSnap.exists() ? /** @type {any} */ (oldSnap.data()) : null;
-    const oldStoragePath = oldData ? (oldData.storagePath ?? `${collectionName}/${date}.${oldData.fileType ?? 'pdf'}`) : null;
+    const oldStoragePath = oldData ? (oldData.storagePath ?? legacyDocPath(collectionName, date, oldData.fileType)) : null;
 
-    // Versioned path keeps the old file alive until Firestore commits — a re-upload (incl. a PDF↔DOCX
-    // swap, which changes the extension) never orphans the old file mid-commit.
+    // Versioned path (versionedDocPath) keeps the old file alive until Firestore commits — a
+    // re-upload (incl. a PDF↔DOCX swap, which changes the extension) never orphans the old file
+    // mid-commit. The id itself is generated HERE (impure) so the path builder stays pure.
     const uploadId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const newStoragePath = `${collectionName}/${date}-${uploadId}.${fileType}`;
+    const newStoragePath = versionedDocPath(collectionName, date, uploadId, fileType);
     const storageRef = ref(storage, newStoragePath);
 
     let storageUrl;
@@ -453,14 +453,12 @@ async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, delete
     await Promise.all(snap.docs
         .filter(/** @param {any} d */ d => d.id !== excludeDate)
         .map(/** @param {any} d */ async d => {
-            // storagePath added at v13.99; fall back to the legacy fixed-path convention for older
-            // documents uploaded before the versioned upload scheme. Honour the doc's own fileType
-            // in that fallback (default 'pdf') rather than hardcoding '.pdf' — a legacy .docx would
-            // otherwise orphan its Storage object. (Belt-and-braces: DOCX support postdates
-            // storagePath, so no such doc exists today — but this matches _transactionalUpload's
-            // fileType-aware cleanup and removes the latent assumption.)
+            // storagePath added at v13.99; legacyDocPath is the fallback for older documents
+            // uploaded before the versioned upload scheme — it honours the doc's own fileType
+            // (default 'pdf'), the same one rule _transactionalUpload's cleanup reads, so the two
+            // deciders of "which old object do we delete" can no longer drift (v20.55).
             const _docData    = d.data() || {};
-            const storagePath = _docData.storagePath ?? `${collectionName}/${d.id}.${_docData.fileType || 'pdf'}`;
+            const storagePath = _docData.storagePath ?? legacyDocPath(collectionName, d.id, _docData.fileType);
             try {
                 await deleteDoc(doc(db, collectionName, d.id));
                 await deleteObject(refFn(storage, storagePath))
