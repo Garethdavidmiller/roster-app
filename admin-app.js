@@ -1455,7 +1455,7 @@ export function init() {
         const _memberSelectable = _setSelectValue(fieldMember, currentUser);
         if (!_memberSelectable) {
             // currentUser isn't a selectable (non-hidden) member — a leaver whose Firebase account
-            // wasn't disabled yet but still holds a valid 30-day session. Without this, the three
+            // wasn't disabled yet but still holds a valid 60-day session. Without this, the three
             // DISABLED selects stay pinned to the FIRST member in the dropdown, so any AL/absence/shift
             // booking would silently target the WRONG person (changedBy is real, target is not). Clear
             // the selects so their value is '' and every write path's `if (!member) return` guard blocks,

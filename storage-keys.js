@@ -19,7 +19,7 @@ export const SELECTED_MEMBER = 'myb_roster_selected_member';
 /** Legacy pre-v16.81 alias of SELECTED_MEMBER. No longer WRITTEN — kept only as a READ
  *  fallback in admin-app.js for one release so a device that had only the old key still
  *  restores its last member. Safe to delete once every active device has re-saved (≈ after
- *  the next 30-day session cycle). */
+ *  the next 60-day session cycle). */
 export const SELECTED_MEMBER_LEGACY = 'adminLastMember';
 
 /** The month/year the calendar is currently viewing — persisted by calendar-state.js and

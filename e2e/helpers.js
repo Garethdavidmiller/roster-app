@@ -26,12 +26,16 @@ export function collectFatalErrors(page) {
 // Seed a valid signed-in session before any page script runs. Shape must match
 // session.js getSession(): { name, ver: SESSION_VER (2), expiry }. There is no idle timestamp —
 // the 7-day inactivity cutoff was removed at v20.41, leaving `expiry` as the only clock.
+//
+// The expiry below is deliberately an ARBITRARY future date, not a copy of `SESSION_MS`: these
+// tests only need a session that is unexpired, and mirroring the real term would make every spec
+// a place the policy is restated (it changed 30 → 60 at v20.47 and nothing here needed to move).
 export function seedSession(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
             name: n,
             ver: 2,
-            expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+            expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
     }, name);
 }
@@ -67,7 +71,11 @@ export async function armEnforcementWithFailingSignIn(page, name = 'G. Miller') 
 
 // Drive the real login overlay: find the grade that lists `fullName`, select it, type the
 // surname password (mirrors normaliseSurname), submit. The fixture's default sign-in resolves.
-export async function signInThroughOverlay(page, fullName) {
+//
+// `{ submit: false }` stops short of pressing Sign in — for the tests that need a member SELECTED in
+// the card without an attempt having been made (the reset-request link reads the dropdown at click
+// time, so "who is named here" is a state worth reaching without failing first).
+export async function signInThroughOverlay(page, fullName, { submit = true } = {}) {
     await page.locator('#loginOverlay').waitFor({ state: 'visible' });
     const grades = await page.locator('#loginGrade option').evaluateAll(
         opts => opts.map(o => o.value).filter(Boolean));
@@ -79,7 +87,7 @@ export async function signInThroughOverlay(page, fullName) {
     await page.locator('#loginName').selectOption(fullName);
     const pw = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
     await page.locator('#loginPassword').fill(pw);
-    await page.locator('#loginSubmit').click();
+    if (submit) await page.locator('#loginSubmit').click();
 }
 
 
@@ -215,7 +223,7 @@ export function seedMemberSession(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_admin_session', JSON.stringify({
             name: n, ver: 2,
-            expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+            expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
         localStorage.setItem('myb_roster_selected_member', n);
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });

@@ -1161,7 +1161,7 @@ initCalendarAccess({
 //
 // WHO THIS IS FOR, because it is not who you would assume. `password-force.js` already COMPELS any
 // member still on the surname default to choose their own at their next sign-in, and sessions cap at
-// 30 days, so everyone who signs in is handled without a notice. The people it cannot reach are the
+// 60 days, so everyone who signs in is handled without a notice. The people it cannot reach are the
 // ones who only ever read the roster and so never sign in anywhere — CLAUDE.md records exactly that
 // as an accepted gap. This notice exists for them, on the one page they do open.
 //

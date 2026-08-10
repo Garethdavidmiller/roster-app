@@ -104,7 +104,7 @@ claims otherwise.
   OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN"). Existing viewer sessions survive a
   rotation until their browser closes unless the viewer account's refresh tokens are revoked.
 - **A calendar-only member now has to unlock, or sign in.** Before this, a member who never signed
-  in anywhere could use the Calendar indefinitely. Now they either sign in once (a 30-day session,
+  in anywhere could use the Calendar indefinitely. Now they either sign in once (a 60-day session,
   and no PIN thereafter) or enter the PIN each browser session. On a personal phone signing in is
   clearly the better deal, and the `pw-own-2026` notice already nudges exactly this group — but it
   IS a change for the largest group of users and should be expected in support questions.
@@ -328,11 +328,35 @@ non-security controls. Practical risk is low for a small known team. The per-mem
 rules are tracked in `SECURITY_RELEASE_PLAN.md` → B2/B3, and task #2 below for the suspended
 first attempt.
 
-### A signed-in session now lasts 30 days regardless of use (v20.41 — accepted trade)
+### A signed-in session lasts 60 days regardless of use (v20.41 + v20.47 — accepted trade)
 
-The 7-day inactivity cutoff was removed by owner decision. `SESSION_MS` (30 days, absolute, set once
-at sign-in) is the only clock; the `IDLE_MS` constant, the `lastActivity` timestamp and the
-write-back inside `getSession()` are gone rather than left dormant.
+Two owner decisions, one direction. At **v20.41** the 7-day inactivity cutoff was removed: `SESSION_MS`
+(absolute, set once at sign-in) became the only clock, and the `IDLE_MS` constant, the `lastActivity`
+timestamp and the write-back inside `getSession()` went with it rather than being left dormant. At
+**v20.47** that clock was doubled, **30 days → 60**, on the same reasoning as the removal — the
+absolute bound is not what protects an account (below), so its length is a UX dial.
+
+**Existing sessions are not migrated, and no `SESSION_VER` bump was made.** `expiry` is stamped once
+at sign-in, so a session created before v20.47 keeps its original 30-day date and picks up the longer
+term at its next sign-in. Migrating them would mean writing on read — precisely the behaviour v20.41
+removed — and bumping the version would sign every member out, which is the opposite of the intent.
+So the change arrives gradually, per member, which is also how it should be reviewed.
+
+**What it makes worse, and what reads FROM this number.** Two things downstream are derived from the
+session length rather than owning their own clock, and both get further away as it grows:
+
+- **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, PASSWORD_PLAN Track C) is driven by
+  sign-ins, so full coverage now takes up to 60 days instead of 30 — the C5 exit metric converges
+  half as fast.
+- **Operations → Usage, "Accounts that have signed in — last 30 days"** used to be a slight
+  *over*-count of active people, because a live session required a sign-in inside 30 days. **That
+  inference is now dead and the error runs both ways**: someone can sign in once and use the app
+  daily for two months without re-entering the window. The card's visible note already says only
+  "counts sign-ins, not opens", which stays true; the reasoning beside `_appendSignInSection` states
+  the new direction. Do not restore an active-people claim unless the window is derived from
+  `SESSION_MS`.
+
+The iOS ITP window below widens with it too — from about three weeks to about seven.
 
 **What this does not change.** Every path that genuinely REVOKES access is immediate and was never
 the idle clock's job: an explicit sign-out (`clearSession`, which signs Firebase out too), a disabled
@@ -341,7 +365,7 @@ viewer** is untouched — it is not a member session, holds no `name` claim, and
 session-only, so it ends when the browser session does.
 
 **What it does change, stated plainly.** A LEAVER whose device still holds a local session keeps the
-signed-in *UI* for up to 30 days instead of up to 7. That was never the control it looked like: the
+signed-in *UI* for up to 60 days instead of up to 7. That was never the control it looked like: the
 real remedy is Operations → Set up accounts → "Disable accounts for leavers", and once an account is
 disabled the ID token stops refreshing (≤1 hour) and every authenticated read and write fails. The
 Admin page independently blocks a signed-in name that is no longer a selectable roster member
@@ -355,7 +379,8 @@ after roughly **7 days** of no PWA use, which is where the Firebase identity liv
 7-day idle cutoff aged out at about the same moment, so the two expired together and the member
 simply saw a login. With the cutoff gone, an iPhone user who does not open the app for a fortnight
 can hold a valid local session with **no restorable identity** — a state that previously lasted
-about a day and can now last up to three weeks.
+about a day, became up to three weeks at v20.41, and is up to **seven weeks** at v20.47 now the
+session runs 60 days against ITP's unchanged 7.
 
 Since v20.46 (`CONFIG.CALENDAR_PIN_ACCESS: true`) this is **live behaviour, not a future one**:
 that member gets the unlock card instead of their roster, despite being signed in. The
@@ -366,13 +391,13 @@ after the rollout (RECOVERY_RUNBOOK.md → "The Calendar PIN").
 
 **Why removed rather than lengthened.** A policy left in place with no effect is the thing a later
 reader "restores" on the assumption it was load-bearing. `session.test.mjs` pins the replacement
-properties instead: a long-untouched session inside its 30 days is still valid, a pre-v20.41 session
+properties instead: a long-untouched session inside its window is still valid, a pre-v20.41 session
 carrying the old field is accepted and the field ignored (no `SESSION_VER` bump, so nobody is signed
 out by this change), a read leaves the stored session byte-identical, and a newly-written session
 contains exactly `name`/`ver`/`expiry`.
 
 ### Firebase Auth session is re-established on page load (v10.93)
-A returning user with a valid 30-day localStorage session skips the login click handler on
+A returning user with a valid 60-day localStorage session skips the login click handler on
 every subsequent open, which would leave `auth.currentUser` null and break all Firestore
 writes. Fixed in v10.93 by `ensureFirebaseSession()`, which runs on page load whenever a
 localStorage session exists (waits for `onAuthStateChanged`, signs in if none found,
@@ -436,7 +461,7 @@ every write to carry a custom JWT claim (`request.auth.token.name` = memberName,
    writes failed the isolation check, not just non-admins.
 
 2. **Page-load Firebase Auth session bug (v10.93 fixed):** The Firebase Auth sign-in only
-   ran inside the login click handler. A returning user with a valid 30-day localStorage
+   ran inside the login click handler. A returning user with a valid 60-day localStorage
    session never hit that handler, so `auth.currentUser` was persistently null — breaking
    both the Firestore writes (no session at all) and the "Set up accounts" button needed to
    fix the claims. A classic deadlock.

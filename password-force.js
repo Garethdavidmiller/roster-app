@@ -41,10 +41,11 @@
  * never resurface on a later non-login load. That costs a compel cycle on a failed read; leaving the
  * marker set would re-create Fix 4, which is worse.
  *
- * Coverage note: this reaches anyone who signs in. Sessions are capped at 30 days absolute
- * (session.js — the 7-day idle cutoff was removed at v20.41), and an expired session forces a real
- * typed login (`reconcileExpiredIdentity`), so the rollout completes itself within 30 days and
- * staggers naturally by each member's own expiry.
+ * Coverage note: this reaches anyone who signs in. Sessions are capped at 60 days absolute
+ * (`SESSION_MS` in session.js — 30 days until v20.47; the 7-day idle cutoff went at v20.41), and an
+ * expired session forces a real typed login (`reconcileExpiredIdentity`), so the rollout completes
+ * itself within 60 days and staggers naturally by each member's own expiry. That window is a
+ * CONSEQUENCE of the session length, not a policy of this module — it doubled when the session did.
  * A member who only ever views the roster never signs in anywhere and is never compelled — accepted;
  * reaching them means putting the calendar behind a login (SECURITY_RELEASE_PLAN.md → Track E).
  */
@@ -167,11 +168,12 @@ function _mount() {
             <div class="login-app-name">Set your own password</div>
             <div class="login-subtitle">Your password is still your surname, which anyone who knows your name could guess. Choose one only you know — you’ll need it the next time you sign in on any device.</div>
             <div class="login-field">
-                <label for="pwfNew">New password <span class="pwf-req">(at least ${MIN_PASSWORD_LENGTH} characters)</span></label>
+                <label for="pwfNew">New password</label>
                 <div class="login-pw-wrap">
-                    <input type="password" id="pwfNew" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+                    <input type="password" id="pwfNew" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="pwfNewHint">
                     <button type="button" id="pwfToggle" class="login-pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
                 </div>
+                <div class="login-hint" id="pwfNewHint">At least ${MIN_PASSWORD_LENGTH} characters. Anything you'll remember — it replaces your surname everywhere you sign in.</div>
             </div>
             <div class="login-field">
                 <label for="pwfConfirm">Confirm new password</label>

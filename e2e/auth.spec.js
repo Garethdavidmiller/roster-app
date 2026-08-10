@@ -348,54 +348,109 @@ test('forced password overlay: never appears while the kill switch is off', asyn
 });
 
 // ── RESET REQUEST LINK (PASSWORD_PLAN.md — the request queue) ─────────────────────────────────
-// The link is the only route a locked-out member has, and it must appear ONLY after a genuine
-// credential failure — offering it up front invites a request from anyone who merely mistyped, and
-// the remedy for a mistype is to try again.
+// ALWAYS ON SCREEN since v20.48. It was revealed only after two credential failures, on the
+// reasoning that the remedy for a mistype is to try again — true, but it made the member who KNOWS
+// they have forgotten fail twice on purpose before the app would tell them how to ask. The gate is
+// gone; what survives is the part that was right, now expressed as EMPHASIS rather than existence:
+// two credential failures raise the link's weight, and a network/rate-limit failure never does,
+// because a dropped connection is not a forgotten password.
 
-test('reset request link: hidden until the SECOND credential failure, then revealed', async ({ page }) => {
+test('login card: the disabled name select reads as inert and keeps its chevron', async ({ page }) => {
+    // Both halves of one CSS rule broke a documented convention (.claude/rules/css-tokens.md), and
+    // both were visible in a screenshot of the resting card that nobody had looked at:
+    //   · it filled with `white`, which is the FOCUS ceiling in the three-surface model — so the
+    //     DISABLED select was the brightest surface in the card, brighter than the enabled password
+    //     field beside it;
+    //   · it used the `background` SHORTHAND, which wipes a <select>'s background-image, silently
+    //     deleting the dropdown arrow — so the two adjacent selects looked like different controls.
+    // Asserted in CI rather than left to the opt-in visual suite, because that is what missed it.
+    await enforceNamedSession(page);
+    await page.goto('/settings.html');
+    const name = page.locator('#loginName');
+    await expect(name).toBeDisabled();
+    const s = await name.evaluate(el => {
+        const c = getComputedStyle(el);
+        const pw = getComputedStyle(document.querySelector('#loginPassword'));
+        return { bg: c.backgroundColor, img: c.backgroundImage, pwBg: pw.backgroundColor };
+    });
+    expect(s.img, 'the disabled select must keep its dropdown arrow').not.toBe('none');
+    expect(s.bg, 'a disabled field must not wear white — that is the focus ceiling').not.toBe('rgb(255, 255, 255)');
+    expect(s.bg, 'and must not be brighter than the ENABLED field beside it').not.toBe(s.pwBg);
+});
+
+test('reset request link: present from the moment the card opens, before any attempt', async ({ page }) => {
+    await enforceNamedSession(page);
+    await page.goto('/settings.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    const btn = page.locator('#loginResetRequest');
+    await expect(btn).toBeVisible();
+    await expect(btn).toBeEnabled();
+    // Below the primary action — the place a reader looks for it, and what lets it be permanent
+    // without competing with Sign in.
+    const link = await btn.boundingBox();
+    const submit = await page.locator('#loginSubmit').boundingBox();
+    expect(link.y, 'the reset link must sit BELOW the Sign in button').toBeGreaterThan(submit.y);
+    // Quiet until there is a reason: the emphasis class is the whole difference from the old reveal.
+    await expect(btn).not.toHaveClass(/login-reset-request--prompted/);
+});
+
+test('reset request link: two credential failures EMPHASISE it (it never appears or moves)', async ({ page }) => {
     await enforceNamedSession(page);
     await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });   // → auth/invalid-credential
     await page.goto('/settings.html');
-    await expect(page.locator('#loginOverlay')).toBeVisible();
-    await expect(page.locator('#loginResetRequest')).toBeHidden();
+    const btn = page.locator('#loginResetRequest');
 
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#loginError')).toBeVisible();
-    // Failure #1 IS the mistype case, and the remedy for a mistype is to try again — so no link yet.
-    await expect(page.locator('#loginResetRequest')).toBeHidden();
-    await expect(page.locator('#loginHelpLine')).toBeVisible();
+    // Failure #1 IS the mistype case — still no emphasis, and still there.
+    await expect(btn).toBeVisible();
+    await expect(btn).not.toHaveClass(/login-reset-request--prompted/);
+    // Baseline taken HERE, not before the first attempt: the error message appearing above the link
+    // legitimately pushes it down the card. The claim under test is narrower — that the EMPHASIS
+    // moves nothing — so the two measurements must differ only in the emphasis.
+    const before = await btn.boundingBox();
 
     await page.locator('#loginPassword').fill('wrongagain');
     await page.locator('#loginSubmit').click();
-    await expect(page.locator('#loginResetRequest')).toBeVisible();
-    // The actionable route replaces the passive footer rather than joining it.
-    await expect(page.locator('#loginHelpLine')).toBeHidden();
+    await expect(btn).toHaveClass(/login-reset-request--prompted/);
+    // A control that relocates at the moment of frustration is harder to use, not easier.
+    const after = await btn.boundingBox();
+    expect(after.y, 'the link must not move when it is emphasised').toBeCloseTo(before.y, 0);
 });
 
-test('reset request link: a network/transient failure does NOT offer a reset', async ({ page }) => {
-    // A reset fixes a forgotten password, not a dropped connection — sending the admin a request for
-    // one would waste their time and mislead the member about what is wrong.
+test('reset request link: a network/transient failure does NOT push the reset route', async ({ page }) => {
+    // A reset fixes a forgotten password, not a dropped connection — pointing at one would waste the
+    // admin's time and mislead the member about what is actually wrong. The link stays available
+    // (it always is); what it must not do is present itself as the answer to this failure.
     await enforceNamedSession(page);
     await page.addInitScript(() => { window.__E2E = { hangSignIn: true }; });   // → timeout, not credential
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#loginError')).toBeVisible();
-    await expect(page.locator('#loginResetRequest')).toBeHidden();
+    await expect(page.locator('#loginResetRequest')).not.toHaveClass(/login-reset-request--prompted/);
 });
 
-/** Fail sign-in twice for `name`, so the reset-request link is revealed. */
-async function failTwice(page, name) {
-    await signInThroughOverlay(page, name);
-    await expect(page.locator('#loginError')).toBeVisible();
-    await page.locator('#loginPassword').fill('wrongagain');
-    await page.locator('#loginSubmit').click();
-    await expect(page.locator('#loginResetRequest')).toBeVisible();
-}
+test('reset request link: with no name chosen it asks for one rather than filing nothing', async ({ page }) => {
+    // The click-time read of the dropdown is what makes an always-on link correct; this is its guard.
+    await enforceNamedSession(page);
+    /** @type {any[]} */
+    const posted = [];
+    await page.route('**/requestPasswordReset', route => {
+        posted.push(JSON.parse(route.request().postData() || '{}'));
+        return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+    await page.goto('/settings.html');
+    await page.locator('#loginResetRequest').click();
+    await expect(page.locator('#loginResetStatus')).toContainText('Choose your name');
+    expect(posted, 'nothing may be filed without a member').toEqual([]);
+});
 
-test('reset request link: files the request for the member who actually failed', async ({ page }) => {
-    // THE correctness property. It used to read the dropdown at CLICK time with nothing un-revealing the
-    // link, so failing as one member then switching the dropdown filed a request for someone who never
-    // asked — and acting on it resets THEM to the surname default.
+test('reset request link: files for the member currently named in the card', async ({ page }) => {
+    // THE correctness property, and the one the v18.94 fix was about. Then, the link was REVEALED by
+    // one member's failure but read the dropdown at click time, so failing as A, switching to B and
+    // tapping filed for B — who never asked, and acting on it reset THEM. Now the link is tied to no
+    // failure at all: it means "I am the person named above", so the dropdown IS the referent. The
+    // property to hold is that switching identity cannot leave the previous member's state behind.
     await enforceNamedSession(page);
     await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
     /** @type {any[]} */
@@ -406,57 +461,68 @@ test('reset request link: files the request for the member who actually failed',
     });
     await page.goto('/settings.html');
     await failTwice(page, 'G. Miller');
+    await expect(page.locator('#loginResetRequest')).toHaveClass(/login-reset-request--prompted/);
 
-    // Switching the dropdown must RETRACT the reveal — it belonged to G. Miller alone.
+    // Switching member must drop the previous member's emphasis — otherwise the new one arrives at a
+    // card that looks like THEY have already failed twice.
     await page.locator('#loginName').selectOption('L. Springer');
-    await expect(page.locator('#loginResetRequest')).toBeHidden();
-    await expect(page.locator('#loginHelpLine')).toBeVisible();   // the passive advice comes back
-
-    // Fail as the new member, then send: the request must name THEM. ONE failure suffices here — the
-    // 3-strikes counter is per-OVERLAY, not per-member, so it is already at 2 and this is strike 3
-    // (which reveals the link before it applies the 30s brake to the submit button).
-    await page.locator('#loginPassword').fill('nope');
-    await page.locator('#loginSubmit').click();
     await expect(page.locator('#loginResetRequest')).toBeVisible();
+    await expect(page.locator('#loginResetRequest')).not.toHaveClass(/login-reset-request--prompted/);
+
     await page.locator('#loginResetRequest').click();
     await expect(page.locator('#loginResetStatus')).toContainText('Request sent');
     expect(posted).toEqual([{ member: 'L. Springer' }]);
 });
 
-test('reset request link: after a send, a later reveal is a usable control (not a dead "Sending…")', async ({ page }) => {
+test('reset request link: a sent request does not follow the next member', async ({ page }) => {
+    // "Request sent" under a different name would tell someone their request is filed when it is not.
     await enforceNamedSession(page);
-    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
     await page.route('**/requestPasswordReset', route =>
         route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }));
     await page.goto('/settings.html');
-    await failTwice(page, 'G. Miller');
+    await signInThroughOverlay(page, 'G. Miller', { submit: false });
     await page.locator('#loginResetRequest').click();
     await expect(page.locator('#loginResetStatus')).toContainText('Request sent');
-    await expect(page.locator('#loginResetRequest')).toBeHidden();
+    // A receipt for a message sent to a real person must not look like the field hint above it —
+    // it wore `.login-hint` until v20.49 and read as a footnote. Success and failure share one box
+    // shape and differ by tint, so the CLASS is what separates them.
+    await expect(page.locator('#loginResetStatus')).toHaveClass(/login-receipt--ok/);
+    // The class alone would still pass if the tint were deleted from the stylesheet, so check it
+    // actually RENDERS as a box: a bare transparent background is the footnote look this replaced.
+    const tint = await page.locator('#loginResetStatus')
+        .evaluate(el => getComputedStyle(el).backgroundColor);
+    expect(tint, 'the receipt must be tinted, not bare text').not.toBe('rgba(0, 0, 0, 0)');
+    await expect(page.locator('#loginResetRequest')).toBeHidden();   // nothing more to do here
 
-    // Retrying and failing again is the EXPECTED behaviour of someone who still can't get in. The
-    // success path used to leave the button disabled and reading "Sending…" behind `hidden`.
-    await page.locator('#loginPassword').fill('stillwrong');
-    await page.locator('#loginSubmit').click();
+    await page.locator('#loginName').selectOption('L. Springer');
     const btn = page.locator('#loginResetRequest');
     await expect(btn).toBeVisible();
     await expect(btn).toBeEnabled();
-    await expect(btn).toContainText('Ask the admin');
-    await expect(page.locator('#loginResetStatus')).toBeEmpty();   // no stale "Request sent"
+    await expect(btn).toContainText('Ask the admin');               // not a dead "Sending…"
+    await expect(page.locator('#loginResetStatus')).toBeEmpty();
 });
 
 test('reset request link: a failed send keeps the button and says so', async ({ page }) => {
     await enforceNamedSession(page);
-    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
     await page.route('**/requestPasswordReset', route => route.abort());
     await page.goto('/settings.html');
-    await failTwice(page, 'G. Miller');
+    await signInThroughOverlay(page, 'G. Miller', { submit: false });
     await page.locator('#loginResetRequest').click();
     await expect(page.locator('#loginResetStatus')).toContainText('contact the admin directly');
+    await expect(page.locator('#loginResetStatus')).toHaveClass(/login-receipt--fail/);
     await expect(page.locator('#loginResetRequest')).toBeVisible();
     await expect(page.locator('#loginResetRequest')).toBeEnabled();
     await expect(page.locator('#loginResetRequest')).toContainText('Ask the admin');
 });
+
+/** Fail sign-in twice for `name`, so the reset-request link is emphasised. */
+async function failTwice(page, name) {
+    await signInThroughOverlay(page, name);
+    await expect(page.locator('#loginError')).toBeVisible();
+    await page.locator('#loginPassword').fill('wrongagain');
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#loginResetRequest')).toHaveClass(/login-reset-request--prompted/);
+}
 
 // ── The login overlay must look the SAME on every page (v18.95) ────────────────────────────
 // login-overlay.js injects one card and shared.css styles it, so all five protected pages should

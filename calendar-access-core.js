@@ -78,8 +78,9 @@ export function decideAccess({ session, firebaseUser }) {
     // Rule 1: a live named session backed by a restored named Firebase identity.
     // BOTH halves are required, and each rejects a real case the other cannot see:
     //   · session without a Firebase user — iOS ITP evicts IndexedDB after ~7 days of no PWA use,
-    //     so a member can hold a valid 30-day local session with no restorable identity. Reads would
-    //     then be denied by the rules and the Calendar would silently show the base roster.
+    //     so a member can hold a valid 60-day local session with no restorable identity (a window
+    //     that doubled at v20.47 with `SESSION_MS`). Reads would then be denied by the rules and
+    //     the Calendar would silently show the base roster.
     //   · Firebase user without a session — that is precisely what `reconcileExpiredIdentity` exists
     //     to tear down. Trusting it here would let an expired member keep their privileges.
     if (named && u && !u.isAnonymous && !isViewerUser(u)) return 'named';

@@ -89,8 +89,13 @@ const { CONFIG } = await import('./roster-data.js');
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 describe('constants', () => {
-    test('SESSION_MS is exactly 30 days', () => {
-        assert.equal(SESSION_MS, 30 * 24 * 60 * 60 * 1000);
+    test('SESSION_MS is exactly 60 days', () => {
+        // 30 days until v20.47. Pinned as a literal on purpose: the value is a POLICY decision (how
+        // long a member stays signed in on a device they hold), so a change to it must be a
+        // deliberate two-line edit rather than something that rides along with a refactor. Several
+        // things downstream reason FROM this number — the forced-password rollout window, and the
+        // Usage card's sign-in figure — so a silent change would leave true-sounding prose behind it.
+        assert.equal(SESSION_MS, 60 * 24 * 60 * 60 * 1000);
     });
 
     test('SESSION_VER is an integer >= 2', () => {
@@ -189,9 +194,9 @@ describe('getSession', () => {
     });
 
     // The 7-day idle cutoff was removed at v20.41. These two cases replace the four that pinned it,
-    // and they pin the property that REPLACED it: 30 days is the only clock, and reading the session
+    // and they pin the property that REPLACED it: the absolute expiry is the only clock, and reading the session
     // does not move it.
-    test('a long-untouched session is still valid inside its 30 days', () => {
+    test('a long-untouched session is still valid inside its absolute window', () => {
         // 20 days since the last visit. Under the idle rule this was signed out on day 8 — which hit
         // the members who use the app LEAST, and landed each of them on a password prompt.
         writeSession({ expiry: Date.now() + 10 * 24 * 60 * 60 * 1000,
@@ -215,12 +220,12 @@ describe('getSession', () => {
         assert.equal(s.name, 'G. Miller');
     });
 
-    test('reading a session does not WRITE — and cannot extend the 30 days', () => {
+    test('reading a session does not WRITE — and cannot extend the absolute expiry', () => {
         // getSession used to write back on every call to refresh the idle clock. With that clock
         // gone the write has no purpose, and its absence is worth pinning both ways: a localStorage
         // write on every page load of every page, and — the part that would be a real change of
         // policy — any future edit that let a read push `expiry` forward would quietly turn the
-        // absolute 30-day bound into a rolling one.
+        // absolute bound into a rolling one.
         const written = writeSession();
         const raw = store.get(AUTH_KEY);
         const s = getSession();

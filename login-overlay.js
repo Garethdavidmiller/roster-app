@@ -137,15 +137,22 @@ function overlayHtml(/** @type {string} */ pageLabel) {
             <div id="loginPwHint" class="login-hint">Your surname in lowercase — or the password you’ve set yourself.</div>
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
-        <!-- Reset request (PASSWORD_PLAN.md — the request queue). HIDDEN until a genuine credential
-             failure reveals it: always-visible would invite a request from anyone who merely mistyped,
-             and the remedy for a mistype is to try again. -->
-        <button type="button" id="loginResetRequest" class="login-reset-request" hidden>Can’t get in? Ask the admin to reset your password</button>
-        <div id="loginResetStatus" class="login-hint" aria-live="polite"></div>
         <button type="button" id="loginSubmit">Sign in →</button>
         <div id="loginStatus" class="login-status" aria-live="polite"></div>
+        <!-- Reset request (PASSWORD_PLAN.md — the request queue). ALWAYS VISIBLE since v20.48, and
+             BELOW the primary action where a "forgot password" is looked for. It was revealed only
+             after two credential failures (v18.93–94), which had the shape of a good idea — don't
+             offer a reset to someone who merely mistyped — but got the user wrong: the member who
+             KNOWS they have forgotten had to fail twice on purpose to be given the mechanism, and
+             until then the card's only advice was the inert "Trouble signing in? Ask the admin",
+             which named the remedy without providing it. That footer is gone; this replaces it.
+             Filing a request RESETS NOTHING — it records a row and notifies the admin, who decides —
+             so a spurious one costs a row the admin clears, while a missing one costs a member their
+             access. Those are not the same size of mistake. The repeat throttle and the member-name
+             doc id (so the queue can never exceed the roster) are what make the open door safe. -->
+        <button type="button" id="loginResetRequest" class="login-reset-request">Can’t get in? Ask the admin to reset your password</button>
+        <div id="loginResetStatus" class="login-receipt" aria-live="polite"></div>
         <a href="./" class="login-back">← Back to roster</a>
-        <p class="login-help" id="loginHelpLine">Trouble signing in? Ask the admin.</p>
     </div>`;
 }
 
@@ -177,9 +184,11 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     const submitBtn     = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginSubmit'));
     const errorEl       = /** @type {HTMLElement} */ (overlay.querySelector('#loginError'));
     const resetBtn      = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginResetRequest'));
-    /** The member whose sign-in failed, captured at REVEAL time — never re-read from the dropdown. */
-    /** @type {string|null} */
-    let _resetRequestFor = null;
+    // The kill switch used to be checked inside the reveal, which is no longer a thing — the link now
+    // renders with the card, so the flag has to remove it AT MOUNT or turning the feature off would
+    // leave a permanently-visible link whose only outcome is an error. Removed rather than hidden:
+    // nothing re-shows it, and an element that must never come back should not be one attribute away.
+    if (!CONFIG.PASSWORD_RESET_REQUESTS) resetBtn?.remove();
     const resetStatusEl = /** @type {HTMLElement} */ (overlay.querySelector('#loginResetStatus'));
     const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
     const backLink      = /** @type {HTMLAnchorElement} */ (overlay.querySelector('.login-back'));
@@ -249,11 +258,9 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
 
     gradeSelect.addEventListener('change', () => {
         errorEl.classList.remove('visible');
-        // Retract the reset-request reveal — it was for a DIFFERENT member (FIX, v18.94). Leaving it up
-        // let a request be filed for whoever was selected next, and left the error cleared but the
-        // passive help footer still hidden, so a member who had failed nothing saw an unexplained
-        // "ask the admin to reset your password" link and no advice.
-        hideResetRequest();
+        // The person in the card just changed, so any "Request sent" line and any stuck-member
+        // emphasis belonged to somebody else — see resetResetRequest for why that matters.
+        resetResetRequest();
         passwordInput.value = '';
         nameSelect.value = '';
         populateNames(gradeSelect.value);
@@ -262,7 +269,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
 
     nameSelect.addEventListener('change', () => {
         errorEl.classList.remove('visible');
-        hideResetRequest();   // see the grade handler — the reveal belongs to one member only
+        resetResetRequest();   // see the grade handler
         passwordInput.value = '';
         if (nameSelect.value) passwordInput.focus();
     });
@@ -280,44 +287,50 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
         errorEl.classList.add('visible');
     }
 
-    /** Reveal the "ask the admin to reset it" route. Called ONLY for a credential failure — a network
-     *  or rate-limit failure is not a forgotten password, and offering a reset for one would send the
-     *  admin a request that fixes nothing. */
-    function revealResetRequest(/** @type {string} */ forMember) {
-        if (!CONFIG.PASSWORD_RESET_REQUESTS || !resetBtn) return;
-        // Bind the request to the member whose sign-in ACTUALLY failed (FIX, v18.94). It used to read
-        // nameSelect.value at CLICK time, and nothing un-revealed the button when the dropdown changed
-        // — so failing as one member, switching the dropdown, then tapping the link filed a request for
-        // someone who never asked. Acting on it resets THEM to the surname default, and under v18.92
-        // they are then force-migrated again. The endpoint is public by design, so this was never a
-        // security hole; it was the one surface that decides WHICH member gets reset, getting it wrong.
-        _resetRequestFor = forMember;
-        resetStatusEl.textContent = '';
-        resetBtn.disabled = false;
-        resetBtn.textContent = RESET_BTN_LABEL;
-        resetBtn.hidden = false;
-        // Retire the static "Trouble signing in? Ask the admin." footer once the ACTIONABLE version of
-        // the same advice is on screen. Without this the card states it three times at once — the error
-        // text, this link, and that footer — which is the duplication the v18.49 paycalc pass removed
-        // elsewhere. The footer stays for every other failure kind, where there is no link to replace it.
-        const help = overlay.querySelector('#loginHelpLine');
-        if (help) /** @type {HTMLElement} */ (help).hidden = true;
+    /** Draw the eye to the reset route after repeated credential failures. The link is ALWAYS on
+     *  screen (v20.48) — this only raises its weight at the moment the app can see the member is
+     *  stuck, which is what the old reveal-on-failure behaviour was really for.
+     *
+     *  Still called ONLY for a credential failure: a network or rate-limit failure is not a forgotten
+     *  password, and pointing at a reset for one would send the admin a request that fixes nothing.
+     *  That distinction was the sound half of the v18.93 design and it survives here intact. */
+    function promptResetRequest() {
+        resetBtn?.classList.add('login-reset-request--prompted');
     }
 
-    /** Retract the reveal — the reason for it no longer applies (identity changed, or a retry began). */
-    function hideResetRequest() {
-        _resetRequestFor = null;
-        if (resetBtn) { resetBtn.hidden = true; resetBtn.disabled = false; resetBtn.textContent = RESET_BTN_LABEL; }
-        if (resetStatusEl) resetStatusEl.textContent = '';
-        // Restore the passive footer the reveal replaced, or a member who merely changed grade would be
-        // left with neither the link's explanation nor the footer's advice (FIX, v18.94).
-        const help = overlay.querySelector('#loginHelpLine');
-        if (help) /** @type {HTMLElement} */ (help).hidden = false;
+    /** Return the link to its resting state: quiet again, tappable again, no stale status.
+     *
+     *  Called when the identity in the card changes (grade or name), which is what makes the
+     *  click-time read of `nameSelect.value` safe. v18.94 fixed a real bug here — the link used to be
+     *  REVEALED by one member's failure while reading the dropdown at click time, so failing as A,
+     *  switching to B and tapping filed a request for B, who never asked, and acting on it reset THEM.
+     *  Now the link is not tied to any failure: it means "I am the person named above and I cannot get
+     *  in", so the dropdown IS the referent and reading it at click time is the correct behaviour
+     *  rather than the bug. What must not survive a name change is the *status* text — "Request sent"
+     *  under a different name would tell the new member their request is filed when it is not. */
+    function resetResetRequest() {
+        if (resetBtn) {
+            resetBtn.hidden = false;
+            resetBtn.disabled = false;
+            resetBtn.textContent = RESET_BTN_LABEL;
+            resetBtn.classList.remove('login-reset-request--prompted');
+        }
+        setResetStatus('');
+    }
+
+    /** Write the one outcome line. `kind` picks the tint: 'ok' for a receipt, 'fail' for anything the
+     *  member has to act on. Empty text collapses the box entirely (`:empty`), so the card carries no
+     *  reserved hole before they have tapped anything.
+     *  @param {string} text @param {'ok'|'fail'} [kind] */
+    function setResetStatus(text, kind) {
+        if (!resetStatusEl) return;
+        resetStatusEl.textContent = text;
+        resetStatusEl.className = 'login-receipt' + (text && kind ? ' login-receipt--' + kind : '');
     }
 
     resetBtn?.addEventListener('click', async () => {
-        const name = _resetRequestFor;
-        if (!name) { resetStatusEl.textContent = 'Choose your name first.'; return; }
+        const name = nameSelect.value;
+        if (!name) { setResetStatus('Choose your name first.', 'fail'); return; }
         resetBtn.disabled = true;
         const original = resetBtn.textContent;
         resetBtn.textContent = 'Sending…';
@@ -327,10 +340,10 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             // Replace the control rather than leaving a re-tappable button: the request is recorded
             // (the endpoint throttles repeats anyway) and there is nothing more for them to do here.
             resetBtn.hidden = true;
-            resetStatusEl.textContent = 'Request sent. The admin will reset your password and let you know.';
+            setResetStatus('Request sent. The admin will reset your password and let you know.', 'ok');
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
-            resetStatusEl.textContent = 'Couldn’t send the request — check your connection, or contact the admin directly.';
+            setResetStatus('Couldn’t send the request — check your connection, or contact the admin directly.', 'fail');
         } finally {
             // ALWAYS restore, including on success (FIX, v18.94). The success path used to leave the
             // button disabled and reading "Sending…" behind `hidden`, so a later credential failure
@@ -409,7 +422,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                     // From the SECOND failure (FIX, v18.94). v18.93 revealed on the first, which
                     // contradicted its own stated rationale — "the remedy for a mistype is to try
                     // again" — since failure #1 is precisely the mistype case.
-                    if (_failCount >= 2) revealResetRequest(name);
+                    if (_failCount >= 2) promptResetRequest();
                     if (_failCount >= 3) {
                         _lockedUntil = Date.now() + 30_000;
                         submitBtn.disabled = true;
@@ -435,6 +448,11 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                 return;
             }
             _failCount = 0;   // a successful sign-in clears the wrong-password streak
+            // …and with it the stuck-member emphasis. The overlay is REUSED, not rebuilt
+            // (`initLoginOverlay` returns early when one exists), and in-place sign-in hides
+            // it without a reload — so a later re-show would otherwise open on a card still
+            // flagging failures that have since been resolved.
+            resetResetRequest();
             // One-shot "a real sign-in just happened" marker for the forced set-password overlay
             // (password-force.js, PASSWORD_PLAN.md Phase 2). Written HERE — the one place every
             // protected page's sign-in passes through — rather than in each coordinator's onSuccess,

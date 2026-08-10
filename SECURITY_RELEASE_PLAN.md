@@ -166,7 +166,7 @@ Three design points that flow from this and still govern any future rule change:
   `ENFORCE_NAMED_SESSION`** — see that doc before building anything password-related.
 - **SHIPPED — PASSWORD_PLAN.md Phase 2 (v18.92):** `password-force.js` compels any member still on the
   surname default to set their own password at their NEXT SIGN-IN, on all five authenticated pages,
-  behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. No forced sign-out — sessions cap at 30 days
+  behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. No forced sign-out — sessions cap at 60 days (30 until v20.47)
   absolute (the 7-day idle cutoff was removed at v20.41) and an expired session forces a real typed login, so coverage completes itself
   inside 30 days and staggers naturally. Shows only for a `named` identity, and fails open on any
   failure it cannot recover from: a mandatory overlay that cannot be satisfied is a lockout, not a
@@ -199,7 +199,7 @@ Three design points that flow from this and still govern any future rule change:
   | Staff | 43 | **Only their own** overrides (the B3 isolation rule holds) |
 
   **SUPERSEDED as the ROLLOUT plan (v18.92).** The owner chose to compel EVERYONE at their next sign-in
-  rather than run privileged-first waves — the 30-day/7-day session model staggers it by each member's
+  rather than run privileged-first waves — the session model (60-day absolute) staggers it by each member's
   own expiry anyway, so a tiered flag would have added releases without lowering the peak. The tier
   table above still stands as the RISK analysis (it is why the 7 mattered most, and why chasing them by
   conversation was worth doing first); it is no longer the sequencing.
@@ -362,7 +362,7 @@ flag (~a day). But the calendar is the app's **front door**, and four real conse
 being open:
 
 1. **Offline lockout (sharpest).** The app is offline-first and the calendar is the PWA `start_url`,
-   launched from cache. A staff member whose 30-day session lapsed **and who is offline** cannot log in
+   launched from cache. A staff member whose 60-day session lapsed **and who is offline** cannot log in
    (login needs network) → locked out of their **own cached roster**. Today a cached roster always
    renders. A genuine regression to weigh.
 2. **Notification deep-links.** A push tap opens `#huddle`; on a lapsed session it now lands on a login

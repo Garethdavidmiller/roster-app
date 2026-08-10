@@ -616,12 +616,16 @@ function _appendSignInSection(content) {
             `<span class="usage-stat-lbl"><span aria-hidden="true">💤</span> never signed in</span></div>`;
         const note = document.createElement('p');
         note.className = 'usage-note';
-        // State the two caveats rather than let the number be read as "active staff". Sessions last
-        // 30 days (absolute — the 7-day idle cutoff went at v20.41), so a live session REQUIRES a
-        // sign-in inside 30 days — which
-        // makes this a slight over-count of active people (it includes anyone who signed in once and
-        // stopped). And `neverSignedIn` is the actionable one: provisioned staff who may not know
-        // the app exists.
+        // State the caveats rather than let the number be read as "active staff". Until v20.47 there
+        // was a tidy relationship to lean on: sessions capped at 30 days, so a live session REQUIRED
+        // a sign-in inside 30 days and this figure was a slight OVER-count of active people. **That
+        // is no longer true and the direction has flipped** — at 60 days (`SESSION_MS`, session.js)
+        // someone can sign in once and use the app daily for two months without ever re-entering
+        // this window, so the count now misses active people as well as including stopped ones. It
+        // is a sign-in count and nothing more, which is exactly what the visible note says; do not
+        // re-add a claim about active staff in either direction unless the window is derived from
+        // SESSION_MS. `neverSignedIn` is the actionable one: provisioned staff who may not know the
+        // app exists.
         // "staff accounts", never "active accounts": THIS CARD already uses "active" for the
         // device-deduped activity figure directly above, so reusing the word here would make two
         // different numbers appear to measure the same thing.

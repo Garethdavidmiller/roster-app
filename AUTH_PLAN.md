@@ -282,7 +282,7 @@ See §5. Does **not** depend on the calendar decision.
 Track E originally called offline lockout "the sharpest consequence… a genuine regression to weigh". It
 is softer than that, because **both halves are ours**:
 
-- The 30-day expiry is *our* localStorage construct (`SESSION_MS` in `session.js`; the 7-day idle cutoff and `IDLE_MS` were removed at v20.41), not
+- The 60-day expiry (30 until v20.47) is *our* localStorage construct (`SESSION_MS` in `session.js`; the 7-day idle cutoff and `IDLE_MS` were removed at v20.41), not
   Firebase's. Firebase refresh tokens do not expire on that schedule.
 - **Firestore rules are evaluated server-side.** The persistent local cache serves offline reads without
   consulting them. The roster is still on the device.
