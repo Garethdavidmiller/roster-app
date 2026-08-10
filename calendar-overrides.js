@@ -53,7 +53,7 @@ export function setOverrideAccess(granted) {
     // at the same moment, that is a permanent wait state. `_failureRepainted` goes with it for the
     // same reason: a failure that happened under the old session is not news the new one has heard.
     // Harmless at boot — the first grant runs before the initial fetch claims anything.
-    if (_accessGranted) { fetchedMonths.clear(); _failureRepainted.clear(); }
+    if (_accessGranted) { fetchedMonths.clear(); _failureRepainted.clear(); _monthOwner.clear(); }
 }
 
 /** @returns {boolean} whether override reads are currently permitted. */
@@ -138,6 +138,61 @@ export function monthKey(year, month) {
     return `${year}-${String(month + 1).padStart(2, '0')}`;
 }
 
+// ── WHO OWNS A MONTH'S CACHE ENTRY (v20.44) ────────────────────────────────────────────────────
+//
+// `reconcileRangeIntoCache` is AUTHORITATIVE for its range: it rebuilds each date's winner from the
+// snapshot alone and EVICTS in-range keys the snapshot omits. That is exactly right for one read and
+// wrong for two, because these reads overlap and settle out of order:
+//
+//     boot fetch A issued  ──────────────────────────────────────────────► lands (stale snapshot)
+//         retry B issued ─────────────► lands (current)   cache correct
+//                                                                          A evicts what B loaded
+//
+// The generation counter in calendar-initial-fetch.js already stops the LATE one repainting, and
+// that is where the protection stopped — the UI stayed correct at that instant while the cache
+// underneath it silently regressed, so the damage only surfaced on some later render. Ordering the
+// RENDER without ordering the WRITE is half a fix.
+//
+// So the ordering moves to the write. Every authoritative read takes a sequence number when it is
+// ISSUED and, when it lands, may only reconcile the months no NEWER read has already written.
+//
+// PER MONTH, not per read, and that is deliberate: a three-month boot fetch superseded for one month
+// by a per-month navigation read still holds the only data anybody has for the other two. All-or-
+// nothing would throw those away to protect one. Month granularity matches the query shapes exactly
+// — every caller reads either a whole month (`ensureOverridesCached`) or a run of whole months (the
+// boot window) — and the slices partition the range, so slicing changes no eviction semantics: the
+// union of the parts is the whole, and each part is authoritative over itself.
+let _readSeq = 0;
+/** monthKey → the sequence number of the authoritative read that last wrote it. */
+const _monthOwner = new Map();
+
+/**
+ * Split a date range into per-month slices, each clamped to the range.
+ * Exported as a test seam; ISO dates compare correctly as strings, which is what the clamps rely on.
+ * @param {string} startStr @param {string} endStr
+ * @returns {{key: string, from: string, to: string}[]}
+ */
+export function _monthSlices(startStr, endStr) {
+    const out = [];
+    let y = Number(startStr.slice(0, 4));
+    let m = Number(startStr.slice(5, 7)) - 1;
+    const endY = Number(endStr.slice(0, 4));
+    const endM = Number(endStr.slice(5, 7)) - 1;
+    // Bounded by construction, but a malformed input must not spin: the app's widest real range is
+    // three months, and nothing legitimate reaches even a fraction of this.
+    for (let guard = 0; guard < 600 && (y < endY || (y === endY && m <= endM)); guard++) {
+        const mStart = formatISO(new Date(y, m, 1));
+        const mEnd   = formatISO(new Date(y, m + 1, 0));
+        out.push({
+            key:  monthKey(y, m),
+            from: mStart > startStr ? mStart : startStr,
+            to:   mEnd   < endStr   ? mEnd   : endStr,
+        });
+        if (++m > 11) { m = 0; y++; }
+    }
+    return out;
+}
+
 /**
  * Query Firestore for all override documents in a date range and populate the cache.
  * Documents with missing required fields are skipped and logged.
@@ -151,6 +206,8 @@ export async function fetchOverridesForRange(startStr, endStr) {
     // resolving would leave the Calendar showing the base roster as though it were current — the one
     // outcome this whole feature exists to prevent.
     if (!_accessGranted) throw new Error('calendar-access-required');
+    // Taken at ISSUE, not on completion — the whole point is the order the reads were STARTED in.
+    const seq = ++_readSeq;
     const q = query(
         collection(db, COLLECTIONS.overrides),
         where('date', '>=', startStr),
@@ -164,12 +221,23 @@ export async function fetchOverridesForRange(startStr, endStr) {
     // (reconcileRangeIntoCache), never merged against the possibly-stale cache. The old per-doc merge
     // kept a deleted higher-priority manual alive when only a lower-priority import remained (the import
     // couldn't out-rank the cached manual, yet the key WAS seen so the deletion pass skipped it —
-    // Finding #1). Dates outside the queried range are untouched; the team-view week fetch reconciles
-    // independently (calendar-team-view.js), through the same collector.
+    // Finding #1). Dates outside the queried range are untouched. (This used to add "the team-view
+    // week fetch reconciles independently" — it has not since v18.76, when Team View moved onto
+    // `ensureOverridesCached` precisely so there would be ONE authoritative reconciler per month.)
     const records = collectOverrideRecords(snapshot);
-    reconcileRangeIntoCache(rosterOverridesCache, records, startStr, endStr);
+    // Apply month by month, and only where this read is still the newest to have landed. Records are
+    // sliced with the range because `reconcileRangeIntoCache` stores EVERY winner it is handed
+    // regardless of the range it was told to evict over — passing the whole set per month would write
+    // the other months' rows back under a month that may not own them.
+    let wrote = false;
+    for (const { key, from, to } of _monthSlices(startStr, endStr)) {
+        if ((_monthOwner.get(key) || 0) > seq) continue;   // a newer read already owns this month
+        _monthOwner.set(key, seq);
+        reconcileRangeIntoCache(rosterOverridesCache, records.filter(r => r.date >= from && r.date <= to), from, to);
+        wrote = true;
+    }
     // New override data may change which shift types appear in a month.
-    shiftTypesMonthCache.clear();
+    if (wrote) shiftTypesMonthCache.clear();
 }
 
 /**
@@ -211,8 +279,23 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr) {
         const snapshot = await getDocsFromCache(q);
         if (snapshot.empty) return false;
         const records = collectOverrideRecords(snapshot);
-        const changed = reconcileRangeIntoCache(rosterOverridesCache, records, startStr, endStr,
-            { authoritative: false });
+        // Skip any month a SERVER read has already written (v20.44). Additive merging cannot evict,
+        // but `reconcileRangeIntoCache` stores every winner it is handed unconditionally — it only
+        // ranks records against each OTHER, never against what is already cached — so a local
+        // snapshot landing late could still overwrite a fresher server record with an older one.
+        // Once a month has an authoritative answer, a cache snapshot can only equal it or be worse.
+        //
+        // It checks ownership without CLAIMING it, and that asymmetry is the point: an authoritative
+        // read issued earlier but still in flight must not find its month taken by a non-
+        // authoritative one, or the eviction pass — the only thing that removes a deleted override —
+        // would be skipped entirely.
+        let changed = false;
+        for (const { key, from, to } of _monthSlices(startStr, endStr)) {
+            if (_monthOwner.has(key)) continue;
+            if (reconcileRangeIntoCache(rosterOverridesCache,
+                    records.filter(r => r.date >= from && r.date <= to), from, to,
+                    { authoritative: false })) changed = true;
+        }
         if (changed) shiftTypesMonthCache.clear();
         return changed;
     } catch {
