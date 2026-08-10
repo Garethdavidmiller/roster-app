@@ -6,7 +6,7 @@
  * duplicate override resolution (manual beats import; newer beats older),
  * and getShiftTypesInMonth type detection including Sunday sick suppression.
  */
-import { test, describe, mock, beforeEach } from 'node:test';
+import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 // Controllable getDocs mock — tests set _mockDocs before each async call.
@@ -17,6 +17,14 @@ let _getDocsThrows = false;
 // Phase-1 (local cache) mock state — see getDocsFromCache below.
 let _mockCacheDocs = [];
 let _cacheThrows   = false;
+// DEFERRED READS — the only way to interleave two in-flight fetches deterministically. When on,
+// every getDocs call SNAPSHOTS the docs at issue time and then parks until the test releases it by
+// index, so a test can land the second read first and the first one late. That ordering is the
+// entire subject of the cache-ownership tests; a mock that resolves immediately cannot express it.
+let _deferGetDocs = false;
+/** @type {(() => void)[]} */
+const _releases = [];
+const _tick = async (n = 3) => { for (let i = 0; i < n; i++) await Promise.resolve(); };
 
 /** Build a fake Firestore document. */
 function makeDoc(id, data) {
@@ -31,7 +39,9 @@ mock.module('./firebase-client.js', {
         where:      () => ({}),
         getDocs:    async () => {
             if (_getDocsThrows) throw new Error('simulated Firestore fetch failure');
-            return { size: _mockDocs.length, forEach: cb => _mockDocs.forEach(cb) };
+            const docs = _mockDocs;   // captured at ISSUE — a later test mutation must not reach it
+            if (_deferGetDocs) await new Promise(r => _releases.push(r));
+            return { size: docs.length, forEach: cb => docs.forEach(cb) };
         },
         // Phase 1 of the two-phase load (AUTH_PLAN.md → E1). Defaults to an EMPTY cache so every
         // existing test keeps exercising the server path unchanged; the cache tests set _mockCacheDocs.
@@ -56,7 +66,7 @@ mock.module('./roster-data.js', {
 const {
     rosterOverridesCache, _initialFetchInProgress,
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
-    monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache,
+    monthKey, _monthSlices, fetchOverridesForRange, fetchOverridesForRangeFromCache,
     ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess,
 } = await import('./calendar-overrides.js');
 
@@ -281,6 +291,173 @@ describe('fetchOverridesForRange deletion reconciliation', () => {
 // silently — no partial paint, no cache poisoning, and it must stay retryable.
 // The app deliberately has NO override-load status indicator (CLAUDE.md, Team Week
 // View), so the guarantee here is clean silent fallback, verified by test.
+
+// ── WHO OWNS A MONTH'S CACHE ENTRY (v20.44) ────────────────────────────────────────────────────
+//
+// The defect these pin is the one the generation counter in calendar-initial-fetch.js does NOT
+// cover. That counter stops a late, superseded read from REPAINTING; nothing stopped it WRITING.
+// `reconcileRangeIntoCache` is authoritative for its range and EVICTS what its snapshot omits, so a
+// stale snapshot landing after a fresh one silently removed the fresh data from the cache — leaving
+// the screen correct at that instant and wrong on the next render, which is the worst shape a bug
+// can have: the symptom is detached in time from the cause.
+
+describe('_monthSlices', () => {
+    test('splits a range into whole months, clamped to the range', () => {
+        assert.deepEqual(_monthSlices('2035-01-01', '2035-03-31'), [
+            { key: '2035-01', from: '2035-01-01', to: '2035-01-31' },
+            { key: '2035-02', from: '2035-02-01', to: '2035-02-28' },
+            { key: '2035-03', from: '2035-03-01', to: '2035-03-31' },
+        ]);
+    });
+
+    test('a partial month keeps the range ends, so the slices still partition it exactly', () => {
+        // The union of the parts must equal the whole, or slicing would change what gets evicted.
+        assert.deepEqual(_monthSlices('2035-01-10', '2035-02-05'), [
+            { key: '2035-01', from: '2035-01-10', to: '2035-01-31' },
+            { key: '2035-02', from: '2035-02-01', to: '2035-02-05' },
+        ]);
+    });
+
+    test('a single day is one slice', () => {
+        assert.deepEqual(_monthSlices('2035-05-04', '2035-05-04'),
+            [{ key: '2035-05', from: '2035-05-04', to: '2035-05-04' }]);
+    });
+
+    test('it crosses a year boundary', () => {
+        assert.deepEqual(_monthSlices('2035-12-01', '2036-01-31').map(x => x.key),
+            ['2035-12', '2036-01']);
+    });
+});
+
+describe('a late, superseded read must not write', () => {
+    beforeEach(() => {
+        rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false;
+        _releases.length = 0; _deferGetDocs = false;
+        setOverrideAccess(true);   // also clears month ownership — a grant is a fresh start
+    });
+    afterEach(() => { _deferGetDocs = false; _releases.length = 0; });
+
+    const AL = (date) => makeDoc('a1', { memberName: 'A. Smith', date, value: 'AL',
+        type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 1000 } });
+
+    test('the exact reported sequence: A issued, B issued, B lands, A lands stale', async () => {
+        _deferGetDocs = true;
+        // A sees an EMPTY snapshot (its read left the server before the leave was booked).
+        _mockDocs = [];
+        const pA = fetchOverridesForRange('2035-03-01', '2035-03-31');
+        await _tick();
+        // B sees the current one.
+        _mockDocs = [AL('2035-03-10')];
+        const pB = fetchOverridesForRange('2035-03-01', '2035-03-31');
+        await _tick();
+        assert.equal(_releases.length, 2, 'both reads must be in flight before either lands');
+
+        _releases[1](); await pB;   // the newer read lands FIRST
+        assert.equal(rosterOverridesCache.get('A. Smith|2035-03-10')?.value, 'AL');
+
+        _releases[0](); await pA;   // …and the older one lands after it
+        assert.equal(rosterOverridesCache.get('A. Smith|2035-03-10')?.value, 'AL',
+            'the stale snapshot evicted the newer read\'s data — this is the regression');
+    });
+
+    test('the ORDINARY order still applies both, newest last', async () => {
+        // The guard must not become "first write wins", which would be the same bug reversed.
+        _deferGetDocs = true;
+        _mockDocs = [];
+        const pA = fetchOverridesForRange('2035-04-01', '2035-04-30');
+        await _tick();
+        _mockDocs = [AL('2035-04-10')];
+        const pB = fetchOverridesForRange('2035-04-01', '2035-04-30');
+        await _tick();
+
+        _releases[0](); await pA;   // older lands first — nothing to see
+        assert.equal(rosterOverridesCache.has('A. Smith|2035-04-10'), false);
+        _releases[1](); await pB;   // newer lands after, and MUST be applied
+        assert.equal(rosterOverridesCache.get('A. Smith|2035-04-10')?.value, 'AL',
+            'a newer read landing later must still write — ownership orders, it does not freeze');
+    });
+
+    test('a month superseded for ONE month still writes the others', async () => {
+        // Why ownership is per MONTH. A three-month boot read beaten for its middle month still
+        // holds the only data anybody has for the outer two; all-or-nothing would discard them.
+        _deferGetDocs = true;
+        _mockDocs = [AL('2035-06-10'), AL('2035-07-10'), AL('2035-08-10')].map((d, i) =>
+            makeDoc('m' + i, { ...d.data(), memberName: 'A. Smith' }));
+        const pWide = fetchOverridesForRange('2035-06-01', '2035-08-31');
+        await _tick();
+        _mockDocs = [];   // July is now genuinely empty — the newer read for July alone
+        const pJuly = fetchOverridesForRange('2035-07-01', '2035-07-31');
+        await _tick();
+
+        _releases[1](); await pJuly;    // newer, July only
+        _releases[0](); await pWide;    // older, all three — must apply to June and August ONLY
+
+        assert.equal(rosterOverridesCache.get('A. Smith|2035-06-10')?.value, 'AL', 'June is unopposed');
+        assert.equal(rosterOverridesCache.get('A. Smith|2035-08-10')?.value, 'AL', 'August is unopposed');
+        assert.equal(rosterOverridesCache.has('A. Smith|2035-07-10'), false,
+            'July was answered by a newer read and must not be overwritten by the older one');
+    });
+
+    test('a local-cache snapshot never writes a month a server read already owns', async () => {
+        // Additive merging cannot evict, but reconcile stores every winner it is handed without
+        // ranking it against what is cached — so a late cache read could still overwrite a fresher
+        // server record with an older one.
+        _mockDocs = [AL('2035-09-10')];
+        await fetchOverridesForRange('2035-09-01', '2035-09-30');
+        assert.equal(rosterOverridesCache.get('A. Smith|2035-09-10')?.value, 'AL');
+
+        _mockCacheDocs = [makeDoc('old', { memberName: 'A. Smith', date: '2035-09-10', value: 'RD',
+            type: 'correction', note: '', source: 'manual', createdAt: { seconds: 1 } })];
+        const changed = await fetchOverridesForRangeFromCache('2035-09-01', '2035-09-30');
+        _mockCacheDocs = [];
+        assert.equal(changed, false, 'nothing should have been written');
+        assert.equal(rosterOverridesCache.get('A. Smith|2035-09-10')?.value, 'AL',
+            'a cache snapshot overwrote an authoritative answer');
+    });
+});
+
+describe('a GRANT is a fresh start (v20.41)', () => {
+    // The bug this pins: `handleAccessLost` re-locks the Calendar and forgets what every month knew,
+    // but the months stayed CLAIMED in fetchedMonths. Re-entering the PIN therefore came back to a
+    // Calendar that would never read anything again — every ensureOverridesCached a no-op against a
+    // claim from the previous session, every month stuck on "Checking this month", and a Try again
+    // that could not win. Revoking the viewer's tokens is a documented step of rotating the PIN, so
+    // this is the ordinary path, not a corner.
+    beforeEach(() => { rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false; });
+    // These are the only tests in the file that SHUT the gate, and the module holds it process-wide —
+    // leaving it shut silently disabled every read in every suite that ran afterwards.
+    afterEach(() => { setOverrideAccess(true); });
+
+    test('re-granting access releases months claimed before it was lost', async () => {
+        setOverrideAccess(true);
+        _mockDocs = [];
+        let renders = 0;
+        await ensureOverridesCached(2031, 4, () => { renders++; });   // claims 2031-05
+        assert.equal(renders, 1, 'first read settles and repaints');
+
+        // Same month again — correctly a no-op while the claim stands.
+        await ensureOverridesCached(2031, 4, () => { renders++; });
+        assert.equal(renders, 1);
+
+        // Access lost, then returns (the member entered the rotated PIN).
+        setOverrideAccess(false);
+        setOverrideAccess(true);
+
+        await ensureOverridesCached(2031, 4, () => { renders++; });
+        assert.equal(renders, 2, 'the re-granted session must be able to read the month again');
+    });
+
+    test('revoking access does NOT clear the claims — only a grant does', async () => {
+        // Deliberate asymmetry. Clearing on revoke would let anything that ran between the revoke and
+        // the next grant re-claim months against a shut gate.
+        setOverrideAccess(true);
+        let renders = 0;
+        await ensureOverridesCached(2032, 4, () => { renders++; });
+        setOverrideAccess(false);
+        await ensureOverridesCached(2032, 4, () => { renders++; });
+        assert.equal(renders, 1, 'a shut gate reads nothing at all, claims or no claims');
+    });
+});
 
 describe('ensureOverridesCached fetch failure', () => {
     beforeEach(() => {

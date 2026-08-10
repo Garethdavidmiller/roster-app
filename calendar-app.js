@@ -219,6 +219,28 @@ function updateLegend() {
         const easterSunMonth = computeEaster(getDisplayYear()).getMonth();
         easterItem.style.display = getDisplayMonth() === easterSunMonth ? '' : 'none';
     }
+
+    // ── And whether the legend is shown AT ALL (v20.41) ─────────────────────────────────────────
+    //
+    // The legend is a KEY to the grid, so it goes when the grid does: with the month withheld it
+    // keys nothing, and being derived from the BASE roster it would go on announcing this month's
+    // shift types beside a panel saying we do not yet know them.
+    //
+    // HERE and not in renderCalendar, which is where v20.40 put it and where it was wrong. A swipe
+    // COMMIT calls updateLegend() but never renderCalendar() — the incoming carousel panel simply
+    // becomes the live view — so the decision was skipped on exactly the navigation people use most.
+    // Both directions were broken: swipe from a withheld month onto a good one and the legend stayed
+    // hidden until some later full render; swipe onto an unfetched one and it stayed up over the wait
+    // panel. `updateLegend` is the one function every path calls, which makes it the choke point,
+    // the same argument that put the grid gate in `buildCalendarContainer` rather than here.
+    //
+    // Team View owns the legend while it is active (applyTeamViewChrome hides it), so we stand down;
+    // exiting it calls renderCalendar, which comes back through here and settles the real answer.
+    const legendEl = /** @type {HTMLElement|null} */ (document.querySelector('.legend'));
+    if (legendEl && !teamView.isTeamViewMode()) {
+        const shown = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
+        legendEl.style.display = (shown === 'render' || shown === 'stale') ? '' : 'none';
+    }
 }
 
 /**
@@ -279,7 +301,9 @@ function retryMonth(year, month) {
     const key = monthKey(year, month);
     clearFetchedMonth(key);
     forgetOverrideKnowledge(key);
-    if (teamView.isTeamViewMode()) teamView.refreshFromCache(); else renderCalendar();
+    // Calendar only: this button lives on the MONTH panel, which never renders in Team View — that
+    // surface has its own `#tvRetry`, wired to the week's own months.
+    renderCalendar();
 }
 
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
@@ -297,19 +321,9 @@ function renderCalendar() {
         const stale = takeStaleMemberName();
         if (stale) _showStaleMemberBanner(stale, (/** @type {any} */ (member)).name);
 
-        // Update legend for current member and month (Night, 🎄, 🐣 are conditional)
+        // Update legend for current member and month (Night, 🎄, 🐣 are conditional).
+        // It also decides whether the legend is SHOWN at all — see updateLegend.
         updateLegend();
-
-        // …and hide it entirely while the month's grid is withheld (v20.40). The legend is a KEY to
-        // what is on the grid, so with no grid it keys nothing — and worse, it is derived from the
-        // base roster, so it would go on announcing "this month has Early and Late shifts" beside a
-        // panel saying we do not yet know what this month has. Team View already hides it the same
-        // way (via `.legend`), so the mechanism is the established one.
-        const _legend = /** @type {HTMLElement|null} */ (document.querySelector('.legend'));
-        const _monthKnown = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
-        if (_legend && !teamView.isTeamViewMode()) {
-            _legend.style.display = (_monthKnown === 'render' || _monthKnown === 'stale') ? '' : 'none';
-        }
 
         // Set team member name on header for printing
         const headerElement = document.querySelector('.header');
@@ -1103,7 +1117,12 @@ initNavPanel({
 // locked visitor still has the nav drawer, the guides, the documents and the About panel. Only then
 // is access decided, and only on `named`/`viewer` does the workspace exist at all.
 initCalendarAccess({
-    onGranted: () => {
+    // EVERY grant, not just the first (v20.41). Both of these are things the access-lost path turns
+    // OFF, so both have to come back on when access returns — which is precisely what re-entering
+    // the PIN after a rotation is. Left in the one-shot below, a re-unlocked Calendar came back with
+    // its override gate still shut: every read refused at source, every month stuck on "Checking
+    // this month", and a Try again that could not win.
+    onEveryGrant: () => {
         // Open the override reads BEFORE building the workspace. The reverse order would let the
         // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
         // and leave the month unfetched for the session.
@@ -1112,8 +1131,9 @@ initCalendarAccess({
         // through the initial fetch — so they need the same access-lost recovery, and they are the
         // likelier path once a session has been open for a while (v20.15).
         setOverrideAccessLostHandler(handleAccessLost);
-        _startCalendarWorkspace?.();
     },
+    // ONCE: re-running this would re-wire the swipe handler and re-launch the initial 3-month fetch.
+    onGranted: () => { _startCalendarWorkspace?.(); },
 });
 
 

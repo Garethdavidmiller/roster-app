@@ -90,6 +90,66 @@ test('calendar: the retry re-reads, and a grid appears when it succeeds', async 
     await expect(page.locator('.legend')).toBeVisible();
 });
 
+// Swipe helper — a real pointer drag across the grid. Left drag = next month, right = previous.
+//
+// It RETRIES until the month heading actually changes, and that is not defensive padding: a
+// mouse-simulated gesture is swallowed perhaps one time in two, and which one moves with the settle
+// delay. A fixed `waitForTimeout` therefore produces a test that fails on a different line each run
+// and, worse, one that can pass while asserting a state the swipe never reached — which is exactly
+// how the first version of this test passed against the bug it was written for.
+async function swipeMonth(page, dir) {
+    const before = await page.locator('.month-year').textContent();
+    for (let attempt = 0; attempt < 4; attempt++) {
+        const box = await page.locator('#calendarDisplay').boundingBox();
+        const y = box.y + box.height / 2;
+        const [from, to] = dir === 'next'
+            ? [box.x + box.width - 20, box.x + 20]
+            : [box.x + 20, box.x + box.width - 20];
+        await page.mouse.move(from, y);
+        await page.mouse.down();
+        await page.mouse.move(to, y, { steps: 12 });
+        await page.mouse.up();
+        try {
+            await page.waitForFunction(
+                (b) => document.querySelector('.month-year')?.textContent !== b,
+                before, { timeout: 2000 });
+            return;
+        } catch { /* swallowed gesture — try again */ }
+    }
+    throw new Error(`swipe ${dir} never committed (still on ${before})`);
+}
+
+test('calendar: the legend follows the grid across a SWIPE, in both directions', async ({ page }) => {
+    // The regression this pins (v20.41). A swipe COMMIT calls updateLegend() but never
+    // renderCalendar() — the incoming carousel panel simply becomes the live view — so a legend
+    // decision made in renderCalendar was skipped on the navigation people use most.
+    //
+    // Getting teeth into this needs a swipe where the right answer CHANGES. The boot fetch covers
+    // previous/current/next, so one swipe lands on a month that is already known and the legend is
+    // correct either way — a first attempt at this test asserted exactly that and passed against the
+    // bug. Two swipes reach OUTSIDE the boot window, and delaying reads only AFTER boot leaves that
+    // month genuinely unknown while the months behind it stay good.
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.legend')).toBeVisible();
+
+    // From here on, any NEW month's read hangs. The boot window is already loaded.
+    await page.evaluate(() => { (window.__E2E = window.__E2E || {}).docsDelayMs = 30000; });
+
+    await swipeMonth(page, 'next');   // still inside the boot window — known
+    await swipeMonth(page, 'next');   // outside it — unknown, so the grid is withheld
+
+    await expect(page.locator('.calendar-pending')).toBeVisible();
+    await expect(page.locator('.legend')).toBeHidden();
+
+    // And back: a swipe onto a month that IS known must bring the legend with it. This is the
+    // direction a member would report — a perfectly good grid with no colour key.
+    await swipeMonth(page, 'prev');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.legend')).toBeVisible();
+});
+
 test('calendar: a successful read renders the grid — the withholding is a gate, not a disablement', async ({ page }) => {
     await seedMember(page);
     await page.goto('/');

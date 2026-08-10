@@ -634,7 +634,11 @@ test('rangers: the known operational conclusions are pinned', () => {
         'rr-oxon':        ['no',  'yes'],   // Banbury, Kings Sutton, Bicester Village, Islip, Oxford
         'rr-heart':       ['no',  'yes'],   // Banbury + the Leamington–Birmingham corridor + Oxford
         'rr-thames':      ['no',  'conflict'],    // geography settled; operator disputed
-        'rr-shakespeare': ['unconfirmed', 'unconfirmed'], // no readable source — an ABSENCE, not a disagreement
+        'rr-shakespeare': ['yes', 'yes'],   // v20.43: re-sourced at its real URL. "Valid from London
+        //                                     Marylebone at any time" outward, and Chiltern Railways is one
+        //                                     of its three named applicable operators. v20.37 had it as
+        //                                     unconfirmed on a sitemap audit that found no entry — which was
+        //                                     a fact about the catalogue, not about the page.
     };
     for (const [id, [myb, ch]] of Object.entries(EXPECT)) {
         assert.ok(by[id], `card ${id} is missing`);
@@ -653,9 +657,16 @@ test('rangers: the known operational conclusions are pinned', () => {
 test('rangers: a product nobody can source is never badged as a self-contradicting one', () => {
     const cards = validityCards();
     const unconfirmed = cards.filter(c => c.myb === 'unconfirmed' || c.ch === 'unconfirmed');
-    assert.ok(unconfirmed.length,
-        'no unconfirmed products left — if every one has been sourced, delete this test and the ' +
-        'state with it, but do NOT fold it into `conflict`');
+    // NO PRODUCT CURRENTLY HOLDS `unconfirmed` (v20.43) — Shakespeare Explorer was the only one and
+    // it has been re-sourced. This test used to REQUIRE an instance, and told a future reader to
+    // delete the state along with the test once none was left. Keeping the state and dropping that
+    // requirement is the better answer: an absence and a disagreement are genuinely different
+    // answers, it took a shipped defect to learn that, and the next unsourceable product should
+    // inherit the distinction rather than reinvent it.
+    //
+    // But a test that can only pass vacuously is worth nothing, so the load-bearing half now runs
+    // ALWAYS: the two states must stay visually distinguishable in the CSS, whether or not a card
+    // is using one today. The per-card half below simply has nothing to iterate over for now.
     for (const c of unconfirmed) {
         assert.doesNotMatch(c.block, /status--conflict/,
             `${c.id}: an unsourceable product wears a CONFLICT badge. Nobody has read a source for ` +
