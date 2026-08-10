@@ -30,7 +30,7 @@ canvas with **off-white cards** (`--surface`, above), so an OS/browser "force da
 light surfaces mangles it — the off-white cards flip to grey while the navy stays put (a real
 staff report, Jul 2026, on a Samsung device). To opt out of algorithmic darkening the app declares
 **`color-scheme: only light`** in `shared.css` (on `html`) AND as a `<meta name="color-scheme"
-content="only light">` on every served page (all six app pages + all four guides — the guides don't
+content="only light">` on every served page (all six app pages + all five guides — the guides don't
 import `shared.css`, so the meta is their only signal). The `only` keyword (v18.10, was plain
 `light`) forbids a conforming browser from overriding the scheme. **Do not add a
 `prefers-color-scheme` rule or a dark palette** without an explicit owner decision — there is none

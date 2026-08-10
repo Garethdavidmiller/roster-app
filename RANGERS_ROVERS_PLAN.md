@@ -229,8 +229,9 @@ loudly — which is the good case. Listed so the work is estimated honestly:
 Every row above was checked against the code, not assumed: `firestore-contract-parity.test.mjs`
 reads `NAV_GUIDES` and the rules allowlist and compares them **both ways**; `e2e/calendar.spec.js`
 drives each guide's drawer link and asserts the id it records; each guide page carries three
-`noindex`/`color-scheme` metas; and all four existing guides are visually baselined (two at
-desktop 900, two at mobile 390 — pick the width that shows this page's densest state).
+`noindex`/`color-scheme` metas; and the four guides that existed when this was written were visually baselined (two at
+desktop 900, two at mobile 390 — pick the width that shows this page's densest state). The Rangers
+guide has since joined them at mobile 390.
 
 Note #10 and #12 specifically: the analytics open-id mapping has already produced a real defect class
 (a substring match filed every Pay Calculator Guide open under the Staff Guide), and the register's
