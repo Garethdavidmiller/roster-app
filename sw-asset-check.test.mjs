@@ -303,6 +303,28 @@ test('every versioned .md doc is current to the latest 0.10 milestone', () => {
     );
 });
 
+test('functions/index.js only destructures symbols functions/push.js actually exports', () => {
+    // The push TRANSPORT moved out of index.js at v20.52. A CommonJS require resolves at RUNTIME, so
+    // a renamed or dropped export does not fail the build, the unit tests or the parse check — it
+    // fails when the function first runs, which for a push sender means a notification silently not
+    // being sent. Cheap to check statically; expensive to notice any other way.
+    const index = readFileSync(join(ROOT, 'functions', 'index.js'), 'utf8');
+    const push  = readFileSync(join(ROOT, 'functions', 'push.js'), 'utf8');
+
+    const req = index.match(/const\s*\{([^}]+)\}\s*=\s*require\('\.\/push'\)/);
+    assert.ok(req, "functions/index.js no longer requires ./push — if the module was folded back in, delete this test");
+    const wanted = req[1].split(',').map(s => s.trim()).filter(Boolean);
+    assert.ok(wanted.length > 0, 'destructured nothing from ./push');
+
+    const exp = push.match(/module\.exports\s*=\s*\{([^}]+)\}/);
+    assert.ok(exp, 'functions/push.js has no module.exports object literal');
+    const exported = new Set(exp[1].split(',').map(s => s.trim().split(':')[0].trim()).filter(Boolean));
+
+    const missing = wanted.filter(w => !exported.has(w));
+    assert.deepEqual(missing, [],
+        `functions/index.js requires these from ./push but push.js does not export them: ${missing.join(', ')}`);
+});
+
 test('functions/roster-members.json matches active staff in roster-data.js', async () => {
     // Dynamic import so we get the live teamMembers array without module mocks.
     const { teamMembers, CONFIG, getMembersForGrade } = await import('./roster-data.js');
