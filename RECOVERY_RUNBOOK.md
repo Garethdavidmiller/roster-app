@@ -45,6 +45,7 @@ of a single record — *not* a full database restore. Reach for a full restore l
 | Live site (mirror) | `https://garethdavidmiller.github.io/roster-app/` (GitHub Pages, built from `main`) |
 | Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml` |
 | Source of truth for a rollback | this git repo — `main` is what deploys |
+| **IAM prerequisite for `unlockCalendarViewer`** | The Cloud Run runtime service account — currently `532910998075-compute@developer.gserviceaccount.com` — must hold **`roles/iam.serviceAccountTokenCreator` on itself**, and `iamcredentials.googleapis.com` must be enabled. Under Application Default Credentials `createCustomToken` cannot sign locally; it calls the IAM Credentials API. **Gen-2 does not grant this by default and nothing in the repo can enforce it** — its absence caused the 10 Aug 2026 outage, in which every correct PIN returned 500 while every wrong one returned a healthy 401. Re-apply it if the runtime service account changes, if the function is given its own service account, or if the project is rebuilt. |
 
 You need the **Firebase CLI** (`npm i -g firebase-tools`, then `firebase login`) and the
 **gcloud CLI** (`gcloud auth login`, `gcloud config set project myb-roster`) on your own
@@ -359,7 +360,9 @@ stops the hold outliving the rollout: it cannot be forgotten quietly, only remov
    production origin. Both brakes are still on, so staff see no change whatsoever — this is the dark
    deploy, and its job is to prove the *rest* of the release (session handling, the nav drawer, the
    calendar bootstrap) against real devices while the feature itself is invisible.
-2b. **Prove the SUCCESS path in production, by hand, BEFORE step 3.** Someone holding the PIN opens
+2b. **Prove the SUCCESS path in production, by hand, BEFORE step 3.** ✅ Passed 10 Aug 2026, on the
+   second attempt — the first found the IAM gap in the project-facts table above, which is exactly
+   what this step exists to catch. Someone holding the PIN opens
    the live Calendar in a private window and unlocks it. That is the whole check, and there is no
    automated substitute: it is the only way the token mint is exercised against real IAM, real Auth
    and the real secret. If it fails, read the function log — `[unlockCalendarViewer] token mint

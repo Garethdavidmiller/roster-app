@@ -133,19 +133,20 @@ export const CONFIG = {
     // not verified the feature.** Before re-enabling, somebody who holds the PIN must unlock the
     // real Calendar from a real browser, once.
     //
-    // ON AGAIN (v20.51) — and this switch-on IS runbook step 2b, not step 3. The v20.50 failure was
-    // diagnosed as an IAM gap rather than app code: `admin.initializeApp()` runs on Application
-    // Default Credentials, so `createCustomToken` cannot sign locally — it calls the IAM Credentials
-    // API, which requires the Cloud Run runtime service account
-    // (`532910998075-compute@developer.gserviceaccount.com`) to hold
-    // `roles/iam.serviceAccountTokenCreator` ON ITSELF. Gen-2 does not grant that by default. The
-    // owner granted it, and enabled `iamcredentials.googleapis.com`, on 10 Aug 2026.
+    // ON, and step 2b PASSED (v20.51, 10 Aug 2026) — a human holding the PIN unlocked the live
+    // Calendar and got their roster. That is what the v20.50 outage cost and what now protects this.
     //
-    // **That diagnosis is INFERRED FROM THE SYMPTOM, not read from a log.** It fits exactly — the
-    // 500 came from the token-mint block, which is the only place a signature is needed — but the
-    // function's own `[unlockCalendarViewer] token mint failed <code> <message>` line was never
-    // retrieved. So this flag is on to RUN THE TEST, and the test is a human unlocking the live
-    // Calendar. If that fails again, go and read the log before changing anything else.
+    // ── THE CAUSE, CONFIRMED BY THAT TEST ───────────────────────────────────────────────────────
+    // Not app code: an IAM gap. `admin.initializeApp()` runs on Application Default Credentials, so
+    // `createCustomToken` cannot sign locally — it calls the IAM Credentials API, which requires the
+    // Cloud Run runtime service account to hold `roles/iam.serviceAccountTokenCreator` ON ITSELF.
+    // Gen-2 does not grant that by default, so every correct PIN 500'd at the mint.
+    //
+    // **THIS IS A STANDING DEPLOYMENT PREREQUISITE, NOT A ONE-OFF REPAIR.** It lives in GCP IAM, not
+    // in this repository, so nothing here can enforce it and no test can see it. It has to be
+    // re-applied if the runtime service account ever changes, if the function is moved to its own
+    // service account, or if the project is rebuilt. Recorded in RECOVERY_RUNBOOK's project facts
+    // for that reason. Current holder: `532910998075-compute@developer.gserviceaccount.com`.
     //
     // Rolling back is still this one line while the `overrides` hold line stands.
     CALENDAR_PIN_ACCESS:              true,
