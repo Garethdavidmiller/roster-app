@@ -245,8 +245,13 @@
     .pbl-dot  { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
 
     .summary { padding: 2px 16px; }
+    /* `gap` is load-bearing, not spacing taste (v20.53). `space-between` puts the figure hard against
+       the label the moment the label fills the row — reported from a phone, where "Back pay lump sum
+       (pay award — estimate)+£977.69" rendered with no space at all between the words and the money.
+       Any long label does it; the back-pay ones are simply the longest. */
     .sum-row {
       display: flex; justify-content: space-between; align-items: center;
+      gap: 16px;
       padding: 10px 0; border-bottom: 1px solid var(--border-light); font-size: var(--type-body);
     }
     .sum-row:last-child { border-bottom: none; }
@@ -255,11 +260,20 @@
       font-weight: 700; color: var(--text-dark);
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum' 1;
+      /* The figure is the point of the row: it never wraps and never gives up width to a long label. */
+      white-space: nowrap; flex-shrink: 0;
     }
     .sum-row.sum-gross .lbl { font-weight: 700; color: var(--text-dark); }
     .sum-row.sum-gross .val { font-size: var(--type-button); }
     .sum-row.sum-ded .val  { color: var(--error-red); }
     .sum-row.sum-net .lbl  { font-weight: 800; color: var(--primary-blue); font-size: var(--type-button); }
+    /* Baseline, not centre: the qualifier below turns the label into two lines of unequal size, and
+       centring would float the £ figure between them instead of sitting on the headline. */
+    .sum-row.sum-net       { align-items: baseline; }
+    .sum-net-sub {
+      display: block; margin-top: 3px;
+      font-size: var(--type-small); font-weight: 600; color: var(--text-mid);
+    }
     .sum-row.sum-net .val  { font-weight: 800; color: var(--primary-blue); font-size: var(--type-medium); }
     .sum-row.sum-bp .lbl  { color: var(--text-mid); }
     .sum-row.sum-hpp .lbl { color: var(--text-mid); }
