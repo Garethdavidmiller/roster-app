@@ -405,7 +405,9 @@ The one flow that starts with **no identity at all**: a member who has forgotten
 has no Firebase session, so they cannot write anything — which is why this runs through the app's only
 public unauthenticated endpoint rather than a client write.
 
-1. **Member** taps "Can't get in?" on the login overlay → `requestPasswordReset` in
+1. **Member** taps "Can't get in?" on the login overlay — **always available there since v20.48**,
+   under the Sign in button; before that it appeared only after two failed attempts, so a member who
+   knew they had forgotten had to fail twice first → `requestPasswordReset` in
    `firebase-client.js` (the one caller there that sends **no** auth token) → the
    `requestPasswordReset` Cloud Function.
 2. **Function** (Admin SDK) upserts `resetRequests/{memberName}` — `requestedAt`, `count`, and

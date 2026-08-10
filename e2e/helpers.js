@@ -71,7 +71,11 @@ export async function armEnforcementWithFailingSignIn(page, name = 'G. Miller') 
 
 // Drive the real login overlay: find the grade that lists `fullName`, select it, type the
 // surname password (mirrors normaliseSurname), submit. The fixture's default sign-in resolves.
-export async function signInThroughOverlay(page, fullName) {
+//
+// `{ submit: false }` stops short of pressing Sign in — for the tests that need a member SELECTED in
+// the card without an attempt having been made (the reset-request link reads the dropdown at click
+// time, so "who is named here" is a state worth reaching without failing first).
+export async function signInThroughOverlay(page, fullName, { submit = true } = {}) {
     await page.locator('#loginOverlay').waitFor({ state: 'visible' });
     const grades = await page.locator('#loginGrade option').evaluateAll(
         opts => opts.map(o => o.value).filter(Boolean));
@@ -83,7 +87,7 @@ export async function signInThroughOverlay(page, fullName) {
     await page.locator('#loginName').selectOption(fullName);
     const pw = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
     await page.locator('#loginPassword').fill(pw);
-    await page.locator('#loginSubmit').click();
+    if (submit) await page.locator('#loginSubmit').click();
 }
 
 

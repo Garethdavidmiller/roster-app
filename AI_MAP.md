@@ -319,11 +319,23 @@ PASSWORD_PLAN.md §12 (the queue) + §14 (the admin push, v18.95).
 - **`firebase-client.js`** gains `requestPasswordReset(member)` / `getResetRequests()` /
   `clearResetRequest(member)`. The FIRST is unlike every other function caller in the file: it sends
   **no auth token**, because its caller is the login overlay and the person using it is not signed in.
-- **`login-overlay.js`** shows a quiet "Can't get in? Ask the admin to reset your password" button,
-  `hidden` until `revealResetRequest()` runs — which happens ONLY on `kind: 'credential'`. A network or
-  rate-limit failure is not a forgotten password, and a reset would not fix one. Revealing it also hides
-  the static "Trouble signing in? Ask the admin." footer, so the card never states the same advice three
-  times at once (the v18.49 de-duplication principle).
+- **`login-overlay.js`** shows a quiet "Can't get in? Ask the admin to reset your password" button —
+  **always, from the moment the card opens, below the Sign in button** (v20.48). It used to be `hidden`
+  until two credential failures revealed it, which had the right instinct (do not offer a reset to
+  someone who merely mistyped) and the wrong subject: the member who KNOWS they have forgotten had to
+  fail twice deliberately before the app would tell them how to ask, and until then the only advice was
+  a static "Trouble signing in? Ask the admin." footer that named the remedy without providing it. That
+  footer is gone — this replaces it, so the card still states the advice once. Note the gate was never a
+  security control either: the endpoint is public and forgeable with no browser at all (PASSWORD_PLAN.md
+  → "a request proves nothing about who sent it"), so hiding the button only ever hid it from staff.
+  What survives is the sound half, now expressed as EMPHASIS rather than existence — two `kind:
+  'credential'` failures add `.login-reset-request--prompted` (navy, 600) without moving the control;
+  a network or rate-limit failure never does, because that is not a forgotten password and a reset
+  would not fix one. `CONFIG.PASSWORD_RESET_REQUESTS` off now `remove()`s the button at mount rather
+  than gating a reveal. The click reads `nameSelect.value` **at click time**, which is correct here
+  precisely because the link is tied to no failure: it means "I am the person named above". The v18.94
+  bug it must not re-create is the other direction — stale state surviving an identity change — so a
+  grade/name change clears the status line and the emphasis (`resetResetRequest`).
 - **`operations-app.js`** renders the **Password Reset Requests** card directly ABOVE Account status —
   the queue adjacent to its remedy — with a count chip, `_relativeTime` rows (exported from
   operations-reports.js so it reads identically to the Error Log beside it), a per-row Clear, and an

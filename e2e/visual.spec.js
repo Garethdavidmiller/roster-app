@@ -573,12 +573,19 @@ test('guide — rangers & rovers mobile 390', async ({ page }) => {
     //
     // The provisional total is still TWO, and that is the number to keep pinned; what changed is
     // where each one sits. Thames 7-Day keeps a whole-card marker, because the disputed claim (is
-    // Chiltern an operator?) IS that card's Chiltern answer. Shakespeare does not: nobody can read
-    // its page at all, which is a Draft, and its break-of-journey conflict lives on the claim it
-    // concerns. Counting the two shapes separately is the point — collapsing them back into one
-    // number is how the distinction gets lost.
+    // Chiltern an operator?) IS that card's Chiltern answer. Counting the two shapes separately is
+    // the point — collapsing them back into one number is how the distinction gets lost.
+    //
+    // AND THEY MOVED AGAIN AT v20.43, which is why `draft` is now ZERO rather than deleted. The
+    // Shakespeare card was marked Draft on the reasoning that its page could not be read at all —
+    // and that was wrong: the SH1 product page was live, and sitemap silence had been mistaken for
+    // an absent page. With its core sourced the CARD is green, and its one genuinely-open claim
+    // (break of journey) stays marked at CLAIM level below. So the provisional total is unchanged
+    // at two, now carried as one Conflict card + one unresolved claim, with no Draft anywhere.
+    // Asserted as 0 on purpose: a Draft reappearing is a real event, and deleting the line would
+    // make it a silent one.
     await expect(page.locator('.rr-card--conflict')).toHaveCount(1);  // Thames 7-Day
-    await expect(page.locator('.rr-card--draft')).toHaveCount(1);     // Shakespeare — unsourceable
+    await expect(page.locator('.rr-card--draft')).toHaveCount(0);     // none since the v20.43 fix
     await expect(page.locator('[data-guide-source="rr-shakespeare-boj"].rr-unresolved')).toHaveCount(1);
     // A Draft and a Conflict must never render alike, and a screenshot is the only thing that can
     // see it: the badges are what a reader looks at now, and the Shakespeare card shipped mid-v20.37
