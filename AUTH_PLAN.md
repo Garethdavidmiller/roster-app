@@ -477,7 +477,7 @@ stop condition: it means the experiment has no failure criterion, so it can only
 | Member selector vs identity | E3 | Default to your own roster, or keep a free selector with login as a pure gate? UX, not security. |
 | Analytics identity guarantee | E3 | Keep the calendar identity-free, or make it an active-account surface? |
 | Anonymous provider fate | E5 | Disable project-wide, or keep as a Level-1 tier? |
-| Retire the GitHub Pages mirror? | asserting "behind auth" | See §8. |
+| Retire the GitHub Pages mirror? | asserting "behind auth" — **and passkeys outright** | See §8. Passkeys make this binding rather than presentational: a WebAuthn credential is bound to one RP ID, and the two origins share no parent domain, so a passkey registered on one can never work on the other. `PASSWORD_PLAN.md` → "Passkeys — POSSIBLE, not planned". |
 | Do E6 at all, and which delivery model? | E6 | Independent of everything above. |
 
 ---
@@ -493,6 +493,14 @@ finishing the password work matters, that is an argument for Track E with nothin
 (same Firebase project), so it is not a hole. But if the driver is "roster data must not sit on a public
 URL", a second public origin that cannot serve headers undercuts the claim. Retiring it is likely a
 prerequisite for *asserting* the app is behind auth, separate from *being* behind auth.
+
+**A second, harder driver arrived with the passkey question (10 Aug 2026).** "Behind auth" is a claim
+someone can argue about; a WebAuthn RP ID is not. A passkey is bound to one origin's registrable
+domain, and `web.app` and `github.io` are both public suffixes with no shared parent — so the mirror
+does not weaken passkeys, it **excludes** them for everyone still on it. That turns this row from a
+presentational decision into a technical precondition. Design, options and costs:
+`PASSWORD_PLAN.md` → "Passkeys — POSSIBLE, not planned" (credential METHOD is that file's subject;
+this file's subject is what sits behind the boundary, which passkeys do not change).
 
 **Anti-goals — do not:**
 
