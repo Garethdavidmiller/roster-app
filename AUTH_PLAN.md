@@ -363,6 +363,54 @@ Whichever is chosen, **existing tokens must be rotated** — old URLs stay live 
 rewritten. **Cost this properly before scheduling E6**; the estimate implied by "swap the delivery model"
 was written before the Office-viewer dependency was noticed.
 
+### E6 vs the notifications — POSSIBLE, not planned (recorded 10 Aug 2026)
+
+*Owner-raised while the PIN was soaking: "the documents should not be visible until the PIN or a
+password is entered — but how does that interfere with notifications?" Recorded here as a
+**possibility with its cost attached**, not as scheduled work, and deliberately NOT given an E-number:
+the phase list is E0–E6 and `auth-plan-parity.test.mjs` pins it. If this is ever committed to, it is
+part of E6, not a phase of its own.*
+
+**The notification itself cannot break, and that is worth knowing before the rest of this frightens
+anyone off.** `fanOutPush` builds the payload server-side with the Admin SDK, which bypasses rules
+entirely; the push service delivers it; the service worker renders title and body straight from the
+payload. There is no Firestore read and no auth anywhere in that path, and no document content in the
+message — only "📋 Latest Huddle" and a tap target. **No rule change can stop a notification arriving.**
+
+**What a gate WOULD affect is the tap-through.** The viewer reads `huddles/{date}` (or the latest
+circular/newsletter) to get the file URL. Gate that read and an unauthenticated tap gets
+permission-denied. The population that hits is precisely the roster-only staff the PIN exists for —
+the people who never sign in, and plausibly the people most reliant on a Huddle notification the
+evening before a shift.
+
+**The trap, and the reason this must not ship alone.** Gating those three collections does not put the
+documents behind authentication — see everything above in this section. The bearer URL is the control,
+so a rules-only change buys "new people cannot discover a URL" while every URL already in circulation
+keeps working for ever, and Microsoft carries on fetching the Word ones server-side. **Rules-first here
+is the expensive-and-useless ordering: it costs a daily-use notification its tap-through and protects
+nothing.** Delivery model first (the table above), rules last.
+
+**If it is ever built, two things need designing rather than discovering:**
+
+- **The viewers move behind the access gate.** They currently take `authReady` (persistence configured),
+  **not** `calendarAccessReady` — a deliberate choice recorded in `calendar-app.js`, and the reason a
+  notification tap opens a document today even on a locked Calendar. That line is load-bearing; changing
+  it is the change.
+- **The deep link has to survive the unlock.** Tap → PIN or sign-in → *continue to the document*, not
+  arrive at the calendar having lost the reason for coming. Note `initHuddleViewer` and `initDocViewer`
+  strip their own hash **synchronously** via `history.replaceState` (which is why `_entryHash` exists at
+  all), so capture has to happen before the gate, not after it.
+
+**And one judgement call that is not a technical one:** a notification for something the recipient then
+cannot open is worse than no notification. Either the send becomes conditional on being able to action
+it, or the friction is accepted and stated. Do not leave it to be discovered by the first person who
+taps.
+
+**Ordering.** Nothing here starts before the PIN has finished soaking and the `overrides` hold line is
+removed (RECOVERY_RUNBOOK step 4). The roster is the more sensitive surface — it carries annual leave,
+absence and individual shifts — and it is worth being explicit that closing it first was the right
+order, not an accident of what was easy.
+
 ---
 
 ## 6. What to measure
