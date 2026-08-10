@@ -53,11 +53,21 @@ will not retry it, so production can stay stale indefinitely until an unrelated 
 > rationale*; that file is the *ordering* that keeps a fix from re-creating the v10.94 outage.
 
 ### Override data is publicly readable — FIX BUILT at v20.12, NOT YET IN EFFECT (staff PIN access)
-> ⚠️ **STILL OPEN AS DEPLOYED (v20.20).** The whole feature is merged, deployed and dormant: the
-> client ships with `CONFIG.CALENDAR_PIN_ACCESS: false` and the `overrides` read rule carries a
-> matching `allow read;` hold line. **Override data is readable by anyone with the app URL today**,
-> exactly as it was before v20.12. This entry closes when the two brakes are released — client
-> first, rules second, one push each (RECOVERY_RUNBOOK.md → "The Calendar PIN", steps 3 and 4).
+> ⚠️ **STILL OPEN AS DEPLOYED (re-checked v20.45).** The whole feature is merged, deployed and
+> dormant: the client ships with `CONFIG.CALENDAR_PIN_ACCESS: false` and the `overrides` read rule
+> carries a matching `allow read;` hold line. **Override data is readable by anyone with the app URL
+> today**, exactly as it was before v20.12. This entry closes when the two brakes are released —
+> client first, rules second, one push each (RECOVERY_RUNBOOK.md → "The Calendar PIN", steps 3
+> and 4).
+>
+> **Runbook position (10 Aug 2026): steps 1–2 are COMPLETE; only 3–5 remain.** The
+> `CALENDAR_VIEWER_PIN` secret is set (owner, 9 Aug 2026) and was verified against the LIVE
+> function — a deliberately wrong PIN returns 401 "PIN not recognised", which on the deployed code
+> proves the secret is present, non-empty and four-digit-shaped (any of those failing returns 503).
+> The v20.45 dark deploy is live on both origins with every activation blocker closed: Lock
+> Calendar fail-closed (v20.39), secret shape-validated (v20.39), Calendar data readiness
+> (v20.40–41), throttle-store failure fail-closed (v20.45). Nothing remains before step 3 except
+> the decision to take it.
 >
 > Written this way on purpose. An entry that read "CLOSED at v20.12" while the rule was still
 > permissive is worse than no entry: it is the one document someone checks to decide whether the
