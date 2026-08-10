@@ -339,8 +339,8 @@ steps below are three separate pushes rather than one:
 
 | Brake | Where | Ships as | Released at |
 |---|---|---|---|
-| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | `false` — Calendar behaves exactly as pre-v20.12 | step 3 |
-| `allow read;` hold line | `firestore.rules` overrides block | present — collection still public | step 4 |
+| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | `false` — Calendar behaves exactly as pre-v20.12 | step 3 — **RELEASED, v20.46 (10 Aug 2026)** |
+| `allow read;` hold line | `firestore.rules` overrides block | present — collection still public | step 4 — still on (the soak) |
 
 The hold line is declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
 and `calendar-viewer-parity.test.mjs` fails if the two disagree in either direction. That is what
