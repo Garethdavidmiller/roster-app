@@ -121,14 +121,20 @@ test('every NOTIFICATION_FEATURES hashPath page is in the SW SAFE_NOTIFICATION_P
     // to this check — 'paycalc.html' was pinned by a hand-written line that had to be remembered for
     // each new feature, and a forgotten one fails SILENTLY (the SW drops an unlisted page and opens
     // the app root, so the notification appears to work). Scan the call sites too. (v18.95)
-    const fns = readFileSync(join(ROOT, 'functions', 'index.js'), 'utf8');
-    const callSiteUrls = [...fns.matchAll(/url:\s*`\$\{STAFF_SITE_URL\}\/([^`]*)`/g)].map(m => m[1]);
-    assert.ok(callSiteUrls.length > 0, 'expected at least one ${STAFF_SITE_URL} notification url in functions/index.js');
+    // Across EVERY functions/*.js (v20.55) — the domain split moved the pay call site into
+    // documents.js and the reset-request one into auth-endpoints.js, and a scan pinned to index.js
+    // would have kept passing while covering neither.
+    const fnFiles = readdirSync(join(ROOT, 'functions')).filter(f => f.endsWith('.js'));
+    const callSiteUrls = fnFiles.flatMap(f => {
+        const src = readFileSync(join(ROOT, 'functions', f), 'utf8');
+        return [...src.matchAll(/url:\s*`\$\{STAFF_SITE_URL\}\/([^`]*)`/g)].map(m => ({ f, u: m[1] }));
+    });
+    assert.ok(callSiteUrls.length > 0, 'expected at least one ${STAFF_SITE_URL} notification url in functions/*.js');
     const missingCallSites = callSiteUrls
-        .map(u => ({ u, page: u.split('#')[0].split('?')[0] }))
+        .map(({ f, u }) => ({ f, u, page: u.split('#')[0].split('?')[0] }))
         .filter(({ page }) => !safe.includes(page));
-    assert.deepEqual(missingCallSites.map(x => `${x.u} → page '${x.page}'`), [],
-        'notification deep-link urls in functions/index.js whose page is not in SW SAFE_NOTIFICATION_PAGES');
+    assert.deepEqual(missingCallSites.map(x => `functions/${x.f}: ${x.u} → page '${x.page}'`), [],
+        'notification deep-link urls in functions/*.js whose page is not in SW SAFE_NOTIFICATION_PAGES');
 });
 
 test('firestore.rules staffContact work-email domain matches CONFIG.WORK_EMAIL_DOMAIN', () => {
@@ -303,26 +309,34 @@ test('every versioned .md doc is current to the latest 0.10 milestone', () => {
     );
 });
 
-test('functions/index.js only destructures symbols functions/push.js actually exports', () => {
+test('every functions module only destructures symbols functions/push.js actually exports', () => {
     // The push TRANSPORT moved out of index.js at v20.52. A CommonJS require resolves at RUNTIME, so
     // a renamed or dropped export does not fail the build, the unit tests or the parse check — it
     // fails when the function first runs, which for a push sender means a notification silently not
     // being sent. Cheap to check statically; expensive to notice any other way.
-    const index = readFileSync(join(ROOT, 'functions', 'index.js'), 'utf8');
-    const push  = readFileSync(join(ROOT, 'functions', 'push.js'), 'utf8');
-
-    const req = index.match(/const\s*\{([^}]+)\}\s*=\s*require\('\.\/push'\)/);
-    assert.ok(req, "functions/index.js no longer requires ./push — if the module was folded back in, delete this test");
-    const wanted = req[1].split(',').map(s => s.trim()).filter(Boolean);
-    assert.ok(wanted.length > 0, 'destructured nothing from ./push');
-
-    const exp = push.match(/module\.exports\s*=\s*\{([^}]+)\}/);
+    //
+    // Scans EVERY functions/*.js (v20.55 — was index.js only). The domain split moved the require
+    // sites into documents.js and auth-endpoints.js; a guard pinned to the old home would have gone
+    // quietly vacuous, which is the exact failure mode it exists to catch in the code.
+    const push = readFileSync(join(ROOT, 'functions', 'push.js'), 'utf8');
+    const exp  = push.match(/module\.exports\s*=\s*\{([^}]+)\}/);
     assert.ok(exp, 'functions/push.js has no module.exports object literal');
     const exported = new Set(exp[1].split(',').map(s => s.trim().split(':')[0].trim()).filter(Boolean));
 
-    const missing = wanted.filter(w => !exported.has(w));
-    assert.deepEqual(missing, [],
-        `functions/index.js requires these from ./push but push.js does not export them: ${missing.join(', ')}`);
+    const requireSites = [];
+    for (const f of readdirSync(join(ROOT, 'functions')).filter(f => f.endsWith('.js') && f !== 'push.js')) {
+        const src = readFileSync(join(ROOT, 'functions', f), 'utf8');
+        const req = src.match(/const\s*\{([^}]+)\}\s*=\s*require\('\.\/push'\)/);
+        if (!req) continue;
+        const wanted = req[1].split(',').map(s => s.trim()).filter(Boolean);
+        assert.ok(wanted.length > 0, `${f} destructured nothing from ./push`);
+        requireSites.push(f);
+        const missing = wanted.filter(w => !exported.has(w));
+        assert.deepEqual(missing, [],
+            `functions/${f} requires these from ./push but push.js does not export them: ${missing.join(', ')}`);
+    }
+    assert.ok(requireSites.length > 0,
+        'no functions module requires ./push any more — if the transport was folded back in, delete this test');
 });
 
 test('functions/roster-members.json matches active staff in roster-data.js', async () => {
