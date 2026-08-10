@@ -2376,6 +2376,62 @@ test('links window: a RESTORED design keeps the window it was designed to', asyn
     await expect(page.locator('#winMoved')).toBeVisible();
 });
 
+// ── The generate feedback is visible from the BUTTON, and the button stays put (v20.54) ──────────
+// Two measured failures, one press. The status line lives in the grid card's sticky save row, a
+// full card above the Generate button — after a real press-and-confirm it sat 448px above the
+// viewport at 1280×900 and 569px at 390×844, so the whole v20.07 explore-loop voice (design
+// numbering, best-so-far, how to get a variant back) was invisible from the one place it is read;
+// `aria-live` meant screen readers were the only audience actually getting it. And on the FIRST
+// generate the grid card above grows ~1,500px, inserting content ABOVE the scroll position — the
+// viewport kept its scrollY and stranded the presser in the middle of an unexplained grid, button
+// and feedback both off-screen. This drives the real flow at a realistic viewport height and
+// asserts both: the mirror is on screen, and the button has not moved out from under the finger.
+test('links generator: pressing Generate leaves the button under your finger and the result beside it', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await page.waitForTimeout(700);
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').scrollIntoViewIfNeeded();
+
+    const before = await page.evaluate(() =>
+        Math.round(/** @type {HTMLElement} */ (document.getElementById('genApplyBtn')).getBoundingClientRect().top));
+    await page.locator('#genApplyBtn').click();
+    const ok = page.locator('.dialog-btn-confirm');
+    if (await ok.count()) await ok.first().click();
+    await page.waitForTimeout(700);
+
+    // The button did not move — the first-generate reflow (empty state → 24-row grid above this
+    // card) is compensated, so pressing again to explore needs no re-scroll.
+    const after = await page.evaluate(() =>
+        Math.round(/** @type {HTMLElement} */ (document.getElementById('genApplyBtn')).getBoundingClientRect().top));
+    expect(Math.abs(after - before), 'the Generate button must stay where it was pressed').toBeLessThanOrEqual(2);
+
+    // The mirror carries the SAME text as the canonical status, and it is actually on screen.
+    const status = await page.locator('#linksSaveStatus').textContent();
+    await expect(page.locator('#genStatus')).toHaveText(status ?? '');
+    expect((status ?? '').length, 'premise: the status has content to mirror').toBeGreaterThan(20);
+    const inView = await page.evaluate(() => {
+        const r = /** @type {HTMLElement} */ (document.getElementById('genStatus')).getBoundingClientRect();
+        return r.bottom > 0 && r.top < innerHeight && r.height > 0;
+    });
+    expect(inView, 'the feedback must be visible from where the pressing happens').toBe(true);
+
+    // A failed press clears the mirror — a stale success line under a fresh red error would read
+    // as describing the press that just failed.
+    await page.evaluate(() => {
+        const first = /** @type {HTMLInputElement|null} */ (document.querySelector('#genSlotRows .gen-slot-count'));
+        if (first) { first.value = '99'; first.dispatchEvent(new Event('input', { bubbles: true })); }
+    });
+    await page.locator('#genApplyBtn').click();
+    await expect(page.locator('#genError')).not.toHaveText('');
+    await expect(page.locator('#genStatus')).toBeHidden();
+});
+
 test('links window: generating the FIRST design reveals the window editor', async ({ page }) => {
     // The generator is the only way to create a design. It refreshes the heat map through
     // renderGrid, but the editor was a separate call it did not make — so a designer's very first

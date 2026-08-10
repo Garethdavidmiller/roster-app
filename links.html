@@ -374,6 +374,13 @@
                         matches by role and name, and `getByRole('button', {name: /Generate/})` is
                         happy either way.
                      --><span>Generate link (all <span class="js-rotating-lines">24</span> lines)</span></button>
+                    <!-- The generate feedback, WHERE THE PRESSING HAPPENS (v20.54). The canonical
+                         status lives in the grid card's sticky save row, a full card above — from
+                         this button it is off-screen at every realistic viewport, so the whole
+                         explore-loop voice was invisible to the person pressing. Same text, written
+                         by the same handler; aria-hidden because the save-row copy carries the
+                         aria-live and one announcement is enough. -->
+                    <p id="genStatus" class="gen-status" aria-hidden="true" hidden></p>
                     <p class="gen-note">Each day's total can't exceed <span class="js-rotating-lines">24</span> — the remaining lines become rest days.</p>
                 </div>
             </div>
