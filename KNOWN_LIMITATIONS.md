@@ -83,14 +83,22 @@ will not retry it, so production can stay stale indefinitely until an unrelated 
 > Gen-2 does not grant that by default. The function logs the exact code:
 > `[unlockCalendarViewer] token mint failed <code> <message>` — read that before assuming.
 >
-> **Retry, 10 Aug 2026 (v20.51).** The owner granted
+> **RESOLVED and CONFIRMED, 10 Aug 2026 (v20.51).** The owner granted
 > `roles/iam.serviceAccountTokenCreator` to `532910998075-compute@developer.gserviceaccount.com` on
-> itself and enabled `iamcredentials.googleapis.com`; the flag went back on to run step 2b — the
-> by-hand unlock — as the test of that grant. **The IAM diagnosis was inferred from the symptom and
-> never confirmed against the function log.** If an unlock fails again, retrieve
-> `[unlockCalendarViewer] token mint failed <code> <message>` first; it may name something else.
+> itself and enabled `iamcredentials.googleapis.com`; the flag went back on and **step 2b passed** —
+> a human holding the PIN unlocked the live Calendar and got their roster. The IAM gap was the cause.
+> (The diagnosis was reached by inference rather than from the function log, and the by-hand test is
+> what turned it into a fact. Had it failed, the log line was the next step and remains the right one
+> for any future failure.)
 >
-> **Runbook position: steps 1–2 COMPLETE; step 3 attempted and reverted; 2b under test; 3, 4, 5 remain.** The
+> **The grant is a STANDING PREREQUISITE, not a repair that is now done.** It lives in GCP IAM, not
+> in this repository, so no test can see it and no deploy re-applies it. It must be re-applied if the
+> runtime service account changes, if the function is given its own service account, or if the
+> project is rebuilt — see RECOVERY_RUNBOOK's project facts.
+>
+> **Runbook position: 1, 2, 2b and 3 COMPLETE. Now SOAKING on step 3. Steps 4–5 remain** — and the
+> exposure statement above stays present-tense until step 4 ships, because the read rule is still
+> permissive. The
 > `CALENDAR_VIEWER_PIN` secret is set (owner, 9 Aug 2026) and confirmed present, non-empty and
 > four-digit-shaped. The other activation blockers all remain closed: Lock Calendar fail-closed
 > (v20.39), secret shape-validated (v20.39), Calendar data readiness (v20.40–41), throttle-store
