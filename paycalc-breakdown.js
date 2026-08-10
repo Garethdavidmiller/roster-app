@@ -51,8 +51,31 @@ export function buildSummaryRows(d) {
         <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
         <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
         ${slLines}
-        <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay & HPP)` : _bpThisPeriod > 0 ? ` (inc. ${_bpIsEstimate ? 'estimated ' : ''}back pay)` : _hppForPeriod > 0 ? ` (inc. ${_hppIsEstimate ? 'estimated ' : ''}HPP)` : ''}</span><span class="val">${fmt(net)}</span></div>
+        <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_netNote(d) ? `<span class="sum-net-sub">${_netNote(d)}</span>` : ''}</span><span class="val">${fmt(net)}</span></div>
       `;
+}
+
+/**
+ * The qualifier under the take-home figure when it carries more than the regular period.
+ *
+ * A SECOND LINE, not a parenthetical, since v20.53. As a suffix it made the app's most-read label
+ * ("Estimated take-home pay (inc. estimated back pay & HPP)") wrap to two lines and then, because
+ * `.sum-row` is `space-between` with no gap, run straight into the £ figure beside it — reported from
+ * a real phone. The fix is two-part and both halves matter: the `gap` in paycalc.css stops ANY long
+ * label touching its figure, and this keeps the qualifier off the headline so the row reads as one
+ * line plus a note rather than a wrapped sentence with a number embedded in it.
+ *
+ * It also states BOTH estimate flags. The old nested ternary took `_bpIsEstimate` for the combined
+ * case, so an estimated HPP alongside a confirmed back pay was silently described as confirmed.
+ *
+ * @param {{ _bpThisPeriod:number, _hppForPeriod:number, _bpIsEstimate:boolean, _hppIsEstimate:boolean }} d
+ * @returns {string} '' when the figure is just the period's own pay
+ */
+function _netNote({ _bpThisPeriod, _hppForPeriod, _bpIsEstimate, _hppIsEstimate }) {
+    const parts = [];
+    if (_bpThisPeriod > 0) parts.push(`${_bpIsEstimate  ? 'estimated ' : ''}back pay`);
+    if (_hppForPeriod > 0) parts.push(`${_hppIsEstimate ? 'estimated ' : ''}HPP`);
+    return parts.length ? `includes ${parts.join(' & ')}` : '';
 }
 
 /**

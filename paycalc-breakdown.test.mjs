@@ -4,6 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { fmtHrsMins, buildSummaryRows, buildBreakdownRows, buildActualCheck, buildProvChips } from './paycalc-breakdown.js';
 
 test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
@@ -45,7 +46,39 @@ test('buildSummaryRows: back pay + HPP → Regular pay + both extra rows + gross
     assert.ok(html.includes('Holiday Pay Premium'));
     assert.ok(html.includes('<span class="val">+£120.00</span>'));
     assert.ok(html.includes('Total pay</span><span class="val">£2,620.00</span>'), 'Total uses grossWithBp');
-    assert.ok(html.includes('(inc. back pay &amp; HPP)') || html.includes('(inc. back pay & HPP)'));
+    assert.ok(html.includes('<span class="sum-net-sub">includes back pay & HPP</span>'));
+});
+
+// ── The take-home qualifier is a SUB-LINE, not a suffix (v20.53) ─────────────────────────────────
+// It used to be appended to the label: "Estimated take-home pay (inc. estimated back pay & HPP)".
+// On a phone that wrapped to two lines and then ran straight into the £ figure, because `.sum-row`
+// is space-between with (at the time) no gap. Reported from a real screen. The CSS gap fixes any
+// long label touching its figure; keeping the qualifier off the headline is the other half, and it
+// is the half a stylesheet cannot enforce — so it is pinned here.
+test('buildSummaryRows: the take-home qualifier is a sub-line, never appended to the headline', () => {
+    const html = buildSummaryRows({ ...SUM_BASE, _bpThisPeriod: 500, grossWithBp: 2500 });
+    assert.ok(html.includes('<span class="sum-net-sub">includes back pay</span>'),
+        'the qualifier must be its own element the stylesheet can size and colour');
+    assert.ok(!/Estimated take-home pay \(/.test(html),
+        'nothing may follow "Estimated take-home pay" on the headline itself');
+});
+
+test('buildSummaryRows: a plain period gets NO qualifier element at all', () => {
+    // An empty sub-line would still occupy a row and push the figure off the headline.
+    const html = buildSummaryRows({ ...SUM_BASE });
+    assert.ok(!html.includes('sum-net-sub'), 'no qualifier element when there is nothing to qualify');
+});
+
+test('buildSummaryRows: each extra carries its OWN estimate flag', () => {
+    // The old nested ternary read `_bpIsEstimate` for the combined case, so a CONFIRMED back pay
+    // beside an ESTIMATED HPP was described as though both were confirmed — a money figure claiming
+    // more certainty than it has, which is the one thing this card must not do.
+    const html = buildSummaryRows({
+        ...SUM_BASE, _bpThisPeriod: 500, _hppForPeriod: 120, grossWithBp: 2620,
+        _bpIsEstimate: false, _hppIsEstimate: true,
+    });
+    assert.ok(html.includes('<span class="sum-net-sub">includes back pay & estimated HPP</span>'),
+        'the estimated half must be named as estimated, and the confirmed half must not be');
 });
 
 test('buildSummaryRows: estimate flags add " — estimate"/"(estimated)" labels', () => {
@@ -162,4 +195,34 @@ test('buildProvChips: empty on a normal payslip; one chip per active source', ()
     assert.equal((all.match(/prov-chip--add/g) || []).length, 2, 'the two money adds are the gold chips');
     assert.equal((all.match(/class="prov-chip/g) || []).length, 4, 'four chips when everything is active');
     assert.equal(buildProvChips({ usingCumulative: false, bpAmount: 0, hppAmount: 0 }), '', 'zero amounts render nothing');
+});
+
+// ── The CSS half of the same fix (v20.53) ───────────────────────────────────────────────────────
+// The markup half is pinned above. This is the other half, and it is the one with the wider blast
+// radius: `.sum-row` is `justify-content: space-between`, so WITHOUT a gap any label that grows to
+// fill the row ends up touching its £ figure — "(pay award — estimate)+£977.69", with no space at
+// all, was the worst of them. The visual baselines DO render the result card — but only ever with
+// short labels, and `space-between` puts a label and its figure at opposite ends until the label
+// grows enough to reach across, so every baseline passed unchanged through both the bug and the fix.
+// `paycalc result card — with back pay` in e2e/visual.spec.js now captures the long-label state
+// specifically; this test is the cheap always-on half, since no behavioural test can tell "beside"
+// from "touching".
+test('paycalc.css keeps a gap between a summary label and its figure', () => {
+    const css = readFileSync(new URL('./paycalc.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.sum-row\s*\{[^}]*\}/);
+    assert.ok(rule, '.sum-row rule not found — this test is checking nothing');
+    assert.match(rule[0], /gap:\s*\d/,
+        '.sum-row must declare a gap: space-between alone lets a long label run into the money figure');
+    assert.match(rule[0], /space-between/,
+        'if the row stops being space-between, re-derive whether the gap is still the right guard');
+});
+
+test('paycalc.css never lets a summary figure wrap or shrink', () => {
+    // The figure is the point of the row. Allowing it to give up width to a long label is how
+    // "£4,076.81" would end up broken across two lines.
+    const css = readFileSync(new URL('./paycalc.css', import.meta.url), 'utf8');
+    const rule = css.match(/\.sum-row\s+\.val\s*\{[^}]*\}/);
+    assert.ok(rule, '.sum-row .val rule not found');
+    assert.match(rule[0], /white-space:\s*nowrap/);
+    assert.match(rule[0], /flex-shrink:\s*0/);
 });

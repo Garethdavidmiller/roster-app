@@ -97,6 +97,54 @@ test('paycalc — desktop 1440 (signed in)', async ({ page }) => {
     await expect(page).toHaveScreenshot('paycalc-desktop-1440.png');
 });
 
+// THE RESULT CARD IN ITS BACK-PAY STATE — the one the plain baselines cannot see (v20.53).
+//
+// The paycalc baselines above DO include the result card, but only ever in its ordinary state:
+// short labels, one line each. The row that broke on a real phone was the long one — "Estimated
+// take-home pay (inc. back pay)" wrapping into its own £ figure — and `.sum-row` is
+// `space-between`, so a missing gap is INVISIBLE until a label grows enough to touch the figure.
+// That is why every existing baseline passed unchanged through both the bug and its fix.
+//
+// So this captures the composition that actually varies: Regular pay + the back-pay row + the
+// qualifier sub-line under the take-home figure. Element-scoped rather than full-page, so it is
+// about the card rather than about everything above it.
+const BACK_PAY_PERIOD = '55';   // Paid 28 Aug 2026 · P24 — the payslip the 2026 award lands on
+
+test('paycalc result card — with back pay (mobile 390)', async ({ page }) => {
+    await prep(page, { width: 390, height: 1600 });
+    await page.goto('/paycalc.html');
+    await settle(page, '#summary');
+
+    await page.locator('#periodSelect').selectOption(BACK_PAY_PERIOD);
+    await page.waitForTimeout(600);
+    await page.evaluate(() => document.getElementById('backPayHeader')?.click());
+    await page.waitForTimeout(600);
+    // The include tick lives in the result card's green banner, which is not scrolled into view at
+    // this size; set it the way the change handler sees it rather than fighting the viewport.
+    await page.evaluate(() => {
+        const t = /** @type {HTMLInputElement|null} */ (document.getElementById('bpIncludeTick'));
+        if (t) { t.checked = true; t.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+    await page.waitForTimeout(800);
+
+    // Sentinels BEFORE the capture. Without them a regeneration that silently lost the back-pay
+    // state would re-baseline the plain card as the new truth — the Usage-card lesson (v19.25), and
+    // the whole point of this test is the state, not the page.
+    await expect(page.locator('#summary .sum-bp')).toHaveCount(1);
+    await expect(page.locator('#summary .sum-net-sub')).toHaveText('includes back pay');
+    // The figure must sit on the headline, not below it: same row, and never wrapped.
+    const geom = await page.evaluate(() => {
+        const row = document.querySelector('#summary .sum-net');
+        const lbl = row.querySelector('.lbl').getBoundingClientRect();
+        const val = row.querySelector('.val').getBoundingClientRect();
+        return { gap: Math.round(val.left - lbl.right), sameLine: val.top < lbl.bottom };
+    });
+    expect(geom.gap, 'the £ figure must never touch the label').toBeGreaterThan(4);
+    expect(geom.sameLine, 'the £ figure sits beside the headline, not under the sub-line').toBe(true);
+
+    await expect(page.locator('#summary')).toHaveScreenshot('paycalc-result-backpay-mobile-390.png');
+});
+
 test('paycalc — mobile 390 (signed in)', async ({ page }) => {
     await prep(page, { width: 390, height: 4400 });
     await page.goto('/paycalc.html');
