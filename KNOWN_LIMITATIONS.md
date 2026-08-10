@@ -52,12 +52,23 @@ will not retry it, so production can stay stale indefinitely until an unrelated 
 > **`SECURITY_RELEASE_PLAN.md`**. The entries below remain the authoritative *post-mortems and
 > rationale*; that file is the *ordering* that keeps a fix from re-creating the v10.94 outage.
 
-### Override data is publicly readable — FIX BUILT at v20.12, NOT YET IN EFFECT (staff PIN access)
-> ⚠️ **STILL OPEN AS DEPLOYED (v20.20).** The whole feature is merged, deployed and dormant: the
-> client ships with `CONFIG.CALENDAR_PIN_ACCESS: false` and the `overrides` read rule carries a
-> matching `allow read;` hold line. **Override data is readable by anyone with the app URL today**,
-> exactly as it was before v20.12. This entry closes when the two brakes are released — client
-> first, rules second, one push each (RECOVERY_RUNBOOK.md → "The Calendar PIN", steps 3 and 4).
+### Override data is publicly readable — FIX BUILT at v20.12, IN SOAK since v20.46 (staff PIN access)
+> ⚠️ **STILL OPEN AS DEPLOYED (re-checked v20.46).** The client brake is released —
+> `CONFIG.CALENDAR_PIN_ACCESS` is `true` since v20.46, so the Calendar now asks for a named session
+> or the staff PIN — but the `overrides` read rule still carries its `allow read;` hold line, so
+> **override data remains readable by anyone who queries Firestore directly**. The PIN card is
+> friction, not protection, until step 4 tightens the rules. This entry closes when that second
+> brake is released — its own push, nothing else in it (RECOVERY_RUNBOOK.md → "The Calendar PIN",
+> step 4).
+>
+> **Runbook position (10 Aug 2026): steps 1–3 are COMPLETE; 4–5 remain, gated on the soak.** The
+> `CALENDAR_VIEWER_PIN` secret is set (owner, 9 Aug 2026) and was verified against the LIVE
+> function — a deliberately wrong PIN returns 401 "PIN not recognised", which on the deployed code
+> proves the secret is present, non-empty and four-digit-shaped (any of those failing returns 503).
+> Every activation blocker closed before the switch: Lock Calendar fail-closed (v20.39), secret
+> shape-validated (v20.39), Calendar data readiness (v20.40–41), throttle-store failure fail-closed
+> (v20.45). While the soak lasts, rolling back is the one client line — after step 4 it is a rules
+> rollback instead.
 >
 > Written this way on purpose. An entry that read "CLOSED at v20.12" while the rule was still
 > permissive is worse than no entry: it is the one document someone checks to decide whether the
@@ -346,9 +357,8 @@ simply saw a login. With the cutoff gone, an iPhone user who does not open the a
 can hold a valid local session with **no restorable identity** — a state that previously lasted
 about a day and can now last up to three weeks.
 
-Today that is invisible: `CONFIG.CALENDAR_PIN_ACCESS` is `false`, so access resolves `open`, the
-Calendar signs in anonymously and everything works. **When the PIN is switched on it becomes
-visible**: that member gets the unlock card instead of their roster, despite being signed in. The
+Since v20.46 (`CONFIG.CALENDAR_PIN_ACCESS: true`) this is **live behaviour, not a future one**:
+that member gets the unlock card instead of their roster, despite being signed in. The
 card's "Sign in instead" link resolves it in one step and re-establishes the identity, so it is
 recoverable rather than a lockout — but it will generate a support question, it will land on iPhone
 users specifically, and it is worth expecting rather than diagnosing. Watch for it in the first week
