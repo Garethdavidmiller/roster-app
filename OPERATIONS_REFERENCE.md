@@ -582,6 +582,13 @@ control that anyone can drive into a permanent state is a denial-of-service hand
 If the all-sources ceiling ever *does* trip during normal use, that means the code in circulation is
 wrong — reissue it rather than raising the number.
 
+**If the throttle store itself is unreachable, the endpoint refuses (503) rather than guessing
+unthrottled** (v20.45 — it failed open until an external review argued the point and won). The
+refusal costs nothing real: the overrides live in the same Firestore the throttle read just failed
+against, so a token minted during that outage could not have loaded a single shift anyway. Staff see
+the card's ordinary "try again shortly" message, and the moment Firestore recovers both the unlock
+and the roster come back together.
+
 ### Diagnosing a problem
 
 - **"PIN not recognised" for everybody** → the secret is unset or was changed without redeploying

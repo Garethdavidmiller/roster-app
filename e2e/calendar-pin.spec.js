@@ -151,6 +151,51 @@ test('a transport failure is recoverable — the same card retries and succeeds'
     await expect(page.locator('#calendarDisplay')).toBeVisible();
 });
 
+test('showing the card WARMS the exchange function while the member types', async ({ page }) => {
+    // A cold start is the largest single number in the unlock chain, and the seconds spent typing
+    // are exactly the seconds it takes — so the card fires one fire-and-forget GET on display
+    // (v20.45). Asserted as a REQUEST, not a response: the warm-up ignores its answer by design.
+    const warm = page.waitForRequest(r =>
+        r.url().includes('unlockCalendarViewer') && r.method() === 'GET', { timeout: 5000 });
+    await page.goto('/index.html');
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await warm;
+});
+
+test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, and the grid repaints', async ({ page }) => {
+    // The PIN-rotation path, end to end — the ordinary one, not a corner: rotating the PIN revokes
+    // the viewer's tokens, so every open viewer hits this on its next read. Three prior defects live
+    // on this exact path (the one-shot gate v20.41, the claimed months v20.41, the missing repaint
+    // v20.45), and no e2e walked it until now — each was found by reading, which is the wrong way
+    // round for the path every rotation exercises.
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    // Every FRESH read now comes back permission-denied — what revoked tokens look like. The boot
+    // window is already claimed, so navigate beyond it to force one.
+    await page.evaluate(() => { (window.__E2E = window.__E2E || {}).failGetDocs = 'permission-denied'; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+
+    // Re-locked, and it says WHY — an expired session is not a network blip, and the generic
+    // "couldn't update, tap to retry" here would be a loop the member cannot win.
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await expect(page.locator('#calLockMsg')).toContainText(/expired/i);
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+
+    // The new PIN works — and the grid comes back WITHOUT any further navigation. The workspace is
+    // un-hidden exactly as the re-lock left it and nothing else asks for a render, so before the
+    // v20.45 repaint this showed the pre-lock grid frozen until the member happened to swipe.
+    await page.evaluate(() => { window.__E2E.failGetDocs = false; });
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
+});
+
 test('a token WITHOUT the viewer claim leaves the Calendar locked', async ({ page }) => {
     // The quietest failure there is: sign-in succeeds, so a naive implementation renders a Calendar
     // whose every read is then denied — unlocked-looking and empty, with no error anywhere.

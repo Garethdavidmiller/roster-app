@@ -2045,6 +2045,15 @@ exports.getSignInStats = onRequest(
  *    normal path free and means the collection can never be read as a record of who used the app.
  * 4. **Fail closed.** Any error that is not a rejected PIN returns 5xx WITHOUT a token. There is no
  *    branch here that hands out a token on a path it could not fully verify.
+ * 5. **The throttle store failing is a 503, not a free pass (v20.45).** Both the read before the
+ *    comparison and the failure record after it used to fail OPEN, on the argument that refusing
+ *    access when Firestore struggles locks the station out. An external review disagreed, and its
+ *    argument wins on the facts of THIS app: the roster data itself lives in the same Firestore, so
+ *    while the throttle store is unreachable a viewer token could not load a single override anyway
+ *    — the availability being protected did not exist. Meanwhile the cost was real: the throttle is
+ *    the only thing standing between 10,000 guesses and the roster, and "the limiter is down, so
+ *    stop limiting" is the one policy an attacker would choose. An uncounted guess must not be
+ *    answered.
  */
 exports.unlockCalendarViewer = onRequest(
     {
@@ -2091,11 +2100,13 @@ exports.unlockCalendarViewer = onRequest(
             if (!decision.allowed) blocked = decision;
             else if (!gDecision.allowed) blocked = gDecision;
         } catch (e) {
-            // FAIL OPEN on a throttle-store read failure, deliberately, and this is the one place in
-            // this handler that does. The alternative — deny — hands anyone who can make Firestore
-            // slow a way to lock the whole station out of the roster, which is a worse outcome than
-            // a brief unthrottled window on an endpoint that still requires the correct PIN.
-            console.warn('[unlockCalendarViewer] throttle read failed, allowing:', e && e.code);
+            // FAIL CLOSED (rule 5 — v20.45; this failed OPEN until an external review called it).
+            // A PIN that cannot be rate-limited must not be compared: the client shows its
+            // recoverable "try again shortly" state, and nothing is lost that the outage had not
+            // already taken — the overrides live in the same Firestore this read just failed
+            // against.
+            console.error('[unlockCalendarViewer] throttle read failed — refusing:', e && e.code);
+            return res.status(503).json({ error: 'Calendar access is temporarily unavailable' });
         }
         if (blocked) {
             res.set('Retry-After', String(blocked.retryAfterSec));
@@ -2139,7 +2150,12 @@ exports.unlockCalendarViewer = onRequest(
                     tx.set(globalRef, recordFailure(gSnap.exists ? gSnap.data() : null, now, GLOBAL_THROTTLE));
                 });
             } catch (e) {
-                console.warn('[unlockCalendarViewer] failure record failed:', e && e.code);
+                // FAIL CLOSED here too (rule 5). Answering 401 with the guess uncounted would let a
+                // caller who can induce write failures guess without limit — the exact budget the
+                // transaction exists to spend. 503 tells the member to retry and tells nobody
+                // whether the PIN was right.
+                console.error('[unlockCalendarViewer] failure record failed — refusing:', e && e.code);
+                return res.status(503).json({ error: 'Calendar access is temporarily unavailable' });
             }
             // Opportunistic sweep of everything that has aged out (v20.15). `isThrottleStateStale`
             // was written and tested at v20.12 and then never called — so this collection only ever
