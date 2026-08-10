@@ -136,7 +136,7 @@ describe('Track E parity — both plans describe the same phases', () => {
 // the offline-grace phase — while every structural check stayed green. A one-line summary is what
 // people actually follow when they are in a hurry, so it needs pinning at least as much as the
 // headings do.
-const CANONICAL_SEQUENCE = 'E0 → E1 → E2 → decision gate → E3 + E4 → E5';
+const CANONICAL_SEQUENCE = 'E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5';
 
 describe('Track E parity — the canonical rollout sequence', () => {
     for (const [label, src] of [['AUTH_PLAN.md', AUTH], ['SECURITY_RELEASE_PLAN.md', SEC]]) {

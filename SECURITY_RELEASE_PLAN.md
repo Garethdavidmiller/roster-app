@@ -34,8 +34,9 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **Deferred residual** | Held on purpose. The CALENDAR's anonymous bootstrap is gone (v20.12); `signInAnonymously` remains only as `session.js`'s soft fallback | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
 
 **Two things this table is deliberately explicit about**, because both were previously implied and
-misread: **E1 is client preparation, not protection** — E2 is where the boundary moves — and **C5 is
-gated on a decision in a different track**, so it is further away than "≥90% migrated" suggests.
+misread: **E1 is client preparation, not protection** — the boundary moves at the READ RULE, which
+E2 was meant to move and the **staff PIN moved instead (v20.12)** — and **C5 is gated on a decision
+in a different track**, so it is further away than "≥90% migrated" suggests.
 
 ---
 
@@ -329,11 +330,14 @@ REST). Staged:
   `await authReady` on them and v19.07/v19.08 had to bound all three; see `AUTH_PLAN.md` → E1 for the
   rule that came out of it. Green under today's open rules, so it is soaking alone.
   **This is client preparation, NOT a security boundary** — it changes no rule (see question 1 below).
-- **E2: tighten reads to Level 1** (`request.auth != null`, anonymous OK) on `overrides` + the three
-  document collections — only after E1 has soaked. **This is the first phase that is a security
-  boundary at all**; everything before it is client-side. ~6 of the 199 rules tests flip. Verify the
-  notification-tap fresh-visit path from a **fresh private window** with a cold cache. Keep the
-  Anonymous auth provider **enabled**.
+- **E2: tighten reads to Level 1** (`request.auth != null`, anonymous OK) — **SUPERSEDED at v20.12,
+  and by something STRICTER. Do not build it.** Its whole content was "require *any* Firebase
+  session", with the Anonymous provider left enabled — so the barrier was one `signInAnonymously()`
+  call, which is no barrier to anyone willing to script it. The staff PIN replaced it: `overrides`
+  reads require a member `name` claim **or** the `calendarViewer` capability, and anonymous is denied
+  outright. That clears the **E5** bar for the read without paying E3's front-door cost. Full
+  argument: `AUTH_PLAN.md` → E2. The one piece of E2 still outstanding is the **three document
+  collections**, which remain openly readable and are now E6's business, not E2's.
 - **E3: require named on the calendar, SOFT posture.** Flip `PAGE_POLICIES.calendar` to require named,
   wire the shared `login-overlay.js`, gate on `ENFORCE_NAMED_SESSION` in a **soft** posture first —
   measure how many launches hit the wall. Client UX only; the rules are unchanged at this phase.
@@ -372,7 +376,7 @@ being open:
 4. **The document viewers** rely on open reads *because* the calendar had no session — E3 couples them to
    the login working on every path.
 
-**Rollout discipline:** migrate, don't cut over — **E0 → E1 → E2 → decision gate → E3 + E4 → E5**.
+**Rollout discipline:** migrate, don't cut over — **E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5**.
 Never make the calendar's front door and named-only read rules a single flip. (Until v19.13 this sentence carried a
 three-stage shorthand that predates the E0–E6 numbering: it began at E1, applied the soft/hard
 labels to the wrong phases, and omitted the offline-grace phase entirely. It survived the v19.08
@@ -384,7 +388,8 @@ surface) — starting E means re-stamping that anti-goal, not violating it silen
 
 **Owner questions — answer BEFORE writing any E code:**
 
-1. **What bar are we defending?** Casual (indexing / shared URL) → **E0 + E2** is the stopping point.
+1. **What bar are we defending?** Casual (indexing / shared URL) → **E0 + the staff PIN** is the
+   stopping point, and both have shipped — the PIN reached that bar at v20.12 in place of E2.
    A motivated outsider willing to script an anonymous sign-in → you need **E5** (named-only reads) and
    must accept the front-door cost of E3/E4. *This single answer decides whether Track E is a one-hour
    rules tweak or a multi-week front-door change.*
@@ -414,7 +419,7 @@ surface) — starting E means re-stamping that anti-goal, not violating it silen
 | reCAPTCHA Enterprise provider | D1/D2 | Required before App Check can attest. |
 | Is the app **official Chiltern infrastructure**? | App Check priority; header-capable hosting; Track E | If yes, App Check and Firebase-Hosting-only (drop github.io) rise in priority, and Track E may become a requirement. |
 | **Full-app auth — do it at all, and which bar?** | Track E (undecided) | See Track E header + Q1. The "which bar" answer may itself be dictated by IT. |
-| **Full-app auth — front-door + offline-lockout acceptable?** | Track E (E2/E3) | Login wall on the PWA `start_url`; lapsed-session **offline** user loses their own cached roster. Q2–Q3. |
+| **Full-app auth — front-door + offline-lockout acceptable?** | Track E (E3) | Login wall on the PWA `start_url`; lapsed-session **offline** user loses their own cached roster. Q2–Q3. |
 | ~~re-auth window / `linkDesigns` claim / `pushSubscriptions` owner / WIF pool~~ | ~~B2/B3/A2~~ | **All ✓ DONE** — B3 strict cutover (v16.29), H2 `linksDesigner` claim (v16.29), A5 `pushSubscriptions` owner delete (v17.76), A2 WIF pool (v14.93). |
 
 ---

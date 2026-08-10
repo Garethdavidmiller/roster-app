@@ -28,8 +28,9 @@ reads require a member `name` claim or the shared staff-PIN `calendarViewer` cap
 below, which records how that superseded the phase as designed and what it does NOT close.
 **E0 shipped v19.00** (search engines excluded) and **E1 shipped
 v19.01** (the cache-first, auth-aware client preparation) — both were deliberately chosen as the two
-phases needing no decision. **E2 is the first phase that is a security boundary at all**, and nothing
-from E2 onward is committed. The most likely trigger is external: if the app
+phases needing no decision. **The first real security boundary was E2's job, and the staff PIN did it
+instead (v20.12)** — see E2 below. Nothing beyond that is committed. The most likely trigger is
+external: if the app
 becomes, or is assessed as, official Chiltern infrastructure, IT may require the roster data to sit
 behind authentication rather than a public URL. Until then the deliberate public-calendar design stands.
 
@@ -42,7 +43,7 @@ only one of them is enforcement.
 
 | Layer | Can it go behind auth? | Where the work is |
 |---|---|---|
-| **Data** — Firestore reads | **Yes, server-enforced.** The only real control. | E2 / E5 (rules) + E1 (client prep) |
+| **Data** — Firestore reads | **Yes, server-enforced.** The only real control. | the staff PIN (v20.12, in E2's place) / E5 (rules) + E1 (client prep) |
 | **Files** — Storage documents | **Not by any rules change.** They ride permanent bearer URLs. | E6 (delivery-model change) |
 | **Shell** — HTML/CSS/JS | **No.** Static files on public hosting. A client gate is UX, never security. | E3 (UX only) |
 
@@ -82,10 +83,10 @@ anonymous session against our project". Only Level 2 (named) means "must be staf
 
 ## 3. The phases
 
-**Rollout discipline:** migrate, don't cut over — **E0 → E1 → E2 → decision gate → E3 + E4 → E5**.
+**Rollout discipline:** migrate, don't cut over — **E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5**.
 Never make the calendar's front door and named-only read rules a single flip. E6 is independent and
-can start at any point. The two soaking phases are E1 (client preparation, no rule change) and E2
-(the first real boundary); everything after the gate is undecided. This exact sequence is pinned in
+can start at any point. The two soaking phases are E1 (client preparation, no rule change) and the
+PIN that took E2's place (the first real boundary); everything after the gate is undecided. This exact sequence is pinned in
 both Track E documents by `auth-plan-parity.test.mjs` — the phase headings below were already
 guarded, but the prose that tells a maintainer what ORDER to work in was not, so a superseded
 three-stage shorthand survived the v19.08 renumbering in the sequencing doc as a result.
