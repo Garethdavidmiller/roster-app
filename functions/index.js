@@ -42,7 +42,6 @@ const {
     nameToPassword,
     fileSignatureMatches,
     buildPushPayload,
-    shouldDeleteSubscription,
     parseSetupActionFlags,
     resolveRosterAuthConfig,
     claimsForTier,
@@ -65,6 +64,7 @@ const {
     isThrottleStateStale,
     viewerClaims,
 } = require('./calendar-viewer-auth');
+const { setupWebPush, fanOutPush, sendTargetedPush } = require('./push');
 const rosterMembers = require('./roster-members.json');
 
 admin.initializeApp();
@@ -545,7 +545,7 @@ exports.onHuddleCreated = onDocumentCreated(
 
 /** Fan out a document-arrival push for a circular/newsletter, to the design language. */
 async function sendDocPushNotifications(feature, body, vapidPrivate) {
-    setupWebPush(vapidPrivate);
+    setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
     await fanOutPush(buildPushPayload({ feature, body, baseUrl: STAFF_SITE_URL }), `[${feature}]`);
     console.log(`[${feature}] notification sent`);
 }
@@ -576,133 +576,9 @@ exports.onNewsletterCreated = onDocumentCreated(
     }
 );
 
-// Module-level flag so setVapidDetails() is only called once per warm instance.
-// Secrets are not available at module init, so we defer to first call.
-let _vapidConfigured = false;
-
-// M8: web-push loaded on first push only (see the require note at the top). Cached after first use.
-let _webpush = null;
-/** @returns {any} the web-push module, required lazily on first use. */
-function getWebPush() {
-    if (!_webpush) _webpush = require('web-push');
-    return _webpush;
-}
-
-/** Configures web-push VAPID credentials once per process lifetime. */
-function setupWebPush(vapidPrivate) {
-    if (_vapidConfigured) return;
-    getWebPush().setVapidDetails(
-        'mailto:noreply@myb-roster.web.app',
-        VAPID_PUBLIC_KEY,
-        vapidPrivate.value(),
-    );
-    _vapidConfigured = true;
-}
-
-/**
- * Fan out Web Push notifications to all subscribed devices for a given JSON payload.
- * Dead subscriptions (HTTP 410/404 — genuinely gone) are deleted from Firestore. A 401 is a
- * VAPID-AUTH failure (server misconfig, not a dead endpoint) and is logged, NEVER deleted —
- * deleting on 401 would wipe the whole collection on any VAPID key error (v16.15).
- *
- * @param {object} payload   Object that will be JSON.stringify'd — must include title, body, url, tag
- * @param {string} logTag    Short string for console log lines, e.g. '[push]'
- */
-/**
- * Send a Web Push payload to the devices of SPECIFIC identities only, never to everyone.
- *
- * This is the targeted counterpart to fanOutPush, and it exists because one notification in this app
- * is not a broadcast: "N. Surname asked for a password reset" is addressed to the admin, and sending
- * it to all ~50 staff would leak who is locked out to the entire team.
- *
- * **It FAILS CLOSED, on purpose, in three separate places**, because every failure mode here has the
- * same consequence — telling 50 people something meant for one:
- *   1. An empty/absent `ownerUids` sends NOTHING. There is deliberately no "no targets → fall back to
- *      everyone" branch; that fallback is the exact bug this function is shaped to make unwritable.
- *   2. A subscription doc with NO `owner` field is SKIPPED, never assumed to be the target's. Those
- *      are legacy docs written before v17.76 stamped the uid. The cost is real and accepted: an admin
- *      whose device subscribed before v17.76 gets no push until they toggle the bell off and on
- *      (which re-writes the doc WITH an owner). Silence is the right failure — the alternative is
- *      guessing an identity from an unowned record.
- *   3. Zero matches logs and returns. A notification that cannot be delivered privately is not
- *      delivered at all.
- *
- * Dead-subscription cleanup matches fanOutPush exactly (410/404 delete, 401 log-only — see
- * shouldDeleteSubscription).
- *
- * @param {object} payload            JSON-stringified for the push body — title, body, url, tag
- * @param {string[]} ownerUids        Firebase Auth uids allowed to receive this
- * @param {string} logTag             Short string for console log lines
- * @returns {Promise<number>}         How many sends were attempted
- */
-async function sendTargetedPush(payload, ownerUids, logTag) {
-    const uids = Array.from(new Set((ownerUids || []).filter(u => typeof u === 'string' && u)));
-    if (uids.length === 0) {
-        console.warn(`${logTag} No target uids — sending nothing (never fans out)`);
-        return 0;
-    }
-
-    // One equality query per uid rather than a single `in` query: the target list is the admin roster
-    // (one or two names), `in` caps at 30 values, and per-uid queries keep the failure of one lookup
-    // from taking the others down with it.
-    const results = await Promise.all(uids.map(uid =>
-        admin.firestore().collection('pushSubscriptions').where('owner', '==', uid).get()));
-    const docs = results.flatMap(snap => snap.docs);
-    if (docs.length === 0) {
-        // Worth a warning, not a silent return: on a fresh project this means the admin has never
-        // subscribed, but it ALSO means their subscription predates the owner stamp (see #2 above) —
-        // and both look identical from here. Either way the queue still shows on the card.
-        console.warn(`${logTag} No owner-stamped subscriptions for ${uids.length} target(s) — nothing sent`);
-        return 0;
-    }
-
-    const payloadStr = JSON.stringify(payload);
-    await Promise.allSettled(docs.map(async docSnap => {
-        const { endpoint, keys } = docSnap.data();
-        try {
-            await getWebPush().sendNotification({ endpoint, keys }, payloadStr);
-        } catch (err) {
-            if (shouldDeleteSubscription(err.statusCode)) {
-                await docSnap.ref.delete();
-                console.log(`${logTag} Removed dead subscription ${docSnap.id}`);
-            } else {
-                console.warn(`${logTag} Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
-            }
-        }
-    }));
-    console.log(`${logTag} Targeted send complete — attempted ${docs.length} subscription(s)`);
-    return docs.length;
-}
-
-async function fanOutPush(payload, logTag) {
-    const snapshot = await admin.firestore().collection('pushSubscriptions').get();
-    if (snapshot.empty) {
-        console.log(`${logTag} No subscriptions — skipping`);
-        return;
-    }
-
-    const payloadStr = JSON.stringify(payload);
-    const sends = snapshot.docs.map(async docSnap => {
-        const { endpoint, keys } = docSnap.data();
-        try {
-            await getWebPush().sendNotification({ endpoint, keys }, payloadStr);
-        } catch (err) {
-            // Delete ONLY genuinely-dead subscriptions (410/404). A 401 is a VAPID-auth
-            // misconfig, not a dead endpoint — deleting on it would wipe the whole collection.
-            // Full rationale + tests: shouldDeleteSubscription in roster-parse-helpers.js (v16.15/v16.81).
-            if (shouldDeleteSubscription(err.statusCode)) {
-                await docSnap.ref.delete();
-                console.log(`${logTag} Removed dead subscription ${docSnap.id}`);
-            } else {
-                console.warn(`${logTag} Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
-            }
-        }
-    });
-
-    await Promise.allSettled(sends);
-    console.log(`${logTag} Fan-out complete — attempted ${snapshot.size} subscription(s)`);
-}
-
+// The web-push TRANSPORT lives in ./push.js (v20.52) — lazy require, VAPID setup, fanOutPush and
+// the fail-closed sendTargetedPush. What stays here is the DECISION to send and what to say, which
+// is domain knowledge; how a payload reaches a phone is not.
 // Number of months of Huddle history to retain. Huddles are daily and short-lived in
 // usefulness; older ones are pruned so the collection and Storage stay bounded. Circulars
 // and newsletters keep 6 months (browser-side _pruneOldDocs); huddles are higher-volume and
@@ -797,7 +673,7 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
         console.log(`[push] HUDDLE_PUSH_PAUSED=true — skipping notifications for ${huddleDate}.`);
         return;
     }
-    setupWebPush(vapidPrivate);
+    setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
 
     // Notification design language (.claude/rules/notifications.md): "📋 Latest Huddle".
     // "Latest" (not "Today's") because the Huddle is the next-day plan sent the evening
@@ -818,7 +694,7 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
  * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
  */
 async function sendPayPushNotifications(payday, vapidPrivate) {
-    setupWebPush(vapidPrivate);
+    setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
 
     // Use toISOString() (UTC) — the caller constructs payday at NOON UTC from London calendar
     // parts, so the UTC date is the correct London date on any runtime timezone.
@@ -1796,7 +1672,7 @@ async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
         return;
     }
 
-    setupWebPush(vapidPrivate);
+    setupWebPush(vapidPrivate, VAPID_PUBLIC_KEY);
     const { headline, body } = buildResetRequestNotice(member, pending);
     await sendTargetedPush(
         buildPushPayload({

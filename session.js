@@ -178,17 +178,74 @@ export function firebaseSessionIsNamed() { return _fbIdentity === 'named'; }
  */
 export function getFirebaseAuthError() { return _fbAuthError; }
 
+/** Ceiling on the IndexedDB auth restore. Matches the 8s sign-in budget (LOGIN_INCIDENT.md) and
+ *  `SAVE_TIMEOUT_MS` in password-force.js — one number for "how long is Firebase allowed to take
+ *  before we stop waiting", rather than a different guess per call site. */
+export const AUTH_RESTORE_TIMEOUT_MS = 8000;
+
 /**
  * Resolve the first onAuthStateChanged emission (the IndexedDB session restore) once.
  * Exported so pages that must read `auth.currentUser` after the async restore (e.g.
  * admin-auth.js before calling setupRosterAuth) share ONE implementation instead of
  * hand-rolling their own — a past divergence let a cold-restore fix miss the copy.
  * Callers wanting the fast path use `auth.currentUser || await restoreFirstAuthUser()`.
- * @returns {Promise<any>}
+ *
+ * ── BOUNDED SINCE v20.52 (external review) ──────────────────────────────────────────────────────
+ * This used to be an unbounded promise: if the first emission never arrived, every awaiting caller
+ * waited for ever. Firebase emits promptly in normal operation, but this project has already met
+ * enough real iOS/Firebase restoration oddities that the bound belongs in the SHARED primitive
+ * rather than in whichever coordinator remembered to add one. The Calendar had bounded its own path
+ * at v20.45; Admin, Links, Operations, Settings and the Pay Calculator had not, and would each have
+ * needed their own copy of the same idea.
+ *
+ * **It resolves `null` on timeout rather than rejecting, and that is deliberate.** All four call
+ * sites already handle a null user — it is the ordinary "nobody is signed in" answer: `admin-auth.js`
+ * raises "session not found, sign out and back in", `ensureFirebaseSession` proceeds to sign in with
+ * the stored credentials, and the two `.catch(() => null)` sites treat it as no lingering identity.
+ * Rejecting would introduce an unhandled rejection at two of them and change behaviour on a path
+ * that only fires when something is already wrong. Null is what every caller is built for.
+ *
+ * The bound is generous for that reason: firing it early on a merely-slow restore would tell a
+ * signed-in admin their session is missing. 8s is a hang, not a slow phone.
+ *
+ * @param {number} [timeoutMs] override, for tests
+ * @returns {Promise<any>} the restored user, or null (no user, or the restore never answered)
  */
-export function restoreFirstAuthUser() {
+export function restoreFirstAuthUser(timeoutMs = AUTH_RESTORE_TIMEOUT_MS) {
     return new Promise(resolve => {
-        const unsub = onAuthStateChanged(auth, (/** @type {any} */ user) => { unsub(); resolve(user); });
+        /** @type {null | (() => void)} */
+        let unsub       = null;
+        let settled     = false;
+        let detachEarly = false;   // the listener fired before onAuthStateChanged returned
+        /** @type {any} */
+        let timer;
+
+        // Firebase does not emit synchronously, but the old `const unsub` + `unsub()`-inside-the
+        // -callback shape would have thrown a TDZ ReferenceError if it ever did. This survives it:
+        // an early emission sets the flag and the unsubscribe happens as soon as we hold the handle.
+        const detach = () => {
+            if (unsub) { try { unsub(); } catch { /* already gone */ } unsub = null; }
+            else detachEarly = true;
+        };
+        const finish = (/** @type {any} */ user) => {
+            if (settled) return;      // a late emission after the timeout must change nothing
+            settled = true;
+            clearTimeout(timer);
+            detach();
+            resolve(user);
+        };
+
+        timer = setTimeout(() => {
+            console.warn(`[Auth] session restore did not answer in ${timeoutMs}ms — continuing as signed out`);
+            finish(null);
+        }, timeoutMs);
+        // NO `unref()` here, though it looks tidy: under `node --test` it lets the event loop drain
+        // while a caller is still awaiting this promise, which fails the await with "Promise
+        // resolution is still pending but the event loop has already resolved". The timer is cleared
+        // on every settle, so it holds nothing open in practice.
+
+        unsub = onAuthStateChanged(auth, (/** @type {any} */ user) => finish(user));
+        if (detachEarly) detach();
     });
 }
 

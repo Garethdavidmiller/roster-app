@@ -29,6 +29,9 @@ let _createCalled  = false;  // did the code attempt browser-side account creati
 let _anonCalled    = false;  // did the code attempt an anonymous fallback?
 let _signInCalls   = 0;      // how many times email/password sign-in was attempted (for retry tests)
 let _onAuthSubs    = 0;      // how many times onAuthStateChanged was subscribed (primeAuth/fast-path tests)
+let _authUnsubs    = 0;      // how many times the returned unsubscribe was called (restore-bound tests)
+let _authNeverEmits = false; // when true the mock NEVER calls back — models a Firebase restore that hangs
+let _authEmitDelayMs = 0;    // when >0 the mock answers this late — models a restore that arrives after the bound
 /** @type {Promise<void>|null} */
 let _signInGate    = null;   // if set, email/password sign-in awaits it before resolving (generation-guard test)
 const _authThrow = code => { const e = new Error(code); /** @type {any} */ (e).code = code; throw e; };
@@ -44,7 +47,7 @@ mock.module('./firebase-client.js', {
         authReady:                      Promise.resolve(),
         // Invoke the callback asynchronously with the configured existing user, then return
         // the unsubscribe fn (matching the real onAuthStateChanged contract session.js relies on).
-        onAuthStateChanged:             (_auth, cb) => { _onAuthSubs++; Promise.resolve().then(() => cb(_existingUser)); return () => {}; },
+        onAuthStateChanged:             (_auth, cb) => { _onAuthSubs++; if (!_authNeverEmits) { if (_authEmitDelayMs) setTimeout(() => cb(_existingUser), _authEmitDelayMs); else Promise.resolve().then(() => cb(_existingUser)); } return () => { _authUnsubs++; }; },
         nameToEmail:                    name => name.toLowerCase().replace(/\s+/g, '.') + '@myb.test',
         normaliseSurname:               name => name.split(/\s+/).slice(1).join('').toLowerCase().replace(/[^a-z]/g, ''),
         // _signInBehavior may be a string (same every call) OR a function (callNumber → code),
@@ -74,7 +77,7 @@ mock.module('./ls.js', {
 });
 
 const {
-    AUTH_KEY, SESSION_MS, SESSION_VER,
+    AUTH_KEY, SESSION_MS, SESSION_VER, AUTH_RESTORE_TIMEOUT_MS, restoreFirstAuthUser,
     sessionReady, resolveSession,
     getSurname, getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
@@ -104,6 +107,51 @@ describe('constants', () => {
 
     test('AUTH_KEY is a non-empty string', () => {
         assert.ok(typeof AUTH_KEY === 'string' && AUTH_KEY.length > 0);
+    });
+});
+
+// ── restoreFirstAuthUser: the bound ───────────────────────────────────────────
+//
+// Bounded at v20.52 (external review). It used to wait for ever for the first onAuthStateChanged
+// emission, so every awaiting coordinator waited for ever with it. The property to pin is not
+// "there is a timeout" but what the timeout DOES: resolve null, the answer every caller is already
+// built to handle, rather than reject into two call sites that have no catch.
+
+describe('restoreFirstAuthUser', () => {
+    beforeEach(() => { _authNeverEmits = false; _authEmitDelayMs = 0; _authUnsubs = 0; _existingUser = null; });
+    afterEach(()  => { _authNeverEmits = false; _authEmitDelayMs = 0; });
+
+    test('resolves with the restored user and unsubscribes', async () => {
+        _existingUser = { isAnonymous: false, email: 'g.miller@myb.test' };
+        const u = await restoreFirstAuthUser();
+        assert.equal(u, _existingUser);
+        assert.equal(_authUnsubs, 1, 'the listener must be detached once it has answered');
+    });
+
+    test('a restore that NEVER answers resolves null at the bound, and detaches', async () => {
+        // The whole point: before this, an unanswered restore hung the caller for ever.
+        _authNeverEmits = true;
+        const t0 = Date.now();
+        const u = await restoreFirstAuthUser(60);
+        assert.equal(u, null, 'a hung restore must read as "nobody is signed in", not hang');
+        assert.ok(Date.now() - t0 >= 55, 'it must actually have waited for the bound');
+        assert.equal(_authUnsubs, 1, 'a timed-out restore must not leak its auth listener');
+    });
+
+    test('a LATE emission after the bound changes nothing', async () => {
+        // Firebase answering at 9s must not re-resolve a promise that already answered null at 8,
+        // and must not throw on the second resolve either. `settled` is the guard.
+        _existingUser = { isAnonymous: false, email: 'late@myb.test' };
+        _authEmitDelayMs = 80;
+        const u = await restoreFirstAuthUser(20);
+        assert.equal(u, null, 'the bound wins — the late user must not appear');
+        await new Promise(r => setTimeout(r, 120));   // let the late emission land
+        assert.equal(_authUnsubs, 1, 'still detached exactly once, no throw from the late callback');
+    });
+
+    test('the default bound is generous enough to be a hang, not a slow phone', () => {
+        // Firing early on a merely-slow restore would tell a signed-in admin their session is gone.
+        assert.equal(AUTH_RESTORE_TIMEOUT_MS, 8000);
     });
 });
 

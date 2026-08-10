@@ -108,6 +108,7 @@ export const COLLECTIONS = {
 // internally by the upload paths. officeViewerUrl is re-exported for the DOCX circular/newsletter
 // open path (nav-panel, calendar-doc-viewer).
 import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, sixMonthCutoffISO } from './storage-utils.js';
+import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
 export { isSafeStorageUrl, officeViewerUrl };
 
 // ---- Firebase Authentication ----
@@ -823,11 +824,21 @@ export async function resetMemberPassword(memberName, { revoke = true } = {}) {
     const user = auth.currentUser;
     if (!user) throw new Error('Not signed in');
     const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
-    const r = await fetch(RESET_PASSWORD_URL, {
-        method:  'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ member: memberName, revoke }),
-    });
+    // 65s: above the endpoint's own 60s ceiling (see fetch-timeout.js — a client that gives up
+    // first reports a working server as broken).
+    let r;
+    try {
+        r = await fetchWithTimeout(RESET_PASSWORD_URL, {
+            method:  'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ member: memberName, revoke }),
+        }, 65_000);
+    } catch (err) {
+        // A WRITE. The abort stopped us waiting, not the server working, so this must not claim the
+        // reset did not happen — the admin needs to go and look rather than reset a second time.
+        if (isFetchTimeout(err)) throw new Error('Timed out waiting for the server — the reset may still have gone through. Check Account status before trying again.', { cause: err });
+        throw err;
+    }
     if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
     return r.json();
 }
@@ -850,10 +861,11 @@ export async function getSignInStats() {
     const user = auth.currentUser;
     if (!user) throw new Error('Not signed in');
     const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
-    const r = await fetch(SIGN_IN_STATS_URL, {
+    // A READ, so a timeout may say plainly that it failed. 65s clears the 60s server ceiling.
+    const r = await fetchWithTimeout(SIGN_IN_STATS_URL, {
         method:  'GET',
         headers: { 'Authorization': `Bearer ${token}` },
-    });
+    }, 65_000);
     if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
     return r.json();
 }
@@ -872,11 +884,22 @@ const REQUEST_RESET_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/re
  * @returns {Promise<any>}
  */
 export async function requestPasswordReset(memberName) {
-    const r = await fetch(REQUEST_RESET_URL, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ member: memberName }),
-    });
+    // 35s: above the endpoint's own 30s ceiling. This is the call the review named — a stalled
+    // transport left the login card's button on "Sending…" indefinitely, with no way back.
+    let r;
+    try {
+        r = await fetchWithTimeout(REQUEST_RESET_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ member: memberName }),
+        }, 35_000);
+    } catch (err) {
+        // The request MAY have been recorded — the server writes the row before responding. So the
+        // login overlay's copy for this case says "couldn't confirm", never "not sent"; a member
+        // told it failed would ask again, and the throttle would then silently drop the repeat.
+        if (isFetchTimeout(err)) throw new Error('Timed out waiting for the server — your request may still have been sent.', { cause: err });
+        throw err;
+    }
     if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
     return r.json();
 }

@@ -1024,6 +1024,34 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `uploadNewsletter(date, file, uploadedBy)` — writes the file (PDF or Word .docx) to `newsletters/{date}-{uploadId}.{ext}` in Firebase Storage (versioned path; old file deleted after Firestore commit succeeds) and upserts the `newsletters/{date}` Firestore doc (includes `storagePath` field for cleanup tracking); also fire-and-forget prunes documents older than 6 months via `_pruneOldDocs()` after each upload; called from `operations-app.js` (v13.59, versioned path v13.99)
 - `getLatestNewsletter()` — queries `newsletters` collection, returns latest doc's data (with `storageUrl`) or null; called from `nav-panel.js` (☰ direct open) and `calendar-doc-viewer.js` (notification-tap viewer) (v13.59)
 
+### `fetch-timeout.js`
+
+The bound on every call the app makes to a Cloud Function (v20.52, external review). Exports
+`fetchWithTimeout(url, options, timeoutMs)`, `isFetchTimeout(err)`, `FETCH_TIMEOUT_CODE` and
+`DEFAULT_FETCH_TIMEOUT_MS`.
+
+Five client calls reached Functions through a bare `fetch()` with no bound. A stalled transport
+never rejects, so the awaiting UI simply stops — the login card's reset-request button on
+"Sending…" for ever, "Set up accounts" never reporting. That is not a wrong answer, it is the
+absence of one, which is worse: the member cannot tell a slow network from a broken app.
+
+**Two rules, both easy to get backwards:**
+
+- **A budget sits ABOVE the endpoint's own `timeoutSeconds`, never below.** A client that gives up
+  first turns a slow-but-succeeding operation into a reported failure — for `setupRosterAuth` that
+  means telling an admin a change did not happen while the server is still making it happen. Hence
+  35s/65s/130s against 30s/60s/120s ceilings. The bound exists to end an INFINITE wait, not to make
+  a slow call feel fast.
+- **A timeout on a STATE-CHANGING call does not mean it did not happen.** `AbortController` stops us
+  waiting; it does not stop the server working. So the write call sites say "may still have gone
+  through — go and check", never "failed". Same distinction `password-force.js` draws between
+  `withTimeout` and `settleOrTimeout`. Reads may say "failed" freely.
+
+`isFetchTimeout` exists because a foreign abort (a navigation, a caller's own signal) arrives as the
+same `AbortError` our bound produces; only the internal `timedOut` flag separates them, and the
+callers' copy depends on that separation. `calendar-access.js` keeps its own v20.45 bound for now —
+that path is live and mid-soak — and should adopt this once the PIN rollout is finished.
+
 ### `error-reporter.js`
 Shared uncaught-error reporter (v13.31). Only export is `initErrorReporter()` — installs `window.onerror` + `unhandledrejection` listeners that write capped, deduped records to the Firestore `clientErrors` collection via `logClientError` (fire-and-forget; never throws, never blocks). **Requires an auth context** — the three canonical call patterns (calendar after `calendarAuthReady`; `sessionReady.then(...)` on the four session pages; paycalc's `afterAuth`) are pinned in CLAUDE.md → `initErrorReporter()` call pattern. Records surface on the Operations → Error Log card.
 

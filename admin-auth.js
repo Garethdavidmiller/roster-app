@@ -15,6 +15,7 @@
 import { escapeHtml } from './roster-data.js';
 import { auth } from './firebase-client.js';
 import { sessionReady, getFirebaseAuthError, restoreFirstAuthUser } from './session.js';
+import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 
@@ -81,11 +82,25 @@ export function initAuthSetup({ currentIsAdmin }) {
             // without a page reload. forceRefresh:true mints a current, non-expired token each time.
             const doSetup = async (/** @type {Record<string, any>} */ extraBody) => {
                 const fresh = await currentUser.getIdTokenResult(/* forceRefresh */ true);
-                const r = await fetch(SETUP_AUTH_URL, {
-                    method:  'POST',
-                    headers: { 'Authorization': `Bearer ${fresh.token}`, 'Content-Type': 'application/json' },
-                    body:    JSON.stringify(extraBody),
-                });
+                // 130s: above the endpoint's own 120s ceiling (fetch-timeout.js). Provisioning walks
+                // the whole roster, so this is legitimately the app's slowest call — the bound is
+                // here to end an INFINITE wait, not to make it feel quick.
+                let r;
+                try {
+                    r = await fetchWithTimeout(SETUP_AUTH_URL, {
+                        method:  'POST',
+                        headers: { 'Authorization': `Bearer ${fresh.token}`, 'Content-Type': 'application/json' },
+                        body:    JSON.stringify(extraBody),
+                    }, 130_000);
+                } catch (err) {
+                    // A WRITE, and a broad one — it creates, disables and re-claims accounts. The
+                    // abort stopped us waiting, not the server working, so this must not read as
+                    // "nothing happened": re-running it blind could act on a half-finished sweep.
+                    // Re-running is in fact safe (the endpoint is idempotent), but the admin should
+                    // look first, so the copy says look.
+                    if (isFetchTimeout(err)) throw new Error('Timed out waiting for the server — account setup may still be running. Reload and check Account status before running it again.', { cause: err });
+                    throw err;
+                }
                 if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
                 return r.json();
             };
