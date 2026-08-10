@@ -339,7 +339,7 @@ steps below are three separate pushes rather than one:
 
 | Brake | Where | Ships as | Released at |
 |---|---|---|---|
-| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | `false` — Calendar behaves exactly as pre-v20.12 | step 3 — **RELEASED, v20.46 (10 Aug 2026)** |
+| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | `false` — Calendar behaves exactly as pre-v20.12 | step 3 — released v20.46, **ROLLED BACK v20.50 the same morning** (see step 3's note) |
 | `allow read;` hold line | `firestore.rules` overrides block | present — collection still public | step 4 — still on (the soak) |
 
 The hold line is declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
@@ -359,10 +359,29 @@ stops the hold outliving the rollout: it cannot be forgotten quietly, only remov
    production origin. Both brakes are still on, so staff see no change whatsoever — this is the dark
    deploy, and its job is to prove the *rest* of the release (session handling, the nav drawer, the
    calendar bootstrap) against real devices while the feature itself is invisible.
+2b. **Prove the SUCCESS path in production, by hand, BEFORE step 3.** Someone holding the PIN opens
+   the live Calendar in a private window and unlocks it. That is the whole check, and there is no
+   automated substitute: it is the only way the token mint is exercised against real IAM, real Auth
+   and the real secret. If it fails, read the function log — `[unlockCalendarViewer] token mint
+   failed <code> <message>` names the cause. The known candidate is an IAM gap: `initializeApp()`
+   uses ADC, so `createCustomToken` signs through the IAM Credentials API and needs the Cloud Run
+   runtime service account to hold `roles/iam.serviceAccountTokenCreator` **on itself**, which gen-2
+   does not grant by default.
 3. **Client.** Set `CALENDAR_PIN_ACCESS: true` and push — hosting only, one line, no rules change.
    The Calendar now asks for the PIN and mints a viewer session, and because the rule is still
    permissive a stale cached client keeps working. **Let this soak.** Rolling back is the same one
    line, and while the rules are still permissive that rollback genuinely re-opens the Calendar.
+
+   > **⛔ DO STEP 2b FIRST — this step failed on 10 Aug 2026 and had to be reverted within hours.**
+   > A correct PIN returned 500 from the function's token-mint block; every member entering the right
+   > code got "Calendar couldn't be unlocked" and no roster. The rollback itself worked perfectly (one
+   > line, ~4 minutes), which is the only reason it was cheap. What did not work was the verification:
+   > step 2 had been signed off on `GET` → 405 and a WRONG PIN → 401, and **neither of those touches
+   > the minting path** — `getUser`/`createUser`, `setCustomUserClaims` and `createCustomToken` run
+   > only for a CORRECT PIN. So the part of the endpoint that actually does something had never run
+   > in production. The e2e suite stubs the exchange (rightly — a test must not hold the secret), so
+   > nothing in CI covers it either.
+
 4. **Rules.** Remove the `allow read;` hold line and set `OVERRIDES_READ_HELD_OPEN = false` in the
    same commit; push with nothing else in it. From this moment an old cached client cannot read
    overrides — and from this moment `CALENDAR_PIN_ACCESS: false` is **no longer a rollback**, because

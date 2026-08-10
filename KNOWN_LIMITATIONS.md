@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v20.40 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.50 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -61,14 +61,33 @@ will not retry it, so production can stay stale indefinitely until an unrelated 
 > brake is released — its own push, nothing else in it (RECOVERY_RUNBOOK.md → "The Calendar PIN",
 > step 4).
 >
-> **Runbook position (10 Aug 2026): steps 1–3 are COMPLETE; 4–5 remain, gated on the soak.** The
-> `CALENDAR_VIEWER_PIN` secret is set (owner, 9 Aug 2026) and was verified against the LIVE
-> function — a deliberately wrong PIN returns 401 "PIN not recognised", which on the deployed code
-> proves the secret is present, non-empty and four-digit-shaped (any of those failing returns 503).
-> Every activation blocker closed before the switch: Lock Calendar fail-closed (v20.39), secret
-> shape-validated (v20.39), Calendar data readiness (v20.40–41), throttle-store failure fail-closed
-> (v20.45). While the soak lasts, rolling back is the one client line — after step 4 it is a rules
-> rollback instead.
+> **⛔ INCIDENT, 10 Aug 2026 — step 3 was taken and ROLLED BACK the same morning.** The flag went
+> `true` at v20.46 and back to `false` at v20.50, roughly two hours later, because **a correct PIN
+> could not unlock the Calendar**: `unlockCalendarViewer` returned 500 from its token-mint block, so
+> a member entering the right code saw "Calendar couldn't be unlocked. Try again shortly." and no
+> roster. The secret, the client, the throttle and CORS were all fine and all verified. The rollback
+> itself behaved exactly as the runbook promised — one line, hosting only, rules untouched.
+>
+> **The pre-flight is what failed, and it is the part to change.** Step 2 was signed off on two live
+> probes: `GET` → 405, and a deliberately WRONG PIN → 401. Both passed; both stop short of the only
+> part of the endpoint that does any work. `getUser`/`createUser`, `setCustomUserClaims` and
+> `createCustomToken` are reachable ONLY by a correct PIN, so the minting path — the point of the
+> function — had never once run in production. CI cannot cover it either: `stubPinExchange` replaces
+> the endpoint, rightly, because a test must not hold the secret. **A verification that deliberately
+> avoids the success path has not verified the feature.** RECOVERY_RUNBOOK now carries a step 2b that
+> says so.
+>
+> **Most likely cause — an IAM gap, not app code.** `admin.initializeApp()` uses Application Default
+> Credentials; under ADC `createCustomToken` signs through the IAM Credentials API, which needs the
+> Cloud Run runtime service account to hold `roles/iam.serviceAccountTokenCreator` **on itself**.
+> Gen-2 does not grant that by default. The function logs the exact code:
+> `[unlockCalendarViewer] token mint failed <code> <message>` — read that before assuming.
+>
+> **Runbook position: steps 1–2 COMPLETE; step 3 attempted and reverted; 2b, 3, 4 and 5 remain.** The
+> `CALENDAR_VIEWER_PIN` secret is set (owner, 9 Aug 2026) and confirmed present, non-empty and
+> four-digit-shaped. The other activation blockers all remain closed: Lock Calendar fail-closed
+> (v20.39), secret shape-validated (v20.39), Calendar data readiness (v20.40–41), throttle-store
+> failure fail-closed (v20.45).
 >
 > Written this way on purpose. An entry that read "CLOSED at v20.12" while the rule was still
 > permissive is worse than no entry: it is the one document someone checks to decide whether the
