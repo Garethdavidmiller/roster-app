@@ -791,7 +791,7 @@ export function init() {
                         { icon: '\u{1F4CD}', html: 'Someone using <strong>both</strong> addresses counts on each — that is what half-migrated looks like. An install nobody has <em>opened</em> in 30 days is invisible here, so treat it as a floor' },
                     ]},
                     { heading: 'Sign-ins vs opens', items: [
-                        { icon: '\u{1F511}', html: '<strong>Accounts that have signed in</strong> is the exact unique count, from Firebase Auth itself. It counts <strong>sign-ins, not opens</strong> — a session lasts up to 30 days, so someone can sign in once and use the app daily' },
+                        { icon: '\u{1F511}', html: '<strong>Accounts that have signed in</strong> is the exact unique count, from Firebase Auth itself. It counts <strong>sign-ins, not opens</strong> — a session lasts up to 60 days, so someone can sign in once and use the app daily for two months without ever appearing here again' },
                         { icon: '\u{1F423}', html: '<strong>Never signed in</strong> is the actionable one: accounts set up that have never been used' },
                         { icon: '\u{1F50D}', html: 'The <strong>gap</strong> between the two blocks is now readable: roughly the staff who use the roster but have <strong>never held an account session</strong>. They can\'t be reached by anything that happens at sign-in — a password prompt, for one' },
                     ]},

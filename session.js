@@ -60,16 +60,29 @@ function _syncAuthTerminal(/** @type {string} */ name) {
 }
 
 export const AUTH_KEY    = 'myb_admin_session';
-export const SESSION_MS  = 30 * 24 * 60 * 60 * 1000; // 30 days — the ONE session lifetime
+export const SESSION_MS  = 60 * 24 * 60 * 60 * 1000; // 60 days — the ONE session lifetime
 export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 
+// 30 → 60 DAYS at v20.47 (owner decision), and the reasoning is the same one that removed the idle
+// cutoff below: the absolute bound is not what protects an account. Everything that genuinely
+// REVOKES access is immediate and independent of this number — an explicit sign-out (`clearSession`,
+// which also signs Firebase out), a disabled or deleted account, revoked Firebase credentials, and
+// the claim/epoch sweeps — so doubling it costs a longer signed-in UI on a device somebody already
+// holds, and buys one fewer password prompt a year for the people who use the app least.
+//
+// Two things downstream READ this number rather than owning their own, and both get further away as
+// it grows. Neither is a blocker; both are wrong if left unstated:
+//   · The forced password migration (`CONFIG.FORCE_PASSWORD_SET`) is driven by sign-ins, so its
+//     coverage now completes in up to 60 days rather than 30.
+//   · Operations → Usage reads "signed in within 30 days" as a proxy for active people. That
+//     inference DEPENDED on the session being ≤30 days and no longer holds — see the note beside
+//     `_appendSignInSection` in operations-reports.js, which now states the direction correctly.
+//
 // The 7-day IDLE cutoff was REMOVED at v20.41 (owner decision). It is not a security control that
-// the 30-day absolute bound does not already provide: an attacker holding a device holds the session
-// either way, and the ways a session is genuinely revoked are all IMMEDIATE and unaffected — an
-// explicit sign-out (`clearSession`, which also signs Firebase out), a disabled or deleted account,
-// revoked Firebase credentials, and the claim/epoch sweeps. What the idle clock actually did was
-// sign out the members who use the app LEAST — someone who checks their roster once a fortnight —
-// and each expiry lands them on a password prompt.
+// the absolute bound does not already provide: an attacker holding a device holds the session
+// either way, and every genuine revocation is immediate, as above. What the idle clock actually did
+// was sign out the members who use the app LEAST — someone who checks their roster once a
+// fortnight — and each expiry lands them on a password prompt.
 //
 // The Calendar VIEWER is untouched by this and must stay untouched: it is not a member session at
 // all, it holds no `name`, and its persistence is session-only, so it ends when the browser session
@@ -219,7 +232,7 @@ export function primeAuth() {
  *
  * Firestore Security Rules require `request.auth != null` for every write.
  * The login click handler signs in to Firebase — but a returning user with a
- * valid 30-day localStorage session skips that handler, so on a normal app open
+ * valid 60-day localStorage session skips that handler, so on a normal app open
  * the Firebase Auth session was never (re-)established.
  *
  * Strategy (each step falls through to the next on failure):
@@ -488,7 +501,7 @@ export async function refreshClaimsIfStale(epoch) {
 
 /**
  * Read and validate the current localStorage session. Returns null if missing, absolutely expired
- * (30 days) or version-stale.
+ * (60 days) or version-stale.
  *
  * PURELY A READ since v20.41. It used to write back on every call, to refresh an idle clock that no
  * longer exists — a localStorage write on every page load of every page, whose only purpose was to
@@ -524,7 +537,7 @@ export function getSession() {
         if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
         if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
         // `expiry` is absolute and set once at sign-in, so nothing here extends it. A session that
-        // has run its 30 days ends on the next read wherever the member is — no separate clock, and
+        // has run its 60 days ends on the next read wherever the member is — no separate clock, and
         // no write. Sessions written before v20.41 still carry a `lastActivity` field; it is simply
         // ignored, which is why no migration or SESSION_VER bump is needed (bumping it would sign
         // every member out, the exact outcome this change exists to reduce).
@@ -533,7 +546,7 @@ export function getSession() {
 }
 
 /**
- * Persist a new session for the named user — 30-day absolute expiry, and nothing else. There is no
+ * Persist a new session for the named user — 60-day absolute expiry, and nothing else. There is no
  * second clock to start (v20.41).
  * @param {string} name
  * @returns {boolean} true if the session actually persisted; false when storage is blocked

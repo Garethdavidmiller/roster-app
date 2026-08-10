@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '20.46';
+export const APP_VERSION = '20.47';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -80,11 +80,14 @@ export const CONFIG = {
     // still see their roster. It fails open both before showing (read failure / wrong identity) and
     // after (rate-limit / network → a "Continue for now" escape). See password-force.js's header.
     //
-    // No forced sign-out is needed to drive this: sessions cap at 30 days absolute, and an expired
-    // session forces a real typed login, so coverage completes itself inside 30 days and staggers by
-    // each member's own expiry rather than landing on everyone at once. (The 7-day idle cutoff that
-    // used to shorten this for infrequent users was removed at v20.41 — it made the rollout FASTER
-    // for exactly the people it inconvenienced most, which was never its purpose.)
+    // No forced sign-out is needed to drive this: sessions cap at 60 days absolute, and an expired
+    // session forces a real typed login, so coverage completes itself inside 60 days and staggers by
+    // each member's own expiry rather than landing on everyone at once. That window is a
+    // CONSEQUENCE of `SESSION_MS`, not a policy here — it was 30 days until v20.47 doubled the
+    // session, which halves the rollout speed and is the accepted cost of the longer session. (The
+    // 7-day idle cutoff that used to shorten this for infrequent users was removed at v20.41 — it
+    // made the rollout FASTER for exactly the people it inconvenienced most, which was never its
+    // purpose.)
     FORCE_PASSWORD_SET:               true,
     // ── Staff PIN access for the Calendar — THE ON/OFF SWITCH (v20.12; made real v20.16) ────────
     //

@@ -79,9 +79,10 @@ export function init() {
 
     // ── SESSION GUARD (local-identity precondition) ───────────────────────────────
     // Not signed in → show the shared in-place sign-in (no redirect elsewhere). After sign-in,
-    // reload back into the calculator. getSession() (session.js) enforces the 30-day absolute /
-    // 7-day idle expiry and refreshes the idle clock — a raw localStorage read would treat an
-    // expired session as valid forever. Early-return halts the rest of init() (overlay is shown).
+    // reload back into the calculator. getSession() (session.js) enforces the 60-day absolute
+    // expiry — a raw localStorage read would treat an expired session as valid forever. (The 7-day
+    // idle clock this used to refresh went at v20.41; the read is pure now.) Early-return halts the
+    // rest of init() (overlay is shown).
     //
     // DELIBERATELY NOT routed through requirePage('paycalc') (ARCHITECTURE_PLAN.md Phase 7). The
     // paycalc policy is `soft`, which by its tested invariant NEVER returns 'login' — a signed-out user
@@ -1835,7 +1836,7 @@ export function init() {
     registerServiceWorker();
 
     // Establish the Firebase Auth session BEFORE starting error reporting. A valid
-    // 30-day localStorage session can outlive the Firebase Auth session (cleared or
+    // 60-day localStorage session can outlive the Firebase Auth session (cleared or
     // lost), in which case clientErrors writes fail the `request.auth != null` rule
     // and are silently dropped — exactly when we most want the report. Mirrors the
     // admin/settings/operations pages. Error reporter starts regardless of the

@@ -18,8 +18,8 @@
 **Two things only this file knows, and both are load-bearing:**
 
 - **Phase 2 compels at NEXT SIGN-IN and nobody is signed out to accelerate it** (owner, 25 Jul 2026 —
-  "force everyone, but only on the next log in"). Sessions cap at 30 days, so
-  coverage completes itself inside 30 days and staggers by each member's own expiry rather than
+  "force everyone, but only on the next log in"). Sessions cap at 60 days (30 until v20.47), so
+  coverage completes itself inside 60 days and staggers by each member's own expiry rather than
   landing on everyone at once.
 - **C5 cannot converge on Phase 2 alone.** A member who only ever reads the roster signs in nowhere,
   so is never compelled — reaching them is Track E. Retiring the surname default is therefore gated
@@ -58,7 +58,7 @@ version-stamped; not a runtime asset. **Read LOGIN_INCIDENT.md before touching a
 **Unchanged:**
 - The login screen shape (grade → name → password), the Firebase account model
   (`initial.surname@myb-roster.local`), the claim tiers (`admin`/`manager`/`name`/`linksDesigner`),
-  `ENFORCE_NAMED_SESSION=true`, the calendar's anonymous read, and the 30-day session rule.
+  `ENFORCE_NAMED_SESSION=true`, the calendar's anonymous read, and the 60-day session rule.
 - **No new custom claims → no `CLAIM_EPOCH` bump.** Deliberate: migration state lives in Firestore,
   not tokens, so the whole token-propagation sweep machinery stays untouched — one less way to
   reproduce the v10.94 outage class.
@@ -337,7 +337,7 @@ managers-first wave; once the decision became "everyone", admin-only would have 
 in on the pay calculator and never opens Admin.
 
 **No wave selector.** `CONFIG.FORCE_PASSWORD_SET` is a plain kill switch, not a tier control, because the
-30-day session model already staggers the rollout by each member's own expiry — a tiered flag would
+60-day session model already staggers the rollout by each member's own expiry — a tiered flag would
 have added releases without lowering the peak.
 
 **Reach, stated honestly.** This compels anyone who signs in. It does NOT reach a member who only ever
