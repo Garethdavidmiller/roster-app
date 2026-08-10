@@ -321,6 +321,106 @@ canonical track table.*
 
 ---
 
+## Passkeys — POSSIBLE, not planned (recorded 10 Aug 2026)
+
+*Owner-raised after the v20.53 merge: "give me the options for making the app compatible with
+passkeys." Recorded here with its costs and its one hard blocker attached — **as a possibility, not
+as scheduled work**, and not given a C-number: the track list is C1–C5 and the canonical table in
+`SECURITY_RELEASE_PLAN.md` owns it. If this is ever committed to, it is the successor to C5, not a
+track of its own.*
+
+**Why this file and not `AUTH_PLAN.md`.** Track E asks *what sits behind authentication* — the
+boundary ladder E0–E6, the calendar read, the document files. A passkey changes none of that; it
+changes **what a member presents at the door**, which is exactly this file's subject: the surname
+default, the self-set password, the admin reset, and C5's plan to retire the default. Passkeys are
+the natural successor to C5. `AUTH_PLAN.md` §7/§8 carry a pointer here, because passkeys turn one of
+its open owner decisions from cosmetic into binding — see the blocker below.
+
+### What a passkey is, in one paragraph
+
+WebAuthn replaces "something you know" with a key pair. The private key is generated and held by the
+phone's secure hardware (or iCloud Keychain / Google Password Manager), never leaves it, and is
+released by fingerprint or face. The server keeps only the **public** key. Signing in means the
+server sends a random challenge, the phone signs it, the server verifies the signature. There is no
+shared secret — nothing to phish, nothing to reuse across sites, and nothing worth stealing in our
+database.
+
+### ⚠️ THE BLOCKER: a passkey is bound to ONE domain, and this app is served from two
+
+WebAuthn's RP ID must be a registrable-domain suffix of the origin. **Both `web.app` and `github.io`
+are on the Public Suffix List**, so the RP ID can only be the full hostname, and
+`myb-roster.web.app` and `garethdavidmiller.github.io` share no parent. A passkey registered on one
+**can never be used on the other**. There is no workaround, no cross-origin trick, no shared list.
+
+So passkeys make the GitHub Pages mirror a decision rather than an inheritance: either retire it
+first, or accept that passkeys reach only the members on `web.app` while the mirror stays
+password-only for ever. `analytics/origins` (v19.23) is the existing instrument for that call — it
+was built to answer exactly this question and no other work is needed to read it.
+
+### The four options
+
+| | Approach | Effort | What it buys |
+|---|---|---|---|
+| **A** | Firebase Auth native passkeys | unknown — **verify first** | Understood to be NOT GA for Firebase Auth (as opposed to raw Identity Platform), and every working implementation known to this project uses B. **Ten minutes against current docs before anything else** — if it has landed, the effort drops by an order of magnitude and B is wasted work. |
+| **B** | **WebAuthn + custom token** | ≈ the Calendar PIN project | The real thing. The option this section is about. |
+| **C** | Passkey as a re-auth shortcut only | ≈ half of B | Skips the password at the 60-day expiry, keeps everything else as-is. Most of B's work for a fraction of its benefit. |
+| **D** | Do nothing — rely on browser password autofill | zero | Since v18.63 members set their own password, and both platforms already offer to save and autofill it. **This is the honest baseline B must beat**, and it should be stated whenever B is costed. |
+
+### Option B — why it is cheaper here than it usually is
+
+Two things this app already has:
+
+1. **Custom-token minting is proven in production.** `unlockCalendarViewer` does `createCustomToken`
+   → `signInWithCustomToken`, and the v20.50 outage established the standing IAM prerequisite
+   (`iam.serviceAccountTokenCreator` on the runtime service account, on itself) — **already granted**.
+   A passkey sign-in is the same shape: verify the assertion, then mint. The unglamorous half of this
+   work is done and has been debugged the hard way.
+2. **No new browser dependency.** `navigator.credentials` is native; the client needs ~20 lines of
+   base64url helpers and two fetches. Verification (`@simplewebauthn/server` or equivalent) lives in
+   `functions/`, which is CommonJS Node — it never touches the no-bundler rule. That constraint is
+   usually what kills passkeys in a build-free app, and here it does not apply.
+
+**Custom claims survive, and this is the thing that would otherwise break silently.** An ID token
+obtained via `signInWithCustomToken` carries the user record's `setCustomUserClaims` values as well
+as any developer claims passed in the token — so `name` / `admin` / `manager` / `linksDesigner`, and
+therefore every Firestore rule, are untouched. Verify it explicitly rather than assuming it; a
+sign-in that works while every write permission-denies is the v20.50 failure shape again.
+
+**What it costs:** two Cloud Function endpoints (begin/finish, registration and assertion), a client
+module, a Settings card ("Add this phone"), a branch in `login-overlay.js`, a new `passkeys`
+collection with client read **and** write denied outright (Admin SDK only) plus rules tests, and
+server-side single-use, short-lived challenges.
+
+**The UX win worth having** is discoverable credentials (`residentKey: 'required'`) plus conditional
+UI (`mediation: 'conditional'`, with `autocomplete="username webauthn"` on the field): the member
+taps Sign in and the OS offers their face — the grade and name dropdowns never appear. That is
+meaningfully better than a saved password, and it is the only reason to prefer B over D.
+
+### Constraints to settle before starting, not during
+
+- **Never the only factor.** A lost phone is a lockout. The password path and the admin reset stay.
+  Passkeys are additive until there is a second recovery route (C2, the email reset).
+- **Not for the shared station PC.** A platform authenticator there binds to whichever Windows
+  profile is signed in. That machine keeps the staff PIN and the password — which is what the PIN
+  was built for.
+- **iOS standalone PWA needs a real-device check.** WebAuthn works on iOS 16+, but standalone-mode
+  behaviour has had quirks. That is a spike on a real handset, not an assumption.
+- **`user.id` must be the Firebase uid, never the member name.** It is a permanent opaque handle and
+  names change; the display name belongs in `user.name`/`displayName`, which is what the OS prompt
+  shows.
+- **The fake `@myb-roster.local` domain is not an obstacle** — passkeys need no deliverable address.
+- **Prove the success path by hand in production.** The v20.50 lesson stated once more, because this
+  feature has the same shape: a registration endpoint returning 200 proves nothing until a real
+  finger has signed in with the credential it stored.
+
+### Recommended ordering
+
+Do **A** (the ten-minute check) first. Then settle the mirror, because until that is decided the
+question "who can even use this?" has no answer. **C5 is the higher-value item and is unblocked
+today** — passkeys do not replace it, though they make its endgame considerably more attractive.
+
+---
+
 # ── HISTORICAL IMPLEMENTATION RECORD ────────────────────────────────────────────
 
 *Everything below is what was BUILT and what successive reviews found. It is kept in full — it has
