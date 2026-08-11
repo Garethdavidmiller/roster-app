@@ -106,7 +106,7 @@ test.describe('member surface', () => {
         await page.goto('/overtime.html');
 
         const day = page.locator('.ot-day').first();
-        const chosen = day.getByRole('radio', { name: 'Available all day' });
+        const chosen = day.getByRole('radio', { name: 'All day' });
         const other  = day.getByRole('radio', { name: 'Not available' });
         const fill = (loc) => loc.evaluate(el => getComputedStyle(el).backgroundColor);
 

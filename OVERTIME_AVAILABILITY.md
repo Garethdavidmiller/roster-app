@@ -36,6 +36,30 @@ never what exists.
 
 Anything that makes those rows less prominent makes the feature less safe.
 
+## The member surface's wording grammar (v20.84)
+
+A wording sweep after the owner reported the area "messy and inconsistent" — which, inventoried,
+was four faults with one rule each. Keep to these when adding copy:
+
+1. **A week is named once per surface.** The heading names it ("Week ending Saturday 29 August
+   2026"); the span beneath locates it ("Sun 23 – Sat 29 Aug"). Never label the span "Roster
+   week …" — that restates the heading it sits under.
+2. **One verb for the boundary: a form CLOSES.** Open forms say "Closes <deadline>", closed ones
+   "Closed <deadline>". The same instant had been "Changes close", "Closed — the final deadline
+   was", "Closes" and "Answers due" on one page; only the reviewer's horizon keeps "Answers due"
+   for the FIRST deadline, because it genuinely is a different boundary.
+3. **Every green pill completes "Available …"** — All day · Up to 12 hours · Before 07:00 · After
+   15:00 · Before & after duty · Custom times — and "Not available" stands apart as the charcoal
+   answer. The recorded CHIP keeps the full form ("Available all day"): chips stand alone on the
+   reviewer's list; buttons sit in a radiogroup already labelled "Availability on <day>".
+4. **Each fact is stated once, in one phrasing.** The BETA strip says the data is real, the card
+   hint says who the form tells, the explainer says it books nothing — three sentences, three
+   jobs, where they used to circle the same relationship. The privacy line uses the ? panel's
+   exact phrasing ("Managers and the admin can see what you submit"), and the member's row states
+   speak one voice: Submitted — you can still change it · Submitted — now final · Not submitted
+   yet · Nothing was submitted.
+
+
 ### Two decisions the horizon encodes — settled, not inherited (owner, Aug 2026)
 
 An external review asked that both be approved explicitly rather than acquired by implementation.

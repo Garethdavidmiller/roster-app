@@ -369,18 +369,21 @@ export function init() {
     function renderMyWeekRow(w) {
         const submitted = !!w.submission;
         const tone = submitted ? 'ok' : (w.phase === 'CLOSED' ? 'bad' : 'warn');
+        // Four states, one voice — what YOU did, then what that means now. The old set mixed a
+        // passive record-keeping register ("Final availability recorded", "no form was submitted")
+        // into a list otherwise written to the member.
         const state = submitted
-            ? (w.phase === 'CLOSED' ? 'Final availability recorded' : 'Submitted — you can still change it')
-            : (w.phase === 'CLOSED' ? 'Closed — no form was submitted' : 'Not submitted yet');
+            ? (w.phase === 'CLOSED' ? 'Submitted — now final' : 'Submitted — you can still change it')
+            : (w.phase === 'CLOSED' ? 'Nothing was submitted' : 'Not submitted yet');
         return `
             <div class="ot-week-row ot-week-row--${tone}">
                 <div class="ot-week-main">
                     <div class="ot-week-title">${esc(weekLabel(w.weekEnding))}</div>
                     <div class="ot-week-meta">
-                        Roster week ${esc(weekSpan(w.weekStart, w.weekEnding))}<br>
+                        ${esc(weekSpan(w.weekStart, w.weekEnding))}<br>
                         ${w.phase === 'CLOSED'
                             ? `Closed ${esc(deadlineLabel(w.finalDeadlineAt))}`
-                            : `Changes close ${esc(deadlineLabel(w.finalDeadlineAt))}`}
+                            : `Closes ${esc(deadlineLabel(w.finalDeadlineAt))}`}
                     </div>
                     <span class="ot-week-state ot-week-state--${tone}">${esc(state)}</span>
                 </div>
