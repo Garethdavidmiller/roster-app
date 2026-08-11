@@ -17,7 +17,11 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '🗓️', html: 'Each form covers one <strong>roster week</strong>, Sunday to Saturday, and is named by the Saturday it ends on.' },
-                    { icon: '⏰', html: 'There are two deadlines. The <strong>first</strong> is when your answers reach the draft roster; the <strong>final</strong> one is when the form closes for good.' },
+                    // Deliberately does NOT mention the draft roster. It is an internal document of
+                    // the roster office that staff never receive, and "the roster" to them means the
+                    // one that comes out on the Thursday — so naming it here described a thing they
+                    // could not see, in a word that means something else to them.
+                    { icon: '⏰', html: 'There are two deadlines. Answer by the <strong>first</strong> one to be counted from the start of planning; the <strong>final</strong> one is when the form closes for good.' },
                     { icon: '✏️', html: 'You can change your answers as often as you like until the final deadline. Only your latest version counts.' },
                 ],
             },

@@ -167,11 +167,31 @@ export function deadlineLabel(ms) {
 
 /**
  * Staff-facing copy for a submission phase. Calm and factual — never a countdown.
+ *
+ * ── IT MAY NOT NAME A DOCUMENT THE MEMBER NEVER SEES ────────────────────────────────────────────
+ *
+ * This said "your answers go to the draft roster" and "the draft roster has been planned", and the
+ * second one was read — correctly — as wrong. The DATES were right: for a week ending Sat 22 Aug the
+ * draft is Thu 6 Aug and the final roster Thu 13 Aug, so on 11 Aug the draft genuinely had been
+ * planned. The problem is that "the draft roster" is an internal artefact of the roster office. Staff
+ * do not receive it. What they call "the roster" is the one that comes out on Thursday — the FINAL
+ * one — so a line announcing that the roster has been planned, five days before they see anything,
+ * reads as a straightforward untruth about the document they are waiting for.
+ *
+ * So these lines now describe the MEMBER'S OWN POSITION and name nothing they cannot see:
+ *
+ *   before the first deadline   answering now gets you counted from the start
+ *   after it, before the final  you can still change it, and later is worse
+ *
+ * "Planning has started" is safe to say because that is the definition of the first deadline, not a
+ * claim about any document. The line beneath already states when changes close, so this one does not
+ * repeat a date. Keep it that way: two lines both naming the same Tuesday is how a member stops
+ * reading either.
  * @param {string} phase
  */
 export function phaseCopy(phase) {
-    if (phase === 'INITIAL_OPEN') return 'Open — your answers go to the draft roster';
-    if (phase === 'FINAL_OPEN')   return 'Open — the draft roster has been planned';
+    if (phase === 'INITIAL_OPEN') return 'Open — answer now to be included when this week is planned';
+    if (phase === 'FINAL_OPEN')   return 'Still open — planning has started, so a change now may not fit';
     return 'Closed';
 }
 

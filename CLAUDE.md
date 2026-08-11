@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: August 2026 — v20.60 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.70 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `20.60` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `20.70` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -993,6 +993,7 @@ Applies to **all user-visible copy** (cards, hints, tips, lightboxes, error bann
 - **App name "Marylebone Roster"** — the on-screen name everywhere (incl. bug-report `appLabel` as "Marylebone Roster — <Page>"). **Never "MYB" for the APP or one of its tools** — not "MYB Roster", not "MYB Pay Calculator", not "MYB member". As the app name it survives only in the iOS home-screen `apple-mobile-web-app-title` meta and in comments.
   **But MYB as the STATION CODE is correct and stays** (v20.13 — this rule said "MYB … survives only in the iOS meta and comments" full stop, which is wrong and would send the next person to "fix" the guide mastheads). `MYB` is Marylebone's three-letter code, staff use it daily, and the guides carry "Chiltern Railways · MYB Station" and "Typical MYB — Network-area journeys" correctly. The test is what the letters NAME: the station, fine; the software, never. Enforced by app-name-parity.test.mjs.
 - **Documents:** "Daily Huddle" (proper noun), "Weekly Retail Circular", "Marylebone Newsletter".
+- **Never name an internal document in staff-facing copy** (v20.70). The Overtime phase line said "the draft roster has been planned" — date-accurate, and still read as untrue, because the draft is the roster office's own artefact and "the roster" to staff means the one released on the Thursday. Describe the reader's own position instead. The **reviewer's** surfaces and OPERATIONS_REFERENCE may name it freely; it is their document. Pinned by `overtime-format.test.mjs`.
 - **Tone:** calm and factual — no exclamation marks, no marketing voice (mirrors `.claude/rules/notifications.md`).
 
 ---

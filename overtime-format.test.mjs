@@ -292,11 +292,31 @@ describe('dates and deadlines', () => {
 
 describe('states in words', () => {
     test('each phase has calm, factual copy and no countdown', () => {
-        assert.match(phaseCopy('INITIAL_OPEN'), /^Open/);
-        assert.match(phaseCopy('FINAL_OPEN'), /^Open/);
+        // Both open phases must SAY they are open — that is the one fact a member needs from this
+        // line, and it has to survive a rewrite of the rest of it.
+        assert.match(phaseCopy('INITIAL_OPEN'), /open/i);
+        assert.match(phaseCopy('FINAL_OPEN'), /open/i);
         assert.equal(phaseCopy('CLOSED'), 'Closed');
         for (const p of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
             assert.equal(/!/.test(phaseCopy(p)), false, 'no exclamation marks — the app is calm');
+        }
+    });
+
+    test('and the two open phases are DISTINGUISHABLE, or the line is decoration', () => {
+        assert.notEqual(phaseCopy('INITIAL_OPEN'), phaseCopy('FINAL_OPEN'));
+    });
+
+    test('no phase names the DRAFT ROSTER — a document the member never receives', () => {
+        // The reported defect, pinned. "Open — the draft roster has been planned" was DATE-accurate
+        // (for a week ending Sat 22 Aug the draft really is Thu 6 Aug) and still wrong: the draft is
+        // an internal artefact of the roster office, and "the roster" to staff means the one that
+        // comes out on the Thursday. So the line announced that the thing they were waiting for had
+        // already happened, five days before they saw anything.
+        //
+        // Scoped to the member's phase line, not to the whole app: the REVIEWER's surfaces and the
+        // operations doc may say "draft roster" freely, because that is their document.
+        for (const p of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
+            assert.equal(/draft/i.test(phaseCopy(p)), false, `phaseCopy('${p}') names the draft roster`);
         }
     });
 
