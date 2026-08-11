@@ -267,6 +267,36 @@ function planningWeekEndings(nowMs) {
 }
 
 /**
+ * Which horizon weeks have no window yet AND could still legitimately be created.
+ *
+ * The scheduler's whole decision, as a pure function of the clock and the week ids that exist.
+ *
+ * ── IT IS THE `canCreate` RULE, NOT A SECOND ONE ────────────────────────────────────────────────
+ *
+ * Exactly the filter behind the Manager's Create button — same horizon, same `validateWeekEnding`.
+ * That equivalence is the point rather than a convenience: if the job used its own idea of which
+ * weeks are due, the button and the schedule would disagree, and the disagreement would show up as
+ * a week that is silently never created by either — the failure this whole feature is arranged
+ * around. Automation does precisely what the button offers, for every week it offers it.
+ *
+ * A week whose INITIAL deadline has passed but whose FINAL has not is still returned, because
+ * `validateWeekEnding` allows it and the button offers it. Creating that week late is worth doing:
+ * members can still declare before the final cut-off, and a late form beats no form. Only a week
+ * past its final deadline is refused, since nobody could ever submit to it.
+ *
+ * @param {number} nowMs
+ * @param {Iterable<string>} existingWeekEndings week ids already in Firestore
+ * @param {{ maxRosterYear: number }} ctx
+ * @returns {string[]} week-ending Saturdays to create, ascending
+ */
+function weeksNeedingWindows(nowMs, existingWeekEndings, { maxRosterYear }) {
+    const have = new Set(existingWeekEndings || []);
+    return planningWeekEndings(nowMs)
+        .filter(w => !have.has(w))
+        .filter(w => validateWeekEnding(w, { nowMs, maxRosterYear }).ok);
+}
+
+/**
  * What the Manager row for one planning week should say.
  *
  * `missed` deliberately persists until the week-ending Saturday has passed rather than vanishing at
@@ -537,6 +567,7 @@ module.exports = {
     isOpenPhase,
     validateWeekEnding,
     planningWeekEndings,
+    weeksNeedingWindows,
     windowRowState,
     // participants
     isEligibleForWeek,

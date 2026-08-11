@@ -21,7 +21,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-// The fifteen deployed functions. Order-insensitive; names are what `firebase deploy` sees.
+// The sixteen deployed functions. Order-insensitive; names are what `firebase deploy` sees.
 const DEPLOY_SURFACE = [
     'ingestHuddle',
     'onHuddleCreated',
@@ -34,10 +34,15 @@ const DEPLOY_SURFACE = [
     'requestPasswordReset',
     'getSignInStats',
     'unlockCalendarViewer',
-    // Overtime Availability (v20.56). Four, and the fourth is the one that is easy to lose in a
-    // refactor: getOvertimeManagerOverview is the ONLY thing that shows a week nobody created, and
-    // its absence would look like "no overtime needed" rather than like a missing function.
+    // Overtime Availability (v20.56). Two of these fail SILENTLY if they are ever lost in a
+    // refactor, which is why they are called out rather than just listed:
+    // getOvertimeManagerOverview is the ONLY thing that shows a week nobody created, so its
+    // absence looks like "no overtime needed" rather than like a missing function; and
+    // autoCreateOvertimeWindows (v20.61) is a SCHEDULED job, so nothing user-facing calls it —
+    // losing it means windows quietly stop being made, which the horizon would then report as a
+    // human forgetting.
     'createOvertimeWindow',
+    'autoCreateOvertimeWindows',
     'getOvertimeManagerOverview',
     'getMyOvertimeState',
     'submitOvertimeAvailability',

@@ -40,6 +40,7 @@
  */
 
 const { onRequest } = require('firebase-functions/v2/https');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 const OT = require('./overtime-core');
 
@@ -161,88 +162,195 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
 
             const body = req.body || {};
             const weekEnding = typeof body.weekEnding === 'string' ? body.weekEnding : '';
-            const dryRun = body.dryRun === true;
 
-            const nowMs = Date.now();
-            const check = OT.validateWeekEnding(weekEnding, {
-                nowMs, maxRosterYear: rosterMembers.maxRosterYear,
-            });
-            if (!check.ok) return res.status(400).json({ error: check.error });
-
-            const milestones = OT.deriveMilestones(weekEnding);
-            const audience = currentAudience();
-            const participants = OT.selectParticipants(rosterMembers.overtimeEligibleMembers, {
-                weekStart: milestones.weekStart,
-                audience,
-                adminNames: (rosterMembers.roles && rosterMembers.roles.admin) || [],
+            const r = await createWindow(weekEnding, {
+                nowMs:  Date.now(),
+                dryRun: body.dryRun === true,
+                byName: who.name,
+                byUid:  who.uid,
             });
 
-            if (participants.length === 0) {
-                // A window nobody is in can never receive a submission, and its counts read
-                // "0 of 0 received" — which looks like a completed week rather than an empty one.
-                // The realistic cause is a misconfigured audience (the restricted selector with no
-                // admin entitlement, which fails closed by design), so failing loudly here is what
-                // turns that into something a reviewer can act on.
-                console.error(`[createOvertimeWindow] ${weekEnding} selected NO participants (audience=${audience})`);
-                return res.status(409).json({ error: 'no-participants' });
+            switch (r.outcome) {
+                case 'invalid':         return res.status(400).json({ error: r.error });
+                case 'no-participants': return res.status(409).json({ error: 'no-participants' });
+                case 'too-many':        return res.status(507).json({ error: 'too-many-participants' });
+                case 'preview':         return res.json({ ok: true, dryRun: true, window: r.window });
+                case 'existed':         return res.json({ ok: true, existed: true, window: r.window });
+                default:                return res.json({ ok: true, created: true, window: r.window });
             }
+        });
 
-            if (participants.length > OT.MAX_PARTICIPANTS_PER_WINDOW) {
-                // Fail loudly rather than splitting the batch. A window created across two batches
-                // can half-exist, and a half-frozen participant population is not a smaller truth —
-                // it is a false one, which then reports colleagues as non-responders forever.
-                console.error(`[createOvertimeWindow] ${participants.length} participants exceeds the single-batch bound`);
-                return res.status(507).json({ error: 'too-many-participants' });
-            }
+    /**
+     * Create (or preview) ONE window. No HTTP in it — the caller maps the outcome.
+     *
+     * Extracted at v20.61 so the scheduled job and the Manager's button run the SAME code. A second
+     * creation path would be free to drift from this one, and a drifted scheduler is the worst
+     * shape this feature has: it would keep reporting success while producing windows the manual
+     * path would have produced differently — or not producing them at all, which is the silent
+     * failure the whole design is arranged around.
+     *
+     * @param {string} weekEnding
+     * @param {{ nowMs:number, dryRun?:boolean, byName:string, byUid:string|null }} ctx
+     * @returns {Promise<{outcome:string, error?:string, window?:object, count?:number}>}
+     */
+    async function createWindow(weekEnding, { nowMs, dryRun = false, byName, byUid }) {
+        const check = OT.validateWeekEnding(weekEnding, {
+            nowMs, maxRosterYear: rosterMembers.maxRosterYear,
+        });
+        if (!check.ok) return { outcome: 'invalid', error: check.error };
 
-            const preview = {
-                ...milestones,
-                initialDeadlineAt: milestones.initialDeadlineAt,
-                finalDeadlineAt:   milestones.finalDeadlineAt,
-                retentionUntil:    milestones.retentionUntil,
-                audience,
-                participants: participants.map(p => ({ memberName: p.memberName, grade: p.grade })),
-                expectedCount: participants.length,
+        const milestones = OT.deriveMilestones(weekEnding);
+        const audience = currentAudience();
+        const participants = OT.selectParticipants(rosterMembers.overtimeEligibleMembers, {
+            weekStart: milestones.weekStart,
+            audience,
+            adminNames: (rosterMembers.roles && rosterMembers.roles.admin) || [],
+        });
+
+        if (participants.length === 0) {
+            // A window nobody is in can never receive a submission, and its counts read
+            // "0 of 0 received" — which looks like a completed week rather than an empty one.
+            // The realistic cause is a misconfigured audience (the restricted selector with no
+            // admin entitlement, which fails closed by design), so failing loudly here is what
+            // turns that into something a reviewer can act on.
+            console.error(`[createOvertimeWindow] ${weekEnding} selected NO participants (audience=${audience})`);
+            return { outcome: 'no-participants' };
+        }
+
+        if (participants.length > OT.MAX_PARTICIPANTS_PER_WINDOW) {
+            // Fail loudly rather than splitting the batch. A window created across two batches
+            // can half-exist, and a half-frozen participant population is not a smaller truth —
+            // it is a false one, which then reports colleagues as non-responders forever.
+            console.error(`[createOvertimeWindow] ${participants.length} participants exceeds the single-batch bound`);
+            return { outcome: 'too-many', count: participants.length };
+        }
+
+        const preview = {
+            ...milestones,
+            audience,
+            participants: participants.map(p => ({ memberName: p.memberName, grade: p.grade })),
+            expectedCount: participants.length,
+        };
+        if (dryRun) return { outcome: 'preview', window: preview };
+
+        const ref = db().collection(WINDOWS).doc(weekEnding);
+        const existing = await ref.get();
+        if (existing.exists) {
+            // Two reviewers pressing Create at once, one pressing it twice, or the scheduler
+            // meeting a week somebody just made by hand. The deterministic id already makes a
+            // duplicate impossible; this makes the SECOND caller's experience "here is the window"
+            // rather than an error — and, critically, never rewrites the frozen participant
+            // snapshot the first caller established.
+            return {
+                outcome: 'existed',
+                window: { ...storedMilestones(existing.data()), audience: existing.data().audience },
             };
-            if (dryRun) return res.json({ ok: true, dryRun: true, window: preview });
+        }
 
-            const ref = db().collection(WINDOWS).doc(weekEnding);
-            const existing = await ref.get();
-            if (existing.exists) {
-                // Two reviewers pressing Create at once, or one pressing it twice. The deterministic
-                // id already makes a duplicate impossible; this makes the SECOND caller's experience
-                // "here is the window" rather than an error — and, critically, never rewrites the
-                // frozen participant snapshot that the first caller established.
-                return res.json({ ok: true, existed: true, window: { ...storedMilestones(existing.data()), audience: existing.data().audience } });
-            }
-
-            const batch = db().batch();
-            batch.set(ref, {
-                weekEnding:        milestones.weekEnding,
-                weekStart:         milestones.weekStart,
-                initialDeadlineAt: ts(milestones.initialDeadlineAt),
-                draftRosterDate:   milestones.draftRosterDate,
-                finalDeadlineAt:   ts(milestones.finalDeadlineAt),
-                finalRosterDate:   milestones.finalRosterDate,
-                retentionUntil:    ts(milestones.retentionUntil),
-                policyVersion:     milestones.policyVersion,
-                audience,
-                createdAt:         admin.firestore.FieldValue.serverTimestamp(),
-                createdByName:     who.name,
-                createdByUid:      who.uid,
+        const batch = db().batch();
+        batch.set(ref, {
+            weekEnding:        milestones.weekEnding,
+            weekStart:         milestones.weekStart,
+            initialDeadlineAt: ts(milestones.initialDeadlineAt),
+            draftRosterDate:   milestones.draftRosterDate,
+            finalDeadlineAt:   ts(milestones.finalDeadlineAt),
+            finalRosterDate:   milestones.finalRosterDate,
+            retentionUntil:    ts(milestones.retentionUntil),
+            policyVersion:     milestones.policyVersion,
+            audience,
+            createdAt:         admin.firestore.FieldValue.serverTimestamp(),
+            createdByName:     byName,
+            createdByUid:      byUid,
+        });
+        for (const p of participants) {
+            batch.set(ref.collection('participants').doc(p.memberName), {
+                memberName:  p.memberName,
+                uid:         null,        // resolved lazily on first submission; see the header
+                grade:       p.grade,
+                rosterOrder: p.rosterOrder,
+                createdAt:   admin.firestore.FieldValue.serverTimestamp(),
             });
-            for (const p of participants) {
-                batch.set(ref.collection('participants').doc(p.memberName), {
-                    memberName:  p.memberName,
-                    uid:         null,        // resolved lazily on first submission; see the header
-                    grade:       p.grade,
-                    rosterOrder: p.rosterOrder,
-                    createdAt:   admin.firestore.FieldValue.serverTimestamp(),
-                });
+        }
+        await batch.commit();
+        console.log(`[createOvertimeWindow] ${weekEnding} · ${audience} · ${participants.length} participants · by ${byName}`);
+        return { outcome: 'created', window: preview };
+    }
+
+    // ── autoCreateOvertimeWindows (scheduled) ───────────────────────────────────────────────────
+
+    /** How a window created by the schedule signs itself, wherever a creator name is shown. */
+    const SCHEDULER_NAME = 'Automatic';
+
+    /**
+     * Create every horizon week that has no window yet. Daily, 05:00 Europe/London.
+     *
+     * ── WHY THIS EXISTS, HAVING BEEN DEFERRED ───────────────────────────────────────────────────
+     *
+     * The original specification deferred automatic creation and said the beta would show whether
+     * manual creation was sufficient. The owner settled it earlier: overtime is needed EVERY week,
+     * so a window is needed every week, and a person pressing a button fifty-two times a year to
+     * approve a computation they cannot influence is not a control — it is a way to forget.
+     *
+     * The Manager horizon does not go away and is not now redundant. It changes job: it was the
+     * safety net under a human, and it becomes the MONITOR over this function. That works because
+     * it is computed from the CALENDAR rather than from Firestore, so a week this job failed to
+     * create still appears, still says "Not created", and still offers the button. A silent
+     * scheduler failure is therefore visible in exactly the place it was always visible.
+     *
+     * ── DAILY, NOT WEEKLY ───────────────────────────────────────────────────────────────────────
+     *
+     * A weekly job that misses its run loses a whole week — and the window it should have made may
+     * pass its deadline before the next run. Daily is self-healing: any missed day is corrected
+     * within twenty-four hours, and because the work is idempotent (deterministic ids, and the
+     * `existed` branch above) the other six runs a week cost one collection read each.
+     */
+    const autoCreateOvertimeWindows = onSchedule(
+        { schedule: '0 5 * * *', timeZone: 'Europe/London', region: 'europe-west2' },
+        async () => {
+            const nowMs = Date.now();
+            let existing;
+            try {
+                // Ids only — the documents are not needed to know which weeks exist.
+                const snap = await db().collection(WINDOWS).select().get();
+                existing = snap.docs.map(d => d.id);
+            } catch (err) {
+                // Do NOT proceed on a failed read. Treating it as "nothing exists" would try to
+                // create every horizon week, and while the `existed` branch would refuse each one,
+                // relying on a downstream guard to undo a wrong premise is how a bad day becomes a
+                // bad week. The horizon still shows anything missed, and tomorrow's run retries.
+                console.error('[autoCreateOvertimeWindows] could not list existing windows — standing down:', err);
+                return;
             }
-            await batch.commit();
-            console.log(`[createOvertimeWindow] ${weekEnding} · ${audience} · ${participants.length} participants · by ${who.name}`);
-            return res.json({ ok: true, created: true, window: preview });
+
+            const due = OT.weeksNeedingWindows(nowMs, existing, {
+                maxRosterYear: rosterMembers.maxRosterYear,
+            });
+            if (!due.length) {
+                console.log('[autoCreateOvertimeWindows] nothing due');
+                return;
+            }
+
+            const made = [];
+            const failed = [];
+            for (const weekEnding of due) {
+                try {
+                    const r = await createWindow(weekEnding, {
+                        nowMs, byName: SCHEDULER_NAME, byUid: null,
+                    });
+                    if (r.outcome === 'created') made.push(weekEnding);
+                    else if (r.outcome !== 'existed') failed.push(`${weekEnding}:${r.outcome}`);
+                } catch (err) {
+                    // One bad week must not abandon the rest — they are independent, and the next
+                    // week along is often perfectly creatable.
+                    failed.push(`${weekEnding}:threw`);
+                    console.error(`[autoCreateOvertimeWindows] ${weekEnding} failed:`, err);
+                }
+            }
+            // Say what was NOT done as well as what was. A run that reports only its successes
+            // reads as a complete run, which is the same lie a silently-truncated list tells.
+            console.log(`[autoCreateOvertimeWindows] due ${due.length} · created ${made.length}`
+                + `${made.length ? ` (${made.join(', ')})` : ''}`
+                + `${failed.length ? ` · NOT created ${failed.join(', ')}` : ''}`);
         });
 
     /**
@@ -554,6 +662,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
 
     return {
         createOvertimeWindow,
+        autoCreateOvertimeWindows,
         getOvertimeManagerOverview,
         getMyOvertimeState,
         submitOvertimeAvailability,

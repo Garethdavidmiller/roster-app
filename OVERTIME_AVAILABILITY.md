@@ -1,6 +1,6 @@
 # Overtime Availability — feature design
 
-*Not version-stamped; not a runtime asset. Shipped v20.56–v20.58.*
+*Not version-stamped; not a runtime asset. Shipped v20.56–v20.61.*
 
 Staff declare, per day, when they are available for overtime in a future roster week. A reviewer
 (Manager or Master Admin) reads the answers by day and plans cover from them.
@@ -11,7 +11,7 @@ release. Everything else is routed the usual way:
 | What | Where |
 |---|---|
 | Every RULE — clock, milestones, phases, participant selection, schema, concurrency | `functions/overtime-core.js` (header + `overtime-core.test.mjs`) |
-| The four endpoints, auth, transactions, batches | `functions/overtime.js` |
+| The five endpoints (four HTTP + the daily scheduler), auth, transactions, batches | `functions/overtime.js` |
 | Words, London time formatting, submit disposition, derived history | `overtime-format.js` |
 | The page: access gate, tabs, planning horizon | `overtime-app.js` |
 | The member's seven-day form | `overtime-form.js` · roster context: `overtime-roster.js` |
@@ -154,8 +154,12 @@ It is deliberately *not* a Firestore rule. Rules are not filters: a `resource.da
 collection read fails the **whole query** rather than dropping a row, so one expired document would
 blank a reviewer's entire workspace.
 
-There is no scheduled purge yet. Expired windows are invisible and inert; deleting them is a later
-housekeeping job, not a correctness one.
+**There is no scheduled purge yet, and that is a dated obligation rather than a choice.** Expired
+windows are invisible and inert, so nothing breaks — but the retention design says the data is
+removed, and until the purge exists that is not true. It is booked in `MAINTENANCE_CALENDAR.md`:
+warning at 10 weeks after the first real window, hard requirement before that window turns 13 weeks
+old. Firestore does not cascade, so the purge must delete revisions, submission heads, participants
+and the window parent explicitly — deleting the parent alone orphans the rest permanently.
 
 ---
 
@@ -183,10 +187,29 @@ page; it stops nobody, and is not relied upon.
 
 ## Operating it
 
-**Creating a week.** Overtime → Upcoming weeks → *Create* on the row. The confirm bar previews the
-roster week, the initial deadline, the audience and the expected participant count — the same server
-code that will commit it, run with `dryRun: true`, so the preview cannot drift from the result.
-Press *Open the form* to commit.
+**Weeks create themselves.** `autoCreateOvertimeWindows` runs daily at 05:00 London and creates
+every horizon week that has none. Nobody has to remember anything, and the participant snapshot —
+the security model — is frozen at a predictable time each week rather than whenever somebody
+happened to press a button.
+
+Daily rather than weekly, because a weekly job that misses its run loses a whole week and the window
+may pass its deadline before the next one. Daily is self-healing, and the repeat runs are free: the
+work is idempotent, so six of every seven runs read one collection and stop.
+
+**The horizon did not become redundant — it changed job.** It was the safety net under a human; it
+is now the monitor over the scheduler. That still works because it is computed from the *calendar*,
+not from Firestore, so a week the job failed to create still appears, still says "Not created", and
+still offers the button.
+
+**Creating a week by hand** is therefore a fallback, not the routine: Overtime → Upcoming weeks →
+*Create*. The confirm bar previews the roster week, the initial deadline, the audience and the
+expected participant count — the same server code that will commit it, run with `dryRun: true`, so
+the preview cannot drift from the result. Press *Open the form* to commit. The scheduler and the
+button call one `createWindow`, so they cannot disagree about what a window is.
+
+Automatic creation was DEFERRED in the original specification (§6.2, "beta will show whether manual
+creation is sufficient") and shipped at v20.61 once the owner settled the question it was waiting
+on: overtime is needed every week, so a window is needed every week.
 
 **During the window.** Reviewers watch *Who is available* for the selected week: three sections per
 day — Available, Not available, **No response** — which must never merge. One person said no; the

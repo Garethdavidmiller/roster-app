@@ -51,6 +51,10 @@ function makeDb(seed = {}, onRead = null) {
         return {
             path,
             doc: (id) => docRef(`${path}/${id}`),
+            // Field projection is a wire optimisation, not a behaviour: the one caller that uses
+            // `.select()` reads document IDS only, which a projection never changes. Modelling it
+            // as an identity keeps the fake honest about what the code actually depends on.
+            select: () => collRef(path),
             get: async () => {
                 const done = onRead ? onRead(path) : null;
                 // A real read is never synchronous. Yielding is what lets the harness observe
@@ -229,19 +233,45 @@ beforeEach(() => { realNow = Date.now; });
 function freeze(ms) { Date.now = () => ms; }
 function unfreeze() { Date.now = realNow; }
 
+/**
+ * Endpoints reached over HTTP, which is every one that owes the auth ladder.
+ *
+ * The exclusion is BY NAME and deliberately not "anything that doesn't look like a handler". A
+ * shape test would silently drop a future HTTP endpoint whose wiring was broken — exactly the
+ * endpoint most in need of sweeping — whereas an unknown name here fails the guard below and has
+ * to be thought about once.
+ */
+const NOT_HTTP = new Set([
+    // Scheduled: invoked by Cloud Scheduler, never by a browser, so there is no bearer token to
+    // check and no request method to refuse. Its own protection is that it takes no input at all.
+    'autoCreateOvertimeWindows',
+]);
+const httpEndpoints = (eps) => Object.entries(eps).filter(([k]) => !NOT_HTTP.has(k));
+
 describe('the auth ladder — the same four rungs on every endpoint', () => {
+    test('the sweep below covers every HTTP endpoint there is', () => {
+        // Guard the guard: the three sweeps are `for` loops, all of which pass vacuously over an
+        // empty list — and a filter that over-matched would empty them without failing anything.
+        const { eps } = build();
+        const swept = httpEndpoints(eps).map(([k]) => k);
+        assert.ok(swept.length >= 4, `only ${swept.length} endpoints swept: ${swept.join(', ')}`);
+        for (const name of NOT_HTTP) {
+            assert.ok(name in eps, `${name} is excluded from the auth sweep but no longer exists`);
+        }
+    });
+
     test('a GET is refused before anything else happens', async () => {
         const { eps } = build();
-        for (const h of Object.values(eps)) {
+        for (const [name, h] of httpEndpoints(eps)) {
             const r = await call(h, req({}, 'tok_member', 'GET'));
-            assert.equal(r.code, 405);
+            assert.equal(r.code, 405, name);
         }
     });
 
     test('an unverifiable token is 401 on every endpoint', async () => {
         const { eps } = build();
-        for (const h of Object.values(eps)) {
-            assert.equal((await call(h, req({}, 'nonsense'))).code, 401);
+        for (const [name, h] of httpEndpoints(eps)) {
+            assert.equal((await call(h, req({}, 'nonsense'))).code, 401, name);
         }
     });
 
@@ -250,8 +280,8 @@ describe('the auth ladder — the same four rungs on every endpoint', () => {
         // but the v20.12 audit's lesson is that "it obviously has no access" is what turns out to
         // be wrong, so it is asserted rather than inferred.
         const { eps } = build(seededWindow());
-        for (const h of Object.values(eps)) {
-            assert.equal((await call(h, req({ weekEnding: WEEK }, 'tok_viewer'))).code, 403);
+        for (const [name, h] of httpEndpoints(eps)) {
+            assert.equal((await call(h, req({ weekEnding: WEEK }, 'tok_viewer'))).code, 403, name);
         }
     });
 
@@ -726,5 +756,119 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         await call(eps.submitOvertimeAvailability, req(good()));
         unfreeze();
         assert.equal(db._store.get(`overtimeWindows/${WEEK}/participants/G. Miller`).uid, 'uid_g');
+    });
+});
+
+describe('autoCreateOvertimeWindows — the schedule, executed', () => {
+    /**
+     * `.run(event)` — NOT the exported value called directly.
+     *
+     * A v2 scheduled function is HTTP-triggered underneath: the export is an express handler that
+     * parses a CloudEvent out of the request headers, so calling it with a plain object dies on
+     * `req.header is not a function` before reaching our code. `.run()` is the seam the SDK gives
+     * for exactly this, and it invokes the real body.
+     */
+    const run = (eps) => eps.autoCreateOvertimeWindows.run({});
+
+    test('it creates every horizon week that has none, with real participants', async () => {
+        freeze(Date.parse('2026-08-11T04:00:00Z'));
+        const { db, eps } = build();
+        await run(eps);
+        unfreeze();
+
+        const made = [...db._store.keys()].filter(k => /^overtimeWindows\/[^/]+$/.test(k)).sort();
+        // Whatever the horizon offers, and nothing else — asserted against the pure rule rather
+        // than against a hand-copied list, which would drift the moment the horizon length changed.
+        const due = OT.weeksNeedingWindows(Date.parse('2026-08-11T04:00:00Z'), [], { maxRosterYear: 2030 });
+        assert.deepEqual(made, due.map(w => `overtimeWindows/${w}`).sort());
+        assert.ok(due.length >= 3, `expected several due weeks, got ${due.length}`);
+
+        // A window with no participants can never receive a submission, so "it created windows" is
+        // not the assertion — "it created windows somebody is in" is.
+        for (const w of due) {
+            assert.ok(db._store.has(`overtimeWindows/${w}/participants/G. Miller`),
+                `${w} has no participant document`);
+        }
+    });
+
+    test('it signs its windows as automatic, so provenance is not a guess', async () => {
+        freeze(Date.parse('2026-08-11T04:00:00Z'));
+        const { db, eps } = build();
+        await run(eps);
+        unfreeze();
+        const [first] = [...db._store.keys()].filter(k => /^overtimeWindows\/[^/]+$/.test(k)).sort();
+        assert.equal(db._store.get(first).createdByName, 'Automatic');
+        assert.equal(db._store.get(first).createdByUid, null);
+    });
+
+    test('a second run is a no-op — it never rewrites a frozen participant list', async () => {
+        // The property the whole feature rests on. Running daily means this path executes six times
+        // for every one that creates anything, so "harmless repeat" is the common case, not an edge.
+        freeze(Date.parse('2026-08-11T04:00:00Z'));
+        const { db, eps } = build();
+        await run(eps);
+        // Mark the snapshot so a rewrite is visible rather than merely equal.
+        const [first] = [...db._store.keys()].filter(k => /^overtimeWindows\/[^/]+$/.test(k)).sort();
+        const week = first.split('/')[1];
+        db._store.set(`overtimeWindows/${week}/participants/G. Miller`,
+            { ...db._store.get(`overtimeWindows/${week}/participants/G. Miller`), _touched: true });
+        const before = db._store.size;
+
+        await run(eps);
+        unfreeze();
+        assert.equal(db._store.size, before, 'a second run wrote something');
+        assert.equal(db._store.get(`overtimeWindows/${week}/participants/G. Miller`)._touched, true,
+            'the frozen participant snapshot was rewritten by a repeat run');
+    });
+
+    test('it leaves a hand-made week exactly as the human made it', async () => {
+        freeze(Date.parse('2026-08-11T04:00:00Z'));
+        const seeded = seededWindow();
+        const { db, eps } = build(seeded);
+        await run(eps);
+        unfreeze();
+        assert.equal(db._store.get(`overtimeWindows/${WEEK}`).audience, 'restricted');
+        assert.equal(db._store.get(`overtimeWindows/${WEEK}`).createdByName, undefined,
+            'the scheduler overwrote a window it did not create');
+    });
+
+    test('a failed listing stands the run DOWN rather than assuming nothing exists', async () => {
+        // The dangerous premise. Treating a read failure as an empty collection would attempt every
+        // horizon week; the `existed` branch would refuse each, but relying on a downstream guard to
+        // undo a wrong premise is not the same as not holding it. Nothing is written, and the
+        // horizon still shows the gap.
+        freeze(Date.parse('2026-08-11T04:00:00Z'));
+        const db = makeDb({});
+        // Break the LISTING and nothing else. The first cut of this test replaced `db.collection`
+        // wholesale, so `.doc()` and the batch were gone too — every write then failed for an
+        // unrelated reason and the store was empty whichever way the code branched. It passed
+        // against the exact bug it was written to catch, which is the worst kind of green.
+        const realCollection = db.collection;
+        db.collection = (path) => ({
+            ...realCollection(path),
+            select: () => ({ get: async () => { throw new Error('unavailable'); } }),
+        });
+        installFakeAdmin(db, TOKENS);
+        delete require.cache[require.resolve('./functions/overtime.js')];
+        const { buildOvertimeEndpoints } = require('./functions/overtime.js');
+        const eps = buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS: [], rosterMembers: ROSTER });
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.equal(db._store.size, 0);
+    });
+
+    test('one unwritable week does not abandon the others', async () => {
+        freeze(Date.parse('2026-08-11T04:00:00Z'));
+        const { db, eps } = build();
+        const realBatch = db.batch;
+        let n = 0;
+        db.batch = () => (++n === 1
+            ? { set: () => {}, commit: async () => { throw new Error('nope'); } }
+            : realBatch());
+        await run(eps);
+        unfreeze();
+        const made = [...db._store.keys()].filter(k => /^overtimeWindows\/[^/]+$/.test(k));
+        const due = OT.weeksNeedingWindows(Date.parse('2026-08-11T04:00:00Z'), [], { maxRosterYear: 2030 });
+        assert.equal(made.length, due.length - 1, 'the run stopped at the first failure');
     });
 });
