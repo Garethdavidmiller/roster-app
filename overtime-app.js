@@ -476,7 +476,7 @@ export function init() {
         const counts = w.exists ? countsCopy(w.expected || 0, w.received || 0) : '';
         // An OPEN week whose audience has grown since it was created. The frozen population is
         // right for everything already recorded, but somebody invited afterwards is not in it —
-        // and with the horizon pre-created eight weeks out, that is EVERY week they could answer.
+        // and with the whole horizon pre-created, that is EVERY week they could answer.
         // The scheduler tops these up nightly; this is the same thing, now, when you have just
         // invited somebody and want them to see a form.
         const shortBy = w.exists && Number.isInteger(w.audienceCount)

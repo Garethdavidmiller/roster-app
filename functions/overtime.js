@@ -306,12 +306,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
      * Populations are frozen at creation so nobody is recorded as a non-responder for a week they
      * were never asked about. That is right, and it is untouched here.
      *
-     * What it did NOT anticipate is automatic creation. The scheduler keeps eight weeks made in
+     * What it did NOT anticipate is automatic creation. The scheduler keeps the whole horizon made in
      * advance, so by the time anybody is invited, EVERY week they could usefully answer already
      * exists — and "existing windows are untouched" quietly became "an audience change never
      * takes effect". Reported live: a member added to the beta was told "no forms are open for
      * you" while the admin's were open, and her first form would have been a week in October.
-     * At full launch the same arithmetic strands the whole roster for eight weeks.
+     * At full launch the same arithmetic strands the whole roster for the length of the horizon.
      *
      * The rule that resolves it without weakening the freeze: **you may join a window whose FIRST
      * deadline you can still meet.** Not merely one you can still submit to — that was the v20.78
@@ -452,7 +452,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
                 + `${failed.length ? ` · NOT created ${failed.join(', ')}` : ''}`);
 
             // Then top up every OPEN week to the current audience. This is what makes an audience
-            // change take effect at all: the horizon is pre-created eight weeks out, so without it
+            // change take effect at all: the whole horizon is pre-created, so without it
             // an invitation reaches only weeks that do not exist yet. Daily and idempotent — a run
             // with nothing to add costs one id-only read per open week.
             await topUpOpenWindows(nowMs);

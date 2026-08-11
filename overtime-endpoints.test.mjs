@@ -476,7 +476,11 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
         const byWeek = Object.fromEntries(rows.map(w => [w.weekEnding, w]));
         assert.equal(byWeek['2026-08-22'].canCreate, false, 'missed → no Create');
         assert.equal(byWeek['2026-09-05'].canCreate, true, 'initial passed but final still open → still creatable');
-        assert.equal(byWeek['2026-09-26'].canCreate, true);
+        // The FURTHEST row, read off the horizon rather than named: the horizon's length is a
+        // product decision (`ANSWERABLE_WEEKS`) and a hardcoded date makes this test fail when that
+        // changes, for a reason that has nothing to do with what it is checking. It did — the date
+        // here was 2026-09-26, which left the horizon when six answerable weeks became three.
+        assert.equal(rows[rows.length - 1].canCreate, true, 'the furthest planned week is creatable');
     });
 
     test('an existing week is marked created and carries derived counts', async () => {
