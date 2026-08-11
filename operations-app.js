@@ -16,7 +16,7 @@ import { initErrorLog, initUsageCard, initPageSpeedCard, _cardLoadError, _relati
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency } from './perf-reporter.js';
+import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
@@ -139,6 +139,9 @@ export function init() {
     // PAGE INIT
     // ============================================
     document.body.classList.add('auth-ready');
+    // The page's content is on screen from this line: `.container` is `display:none` until
+    // `auth-ready`, so everything before it was a blank page (v20.80). See markPageReady.
+    markPageReady();
 
     // Assigned by the About-lightbox IIFE further down; the closure below only reads
     // it when the drawer logo is tapped, by which point it is set.

@@ -26,7 +26,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency } from './perf-reporter.js';
+import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
@@ -683,6 +683,13 @@ try {
         } else {
             renderCalendar();
         }
+
+        // THE milestone (v20.80). Everything before this line is a page the member is looking at and
+        // cannot use, and neither of the two metrics the App Speed card already had can see it:
+        // `fcp` is the splash painting, and `domReady` fires while the access decision is still
+        // outstanding — measured at 669ms on a load whose roster arrived at 2630ms. Marked here,
+        // after the first render, because a grid on screen is what "the Calendar has opened" means.
+        markPageReady();
 
         // Swipe gesture handler — see calendar-swipe.js for full implementation.
         initSwipeHandler({

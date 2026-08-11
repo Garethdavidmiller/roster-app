@@ -9,6 +9,38 @@ import { ROTATING_LINES } from '../links-design.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
+// ── The boot placeholder (v20.80) ───────────────────────────────────────────────────────────────
+
+for (const [label, url, appJs] of [
+    ['admin', '/admin.html', 'admin'],
+    ['operations', '/operations.html', 'operations'],
+    ['links', '/links.html', 'links'],
+]) {
+    test(`${label}: a boot placeholder stands in for the blank page, and goes when the page is ready`, async ({ page }) => {
+        // These three hide `.container` until `body.auth-ready`, and their HEADER is inside it — so
+        // until the module graph has loaded and run there is nothing on the page at all, not even a
+        // burger. Measured at 622ms locally on a fast disk with no network; on a phone it is seconds.
+        //
+        // Aborting the coordinator is how the window is held open: the placeholder's whole contract
+        // is that it survives a page whose JS never arrives, which is exactly the case that has no
+        // other way to say anything.
+        await page.route(`**/${appJs}-app.js`, r => r.abort());
+        await page.route(`**/${appJs}-boot.js`, r => r.abort());
+        await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => {});
+        await expect(page.locator('#bootPlaceholder')).toBeVisible();
+        await expect(page.locator('.container')).toBeHidden();
+    });
+
+    test(`${label}: the placeholder is gone once the page is signed in`, async ({ page }) => {
+        // Pure CSS in both directions — no module has to remember to clear it, which is what makes
+        // it safe to show on a page whose JS may never run.
+        await seedSession(page);
+        await page.goto(url);
+        await expect(page.locator('.container')).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('#bootPlaceholder')).toBeHidden();
+    });
+}
+
 test('settings: login overlay renders with JS-populated grade options', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/settings.html');
@@ -183,6 +215,62 @@ test('operations: App speed breaks the busiest page down by connection, install 
     // And the honesty marker on the three-sample group, without which that row reads exactly as
     // confidently as the 380-sample one next to it.
     await expect(speed).toContainText('(few)');
+});
+
+// ── The THIRD milestone (v20.80) ────────────────────────────────────────────────────────────────
+// `fcp` and `domReady` were labelled "First appears" and "Fully ready", and the v20.12 access gate
+// made both stop describing what an admin reads them as: `fcp` is the splash painting, and DCL now
+// fires while the Calendar is still blank. Measured — fcp 512ms, domReady 669ms, roster on screen
+// 2630ms. `ready` is the milestone neither of them can be, and the point of testing it in a browser
+// rather than in the pure suite is the LAYOUT: a third bar per page is a real grid change, and a
+// column that collapses is invisible to every assertion about the data behind it.
+test('operations: App speed shows THREE milestones, and a page with no ready data says so', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            // The Calendar reports all three. The gap between "code loaded" and "usable" is the
+            // finding the metric exists for, so the fixture carries it: quick code, slow page.
+            '20_80|calendar|fcp|lt500ms|standalone|4g': 200,
+            '20_80|calendar|domReady|500ms-1s|standalone|4g': 200,
+            '20_80|calendar|ready|1-3s|standalone|4g': 200,
+            // Paycalc does not mark the milestone. Its cell must be EMPTY, not borrowed from
+            // another bar — a filled-in figure would be a number nobody measured.
+            '20_80|paycalc|fcp|lt500ms|standalone|4g': 30,
+            '20_80|paycalc|domReady|lt500ms|standalone|4g': 30,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('First appears');
+    await expect(speed).toContainText('Code loaded');
+    await expect(speed).toContainText('Usable');
+    // The relabel matters as much as the new bar: "Fully ready" was the phrase that made domReady
+    // read as the answer, and it now belongs to `ready` alone.
+    await expect(speed).not.toContainText('Fully ready');
+    // The verdict for `ready` is driven by ITS OWN samples — all in the 1–3s band, so it must not
+    // report the quick verdict `domReady` earns.
+    await expect(speed).toContainText(/usable quickly|waiting too long/i);
+
+    // Three bars per page row, and the header names all three columns.
+    const calRow = speed.locator('.speed-row--dual', { hasText: 'Calendar' }).first();
+    await expect(calRow.locator('.speed-bar')).toHaveCount(3);
+    // Pay calculator does not report the milestone: the cell holds a DASH, not an empty track. An
+    // unfilled bar beside a filled one reads as 0%, which is a measurement and the wrong one.
+    const payRow = speed.locator('.speed-row--dual', { hasText: 'Pay' }).first();
+    await expect(payRow.locator('.speed-bar')).toHaveCount(2);
+    await expect(payRow.locator('.speed-bar-none')).toHaveText('—');
+
+    // The grid really is three columns — a collapsed one would still pass every count above.
+    // OPEN the card first. It is collapsed by default, so every assertion above passes on markup
+    // that is `display:none` — which is exactly how a collapsed column would go unnoticed.
+    await page.locator('#pageSpeedToggleHeader').click();
+    await expect(speed).toBeVisible();
+    // Read the RESOLVED track widths off the children, not the declaration: a column that collapsed
+    // to zero would still be declared, which is the failure this guards.
+    const widths = await calRow.evaluate(el =>
+        [...el.children].map(c => Math.round(c.getBoundingClientRect().width)));
+    expect(widths.length).toBe(5);
+    expect(widths.slice(1, 4).every(w => w > 30)).toBe(true);
 });
 
 // ── "By stage of start-up" (v20.33) ─────────────────────────────────────────────────────────────

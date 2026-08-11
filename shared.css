@@ -2277,6 +2277,40 @@ button.nav-panel-link--notices {
 }
 
 
+/* ── Boot placeholder ────────────────────────────────────────────────────────────────────────────
+   admin / operations / links hide `.container` until `body.auth-ready`, and their header is inside
+   it — so before their JS runs those pages are blank navy with nothing on them, not even a burger.
+   This is what sits in that window. Pure CSS in both directions: shown by default, removed the
+   instant the class lands, so a coordinator that never finishes cannot strand it and no module has
+   to remember to clear it. Deliberately plain — it is scaffolding, not a screen. */
+.boot-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 40vh;
+    /* The on-navy muted value the nav drawer uses (0.70 alpha ≈ 7:1 on --primary-blue, which is
+       what makes it AA). Not `var(--nav-text-muted)` — that token is scoped to `.nav-panel`, so the
+       reference would silently fall through to the fallback and the pairing would only LOOK
+       maintained. Stated here on purpose; see the token block in the drawer for the reasoning. */
+    color: rgba(255, 255, 255, 0.70);
+    font-size: var(--type-label);
+}
+body.auth-ready .boot-placeholder { display: none; }
+.boot-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-top-color: var(--gold);
+    animation: boot-spin 0.8s linear infinite;
+}
+@keyframes boot-spin { to { transform: rotate(360deg); } }
+/* Without the spin there is still a ring and the word beside it — the state is legible either way. */
+@media (prefers-reduced-motion: reduce) { .boot-spinner { animation: none; } }
+/* Never on paper: a printed page is not loading, and these three pages restrict printing anyway. */
+@media print { .boot-placeholder { display: none !important; } }
+
 /* ══════════════════════════════════════════════════════════════════
    SHARED CARD COMPONENTS
    Used by admin.html, operations.html, and settings.html.

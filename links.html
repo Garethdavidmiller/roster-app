@@ -84,6 +84,16 @@
     </div>
 </div>
 
+<!-- Boot placeholder (v20.80). `.container` is `display:none` until `body.auth-ready`, and the
+     header lives INSIDE it — so until the module graph has loaded and run, this page is a blank
+     navy screen with nothing on it at all, not even the burger. Measured at 622ms locally on a
+     fast disk with no network; on a phone it is seconds. A sibling of `.container`, so it is
+     visible in exactly the window `.container` is not. Removed by CSS the moment `auth-ready`
+     lands — no JS, so it cannot be left behind by a coordinator that failed. -->
+<div id="bootPlaceholder" class="boot-placeholder" role="status">
+    <span class="boot-spinner" aria-hidden="true"></span>
+    <span class="boot-placeholder-text">Loading…</span>
+</div>
 <main class="container">
 
     <header class="app-header">

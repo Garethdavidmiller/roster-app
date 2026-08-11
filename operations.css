@@ -1330,9 +1330,19 @@ select:focus-visible, input:focus-visible {
    resets margin-top, so declared earlier this silently does nothing. */
 .speed-dim-label { margin-top: 18px; }
 
-/* Per-page dual bars: label | appears bar | ready bar | count. */
-.speed-row--dual { grid-template-columns: minmax(78px, 34%) 1fr 1fr auto; }
+/* Per-page milestone bars: label | appears | code loaded | usable | count (v20.80 — the third bar
+   was added when "ready" was split into the scripts finishing and the page actually being usable).
+   The label column narrows to pay for it: three bars in the width that held two is the whole cost,
+   and at 78px the page names still read. */
+.speed-row--dual { grid-template-columns: minmax(64px, 26%) 1fr 1fr 1fr auto; }
 .speed-dual-head { margin-bottom: -2px; }
+/* "This page does not report that milestone" — see the dash in dualRows. Centred in the track it
+   replaces so the column still scans as a column. */
+.speed-bar-none {
+    text-align: center;
+    color: var(--text-light);
+    font-size: var(--type-small);
+}
 .speed-dual-label {
     font-size: var(--type-micro);
     color: var(--text-light);

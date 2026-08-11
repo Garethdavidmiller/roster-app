@@ -32,7 +32,8 @@ Object.defineProperty(global, 'navigator', { value: /** @type {any} */ ({}), con
 global.performance = /** @type {any} */ ({ getEntriesByType: () => [] });
 // PerformanceObserver intentionally left undefined → recordFcp skips cleanly.
 
-const { recordPageLatency, markLoginStart, clearLoginStart } = await import('./perf-reporter.js');
+const { recordPageLatency, markLoginStart, clearLoginStart, markPageReady, PAGE_READY_MARK } =
+    await import('./perf-reporter.js');
 const LOGIN_KEY = 'myb_perf_login_t0';
 
 beforeEach(() => { _samples = []; _ss.clear(); });
@@ -81,12 +82,15 @@ describe('recordPageLatency — boot phases (v20.33)', () => {
     // the reporter's WIRING — that the mark is read, the spans reach recordPerfSample as their own
     // metrics, and an absent mark or SW degrades to fewer samples rather than wrong ones.
     const nav = { responseStart: 220, domContentLoadedEventEnd: 1600, workerStart: 40 };
-    /** @param {any} navEntry @param {number|null} markMs */
-    function stubPerformance(navEntry, markMs) {
+    /** @param {any} navEntry @param {number|null} markMs @param {number|null} [readyMs] */
+    function stubPerformance(navEntry, markMs, readyMs = null) {
         global.performance = /** @type {any} */ ({
             getEntriesByType: (/** @type {string} */ t) => t === 'navigation' && navEntry ? [navEntry] : [],
-            getEntriesByName: (/** @type {string} */ n) =>
-                n === 'myb-sdk-ready' && markMs != null ? [{ startTime: markMs }] : [],
+            getEntriesByName: (/** @type {string} */ n) => {
+                if (n === 'myb-sdk-ready' && markMs != null) return [{ startTime: markMs }];
+                if (n === PAGE_READY_MARK && readyMs != null) return [{ startTime: readyMs }];
+                return [];
+            },
         });
     }
 
@@ -122,5 +126,74 @@ describe('recordPageLatency — boot phases (v20.33)', () => {
         stubPerformance(nav, 1100);
         recordPageLatency('calendar', 'G. Miller');
         assert.deepEqual(_samples, [], 'the developer’s own boot phases must not pollute the diagnosis');
+    });
+});
+
+
+describe('the READY milestone (v20.80)', () => {
+    // ── WHY THIS METRIC EXISTS, AND WHY THE TESTS ARE SHAPED LIKE THIS ──────────────────────────
+    //
+    // The card's two page metrics stopped describing what their labels claim the moment the v20.12
+    // access gate landed: `fcp` is the splash painting, and `domReady` fires while the Calendar can
+    // still be blank (measured — fcp 512ms, domReady 669ms, roster on screen 2630ms). So the ONE
+    // thing worth pinning is that `ready` is genuinely INDEPENDENT of `domReady`: a fabricated
+    // fallback would put the very number this metric exists to contradict under its label, and no
+    // assertion about buckets or wiring would notice.
+    const nav = { responseStart: 220, domContentLoadedEventEnd: 700, workerStart: 40 };
+    /** @param {any} navEntry @param {number|null} markMs @param {number|null} readyMs */
+    function stubPerformance(navEntry, markMs, readyMs) {
+        global.performance = /** @type {any} */ ({
+            getEntriesByType: (/** @type {string} */ t) => t === 'navigation' && navEntry ? [navEntry] : [],
+            getEntriesByName: (/** @type {string} */ n) => {
+                if (n === 'myb-sdk-ready' && markMs != null) return [{ startTime: markMs }];
+                if (n === PAGE_READY_MARK && readyMs != null) return [{ startTime: readyMs }];
+                return [];
+            },
+        });
+    }
+
+    test('a page that never marks records NO ready sample — absent, never borrowed from domReady', () => {
+        stubPerformance(nav, 500, null);
+        recordPageLatency('paycalc', 'S. Silva');
+        const metrics = _samples.map(s => s.metric);
+        assert.ok(metrics.includes('domReady'), 'the existing metrics are unaffected');
+        assert.ok(!metrics.includes('ready'),
+            'a missing milestone must be a GAP — falling back to domReady would republish the exact ' +
+            'number this metric exists to contradict, under a label that says it is something else');
+    });
+
+    test('the mark is recorded as its own metric, and it is NOT domReady', () => {
+        // The real shape: DCL at 700ms while the roster arrives at 2630ms. Different metric,
+        // different BUCKET — a test where the two agreed would pass on a fallback implementation.
+        stubPerformance(nav, 500, 2630);
+        recordPageLatency('calendar', 'S. Silva');
+        const byMetric = Object.fromEntries(_samples.map(s => [s.metric, s]));
+        assert.equal(byMetric.ready?.bucket, '1-3s');
+        assert.equal(byMetric.domReady?.bucket, '500ms-1s');
+        assert.equal(byMetric.ready?.page, 'calendar', 'it carries the page dimension like every metric');
+    });
+
+    test('an ADMIN session records no ready sample either', () => {
+        stubPerformance(nav, 500, 2630);
+        recordPageLatency('calendar', 'G. Miller');
+        assert.deepEqual(_samples, []);
+    });
+
+    test('markPageReady is idempotent — a re-render must not re-time the page', () => {
+        /** @type {string[]} */ const marked = [];
+        global.performance = /** @type {any} */ ({
+            getEntriesByType: () => [],
+            getEntriesByName: (/** @type {string} */ n) =>
+                n === PAGE_READY_MARK ? marked.map(() => ({ startTime: 1 })) : [],
+            mark: (/** @type {string} */ n) => { marked.push(n); },
+        });
+        markPageReady();
+        markPageReady();
+        assert.deepEqual(marked, [PAGE_READY_MARK]);
+    });
+
+    test('markPageReady is silent where the Performance API is missing', () => {
+        global.performance = /** @type {any} */ ({});
+        assert.doesNotThrow(() => markPageReady());
     });
 });

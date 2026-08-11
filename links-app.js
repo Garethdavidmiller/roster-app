@@ -23,7 +23,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency } from './perf-reporter.js';
+import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { lsGet, lsSet } from './ls.js';
 import {
     DAYS,
@@ -150,6 +150,9 @@ export function init() {
     // PAGE INIT
     // ============================================
     document.body.classList.add('auth-ready');
+    // The page's content is on screen from this line: `.container` is `display:none` until
+    // `auth-ready`, so everything before it was a blank page (v20.80). See markPageReady.
+    markPageReady();
 
     /** @type {any} */ let openAboutLightbox = null;
 

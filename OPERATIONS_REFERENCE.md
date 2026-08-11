@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: August 2026 — v20.70 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.80 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -487,9 +487,34 @@ lets both be fixed at once.
 | Same browser, reload or navigation | Stays unlocked. The viewer session lives as long as the browser session. |
 | Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |
 | Guides, Huddle, Circular, Newsletter | Reachable **without** the PIN. The nav drawer is never locked. |
+| A member whose sign-in has been lost from the device (v20.79) | They get **their own sign-in card**, never the PIN — see below. |
+| A slow start on a poor connection (v20.80) | A greyed-out calendar shape while the app works out what to show, rather than a blank screen. |
 
 A member on a shared PC can also use **"Sign in instead"** on the unlock card, and a viewer can
 press **Lock Calendar** in the nav drawer before walking away.
+
+### "It asked me for a PIN and I'm signed in" — what that used to mean (v20.79)
+
+A support question worth recognising, because it had two quite different causes and only one of them
+looked like a fluke:
+
+- **The device forgot the member's sign-in.** iPhones clear a web app's stored login after about a
+  week of not opening it, while the app's own session lasts 60 days. So a member who uses the roster
+  every few weeks could be, as far as they and the app were concerned, signed in — with nothing
+  behind it. That failed on *every* open, not occasionally.
+- **The sign-in was simply slow to come back** and arrived after the app had already decided.
+
+Both used to land on the staff PIN, which is the wrong answer twice over: it asks a signed-in member
+for a shared code, and using it would have left them browsing as the anonymous shared viewer with
+their own name still in the drawer. Since v20.79 that member gets a card addressed to them whose
+button is the normal sign-in — and for anyone still on their surname default the app quietly signs
+them back in with nothing typed, so they see nothing at all. A late sign-in is now honoured whenever
+it turns up rather than ignored for the rest of the page load.
+
+**If a member still reports it:** ask whether the card said "Calendar · <their name>". If it did,
+that is the sign-in card working as intended and the remedy is their password. If they genuinely saw
+the four-digit PIN card, they have no session on that device — which is expected on a shared PC and
+on any browser they have not signed into.
 
 ### Switching it on and off
 

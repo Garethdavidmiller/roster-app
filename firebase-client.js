@@ -1090,10 +1090,11 @@ export function recordPerfSample({ page, metric, bucket, mode, conn }) {
  * Read latency for the Operations "App speed" card (admin-only), for THIS month and LAST month (the
  * comparison window — trend across deploys, and a stable reference early in a month). Each window
  * carries plain-language quick/ok/slow summaries for THREE journeys: `login` (sign-in to usable),
- * `fcp` (a page first appearing on screen) and `pages` (a page being fully ready, the 'domReady'
- * metric). Computed by the pure perf-stats module. No identity is involved.
+ * `fcp` (a page first appearing on screen), `pages` (the page's CODE finishing — the 'domReady'
+ * metric) and `ready` (the page's own content on screen — v20.80). Computed by the pure perf-stats
+ * module. No identity is involved.
  * @returns {Promise<{ thisMonth: PerfWindow, lastMonth: PerfWindow }>}
- * @typedef {{ month: string, login: ReturnType<typeof summarisePerf>, fcp: ReturnType<typeof summarisePerf>, pages: ReturnType<typeof summarisePerf>, samples: Record<string, number> }} PerfWindow
+ * @typedef {{ month: string, login: ReturnType<typeof summarisePerf>, fcp: ReturnType<typeof summarisePerf>, pages: ReturnType<typeof summarisePerf>, ready: ReturnType<typeof summarisePerf>, samples: Record<string, number> }} PerfWindow
  */
 export async function getPerfStats() {
     const now = new Date();
@@ -1111,6 +1112,10 @@ export async function getPerfStats() {
             login: summarisePerf(samples, { metric: 'loginTotal' }),
             fcp:   summarisePerf(samples, { metric: 'fcp' }),
             pages: summarisePerf(samples, { metric: 'domReady' }),
+            // 'ready' — the page's content actually on screen (perf-reporter.markPageReady, v20.80).
+            // A different population from the three above: only pages that mark it appear here, so
+            // its `total` is legitimately smaller and the card says so rather than hiding the bar.
+            ready: summarisePerf(samples, { metric: 'ready' }),
             // The RAW map, carried through so the card can break the busiest page down by
             // connection / install mode / version (`summarisePerfBy`). Summarising every dimension
             // here instead would mean deciding in the data layer which page the admin is asking
