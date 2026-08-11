@@ -21,6 +21,21 @@
    column would leave the same half-empty navy space the v18.59 settings pass
    removed. */
 
+/* THE TYPEFACE. `shared.css` declares the `@font-face` and the `--font-sans` token but does NOT
+   apply either — every page's own stylesheet sets its `body` font-family, which is the convention
+   here and is stated in shared.css's own comment. This file had no `body` rule at all, so the
+   Overtime page fell back to the browser default and rendered the whole page in Times New Roman:
+   not just its own content but the shared header, the badge and the nav drawer, because they are
+   all inside this document's body. From that page it looks exactly as though the app has changed
+   typeface, which is how it was reported. Measured, not inferred — every other page resolves to
+   Inter and this one did not. */
+body {
+    font-family: var(--font-sans);
+    font-size: var(--type-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
 .app { max-width: 560px; margin: 0 auto; }
 
 @media (min-width: 768px) {

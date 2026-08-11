@@ -62,8 +62,15 @@ const isIgnorable = (/** @type {{ blocked: string, directive: string }} */ v) =>
     return BEACON_DIRECTIVES.some(x => d.startsWith(x));
 };
 
+/**
+ * Every served page. HAND-MAINTAINED, and therefore checked by page-contract-parity.test.mjs —
+ * `overtime.html` shipped without being added here, so the one run that applies the REAL
+ * firebase.json header never visited the app's newest page. A list like this going quietly out of
+ * date is indistinguishable from a clean pass.
+ */
 const PAGES = [
     '/', '/admin.html', '/paycalc.html', '/operations.html', '/settings.html', '/links.html',
+    '/overtime.html',
     '/guide.html', '/paycalc-guide.html', '/railcard-guide.html', '/fip.html', '/rangers-guide.html',
 ];
 
