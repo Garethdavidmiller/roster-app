@@ -118,5 +118,272 @@
             "S. Silva",
             "M. Robson"
         ]
-    }
+    },
+    "overtimeEligibleMembers": [
+        {
+            "name": "L. Springer",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 0
+        },
+        {
+            "name": "A. Hared",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 1
+        },
+        {
+            "name": "G. Miller",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 2
+        },
+        {
+            "name": "M. Robson",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 3
+        },
+        {
+            "name": "J. Davies",
+            "grade": "CEA",
+            "startDate": "2026-05-05",
+            "rosterOrder": 4
+        },
+        {
+            "name": "I. Cooper",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 5
+        },
+        {
+            "name": "A. Panchal",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 6
+        },
+        {
+            "name": "C. Francisco-Charles",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 7
+        },
+        {
+            "name": "O. Mylla",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 8
+        },
+        {
+            "name": "S. Boyle",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 9
+        },
+        {
+            "name": "L. Atrakimaviciene",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 10
+        },
+        {
+            "name": "J. Haque",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 11
+        },
+        {
+            "name": "M. Okeke",
+            "grade": "CEA",
+            "startDate": "2026-04-20",
+            "rosterOrder": 13
+        },
+        {
+            "name": "N. Tuck",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 14
+        },
+        {
+            "name": "R. Forrester-Blackstock",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 15
+        },
+        {
+            "name": "S. Langley",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 16
+        },
+        {
+            "name": "S. Silva",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 17
+        },
+        {
+            "name": "J. Sumaili",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 18
+        },
+        {
+            "name": "T. Bibi",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 19
+        },
+        {
+            "name": "T. Nsuala",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 20
+        },
+        {
+            "name": "D. Irvine",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 21
+        },
+        {
+            "name": "T. Gherbi",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 22
+        },
+        {
+            "name": "C. Reen",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 23
+        },
+        {
+            "name": "K. Jedlinski",
+            "grade": "CEA",
+            "startDate": "2026-06-03",
+            "rosterOrder": 24
+        },
+        {
+            "name": "D. Minto",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 25
+        },
+        {
+            "name": "A. Targanov",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 26
+        },
+        {
+            "name": "S. Warman",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 27
+        },
+        {
+            "name": "S. Faure",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 28
+        },
+        {
+            "name": "L. Szpejer",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 29
+        },
+        {
+            "name": "K. Porter",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 30
+        },
+        {
+            "name": "A. Murray",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 31
+        },
+        {
+            "name": "S. Clarke",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 32
+        },
+        {
+            "name": "A. Atkins",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 33
+        },
+        {
+            "name": "K. Yeboah",
+            "grade": "Dispatcher",
+            "startDate": null,
+            "rosterOrder": 34
+        },
+        {
+            "name": "F. Mohamed",
+            "grade": "CES",
+            "startDate": null,
+            "rosterOrder": 35
+        },
+        {
+            "name": "P. Lloyd",
+            "grade": "CES",
+            "startDate": null,
+            "rosterOrder": 36
+        },
+        {
+            "name": "P. Prashanthan",
+            "grade": "CES",
+            "startDate": null,
+            "rosterOrder": 37
+        },
+        {
+            "name": "B. Khalil",
+            "grade": "CES",
+            "startDate": "2026-06-09",
+            "rosterOrder": 38
+        },
+        {
+            "name": "G. Rotaru",
+            "grade": "CES",
+            "startDate": null,
+            "rosterOrder": 39
+        },
+        {
+            "name": "L. Webster",
+            "grade": "CES",
+            "startDate": null,
+            "rosterOrder": 40
+        },
+        {
+            "name": "Z. Lewis",
+            "grade": "CES",
+            "startDate": null,
+            "rosterOrder": 41
+        },
+        {
+            "name": "M. Bowler",
+            "grade": "CES",
+            "startDate": null,
+            "rosterOrder": 42
+        },
+        {
+            "name": "W. Cummings",
+            "grade": "CES",
+            "startDate": null,
+            "rosterOrder": 43
+        },
+        {
+            "name": "S. Horsman",
+            "grade": "CES",
+            "startDate": null,
+            "rosterOrder": 44
+        }
+    ],
+    "maxRosterYear": 2030
 }

@@ -29,6 +29,31 @@ const activeMembers = [
     ...getMembersForGrade('Management'),
 ].map(m => m.name);
 
+// ── Overtime (OVERTIME_AVAILABILITY.md) ──────────────────────────────────────────────────────────
+// A SEPARATE list from activeMembers, and the separation is the point: activeMembers is built from
+// getMembersForGrade, which deliberately does NOT filter Management on `hidden`, so it CONTAINS all
+// six manager-only accounts. It means "has an account", not "is rostered". Overtime eligibility is
+// the roster's own participation semantics — `!hidden && !managerOnly` — which excludes every
+// manager and every leaver without a second policy having to say so.
+//
+// `rosterOrder` is the teamMembers index, generated so a Manager's by-day list keeps a stable
+// familiar order months later; hand-maintaining it would drift the first time somebody is inserted.
+// `startDate` is emitted as a plain ISO date because the server compares it to a week-start string.
+const overtimeEligibleMembers = teamMembers
+    .map((m, i) => ({ m, i }))
+    .filter(({ m }) => !m.hidden && !m.managerOnly)
+    .map(({ m, i }) => ({
+        name:        m.name,
+        grade:       m.role,
+        startDate:   m.startDate ? isoDate(m.startDate) : null,
+        rosterOrder: i,
+    }));
+
+/** @param {Date} d */
+function isoDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const roster = {
     cea:        teamMembers.filter(m => m.role === 'CEA'        && !m.hidden && !m.managerOnly).map(m => m.name),
     ces:        teamMembers.filter(m => m.role === 'CES'        && !m.hidden && !m.managerOnly).map(m => m.name),
@@ -43,6 +68,12 @@ const roster = {
         manager:  CONFIG.MANAGER_NAMES,
         designer: CONFIG.LINKS_DESIGNERS,
     },
+    overtimeEligibleMembers,
+    // The app's canonical navigable-roster ceiling, mirrored so window creation validates against
+    // the SAME horizon the client does. Without it the Functions side would need its own literal,
+    // and the two would part company at the next MAX_YEAR bump (already booked in
+    // MAINTENANCE_CALENDAR.md) — the classic drift this generated file exists to prevent.
+    maxRosterYear: CONFIG.MAX_YEAR,
 };
 
 const dest = join(ROOT, 'functions', 'roster-members.json');
