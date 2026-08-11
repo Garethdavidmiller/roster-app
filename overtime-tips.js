@@ -41,7 +41,7 @@ export const CARD_TIPS = {
         sections: [
             {
                 items: [
-                    { icon: '👀', html: 'This list shows the next six roster weeks <strong>whether or not a form exists</strong> — so a week nobody has opened is visible rather than silently absent.' },
+                    { icon: '👀', html: 'This list shows every upcoming roster week <strong>whether or not a form exists</strong> — so a week nobody has opened is visible rather than silently absent.' },
                     { icon: '⚠️', html: '<strong>Missed</strong> means no form was ever opened, so nobody was asked and nobody is outstanding. It never means nobody was needed.' },
                     { icon: '🚫', html: 'Once a week\'s final deadline has passed it can no longer be created, and the row stays as <strong>Missed</strong> until that Saturday goes by.' },
                 ],

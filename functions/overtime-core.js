@@ -56,8 +56,28 @@ const MILESTONE_OFFSETS = Object.freeze({
 /** The local hour at which an availability deadline falls. */
 const DEADLINE_HOUR_LONDON = 12;
 
-/** How many week rows the Manager planning horizon shows: this week's Saturday plus five. */
-const PLANNING_WEEKS = 6;
+/**
+ * How many week rows the planning horizon covers, starting at THIS week's Saturday.
+ *
+ * ── EIGHT ROWS, TO GIVE SIX ANSWERABLE WEEKS ────────────────────────────────────────────────────
+ *
+ * The owner's requirement is six weeks of forward availability. That is a count of weeks staff can
+ * ANSWER for, and it is not the same number as the rows — because the first rows are always behind
+ * their own deadline. A window closes 11 days before its Saturday, so:
+ *
+ *   row 1 (this week's Saturday)  final deadline was LAST Tuesday  → never answerable
+ *   row 2 (next Saturday)         final deadline is THIS Tuesday   → answerable until Tue 12:00
+ *
+ * Measured across a full week at 09:00 and 13:00, six rows yielded **four or five** answerable weeks
+ * and never six; seven rows yield five or six, so it falls short for half of every week. Eight
+ * yields six or seven — six being the floor, which is what "six weeks ahead" has to mean if it is to
+ * be true on a Wednesday as well as a Sunday.
+ *
+ * **The accepted cost is that a member has six or seven open forms at once.** That is why the form
+ * they land on is the one closing SOONEST, with the rest listed beneath it rather than in front of
+ * it — the arrangement made at v20.64, which this number leans on.
+ */
+const PLANNING_WEEKS = 8;
 
 /**
  * A Firestore batched write caps at 500 operations, and window creation is 1 parent + N

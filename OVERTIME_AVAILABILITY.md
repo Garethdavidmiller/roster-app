@@ -28,7 +28,7 @@ there are no participants, so nobody is outstanding, so no reminder can fire, an
 at all. "No window" is indistinguishable from "no overtime needed this week", and a clerk plans a
 roster from a page that is quietly empty.
 
-The planning horizon is the answer. `getOvertimeManagerOverview` computes six week rows **from the
+The planning horizon is the answer. `getOvertimeManagerOverview` computes its week rows **from the
 calendar**, not from Firestore, then marks which of them have windows — so a missing week is a row
 that says `Not created` rather than a row that is absent. A missed week keeps its row until its
 Saturday has passed, and the card's collapsed chip counts what is *missing* ("2 without a form"),

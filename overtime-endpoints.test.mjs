@@ -418,30 +418,35 @@ describe('createOvertimeWindow — one code path, previewed or committed', () =>
 });
 
 describe('getOvertimeManagerOverview — the missing window is the point', () => {
-    test('six planning rows come back from an EMPTY database, escalating across the horizon', async () => {
+    test('the whole horizon comes back from an EMPTY database, escalating across it', async () => {
         // The single most important assertion in this file. A horizon built from existing documents
         // can only ever show what exists; the thing worth seeing is what does not.
         //
         // And the states are NOT uniform, which is the part worth pinning: the horizon starts at
         // the CURRENT week, whose deadlines went weeks ago, so a Manager opening a neglected page
-        // sees the whole ladder at once — two weeks already missed, one still recoverable, three
-        // still ahead. An earlier version of this test asserted all six were 'not-created' and
+        // sees the whole ladder at once — the earliest weeks already missed, one still recoverable,
+        // the rest still ahead. An earlier version asserted all of them were 'not-created' and
         // failed, correctly.
+        //
+        // The LENGTH is read from `PLANNING_WEEKS`, never written out. It was hardcoded as 6 and
+        // broke the moment the horizon grew to give six ANSWERABLE weeks — a restated count doing
+        // exactly what a restated count does. The escalating prefix is what this test is really
+        // about, so it is asserted directly and the tail only has to be un-created.
         freeze(Date.parse('2026-08-19T09:00:00Z'));   // a Wednesday
         const { eps } = build();
         const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
         unfreeze();
         assert.equal(r.code, 200);
-        assert.equal(r.body.planningWeeks.length, 6);
+        assert.equal(r.body.planningWeeks.length, OT.PLANNING_WEEKS);
         assert.ok(r.body.planningWeeks.every(w => w.exists === false));
-        assert.deepEqual(r.body.planningWeeks.map(w => [w.weekEnding, w.state]), [
+        assert.deepEqual(r.body.planningWeeks.slice(0, 4).map(w => [w.weekEnding, w.state]), [
             ['2026-08-22', 'missed'],
             ['2026-08-29', 'missed'],
             ['2026-09-05', 'not-created-initial-passed'],
             ['2026-09-12', 'not-created'],
-            ['2026-09-19', 'not-created'],
-            ['2026-09-26', 'not-created'],
         ]);
+        assert.ok(r.body.planningWeeks.slice(4).every(w => w.state === 'not-created'),
+            'every week beyond the escalating prefix is simply not created yet');
     });
 
     test('a missed week offers no Create, and a recoverable one does', async () => {

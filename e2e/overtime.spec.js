@@ -458,6 +458,57 @@ test.describe('access and chrome', () => {
         }
     });
 
+    test('printing the MEMBER form gives a notice, not a page of empty capsules', async ({ page }) => {
+        // A form is a set of controls. On paper it is seven rows of blank pills — nothing to read,
+        // and a real risk somebody fills it in with a pen believing it counts. Same treatment admin,
+        // operations and settings use, for the same reason.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+
+        await page.emulateMedia({ media: 'print' });
+        await expect(page.locator('.app')).toBeHidden();
+        const notice = await page.evaluate(() =>
+            getComputedStyle(document.body, '::before').content);
+        expect(notice).toContain('nothing on this page to print');
+    });
+
+    test('printing the REVIEWER view keeps all seven days, even when the screen shows one', async ({ page }) => {
+        // The one print assertion with real teeth. The glance chips filter the day panels with the
+        // `hidden` attribute; printing that state would produce a call sheet silently missing six
+        // days — and a printed page cannot be tapped to find out what is not on it.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+            expected: 1, received: 0, noResponse: 1 }] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+
+        const shownDays = () => page.locator('.ot-day-panel[data-date]').evaluateAll(els =>
+            els.filter(e => getComputedStyle(e).display !== 'none').length);
+
+        await page.locator('[data-glance]').nth(2).click();
+        expect(await shownDays(), 'the SCREEN filters to one day').toBe(1);
+
+        await page.emulateMedia({ media: 'print' });
+        expect(await shownDays(), 'the SHEET carries the whole week').toBe(7);
+        // And it names itself: a page of names with no week on it can still be acted on.
+        await expect(page.locator('.ot-print-head')).toBeVisible();
+        await expect(page.locator('.ot-print-title')).toContainText('Week ending');
+        await expect(page.locator('.ot-print-asat')).toContainText('as at');
+        // The horizon is planning, not cover-filling — it would push the sheet to a second page.
+        await expect(page.locator('#otHorizonCard')).toBeHidden();
+    });
+
+    test('and that print head is NOT on screen, where the card header already says the week', async ({ page }) => {
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+            expected: 1, received: 0, noResponse: 1 }] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await expect(page.locator('.ot-print-head')).toBeHidden();
+    });
+
     test('hidden really hides — the confirm bar is not on screen at rest', async ({ page }) => {
         // `display: flex` out-specifies the `hidden` attribute, so this bar covered the bottom of
         // every page view until its companion rule was added. A fixed element, so it was not subtle.

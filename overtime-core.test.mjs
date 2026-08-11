@@ -237,7 +237,32 @@ describe('the missing window — the failure nothing else catches', () => {
         // Wed 19 Aug 2026 → this Sunday–Saturday week ends Sat 22 Aug.
         const weeks = C.planningWeekEndings(Date.parse('2026-08-19T09:00:00Z'));
         assert.equal(weeks[0], '2026-08-22');
-        assert.deepEqual(weeks, ['2026-08-22', '2026-08-29', '2026-09-05', '2026-09-12', '2026-09-19', '2026-09-26']);
+        assert.deepEqual(weeks.slice(0, 3), ['2026-08-22', '2026-08-29', '2026-09-05']);
+        weeks.forEach((w, i) => assert.equal(w, C.addDays('2026-08-22', i * 7)));
+    });
+
+    test('SIX weeks are answerable at every hour of every day — the owner requirement', () => {
+        // THE reason PLANNING_WEEKS is what it is, expressed as the property rather than the number.
+        //
+        // "Six weeks ahead" is a count of weeks staff can ANSWER for, and that is not the row count:
+        // a window closes 11 days before its Saturday, so row 1 is always behind its own deadline and
+        // row 2 goes behind it at Tuesday noon. Measured, six rows gave four or five answerable weeks
+        // and NEVER six — the requirement was unmeetable while looking satisfied.
+        //
+        // Sweeping a whole week at two hours catches the Tuesday-noon boundary, which is the only
+        // place the count steps down. Asserting the PROPERTY means a future change to the offsets
+        // fails here rather than quietly costing a week.
+        const START = Date.UTC(2026, 7, 9);            // Sunday 9 Aug 2026
+        let worst = Infinity;
+        for (let d = 0; d < 7; d++) {
+            for (const hour of [9, 13]) {              // either side of the 12:00 London deadline
+                const now = START + (d * 86400 + hour * 3600) * 1000;
+                const answerable = C.planningWeekEndings(now)
+                    .filter(w => C.deriveMilestones(w).finalDeadlineAt > now).length;
+                worst = Math.min(worst, answerable);
+            }
+        }
+        assert.ok(worst >= 6, `only ${worst} answerable weeks at the worst hour of the week`);
     });
 
     test('on a Saturday, THAT Saturday is still the current week', () => {
