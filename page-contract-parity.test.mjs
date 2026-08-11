@@ -165,6 +165,55 @@ test('every app page has a nav pill, so the drawer is a complete map', () => {
     assert.deepEqual(missing, [], 'page ids with no NAV_PAGES entry');
 });
 
+test('a role-gated pill is gated from EVERY coordinator, not just its own page', () => {
+    // The bug this exists for, found by the owner rather than by this suite. `NAV_PAGES` filters the
+    // Overtime pill on an `isOvertimeReviewer` option — and exactly one of the seven coordinators
+    // that call `initNavPanel` passed it. Everywhere else it defaulted to false, so the pill showed
+    // only on the Overtime page itself: the one page you are already on. The feature was reachable
+    // by typing its URL and by nothing else.
+    //
+    // The test above passes on precisely that code, because a pill EXISTING and a pill being
+    // REACHABLE are different claims and it only ever checked the first. That is the same shape as
+    // every other defect this suite was written for — a hand-maintained list going green by not
+    // being looked at — so the miss belongs here rather than in a comment somewhere.
+    const nav = read('./nav-panel.js');
+    // Derive the gate names from the filter chain itself, so a fourth gate added later is covered
+    // without anyone remembering to extend this list.
+    const gates = [...nav.matchAll(/\.filter\(p => !p\.(\w+) \|\| (\w+)\)/g)].map(m => ({ flag: m[1], option: m[2] }));
+    assert.ok(gates.length >= 3, `expected the NAV_PAGES gate chain, found ${gates.length}`);
+
+    /**
+     * The OPTIONS OBJECT of each `initNavPanel({ … })` call, by brace-matching from the call.
+     *
+     * Not a file-wide regex. The first cut searched the whole module for `option:` and reported
+     * links-app.js as a hole — where `isAdmin` is passed as ES6 property SHORTHAND and is perfectly
+     * correct. A guard that cries wolf on valid code gets an exemption list and then stops guarding,
+     * which is the failure mode this whole suite exists to avoid.
+     */
+    const callers = readdirSync(new URL('.', import.meta.url))
+        .filter(f => f.endsWith('-app.js'))
+        .map(f => ({ file: f, src: read(`./${f}`) }))
+        .filter(c => c.src.includes('initNavPanel({'))
+        .map(c => ({ file: c.file, opts: optionsObjectAfter(c.src, 'initNavPanel({') }));
+    assert.ok(callers.length >= 7, `expected every page coordinator, found ${callers.length}`);
+
+    /** @type {string[]} */
+    const holes = [];
+    for (const { flag, option } of gates) {
+        // Every coordinator needs the option, not only the gated page's own: ANY page can render the
+        // drawer that contains the gated pill, so a coordinator that omits it hides the destination
+        // from its own surface.
+        assert.ok(nav.includes(`${flag}: true`), `no NAV_PAGES entry uses ${flag}`);
+        for (const { file, opts } of callers) {
+            // `key:` or bare shorthand `key,` / `key }` — both are passing it.
+            if (!new RegExp(`(^|[\\s,{])${option}\\s*[:,}]`).test(opts)) {
+                holes.push(`${file} never passes \`${option}\` — the ${flag} pill is invisible there`);
+            }
+        }
+    }
+    assert.deepEqual(holes, [], `\n  ${holes.join('\n  ')}\n`);
+});
+
 test('every app page records its own usage under an id the rules allow', () => {
     // Fire-and-forget writes: an id the rules reject fails SILENTLY, and the Usage card simply
     // under-reports for as long as nobody notices. firestore-contract-parity checks the two lists
@@ -177,3 +226,23 @@ test('every app page records its own usage under an id the rules allow', () => {
         assert.ok(allow[1].includes(`'${id}'`), `analytics id '${id}' is not allowed by firestore.rules`);
     }
 });
+
+/**
+ * The `{ … }` argument that follows `marker` in `src`, by balancing braces.
+ *
+ * Deliberately not a regex: these option objects contain nested arrow functions with their own
+ * braces (`onSignOut: () => { … }`), so a lazy `\{[\s\S]*?\}` stops at the first inner close and a
+ * greedy one runs to the end of the file. Both give a wrong answer that still LOOKS like an answer.
+ * @param {string} src @param {string} marker
+ */
+function optionsObjectAfter(src, marker) {
+    const at = src.indexOf(marker);
+    if (at === -1) return '';
+    let depth = 0;
+    const from = at + marker.length - 1;          // the '{' itself
+    for (let i = from; i < src.length; i++) {
+        if (src[i] === '{') depth++;
+        else if (src[i] === '}' && --depth === 0) return src.slice(from, i + 1);
+    }
+    return src.slice(from);
+}

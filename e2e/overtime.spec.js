@@ -198,6 +198,45 @@ test.describe('access and chrome', () => {
         await expect(page.locator('.nav-panel-pill--overtime')).toHaveCount(1);
     });
 
+    test('the pill is reachable from OTHER pages, which is the only way anyone finds it', async ({ page }) => {
+        // The shipped bug, and the reason the assertion above is not enough on its own: it opens the
+        // drawer on overtime.html, the one page whose coordinator passed `isOvertimeReviewer`. Every
+        // other page defaulted it to false, so the pill appeared only where you already were and the
+        // feature was reachable by typing its URL and by nothing else.
+        //
+        // The calendar is the page that matters — it is where a signed-in reviewer starts.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page);
+        await page.goto('/');
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('.nav-panel-pill--overtime')).toHaveCount(1);
+
+        // And still absent for someone who is not a reviewer — the fix must not have widened it.
+        await page.context().clearCookies();
+        await seedSession(page, 'S. Silva');
+        await page.goto('/');
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('.nav-panel-pill--overtime')).toHaveCount(0);
+    });
+
+    test('every signed-in page offers the reviewer the pill', async ({ page }) => {
+        // One page passing the flag is what shipped. Sweep them all rather than trusting that the
+        // fix was applied uniformly — six near-identical edits is exactly where one gets missed.
+        await seedSession(page, 'G. Miller');       // admin: sees every pill, so no page is skipped
+        await stubOvertime(page);
+        for (const path of ['/', '/admin.html', '/paycalc.html', '/settings.html', '/operations.html', '/links.html']) {
+            await page.goto(path);
+            // Several pages open a one-time notice on a fresh profile (links has a welcome panel,
+            // paycalc a Year-to-Date prompt). They are modal, so they cover the burger — dismiss
+            // whatever is up rather than seeding a per-page flag this test would then have to track.
+            const close = page.locator('.lb-overlay.open .lb-close').first();
+            if (await close.count()) await close.click();
+            await page.locator('#navMenuBtn').click();
+            await expect(page.locator('.nav-panel-pill--overtime'),
+                `no Overtime pill in the drawer on ${path}`).toHaveCount(1);
+        }
+    });
+
     test('hidden really hides — the confirm bar is not on screen at rest', async ({ page }) => {
         // `display: flex` out-specifies the `hidden` attribute, so this bar covered the bottom of
         // every page view until its companion rule was added. A fixed element, so it was not subtle.
