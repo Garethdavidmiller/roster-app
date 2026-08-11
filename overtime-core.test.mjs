@@ -458,15 +458,44 @@ describe('generated names must be safe as Firestore document ids', () => {
         }
     });
 
-    test('the restricted beta asks exactly the admin — one participant, not none and not everybody', () => {
+    test('the restricted beta asks the admin AND every invited member — no more, no fewer', () => {
         // The live configuration, checked end to end on real data. Zero would mean windows that read
-        // "0 of 0 received" (a finished week, not an empty one); more would mean the beta is not
-        // restricted. Both failures are invisible until somebody opens a week.
-        const { overtimeRoster, roles } = require('./functions/roster-members.json');
+        // "0 of 0 received" (a finished week, not an empty one); a name missing means somebody was
+        // invited and never asked — a page with no form on it. Both are invisible until somebody
+        // opens a week, which is why this asserts the exact set rather than a count.
+        const { overtimeRoster, roles, overtimeBeta } = require('./functions/roster-members.json');
         const asked = C.selectParticipants(overtimeRoster, {
-            weekStart: '2026-08-30', audience: 'restricted', adminNames: roles.admin,
+            weekStart: '2026-08-30', audience: 'restricted',
+            adminNames: roles.admin, betaNames: overtimeBeta,
         }).map(p => p.memberName);
-        assert.deepEqual(asked, roles.admin);
+        assert.deepEqual([...asked].sort(), [...roles.admin, ...overtimeBeta].sort());
+    });
+
+    test('an invited beta member must actually EXIST in the roster', () => {
+        // The invitation is a name typed into CONFIG, and a typo is silent in the direction that
+        // matters: `selectParticipants` simply never matches it, so the member is invited on paper
+        // and asked nothing. Nothing else in the system would notice.
+        const { overtimeRoster, overtimeBeta } = require('./functions/roster-members.json');
+        const names = new Set(overtimeRoster.map(m => m.name));
+        for (const n of overtimeBeta) {
+            assert.ok(names.has(n), `beta member "${n}" is not on the roster — a typo, or a leaver`);
+        }
+    });
+
+    test('a beta invitation cannot smuggle in somebody stage 1 excludes', () => {
+        // Stage 1 binds every audience, and the beta list is stage 2. Naming a manager (or a
+        // leaver) here must change nothing — otherwise the invitation becomes a second, unreviewed
+        // route into a population that reports non-responders for ever.
+        const roster = [
+            { name: 'A. One',  grade: 'CEA',        rosterOrder: 1, hidden: false, managerOnly: false },
+            { name: 'M. Boss', grade: 'Management', rosterOrder: 2, hidden: true,  managerOnly: true  },
+            { name: 'X. Gone', grade: 'CEA',        rosterOrder: 3, hidden: true,  managerOnly: false },
+        ];
+        const asked = C.selectParticipants(roster, {
+            weekStart: '2026-08-30', audience: 'restricted',
+            adminNames: [], betaNames: ['A. One', 'M. Boss', 'X. Gone'],
+        }).map(p => p.memberName);
+        assert.deepEqual(asked, ['A. One']);
     });
 });
 

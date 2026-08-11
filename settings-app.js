@@ -16,7 +16,7 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { lsSet } from './ls.js';   // iOS-safe wrapper — never raw localStorage (CLAUDE.md)
 import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
-import { requirePage, isOvertimeReviewer } from './auth-policy.js';
+import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -64,7 +64,7 @@ export function init() {
             memberName:  currentUser,
             isAdmin:         currentUser ? CONFIG.ADMIN_NAMES.includes(currentUser) : false,
             isLinksDesigner: currentUser ? CONFIG.LINKS_DESIGNERS.includes(currentUser) : false,
-            isOvertimeReviewer: isOvertimeReviewer(currentUser),
+            canOpenOvertime: canOpenOvertime(currentUser),
             onLogoClick: () => openAboutLightbox?.(),
             onSignOut:   currentUser ? () => { clearSession(); window.location.href = './'; } : null,
         });

@@ -5,7 +5,8 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { requirePageAuth, requirePage, rolesFor, PAGE_POLICIES, DECISIONS } from './auth-policy.js';
+import { requirePageAuth, requirePage, rolesFor, isOvertimeReviewer, canOpenOvertime,
+    PAGE_POLICIES, DECISIONS } from './auth-policy.js';
 import { CONFIG } from './roster-data.js';
 
 // Real role names, derived from CONFIG so the tests don't hard-code (and don't break if a name
@@ -28,10 +29,15 @@ describe('rolesFor (real CONFIG)', () => {
         const r = rolesFor(DESIGNER);
         assert.equal(r.designer, true); assert.equal(r.admin, false); assert.equal(r.manager, false);
     });
-    test('a name in no list → all false', () => assert.deepEqual(rolesFor(PLAIN), { admin: false, manager: false, designer: false }));
+    // deepEqual, not a per-flag check: the SHAPE is the contract. `requirePageAuth` reads
+    // `roles[r]` for each name in a page's role list, so a flag that quietly stops being returned
+    // makes every page requiring it fail closed — and a flag that quietly appears is a new
+    // privilege nobody reviewed. Either way the shape is what has to be pinned.
+    const NO_ROLES = { admin: false, manager: false, designer: false, overtimeBeta: false };
+    test('a name in no list → all false', () => assert.deepEqual(rolesFor(PLAIN), NO_ROLES));
     test('null/undefined → all false', () => {
-        assert.deepEqual(rolesFor(null), { admin: false, manager: false, designer: false });
-        assert.deepEqual(rolesFor(undefined), { admin: false, manager: false, designer: false });
+        assert.deepEqual(rolesFor(null), NO_ROLES);
+        assert.deepEqual(rolesFor(undefined), NO_ROLES);
     });
 });
 
@@ -133,5 +139,61 @@ describe('invariants', () => {
         assert.equal(typeof d.reason, 'string');
         assert.ok(d.reason.length > 0);
         assert.ok(Object.isFrozen(d));
+    });
+});
+
+describe('the Overtime beta participant — invited to ANSWER, never to look', () => {
+    // Two audiences reach one page and they must not converge. A beta member fills in their own
+    // availability; a reviewer sees everybody's. The v20.76 addition of the first beta CEA is what
+    // surfaced that the page had only ever had the reviewer answer — the pill was reviewer-gated
+    // and this very policy demanded an admin/manager role, so a member the SERVER fully intended
+    // to ask would have found no link in the drawer and a "not open to everyone yet" panel if she
+    // typed the URL. Her form would have been sitting on the server the whole time.
+    const beta = (CONFIG.OVERTIME_BETA || [])[0];
+    const ordinary = 'A. Nobody';
+
+    test('a beta member may OPEN Overtime', () => {
+        assert.ok(beta, 'the beta list is empty — this suite has nothing to pin');
+        assert.equal(canOpenOvertime(beta), true);
+        assert.equal(requirePage({ status: 'named', member: beta }, 'overtime').decision, 'allow');
+    });
+
+    test('and is NOT a reviewer — the two predicates stay apart', () => {
+        // The whole safety property. If a future edit widens `isOvertimeReviewer` to include the
+        // beta list "so the pill works", this member starts seeing colleagues' declarations.
+        assert.equal(isOvertimeReviewer(beta), false);
+        assert.equal(rolesFor(beta).admin, false);
+        assert.equal(rolesFor(beta).manager, false);
+        assert.equal(rolesFor(beta).overtimeBeta, true);
+    });
+
+    test('an ordinary member is still refused the page entirely', () => {
+        assert.equal(canOpenOvertime(ordinary), false);
+        assert.equal(rolesFor(ordinary).overtimeBeta, false);
+        assert.equal(requirePage({ status: 'named', member: ordinary }, 'overtime').decision, 'forbidden');
+    });
+
+    test('a reviewer can still open it, by the reviewer route', () => {
+        const manager = (CONFIG.MANAGER_NAMES || [])[0];
+        assert.equal(isOvertimeReviewer(manager), true);
+        assert.equal(canOpenOvertime(manager), true);
+    });
+
+    test('the beta list opens no OTHER role-gated page', () => {
+        // It is not a role, and a page policy that happened to accept it would be a privilege
+        // escalation through a list nobody thinks of as one.
+        //
+        // The page list is DERIVED from PAGE_POLICIES rather than written here, so a role-gated
+        // page added later is covered without anyone remembering. Writing it by hand also got this
+        // wrong first time: `admin` looked like an obvious inclusion and is in fact `role: null` —
+        // the staff self-service portal every named member uses — so the assertion failed on
+        // correct code. A derived list cannot make that mistake.
+        const gated = Object.entries(PAGE_POLICIES)
+            .filter(([name, p]) => name !== 'overtime' && p.role && p.role.length)
+            .map(([name]) => name);
+        assert.ok(gated.length >= 2, `expected other role-gated pages, found ${gated.join(',')}`);
+        for (const page of gated) {
+            assert.equal(requirePage({ status: 'named', member: beta }, page).decision, 'forbidden', page);
+        }
     });
 });

@@ -529,5 +529,8 @@
             "managerOnly": true
         }
     ],
+    "overtimeBeta": [
+        "T. Bibi"
+    ],
     "maxRosterYear": 2030
 }

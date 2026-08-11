@@ -22,7 +22,7 @@ import {
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, isOvertimeReviewer } from './auth-policy.js';
+import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import {
@@ -1904,7 +1904,7 @@ export function init() {
         memberName:  _paycalcMember?.name || null,
         isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name ?? ''),
         isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(_paycalcMember?.name ?? ''),
-        isOvertimeReviewer: isOvertimeReviewer(_paycalcMember?.name ?? ''),
+        canOpenOvertime: canOpenOvertime(_paycalcMember?.name ?? ''),
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut:   _paycalcMember ? () => {
             clearSession(); // clears localStorage AND signs out Firebase Auth

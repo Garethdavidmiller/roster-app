@@ -26,7 +26,7 @@ import { initDatePickers } from './date-picker.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
-import { requirePage, isOvertimeReviewer } from './auth-policy.js';
+import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -152,7 +152,7 @@ export function init() {
         memberName:  currentUser,
         isAdmin:         true,
         isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
-        isOvertimeReviewer: isOvertimeReviewer(currentUser),
+        canOpenOvertime: canOpenOvertime(currentUser),
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut:   () => { clearSession(); window.location.href = './'; },
     });

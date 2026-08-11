@@ -55,11 +55,14 @@ export const PAGE_POLICIES = Object.freeze({
     admin:      { requireNamed: true,  role: null },
     operations: { requireNamed: true,  role: ['admin'] },
     links:      { requireNamed: true,  role: ['designer'] },
-    // Overtime during the restricted live beta: reviewers only. `manager` is a first-class role
-    // here rather than an also-ran — this is the first page in the app whose PRIMARY audience is
-    // the manager rather than the admin. At full launch the role list drops away and the policy
-    // becomes a plain named-user page, because participation (not a role) decides what is shown.
-    overtime:   { requireNamed: true,  role: ['admin', 'manager'] },
+    // Overtime during the restricted live beta: reviewers, plus invited beta PARTICIPANTS.
+    // `manager` is a first-class role here rather than an also-ran — this is the first page in the
+    // app whose PRIMARY audience is the manager rather than the admin. `overtimeBeta` is not a role
+    // in the claim sense at all (v20.76): it names members the server intends to ASK, and without
+    // it the first beta CEA would have been refused by this very policy while her form sat waiting
+    // on the server. At full launch the whole role list drops away and this becomes a plain
+    // named-user page, because participation — not a role — decides what is shown.
+    overtime:   { requireNamed: true,  role: ['admin', 'manager', 'overtimeBeta'] },
 });
 
 /** @returns {AuthDecision} */
@@ -73,7 +76,7 @@ function decide(/** @type {AuthDecision['decision']} */ decision, /** @type {str
  *
  * @param {{ status?: string, member?: string|null }} snapshot - from getAuthSnapshot()
  * @param {PagePolicy} policy
- * @param {{ admin?: boolean, manager?: boolean, designer?: boolean }} [roles]
+ * @param {{ admin?: boolean, manager?: boolean, designer?: boolean, overtimeBeta?: boolean }} [roles]
  * @returns {AuthDecision}
  */
 export function requirePageAuth(snapshot, policy, roles = {}) {
@@ -123,11 +126,15 @@ export function requirePageAuth(snapshot, policy, roles = {}) {
  * Glue: derive a member's role flags from CONFIG (the role source of truth). Impure only in that
  * it reads CONFIG — deterministic and side-effect-free.
  * @param {string|null|undefined} member
- * @returns {{ admin: boolean, manager: boolean, designer: boolean }}
+ * @returns {{ admin: boolean, manager: boolean, designer: boolean, overtimeBeta: boolean }}
  */
 export function rolesFor(member) {
     const m = member || null;
     return {
+        // NOT a claim, unlike the three below — an invitation to submit one's own availability
+        // during the restricted beta. It grants no read of anybody else's, which is why it is a
+        // separate flag rather than a widening of `manager`.
+        overtimeBeta: !!m && (CONFIG.OVERTIME_BETA || []).includes(m),
         // All three CONFIG lists defensively defaulted so this fail-closed helper never throws if a
         // list were ever absent (uniform with MANAGER_NAMES, which was already guarded).
         admin:    !!m && (CONFIG.ADMIN_NAMES || []).includes(m),
@@ -158,6 +165,26 @@ export function rolesFor(member) {
 export function isOvertimeReviewer(member) {
     const r = rolesFor(member);
     return r.admin || r.manager;
+}
+
+/**
+ * May this member REACH the Overtime page at all — as a reviewer, or as an invited beta
+ * participant with a form of their own?
+ *
+ * Two audiences, one destination, and the distinction is the point (v20.76). Reviewing is the
+ * `admin`/`manager` claim; PARTICIPATING is `CONFIG.OVERTIME_BETA`, an invitation to fill in your
+ * own availability and nothing more. The first beta CEA exposed that the page had only ever had
+ * the reviewer answer: the pill was `overtimeReviewerOnly` and the page policy demanded an
+ * admin/manager role, so a member the server had every intention of asking would have found no
+ * link in the drawer and a "not open to everyone yet" panel if she typed the URL.
+ *
+ * Keep the two predicates separate rather than widening `isOvertimeReviewer`. Everything that
+ * decides whether somebody may SEE COLLEAGUES' declarations reads that one, and a beta invitation
+ * must never drift into meaning that.
+ * @param {string|null|undefined} member
+ */
+export function canOpenOvertime(member) {
+    return isOvertimeReviewer(member) || rolesFor(member).overtimeBeta;
 }
 
 /**

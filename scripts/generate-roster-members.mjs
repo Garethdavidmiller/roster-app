@@ -71,6 +71,11 @@ const roster = {
         designer: CONFIG.LINKS_DESIGNERS,
     },
     overtimeRoster,
+    // NOT under `roles` — those three are CLAIM TIERS that setupRosterAuth stamps onto an account.
+    // This grants no claim at all: it names ordinary members the restricted audience should ASK,
+    // and the only thing that reads it is `selectParticipants`. Filing it beside the claims would
+    // invite the next reader to look for an `overtimeBeta` claim that does not exist.
+    overtimeBeta: CONFIG.OVERTIME_BETA,
     // The app's canonical navigable-roster ceiling, mirrored so window creation validates against
     // the SAME horizon the client does. Without it the Functions side would need its own literal,
     // and the two would part company at the next MAX_YEAR bump (already booked in

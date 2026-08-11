@@ -836,3 +836,57 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator('[data-glance]').nth(2)).toHaveAttribute('aria-pressed', 'true');
     });
 });
+
+test.describe('the beta PARTICIPANT — a form of her own, and nothing of anybody else\'s', () => {
+    // The first ordinary member invited into the beta (v20.76). Two audiences reach one page and
+    // must not converge: she answers for herself; a reviewer sees everyone. Before this, the page
+    // had only the reviewer answer — the pill was reviewer-gated and the page policy demanded an
+    // admin/manager role — so a member the SERVER was already asking would have found no link in
+    // the drawer and a "not open to everyone yet" panel if she typed the URL.
+    const BETA = 'T. Bibi';
+
+    test('she gets her own form, and no way to see anyone else\'s', async ({ page }) => {
+        await seedSession(page, BETA);
+        // The reviewer endpoint is stubbed to FAIL, the way the real one 403s for a non-reviewer:
+        // if the page ever tried to build the workspace, this is what it would get.
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [openWindow()] }) }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 403, contentType: 'application/json',
+            body: JSON.stringify({ error: 'Forbidden — reviewer access required' }) }));
+
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+        // No tab strip: a strip with one tab is a door to a room that is not there.
+        await expect(page.locator('#otTabs')).toBeHidden();
+        await expect(page.locator('#otAllPanel')).toBeHidden();
+        // The reviewer's surface is static markup on every copy of this page, so the question is
+        // whether it SHOWS, not whether it exists — `toHaveCount(0)` asserted the wrong thing and
+        // failed on correct code. What must be true is that nothing of it is visible, and that no
+        // colleague's row was ever built: the horizon read is never even attempted for her.
+        await expect(page.locator('#otHorizonCard')).toBeHidden();
+        await expect(page.locator('.ot-person')).toHaveCount(0);
+    });
+
+    test('and she can REACH it — the drawer offers the pill from another page', async ({ page }) => {
+        // The half that no amount of page-level correctness supplies. `canOpenOvertime` is passed by
+        // all seven coordinators; page-contract-parity pins that, and this proves the outcome.
+        await seedSession(page, BETA);
+        await page.goto('/settings.html');
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('.nav-panel-pill--overtime')).toBeVisible();
+    });
+
+    test('an ordinary member gets neither the pill nor the page', async ({ page }) => {
+        await seedSession(page, 'S. Silva');
+        await page.goto('/settings.html');
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('.nav-panel-pill--overtime')).toHaveCount(0);
+
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await expect(page.locator('.ot-day')).toHaveCount(0);
+    });
+});

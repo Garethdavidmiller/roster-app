@@ -14,7 +14,7 @@ import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serv
 import { initNavPanel, resetNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, isOvertimeReviewer } from './auth-policy.js';
+import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -160,7 +160,7 @@ export function init() {
         memberName:      currentUser,
         isAdmin,
         isLinksDesigner: true,
-        isOvertimeReviewer: isOvertimeReviewer(currentUser),
+        canOpenOvertime: canOpenOvertime(currentUser),
         onLogoClick:     () => openAboutLightbox?.(),
         onSignOut: async () => {
             if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true })) return;
