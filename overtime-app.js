@@ -381,7 +381,8 @@ export function init() {
                     <div class="ot-week-list">${past.map(renderPastWeekRow).join('')}</div>
                 </div>` : '');
         host.querySelectorAll('[data-create]').forEach(btn =>
-            btn.addEventListener('click', () => previewWindow(String(btn.getAttribute('data-create')))));
+            btn.addEventListener('click', () => previewWindow(
+                String(btn.getAttribute('data-create')), /** @type {HTMLElement} */ (btn))));
         host.querySelectorAll('[data-open]').forEach(btn =>
             btn.addEventListener('click', () => selectWeek(String(btn.getAttribute('data-open')))));
 
@@ -468,13 +469,35 @@ export function init() {
      * a reviewer approves here is exactly what gets created — and the participant count is the part
      * worth approving, because during the restricted beta it is one rather than the whole team.
      */
-    /** @param {string} weekEnding */
-    async function previewWindow(weekEnding) {
+    /**
+     * ── A PRESS THAT SHOWS NOTHING HAS NOT HAPPENED ─────────────────────────────────────────────
+     *
+     * This used to go straight to the network. The dry run is a Cloud Function call — on 4G, from
+     * cold, seconds — and for every one of those seconds the page was byte-for-byte unchanged: the
+     * button still read "Open now", nothing spun, nothing greyed. Measured in a browser at 390px
+     * with a 2.5s response, the entire viewport was identical before and during.
+     *
+     * So the press read as a dead control, and the reasonable thing to do with a dead control is
+     * press it again. That is exactly what was reported — "it still keeps saying Open now" — and it
+     * is the worst possible failure for THIS button, because a reviewer concludes the feature does
+     * not work while the only thing missing is a label change.
+     *
+     * The busy state disables every other create button too, not just this one. A second week
+     * previewed mid-flight would resolve into the same single confirm bar, and the bar names only
+     * the week it is armed for — so the reviewer would be looking at a question about a week they
+     * pressed first and an answer about a week they pressed second.
+     *
+     * @param {string} weekEnding
+     * @param {HTMLElement} btn the button pressed — it is the thing that has to change
+     */
+    async function previewWindow(weekEnding, btn) {
         // Disarm FIRST. A failed preview used to leave the bar showing an error for week B while
         // its Create button was still armed for week A from an earlier successful preview — one
         // press away from creating the wrong week.
         pendingWeek = null;
+        const restore = setCreateBusy(btn);
         const r = await OTD.createOvertimeWindow(weekEnding, { dryRun: true });
+        restore();
         if (!r.ok) { flashConfirm(`Couldn't prepare that week (${esc(r.code)}).`, false); return; }
         const w = r.data.window;
         pendingWeek = weekEnding;
@@ -489,6 +512,49 @@ export function init() {
         }
         armConfirmBar();
         if (bar) bar.hidden = false;
+        reserveConfirmSpace(true);
+    }
+
+    /**
+     * Put the pressed button into a busy state and lock its siblings; returns the undo.
+     *
+     * Returning the restore rather than exposing a `setCreateIdle` keeps the two halves impossible
+     * to separate — the failure mode here is a button left disabled for ever on an error path, and
+     * that is a page the reviewer has to reload.
+     *
+     * @param {HTMLElement} btn
+     * @returns {() => void}
+     */
+    function setCreateBusy(btn) {
+        const all = /** @type {HTMLButtonElement[]} */ (
+            Array.from(document.querySelectorAll('[data-create]')));
+        const label = btn.textContent;
+        for (const b of all) b.disabled = true;
+        btn.textContent = 'Opening…';
+        btn.classList.add('ot-row-btn--busy');
+        return () => {
+            for (const b of all) b.disabled = false;
+            btn.textContent = label;
+            btn.classList.remove('ot-row-btn--busy');
+        };
+    }
+
+    /**
+     * Reserve the space the fixed confirm bar occupies, so it cannot cover the row it is asking
+     * about.
+     *
+     * The bar is `position: fixed; bottom: 0` and measured 199px tall at 390px — taller than a week
+     * row. Nothing compensated for it, so opening it hid the last row or two of the list, and
+     * pressing "Open now" on the LAST week put the question directly on top of the thing it named.
+     *
+     * Measured rather than a constant: the bar wraps to two, three or four lines depending on the
+     * week label and the viewport, so any number written here would be wrong somewhere.
+     *
+     * @param {boolean} on
+     */
+    function reserveConfirmSpace(on) {
+        const bar = el('otConfirmBar');
+        document.body.style.paddingBottom = on && bar ? `${bar.offsetHeight}px` : '';
     }
 
     /**
@@ -508,6 +574,7 @@ export function init() {
         el('otConfirmCancel')?.addEventListener('click', () => {
             pendingWeek = null;
             const bar = el('otConfirmBar'); if (bar) bar.hidden = true;
+            reserveConfirmSpace(false);
         });
         el('otConfirmCreate')?.addEventListener('click', async () => {
             if (!pendingWeek) return;
@@ -529,6 +596,7 @@ export function init() {
             }
             pendingWeek = null;
             const bar = el('otConfirmBar'); if (bar) bar.hidden = true;
+            reserveConfirmSpace(false);
             await loadHorizon();
             selectWeek(week);
         });
@@ -541,7 +609,11 @@ export function init() {
         const bar = el('otConfirmBar');
         armConfirmBar();
         if (bar) bar.hidden = false;
-        if (ok) setTimeout(() => { if (bar) bar.hidden = true; }, 2500);
+        reserveConfirmSpace(true);
+        if (ok) setTimeout(() => {
+            if (bar) bar.hidden = true;
+            reserveConfirmSpace(false);
+        }, 2500);
     }
 
     // ── Week detail (filled in by the Manager workspace step) ───────────────────────────────────
