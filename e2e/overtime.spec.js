@@ -518,3 +518,88 @@ test.describe('access and chrome', () => {
         await expect(page.locator('#otConfirmBar')).toBeHidden();
     });
 });
+
+test.describe('opening a week — the press has to land', () => {
+    /** Stub the dry run so it is still in flight when we look at the page. */
+    async function stubSlowPreview(page, delayMs) {
+        await page.route('**/createOvertimeWindow', async (r) => {
+            await new Promise(res => setTimeout(res, delayMs));
+            await r.fulfill({
+                status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, window: { ...W, expectedCount: 1 } }),
+            });
+        });
+    }
+
+    test('"Open now" says so while the request is in flight', async ({ page }) => {
+        // THE DEFECT THIS PINS. The press fired a Cloud Function call and changed nothing at all —
+        // measured at 390px against a 2.5s response, the viewport was byte-for-byte identical
+        // before and during. A control that shows nothing has not visibly happened, so the
+        // reasonable thing to do is press it again, which is exactly what was reported: "it still
+        // keeps saying Open now".
+        //
+        // The assertion is deliberately made DURING the call, not after. Asserting the settled
+        // state would pass on the broken code, because the broken code also ends up correct — it
+        // just spends the intervening seconds looking dead.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks() });
+        await stubSlowPreview(page, 2000);
+        await page.goto('/overtime.html');
+
+        const creates = page.locator('[data-create]');
+        await expect(creates).toHaveCount(4);
+        const pressed = creates.nth(1);
+        await pressed.click();
+
+        await expect(pressed).toHaveText(/Opening/);
+        await expect(pressed).toBeDisabled();
+        // Every OTHER create button locks too. Two previews in flight resolve into the one confirm
+        // bar, which names a single week — so the reviewer would be reading a question about the
+        // week they pressed first beside an answer about the week they pressed second.
+        await expect(creates.nth(0)).toBeDisabled();
+        await expect(creates.nth(3)).toBeDisabled();
+
+        // And it comes BACK. A button left disabled on a slow path is a page you have to reload.
+        await expect(pressed).toHaveText('Open now', { timeout: 6000 });
+        await expect(creates.nth(0)).toBeEnabled();
+    });
+
+    test('the confirm bar cannot cover the row it is asking about', async ({ page }) => {
+        // The bar is `position: fixed; bottom: 0` and measured 199px tall at 390px — taller than a
+        // week row — with nothing reserving its space. So it hid the last rows of the list, and
+        // pressing "Open now" on the LAST week put the question directly on top of the week it
+        // named. The page could not be scrolled far enough to see it, because the page did not know
+        // the bar was there.
+        await page.setViewportSize({ width: 390, height: 844 });
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks() });
+        await stubSlowPreview(page, 0);
+        await page.goto('/overtime.html');
+
+        const creates = page.locator('[data-create]');
+        await creates.last().click();
+        const bar = page.locator('#otConfirmBar');
+        await expect(bar).toBeVisible();
+
+        // The property is REACHABILITY at the END OF THE PAGE, and it has to be asserted there.
+        // A fixed bar always overlaps something at some scroll position, and any row with content
+        // beneath it can be scrolled clear whether or not the space is reserved — an earlier
+        // version of this test checked the last week ROW and passed with the defect reintroduced.
+        // What the reservation actually buys is that the page can scroll far enough for its own
+        // last pixel to come out from under the bar. Without it the document simply ends at the
+        // viewport and everything in the bar's 199px is unreachable for good.
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await page.waitForTimeout(200);
+        const appBottom = await page.evaluate(() =>
+            document.querySelector('main.app').getBoundingClientRect().bottom);
+        const barTop = (await bar.boundingBox()).y;
+        expect(appBottom, 'the end of the page is scrollable clear of the bar')
+            .toBeLessThanOrEqual(barTop + 1);
+
+        // Cancelling gives the space back — otherwise the page keeps a dead gap for the rest of
+        // the visit, which reads as the list having ended early.
+        await page.locator('#otConfirmCancel').click();
+        await expect(bar).toBeHidden();
+        expect(await page.evaluate(() => document.body.style.paddingBottom)).toBe('');
+    });
+});

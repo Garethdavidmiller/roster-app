@@ -297,6 +297,27 @@ body {
 }
 .ot-row-btn--primary:hover { background: var(--primary-blue-dark); }
 
+/* ── The press has landed ────────────────────────────────────────────────────
+   "Open now" fires a Cloud Function call: on 4G, from cold, that is seconds
+   during which the page used to be byte-for-byte identical. A control that
+   shows nothing has not visibly happened, and the reasonable response to a dead
+   control is to press it again — which is precisely what was reported.
+
+   Disabled siblings get the app's own muted-opacity idiom (the nav bell, the
+   reset-request button). The busy one keeps full contrast: it is the one thing
+   on screen the reviewer needs to be able to read. */
+.ot-row-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+    transform: none;
+}
+
+.ot-row-btn--busy:disabled {
+    opacity: 1;
+    background: var(--bg-light);
+    color: var(--text-mid);
+}
+
 /* The week currently being shown. It was GOLD — which was tolerable while nothing was selected
    until you pressed something, and became the loudest element on the card the moment a week
    auto-opened. Gold is the Calendar's accent and the app's small highlight, not a fill for a
