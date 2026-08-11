@@ -83,6 +83,110 @@ test.describe('member surface', () => {
         expect(t.ready).toBeGreaterThan(t.dcl);
     });
 
+    test('the form names BOTH deadlines, and leads with the one still to come', async ({ page }) => {
+        // Until v20.86 the only date on the page was the FINAL one, so a member reading it would
+        // reasonably conclude they had until then. They do, technically — a submission at the final
+        // deadline is accepted — but it arrives after the week has been planned, which is the whole
+        // distinction the two deadlines exist to draw. An answer that is accepted and too late to
+        // be used is the worst outcome this feature can produce: everyone believes it worked.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        const meta = page.locator('.ot-form-meta');
+        await expect(meta).toContainText('Answers due');
+        await expect(meta).toContainText('18 Aug');       // the initial deadline
+        await expect(meta).toContainText('25 Aug');       // the final one, still stated
+        // One emphasised date, and it is the live one — printing both flat would leave the member
+        // working out which applies today, which is the job this is meant to be doing for them.
+        await expect(page.locator('.ot-form-when--lead')).toHaveCount(1);
+        await expect(page.locator('.ot-form-when--lead')).toContainText('18 Aug');
+    });
+
+    test('a submitted form carries a standing receipt, not just green rows', async ({ page }) => {
+        // Green day rows say what each ANSWER is; they do not say the form was ever accepted. The
+        // line that did say so lived in the transient feedback and never survived a reload, so the
+        // strongest evidence on screen was an inference from seven colours.
+        await seedSession(page, 'G. Miller');
+        const days = Object.fromEntries(weekDates(W.weekStart).map(d => [d, { mode: 'unavailable' }]));
+        await stubOvertime(page, { windows: [openWindow({ submission: {
+            currentRevision: 1, days, updatedAt: Date.parse('2026-08-16T08:42:00Z') } })] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-receipt')).toContainText('Submitted');
+        await expect(page.locator('.ot-form-receipt')).toContainText('16 Aug');
+    });
+
+    test('an unsubmitted form carries no receipt at all', async ({ page }) => {
+        // The teeth on the one above: a receipt that renders unconditionally would satisfy it and
+        // tell every member their blank form had been submitted.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await expect(page.locator('.ot-form-receipt')).toHaveCount(0);
+    });
+
+    test('the form it lands on is the soonest one still to DO, not the soonest full stop', async ({ page }) => {
+        // The response-rate defect: sorting on deadline alone lands a member on a form they have
+        // already dealt with whenever the nearest deadline belongs to a completed week. The page is
+        // answering "what do I need to do?", and a green screen is not an answer to it.
+        await seedSession(page, 'G. Miller');
+        const days = Object.fromEntries(weekDates(W.weekStart).map(d => [d, { mode: 'unavailable' }]));
+        const doneSoon = { ...openWindow(), weekEnding: '2026-09-05',
+            finalDeadlineAt: Date.parse('2026-08-25T11:00:00Z'),
+            submission: { currentRevision: 1, days, updatedAt: NOW } };
+        const todoLater = { ...openWindow(), weekEnding: '2026-09-12', weekStart: '2026-09-06',
+            finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') };
+        await stubOvertime(page, { windows: [doneSoon, todoLater] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
+        // The completed week is not hidden — it is listed, which is where a finished thing belongs.
+        await expect(page.locator('.ot-week-row')).toContainText('5 September 2026');
+    });
+
+    test('and with every open form submitted it lands on the soonest, with no nudge', async ({ page }) => {
+        // The fallback has to be a real form rather than an empty state: an all-submitted member
+        // still has something to look at, and might still amend it.
+        await seedSession(page, 'G. Miller');
+        const days = Object.fromEntries(weekDates(W.weekStart).map(d => [d, { mode: 'unavailable' }]));
+        const sub = { currentRevision: 1, days, updatedAt: NOW };
+        await stubOvertime(page, { windows: [
+            { ...openWindow(), submission: sub },
+            { ...openWindow(), weekEnding: '2026-09-12', weekStart: '2026-09-06',
+                finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z'), submission: sub },
+        ] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        await expect(page.locator('.ot-outstanding'), 'nothing outstanding, so nothing to say')
+            .toHaveCount(0);
+    });
+
+    test('after submitting, a member with another form outstanding is told once', async ({ page }) => {
+        // The nudge is a POST-SUBMIT state by construction: the page leads with an unanswered form,
+        // so while anything is outstanding the member is already looking at it and has nothing to
+        // be pointed at. It becomes true the moment they finish one — which is exactly the moment
+        // they would otherwise close the page believing they were done.
+        await seedSession(page, 'G. Miller');
+        const w2 = { ...openWindow(), weekEnding: '2026-09-12', weekStart: '2026-09-06',
+            finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') };
+        await stubOvertime(page, { windows: [openWindow(), w2] });
+        await page.route('**/submitOvertimeAvailability', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, revision: 1, created: true, phase: 'INITIAL_OPEN', serverNow: NOW }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        // Nothing yet — they are ON the outstanding work, so there is nothing to point at.
+        await expect(page.locator('.ot-outstanding')).toHaveCount(0);
+        for (let i = 0; i < 7; i++) {
+            await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        }
+        await page.locator('.ot-submit').click();
+        await expect(page.locator('.ot-feedback')).toContainText('submitted');
+        await expect(page.locator('.ot-outstanding')).toContainText('1 other form still needs a response');
+        // The confirmation the member is reading must survive the list repaint — re-rendering the
+        // form to update a note about a DIFFERENT week would take away the thing they came for.
+        await expect(page.locator('.ot-feedback')).toContainText('submitted');
+    });
+
     test('several open weeks still land IN a form — the soonest-closing one', async ({ page }) => {
         // The regression automatic creation introduced. Filling the six-week horizon leaves FOUR or
         // FIVE windows open at once, permanently — so the old "one open week opens directly, several
@@ -724,11 +828,23 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.goto('/overtime.html');
         await page.locator(`[data-day="${D[3]}"]`).waitFor();
 
-        const rdw12 = await page.locator(`[data-day="${D[3]}"] [data-mode]`).allTextContents();
-        expect(rdw12).not.toContain('Up to 12 hours');
+        // Not by label — by MODE. The label is context-dependent since v20.86 and asserting on its
+        // words would pass a build that offered the option under the other wording.
+        await expect(page.locator(`[data-day="${D[3]}"] [data-mode="twelve_hours"]`)).toHaveCount(0);
         // A spare day (no times) and an 8.7-hour duty both leave headroom, so both offer it.
-        expect(await page.locator(`[data-day="${D[0]}"] [data-mode]`).allTextContents()).toContain('Up to 12 hours');
-        expect(await page.locator(`[data-day="${D[6]}"] [data-mode]`).allTextContents()).toContain('Up to 12 hours');
+        await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
+        await expect(page.locator(`[data-day="${D[6]}"] [data-mode="twelve_hours"]`)).toHaveCount(1);
+
+        // ── AND THE SAME OPTION IS WORDED FOR THE DAY IT SITS ON (owner, Aug 2026) ──────────────
+        //
+        // The rule is that twelve hours is a TOTAL including whatever is rostered. On a rest day
+        // there is nothing to include, so "a 12-hour turn" says it exactly; beside a duty the same
+        // phrase is ambiguous by eight hours — a clerk could read 07:00–19:00 or 04:00–16:00 from
+        // it. Nothing errors if these drift back to one phrase, which is why it is pinned here.
+        await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`))
+            .toHaveText('Up to a 12-hour turn');
+        await expect(page.locator(`[data-day="${D[6]}"] [data-mode="twelve_hours"]`))
+            .toHaveText('Up to 12 hours in total');
         // And it submits like any other answer — the label is a real option, not a decoration.
         await page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`).click();
         await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`)).toHaveAttribute('aria-checked', 'true');
@@ -961,6 +1077,75 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         await expect(page.locator('.ot-closed-note')).toContainText('Final availability recorded');
         expect(calls).toBeGreaterThanOrEqual(2);
+    });
+
+    test('a phase move that keeps the form open does NOT wipe what is typed into it', async ({ page }) => {
+        // The audit's sharpest catch, and a defect I read past: the resync reloaded on ANY phase
+        // move, justified by a comment about a week that has CLOSED. INITIAL_OPEN → FINAL_OPEN
+        // leaves the form fully submittable, so there the reload destroyed work for nothing — and
+        // the resync window is ±5 minutes of EITHER deadline, so the initial one triggers it most.
+        //
+        // The realistic shape: answer five days at 11:58, pocket the phone, reopen at 12:02.
+        await seedSession(page, 'G. Miller');
+        const w = { ...W, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 },
+            submission: null, initialDeadlineAt: NOW + 60_000 };   // 1 min away → inside the window
+        let calls = 0;
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', r => {
+            calls += 1;
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, serverNow: NOW,
+                    windows: [calls === 1 ? w : { ...w, phase: 'FINAL_OPEN' }] }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        for (let i = 0; i < 5; i++) {
+            await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        }
+        await expect(page.locator('.ot-submit')).toContainText('2 days still to answer');
+
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        // The head TOOK the new phase — so this is not passing merely because the resync never ran.
+        await expect(page.locator('.ot-form-meta')).toContainText('Answers were due');
+        expect(calls, 'the server was genuinely re-read').toBeGreaterThanOrEqual(2);
+        // …and the five answers are still there.
+        await expect(page.locator('.ot-submit')).toContainText('2 days still to answer');
+        await expect(page.locator('.ot-day--set')).toHaveCount(5);
+    });
+
+    test('leaving a form with unsubmitted answers asks first', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06',
+            finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        await stubWithRoster(page, [winOver(), w2], []);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }).click();
+
+        // Opening another week replaces the card. With work on the form, that has to be a question.
+        await page.locator('[data-openweek="2026-09-12"]').click();
+        const dialog = page.locator('.dialog-lb-content, .lb-overlay.open');
+        await expect(dialog.first()).toBeVisible();
+        await page.getByRole('button', { name: 'Stay on this form' }).click();
+        // Staying means staying: the answer survives and the week has not changed underneath them.
+        await expect(page.locator('.ot-day--set')).toHaveCount(1);
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+    });
+
+    test('a clean form switches week with no question at all', async ({ page }) => {
+        // The other half, and the one that decides whether the guard is usable. A confirm on every
+        // navigation would train people to dismiss it, which is worse than not having one.
+        await seedSession(page, 'G. Miller');
+        const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06',
+            finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        await stubWithRoster(page, [winOver(), w2], []);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await page.locator('[data-openweek="2026-09-12"]').click();
+        await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
     });
 
     test('the reviewer\'s day pick survives a grade switch', async ({ page }) => {

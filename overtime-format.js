@@ -90,9 +90,21 @@ export function shouldResyncClock(correctedNow, deadlines) {
 /**
  * How long a rostered duty runs, in minutes — overnight-aware.
  *
- * "22:00–07:00" is nine hours, not minus fifteen: an end at or before the start means the duty
- * crosses midnight, which is how the roster writes every dispatcher night turn. Returns null for
- * anything that is not a pair of HH:MM times, so an unknown day never pretends to have a length.
+ * "22:00–07:00" is nine hours, not minus fifteen: an end BEFORE the start means the duty crosses
+ * midnight, which is how the roster writes every dispatcher night turn. Returns null for anything
+ * that is not a pair of HH:MM times, so an unknown day never pretends to have a length.
+ *
+ * ── EQUAL TIMES ARE NOT A 24-HOUR DUTY ──────────────────────────────────────────────────────────
+ *
+ * "08:00–08:00" used to come back as 1440, on the same branch that handles a night turn. Nothing
+ * anywhere else in the app reads equal times that way: the member's own custom range refuses
+ * `start === end` outright, and the server's `before_after` check treats a non-advancing pair as a
+ * transposition. A value like that is malformed, not a round-the-clock shift.
+ *
+ * The consequence was small and in the wrong direction — 1440 is over the 12-hour gate, so the
+ * "Up to 12 hours" pill would be withheld on the strength of a garbage reading. `modesFor` needs a
+ * POSITIVE fact to withhold, and null is not one, so returning null offers the pill. Withholding an
+ * option is a real cost to the member; offering one on a day whose roster is nonsense is not.
  * @param {string|null|undefined} start @param {string|null|undefined} end
  * @returns {number|null}
  */
@@ -103,6 +115,7 @@ export function shiftSpanMinutes(start, end) {
     if (!s || !e) return null;
     const sm = Number(s[1]) * 60 + Number(s[2]);
     const em = Number(e[1]) * 60 + Number(e[2]);
+    if (em === sm) return null;
     return em > sm ? em - sm : em + 1440 - sm;
 }
 
@@ -234,15 +247,79 @@ export function asAtLine(nowMs) {
  *   after it, before the final  you can still change it, and later is worse
  *
  * "Planning has started" is safe to say because that is the definition of the first deadline, not a
- * claim about any document. The line beneath already states when changes close, so this one does not
- * repeat a date. Keep it that way: two lines both naming the same Tuesday is how a member stops
- * reading either.
+ * claim about any document. The lines beneath state the dates, so this one names none — and that
+ * rule still holds after v20.86 added the second date: what it forbids is two lines naming the SAME
+ * Tuesday, which is how a member stops reading either.
  * @param {string} phase
  */
 export function phaseCopy(phase) {
     if (phase === 'INITIAL_OPEN') return 'Open — answer now to be included when this week is planned';
     if (phase === 'FINAL_OPEN')   return 'Still open — planning has started, so a change now may not fit';
     return 'Closed';
+}
+
+/**
+ * Every line a member's form head carries about time, in order.
+ *
+ * ── THE DEADLINE THAT MATTERS WAS THE ONE NOT ON SCREEN ─────────────────────────────────────────
+ *
+ * A window has two deadlines and they are eleven and eighteen days out, a week apart. Until v20.86
+ * the form printed the FINAL one — "Closes Tue 25 Aug · 12:00" — and left the first to be inferred
+ * from "answer now to be included when this week is planned". So the only date on the page was the
+ * later one, and a member reading it would reasonably conclude they had until then.
+ *
+ * They do, technically: a submission at the final deadline is accepted. But it arrives after the
+ * week has been planned, which is the whole distinction the two deadlines exist to draw, and the
+ * page was quietly pointing at the wrong one. An answer that is accepted and too late to be used is
+ * the worst outcome this feature can produce — everyone believes it worked.
+ *
+ * Both dates now show, in the order they arrive, with the live one first. After the first deadline
+ * the same line stays and turns past-tense rather than vanishing: "answers were due" tells a member
+ * where they stand, where dropping the line would leave them thinking they had never missed
+ * anything. Neither line is a countdown, and neither names a document (see phaseCopy).
+ *
+ * @param {string} phase
+ * @param {number} initialDeadlineAt
+ * @param {number} finalDeadlineAt
+ * @returns {{ text: string, lead: boolean }[]} `lead` marks the date that is still to come — the
+ *   one the member can still act on, which is the ONLY one worth emphasising
+ */
+export function deadlineLines(phase, initialDeadlineAt, finalDeadlineAt) {
+    if (phase === 'CLOSED') {
+        return [{ text: `Closed ${deadlineLabel(finalDeadlineAt)}`, lead: false }];
+    }
+    const prose = { text: phaseCopy(phase), lead: false };
+    if (phase === 'FINAL_OPEN') {
+        return [
+            prose,
+            { text: `Answers were due ${deadlineLabel(initialDeadlineAt)}`, lead: false },
+            { text: `Changes close ${deadlineLabel(finalDeadlineAt)}`, lead: true },
+        ];
+    }
+    return [
+        prose,
+        { text: `Answers due ${deadlineLabel(initialDeadlineAt)}`, lead: true },
+        { text: `Changes close ${deadlineLabel(finalDeadlineAt)}`, lead: false },
+    ];
+}
+
+/**
+ * The standing receipt for a submitted form: "Submitted · updated Tue 18 Aug · 09:42".
+ *
+ * A member who reloads used to have only the green day rows to go on. Those are a correct signal
+ * and a weak one — they say what each answer IS, not that the form was ever accepted, and the
+ * confirmation that did say so (`✓ Availability submitted`) lives in a feedback line that does not
+ * survive the reload. So the strongest evidence on screen was an inference from seven colours.
+ *
+ * Returns null when there is nothing to receipt, so the caller renders nothing rather than an empty
+ * chrome — an unsubmitted form must not carry a hollow receipt.
+ * @param {any} submission the member's own submission head, or null
+ * @returns {string|null}
+ */
+export function receiptLine(submission) {
+    if (!submission?.currentRevision) return null;
+    const when = submission.updatedAt || submission.firstAcceptedAt;
+    return when ? `Submitted · updated ${deadlineLabel(when)}` : 'Submitted';
 }
 
 /**
@@ -376,7 +453,13 @@ export function answerCopy(day) {
     switch (day.mode) {
         case 'unavailable':  return 'Not available';
         case 'all_day':      return 'Available all day';
-        case 'twelve_hours': return 'Available for up to 12 hours';
+        // "IN TOTAL" IS THE WHOLE MEANING (owner, Aug 2026). The declaration is that the member's
+        // duty that day may run to twelve hours including whatever is already rostered — not that
+        // they will work a twelve-hour turn on top of it. A reviewer reading "up to 12 hours" beside
+        // a 07:00–15:00 duty could plan either, and the two differ by eight hours of somebody's day.
+        // The chip has to carry the qualifier alone, because unlike the form's button it has no
+        // roster context beside it to disambiguate.
+        case 'twelve_hours': return 'Available for up to 12 hours in total';
         case 'before':       return `Available before ${day.until}`;
         case 'after':        return `Available after ${day.from}`;
         case 'before_after': return `Available before ${day.until} and after ${day.from}`;

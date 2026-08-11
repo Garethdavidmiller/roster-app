@@ -485,6 +485,39 @@ body {
     line-height: 1.45;
 }
 
+/* THE DATE STILL TO COME, and only that one. A window has two deadlines a week apart, both now
+   printed (v20.86) — and printing both flat would be no better than printing the wrong one, since
+   the member would still have to work out which applies today. `--lead` is the live one; its
+   partner stays muted alongside as context. Weight and colour, not a colour alone: the muted line
+   must still be comfortably readable, so the contrast between them cannot be carried by lightness. */
+.ot-form-when--lead {
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+/* The standing receipt. Green because it is the same "recorded" state the day rows wear once
+   saved — one vocabulary for one fact, so a member scanning the card sees the head and the rows
+   agree rather than reading two separate reassurances. */
+.ot-form-receipt {
+    margin-top: 3px;
+    font-size: var(--type-small);
+    font-weight: 600;
+    color: var(--success-text);
+}
+
+/* The one nudge on the page. Sits under the lists, quiet: it reports a count and offers no
+   control, because the rows above it ARE the control and a second route to them would only make
+   the card longer. Left-aligned prose, per the app's own rule beyond two lines. */
+.ot-outstanding {
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--bg-faint);
+    border-left: 3px solid var(--accent-gold);
+    border-radius: var(--radius);
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+
 /* Roster context could not be established. Says so, and says what still works —
    never a bare failure, and never a base roster dressed up as current. */
 .ot-roster-warning {

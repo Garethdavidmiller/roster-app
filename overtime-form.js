@@ -29,14 +29,10 @@
 import * as OTD from './overtime-data.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
 import {
-    weekLabel, weekSpan, deadlineLabel, shortDate, phaseCopy, answerCopy, answerTone,
-    answerAnchorStale, submitDisposition, modesFor, submitFailureCopy, sameAnswer,
+    weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines,
+    answerAnchorStale, submitDisposition, modesFor, submitFailureCopy, sameAnswer, receiptLine,
 } from './overtime-format.js';
 
-/**
- * Button labels per mode. `before`/`after` get their boundary spliced in at render.
- * @type {Record<string, string>}
- */
 /**
  * Button labels per mode. `before`/`after` get their boundary spliced in at render.
  *
@@ -54,12 +50,27 @@ import {
 const MODE_LABELS = {
     unavailable:  'Not available',
     all_day:      'All day',
-    twelve_hours: 'Up to 12 hours',
+    // Replaced at render from the day's roster — see `modeButton`. The stem here is the rest-day
+    // reading; a day with a duty on it gets the "in total" form instead.
+    twelve_hours: 'Up to a 12-hour turn',
     before:       'Before {until}',
     after:        'After {from}',
     before_after: 'Before & after duty',
     custom:       'Custom times',
 };
+
+/**
+ * The "up to 12 hours" label for a day that ALREADY has a duty on it.
+ *
+ * The owner settled the rule in Aug 2026: the declaration means the member's whole day may run to
+ * twelve hours, INCLUDING what is rostered — not twelve hours on top of it. On a rest day there is
+ * nothing to include, so "a 12-hour turn" says it exactly; beside an 07:00–15:00 duty the same
+ * phrase is ambiguous in an eight-hour way, and a roster clerk could reasonably plan 07:00–19:00
+ * from one reading and 04:00–16:00 from another.
+ *
+ * Both forms complete the page's one grammar — every green pill finishes "Available …" (v20.84).
+ */
+const TWELVE_ON_DUTY = 'Up to 12 hours in total';
 
 /**
  * Build one week's form into `host`.
@@ -89,24 +100,30 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     const daysHost = /** @type {HTMLElement} */ (host.querySelector('.ot-days'));
     const feedback = /** @type {HTMLElement} */ (host.querySelector('.ot-feedback'));
     const submitBtn = /** @type {HTMLButtonElement} */ (host.querySelector('.ot-submit'));
+    const headHost = /** @type {HTMLElement} */ (host.querySelector('.ot-form-head'));
 
     paintDays();
     updateSubmitState();
     submitBtn?.addEventListener('click', onSubmit);
 
+    /**
+     * The handle the coordinator holds on this form.
+     *
+     * `isDirty` exists so that nothing DESTROYS a half-filled form without asking — a week switch, a
+     * back-to-list, a deadline resync. The answers live in this closure and nowhere else, so from
+     * outside there is no other way to know they are there.
+     *
+     * `setPhase` exists so that the resync has an alternative to destroying it. A window moving
+     * INITIAL_OPEN → FINAL_OPEN is still fully submittable, so the only thing that has genuinely
+     * changed is what the head should SAY; rebuilding the form to update a sentence threw away
+     * everything the member had typed. See `wireDeadlineResync` in overtime-app.js.
+     */
+    return { isDirty, setPhase };
+
     // ── Render ──────────────────────────────────────────────────────────────────────────────────
 
     function shell() {
-        return `
-            <div class="ot-form-head">
-                <div class="ot-form-week">${esc(weekLabel(win.weekEnding))}</div>
-                <div class="ot-form-meta">
-                    ${esc(weekSpan(win.weekStart, win.weekEnding))}<br>
-                    ${closed
-                        ? `Closed ${esc(deadlineLabel(win.finalDeadlineAt))}`
-                        : `${esc(phaseCopy(win.phase))}<br>Closes ${esc(deadlineLabel(win.finalDeadlineAt))}`}
-                </div>
-            </div>
+        return `<div class="ot-form-head">${headInner()}</div>
             ${ctx.knowledge === 'error' ? `
                 <div class="ot-roster-warning" role="status">
                     Couldn't confirm your current MYB roster. You can still enter availability using
@@ -120,6 +137,48 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                 </div>` : `
                 <div class="ot-feedback" aria-live="polite"></div>
                 <button type="button" class="btn-action btn-primary ot-submit">Submit availability</button>`}`;
+    }
+
+    /**
+     * The head's contents, separately from the shell — because two things now change it after the
+     * first render: a successful save (the receipt appears) and a phase move (the deadline lines
+     * turn past-tense). Both used to require rebuilding the whole form.
+     */
+    function headInner() {
+        const receipt = receiptLine(win.submission);
+        return `
+            <div class="ot-form-week">${esc(weekLabel(win.weekEnding))}</div>
+            ${receipt ? `<div class="ot-form-receipt"><span aria-hidden="true">✓</span> ${esc(receipt)}</div>` : ''}
+            <div class="ot-form-meta">
+                ${esc(weekSpan(win.weekStart, win.weekEnding))}<br>
+                ${deadlineLines(win.phase, win.initialDeadlineAt, win.finalDeadlineAt)
+                    .map(l => `<span class="ot-form-when${l.lead ? ' ot-form-when--lead' : ''}">${esc(l.text)}</span>`)
+                    .join('<br>')}
+            </div>`;
+    }
+
+    function paintHead() {
+        if (headHost) headHost.innerHTML = headInner();
+    }
+
+    /** Has the member changed anything that is not on the server? @returns {boolean} */
+    function isDirty() {
+        return !closed && dates.some(d => {
+            const s = dayState(answers[d], d);
+            return s === 'set' || s === 'changed';
+        });
+    }
+
+    /**
+     * Take a new phase without touching the answers. Returns false when the phase would CLOSE the
+     * form — that genuinely needs a rebuild (the controls have to go), so the caller reloads.
+     * @param {string} phase
+     */
+    function setPhase(phase) {
+        if (phase === 'CLOSED' || closed) return false;
+        win.phase = phase;
+        paintHead();
+        return true;
     }
 
     function paintDays() {
@@ -252,6 +311,13 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         let label = MODE_LABELS[mode];
         if (mode === 'before') label = label.replace('{until}', (on ? a.until : c?.start) || '');
         if (mode === 'after')  label = label.replace('{from}',  (on ? a.from  : c?.end)   || '');
+        // The 12-hour label is roster-dependent for a different reason from the two above: those
+        // splice in a BOUNDARY, this one changes what the same declaration MEANS. With a duty
+        // already on the day, twelve hours is a total the duty counts towards; with none, it is the
+        // whole turn. Read off `c` and not off the answer even when selected, because unlike an
+        // anchored boundary nothing about this answer is stored from the roster — there is no
+        // earlier meaning to preserve, only the current day to describe.
+        if (mode === 'twelve_hours' && c?.hasTime) label = TWELVE_ON_DUTY;
         // Exactly one control in the group is tabbable: the selected one, or the first when nothing
         // is selected yet — which is every day on a fresh form.
         const tabbable = on || (!a?.mode && i === 0);
@@ -397,6 +463,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // are now simply SAVED, and leaving the warning colours up over a recorded form would
             // keep telling the member something is still to do.
             paintDays();
+            // The receipt lives in the head, so it needs its own repaint — `paintDays` only owns
+            // the seven rows. Without this a member's first-ever submission leaves the head with no
+            // receipt until they reload, which is the one moment they most want to see one.
+            paintHead();
             updateSubmitState();
             onSaved();
             return;
@@ -457,6 +527,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // reassurance. `win.submission` was just replaced above, so `dayState` now resolves
             // every row to `saved`.
             paintDays();
+            paintHead();
             updateSubmitState();
             onSaved();
             return;
@@ -497,6 +568,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                     currentRevision: r.data.currentRevision,
                 };
                 paintDays();
+                paintHead();
                 updateSubmitState();
                 say('Showing the saved version. Change what you need and submit again.', 'ok');
             }

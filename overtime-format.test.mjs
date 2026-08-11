@@ -19,7 +19,7 @@ import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary, asAtLine,
-    modesFor, submitFailureCopy, shiftSpanMinutes, sameAnswer,
+    modesFor, submitFailureCopy, shiftSpanMinutes, sameAnswer, deadlineLines, receiptLine,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -129,7 +129,13 @@ describe('answers in words', () => {
     test('every stored mode has copy, and it names the concrete times', () => {
         assert.equal(answerCopy({ mode: 'unavailable' }), 'Not available');
         assert.equal(answerCopy({ mode: 'all_day' }), 'Available all day');
-        assert.equal(answerCopy({ mode: 'twelve_hours' }), 'Available for up to 12 hours');
+        // "in total" is load-bearing (owner, Aug 2026): the declaration caps the member's WHOLE
+        // day at twelve hours, rostered duty included. The chip is the reviewer's only sight of
+        // this answer and carries no roster beside it, so the qualifier cannot be left implicit —
+        // without it, "up to 12 hours" against an 07:00–15:00 duty reads as either a 12-hour
+        // extension or a 12-hour total, and those differ by eight hours of somebody's day.
+        assert.equal(answerCopy({ mode: 'twelve_hours' }), 'Available for up to 12 hours in total');
+        assert.match(answerCopy({ mode: 'twelve_hours' }), /in total/);
         assert.equal(answerCopy({ mode: 'before', until: '07:00' }), 'Available before 07:00');
         assert.equal(answerCopy({ mode: 'after', from: '15:00' }), 'Available after 15:00');
         assert.equal(answerCopy({ mode: 'before_after', until: '07:00', from: '15:00' }),
@@ -448,6 +454,97 @@ describe('how long a duty runs', () => {
         assert.equal(shiftSpanMinutes('', ''), null);
         assert.equal(shiftSpanMinutes('SPARE', '14:00'), null);
         assert.equal(shiftSpanMinutes(null, undefined), null);
+    });
+
+    test('equal times are malformed, not a 24-hour duty', () => {
+        // This returned 1440 until v20.86, sharing the overnight branch. Nothing else in the app
+        // reads equal times that way — the custom range refuses start === end outright, and the
+        // server treats a non-advancing before/after pair as transposed.
+        assert.equal(shiftSpanMinutes('08:00', '08:00'), null);
+        assert.equal(shiftSpanMinutes('00:00', '00:00'), null);
+    });
+
+    test('and null means the 12-hour offer STANDS, which is the safe direction', () => {
+        // The consequence of the old 1440 was 1440 >= 720, so the pill was WITHHELD on the
+        // strength of a garbage reading. `modesFor` needs a positive fact to withhold; asserting
+        // the null alone would not have caught that, because null is also what a rest day's
+        // unknown length looks like and the two must behave the same.
+        const malformed = { hasTime: true, overnight: false, start: '08:00', end: '08:00',
+            rosteredMinutes: shiftSpanMinutes('08:00', '08:00') };
+        assert.ok(modesFor(malformed).includes('twelve_hours'),
+            'withholding an option costs the member something; offering one on a nonsense roster does not');
+    });
+});
+
+describe('the two deadlines a member has', () => {
+    const INITIAL = Date.parse('2026-08-18T11:00:00Z');
+    const FINAL   = Date.parse('2026-08-25T11:00:00Z');
+
+    test('both dates show, and they are different Tuesdays', () => {
+        // The whole defect: only the FINAL date was ever printed, so the one deadline that decides
+        // whether an answer is used was left to be inferred from a sentence.
+        const text = deadlineLines('INITIAL_OPEN', INITIAL, FINAL).map(l => l.text).join(' | ');
+        assert.match(text, /18 Aug/, 'the initial deadline must appear');
+        assert.match(text, /25 Aug/, 'so must the final one');
+    });
+
+    test('before the first deadline, the FIRST one leads', () => {
+        const lines = deadlineLines('INITIAL_OPEN', INITIAL, FINAL);
+        const lead = lines.filter(l => l.lead);
+        assert.equal(lead.length, 1, 'exactly one date is the one to act on');
+        assert.match(lead[0].text, /18 Aug/);
+    });
+
+    test('after it, the FINAL one leads and the first turns past-tense', () => {
+        const lines = deadlineLines('FINAL_OPEN', INITIAL, FINAL);
+        const lead = lines.filter(l => l.lead);
+        assert.equal(lead.length, 1);
+        assert.match(lead[0].text, /25 Aug/);
+        // The passed deadline STAYS. Dropping it would leave a member who missed it with no sign
+        // that they had, which is the same silence the whole change is undoing.
+        const past = lines.find(l => /18 Aug/.test(l.text));
+        assert.ok(past, 'the passed deadline is still stated');
+        assert.match(past.text, /were due/, 'and stated as passed');
+    });
+
+    test('a closed week names one date and offers no deadline to act on', () => {
+        const lines = deadlineLines('CLOSED', INITIAL, FINAL);
+        assert.equal(lines.length, 1);
+        assert.match(lines[0].text, /Closed/);
+        assert.equal(lines.filter(l => l.lead).length, 0,
+            'nothing on a closed form is still to come');
+    });
+
+    test('no line names a document the member never sees', () => {
+        // The v20.70 rule, which these lines are the newest place to break: "the draft roster" is
+        // the roster office's own artefact and staff never receive it.
+        for (const phase of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
+            for (const l of deadlineLines(phase, INITIAL, FINAL)) {
+                assert.doesNotMatch(l.text, /draft/i, `"${l.text}" names the draft roster`);
+            }
+        }
+    });
+});
+
+describe('the receipt for a submitted form', () => {
+    test('an unsubmitted form has no receipt at all', () => {
+        // Not an empty string — the caller renders nothing, so a form nobody has submitted must
+        // not carry hollow chrome that looks like a receipt with the words missing.
+        assert.equal(receiptLine(null), null);
+        assert.equal(receiptLine({ currentRevision: 0 }), null);
+    });
+
+    test('a submitted one says when it was last updated', () => {
+        const line = receiptLine({ currentRevision: 2, updatedAt: Date.parse('2026-08-18T08:42:00Z') });
+        assert.match(line, /Submitted/);
+        assert.match(line, /18 Aug/);
+    });
+
+    test('with no timestamp it still says submitted rather than nothing', () => {
+        // A head written by an older schema, or a partial read. "Submitted" is the fact worth
+        // keeping; the time is the detail. Losing the whole receipt over a missing minute would
+        // tell the member something false about the important half.
+        assert.equal(receiptLine({ currentRevision: 1 }), 'Submitted');
     });
 });
 
