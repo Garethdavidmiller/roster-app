@@ -304,7 +304,9 @@ export function init() {
                     <div class="ot-week-title">${esc(weekLabel(w.weekEnding))}</div>
                     <div class="ot-week-meta">
                         Roster week ${esc(weekSpan(w.weekStart, w.weekEnding))}<br>
-                        Final changes close ${esc(deadlineLabel(w.finalDeadlineAt))}
+                        ${w.phase === 'CLOSED'
+                            ? `Closed ${esc(deadlineLabel(w.finalDeadlineAt))}`
+                            : `Changes close ${esc(deadlineLabel(w.finalDeadlineAt))}`}
                     </div>
                     <span class="ot-week-state ot-week-state--${tone}">${esc(state)}</span>
                 </div>
@@ -394,7 +396,21 @@ export function init() {
                 + `<strong>${w.audience === 'restricted' ? 'Beta audience' : 'All eligible staff'}</strong> · `
                 + `${w.expectedCount} expected ${w.expectedCount === 1 ? 'participant' : 'participants'}`;
         }
+        armConfirmBar();
         if (bar) bar.hidden = false;
+    }
+
+    /**
+     * The Create button is armed by `pendingWeek` and by nothing else.
+     *
+     * A failed preview disarms the bar but leaves it on screen carrying the error — and the button
+     * beside that error stayed enabled, doing nothing at all when pressed (`if (!pendingWeek)
+     * return`). A control that looks live and silently refuses reads as a broken page, which is
+     * exactly the wrong impression to give somebody who has just been told something failed.
+     */
+    function armConfirmBar() {
+        const btn = /** @type {HTMLButtonElement|null} */ (el('otConfirmCreate'));
+        if (btn) btn.disabled = !pendingWeek;
     }
 
     function wireConfirmBar() {
@@ -408,7 +424,9 @@ export function init() {
             btn.disabled = true;
             const week = pendingWeek;
             const r = await OTD.createOvertimeWindow(week, { dryRun: false });
-            btn.disabled = false;
+            // Re-arm from `pendingWeek`, not unconditionally: a timeout keeps the week pending (the
+            // press is worth repeating), and every other outcome below clears it.
+            armConfirmBar();
             if (!r.ok) {
                 // A timeout on a CREATE is not a failure — the window may exist. Say so, and say
                 // what to do, rather than inviting a second create that would look like a failure
@@ -430,6 +448,7 @@ export function init() {
         const text = el('otConfirmText');
         if (text) text.innerHTML = html;
         const bar = el('otConfirmBar');
+        armConfirmBar();
         if (bar) bar.hidden = false;
         if (ok) setTimeout(() => { if (bar) bar.hidden = true; }, 2500);
     }

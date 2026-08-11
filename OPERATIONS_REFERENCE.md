@@ -602,3 +602,71 @@ and the roster come back together.
   the second; the Cloud Function log line `[unlockCalendarViewer] unlocked <hash>` confirms the first.
 - **Nothing in the Operations Error Log** → expected. A locked Calendar has no Firebase identity, so
   it cannot write client errors. Use the Cloud Function logs.
+
+---
+
+## Overtime Availability (v20.56, restricted beta)
+
+Staff declare, per day, when they are available for overtime in a future roster week; a Manager or
+Master Admin reads the answers by day and plans cover from them. Full design — the milestone
+timetable, the frozen participant snapshot, the audience ladder, retention, concurrency — is in
+`OVERTIME_AVAILABILITY.md`. This section is the operating half.
+
+### The weekly rhythm
+
+Windows are named by their **week-ending Saturday**. Counting back from it:
+
+| When | What happens |
+|---|---|
+| Sat −18d, 12:00 | **Initial deadline.** Everyone should have answered. |
+| Sat −16d | Draft roster published. |
+| Sat −11d, 12:00 | **Final deadline.** Forms close; answers are final. |
+| Sat −9d | Final roster published. |
+| Sat +91d | The window expires and stops appearing anywhere. |
+
+So a window wants creating **about three weeks ahead** of the week it covers. The page's *Upcoming
+weeks* card shows six week rows whether or not anyone has created them, and its collapsed chip
+counts the ones **without** a form — that chip is the thing to glance at.
+
+### Creating a week
+
+Overtime → **Upcoming weeks** → *Create* on the row. A confirm bar previews the roster week, the
+initial deadline, the audience and the expected participant count; press **Open the form** to
+commit. The preview is produced by the same server code that commits, so it cannot drift.
+
+A row with no *Create* button is one whose final deadline has already passed — the week is missed and
+cannot be recovered by creating it late. The row stays visible until its Saturday passes.
+
+### During and after the window
+
+**Who is available** shows the selected week by day, in three sections that never merge: Available,
+Not available, and **No response**. The third is not a soft "no" — nobody has answered — and it is
+the list a phone call works from, alongside *Awaiting a form*.
+
+After the final deadline the member's form goes read-only and states the deadline it closed at.
+Availability recorded before the cut-off is what the roster is planned from; confirm directly with
+the employee before arranging short-notice cover.
+
+### Who can see it
+
+- **Reviewers** (Manager or Master Admin claim) get the nav pill, the planning horizon and the
+  by-day workspace. A reviewer who is not also a participant correctly has no form of their own.
+- **Participants** get their own form and nothing else. During the restricted beta the audience is
+  server-owned and deliberately narrow — a Manager can see which audience a window will have and
+  cannot change it. Widening it is a code change plus a deploy, and never alters an existing window.
+- **Everyone else** sees a short "not open to everyone yet" panel and no nav pill.
+
+### Diagnosing a problem
+
+- **"Couldn't load overtime availability"** → the four Cloud Functions or the Firestore rules have
+  not deployed. All three deploy workflows fire in parallel from one push with no ordering
+  guarantee; the page is correct to report a failure and recovers on its own once they land.
+- **`no-participants` (409) on Create** → the audience selected nobody. Realistically a
+  misconfiguration; it fails closed on purpose, because a window with nobody in it reads
+  "0 of 0 received", which looks like a completed week.
+- **A new starter never gets a form** → `functions/roster-members.json` has not been regenerated.
+  Run `npm run generate:roster-members` and redeploy Functions. Existing windows keep the population
+  they froze at creation, by design.
+- **A member says their submission vanished** → it did not. Submissions are append-only, and the
+  reviewer's by-day view flags who submitted after the initial deadline and who changed their answer
+  since. Check the week's *Who is available* before assuming a fault.

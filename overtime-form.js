@@ -121,9 +121,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // Left/right (and up/down) move within the group and SELECT as they go, which is how a
             // radio group behaves everywhere else. Without it the roving tabindex above would strand
             // a keyboard user on whichever option happened to be selected.
-            /** @type {Record<string, number>} */
-            const keys = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
-            const step = keys[e.key];
+            const step = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1
+                : (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : 0;
             if (!step) return;
             e.preventDefault();
             const group = [.../** @type {any} */ (btn.parentElement).querySelectorAll('[data-mode]')];

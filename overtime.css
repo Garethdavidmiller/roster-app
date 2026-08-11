@@ -289,6 +289,15 @@
 
 .ot-confirm-text strong { color: var(--primary-blue); }
 
+/* The bar stays on screen carrying a failure message, so its Create button spends real time
+   disabled. `.btn-action` has no disabled look of its own — the app's idiom for that is the muted
+   opacity used by the nav bell and the reset-request button. */
+.ot-confirm-actions .btn-action:disabled {
+    opacity: 0.5;
+    cursor: default;
+    transform: none;
+}
+
 .ot-confirm-actions {
     display: flex;
     gap: var(--space-2);

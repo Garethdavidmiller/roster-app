@@ -28,23 +28,21 @@ const BASE = 'https://europe-west2-myb-roster.cloudfunctions.net';
 /** 60s server ceiling + headroom. See the header: the bound ends an infinite wait, nothing more. */
 const BUDGET_MS = 65_000;
 
-/** Server-minus-client offset, refreshed by every read. 0 until the first answer arrives. */
+/**
+ * Server-minus-client offset, refreshed by every read. 0 until the first answer arrives.
+ *
+ * There is deliberately no `clockSynced()` beside it. One was written, on the reasoning that an
+ * unsynced page must not claim server-grade certainty — but nothing can read it: the form only
+ * exists after `getMyOvertimeState` has returned, and that return is what sets the offset. An
+ * exported flag that is structurally always true is worse than none, because the next reader
+ * believes it distinguishes something.
+ */
 let _offset = 0;
-/** Whether the offset has ever been set — an unsynced page must not claim server-grade certainty. */
-let _synced = false;
 
 /** Corrected server time. Falls back to the device clock, which is better than nothing and known. */
 export function correctedNow() {
     return Date.now() + _offset;
 }
-
-/** Has the clock been reconciled with the server at least once? */
-export function clockSynced() {
-    return _synced;
-}
-
-/** Test seam — the module holds process-wide clock state. */
-export function _resetClock() { _offset = 0; _synced = false; }
 
 /**
  * A single POST to an Overtime endpoint.
@@ -89,10 +87,7 @@ async function post(name, body, opts = {}) {
     let data = null;
     try { data = await res.json(); } catch (_) { /* a body-less error is still an error */ }
 
-    if (typeof data?.serverNow === 'number') {
-        _offset = clockOffset(data.serverNow, tSend, tReceive);
-        _synced = true;
-    }
+    if (typeof data?.serverNow === 'number') _offset = clockOffset(data.serverNow, tSend, tReceive);
 
     if (res.ok) return { ok: true, data };
     return {

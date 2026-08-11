@@ -142,6 +142,34 @@ test.describe('manager surface', () => {
         await expect(page.locator('#otHorizonContent')).toBeVisible();
     });
 
+    test('a preview arms the bar; a FAILED preview leaves it disarmed and says so', async ({ page }) => {
+        // Two halves of one rule, in one test because either alone passes on the bug. The bar stays
+        // on screen carrying the failure — and the button beside that failure used to stay enabled
+        // while `pendingWeek` was null, so pressing it did nothing at all. A live-looking control
+        // that silently refuses is the worst thing to hand somebody who has just been told
+        // something went wrong.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks() });
+        let fail = false;
+        await page.route('**/createOvertimeWindow', r => (fail
+            ? r.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'invalid-week' }) })
+            : r.fulfill({
+                status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, dryRun: true, window: { ...W, expectedCount: 1 } }),
+            })));
+        await page.goto('/overtime.html');
+
+        await page.getByRole('button', { name: 'Create' }).first().click();
+        await expect(page.locator('#otConfirmBar')).toBeVisible();
+        await expect(page.locator('#otConfirmText')).toContainText('1 expected participant');
+        await expect(page.locator('#otConfirmCreate')).toBeEnabled();
+
+        fail = true;
+        await page.getByRole('button', { name: 'Create' }).nth(1).click();
+        await expect(page.locator('#otConfirmText')).toContainText("Couldn't prepare that week");
+        await expect(page.locator('#otConfirmCreate')).toBeDisabled();
+    });
+
     test('counts distinguish no response from unavailable', async ({ page }) => {
         await seedSession(page, 'H. Croft');
         await stubOvertime(page, { weeks: sixWeeks() });
