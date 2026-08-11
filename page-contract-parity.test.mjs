@@ -259,6 +259,31 @@ test('every app page records its own usage under an id the rules allow', () => {
     }
 });
 
+test('every app page has a name and an emoji on the Operations reporting cards', () => {
+    // The counter working and the counter being READABLE are two different things, and only the
+    // first has ever been checked. `PAGE_META` in operations-reports.js drives BOTH the Usage card
+    // and the App Speed card, and both fall back to the raw page id plus a generic 📄 when a page
+    // is missing from it — so `overtime` sat lower-case among six title-case names from v20.59 to
+    // v20.85.
+    //
+    // What makes it worth a guard rather than a fix is the DELAY. A new page has almost no traffic,
+    // so it sorts to the bottom of a bar chart or off it entirely; the defect only becomes visible
+    // once the page is used enough to matter, by which point nobody connects it to the release that
+    // added it. Nothing errors, and the number itself is right the whole time.
+    const src = read('./operations-reports.js');
+    const meta = src.match(/const PAGE_META = \{([\s\S]*?)\n\};/);
+    assert.ok(meta, 'PAGE_META not found in operations-reports.js');
+    for (const page of APP_PAGES) {
+        const id = page === 'index.html' ? 'calendar' : page.replace(/\.html$/, '');
+        const row = new RegExp(`\\b${id}\\s*:\\s*\\{([^}]*)\\}`).exec(meta[1]);
+        assert.ok(row, `'${id}' has no PAGE_META entry — both Operations cards would print the raw id`);
+        // An entry with an empty label is the same defect wearing a key, and an empty emoji leaves
+        // the row out of step with every other one on a card whose whole idiom is emoji + name.
+        assert.match(row[1], /emoji:\s*'[^']+'/, `PAGE_META.${id} has no emoji`);
+        assert.match(row[1], /label:\s*'[^']+'/, `PAGE_META.${id} has no label`);
+    }
+});
+
 /**
  * The `{ … }` argument that follows `marker` in `src`, by balancing braces.
  *

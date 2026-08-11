@@ -36,7 +36,7 @@ import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency } from './perf-reporter.js';
+import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import * as OTD from './overtime-data.js';
 import {
     weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, shouldResyncClock,
@@ -170,13 +170,33 @@ export function init() {
         // no error, no timeout, just "Loading…" — which is exactly what it did until this line.
         resolveSession(currentUser ? ensureNamedSession(currentUser) : false);
 
+        // ── THE `ready` MILESTONE IS LATE ON THIS PAGE, AND THAT IS THE POINT ───────────────────
+        //
+        // This page's shell is a row of "Loading…" placeholders, and its content needs TWO network
+        // round trips before any of it can be used: `getMyOvertimeState`, then the member's roster
+        // behind the form. `domReady` fires at the first of those and `fcp` paints the placeholder,
+        // so the two metrics the App Speed card had would both have called this page ready while
+        // it was still empty — the same mis-measurement `markPageReady` was written for at v20.80,
+        // and worse here than on the pages it was written for, because those are waiting on auth
+        // rather than on data.
+        //
+        // `recordPageLatency` therefore moves AFTER the load — the mark has to exist before the
+        // read, which is why the three `auth-ready` pages get away with marking synchronously. It
+        // is in a `finally`, not the success path: a page that failed to load still took time, and
+        // dropping its sample would quietly bias the figures towards loads that went well.
         sessionReady.then(() => {
             initErrorReporter();
             recordUsage('overtime', currentUser);
-            recordPageLatency('overtime', currentUser);
             return loadEverything();
+        }).then(() => {
+            // Not marked when the member's own surface FAILED. An error is not a usable page, and
+            // an absent `ready` is rendered as "—" by the card, which is honest — where a number
+            // would be a measurement of something nobody could use.
+            if (!mineFailed) markPageReady();
         }).catch(() => {
             renderError(document.getElementById('otMineContent'));
+        }).finally(() => {
+            recordPageLatency('overtime', currentUser);
         });
 
         wireConfirmBar();

@@ -449,6 +449,14 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             pendingMutationId = null;
             win.submission = fresh.submission;   // the list rows read this — keep them truthful
             say('✓ Your earlier submission did save.', 'ok');
+            // Repaint for the same reason the success path does (v20.83) — and this path needs it
+            // MORE, because it is the one that tells somebody their form saved after they had every
+            // reason to think it had not. Without it the seven rows keep the cream "you are about
+            // to overwrite a saved answer" tint over the words "your submission did save", which is
+            // the page contradicting itself at the exact moment the member is looking for
+            // reassurance. `win.submission` was just replaced above, so `dayState` now resolves
+            // every row to `saved`.
+            paintDays();
             updateSubmitState();
             onSaved();
             return;
