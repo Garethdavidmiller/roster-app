@@ -1279,16 +1279,29 @@ feature deliberately does NOT do yet, so that a reader stops looking for them.
   manual substitute, and they are why those sections must never merge into "not available". Spec
   §14, deferred.
 
-- **The page does not re-read state while it sits open.** `shouldResyncClock` and
-  `DEADLINE_SYNC_WINDOW_MS` exist, are tested, and have no callers (noted v20.69). A form opened at
-  11:50 still says "Open" at 12:05. The cost is a stale phase line rather than a lost declaration:
-  inside the fifteen-minute grace band the client still SENDS, and past it the server's own refusal
-  is what the member sees. Wire it or delete it — do not leave it reading as though it were in force.
+- **~~The page does not re-read state while it sits open.~~ WIRED at v20.78.** `visibilitychange`
+  now resyncs against the server when `shouldResyncClock` says a deadline is near, one read at a
+  time. Recorded here rather than deleted because the entry said the opposite for ten releases, and
+  a limitation that has been fixed is a worse doc than one that was never written.
 
-- **Restricted audience.** `currentAudience()` returns `'restricted'`, which selects eligible
-  submitters who also hold the server-owned admin entitlement. Widening the beta is a one-word edit
-  plus a deploy, and never alters an existing window — populations are frozen at creation, which is
-  what makes response rates meaningful.
+- **Restricted audience — TWO lists, not one (v20.76).** `currentAudience()` returns `'restricted'`,
+  which selects eligible members holding the server-owned **admin** entitlement **or** named in
+  `overtimeBeta`. Reviewing and participating are different things: a manager reviews without
+  submitting, a beta tester submits without reviewing. Widening it is one edit in
+  `CONFIG.OVERTIME_BETA` plus `npm run generate:roster-members` — the server reads its own copy, so
+  an un-regenerated list gives somebody a page with no form on it.
+
+- **An open window's population can GROW — and only before its first deadline (v20.78, corrected
+  v20.81).** Populations are still frozen against removal and against late addition, but automatic
+  creation made "existing windows never change" mean "an invitation never takes effect": by the time
+  anybody is invited, every week they could usefully answer already exists. So the nightly scheduler
+  tops up windows that are still in `INITIAL_OPEN`.
+  **Not every open window** — that was the v20.78 rule and it was half a deadline out (external
+  review, Aug 2026). Somebody added between the two deadlines is reported as **No response** for a
+  deadline that pre-dates their invitation, and the moment they submit `deriveHistory` labels them
+  **submitted after the initial deadline**. Both describe a person who was asked and did not answer.
+  The remedy is the phase, not a kinder label: they join from the next week whose first deadline is
+  still ahead of them.
 
 - **Name-keyed documents.** Participants and submissions are keyed by canonical member name for
   legibility. A rename would orphan them; the participant `uid`, stamped on first submission, is the

@@ -42,12 +42,10 @@ export const SUBMIT_GRACE_MS = 15 * 60 * 1000;
  * open (a member who opened the form at 11:50 must not still be told "open" at 12:05), and it is
  * deliberately shorter, so the refresh happens before the boundary rather than after it.
  *
- * ⚠️ **NOTHING CALLS `shouldResyncClock` YET** (noted v20.69). The rule and its tests are here; the
- * page does not re-read state while it sits open. The consequence is bounded rather than absent: a
- * member submitting after a boundary they were not told about is still SENT (the grace band), and
- * past it the server's own "this form closed" is what they see — so the cost is a stale phase line,
- * not a lost declaration. Wire it or delete it; leaving a rule that reads as though it were in force
- * is the thing to avoid.
+ * **WIRED at v20.78** — `overtime-app.js` resyncs on `visibilitychange` when this says a deadline is
+ * near, one read at a time. The warning that used to sit here (nothing called it, noted v20.69) is
+ * kept as a note rather than deleted: it stood for ten releases and was found stale by an external
+ * review, and a comment that describes the opposite of the code is worse than no comment at all.
  */
 export const DEADLINE_SYNC_WINDOW_MS = 5 * 60 * 1000;
 

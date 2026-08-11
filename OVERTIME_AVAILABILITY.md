@@ -87,13 +87,28 @@ anybody is invited, every week they could usefully answer already exists. "Untou
 "no forms are open for you" while the admin's were open, and her first form would have been a week
 in October. At full launch the same arithmetic strands the entire roster for eight weeks.
 
-The rule that resolves it without weakening the freeze: **you may join a window you can still submit
-to.**
+The rule that resolves it without weakening the freeze: **you may join a window whose FIRST deadline
+you can still meet.**
 
 | Phase | May the population grow? | Why |
 |---|---|---|
-| Open (before the final deadline) | **Yes, add-only** | they can genuinely answer, so recording them as expected is true |
-| Closed / expired | **Never** | they could never have answered — adding them manufactures a permanent false non-responder, which is exactly what the freeze exists to prevent |
+| `INITIAL_OPEN` (before the first deadline) | **Yes, add-only** | they can genuinely answer on time, so recording them as expected is true |
+| `FINAL_OPEN` (between the two deadlines) | **Never** | they can still submit, but not on time — every judgement about them would be false (see below) |
+| `CLOSED` / expired | **Never** | they could never have answered — adding them manufactures a permanent false non-responder, which is exactly what the freeze exists to prevent |
+
+**The middle row is the correction, and it is worth stating why (v20.81, external review).** v20.78
+gated this on "still open", which is one deadline too late. A window has two, and the FIRST is the
+one every judgement is measured against: `deriveHistory` asks whether anything was accepted before
+`initialDeadlineAt`. Add somebody after that and both answers about them are wrong in the same
+direction — until they submit they sit under **No response** for a deadline that pre-dated their
+invitation, and the moment they submit they are labelled **submitted after the initial deadline**.
+Both read as a person who was asked and did not answer in time. They were never asked.
+
+That is not a labelling bug a kinder word would fix; it is the data a clerk uses to decide who is
+reliable. The alternative — stamp an `invitedAt` on the participant and teach every history rule to
+measure from it — is a second set of late-submission semantics for a case that costs nothing to
+avoid. A new participant simply starts from the next week whose first deadline is ahead of them,
+which is a slightly later start in exchange for a record that stays true.
 
 Nobody is ever REMOVED, at any phase. `addMissingParticipants` in `functions/overtime.js` is the one
 implementation; it runs from two places, and both are tested because they arrive by different routes:

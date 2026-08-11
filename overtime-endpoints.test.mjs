@@ -945,17 +945,23 @@ describe('a member invited into the beta AFTER a window was created', () => {
         assert.deepEqual(again.body.added, [], 'a second press must be a no-op, not a second write');
     });
 
-    // ── A CLOSED WEEK IS NEVER TOPPED UP, and TWO different guards say so ───────────────────────
+    // ── THE BOUNDARY IS THE **INITIAL** DEADLINE, not the final one (v20.81) ───────────────────
     //
-    // The boundary that keeps the freeze meaningful: somebody added to a week whose deadline has
-    // gone could never have answered it, so recording them as expected manufactures a permanent
-    // false non-responder — precisely what the frozen snapshot exists to prevent. Open weeks may
-    // grow because the person can still answer; closed ones may not, because they cannot.
+    // What keeps the freeze meaningful: somebody added to a week they could not answer ON TIME is a
+    // manufactured false record, and it is false in two directions at once. Until they submit they
+    // sit under **No response** for a deadline that pre-dates their invitation; the moment they do,
+    // `deriveHistory` sees no revision before `initialDeadlineAt` and labels them **submitted after
+    // the initial deadline**. Both read as a person who was asked and did not answer in time.
     //
-    // Both callers are tested because they take different routes in. The ENDPOINT never reaches the
-    // top-up at all — `validateWeekEnding` refuses a past-deadline week first — while the SCHEDULER
-    // iterates windows directly and is stopped by the phase check inside `addMissingParticipants`.
-    // Testing only one would leave the other unguarded, and the scheduler is the unattended one.
+    // v20.78 gated top-up on `isOpenPhase`, which is INITIAL_OPEN *or* FINAL_OPEN — so a window past
+    // its first deadline could still gain somebody, and every judgement about them was then wrong.
+    // Found by external review, Aug 2026. The fix is the phase, not a nicer label: the person joins
+    // from the next week whose initial deadline is still ahead of them, and the record stays true.
+    //
+    // Three phases, both callers. They take different routes in — the ENDPOINT is refused by
+    // `validateWeekEnding` only once the FINAL deadline has gone, so between the two deadlines it
+    // reaches the top-up and is stopped there; the SCHEDULER always reaches it. Testing one would
+    // leave the other unguarded, and the scheduler is the unattended one.
 
     test('the endpoint refuses a closed week outright, before any top-up', async () => {
         freeze(M.finalDeadlineAt + 60000);            // one minute past the final deadline
@@ -975,6 +981,48 @@ describe('a member invited into the beta AFTER a window was created', () => {
         unfreeze();
         assert.equal(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`), false,
             'the nightly top-up must respect the same boundary the endpoint does');
+    });
+
+    test('a week PAST ITS INITIAL DEADLINE is not topped up — the endpoint', async () => {
+        // Still open: `validateWeekEnding` lets this through, so the refusal has to come from the
+        // phase check itself. A member added here would be recorded as late for a deadline that had
+        // already passed when they were invited.
+        freeze(M.initialDeadlineAt + 60000);          // one minute past the FIRST deadline
+        const { db, eps } = buildWider(seededWindow());
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        unfreeze();
+        assert.equal(r.code, 200, 'the week is still open, so the call itself succeeds');
+        assert.deepEqual(r.body.added, [], 'nobody may be added once the initial deadline has gone');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`), false);
+    });
+
+    test('a week PAST ITS INITIAL DEADLINE is not topped up — the scheduler', async () => {
+        freeze(M.initialDeadlineAt + 60000);
+        const { db, eps } = buildWider(seededWindow());
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`), false,
+            'the unattended path must hold the same boundary — this is the one nobody watches');
+    });
+
+    test('and she gets no FORM for that week either — the other half of the same boundary', async () => {
+        // The consequence, from the member's side. Not being in the population is what stops her
+        // being asked; the assertion above is what stops the reviewer being told she was. (The
+        // reviewer's own view reads Firestore directly rather than through an endpoint, so the
+        // participant document above IS what it renders — and `deriveHistory`'s `lateInitial` rule,
+        // the thing that would mislabel her, is pinned in overtime-core.test.mjs.)
+        freeze(M.initialDeadlineAt + 60000);
+        const { eps } = buildWider(seededWindow());
+        await eps.autoCreateOvertimeWindows.run({});
+        const mine = await call(eps.getMyOvertimeState, req({}, 'tok_plain'));
+        unfreeze();
+        assert.ok(!mine.body.windows.some(w => w.weekEnding === WEEK),
+            'she must not be offered a week whose first deadline had gone before she was invited');
+        // ...but she IS offered the later ones the same scheduler run created, which is the whole
+        // point: the remedy is a slightly later start, not exclusion. Asserting an EMPTY list here
+        // would have passed against a build that gave her nothing at all.
+        assert.ok(mine.body.windows.length > 0,
+            'she must still join the weeks whose first deadline is ahead of her');
     });
 
     test('the scheduler DOES top up an open week, unattended', async () => {
