@@ -358,8 +358,8 @@ export function init() {
                 <div class="ot-week-main">
                     <div class="ot-week-title">${esc(weekLabel(w.weekEnding))}</div>
                     <div class="ot-week-meta">
-                        Initial deadline ${esc(deadlineLabel(w.initialDeadlineAt))} ·
-                        final ${esc(deadlineLabel(w.finalDeadlineAt))}
+                        Initial ${esc(deadlineLabel(w.initialDeadlineAt))}<br>
+                        Final ${esc(deadlineLabel(w.finalDeadlineAt))}
                         ${counts ? `<br>${esc(counts)}` : ''}
                     </div>
                     <span class="ot-week-state ot-week-state--${tone}">${esc(label)}</span>

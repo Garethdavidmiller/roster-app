@@ -408,7 +408,9 @@
 }
 
 .ot-mode {
-    flex: 1 1 auto;
+    /* `1 1 0` not `1 1 auto`: equal columns read as a set of choices, where content-width buttons
+       read as a sentence and leave a ragged edge between rows. */
+    flex: 1 1 0;
     min-width: 44%;
     /* 16px: never below it on a focusable control — iOS force-zooms the page. */
     padding: 9px 10px;

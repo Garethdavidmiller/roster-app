@@ -142,9 +142,12 @@ export function weekSpan(weekStart, weekEnding) {
  */
 export function deadlineLabel(ms) {
     if (!ms) return '';
+    // The comma `en-GB` inserts ("Tue, 18 Aug") reads as a stray separator beside the app's own
+    // "·" dividers, so it goes. The weekday still leads, because a deadline staff act on is named
+    // by its day of the week first.
     const d = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short',
-    }).format(new Date(ms));
+    }).format(new Date(ms)).replace(',', '');
     const t = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).format(new Date(ms));

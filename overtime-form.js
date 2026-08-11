@@ -86,8 +86,9 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                 <div class="ot-form-week">${esc(weekLabel(win.weekEnding))}</div>
                 <div class="ot-form-meta">
                     Roster week ${esc(weekSpan(win.weekStart, win.weekEnding))}<br>
-                    ${esc(phaseCopy(win.phase))} ·
-                    ${closed ? 'closed' : `changes close ${esc(deadlineLabel(win.finalDeadlineAt))}`}
+                    ${closed
+                        ? `Closed — the final deadline was ${esc(deadlineLabel(win.finalDeadlineAt))}`
+                        : `${esc(phaseCopy(win.phase))}<br>Changes close ${esc(deadlineLabel(win.finalDeadlineAt))}`}
                 </div>
             </div>
             ${ctx.knowledge === 'error' ? `
@@ -115,6 +116,24 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             answers[date] = buildAnswer(mode, ctx.byDate[date], answers[date]);
             paintDays();
             updateSubmitState();
+        }));
+        daysHost.querySelectorAll('[data-mode]').forEach(btn => btn.addEventListener('keydown', (/** @type {any} */ e) => {
+            // Left/right (and up/down) move within the group and SELECT as they go, which is how a
+            // radio group behaves everywhere else. Without it the roving tabindex above would strand
+            // a keyboard user on whichever option happened to be selected.
+            /** @type {Record<string, number>} */
+            const keys = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
+            const step = keys[e.key];
+            if (!step) return;
+            e.preventDefault();
+            const group = [.../** @type {any} */ (btn.parentElement).querySelectorAll('[data-mode]')];
+            const next = group[(group.indexOf(btn) + step + group.length) % group.length];
+            const date = String(next.getAttribute('data-date'));
+            answers[date] = buildAnswer(String(next.getAttribute('data-mode')), ctx.byDate[date], answers[date]);
+            paintDays();
+            updateSubmitState();
+            /** @type {any} */ (daysHost.querySelector(
+                `[data-day="${CSS.escape(date)}"] [data-mode="${next.getAttribute('data-mode')}"]`))?.focus();
         }));
         daysHost.querySelectorAll('.ot-custom-input').forEach(inp => inp.addEventListener('change', () => {
             const date = String(inp.getAttribute('data-date'));
@@ -150,21 +169,32 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                 </div>
                 ${closed
                     ? `<div class="ot-day-answer">${esc(answerCopy(a))}</div>`
-                    : `<div class="ot-modes" role="group" aria-label="Availability on ${esc(shortDate(date))}">
-                        ${modes.map(m => modeButton(date, m, c, a)).join('')}
+                    : `<div class="ot-modes" role="radiogroup" aria-label="Availability on ${esc(shortDate(date))}">
+                        ${modes.map((m, i) => modeButton(date, m, c, a, i)).join('')}
                        </div>
                        ${a?.mode === 'custom' ? customRow(date, a) : ''}`}
             </div>`;
     }
 
-    /** @param {string} date @param {string} mode @param {any} c @param {any} a */
-    function modeButton(date, mode, c, a) {
+    /**
+     * ONE option in a radio group, not a toggle button.
+     *
+     * These six are mutually exclusive, so `aria-pressed` was telling a screen-reader user the wrong
+     * thing about all of them at once — "not pressed" five times over, where the truth is "one of
+     * six, this one selected". A radio group also carries the roving tabindex below, so Tab moves
+     * PAST the group rather than through six controls on each of seven days.
+     * @param {string} date @param {string} mode @param {any} c @param {any} a @param {number} i
+     */
+    function modeButton(date, mode, c, a, i) {
         let label = MODE_LABELS[mode];
         if (mode === 'before') label = label.replace('{until}', c?.start || '');
         if (mode === 'after')  label = label.replace('{from}', c?.end || '');
         const on = a?.mode === mode;
-        return `<button type="button" class="ot-mode" data-date="${esc(date)}" data-mode="${esc(mode)}"
-                        aria-pressed="${on}">${esc(label)}</button>`;
+        // Exactly one control in the group is tabbable: the selected one, or the first when nothing
+        // is selected yet — which is every day on a fresh form.
+        const tabbable = on || (!a?.mode && i === 0);
+        return `<button type="button" class="ot-mode" role="radio" data-date="${esc(date)}" data-mode="${esc(mode)}"
+                        aria-checked="${on}" tabindex="${tabbable ? 0 : -1}">${esc(label)}</button>`;
     }
 
     /** @param {string} date @param {any} a */

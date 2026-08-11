@@ -58,7 +58,7 @@ test.describe('member surface', () => {
         await seedSession(page, 'G. Miller');
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
-        await page.locator('.ot-day').first().getByRole('button', { name: 'Not available' }).click();
+        await page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }).click();
         await expect(page.locator('.ot-day--answered')).toHaveCount(1);
         await expect(page.locator('.ot-submit')).toContainText('6 days still to answer');
     });
