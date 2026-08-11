@@ -354,6 +354,46 @@ test('the member card can fall back to the staff PIN', async ({ page }) => {
     await expect(page.locator('#calendarDisplay')).toBeVisible();
 });
 
+// ── The page says something while it decides (v20.80) ───────────────────────────────────────────
+
+test('a slow decision shows a SKELETON, not a blank page — and no roster data in it', async ({ page }) => {
+    // What only a browser can answer: that the splash really has gone by then, and that the thing
+    // standing in its place is on screen rather than merely in the DOM. The unit test owns the
+    // timing rules; this owns "is the member looking at something".
+    await seedMember(page);
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 4000 });
+    });
+    await page.goto('/index.html');
+
+    await expect(page.locator('#calendarBooting')).toBeVisible({ timeout: 6000 });
+    // The splash is already down — which is the whole reason this is needed.
+    await expect(page.locator('#splash')).toBeHidden();
+    // Still no roster. The skeleton is drawn before anyone knows this browser may see one.
+    expect(await page.locator('.day-cell, .calendar-day, .calendar-grid').count()).toBe(0);
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+
+    // And it goes when the decision lands.
+    await expect(page.locator('#calLockPin')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#calendarBooting')).toHaveCount(0);
+});
+
+test('a normal boot never shows the skeleton at all', async ({ page }) => {
+    // The cost side. A member whose Calendar opens promptly must not see scenery flash first.
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        window.__sawSkeleton = false;
+        const check = () => {
+            if (document.getElementById('calendarBooting')) window.__sawSkeleton = true;
+            requestAnimationFrame(check);
+        };
+        requestAnimationFrame(check);
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    expect(await page.evaluate(() => window.__sawSkeleton)).toBe(false);
+});
+
 // ── Privilege isolation ─────────────────────────────────────────────────────────────────────────
 
 for (const [label, url] of [['Admin', '/admin.html'], ['Settings', '/settings.html']]) {

@@ -715,10 +715,15 @@ async function initPageSpeedCard() {
         p.textContent = text;
         return p;
     };
-    /** Per-page rows showing BOTH milestones — an "appears" bar and a "ready" bar per page — so the
-     *  same page's two speeds sit together and one page's "appears" can be scanned against every other.
-     *  @param {Array<any>} fcpByPage @param {Array<any>} pagesByPage @param {string} month */
-    const dualRows = (fcpByPage, pagesByPage, month) => {
+    /** Per-page rows showing ALL THREE milestones — appears, code loaded, usable — so the same page's
+     *  speeds sit together and one page's stage can be scanned against every other's.
+     *
+     *  The third column is the point (v20.80). With two columns the second one was labelled "ready"
+     *  and carried `domReady`, which is when the SCRIPTS finished, not when the page was usable — on
+     *  the Calendar those are now different by seconds. A page that never marks the milestone leaves
+     *  its cell EMPTY rather than borrowing another bar, exactly as a page with no paint data does.
+     *  @param {Array<any>} fcpByPage @param {Array<any>} pagesByPage @param {Array<any>} readyByPage @param {string} month */
+    const dualRows = (fcpByPage, pagesByPage, readyByPage, month) => {
         const frag = document.createDocumentFragment();
         const heading = document.createElement('p');
         heading.className = 'usage-section-label';
@@ -727,7 +732,8 @@ async function initPageSpeedCard() {
 
         const fcpMap   = new Map(fcpByPage.map(p => [p.page, p]));
         const pagesMap = new Map(pagesByPage.map(p => [p.page, p]));
-        const allPages = [...new Set([...pagesMap.keys(), ...fcpMap.keys()])]
+        const readyMap = new Map((readyByPage || []).map(p => [p.page, p]));
+        const allPages = [...new Set([...pagesMap.keys(), ...fcpMap.keys(), ...readyMap.keys()])]
             .sort((a, b) => (pagesMap.get(b)?.total || 0) - (pagesMap.get(a)?.total || 0)
                          || (fcpMap.get(b)?.total   || 0) - (fcpMap.get(a)?.total   || 0)
                          || a.localeCompare(b));
@@ -736,7 +742,9 @@ async function initPageSpeedCard() {
         rows.className = 'speed-rows';
         const head = document.createElement('div');
         head.className = 'speed-row speed-row--dual speed-dual-head';
-        head.innerHTML = '<span></span><span class="speed-dual-label">Appears</span><span class="speed-dual-label">Ready</span><span></span>';
+        head.innerHTML = '<span></span><span class="speed-dual-label">Appears</span>' +
+                         '<span class="speed-dual-label">Code</span>' +
+                         '<span class="speed-dual-label">Usable</span><span></span>';
         rows.appendChild(head);
 
         allPages.forEach(pg => {
@@ -745,13 +753,19 @@ async function initPageSpeedCard() {
             const label = meta ? meta.label : escapeHtml(pg);
             const f = fcpMap.get(pg);
             const r = pagesMap.get(pg);
-            const count = (r?.total) || (f?.total) || 0;
+            const u = readyMap.get(pg);
+            const count = (r?.total) || (f?.total) || (u?.total) || 0;
             const row = document.createElement('div');
             row.className = 'speed-row speed-row--dual';
             row.innerHTML =
                 `<span class="speed-row-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
                 `<span class="speed-bar" role="img" aria-label="appears: ${f ? f.pctQuick : 0}% quick">${f ? segs(f) : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="ready: ${r ? r.pctQuick : 0}% quick">${r ? segs(r) : ''}</span>` +
+                `<span class="speed-bar" role="img" aria-label="code loaded: ${r ? r.pctQuick : 0}% quick">${r ? segs(r) : ''}</span>` +
+                (u ? `<span class="speed-bar" role="img" aria-label="usable: ${u.pctQuick}% quick">${segs(u)}</span>`
+                   // An EMPTY bar is not the honest mark for "this page does not report the
+                   // milestone" — an unfilled track sitting beside a filled one reads as 0%, which
+                   // is a measurement, and the wrong one. A dash says there is no number.
+                   : '<span class="speed-bar-none" aria-label="usable: not reported">—</span>') +
                 `<span class="speed-row-count">${count.toLocaleString('en-GB')}</span>`;
             rows.appendChild(row);
         });
@@ -931,13 +945,22 @@ async function initPageSpeedCard() {
 
             // Section 2 — Opening a page: two milestones in timeline order (appears → ready).
             body.appendChild(subhead('📄', 'Opening pages', true));
-            body.appendChild(noteLine('Two moments when a page opens — when it first appears on screen, then when it’s fully ready to use.'));
+            body.appendChild(noteLine('Three moments when a page opens — when something first appears, when the app’s code has loaded, and when the page is actually usable.'));
             body.appendChild(subMilestone('✨', 'First appears'));
             body.appendChild(verdictBanner(perfVerdict(w.fcp.overall, 'fcp'), w.fcp.overall, w.fcp.total, 'page opens', windowLabel));
-            body.appendChild(subMilestone('✅', 'Fully ready'));
+            body.appendChild(subMilestone('📦', 'Code loaded'));
             body.appendChild(verdictBanner(perfVerdict(w.pages.overall, 'pages'), w.pages.overall, w.pages.total, 'page opens', windowLabel));
+            // The one an admin should read as "how fast is the app". The two above are stages of
+            // getting there and neither is the answer: "appears" is the splash painting, and "code
+            // loaded" fires while the Calendar can still be blank — it waits on the access decision,
+            // which is asynchronous and happens after DOMContentLoaded (v20.80).
+            body.appendChild(subMilestone('✅', 'Usable'));
+            body.appendChild(verdictBanner(perfVerdict(w.ready.overall, 'ready'), w.ready.overall, w.ready.total, 'page opens', windowLabel));
+            body.appendChild(noteLine('“Usable” is counted only on pages that report it, so its total is smaller than the two above — it is not a sign of fewer opens.'));
 
-            if (w.fcp.total || w.pages.total) body.appendChild(dualRows(w.fcp.byPage, w.pages.byPage, w.month));
+            if (w.fcp.total || w.pages.total || w.ready.total) {
+                body.appendChild(dualRows(w.fcp.byPage, w.pages.byPage, w.ready.byPage, w.month));
+            }
 
             // Section 3 — WHY. The per-page rows above say which page is slow; this says for whom.
             const why = whySection(w.samples || {}, w.pages.byPage);

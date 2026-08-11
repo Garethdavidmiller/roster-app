@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v20.70 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.80 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -574,6 +574,32 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
   injection is far lower-risk than script (which is fully locked down, no `'unsafe-inline'`). And the
   `connect-src` `firebasestorage.googleapis.com` entry is redundant under the `*.googleapis.com`
   wildcard but kept for explicit readability (harmless; the hygiene test tolerates it).
+
+### The App Speed card's "First appears" cannot mean the roster (v20.80) — inherent
+
+First Contentful Paint is defined by the browser as the first pixel of content, and on the Calendar
+that is the **splash** — inline markup in `index.html`. It has never measured the roster and no
+change to this app can make it, because the splash is deliberately the first thing painted.
+
+That mattered more than it looks once the v20.12 access gate landed, because the OTHER milestone was
+`domReady` and it drifted too: DOMContentLoaded is when the module scripts finish, and the access
+decision is asynchronous, so it can fire while the Calendar is still blank. Measured with the auth
+restore held at 2s — first paint 512ms, scripts done 669ms, **roster on screen 2630ms**. A card
+reading "fully ready in 669ms" was describing a load that took four times that.
+
+v20.80 added a third milestone, **Usable**, marked by the page itself when its own content is on
+screen, and relabelled `domReady` to "Code loaded" so nothing claims to be the answer that is not.
+What remains inherent:
+
+- **"First appears" is still the splash.** Kept because it is genuinely useful — it is the
+  difference between a slow network and a slow app — but it is not "the member can see their
+  roster", and reading it as that is the trap this note exists to close.
+- **"Usable" is a smaller population.** Only pages that mark the milestone report it: the Calendar,
+  and Admin/Operations/Links (which hide their whole shell until they are ready). Settings, the Pay
+  Calculator and Overtime render their cards immediately and have no equivalent instant, so their
+  cell shows a dash rather than a number. The card says so; the smaller total is not fewer opens.
+- **Historic data cannot be backfilled.** The metric starts at v20.80, so a month-over-month
+  comparison across that line has no "Usable" figure on the earlier side.
 
 ### Two card-collapse systems (v18.87 aesthetic pass) — owner decision, not drift-by-accident
 

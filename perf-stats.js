@@ -402,14 +402,26 @@ export function summariseBootPhases(samples, { page }) {
 
 /**
  * Plain-English verdict copy per journey:
- *   'login' = signing in · 'fcp' = a page first appearing on screen · 'pages' = a page being fully ready.
+ *   'login' = signing in · 'fcp' = a page first appearing on screen · 'pages' = the page's CODE
+ *   finishing (DOMContentLoaded) · 'ready' = the page's own content actually on screen.
+ *
+ * `pages` and `ready` used to be the same claim and are not (v20.80). DCL fires when the module
+ * scripts finish; the Calendar's access decision is asynchronous, so it can land while the page is
+ * still blank. The copy below therefore stops calling `pages` "fully ready" — that phrase now
+ * belongs to `ready` and to nothing else.
  */
 const VERDICT_TEXT = {
     pages: {
-        good: 'Pages become fully ready quickly for staff.',
-        ok:   'Pages mostly become ready quickly, with some slower loads.',
-        bad:  'Some staff are waiting too long for pages to be ready.',
+        good: 'The app\u2019s code loads quickly for staff.',
+        ok:   'The app\u2019s code mostly loads quickly, with some slower loads.',
+        bad:  'The app\u2019s code is taking too long to load for some staff.',
         none: 'Not enough data yet — this builds up as staff use the app.',
+    },
+    ready: {
+        good: 'Pages become usable quickly for staff.',
+        ok:   'Pages mostly become usable quickly, with some slower loads.',
+        bad:  'Some staff are waiting too long before a page is usable.',
+        none: 'Not enough data yet — only pages that report this milestone are counted.',
     },
     fcp: {
         good: 'Pages appear on screen almost instantly.',
@@ -429,7 +441,7 @@ const VERDICT_TEXT = {
  * One-line plain-English verdict for the overall speed, with a status tone for colour. Thresholds:
  * ≥20% slow → bad; else ≥80% quick → good; else ok. Empty → a "still building up" message.
  * @param {ReturnType<typeof _withPct>} overall
- * @param {'pages'|'login'|'fcp'} [kind]  which journey the copy describes
+ * @param {'pages'|'login'|'fcp'|'ready'} [kind]  which journey the copy describes
  * @returns {{ tone: 'good'|'ok'|'bad'|'none', text: string }}
  */
 export function perfVerdict(overall, kind = 'pages') {

@@ -30,6 +30,17 @@
  * Scoped to markup-`hidden` because that is the mechanical, checkable case. An element hidden only
  * by JS at runtime cannot be found statically — which is a limit worth stating rather than papering
  * over: this guard shrinks the trap, it does not abolish it.
+ *
+ * ── AND THE OPPOSITE FAULT (v20.80) ─────────────────────────────────────────────────────────────
+ *
+ * The same file also guards hiding that works TOO well. Three pages hide their entire `.container`
+ * until `body.auth-ready`, and their header lives inside it — so until their module graph has loaded
+ * and run they are a blank navy screen with nothing on it, not even a burger. That is the intended
+ * anti-flash behaviour doing exactly what it should and being indistinguishable from a broken page.
+ *
+ * So: a page that hides its whole shell must say something in the meantime. Derived from the CSS
+ * rather than from a list, because a list is what falls behind — a fourth page that adopts the
+ * pattern is caught the moment it does.
  */
 
 import { test } from 'node:test';
@@ -128,4 +139,54 @@ test('the fixes that prompted this guard are still in place', () => {
         'the Overtime tab strip fix');
     assert.match(stripCss(read('./overtime.css')), /\.ot-confirm-bar\[hidden\]/,
         'the Overtime confirm bar fix — a FIXED bottom bar, so it covered content on every page view');
+});
+
+
+// ── A page that hides its whole shell must say something meanwhile (v20.80) ─────────────────────
+
+/** Pages whose own stylesheets hide `.container` until a class arrives. */
+function pagesHidingTheirShell() {
+    return APP_PAGES.filter(page => stylesheetsFor(page).some(css => {
+        const c = stripCss(read(css));
+        // The pattern: `.container { … display: none … }` with a `body.<class> .container` rule
+        // restoring it. Matching the pair rather than the bare `display:none` keeps this away from
+        // an unrelated container that is hidden for good.
+        return /\.container\s*\{[^}]*display\s*:\s*none/.test(c) &&
+               /body\.[\w-]+\s+\.container\s*\{[^}]*display\s*:/.test(c);
+    }));
+}
+
+test('the shell-hiding page list is not empty — guard the guard', () => {
+    // If the CSS pattern is ever reworded, this fails loudly rather than passing over zero pages,
+    // which is the failure mode every derived-list guard in this repo has had to learn.
+    assert.ok(pagesHidingTheirShell().length >= 3,
+        `expected at least the three known shell-hiding pages, found ${JSON.stringify(pagesHidingTheirShell())}`);
+});
+
+test('every page that hides its whole shell carries a boot placeholder', () => {
+    for (const page of pagesHidingTheirShell()) {
+        const html = stripHtml(read(page));
+        assert.ok(/id="bootPlaceholder"/.test(html),
+            `${page} hides .container until a class arrives, so it is a BLANK page until its JS ` +
+            `runs — measured at 622ms locally with no network, and seconds on a phone. It needs ` +
+            `the #bootPlaceholder block (see shared.css .boot-placeholder).`);
+        // Outside `.container`, or it would be hidden by the very rule it exists to cover.
+        const before = html.slice(0, html.indexOf('id="bootPlaceholder"'));
+        assert.ok(!/<main[^>]*class="[^"]*container/.test(before),
+            `${page}'s boot placeholder is inside .container, where the hide rule reaches it — it ` +
+            `would never be seen, and nothing would say so.`);
+    }
+});
+
+test('the placeholder is removed by CSS, not by a coordinator', () => {
+    // The point of the whole thing is that it survives a page whose JS never arrives. If clearing it
+    // ever became a JS call, the one case it was built for would be the one case it fails.
+    const shared = stripCss(read('shared.css'));
+    assert.ok(/body\.auth-ready\s+\.boot-placeholder\s*\{[^}]*display\s*:\s*none/.test(shared),
+        'shared.css no longer hides .boot-placeholder on auth-ready');
+    for (const f of ['admin-app.js', 'operations-app.js', 'links-app.js']) {
+        assert.ok(!/bootPlaceholder/.test(read(f)),
+            `${f} touches #bootPlaceholder — it must be pure CSS in both directions, or a ` +
+            `coordinator that never finishes strands it`);
+    }
 });

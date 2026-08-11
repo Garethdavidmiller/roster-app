@@ -95,6 +95,10 @@ mock.module('./session.js', {
         reconcileExpiredIdentity: async (opts) => {
             ops.push('reconcile:' + JSON.stringify(opts || {}));
             if (reconcileHangs) await new Promise(() => {});   // never settles — the wedged-auth case
+            // A releasable hold, for the cases that need the decision to be SLOW but not stuck —
+            // the boot skeleton exists for exactly that window and a 6.5s real timeout would make
+            // its test unrunnable.
+            if (reconcileGate) await reconcileGate;
         },
         ensureNamedSession: async (name) => {
             ops.push('ensureNamedSession:' + name);
@@ -119,6 +123,8 @@ let silentReauthUser = undefined;
 /** When true, the mocked reconcile never settles — the wedged-auth-layer case the v20.45 bound
  *  exists for. A flag rather than a per-test mock because mock.module is import-time here. */
 let reconcileHangs = false;
+/** A promise the mocked reconcile awaits, so a test can hold the decision open. @type {Promise<void>|null} */
+let reconcileGate = null;
 
 /** Mutable so both sides of the switch are reachable — the whole point of the flag is that it has
  *  two behaviours, and a test that could only ever see one would be checking half a feature. */
@@ -215,6 +221,7 @@ beforeEach(() => {
     signOutBehavior = 'ok';
     silentReauthSucceeds = false;
     silentReauthUser = undefined;
+    reconcileGate = null;
     authSubs.clear();
     fetchQueue = [];
     lastFetchBody = null;
@@ -568,6 +575,52 @@ describe('initCalendarAccess', () => {
         assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
         emitAuth({ uid: 'member-1', isAnonymous: false });
         assert.equal(getAccessType(), 'none');
+    });
+
+    test('a SLOW decision puts a skeleton up, it carries no roster data, and the decision clears it', async () => {
+        // ── THE HOLE IT FILLS ───────────────────────────────────────────────────────────────────
+        // `calendar-app.js` dismisses the splash at module-execution time, so between that and the
+        // decision the page is a navy field with a header on it. MEASURED with the restore held at
+        // 3s: splash down ~700ms, a card at ~3.6s, 2.9s of blank in between — which reads as a
+        // broken app rather than a loading one.
+        //
+        // The third and fourth assertions are the security ones: this is drawn BEFORE anyone knows
+        // whether the browser may see the roster at all, so it has to be a shape and nothing else.
+        let release = () => {};
+        reconcileGate = new Promise(r => { release = r; });
+        const p = initCalendarAccess({ onGranted: () => {} });
+
+        await new Promise(r => setTimeout(r, 450));
+        const skeleton = lastPanelHtml();
+        assert.ok(skeleton.includes('cal-boot-grid'), 'nothing was shown during a slow decision');
+        assert.ok(!skeleton.includes('calLockPin'), 'the skeleton is not the PIN card');
+        assert.ok(!/\d{1,2}:\d{2}/.test(skeleton), 'a shift time reached a pre-access surface');
+        assert.ok(!/\b(RD|AL|RDW|SICK|SPARE)\b/.test(skeleton), 'a shift code reached a pre-access surface');
+
+        release();
+        await p;
+        assert.ok(!lastPanelHtml().includes('cal-boot-grid'), 'the skeleton survived the decision');
+    });
+
+    test('a decision that lands INSIDE the delay never flashes the skeleton — then or later', async () => {
+        // The other half, and the one that decides whether the threshold is a real number or a
+        // decoration. A boot that answers in 120ms must show nothing at all — and it must still show
+        // nothing at 600ms, because the timer is armed BEFORE the await and a decision that beats it
+        // has to disarm it. Without that clearing, a skeleton lands on top of a finished page half a
+        // second after it was ready, which is a worse artefact than the blank it was built to fix.
+        let release = () => {};
+        reconcileGate = new Promise(r => { release = r; });
+        const p = initCalendarAccess({ onGranted: () => {} });
+        setTimeout(release, 120);
+        // Sampled DURING, not after. A flash is over by the time the decision lands, so checking the
+        // end state would pass against a threshold of zero — which is what makes this the assertion
+        // that decides whether the delay is a real number.
+        await new Promise(r => setTimeout(r, 60));
+        assert.ok(!lastPanelHtml().includes('cal-boot'), 'the skeleton appeared inside the quiet window');
+        await p;
+        assert.ok(!lastPanelHtml().includes('cal-boot'), 'the skeleton flashed on a boot that was not slow');
+        await new Promise(r => setTimeout(r, 500));
+        assert.ok(!lastPanelHtml().includes('cal-boot'), 'a stale timer painted a skeleton over a finished page');
     });
 
     test('a workspace callback that THROWS does not stop access resolving', async () => {

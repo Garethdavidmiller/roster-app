@@ -35,7 +35,7 @@ import { isRestShift, computePeriodDeleteIds, mergeBookedPeriods, composeOtherVa
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency } from './perf-reporter.js';
+import { recordPageLatency, markPageReady } from './perf-reporter.js';
 
 
 /**
@@ -1583,6 +1583,9 @@ export function init() {
         });
         // All dropdowns are now populated — apply permissions then load data
         document.body.classList.add('auth-ready');
+        // The page's content is on screen from this line: `.container` is `display:none` until
+        // `auth-ready`, so everything before it was a blank page (v20.80). See markPageReady.
+        markPageReady();
         applyPermissions();
         // Render bulk-bar type pills from PILL_TYPES (single source of truth with per-row pills).
         // 'other' is excluded here — the deliberate one exception: an "Other" day needs a per-row

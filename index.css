@@ -2629,6 +2629,67 @@
             background: var(--bg-faint);
         }
 
+        /* ── The boot skeleton (v20.80) ───────────────────────────────────────────────────────
+           Shown only while the access decision is outstanding, and only after 400ms. The splash is
+           already down by then, so without it the page is a navy field with a header on it.
+
+           SHAPE ONLY — no dates, no times, nothing from the roster module — because at this moment
+           the browser may turn out to have no access at all.
+
+           The measurements below are the REAL grid's, read off a rendered calendar at 390px (2px
+           gap, 70px rows, `--radius-md` cells) rather than picked to look right. That is the point:
+           when the real grid replaces this, nothing on the page moves. */
+        .cal-boot {
+            padding: 8px 0 24px;
+            /* Scoped token, the same pattern the nav drawer uses for its on-navy fills. The real
+               cells are WHITE on this canvas, so the ghost is that colour at low alpha — a faint
+               version of the thing arriving, not a different material. */
+            --boot-ghost: rgba(255, 255, 255, 0.10);
+        }
+        .cal-boot-head {
+            height: 40px;                      /* `.calendar-header` */
+            margin: 0 0 6px;
+            border-radius: var(--radius-md);
+            background: var(--boot-ghost);
+        }
+        .cal-boot-days,
+        .cal-boot-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+        }
+        .cal-boot-days { margin-bottom: 6px; }
+        .cal-boot-days span {
+            height: 18px;                      /* `.day-header` */
+            border-radius: var(--radius-sm);
+            background: var(--boot-ghost);
+        }
+        .cal-boot-grid { grid-auto-rows: 70px; }
+        .cal-boot-cell {
+            border-radius: var(--radius-md);   /* the real `.calendar-day` radius */
+            background: var(--boot-ghost);
+            animation: cal-boot-pulse 1.4s var(--ease-standard) infinite;
+        }
+        /* Stagger by column so it reads as a sweep rather than 42 things blinking in unison. */
+        .cal-boot-cell:nth-child(7n+2) { animation-delay: 0.08s; }
+        .cal-boot-cell:nth-child(7n+3) { animation-delay: 0.16s; }
+        .cal-boot-cell:nth-child(7n+4) { animation-delay: 0.24s; }
+        .cal-boot-cell:nth-child(7n+5) { animation-delay: 0.32s; }
+        .cal-boot-cell:nth-child(7n+6) { animation-delay: 0.40s; }
+        .cal-boot-cell:nth-child(7n)   { animation-delay: 0.48s; }
+        @keyframes cal-boot-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.75; } }
+        /* Desktop: the real grid gets taller, looser rows — mirror them (see `.calendar-grid`). */
+        @media (min-width: 1024px) {
+            .cal-boot-days, .cal-boot-grid { gap: 10px; }
+            .cal-boot-grid { grid-auto-rows: minmax(90px, 1fr); }
+        }
+        /* A pulse is decoration; a resting shape still says "working" beside the live region. */
+        @media (prefers-reduced-motion: reduce) {
+            .cal-boot-cell { animation: none; opacity: 0.5; }
+        }
+        /* Nothing here belongs on paper — and a printed page cannot finish loading. */
+        @media print { .cal-boot { display: none !important; } }
+
         /* The MEMBER variant's explanation (v20.79). It stands alone rather than sitting under a
            field, so it has to carry the breathing room `.login-field`'s own margin would otherwise
            have given it — without this the sentence sits ~10px off the button, where every other

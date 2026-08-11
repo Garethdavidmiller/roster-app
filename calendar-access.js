@@ -403,10 +403,62 @@ const SUBMIT_LABEL = 'Unlock Calendar →';
 
 /** @type {HTMLElement|null} */ let _panel = null;
 /** @type {any} */ let _backoffTimer = null;
+/** @type {any} */ let _skeletonTimer = null;
 
 function hideLockPanel() {
     if (_panel) { _panel.remove(); _panel = null; }
     if (_backoffTimer) { clearTimeout(_backoffTimer); _backoffTimer = null; }
+    if (_skeletonTimer) { clearTimeout(_skeletonTimer); _skeletonTimer = null; }
+}
+
+/** How long the decision may take before the page has to say something. Long enough that a normal
+ *  boot — where access resolves in the same tick the workspace would have rendered — never flashes
+ *  it, short enough that nobody stares at nothing. */
+const SKELETON_AFTER_MS = 400;
+
+/**
+ * Say "working", while the access decision is still outstanding.
+ *
+ * ── THE HOLE THIS FILLS (v20.80) ────────────────────────────────────────────────────────────────
+ *
+ * The splash is dismissed by `calendar-app.js` at module-execution time — deliberately, because
+ * leaving it up would trap a locked visitor behind a loading screen with no way out. But the access
+ * decision resolves LATER, and between the two there is nothing on the page at all: a navy field, a
+ * burger and a wordmark. MEASURED, with the auth restore held at 3s: splash down at ~700ms, the
+ * card or the grid at ~3.6s, and 2.9 seconds of blank in between. It reads as a broken app, which
+ * is a worse answer than the loading screen it replaced. `splash-watchdog.js` does not cover it
+ * either — it stands down the moment the splash gets `.hidden`, which is exactly when this starts.
+ *
+ * It shows the SHAPE of a calendar and no data — no dates, no shift text, nothing from the roster
+ * module — so it is safe in front of a visitor who may turn out to have no access at all. That is
+ * why it is here rather than in the workspace: `calendar-app.js` may not run a single line until
+ * access is granted, and this has to appear before that is known.
+ *
+ * It occupies `_panel`, so every existing teardown already removes it: `grant()` and both cards
+ * call `hideLockPanel()` first.
+ */
+function showBootSkeleton() {
+    // Nothing should be up when this fires — `hideLockPanel` owns the timer and every path that
+    // answers the decision calls it — but replace rather than stack, like both cards do, so this can
+    // never orphan a panel it did not build.
+    hideLockPanel();
+    const host = document.querySelector('.container') || document.body;
+    if (!host) return;
+    const el = document.createElement('section');
+    el.id = 'calendarBooting';
+    el.className = 'cal-boot';
+    // Month bar, day-name row, then 42 cells — six weeks, the calendar's own worst case, so the
+    // block does not resize when the real grid replaces it. The measurements in the CSS are the
+    // REAL grid's, taken from a rendered calendar rather than guessed, so the swap is a fill-in
+    // rather than a re-layout. `aria-hidden` because it is scenery: the live region above is what a
+    // screen reader should hear, and 42 announced blanks is what it should not.
+    el.innerHTML =
+        '<p class="sr-only" role="status">Loading the roster…</p>' +
+        '<div class="cal-boot-head" aria-hidden="true"></div>' +
+        '<div class="cal-boot-days" aria-hidden="true">' + '<span></span>'.repeat(7) + '</div>' +
+        '<div class="cal-boot-grid" aria-hidden="true">' + '<span class="cal-boot-cell"></span>'.repeat(42) + '</div>';
+    host.appendChild(el);
+    _panel = el;
 }
 
 /**
@@ -733,6 +785,10 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     // it to somebody who is about to be shown the PIN.
     setWorkspaceHidden(true);
     document.body.classList.add('calendar-locked');
+
+    // Say something if the decision is slow (v20.80). Scheduled BEFORE the await, cleared by every
+    // path out of it — `grant()` and both cards call `hideLockPanel()`, which owns the timer.
+    _skeletonTimer = setTimeout(() => { _skeletonTimer = null; showBootSkeleton(); }, SKELETON_AFTER_MS);
 
     /** @type {'named'|'viewer'|'open'|'none'} */
     let type;

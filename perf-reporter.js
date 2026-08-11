@@ -39,6 +39,42 @@ export function clearLoginStart() {
     try { sessionStorage.removeItem(LOGIN_T0_KEY); } catch { /* sessionStorage unavailable */ }
 }
 
+/** The mark `markPageReady` writes and `recordPageLatency` reads. */
+export const PAGE_READY_MARK = 'myb-page-ready';
+
+/**
+ * Mark the instant this page's MAIN CONTENT is actually on screen.
+ *
+ * ── WHY THIS EXISTS (v20.80) ────────────────────────────────────────────────────────────────────
+ *
+ * Until now the card's two page milestones were `fcp` ("first appears") and `domReady` ("fully
+ * ready"), and the v20.12 access gate quietly made both of them stop describing the thing an admin
+ * reads them as.
+ *
+ *   · `fcp` is the first pixel painted, which on the Calendar is the SPLASH — inline markup in
+ *     index.html. It has never measured the roster and cannot.
+ *   · `domReady` is DOMContentLoaded, i.e. the module scripts finishing. `initCalendarAccess` is
+ *     async, so DCL now fires while the Calendar is still blank. MEASURED with the auth restore
+ *     held at 2s: fcp 512ms, domReady 669ms, roster on screen **2630ms**. The card would have
+ *     called that load "fully ready in 669ms".
+ *
+ * So this is the milestone the other two cannot be. A page calls it once, at the moment its own
+ * content is genuinely usable — the Calendar's first grid render, and the three pages whose
+ * `.container` is hidden until `body.auth-ready`. Everything before it is a page the member is
+ * looking at and cannot use.
+ *
+ * Idempotent (the first call wins — `performance.mark` would otherwise record a second entry and
+ * `getEntriesByName()[0]` would still read the first, but a re-render must not even try). Silent on
+ * any platform without the Performance API: the metric is simply absent, which the card handles.
+ * @returns {void}
+ */
+export function markPageReady() {
+    try {
+        if (performance.getEntriesByName?.(PAGE_READY_MARK)?.length) return;
+        performance.mark(PAGE_READY_MARK);
+    } catch { /* Performance API unavailable — the metric is skipped, nothing else changes */ }
+}
+
 /** Read non-identifying environment dimensions (PWA display mode + connection class). */
 function envContext() {
     let mode = 'browser';
@@ -103,6 +139,14 @@ export function recordPageLatency(page, identity = null) {
         let sdkMark;
         try { sdkMark = performance.getEntriesByName?.('myb-sdk-ready')?.[0]?.startTime; } catch { /* no marks */ }
         Object.assign(metrics, bootPhases(nav, sdkMark));
+        // 'ready' — the page's own content on screen (see markPageReady). Read the same way as the
+        // SDK mark. ABSENT on a page that does not mark, and absent is the honest answer there: a
+        // fabricated fallback to domReady would put the exact number this metric exists to
+        // contradict under the label that says it is something else.
+        try {
+            const readyMark = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime;
+            if (typeof readyMark === 'number') metrics.ready = readyMark;
+        } catch { /* no marks */ }
         for (const metric of Object.keys(metrics)) {
             const bucket = bucketDuration(metrics[metric]);
             if (bucket) recordPerfSample({ page, metric, bucket, mode, conn });

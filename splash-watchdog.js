@@ -9,6 +9,21 @@
 // splash stays up FOREVER with no recovery. This watchdog runs regardless and gives a stuck
 // launch a way out: one guarded auto-reload, then a manual Reload / Reset-cache panel.
 //
+// ── IT WATCHES THE PAGE, NOT THE SPLASH (v20.80) ────────────────────────────────────────────────
+//
+// It used to stand down the instant the splash was gone or fading, which was right when the splash
+// was the only thing between a launch and the Calendar. It is not any more. `calendar-app.js`
+// dismisses the splash at module-execution time — deliberately, so a locked visitor is not trapped
+// behind a loading screen — while the ACCESS DECISION resolves later and asynchronously. So the
+// page can reach a state this watchdog treated as healthy (splash gone) and yet show nothing at
+// all: no roster, no unlock card, no error. The retirement condition was exactly the moment the
+// risky window opened.
+//
+// The question is therefore "is anything usable on screen?", and the answer is any ONE of: the
+// splash gone AND the Calendar rendered, or an unlock/sign-in card up, or an error banner showing.
+// The boot skeleton is deliberately NOT on that list — at 20s a skeleton is a load that has failed,
+// which is the whole point of the check.
+//
 // CSP note: `script-src 'self'` forbids inline scripts, so this must be a same-origin file, not
 // an inline block. Runtime-only (guarded on `document`) so importing it in tests is a no-op.
 (function () {
@@ -21,11 +36,28 @@
                                             // slow load and then showed a false "stale copy" panel (v16.19)
     var RELOAD_KEY = 'myb_splash_reloaded'; // sessionStorage guard: AT MOST one auto-reload per launch (no loop)
 
+    /** Is there anything on screen the member can actually use or act on? */
+    function pageIsUsable() {
+        // The unlock card, the member sign-in card, or the re-lock card — every one of them is a
+        // working page with a next step on it.
+        if (document.getElementById('calendarLock')) return true;
+        // An error banner: not a happy outcome, but it is calendar-app.js's own catch reporting,
+        // which means the app ran. Reloading over the top of it would hide the message.
+        var banner = document.getElementById('errorBanner');
+        if (banner && banner.classList.contains('visible')) return true;
+        // The Calendar itself. `firstElementChild` rather than a class name: the renderer owns its
+        // markup and this file must not have an opinion about it.
+        var display = document.getElementById('calendarDisplay');
+        return !!(display && display.firstElementChild);
+    }
+
     setTimeout(function () {
         var splash = document.getElementById('splash');
-        // App started normally → calendar-app.js already removed the splash, OR added `.hidden`
-        // and is mid fade-out (removed on transitionend / a 1s fallback). Either way, not stuck.
-        if (!splash || !document.body.contains(splash) || splash.classList.contains('hidden')) return;
+        var splashUp = !!(splash && document.body.contains(splash) && !splash.classList.contains('hidden'));
+        // Healthy: the splash has gone AND something usable replaced it. Either half alone is not
+        // enough — a splash still up is the original stuck launch, and a splash gone with an empty
+        // page is the one this check was blind to until v20.80.
+        if (!splashUp && pageIsUsable()) return;
 
         // First stuck detection this session: try ONE reload — it picks up a freshly-deployed SW
         // and re-runs the module load (fixes the common mid-deploy-transition case with zero
@@ -43,14 +75,27 @@
         showRecovery(splash);
     }, TIMEOUT_MS);
 
-    /** Replace the splash with a self-contained recovery panel. Inline styles (so it renders even
-     *  if index.css never loaded) and textContent only (no injection surface). */
-    function showRecovery(/** @type {HTMLElement} */ splash) {
+    /** Replace the splash with a self-contained recovery panel — or BUILD one where the splash has
+     *  already gone, which is the blank-page case (v20.80). Inline styles (so it renders even if
+     *  index.css never loaded) and textContent only (no injection surface).
+     *  @param {HTMLElement|null} splash */
+    function showRecovery(splash) {
+        // The splash was dismissed and nothing usable arrived. Recreate the same full-screen
+        // surface rather than appending to a page whose layout we cannot rely on: the fixed inset
+        // is what makes this readable regardless of what did or did not render underneath.
+        if (!splash || !document.body.contains(splash)) {
+            splash = document.createElement('div');
+            splash.id = 'splash';
+            splash.style.cssText = 'position:fixed;inset:0;z-index:9999';
+            document.body.appendChild(splash);
+        }
         while (splash.firstChild) splash.removeChild(splash.firstChild);
+        splash.classList.remove('hidden');
         splash.setAttribute('aria-hidden', 'false');
         splash.setAttribute('role', 'alertdialog');
         splash.style.background = '#001e3c';   // navy fallback if index.css didn't load
         splash.style.pointerEvents = 'auto';
+        splash.style.opacity = '1';            // `.hidden` faded it out; it is being reused now
 
         var title = document.createElement('div');
         title.textContent = 'Marylebone Roster couldn’t finish loading';
