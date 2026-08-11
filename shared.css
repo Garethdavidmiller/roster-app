@@ -1592,12 +1592,17 @@ body.lb-open #stickyTotal { display: none !important; }
 /* Overtime — the app's clock-face feature, so it takes the sky-blue that no other
    pill uses. Deliberately not gold (the Calendar's) and not purple (Links'): a
    drawer of six pills only works as a map if each colour means one destination. */
+/* `--ot` is the app's OVERTIME colour and has been since long before this page —
+   the admin override list's overtime pill and the paycalc overtime rate badge both
+   wear it. The pill shipped in `--blue-sky` instead, which is the LATE SHIFT colour,
+   and which is the one hue that neither contrasts with the navy drawer nor belongs
+   to it: on a navy surface it reads as a lighter patch of the surface itself. */
 .nav-panel-pill--overtime {
-    background: var(--blue-sky);
+    background: var(--ot);
     color: white;
 }
 @media (hover: hover) {
-    .nav-panel-pill--overtime:hover { background: color-mix(in oklch, var(--blue-sky) 91%, black); }
+    .nav-panel-pill--overtime:hover { background: color-mix(in oklch, var(--ot) 91%, black); }
 }
 
 .nav-panel-pill--links {

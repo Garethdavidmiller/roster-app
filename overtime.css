@@ -21,11 +21,11 @@
    column would leave the same half-empty navy space the v18.59 settings pass
    removed. */
 
-.app { max-width: 620px; margin: 0 auto; }
+.app { max-width: 560px; margin: 0 auto; }
 
 @media (min-width: 768px) {
-    .app        { max-width: 680px; }
-    .app-header { max-width: 680px; margin-left: auto; margin-right: auto; }
+    .app        { max-width: 600px; }
+    .app-header { max-width: 600px; margin-left: auto; margin-right: auto; }
 }
 
 .app-header { margin-bottom: 4px; }
@@ -38,45 +38,51 @@
     margin-bottom: 12px;
 }
 
-/* ── Page title ─────────────────────────────────────────────────────────── */
+/* ── Page identity ──────────────────────────────────────────────────────────
+   Every other page colours its own header chip (#opsBadge orange, #settingsBadge
+   indigo, #linksBadge purple, …). This file defined NO rule, so the chip fell back
+   to `.badge-page`'s default — which is GOLD, the Calendar's colour. The page wore
+   two identity colours, neither of which was its own.
 
-.ot-page-title {
-    color: white;
-    font-size: var(--type-large);
-    font-weight: 700;
-    margin: 0 0 var(--space-3);
-    letter-spacing: 0.01em;
-}
+   `--ot` is the app's overtime colour and predates this page entirely. */
+
+#overtimeBadge { background: var(--ot); color: white; }
+
+/* There is deliberately NO on-canvas page title. The page carried an
+   `<h2 class="ot-page-title">⏱️ Overtime availability</h2>` under the header, which
+   no other app page has: the header already names the page, with the same emoji,
+   two lines above. Two titles is not emphasis, it is a page that has not decided
+   where its name lives. */
 
 /* ── BETA · Live use ────────────────────────────────────────────────────────
    Restrained by design. The data really is operational, so this must read as
    "still being refined", never as "test data" — which would be false, and would
    invite somebody to submit availability they do not mean. */
 
+/* A LINE, not a band. It was a bordered box with a gold chip, which made it the
+   third full-width slab between the header and the first card — and gold is the
+   Calendar's accent, so the loudest thing on the page pointed somewhere else.
+   The message still has to be here (staff must know the data is real), so it stays;
+   it just stops competing with the content it is a caveat about. */
 .ot-beta {
     display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    margin-bottom: var(--space-4);
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: var(--radius);
+    align-items: baseline;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-3);
+    padding-left: var(--space-3);
+    border-left: 2px solid rgba(255, 255, 255, 0.22);
 }
 
 .ot-beta p {
     margin: 0;
-    color: rgba(255, 255, 255, 0.78);
+    color: rgba(255, 255, 255, 0.72);
     font-size: var(--type-small);
     line-height: 1.5;
 }
 
 .ot-beta-chip {
     flex-shrink: 0;
-    padding: 3px 10px;
-    border-radius: var(--radius-pill);
-    background: var(--accent-gold);
-    color: var(--primary-blue);
+    color: rgba(255, 255, 255, 0.9);
     font-size: var(--type-micro);
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -112,13 +118,18 @@
     transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 
+/* The SELECTED tab is the card surface, so the strip reads as the top edge of the
+   panel below it. It was a full-width GOLD slab — gold is the app's small accent
+   (today's cell, the active highlight), and at this size it was both the loudest
+   element on the page and, again, the Calendar's colour. */
 .ot-tab[aria-selected="true"] {
-    background: var(--accent-gold);
-    border-color: var(--accent-gold);
+    background: var(--surface);
+    border-color: var(--surface);
     color: var(--primary-blue);
+    font-weight: 700;
 }
 
-.ot-tab:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
+.ot-tab:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
 
 /* ── Explainer + privacy copy ───────────────────────────────────────────── */
 
