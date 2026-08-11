@@ -87,6 +87,38 @@ export function shouldResyncClock(correctedNow, deadlines) {
         correctedNow > d - DEADLINE_SYNC_WINDOW_MS && correctedNow < d + DEADLINE_SYNC_WINDOW_MS);
 }
 
+/**
+ * How long a rostered duty runs, in minutes — overnight-aware.
+ *
+ * "22:00–07:00" is nine hours, not minus fifteen: an end at or before the start means the duty
+ * crosses midnight, which is how the roster writes every dispatcher night turn. Returns null for
+ * anything that is not a pair of HH:MM times, so an unknown day never pretends to have a length.
+ * @param {string|null|undefined} start @param {string|null|undefined} end
+ * @returns {number|null}
+ */
+export function shiftSpanMinutes(start, end) {
+    const re = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    const s = typeof start === 'string' ? start.match(re) : null;
+    const e = typeof end === 'string' ? end.match(re) : null;
+    if (!s || !e) return null;
+    const sm = Number(s[1]) * 60 + Number(s[2]);
+    const em = Number(e[1]) * 60 + Number(e[2]);
+    return em > sm ? em - sm : em + 1440 - sm;
+}
+
+/**
+ * Are two stored day answers the same declaration?
+ *
+ * Structural and order-independent, because the two sides come from different producers — the
+ * form's `buildAnswer` and the server's canonicalised copy — whose key ORDER may differ while the
+ * answer does not. A `JSON.stringify` comparison would call those different, and the form would
+ * mark a day "changed" that the member has not touched.
+ * @param {any} a @param {any} b
+ */
+export function sameAnswer(a, b) {
+    return stableStringify(a ?? null) === stableStringify(b ?? null);
+}
+
 // ── Words ───────────────────────────────────────────────────────────────────────────────────────
 
 const DAY_NAMES   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -285,14 +317,28 @@ export function countsCopy(expected, received) {
  * The roster-derived shortcuts exist ONLY where an authoritative duty time is known. Without one
  * there is no boundary to anchor to, and offering them anyway would either invent one or quietly
  * attach one from a base roster nobody has verified.
- * @param {{hasTime?: boolean, overnight?: boolean}|null} ctx
+ *
+ * ── "UP TO 12 HOURS" IS OFFERED UNLESS THE DAY ALREADY REACHES 12 (v20.83, owner) ───────────────
+ *
+ * Twelve hours is the ceiling of a turn, so the declaration means "I will work up to a 12-hour
+ * day" — a full 12-hour turn on a rest day, or extending a rostered duty to 12 hours total on a
+ * worked one. The one day it is meaningless is a day whose EFFECTIVE roster already reaches
+ * 720 minutes — including a 12-hour RDW already agreed as extra — because there is nothing left
+ * to offer; on that day the pill is withheld.
+ *
+ * The gate needs a POSITIVE fact to fire: `rosteredMinutes` is null when the day's length is
+ * unknown, and unknown is not "already rostered 12 hours", so the pill shows. That is the same
+ * direction every unknown resolves on this page — withhold what would ANCHOR to an unverified
+ * roster (the before/after shortcuts), keep what anchors to nothing (this, all-day, custom).
+ * @param {{hasTime?: boolean, overnight?: boolean, rosteredMinutes?: number|null}|null} ctx
  * @returns {string[]}
  */
 export function modesFor(ctx) {
-    const basic = ['unavailable', 'all_day', 'custom'];
-    if (!ctx || !ctx.hasTime) return basic;
-    if (ctx.overnight) return ['unavailable', 'all_day', 'before', 'custom'];
-    return ['unavailable', 'all_day', 'before', 'after', 'before_after', 'custom'];
+    const twelve = Number.isFinite(ctx?.rosteredMinutes) && /** @type {number} */ (ctx?.rosteredMinutes) >= 720
+        ? [] : ['twelve_hours'];
+    if (!ctx || !ctx.hasTime) return ['unavailable', 'all_day', ...twelve, 'custom'];
+    if (ctx.overnight) return ['unavailable', 'all_day', ...twelve, 'before', 'custom'];
+    return ['unavailable', 'all_day', ...twelve, 'before', 'after', 'before_after', 'custom'];
 }
 
 /**
@@ -330,6 +376,7 @@ export function answerCopy(day) {
     switch (day.mode) {
         case 'unavailable':  return 'Not available';
         case 'all_day':      return 'Available all day';
+        case 'twelve_hours': return 'Available for up to 12 hours';
         case 'before':       return `Available before ${day.until}`;
         case 'after':        return `Available after ${day.from}`;
         case 'before_after': return `Available before ${day.until} and after ${day.from}`;

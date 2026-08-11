@@ -29,6 +29,7 @@ export const CARD_TIPS = {
                 heading: 'What it does and does not do',
                 items: [
                     { icon: '📋', html: 'This tells the roster team when you are <strong>available</strong>. It does not book overtime and does not guarantee any.' },
+                    { icon: '⏱️', html: '<strong>Up to 12 hours</strong> means you would work up to a 12-hour day — a full turn on a rest day, or extending your shift on a worked one. It is not offered where the day is already rostered to 12 hours.' },
                     { icon: '✅', html: 'The <strong>released roster</strong> is the only place that shows overtime you have actually been given.' },
                     { icon: '🔒', html: 'Managers and the admin can see what you submit. Forms are kept for around 13 weeks and then deleted.' },
                 ],

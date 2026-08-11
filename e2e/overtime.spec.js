@@ -691,6 +691,58 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         expect(await late.locator('[data-mode]').allTextContents()).toContain('Before & after duty');
     });
 
+    test('"Up to 12 hours" is withheld only where the day already reaches 12 rostered hours (v20.83)', async ({ page }) => {
+        // The owner's rule end-to-end: a 12-hour RDW already agreed as extra gates the offer on
+        // THAT day, while a spare day and an ordinary duty keep it. Driven through the real
+        // roster loader — override read, resolveEffectiveShift, span maths — not a stubbed ctx.
+        await seedSession(page, 'G. Miller');
+        const twelve = [...OVR,
+            { id: 'o4', memberName: 'G. Miller', date: D[3], type: 'rdw', value: '09:00-21:00', note: '', source: 'manual' }];
+        await stubWithRoster(page, [winOver()], twelve);
+        await page.goto('/overtime.html');
+        await page.locator(`[data-day="${D[3]}"]`).waitFor();
+
+        const rdw12 = await page.locator(`[data-day="${D[3]}"] [data-mode]`).allTextContents();
+        expect(rdw12).not.toContain('Up to 12 hours');
+        // A spare day (no times) and an 8.7-hour duty both leave headroom, so both offer it.
+        expect(await page.locator(`[data-day="${D[0]}"] [data-mode]`).allTextContents()).toContain('Up to 12 hours');
+        expect(await page.locator(`[data-day="${D[6]}"] [data-mode]`).allTextContents()).toContain('Up to 12 hours');
+        // And it submits like any other answer — the label is a real option, not a decoration.
+        await page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`).click();
+        await expect(page.locator(`[data-day="${D[0]}"] [data-mode="twelve_hours"]`)).toHaveAttribute('aria-checked', 'true');
+    });
+
+    test('the day rows speak admin\'s state grammar — cream over a changed saved answer (v20.83)', async ({ page }) => {
+        // Green = recorded, gold = chosen but nothing saved yet, CREAM = about to overwrite a
+        // saved answer. The classes are asserted (page-css-parity proves they are styled); the
+        // paint itself is locked by the visual baselines.
+        await seedSession(page, 'G. Miller');
+        const saved = Object.fromEntries(D.map(d => [d, { mode: 'unavailable' }]));
+        delete saved[D[1]];   // one day deliberately unanswered
+        const days = { ...saved };
+        await stubWithRoster(page, [winOver({ submission: { currentRevision: 1, days } })], OVR);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+
+        // Wait — a saved week is seven answers; the fixture leaves D[1] out, so six saved.
+        await expect(page.locator(`[data-day="${D[0]}"]`)).toHaveClass(/ot-day--saved/);
+        await expect(page.locator(`[data-day="${D[1]}"]`)).not.toHaveClass(/ot-day--saved|ot-day--set|ot-day--changed/);
+
+        // Choosing on the unanswered day → gold "ready to save", never cream: nothing is overwritten.
+        await page.locator(`[data-day="${D[1]}"] [data-mode="all_day"]`).click();
+        await expect(page.locator(`[data-day="${D[1]}"]`)).toHaveClass(/ot-day--set/);
+
+        // Changing a SAVED day → cream, the same "you are about to overwrite something recorded"
+        // admin's week grid wears for exactly this.
+        await page.locator(`[data-day="${D[0]}"] [data-mode="all_day"]`).click();
+        await expect(page.locator(`[data-day="${D[0]}"]`)).toHaveClass(/ot-day--changed/);
+
+        // Re-choosing the saved mode reads as untouched again — key order and structural equality,
+        // so a member who wanders and returns is not left under a warning tint.
+        await page.locator(`[data-day="${D[0]}"] [data-mode="unavailable"]`).click();
+        await expect(page.locator(`[data-day="${D[0]}"]`)).toHaveClass(/ot-day--saved/);
+    });
+
     test('re-pressing a saved anchored answer keeps it, even when the roster lost its time', async ({ page }) => {
         // The stale note says "change it if that no longer suits", inviting a tap on the selected
         // pill. Before v20.75 that tap rebuilt the answer from the CURRENT roster — a rest day, no

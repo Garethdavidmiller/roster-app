@@ -663,6 +663,22 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         assert.equal(rev.mutationId, 'mutation-0001');
     });
 
+    test('a week containing "up to 12 hours" saves end-to-end (v20.83)', async () => {
+        // Through the REAL handler, not just the schema: the new mode has to survive
+        // normaliseDays, the transaction, and the head+revision write like any established one.
+        freeze(Date.parse('2026-08-17T09:00:00Z'));
+        const { db, eps } = build(seededWindow());
+        const days = allDay();
+        const first = Object.keys(days).sort()[0];
+        days[first] = { mode: 'twelve_hours' };
+        const r = await call(eps.submitOvertimeAvailability, req(good({ days })));
+        unfreeze();
+        assert.equal(r.code, 200);
+        const head = db._store.get(`overtimeWindows/${WEEK}/submissions/G. Miller`);
+        assert.deepEqual(head.days[first], { mode: 'twelve_hours' },
+            'stored with its mode and nothing else — a ceiling, not a clock time');
+    });
+
     test('a genuine amendment appends a revision and leaves the old one untouched', async () => {
         freeze(Date.parse('2026-08-17T09:00:00Z'));
         const { db, eps } = build(seededWindow());

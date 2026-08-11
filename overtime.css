@@ -232,7 +232,9 @@ body {
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-3);
-    background: var(--surface-sunken);
+    /* The row-card recipe admin's week uses: surface + 1px border, with the 4px
+       left edge carrying the STATE — not a permanently grey sunken slab. */
+    background: var(--surface);
     border: 1px solid var(--border-light);
     border-left: 4px solid var(--border-mid);
     border-radius: var(--radius);
@@ -502,18 +504,38 @@ body {
     gap: var(--space-3);
 }
 
+/* ── The day row wears ADMIN'S state grammar (v20.83) ────────────────────────
+   Change-a-Shift already taught staff what these colours mean on a week of day
+   rows, and this is the same content — a day, a roster badge, a run of pills —
+   so it borrows the vocabulary rather than inventing a second one. The page had
+   drifted into its own: permanently grey sunken rows with a thick grey edge, no
+   cream anywhere, and a changed saved answer indistinguishable from an
+   untouched one. Reported as "doesn't feel as well done as admin", which is
+   what a missing state system looks like from the outside.
+
+     plain row      unanswered — the normal state, no colour at all
+     gold tint      chosen this sitting, nothing saved yet (admin .selected)
+     CREAM          about to overwrite a saved answer (admin .day-row.has-override:
+                    --al-confirm-bg + the muted --conflict-strong accent)
+     green accent   what is shown is what is recorded */
 .ot-day {
     padding: var(--space-3);
-    background: var(--surface-sunken);
+    background: var(--surface);
     border: 1px solid var(--border-light);
-    border-left: 4px solid var(--border-mid);
     border-radius: var(--radius);
+    transition: background var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard);
 }
 
-/* An ANSWERED day is marked, and an unanswered one is simply not — no red, no
-   warning. Seven unanswered days on first open is the normal state, not an
-   error, and colouring it as one would make the form feel like a telling-off. */
-.ot-day--answered { border-left-color: var(--success-green); }
+.ot-day--set {
+    background: color-mix(in srgb, var(--accent-gold) 8%, transparent);
+    border-left: 4px solid var(--accent-gold);
+}
+.ot-day--changed {
+    background: var(--al-confirm-bg);
+    border-left: 4px solid var(--conflict-strong);
+}
+.ot-day--saved { border-left: 4px solid var(--success-green); }
 
 .ot-day-head {
     display: flex;
@@ -523,10 +545,18 @@ body {
     margin-bottom: 7px;
 }
 
+/* Admin's two-part day label — the bold day, the lighter smaller date — instead
+   of one 13px/700 run. The same fact now dresses the same way on both pages. */
 .ot-day-name {
     font-size: var(--type-label);
     font-weight: 700;
     color: var(--text-dark);
+}
+
+.ot-day-date {
+    font-size: var(--type-badge);
+    font-weight: 400;
+    color: var(--text-light);
 }
 
 /* The day's roster context, drawn with the app's own shift badge (`getShiftBadge`) rather than
@@ -582,7 +612,7 @@ body {
    all. Content-width capsules also pack two or three to a row, so a day block stopped being three
    rows of half-width boxes. */
 .ot-mode {
-    padding: 6px 12px;
+    padding: 5px 10px;   /* admin's .type-pill-btn, exactly — one pill recipe across both pages */
     /* 44px, the app's touch target — NOT the 36px this shipped with (v20.77).
        These are the most-tapped controls in the app: seven days, up to six options each, and
        answering a week means hitting them six or seven times on a phone. They are a deliberate

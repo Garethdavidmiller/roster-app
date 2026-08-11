@@ -479,6 +479,14 @@ function isSafeDocId(name) {
 const AVAILABILITY_MODES = Object.freeze({
     unavailable:  Object.freeze([]),
     all_day:      Object.freeze([]),
+    // "Available for up to 12 hours" (v20.83, owner). SELF-CONTAINED like all_day — the twelve is
+    // the legal ceiling of a turn, not a clock boundary, so there is nothing to store beyond the
+    // mode and nothing here for a roster change to invalidate. The client withholds the OFFER on a
+    // day whose effective roster already reaches 12 hours (nothing left to give — see modesFor in
+    // overtime-format.js); the server deliberately does not re-check that, because the gate is
+    // about not asking a pointless question, and a member's declaration that they will work up to
+    // 12 hours is valid whatever their roster later becomes.
+    twelve_hours: Object.freeze([]),
     before:       Object.freeze(['until']),
     after:        Object.freeze(['from']),
     before_after: Object.freeze(['until', 'from']),

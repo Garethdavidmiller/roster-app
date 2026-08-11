@@ -19,7 +19,7 @@ import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary, asAtLine,
-    modesFor, submitFailureCopy,
+    modesFor, submitFailureCopy, shiftSpanMinutes, sameAnswer,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -129,6 +129,7 @@ describe('answers in words', () => {
     test('every stored mode has copy, and it names the concrete times', () => {
         assert.equal(answerCopy({ mode: 'unavailable' }), 'Not available');
         assert.equal(answerCopy({ mode: 'all_day' }), 'Available all day');
+        assert.equal(answerCopy({ mode: 'twelve_hours' }), 'Available for up to 12 hours');
         assert.equal(answerCopy({ mode: 'before', until: '07:00' }), 'Available before 07:00');
         assert.equal(answerCopy({ mode: 'after', from: '15:00' }), 'Available after 15:00');
         assert.equal(answerCopy({ mode: 'before_after', until: '07:00', from: '15:00' }),
@@ -371,18 +372,44 @@ describe('which modes a day may offer', () => {
     // reach it — and its untested branch was wrong in production shape: an overnight duty offered
     // anchors the server refuses. Moving the rule here is what made this suite possible; these
     // cases are why it was needed.
-    const timed     = { hasTime: true,  overnight: false, start: '06:00', end: '14:00' };
-    const night     = { hasTime: true,  overnight: true,  start: '22:00', end: '07:00' };
-    const rest      = { hasTime: false, overnight: false, start: '',      end: '' };
+    const timed     = { hasTime: true,  overnight: false, start: '06:00', end: '14:00', rosteredMinutes: 480 };
+    const night     = { hasTime: true,  overnight: true,  start: '22:00', end: '07:00', rosteredMinutes: 540 };
+    const rest      = { hasTime: false, overnight: false, start: '',      end: '', rosteredMinutes: 0 };
 
     test('a plain timed duty offers everything', () => {
         assert.deepEqual(modesFor(timed),
+            ['unavailable', 'all_day', 'twelve_hours', 'before', 'after', 'before_after', 'custom']);
+    });
+
+    test('no context, or no duty time, offers only the unanchored four', () => {
+        assert.deepEqual(modesFor(null), ['unavailable', 'all_day', 'twelve_hours', 'custom']);
+        assert.deepEqual(modesFor(rest), ['unavailable', 'all_day', 'twelve_hours', 'custom']);
+    });
+
+    test('"Up to 12 hours" is withheld ONLY where the day already reaches 12 rostered hours', () => {
+        // The owner's rule: the pill appears on days where 12 hours has not already been rostered
+        // as extra. A 12-hour RDW already agreed IS 720 effective minutes, so it gates the same way
+        // a 12-hour ordinary shift would. The boundary is exact — 719 minutes still leaves a minute
+        // to offer, which is silly in practice and correct on principle, and testing one minute
+        // either side is what pins the comparison operator.
+        const twelveUp = { ...timed, rosteredMinutes: 720 };
+        const justUnder = { ...timed, rosteredMinutes: 719 };
+        assert.equal(modesFor(twelveUp).includes('twelve_hours'), false);
+        assert.ok(modesFor(justUnder).includes('twelve_hours'));
+        // Everything else about the day is untouched — the gate removes ONE offer, never reshapes
+        // the list around it.
+        assert.deepEqual(modesFor(twelveUp),
             ['unavailable', 'all_day', 'before', 'after', 'before_after', 'custom']);
     });
 
-    test('no context, or no duty time, offers only the unanchored three', () => {
-        assert.deepEqual(modesFor(null), ['unavailable', 'all_day', 'custom']);
-        assert.deepEqual(modesFor(rest), ['unavailable', 'all_day', 'custom']);
+    test('an UNKNOWN day length is not "already rostered 12 hours" — the pill shows', () => {
+        // The gate needs a positive fact to fire. `rosteredMinutes` is null when the roster could
+        // not be read; hiding the pill there would punish a failed Firestore query with a narrower
+        // form, which is the wrong direction — the declaration anchors to no roster time, so it is
+        // safe to offer regardless (the same reasoning that keeps all_day and custom).
+        assert.ok(modesFor({ hasTime: false, overnight: false, rosteredMinutes: null }).includes('twelve_hours'));
+        assert.ok(modesFor({ hasTime: true, overnight: false, start: '06:00', end: '14:00' }).includes('twelve_hours'),
+            'a context predating the field entirely must behave as unknown, not as zero');
     });
 
     test('an overnight duty offers NO "after" and NO "before & after"', () => {
@@ -399,6 +426,44 @@ describe('which modes a day may offer', () => {
         // offers to the ones that are TRUE, it does not gut the day.
         assert.ok(modes.includes('before'));
         assert.ok(modes.includes('custom'));
+    });
+});
+
+describe('how long a duty runs', () => {
+    test('a same-day duty is end minus start', () => {
+        assert.equal(shiftSpanMinutes('06:00', '14:00'), 480);
+        assert.equal(shiftSpanMinutes('15:15', '23:55'), 520);
+    });
+
+    test('an overnight duty crosses midnight rather than going negative', () => {
+        // 22:00–07:00 is how the roster writes every dispatcher night turn. Getting this wrong
+        // does not error — it returns minus-900, which is not >= 720, so the 12-hour pill would
+        // show on a day that might genuinely reach twelve hours. The failure would be an OFFER
+        // that should have been withheld, invisible in any log.
+        assert.equal(shiftSpanMinutes('22:00', '07:00'), 540);
+        assert.equal(shiftSpanMinutes('22:30', '09:00'), 630);
+    });
+
+    test('anything that is not a pair of times has no length', () => {
+        assert.equal(shiftSpanMinutes('', ''), null);
+        assert.equal(shiftSpanMinutes('SPARE', '14:00'), null);
+        assert.equal(shiftSpanMinutes(null, undefined), null);
+    });
+});
+
+describe('are two stored answers the same declaration', () => {
+    test('key order does not make a change', () => {
+        // The two sides come from different producers — the form's buildAnswer and the server's
+        // canonicalised copy — whose key order may differ while the answer does not. A stringify
+        // comparison would paint an untouched day cream ("you are changing a saved answer").
+        assert.ok(sameAnswer({ mode: 'before', until: '15:15' }, { until: '15:15', mode: 'before' }));
+    });
+
+    test('a real difference is a difference, and absent is not equal to present', () => {
+        assert.equal(sameAnswer({ mode: 'all_day' }, { mode: 'unavailable' }), false);
+        assert.equal(sameAnswer({ mode: 'before', until: '15:15' }, { mode: 'before', until: '16:15' }), false);
+        assert.equal(sameAnswer({ mode: 'all_day' }, null), false);
+        assert.ok(sameAnswer(null, undefined), 'both absent IS the same (no declaration either side)');
     });
 });
 
