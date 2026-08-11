@@ -27,9 +27,10 @@
  */
 
 import * as OTD from './overtime-data.js';
-import { loadRosterContext, rosterLabel, modesFor } from './overtime-roster.js';
+import { loadRosterContext, rosterLabel, rosterBadge, modesFor } from './overtime-roster.js';
 import {
-    weekLabel, weekSpan, deadlineLabel, shortDate, phaseCopy, answerCopy, submitDisposition,
+    weekLabel, weekSpan, deadlineLabel, shortDate, phaseCopy, answerCopy, answerTone,
+    submitDisposition,
 } from './overtime-format.js';
 
 /**
@@ -164,10 +165,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             <div class="ot-day${answered ? ' ot-day--answered' : ''}" data-day="${esc(date)}">
                 <div class="ot-day-head">
                     <span class="ot-day-name">${esc(shortDate(date))}</span>
-                    <span class="ot-day-roster">${esc(rosterLabel(c))}</span>
+                    <span class="ot-day-roster" aria-label="Rostered: ${esc(rosterLabel(c))}">${rosterBadge(c)}</span>
                 </div>
                 ${closed
-                    ? `<div class="ot-day-answer">${esc(answerCopy(a))}</div>`
+                    ? `<div class="ot-day-answer"><span class="ot-answer ot-answer--${answerTone(a)}">${esc(answerCopy(a))}</span></div>`
                     : `<div class="ot-modes" role="radiogroup" aria-label="Availability on ${esc(shortDate(date))}">
                         ${modes.map((m, i) => modeButton(date, m, c, a, i)).join('')}
                        </div>
@@ -192,7 +193,11 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         // Exactly one control in the group is tabbable: the selected one, or the first when nothing
         // is selected yet — which is every day on a fresh form.
         const tabbable = on || (!a?.mode && i === 0);
-        return `<button type="button" class="ot-mode" role="radio" data-date="${esc(date)}" data-mode="${esc(mode)}"
+        // The tone is the app's type-pill idiom: outlined in its own colour when idle, filled when
+        // chosen. Two tones, because there are two answers — "not available" is the only one that
+        // offers nothing, and the other five differ only in WHEN.
+        const tone = mode === 'unavailable' ? 'no' : 'yes';
+        return `<button type="button" class="ot-mode ot-mode--${tone}" role="radio" data-date="${esc(date)}" data-mode="${esc(mode)}"
                         aria-checked="${on}" tabindex="${tabbable ? 0 : -1}">${esc(label)}</button>`;
     }
 

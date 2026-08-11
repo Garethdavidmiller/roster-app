@@ -33,7 +33,7 @@
  */
 
 import { db, COLLECTIONS, collection, query, where, getDocs } from './firebase-client.js';
-import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
+import { teamMembers, getBaseShift, isSunday, parseISODate, getShiftBadge } from './roster-data.js';
 import { resolveEffectiveShift, isRestShift, toOverrideRecord } from './override-utils.js';
 
 /** @typedef {'authoritative'|'error'} RosterKnowledge */
@@ -123,6 +123,25 @@ export function rosterLabel(ctx) {
         case 'SPARE': return 'Spare';
         default:      return ctx.shift || 'Rest day';
     }
+}
+
+/**
+ * The same day, as the REST of the app draws it: the shared shift badge, plus the duty times.
+ *
+ * `getShiftBadge` is the app's one badge builder — the calendar, Team View, the admin week grid and
+ * the roster-review table all render from it — so a day that is a Rest day here wears the identical
+ * 🏠 Rest chip it wears on the calendar. Writing a second set of words for the same fact is how the
+ * override→display ladder drifted before v16.48, one surface at a time.
+ *
+ * Returns HTML, and every value in it is app-derived (a shift constant or a roster time matched
+ * against `SHIFT_RANGE_RE`) — no member input reaches this string.
+ * @param {DayContext|null} ctx
+ * @returns {string}
+ */
+export function rosterBadge(ctx) {
+    if (!ctx) return `<span class="ot-day-unknown">Roster unavailable</span>`;
+    return getShiftBadge(ctx.shift)
+        + (ctx.hasTime ? `<span class="ot-day-time">${ctx.start}–${ctx.end}</span>` : '');
 }
 
 /**

@@ -237,6 +237,23 @@ export function isUnavailable(day) {
 }
 
 /**
+ * Which of the three badge tones an answer wears — the visual half of `answerCopy`.
+ *
+ * THREE, not two, and for the same reason the reviewer's day panel has three sections: a person who
+ * said no and a person who said nothing are opposites, and a badge that painted them alike would
+ * undo in colour what the sections are careful to separate in structure. `none` is deliberately the
+ * odd one out visually (unfilled) rather than a third fill — an absent answer is not a quieter
+ * answer.
+ * @param {any} day
+ * @returns {'yes'|'no'|'none'}
+ */
+export function answerTone(day) {
+    if (!day || typeof day !== 'object' || !day.mode) return 'none';
+    if (day.mode === 'unavailable') return 'no';
+    return 'yes';
+}
+
+/**
  * The three derived facts a Manager needs about how a submission MOVED — computed from the
  * immutable revisions, never from a stored flag.
  *

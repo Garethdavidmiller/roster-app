@@ -29,7 +29,7 @@
  */
 
 import {
-    shortDate, deadlineLabel, weekSpan, countsCopy, answerCopy, isUnavailable,
+    shortDate, deadlineLabel, weekSpan, countsCopy, answerCopy, answerTone, isUnavailable,
 } from './overtime-format.js';
 
 /**
@@ -143,9 +143,9 @@ function dayPanel(date, participants, submissions) {
 
     for (const p of participants) {
         const sub = submissions.get(p.memberName);
-        if (!sub) { noResponse.push(personRow(p, '', null)); continue; }
+        if (!sub) { noResponse.push(personRow(p, null, null)); continue; }
         const day = sub.days?.[date];
-        const row = personRow(p, answerCopy(day), sub.history);
+        const row = personRow(p, day, sub.history);
         (isUnavailable(day) ? unavailable : available).push(row);
     }
 
@@ -169,8 +169,17 @@ function section(title, rows, tone) {
         </div>`;
 }
 
-/** @param {any} p @param {string} answer @param {any} history */
-function personRow(p, answer, history) {
+/**
+ * One person on one date: who, what grade, and what they said — the last as a BADGE, in the same
+ * chip language the calendar and the roster-review table use for a day's state.
+ *
+ * `day` is the stored answer, not a rendered string: the words and the tone are two views of the
+ * same value and deriving them from one argument is what stops a green chip ever reading
+ * "Not available". Pass `null` for somebody who has not answered at all — that is a real state
+ * (`none`), not a missing string.
+ * @param {any} p @param {any} day @param {any} history
+ */
+function personRow(p, day, history) {
     const flags = [];
     if (history?.lateInitial) flags.push('Submitted after initial deadline');
     else if (history?.changedSinceInitial) flags.push('Changed since initial deadline');
@@ -178,8 +187,9 @@ function personRow(p, answer, history) {
         <div class="ot-person">
             <span class="ot-person-name">${esc(p.memberName)}</span>
             ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
-            ${answer ? `<span class="ot-person-answer">${esc(answer)}</span>` : ''}
-            ${flags.map(f => `<span class="ot-person-flag">${esc(f)}</span>`).join('')}
+            ${day ? `<span class="ot-answer ot-answer--${answerTone(day)}">${esc(answerCopy(day))}</span>` : ''}
+            ${flags.length ? `<div class="ot-person-flags">${
+                flags.map(f => `<span class="ot-person-flag">${esc(f)}</span>`).join('')}</div>` : ''}
         </div>`;
 }
 
@@ -191,7 +201,7 @@ function awaitingPanel(participants, submissions) {
         <div class="ot-day-panel">
             <div class="ot-day-panel-head">Awaiting a form</div>
             ${waiting.length
-                ? waiting.map(p => personRow(p, '', null)).join('')
+                ? waiting.map(p => personRow(p, null, null)).join('')
                 : '<div class="ot-section-empty">Everyone has responded</div>'}
         </div>`;
 }
