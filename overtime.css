@@ -138,8 +138,11 @@ body {
     flex-shrink: 0;
     color: rgba(255, 255, 255, 0.9);
     font-size: var(--type-micro);
+    /* 800 = the IDENTITY tier (css-tokens.md): this badge names the state of the whole page, the
+       way a period or grade badge names its figure. The letter-spacing joins the app's one
+       uppercase value; 0.06em here was a third variant of it. */
     font-weight: 800;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
     white-space: nowrap;
 }
@@ -580,7 +583,14 @@ body {
    rows of half-width boxes. */
 .ot-mode {
     padding: 6px 12px;
-    min-height: 36px;
+    /* 44px, the app's touch target — NOT the 36px this shipped with (v20.77).
+       These are the most-tapped controls in the app: seven days, up to six options each, and
+       answering a week means hitting them six or seven times on a phone. They are a deliberate
+       copy of admin's `.type-pill-btn` idiom — same border, same radius, same weight, same
+       `--type-badge` — and that rule carries `min-height: 44px`. Copying the look and not the
+       size left the one page built entirely out of these pills below the standard every other
+       page meets. Measured, on mobile-chrome: 36px against admin's 44px. */
+    min-height: 44px;
     border: 1.5px solid currentColor;
     border-radius: var(--radius-pill);
     background: transparent;
@@ -690,9 +700,13 @@ body {
 
 .ot-history-title {
     margin-bottom: var(--space-2);
-    font-size: var(--type-small);
+    /* THE APP'S EYEBROW, not a third version of it (v20.77). `.field-eyebrow` in shared.css and
+       `.ops-group-label` in operations.css independently agree on --type-micro / 700 / uppercase /
+       0.5px — that IS the recipe for a small uppercase heading over a group. This was
+       --type-small / 0.06em: two pixels larger, a different unit, the same idea. */
+    font-size: var(--type-micro);
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
     color: var(--text-light);
 }
@@ -819,7 +833,9 @@ body {
     background: var(--bg-faint);
     font-size: var(--type-badge);
     font-weight: 700;
-    letter-spacing: 0.04em;
+    /* Its own SIZE — a coloured band carrying a count, not a bare eyebrow — but the app's one
+       uppercase letter-spacing. 0.04em at 11px was 0.44px: a third value nobody chose. */
+    letter-spacing: 0.5px;
     text-transform: uppercase;
     color: var(--text-mid);
 }
@@ -880,7 +896,11 @@ body {
     background: var(--al-warning-bg);
     color: var(--warning-amber);
     font-size: var(--type-micro);
-    font-weight: 700;
+    /* 600 = the QUIET-STATUS tier (css-tokens.md), beside `.sync-chip` and `.roster-state-badge`:
+       a receipt about how an answer MOVED, not a label to scan. At 700 it carried the same weight
+       as the answer chip on the same row — and on a by-day panel the answer is what the reviewer
+       is reading. It still has to be noticeable; it does not have to compete. */
+    font-weight: 600;
 }
 
 /* Back to the list of a member's own weeks, after opening one of them. */

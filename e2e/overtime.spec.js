@@ -890,3 +890,22 @@ test.describe('the beta PARTICIPANT — a form of her own, and nothing of anybod
         await expect(page.locator('.ot-day')).toHaveCount(0);
     });
 });
+
+test('the availability options meet the app\'s touch target', async ({ page }) => {
+    // These are the most-tapped controls in the app — seven days, up to six options each, and
+    // answering one week means hitting them seven times on a phone. They are a deliberate copy of
+    // admin's `.type-pill-btn` (same border, radius, weight and --type-badge), and that rule
+    // carries `min-height: 44px`; this one shipped at 36px, so the single page built entirely out
+    // of these pills was the one page below the standard. Measured in a browser rather than read
+    // off the CSS: a min-height is only the floor, and padding or line-height could undercut it.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'G. Miller');
+    await stubOvertime(page, { windows: [openWindow()] });
+    await page.goto('/overtime.html');
+    await page.locator('.ot-day').first().waitFor();
+
+    const short = await page.locator('.ot-mode').evaluateAll(els => els
+        .map(el => ({ t: el.textContent.trim(), h: Math.round(el.getBoundingClientRect().height) }))
+        .filter(x => x.h < 44));
+    expect(short, 'every availability option must be at least 44px tall').toEqual([]);
+});
