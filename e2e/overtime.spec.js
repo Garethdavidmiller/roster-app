@@ -603,3 +603,44 @@ test.describe('opening a week — the press has to land', () => {
         expect(await page.evaluate(() => document.body.style.paddingBottom)).toBe('');
     });
 });
+
+test('the member form fills the desktop band, and the day row goes horizontal in it', async ({ page }) => {
+    // v20.72 gave this page the app's 1100px band and then capped the form panel at 620px, LEFT
+    // ALIGNED inside it — so the desktop page carried a 480px navy void down its right side and
+    // read as a layout that had failed rather than one that had chosen. Reported as "on desktop it
+    // has gone a little strange", which is exactly what a narrow column in a wide band looks like.
+    //
+    // Two assertions, because the fix is two halves and either alone is wrong: the panel takes the
+    // band (or the void returns), and the day row absorbs the width (or the band is full of a
+    // narrow ribbon of content, which is the same problem one level in).
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await stubOvertime(page, { windows: [openWindow()] });
+    await page.goto('/overtime.html');
+    await page.locator('.ot-day').first().waitFor();
+
+    const app   = await page.locator('main.app').boundingBox();
+    const panel = await page.locator('#otMinePanel').boundingBox();
+    expect(panel.width, 'the form panel takes the whole band').toBe(app.width);
+
+    // Side by side, not stacked: the day name and its roster badge sit in a fixed left column with
+    // the mode buttons beside them. Compared as EDGES rather than by reading the CSS — the same
+    // rule can be defeated by a wrapping child or a later declaration, and neither shows in source.
+    const head  = await page.locator('.ot-day').first().locator('.ot-day-head').boundingBox();
+    const modes = await page.locator('.ot-day').first().locator('.ot-modes').boundingBox();
+    expect(modes.x, 'the buttons start after the day name, not beneath it')
+        .toBeGreaterThanOrEqual(head.x + head.width);
+    expect(Math.abs((modes.y + modes.height / 2) - (head.y + head.height / 2)),
+        'and on the same line as it').toBeLessThan(12);
+});
+
+test('and on a phone the day row is still stacked, where there is no room for anything else', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'G. Miller');
+    await stubOvertime(page, { windows: [openWindow()] });
+    await page.goto('/overtime.html');
+    await page.locator('.ot-day').first().waitFor();
+    const head  = await page.locator('.ot-day').first().locator('.ot-day-head').boundingBox();
+    const modes = await page.locator('.ot-day').first().locator('.ot-modes').boundingBox();
+    expect(modes.y, 'the buttons sit below the day name').toBeGreaterThanOrEqual(head.y + head.height);
+});

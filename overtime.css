@@ -27,12 +27,21 @@
    That leaves the question the 600px band was hiding, and the two tabs answer it
    DIFFERENTLY — which is fine, because they are tabs and never co-visible:
 
-   · My availability is a FORM — a seven-day sequence read top to bottom. Width
-     buys it nothing and costs it a long eye-travel from the day name to its
-     buttons, so the panel keeps a reading column.
-   · Everyone is the reviewer's CALL SHEET — three named sections per date, each
-     a wrapping run of member chips. Width is the whole point: it is why the page
-     is worth opening on a desktop at all, so it takes the band. */
+   Everyone is the reviewer's CALL SHEET — three named sections per date, each a
+   wrapping run of member chips — so width is the whole point there.
+
+   My availability took a 620px reading column at v20.72, LEFT-ALIGNED inside the
+   1100px band, and that was wrong: it put a 480px navy void down the right of
+   the page and read as a layout that had failed rather than one that had chosen.
+   A narrow column is only legible as deliberate when it is the whole page, which
+   is exactly what the 600px band used to be — so capping the panel kept the old
+   proportion without the thing that justified it.
+
+   The form takes the band too, and the DAY ROW absorbs the width instead (see
+   `.ot-day` at 1024px). That is the app's own answer to this shape: admin's
+   Change-a-Shift row is the same content — a week of days, each with a name, a
+   roster badge and a run of pills — and it goes horizontal at exactly this
+   breakpoint rather than staying a narrow stack. */
 
 /* THE TYPEFACE. `shared.css` declares the `@font-face` and the `--font-sans` token but does NOT
    apply either — every page's own stylesheet sets its `body` font-family, which is the convention
@@ -58,11 +67,6 @@ body {
 @media (min-width: 1024px) {
     .app        { max-width: var(--content-max-width); }
     .app-header { max-width: var(--content-max-width); }
-
-    /* The form's reading column, left-aligned with the beta note and the tab strip above it
-       rather than centred — centring it would leave the page with two different left edges and
-       make the tab strip look detached from the panel it controls. */
-    #otMinePanel { max-width: 620px; }
 
     /* Prose keeps its measure on both tabs (css-tokens.md: full-width prose is capped at
        ~64–72ch on desktop; forms, tables and grids take the full column). */
@@ -409,6 +413,36 @@ body {
     .ot-tabs { max-width: 420px; }
     .ot-week-row { padding: var(--space-4); }
     .ot-week-actions { flex-direction: row; align-items: center; }
+}
+
+/* ── The day row goes horizontal, the way admin's does ───────────────────────
+   A day block is built for a thumb on a 390px phone: the day and its roster
+   badge on one line, the mode buttons stacked beneath. Seven of those in an
+   1100px card is a narrow ribbon of content with the rest of the row empty.
+
+   Admin's Change-a-Shift row is the same content and already answers this — day
+   on the left, badge beside it, pills filling the space — so this borrows the
+   shape rather than inventing one. The left column is fixed so the badges line
+   up down the week, which is what makes it scannable; without that they would
+   sit at seven different x positions.
+
+   A WIDTH query, not `pointer: fine`. Admin gates its equivalent on the pointer
+   because that change is about DENSITY (it shrinks the row), and a wide touch
+   screen still needs 44px targets. This one changes no size at all — the pills
+   keep their padding and just sit somewhere else — so a tablet gets it too. */
+@media (min-width: 1024px) {
+    .ot-day {
+        display: grid;
+        grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+        column-gap: var(--space-4);
+        align-items: center;
+    }
+    .ot-day-head   { grid-column: 1; grid-row: 1; margin-bottom: 0; }
+    .ot-modes      { grid-column: 2; grid-row: 1; }
+    /* Explicit, because auto-placement would drop these into column 1 under the
+       day name — beneath the label rather than beneath the answer they concern. */
+    .ot-day-answer { grid-column: 2; }
+    .ot-day-stale  { grid-column: 2; margin-top: 0; }
 }
 
 /* ── Print ──────────────────────────────────────────────────────────────────
