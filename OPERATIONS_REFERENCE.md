@@ -728,7 +728,13 @@ Printing from **My availability** gives a short notice instead. It is a form, no
   by-day workspace. A reviewer who is not also a participant correctly has no form of their own.
 - **Participants** get their own form and nothing else. During the restricted beta the audience is
   server-owned and deliberately narrow — a Manager can see which audience a window will have and
-  cannot change it. Widening it is a code change plus a deploy, and never alters an existing window.
+  cannot change it. Widening it is a code change plus a deploy.
+- **When somebody is invited, which weeks do they get?** Every week whose **first deadline is still
+  ahead of them** — the nightly run adds them to those, so an invitation takes effect overnight with
+  nobody pressing anything. Weeks already past their first deadline are deliberately skipped: they
+  could not have answered those on time, and adding them would show them as a non-responder for a
+  deadline that pre-dated their invitation. So expect a new tester's first form to be a week or two
+  out, not the current one, and do not read that as a fault.
 - **Everyone else** sees a short "not open to everyone yet" panel and no nav pill.
 
 ### Diagnosing a problem

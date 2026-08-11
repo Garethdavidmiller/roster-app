@@ -313,18 +313,39 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
      * you" while the admin's were open, and her first form would have been a week in October.
      * At full launch the same arithmetic strands the whole roster for eight weeks.
      *
-     * The rule that resolves it without weakening the freeze: **you may join a window you can
-     * still submit to.** An open week is one this member can genuinely answer, so recording them
-     * as expected is true. A CLOSED week is one they could never have answered, so adding them
-     * would manufacture exactly the false non-responder the freeze exists to prevent — and this
-     * refuses it. Nobody is ever REMOVED, at any phase: a population only grows.
+     * The rule that resolves it without weakening the freeze: **you may join a window whose FIRST
+     * deadline you can still meet.** Not merely one you can still submit to — that was the v20.78
+     * rule and it was half a deadline out (external review, Aug 2026).
+     *
+     * ── WHY `INITIAL_OPEN` AND NOT `isOpenPhase` ────────────────────────────────────────────────
+     *
+     * A window has two deadlines, and the first one is the one every judgement is measured against.
+     * `deriveHistory` asks "was anything accepted before `initialDeadlineAt`?" and calls a
+     * submission `lateInitial` when the answer is no. Add somebody during FINAL_OPEN and both
+     * answers about them are false in the same direction:
+     *
+     *   · before they submit they sit under **No response** for a deadline that pre-dates their
+     *     invitation — the exact manufactured non-responder the freeze exists to prevent, arriving
+     *     through the door the freeze's own exception opened; and
+     *   · the moment they submit they are labelled **Submitted after the initial deadline**, which
+     *     reads as a person who was asked and did not answer in time. They were never asked.
+     *
+     * Neither is a display bug that a nicer label would fix. The data itself would be wrong, and it
+     * is the data a clerk uses to decide who is reliable. The alternative — stamp an `invitedAt` on
+     * the participant and teach every history rule to measure from it — is a second set of
+     * late-submission semantics for a case that costs nothing to avoid: the person simply joins
+     * from the next week whose initial deadline is still ahead of them. A slightly later start
+     * beats a permanently inaccurate record.
+     *
+     * A CLOSED window was already refused and still is. Nobody is ever REMOVED, at any phase: a
+     * population only grows.
      *
      * @returns {Promise<string[]>} the names added, for the caller to report
      */
     async function addMissingParticipants(ref, data, nowMs) {
         const milestones = storedMilestones(data);
         if (milestones.retentionUntil <= nowMs) return [];
-        if (!OT.isOpenPhase(OT.phaseFor(milestones, nowMs))) return [];
+        if (OT.phaseFor(milestones, nowMs) !== 'INITIAL_OPEN') return [];
 
         const want = audienceFor(milestones.weekStart);
         // Ids only — the existing documents are not needed to know who is already in.
