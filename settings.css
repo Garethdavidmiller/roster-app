@@ -25,12 +25,8 @@ body {
 
 .app { max-width: 560px; margin: 0 auto; }
 @media (min-width: 768px) {
-    /* One centred settings panel (v18.59). Settings is two small single-field cards; the old
-       v15.90 layout widened to 720px here and to an 860px TWO-COLUMN grid on desktop, which
-       (its own comment admitted) left the cards "stretched/half-empty" with tall navy space
-       around them. A single narrow centred ~600px column, cards stacked, reads as one
-       deliberate panel — the review's "tighter, centred settings panel / narrower task
-       surface". The header tracks the same column so burger/brand/badge stay aligned. */
+    /* Tablet tier: one centred 600px panel (v18.59). Below 1024px there is not room for two
+       columns, and the cards are forms — a 700px+ single column would stretch every field. */
     .app { max-width: 600px; }
     .app-header { max-width: 600px; margin-left: auto; margin-right: auto; }
 }
@@ -60,14 +56,40 @@ body {
 
 /* .btn-card-tips, tips lightbox — consolidated into shared.css */
 
-/* ── Desktop: 1024px ──
-   No wider band and no columns (v18.59): the panel stays the single centred ~600px column set
-   in the 768px tier above (cards stacked, spaced by the shared .card margin). Only genuinely
-   desktop-specific refinements live here. The old 860px two-column grid was replaced because
-   two one-field cards side by side read as sparse/half-empty on a wide screen. */
+/* ── Desktop: 1024px ── the app's band, and columns to fill it (v20.72)
+   Settings sat on a 600px band from v18.59 to v20.71 while every other page used
+   `--content-max-width`. That was the right answer to the wrong question. The problem v18.59 was
+   solving is real — a lone email field stretched across 1100px looks broken — but shrinking the
+   PAGE to fix the FIELD also moved the burger, the brand and the badge 250px inward, so hopping
+   admin → settings visibly re-laid-out the app's chrome. The reported symptom was the width; the
+   cause was that settings never got a desktop layout, because at v18.59 it had two tiny cards and
+   nothing to put in a second column. It now has four.
+   Two columns of ~535px give each card almost exactly the 536px field width v18.59 settled on, so
+   its rationale is preserved rather than reversed — the fields do not stretch, and the page band
+   matches admin, operations, paycalc and links.
+   The residual is the accepted two-column void (css-tokens.md): the right column is shorter, so a
+   navy gap sits under it. Card reordering can only relocate a void, not remove it (measured at
+   v17.73 on operations), and reordering here would cost the mobile stack. */
 @media (min-width: 1024px) {
+    .app {
+        max-width: var(--content-max-width);
+        display: grid;
+        /* admin's proportion, deliberately — a wide main column and a narrower side stack. Equal
+           halves would have worked too, but the columns are not equal in kind: two account forms
+           on the left, two short device notes on the right. Sizing them the same invites the eye
+           to compare them, and the shorter one then reads as unfinished. */
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+        column-gap: 24px;
+        align-items: start;
+    }
+    .app-header { max-width: var(--content-max-width); }
+
+    .col-main { grid-column: 1; }
+    .col-side { grid-column: 2; }
+    .col-main, .col-side { display: flex; flex-direction: column; }
+
     /* Prose measure cap for card descriptions on desktop. 60ch → 68ch (v18.89): the cap sits
-       INSIDE an already-narrow 600px card, so at 60ch it was wrapping the hints earlier than the
+       INSIDE an already-narrow card, so at 60ch it was wrapping the hints earlier than the
        card required while the documented comfortable band runs to 72ch. */
     .card .hint { max-width: 68ch; }
 

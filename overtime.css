@@ -16,10 +16,23 @@
 /* ── Page shell ─────────────────────────────────────────────────────────────
    `.app` and `.card` are declared PER PAGE in this app, not in shared.css — a
    convention page-css-parity.test.mjs enforces, and which caught this file
-   borrowing both before it ever rendered. The width matches settings.html: this
-   is a task surface of stacked single-purpose cards, not a workspace, so a wide
-   column would leave the same half-empty navy space the v18.59 settings pass
-   removed. */
+   borrowing both before it ever rendered.
+
+   THE BAND IS THE APP'S, THE PANELS DECIDE FOR THEMSELVES (v20.72). This page
+   copied settings' 600px desktop band, and inherited its side effect: the
+   burger, brand and badge sat 250px inside where every other page puts them, so
+   arriving here visibly re-laid-out the app's chrome. Fixed by taking
+   `--content-max-width` like admin, operations, paycalc and links.
+
+   That leaves the question the 600px band was hiding, and the two tabs answer it
+   DIFFERENTLY — which is fine, because they are tabs and never co-visible:
+
+   · My availability is a FORM — a seven-day sequence read top to bottom. Width
+     buys it nothing and costs it a long eye-travel from the day name to its
+     buttons, so the panel keeps a reading column.
+   · Everyone is the reviewer's CALL SHEET — three named sections per date, each
+     a wrapping run of member chips. Width is the whole point: it is why the page
+     is worth opening on a desktop at all, so it takes the band. */
 
 /* THE TYPEFACE. `shared.css` declares the `@font-face` and the `--font-sans` token but does NOT
    apply either — every page's own stylesheet sets its `body` font-family, which is the convention
@@ -41,6 +54,22 @@ body {
 @media (min-width: 768px) {
     .app        { max-width: 600px; }
     .app-header { max-width: 600px; margin-left: auto; margin-right: auto; }
+}
+@media (min-width: 1024px) {
+    .app        { max-width: var(--content-max-width); }
+    .app-header { max-width: var(--content-max-width); }
+
+    /* The form's reading column, left-aligned with the beta note and the tab strip above it
+       rather than centred — centring it would leave the page with two different left edges and
+       make the tab strip look detached from the panel it controls. */
+    #otMinePanel { max-width: 620px; }
+
+    /* Prose keeps its measure on both tabs (css-tokens.md: full-width prose is capped at
+       ~64–72ch on desktop; forms, tables and grids take the full column). */
+    .card .hint,
+    .ot-explainer,
+    .ot-privacy,
+    .ot-beta p { max-width: 68ch; }
 }
 
 .app-header { margin-bottom: 4px; }

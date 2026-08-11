@@ -119,270 +119,414 @@
             "M. Robson"
         ]
     },
-    "overtimeEligibleMembers": [
+    "overtimeRoster": [
         {
             "name": "L. Springer",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 0
+            "rosterOrder": 0,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "A. Hared",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 1
+            "rosterOrder": 1,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "G. Miller",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 2
+            "rosterOrder": 2,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "M. Robson",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 3
+            "rosterOrder": 3,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "J. Davies",
             "grade": "CEA",
             "startDate": "2026-05-05",
-            "rosterOrder": 4
+            "rosterOrder": 4,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "I. Cooper",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 5
+            "rosterOrder": 5,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "A. Panchal",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 6
+            "rosterOrder": 6,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "C. Francisco-Charles",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 7
+            "rosterOrder": 7,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "O. Mylla",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 8
+            "rosterOrder": 8,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "S. Boyle",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 9
+            "rosterOrder": 9,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "L. Atrakimaviciene",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 10
+            "rosterOrder": 10,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "J. Haque",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 11
+            "rosterOrder": 11,
+            "hidden": false,
+            "managerOnly": false
+        },
+        {
+            "name": "R. Frimpong",
+            "grade": "CEA",
+            "startDate": null,
+            "rosterOrder": 12,
+            "hidden": true,
+            "managerOnly": false
         },
         {
             "name": "M. Okeke",
             "grade": "CEA",
             "startDate": "2026-04-20",
-            "rosterOrder": 13
+            "rosterOrder": 13,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "N. Tuck",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 14
+            "rosterOrder": 14,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "R. Forrester-Blackstock",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 15
+            "rosterOrder": 15,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "S. Langley",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 16
+            "rosterOrder": 16,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "S. Silva",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 17
+            "rosterOrder": 17,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "J. Sumaili",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 18
+            "rosterOrder": 18,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "T. Bibi",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 19
+            "rosterOrder": 19,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "T. Nsuala",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 20
+            "rosterOrder": 20,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "D. Irvine",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 21
+            "rosterOrder": 21,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "T. Gherbi",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 22
+            "rosterOrder": 22,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "C. Reen",
             "grade": "CEA",
             "startDate": null,
-            "rosterOrder": 23
+            "rosterOrder": 23,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "K. Jedlinski",
             "grade": "CEA",
             "startDate": "2026-06-03",
-            "rosterOrder": 24
+            "rosterOrder": 24,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "D. Minto",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 25
+            "rosterOrder": 25,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "A. Targanov",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 26
+            "rosterOrder": 26,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "S. Warman",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 27
+            "rosterOrder": 27,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "S. Faure",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 28
+            "rosterOrder": 28,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "L. Szpejer",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 29
+            "rosterOrder": 29,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "K. Porter",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 30
+            "rosterOrder": 30,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "A. Murray",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 31
+            "rosterOrder": 31,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "S. Clarke",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 32
+            "rosterOrder": 32,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "A. Atkins",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 33
+            "rosterOrder": 33,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "K. Yeboah",
             "grade": "Dispatcher",
             "startDate": null,
-            "rosterOrder": 34
+            "rosterOrder": 34,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "F. Mohamed",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 35
+            "rosterOrder": 35,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "P. Lloyd",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 36
+            "rosterOrder": 36,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "P. Prashanthan",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 37
+            "rosterOrder": 37,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "B. Khalil",
             "grade": "CES",
             "startDate": "2026-06-09",
-            "rosterOrder": 38
+            "rosterOrder": 38,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "G. Rotaru",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 39
+            "rosterOrder": 39,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "L. Webster",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 40
+            "rosterOrder": 40,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "Z. Lewis",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 41
+            "rosterOrder": 41,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "M. Bowler",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 42
+            "rosterOrder": 42,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "W. Cummings",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 43
+            "rosterOrder": 43,
+            "hidden": false,
+            "managerOnly": false
         },
         {
             "name": "S. Horsman",
             "grade": "CES",
             "startDate": null,
-            "rosterOrder": 44
+            "rosterOrder": 44,
+            "hidden": false,
+            "managerOnly": false
+        },
+        {
+            "name": "S. Stewart",
+            "grade": "Management",
+            "startDate": null,
+            "rosterOrder": 45,
+            "hidden": true,
+            "managerOnly": true
+        },
+        {
+            "name": "D. Watts",
+            "grade": "Management",
+            "startDate": null,
+            "rosterOrder": 46,
+            "hidden": true,
+            "managerOnly": true
+        },
+        {
+            "name": "D. Harris",
+            "grade": "Management",
+            "startDate": null,
+            "rosterOrder": 47,
+            "hidden": true,
+            "managerOnly": true
+        },
+        {
+            "name": "S. Gumbo",
+            "grade": "Management",
+            "startDate": null,
+            "rosterOrder": 48,
+            "hidden": true,
+            "managerOnly": true
+        },
+        {
+            "name": "N. Bedingfield",
+            "grade": "Management",
+            "startDate": null,
+            "rosterOrder": 49,
+            "hidden": true,
+            "managerOnly": true
+        },
+        {
+            "name": "H. Croft",
+            "grade": "Management",
+            "startDate": null,
+            "rosterOrder": 50,
+            "hidden": true,
+            "managerOnly": true
         }
     ],
     "maxRosterYear": 2030

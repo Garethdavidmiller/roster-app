@@ -285,10 +285,13 @@
        EVERY other page (admin, paycalc, operations, settings, links) uses the narrower content
        cap so forms and prose stay a comfortable width and the app doesn't re-lay-out ~300px on
        every desktop hop. Both live here as tokens, not hardcoded per file. (Admin moved to the
-       content cap at v15.90 once its week grid became vertical day-cards rather than a wide table.)
-       Settings deliberately caps narrower still — see settings.css (two tiny cards). */
+       content cap at v15.90 once its week grid became vertical day-cards rather than a wide table;
+       settings and overtime joined at v20.72 — they had capped at 600px to stop their form fields
+       stretching, which fixed the fields by moving the page chrome 250px, the "re-lay-out on every
+       desktop hop" this token exists to prevent. Columns are the app's answer to a wide band and
+       small cards.) NO PAGE IS AN EXCEPTION: every served page uses one of these two. */
     --page-max-width:    1400px;   /* wide: calendar only */
-    --content-max-width: 1100px;   /* everything else: admin, paycalc, operations, settings, links */
+    --content-max-width: 1100px;   /* every other page */
 
     /* ── Border radius ───────────────────────────────────────────── */
     --radius-xs:     6px;  /* compact table-action / confirm-bar buttons */

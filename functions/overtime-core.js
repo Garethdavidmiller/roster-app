@@ -23,7 +23,9 @@
  * 3. WHO WAS ASKED. `selectParticipants` runs once, at creation, and its output is frozen. Response
  *    rates are only meaningful because of that: somebody who joined in October must never appear as
  *    a non-responder for August. Eligibility is the roster's own `!hidden && !managerOnly`, read
- *    from the generated server list — never a name comparison, and never the client's word.
+ *    from the generated server list — never a name comparison, and never the client's word. It
+ *    binds every audience, so no audience can put a MANAGER in a population: they review by claim,
+ *    and a manager in the snapshot is a permanent non-responder for nothing gained.
  *
  * 4. NO SILENT OVERWRITE. `decideSubmission` is the whole concurrency model. `links-concurrency.js`
  *    exists because the same class of bug shipped three times in the Links workspace, each one a
@@ -366,22 +368,57 @@ function isEligibleForWeek(member, weekStart) {
 /**
  * Freeze the participant population for a window.
  *
- * `eligible` is the GENERATED server list (`overtimeEligibleMembers`), which already encodes the
- * roster's own `!hidden && !managerOnly`. This function narrows it by week and by audience; it
- * never widens it, and it never sees a client payload.
+ * `roster` is the GENERATED server list (`overtimeRoster`) — WHO EXISTS, carrying each member's
+ * `hidden` and `managerOnly` flags. It is never a client payload.
  *
- * @param {Array<{name:string,grade?:string,rosterOrder?:number,startDate?:string|null}>} eligible
+ * ── TWO STAGES, AND THE ORDER IS THE POINT ──────────────────────────────────────────────────────
+ *
+ * Stage 1 — WHO COULD EVER BE ASKED. The roster's own flags: on this week (`startDate`), still here
+ * (`!hidden`), and not a manager (`!managerOnly`). This binds EVERY audience, including ones not
+ * written yet.
+ *
+ * Stage 2 — which of them THIS audience asks:
+ *
+ *   restricted   the admin alone. A TESTING population, and the only one in force today —
+ *                deliberately the one person who cannot be harmed by a half-finished feature.
+ *   all          everybody stage 1 allows. The end state.
+ *
+ * ── A MANAGER IS A REVIEWER AND NEVER A PARTICIPANT ─────────────────────────────────────────────
+ *
+ * That is why the flag test is stage 1 and not a clause repeated in each branch: it must not be
+ * possible to write an audience that reaches a manager, and the restricted branch selects by
+ * ENTITLEMENT, so a manager who also held the admin entitlement would otherwise slip through.
+ *
+ * The reason is not tidiness. Review rights come from the `manager` CLAIM, so a manager already
+ * sees every week's answers without appearing in any of them — being in the population adds no
+ * access and does add a record that they were expected to answer. Frozen means for ever: they read
+ * as a non-responder for that week permanently, and it cannot be corrected afterwards.
+ *
+ * ── WHAT MOVED HERE FROM THE GENERATOR (v20.72), AND WHY IT IS STILL WORTH IT ────────────────────
+ *
+ * `!hidden && !managerOnly` used to run in `generate-roster-members.mjs`, so the list this function
+ * received was already narrowed and the same rule was in force. The behaviour is unchanged; what
+ * changed is that the rule is now READABLE — stated beside the audiences it binds, with the reason
+ * attached, and tested against every audience in `AUDIENCES` rather than against the two that
+ * happen to exist. A rule baked into a generated JSON file is a rule nobody can find, and the way
+ * that surfaced was a genuine question — "open it to the managers for testing" — that the code
+ * could not have answered without an edit in a file that does not look like policy.
+ *
+ * Widening the beta is still a one-word edit — `currentAudience()`.
+ *
+ * @param {Array<{name:string,grade?:string,rosterOrder?:number,startDate?:string|null,hidden?:boolean,managerOnly?:boolean}>} roster
  * @param {{ weekStart:string, audience:string, adminNames?:string[] }} ctx
  * @returns {Array<{memberName:string, grade:string, rosterOrder:number}>}
  */
-function selectParticipants(eligible, { weekStart, audience, adminNames = [] }) {
-    const forWeek = (eligible || []).filter(m => isEligibleForWeek(m, weekStart));
-    // 'restricted' is the live-beta audience: eligible submitters who ALSO hold the server-owned
-    // admin entitlement. Derived, not a name list — so it follows CONFIG.ADMIN_NAMES and needs no
-    // edit here when the beta widens. A future 'pilot' audience is one more entry in this branch.
+function selectParticipants(roster, { weekStart, audience, adminNames = [] }) {
+    const eligible = (roster || [])
+        .filter(m => isEligibleForWeek(m, weekStart))
+        .filter(m => !m.hidden && !m.managerOnly);
     const chosen = audience === 'restricted'
-        ? forWeek.filter(m => adminNames.includes(m.name))
-        : forWeek;
+        // Derived from the server-owned admin list, never a name list of its own — so it follows
+        // CONFIG.ADMIN_NAMES and needs no edit here when that changes.
+        ? eligible.filter(m => adminNames.includes(m.name))
+        : eligible;
     return chosen
         .map(m => ({
             memberName:  m.name,
