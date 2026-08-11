@@ -29,7 +29,7 @@
  */
 
 import {
-    shortDate, deadlineLabel, weekLabel, weekSpan, countsCopy, answerCopy, isUnavailable,
+    shortDate, deadlineLabel, weekSpan, countsCopy, answerCopy, isUnavailable,
 } from './overtime-format.js';
 
 /**
@@ -46,7 +46,9 @@ export function renderWeekDetail(host, win, data, { dates }) {
 
     host.innerHTML = `
         <div class="ot-detail-head">
-            <div class="ot-detail-week">${esc(weekLabel(win.weekEnding))}</div>
+            <!-- No week name here. The card header states it two lines above, in otWeekHint, and
+                 repeating it immediately below was the same duplication as the page title removed
+                 at v20.62 — a surface that has not decided where its subject is named. -->
             <div class="ot-detail-meta">
                 Roster week ${esc(weekSpan(win.weekStart, win.weekEnding))} ·
                 final deadline ${esc(deadlineLabel(win.finalDeadlineAt))}

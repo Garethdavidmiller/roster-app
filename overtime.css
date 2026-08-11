@@ -251,10 +251,14 @@ body {
 }
 .ot-row-btn--primary:hover { background: var(--primary-blue-dark); }
 
+/* The week currently being shown. It was GOLD — which was tolerable while nothing was selected
+   until you pressed something, and became the loudest element on the card the moment a week
+   auto-opened. Gold is the Calendar's accent and the app's small highlight, not a fill for a
+   button that is simply "the one you are looking at". Navy says selected in the app's own voice. */
 .ot-row-btn[aria-pressed="true"] {
-    background: var(--accent-gold);
-    border-color: var(--accent-gold);
-    color: var(--primary-blue);
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
 }
 
 /* ── States: loading, empty, error ──────────────────────────────────────────
@@ -592,8 +596,11 @@ body {
     margin-top: 6px;
     padding: 3px 10px;
     border-radius: var(--radius-pill);
-    background: var(--accent-gold);
-    color: var(--primary-blue);
+    /* Context, not an alert. Gold made a quiet note about who was asked compete with the counts
+       above it, which are the numbers a reviewer is actually reading. */
+    background: var(--bg-light);
+    border: 1px solid var(--border-mid);
+    color: var(--text-mid);
     font-size: var(--type-badge);
     font-weight: 700;
 }

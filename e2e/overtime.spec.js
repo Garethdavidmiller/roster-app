@@ -194,6 +194,31 @@ test.describe('manager surface', () => {
         await expect(page.locator('#otConfirmCreate')).toBeDisabled();
     });
 
+    test('the week being planned is already open — View switches week, it is not a gate', async ({ page }) => {
+        // The same step removed from the member's side at v20.64, which should have been removed
+        // from both surfaces at once: they are the same rows rendered by the same coordinator. A
+        // reviewer arrived on a list and had to press View before seeing any availability at all.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks() });
+        await page.goto('/overtime.html');
+        // The detail card is open on arrival, on the earliest week that HAS a form — not the first
+        // row, which is a missed week with nothing to show.
+        await expect(page.locator('#otWeekCard')).toBeVisible();
+        await expect(page.locator('#otWeekHint')).toContainText('5 September 2026');
+        // And the row it opened is marked as the one being shown.
+        await expect(page.locator('[data-open="2026-09-05"]')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    test('with no week created at all, nothing is force-opened', async ({ page }) => {
+        // Guard the guard: auto-opening must not invent a selection when there is none to make,
+        // which would leave an empty card asserting a week that does not exist.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks().map(w => ({ ...w, exists: false, state: 'not-created' })) });
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otHorizonContent')).toBeVisible();
+        await expect(page.locator('#otWeekCard')).toBeHidden();
+    });
+
     test('weeks that have already run are reachable, not just the six ahead', async ({ page }) => {
         // The server has always sent `retained` — every week still inside the 13-week retention —
         // and the page fetched it and threw it away. So a week became unreachable the moment its
