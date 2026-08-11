@@ -585,3 +585,67 @@ describe('derived history — the flags nobody stores', () => {
         assert.deepEqual([...ids].sort(), ids);
     });
 });
+
+describe('weeksNeedingWindows — what the scheduler will create', () => {
+    // A Tuesday, so "this week's Saturday" is a live week with deadlines already behind it.
+    const NOW = Date.parse('2026-08-11T04:00:00Z');
+    const HORIZON = () => C.planningWeekEndings(NOW);
+
+    test('it is EXACTLY the weeks the Manager Create button offers', () => {
+        // The single most important property, and the reason this function exists rather than the
+        // scheduler having its own idea. If the two lists could differ, a week could be offered by
+        // neither — which is the silent failure the whole feature is arranged around.
+        const byButton = HORIZON().filter(w =>
+            C.validateWeekEnding(w, { nowMs: NOW, maxRosterYear: 2030 }).ok);
+        assert.deepEqual(
+            C.weeksNeedingWindows(NOW, [], { maxRosterYear: 2030 }),
+            byButton);
+        assert.ok(byButton.length >= 3, `expected several creatable weeks, got ${byButton.length}`);
+    });
+
+    test('a week already created is not offered again', () => {
+        const all = C.weeksNeedingWindows(NOW, [], { maxRosterYear: 2030 });
+        const rest = C.weeksNeedingWindows(NOW, [all[0]], { maxRosterYear: 2030 });
+        assert.deepEqual(rest, all.slice(1));
+    });
+
+    test('every existing week means nothing is due — the ordinary daily run', () => {
+        const all = C.weeksNeedingWindows(NOW, [], { maxRosterYear: 2030 });
+        assert.deepEqual(C.weeksNeedingWindows(NOW, all, { maxRosterYear: 2030 }), []);
+    });
+
+    test('a week past its FINAL deadline is never created, however early the horizon starts', () => {
+        // The one case where creating would do harm: a form nobody could ever submit to, which
+        // reads as apathy rather than as a mistake. The current week's Saturday is the example —
+        // its final deadline was eleven days ago.
+        const due = C.weeksNeedingWindows(NOW, [], { maxRosterYear: 2030 });
+        const first = HORIZON()[0];
+        assert.ok(NOW >= C.deriveMilestones(first).finalDeadlineAt, 'fixture no longer exercises this');
+        assert.ok(!due.includes(first));
+    });
+
+    test('a week past only its INITIAL deadline IS still created', () => {
+        // Deliberate, and the opposite of the case above: members can still declare before the
+        // final cut-off, and a late form beats no form. It also matches the button, which offers
+        // that week — the equivalence in the first test is what makes this safe to assert.
+        const w = HORIZON()[1];
+        const m = C.deriveMilestones(w);
+        assert.ok(NOW >= m.initialDeadlineAt && NOW < m.finalDeadlineAt, 'fixture no longer exercises this');
+        assert.ok(C.weeksNeedingWindows(NOW, [], { maxRosterYear: 2030 }).includes(w));
+    });
+
+    test('nothing beyond the supported roster horizon is created', () => {
+        // maxRosterYear comes from the generated config; a year past it has no roster to be
+        // available for, so a window there would ask about weeks the app cannot even display.
+        const due = C.weeksNeedingWindows(NOW, [], { maxRosterYear: 2020 });
+        assert.deepEqual(due, []);
+    });
+
+    test('it tolerates a missing or odd existing-list rather than throwing mid-run', () => {
+        // The caller passes whatever Firestore returned. A throw here would take out the whole
+        // scheduled run, including the weeks that were perfectly creatable.
+        const all = C.weeksNeedingWindows(NOW, [], { maxRosterYear: 2030 });
+        assert.deepEqual(C.weeksNeedingWindows(NOW, null, { maxRosterYear: 2030 }), all);
+        assert.deepEqual(C.weeksNeedingWindows(NOW, new Set(all), { maxRosterYear: 2030 }), []);
+    });
+});

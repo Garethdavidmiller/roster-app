@@ -21,6 +21,14 @@ Nothing here is optional and nothing here is a feature. Product direction lives 
 | **Feb 2027** | **6 Apr 2027** | **2027/28 Pay Calculator rollover.** Extend `TAX_YEARS`, `FIRST_OFFSET`/`LAST_OFFSET` and the tax/NI/student-loan thresholds in `paycalc-calc.js` so the period selector keeps advancing | KNOWN_LIMITATIONS → Time-boxed maintenance; `.claude/rules/paycalc.md` |
 | **Mid-2028** | **End 2028** | **`MAX_YEAR` 2030 → 2032.** Update the lunar / bank-holiday data *first*, then raise the constant | KNOWN_LIMITATIONS → Time-boxed maintenance |
 | When the RMT award lands | — | **Update `GRADES` / `AWARD_RATES`** with the confirmed rates. Evidence class B required — do not enter a rumoured figure | `.claude/rules/paycalc.md` |
+| **10 weeks after the first Overtime window** | **Before that window is 13 weeks old** | **Overtime retention purge.** Windows carry `retentionUntil` = week-ending + 13 weeks, and both read endpoints already hide expired ones — but nothing DELETES them. Write the scheduled recursive purge: revisions → submission heads → participants → window parent. **Firestore does not cascade**, so deleting the parent alone would orphan every subcollection permanently | `OVERTIME_AVAILABILITY.md` → Retention |
+
+**The Overtime purge row is the one with a moving start date**, because its clock begins when the
+first real window is created rather than on a calendar date. Windows are created automatically from
+v20.61, so that clock starts on the first scheduled run after deploy — **diary the warning point
+then**. The failure of missing it is not an outage: expired data simply persists, invisible to the
+app and contrary to what the retention design says happens to it, which is the kind of gap that is
+only ever found by someone asking a data question at the wrong moment.
 
 **The period selector runs out at ≈ P62 (March 2027).** That is the real failure mode of missing the
 first row: the calculator does not warn, it simply stops offering periods, and a member planning
