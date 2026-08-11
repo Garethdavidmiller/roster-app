@@ -251,10 +251,14 @@ body {
 }
 .ot-row-btn--primary:hover { background: var(--primary-blue-dark); }
 
+/* The week currently being shown. It was GOLD — which was tolerable while nothing was selected
+   until you pressed something, and became the loudest element on the card the moment a week
+   auto-opened. Gold is the Calendar's accent and the app's small highlight, not a fill for a
+   button that is simply "the one you are looking at". Navy says selected in the app's own voice. */
 .ot-row-btn[aria-pressed="true"] {
-    background: var(--accent-gold);
-    border-color: var(--accent-gold);
-    color: var(--primary-blue);
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
 }
 
 /* ── States: loading, empty, error ──────────────────────────────────────────
@@ -351,8 +355,6 @@ body {
     .ot-week-actions,
     .ot-row-btn { display: none !important; }
 
-    .ot-page-title { color: black; }
-
     .ot-week-row {
         background: white !important;
         border: 1px solid #999;
@@ -414,10 +416,10 @@ body {
 
 .ot-day-head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: var(--space-2);
-    margin-bottom: var(--space-2);
+    margin-bottom: 7px;
 }
 
 .ot-day-name {
@@ -426,49 +428,87 @@ body {
     color: var(--text-dark);
 }
 
+/* The day's roster context, drawn with the app's own shift badge (`getShiftBadge`) rather than
+   described in grey prose. Every other surface that states what someone is rostered to do — the
+   calendar cell, Team View, the admin week grid, the roster-review table — uses that chip, so a
+   Rest day here now looks like a Rest day everywhere else. */
 .ot-day-roster {
-    font-size: var(--type-small);
-    color: var(--text-mid);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
-.ot-day-answer {
-    font-size: var(--type-body);
-    color: var(--text-dark);
+.ot-day-time {
+    font-size: var(--type-badge);
+    font-weight: 700;
+    color: var(--text-mid);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
+
+.ot-day-unknown {
+    font-size: var(--type-small);
+    color: var(--text-light);
+}
+
+.ot-day-answer { margin-top: 2px; }
 
 .ot-modes {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 5px;
 }
 
+/* THE APP'S TYPE-PILL IDIOM, and the same one admin's Change-a-Shift row uses: an outlined capsule
+   in the colour of what it means, filled with that colour when it is the chosen one. It replaces
+   six equal white rectangles, which said nothing about what they meant and — because the CSS still
+   keyed off `aria-pressed` after these became radios at v20.61 — did not mark the chosen one at
+   all. Content-width capsules also pack two or three to a row, so a day block stopped being three
+   rows of half-width boxes. */
 .ot-mode {
-    /* `1 1 0` not `1 1 auto`: equal columns read as a set of choices, where content-width buttons
-       read as a sentence and leave a ragged edge between rows. */
-    flex: 1 1 0;
-    min-width: 44%;
-    /* 16px: never below it on a focusable control — iOS force-zooms the page. */
-    padding: 9px 10px;
-    border: 1px solid var(--border-mid);
-    border-radius: var(--radius-sm);
-    background: white;
-    color: var(--text-dark);
+    padding: 6px 12px;
+    min-height: 36px;
+    border: 1.5px solid currentColor;
+    border-radius: var(--radius-pill);
+    background: transparent;
     font-family: var(--font-sans);
-    font-size: var(--type-small);
-    font-weight: 600;
+    font-size: var(--type-badge);
+    font-weight: 700;
     cursor: pointer;
-    transition: background var(--dur-fast) var(--ease-out);
+    white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard);
 }
 
-.ot-mode:hover  { background: var(--bg-light); }
 .ot-mode:active { transform: scale(var(--press-scale)); }
 .ot-mode:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .ot-mode:hover { opacity: 0.75; } }
 
-.ot-mode[aria-pressed="true"] {
-    background: var(--primary-blue);
-    border-color: var(--primary-blue);
-    color: white;
+/* Two tones, because there are two answers. The five "available" modes differ only in WHEN, so
+   splitting them by colour would invent a distinction the data does not carry. */
+.ot-mode--yes { color: var(--success-text); }
+.ot-mode--no  { color: var(--charcoal); }
+
+.ot-mode--yes[aria-checked="true"] { background: var(--success-green); border-color: var(--success-green); color: white; }
+.ot-mode--no[aria-checked="true"]  { background: var(--charcoal);      border-color: var(--charcoal);      color: white; }
+
+/* A recorded answer, as a chip — the reviewer's list and a member's closed form share it.
+   THREE tones, matching the three sections of a day panel: said yes, said no, said nothing. The
+   third is deliberately unfilled — an absent answer is not a quieter answer. */
+.ot-answer {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    font-size: var(--type-badge);
+    font-weight: 700;
+    white-space: nowrap;
 }
+
+.ot-answer--yes  { background: var(--success-green); color: white; }
+.ot-answer--no   { background: var(--charcoal);      color: white; }
+.ot-answer--none { background: white; color: var(--text-mid); border: 1.5px dashed var(--border-mid); }
 
 .ot-custom {
     display: flex;
@@ -545,11 +585,9 @@ body {
     color: var(--text-light);
 }
 
-@media (min-width: 700px) {
-    /* Two mode buttons per row is right on a phone; on a wider column the labels
-       fit three-up without truncating, which shortens the form by two rows. */
-    .ot-mode { min-width: 30%; }
-}
+/* No width breakpoint for the mode pills any more: they are content-width capsules, so a wider
+   column already fits more of them per row without being told to. The old rule set a 30% floor,
+   which on capsules would stretch "After 15:00" to a third of the card. */
 
 @media print {
     .ot-modes,
@@ -592,8 +630,11 @@ body {
     margin-top: 6px;
     padding: 3px 10px;
     border-radius: var(--radius-pill);
-    background: var(--accent-gold);
-    color: var(--primary-blue);
+    /* Context, not an alert. Gold made a quiet note about who was asked compete with the counts
+       above it, which are the numbers a reviewer is actually reading. */
+    background: var(--bg-light);
+    border: 1px solid var(--border-mid);
+    color: var(--text-mid);
     font-size: var(--type-badge);
     font-weight: 700;
 }
@@ -658,9 +699,12 @@ body {
     color: var(--text-light);
 }
 
+/* One line per person, in the app's row shape: who on the left, what they said as a chip on the
+   right. The answer is pushed to a common right edge so a column of them can be scanned down
+   rather than read across — which is the whole job of this view. */
 .ot-person {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     flex-wrap: wrap;
     gap: 4px 8px;
     padding: 7px var(--space-3);
@@ -672,7 +716,19 @@ body {
 
 .ot-person-name  { font-weight: 700; color: var(--text-dark); }
 .ot-person-grade { color: var(--text-light); font-size: var(--type-badge); }
-.ot-person-answer { color: var(--text-mid); }
+.ot-person .ot-answer { margin-left: auto; }
+
+/* Flags take their OWN line, so a flag can never sit between a name and its answer chip: the
+   answers are read as a column down the right edge, and a flag on two of five rows would push
+   those two out of that column and break the scan. The full-width part is the WRAPPER — putting
+   `flex-basis: 100%` on the chip itself breaks the line correctly and then stretches the chip
+   across it, so a one-line note wears a full-width pink band. */
+.ot-person-flags {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
 
 /* A change after the initial cut-off is the thing a clerk most needs to notice,
    so it is a marked chip rather than another line of grey text. */
@@ -689,6 +745,13 @@ body {
     .ot-current-note { border: 1px solid #999; }
     .ot-day-panel    { break-inside: avoid; }
     .ot-day-panel-head { background: #eee !important; color: black !important; }
+
+    /* The answer chip carries meaning by fill, so — exactly as `shared.css` does for the shift
+       badges — it has to keep its colour when the browser strips backgrounds. Printed, this list
+       is the document a clerk rings people from. */
+    .ot-answer--yes  { background: var(--success-green) !important; color: white !important; }
+    .ot-answer--no   { background: var(--charcoal)      !important; color: white !important; }
+    .ot-answer--none { background: white !important; color: var(--text-mid) !important; border: 1.5px dashed #999 !important; }
 }
 
 /* Back to the list of a member's own weeks, after opening one of them. */
@@ -699,16 +762,23 @@ body {
    the number a clerk most wants — how many are free on each day — was derivable
    from the page and stated nowhere on it. Tapping a day filters to that day. */
 
+/* A GRID, not a wrapping flex row. Eight cells (All week + seven days) divide evenly into four on a
+   phone and eight on a wide column — whereas flex-wrap sized the last row from whatever was left,
+   so on desktop "Sat" wrapped alone and stretched to the full card width, reading as a broken
+   layout rather than the seventh of seven equal days. */
 .ot-glance {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 6px;
     margin: 0 0 var(--space-3);
 }
 
+@media (min-width: 620px) {
+    .ot-glance { grid-template-columns: repeat(8, 1fr); }
+}
+
 .ot-glance-day {
-    flex: 1 1 auto;
-    min-width: 62px;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;

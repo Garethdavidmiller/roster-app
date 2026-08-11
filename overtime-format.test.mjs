@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
-    countsCopy, answerCopy, isUnavailable, weekSummary,
+    countsCopy, answerCopy, answerTone, isUnavailable, weekSummary,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -155,6 +155,41 @@ describe('answers in words', () => {
         assert.equal(isUnavailable({ mode: 'unavailable' }), true);
         assert.equal(isUnavailable({ mode: 'all_day' }), false);
         assert.equal(isUnavailable(null), false, 'no answer is not an unavailable answer');
+    });
+
+    // ── The tone, which is the same invariant expressed in colour ───────────────────────────────
+    //
+    // `answerCopy` is careful never to render an absent answer as "Not available". `answerTone`
+    // decides what that chip LOOKS like, so it can undo that care without changing a word: paint
+    // `none` and `no` alike and a Manager scanning a column of chips cannot tell somebody who
+    // declined from somebody who never replied — which is precisely the distinction the day panel's
+    // three sections exist to preserve.
+    test('the three tones are three, and none of them collapses into another', () => {
+        assert.equal(answerTone({ mode: 'unavailable' }), 'no');
+        assert.equal(answerTone({ mode: 'all_day' }), 'yes');
+        assert.equal(answerTone(null), 'none');
+        assert.equal(new Set(['no', 'yes', 'none']).size, 3);
+    });
+
+    test('every mode that offers ANY time reads as available, not just all_day', () => {
+        // A partial offer is an offer. Toning "Available after 15:00" as `no` would hide real
+        // cover from the one view that exists to find it.
+        for (const day of [
+            { mode: 'all_day' },
+            { mode: 'before', until: '07:00' },
+            { mode: 'after', from: '15:00' },
+            { mode: 'before_after', until: '07:00', from: '15:00' },
+            { mode: 'custom', start: '18:00', end: '23:00' },
+        ]) assert.equal(answerTone(day), 'yes', JSON.stringify(day));
+    });
+
+    test('a malformed answer tones as NONE — the honest state, never as a decision', () => {
+        // Matches `answerCopy`'s "Not answered" for the same inputs. If these two ever disagreed,
+        // a chip would read "Not answered" in the colour of a definite answer.
+        for (const bad of [undefined, {}, { mode: '' }, 'all_day', 7]) {
+            assert.equal(answerTone(bad), 'none', JSON.stringify(bad));
+            assert.equal(answerCopy(bad), 'Not answered', JSON.stringify(bad));
+        }
     });
 });
 

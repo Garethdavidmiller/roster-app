@@ -107,6 +107,19 @@ describe('by day', () => {
         assert.equal(/B\. Two/.test(noResponse), false, 'an explicit no is not "no response"');
     });
 
+    test('the answer chips are toned apart — a no never wears an available colour', () => {
+        // The sections separate the three answers structurally; the chips have to agree, or a
+        // Manager scanning a column of colours reads the opposite of what the headings say. Both
+        // halves matter: the yes-toned chip must not appear under "Not available", and the row that
+        // said nothing must carry NO chip at all rather than a chip reading "Not answered".
+        const html = render();
+        assert.match(sectionOf(html, 'Available'), /ot-answer--yes/);
+        assert.equal(/ot-answer--yes/.test(sectionOf(html, 'Not available')), false);
+        assert.match(sectionOf(html, 'Not available'), /ot-answer--no/);
+        assert.equal(/ot-answer--/.test(sectionOf(html, 'No response')), false,
+            'an unanswered row carries no answer chip');
+    });
+
     test('an available person shows the TIMES they offered, not just their name', () => {
         // "Available" without the boundary is useless to somebody filling a specific gap.
         const html = render();

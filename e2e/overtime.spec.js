@@ -84,6 +84,50 @@ test.describe('member surface', () => {
         await expect(page.locator('.ot-submit')).toContainText('6 days still to answer');
     });
 
+    test('the chosen option LOOKS chosen — measured, not inferred from the markup', async ({ page }) => {
+        // The defect this exists for shipped silently. The mode buttons became a radio group at
+        // v20.61 (`aria-checked`) while the CSS kept styling `[aria-pressed="true"]`, so for several
+        // releases pressing an option changed nothing visible: seven identical white rectangles, one
+        // of which was your answer. Every behavioural assertion above still passed — the attribute
+        // was correct, the answer was stored, the day was marked. Only the pixels were wrong.
+        //
+        // So this asserts the OUTCOME of the cascade rather than any selector, which is the only
+        // form that survives the next reason it might break (a renamed attribute, a lost rule, a
+        // specificity fight). Same reasoning as the 16px focusable-field sweep in pages.spec.js.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+
+        const day = page.locator('.ot-day').first();
+        const chosen = day.getByRole('radio', { name: 'Available all day' });
+        const other  = day.getByRole('radio', { name: 'Not available' });
+        const fill = (loc) => loc.evaluate(el => getComputedStyle(el).backgroundColor);
+
+        const before = await fill(chosen);
+        await chosen.click();
+        const after = await fill(chosen);
+        expect(after, 'choosing an option must change how it looks').not.toBe(before);
+        expect(after, 'the chosen option must be FILLED, not left transparent').not.toBe('rgba(0, 0, 0, 0)');
+        expect(await fill(other), 'the unchosen options must not follow it').toBe(before);
+
+        // And the other tone, because "available" and "not available" are the two answers a member
+        // gives — a rule that only landed on one of them would still pass everything above.
+        await other.click();
+        const otherFill = await fill(other);
+        expect(otherFill).not.toBe(before);
+        expect(otherFill, 'the two tones must be distinguishable from each other').not.toBe(after);
+    });
+
+    test('a day states its roster with the app-wide shift badge, not prose', async ({ page }) => {
+        // The one place this page says what somebody is already doing that day. Everywhere else in
+        // the app that fact is a `.shift-badge` chip, and the member reads those on the calendar
+        // every week — describing it in grey text here made the same fact look like a different one.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day .ot-day-roster .shift-badge')).toHaveCount(7);
+    });
+
     test('submitting an incomplete form refuses and names the day, rather than sitting disabled', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await stubOvertime(page, { windows: [openWindow()] });
@@ -192,6 +236,31 @@ test.describe('manager surface', () => {
         await page.getByRole('button', { name: 'Open now' }).nth(1).click();
         await expect(page.locator('#otConfirmText')).toContainText("Couldn't prepare that week");
         await expect(page.locator('#otConfirmCreate')).toBeDisabled();
+    });
+
+    test('the week being planned is already open — View switches week, it is not a gate', async ({ page }) => {
+        // The same step removed from the member's side at v20.64, which should have been removed
+        // from both surfaces at once: they are the same rows rendered by the same coordinator. A
+        // reviewer arrived on a list and had to press View before seeing any availability at all.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks() });
+        await page.goto('/overtime.html');
+        // The detail card is open on arrival, on the earliest week that HAS a form — not the first
+        // row, which is a missed week with nothing to show.
+        await expect(page.locator('#otWeekCard')).toBeVisible();
+        await expect(page.locator('#otWeekHint')).toContainText('5 September 2026');
+        // And the row it opened is marked as the one being shown.
+        await expect(page.locator('[data-open="2026-09-05"]')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    test('with no week created at all, nothing is force-opened', async ({ page }) => {
+        // Guard the guard: auto-opening must not invent a selection when there is none to make,
+        // which would leave an empty card asserting a week that does not exist.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: sixWeeks().map(w => ({ ...w, exists: false, state: 'not-created' })) });
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otHorizonContent')).toBeVisible();
+        await expect(page.locator('#otWeekCard')).toBeHidden();
     });
 
     test('weeks that have already run are reachable, not just the six ahead', async ({ page }) => {

@@ -369,6 +369,23 @@ export function init() {
             btn.addEventListener('click', () => previewWindow(String(btn.getAttribute('data-create')))));
         host.querySelectorAll('[data-open]').forEach(btn =>
             btn.addEventListener('click', () => selectWeek(String(btn.getAttribute('data-open')))));
+
+        // OPEN THE WEEK BEING PLANNED, rather than making the reviewer ask for it.
+        //
+        // The horizon used to be a gate: land on a list, press View, then see availability. That is
+        // the same step removed from the member's side at v20.64 — tapping through an index to reach
+        // the thing you came for exists for the code's benefit, not the person's — and it should
+        // have been removed from both surfaces at once, since they are the same rows rendered by the
+        // same coordinator.
+        //
+        // The earliest week WITH A FORM is the next roster to plan, so that is the one opened. View
+        // stops being a gate and becomes what it always should have been: how you switch week. Only
+        // on first load — a reviewer who has since chosen another week keeps it across a refresh of
+        // this card.
+        if (!selectedWeek) {
+            const first = weeks.find((/** @type {any} */ w) => w.exists);
+            if (first) selectWeek(first.weekEnding, { scroll: false });
+        }
     }
 
     /** @param {any} w */
@@ -500,7 +517,13 @@ export function init() {
     // ── Week detail (filled in by the Manager workspace step) ───────────────────────────────────
 
     /** @param {string} weekEnding */
-    function selectWeek(weekEnding) {
+    /**
+     * @param {string} weekEnding
+     * @param {{ scroll?: boolean }} [opts] `scroll: false` when the page CHOSE the week rather than
+     *   the reviewer — arriving on a page that has scrolled itself down is disorienting, whereas
+     *   moving to the card you just asked for is the point.
+     */
+    function selectWeek(weekEnding, { scroll = true } = {}) {
         selectedWeek = weekEnding;
         const card = el('otWeekCard');
         const hint = el('otWeekHint');
@@ -510,7 +533,7 @@ export function init() {
         if (host) renderLoading(host, 'Loading availability…');
         document.querySelectorAll('[data-open]').forEach(b =>
             b.setAttribute('aria-pressed', String(b.getAttribute('data-open') === weekEnding)));
-        card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (scroll) card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         renderWeekDetail(weekEnding);
     }
 
