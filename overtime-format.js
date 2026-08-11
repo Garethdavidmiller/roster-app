@@ -41,6 +41,13 @@ export const SUBMIT_GRACE_MS = 15 * 60 * 1000;
  * Distinct from the grace band on purpose: this one is about keeping the page HONEST while it sits
  * open (a member who opened the form at 11:50 must not still be told "open" at 12:05), and it is
  * deliberately shorter, so the refresh happens before the boundary rather than after it.
+ *
+ * ⚠️ **NOTHING CALLS `shouldResyncClock` YET** (noted v20.69). The rule and its tests are here; the
+ * page does not re-read state while it sits open. The consequence is bounded rather than absent: a
+ * member submitting after a boundary they were not told about is still SENT (the grace band), and
+ * past it the server's own "this form closed" is what they see — so the cost is a stale phase line,
+ * not a lost declaration. Wire it or delete it; leaving a rule that reads as though it were in force
+ * is the thing to avoid.
  */
 export const DEADLINE_SYNC_WINDOW_MS = 5 * 60 * 1000;
 
@@ -175,7 +182,7 @@ export function phaseCopy(phase) {
  * neutral state to be phrased around: nobody was asked, and the row has to say so plainly enough
  * that it is not read as "nobody was needed".
  * @param {string} state
- * @returns {{ label: string, tone: 'ok'|'warn'|'bad' }}
+ * @returns {{ label: string, tone: 'ok'|'warn'|'bad'|'done' }}
  */
 export function rowStateCopy(state) {
     switch (state) {
@@ -183,6 +190,12 @@ export function rowStateCopy(state) {
         // document was written. And nothing here says WINDOW any more — that is our word for the
         // record, never theirs. The page calls it a form everywhere a person can see.
         case 'created':                    return { label: 'Form open',    tone: 'ok'   };
+        // A created week whose final deadline has gone. The horizon's FIRST row is always the
+        // current week, and its deadline is eleven days behind it — so before this existed, every
+        // reviewer was told "Form open" about a week that had closed and whose roster was already
+        // published. Neutral tone, not a warning: a closed week is the normal end state, and the
+        // availability is still worth reading as the record of what was planned from.
+        case 'created-closed':             return { label: 'Form closed',  tone: 'done' };
         // The scheduler opens this overnight, so the row must not read as a demand. It said
         // "Not created" beside a prominent Create button, which asks a manager to do a job the
         // system now does — they would either do it redundantly or assume something was broken.
@@ -234,6 +247,41 @@ export function answerCopy(day) {
  */
 export function isUnavailable(day) {
     return !!day && day.mode === 'unavailable';
+}
+
+/**
+ * Has the roster moved out from under a saved answer that was anchored to it?
+ *
+ * Three of the six modes store a boundary taken from the member's duty times — "available after my
+ * shift" is stored as `15:00`, never as a reference, so that a later roster change cannot silently
+ * re-point what somebody declared. That is the right storage rule and it creates this question: the
+ * declaration stands, but it may no longer describe the day the member was picturing.
+ *
+ * The form answers it by SAYING SO rather than by changing anything. Re-anchoring the answer would
+ * be the app editing a declaration nobody re-made; showing nothing would leave a member to notice a
+ * two-digit difference between a badge and a button.
+ *
+ * **Unknown roster is not a changed roster.** `shift` is null when the context could not be read at
+ * all, and this returns false there — accusing a member of a stale answer on the strength of a
+ * failed Firestore query would be the same invention this feature refuses everywhere else.
+ *
+ * @param {any} day the stored answer
+ * @param {{hasTime?: boolean, start?: string, end?: string}|null} shift the CURRENT roster context
+ * @returns {boolean}
+ */
+export function answerAnchorStale(day, shift) {
+    if (!day || typeof day !== 'object' || !shift) return false;
+    switch (day.mode) {
+        // A rest day has no boundary to compare against, so a shift-anchored answer has lost its
+        // anchor entirely — which is exactly the case worth flagging, not one to skip.
+        case 'before':       return !shift.hasTime || day.until !== shift.start;
+        case 'after':        return !shift.hasTime || day.from  !== shift.end;
+        case 'before_after': return !shift.hasTime || day.until !== shift.start || day.from !== shift.end;
+        // The other three carry nothing taken from the roster: unavailable and all_day have no
+        // boundary at all, and a custom range is the member's own times, which the roster never
+        // supplied and therefore cannot invalidate.
+        default:             return false;
+    }
 }
 
 /**

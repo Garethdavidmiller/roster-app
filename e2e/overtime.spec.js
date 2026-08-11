@@ -32,6 +32,13 @@ async function stubOvertime(page, { windows = [], weeks = [] } = {}) {
 
 const openWindow = (over = {}) => ({ ...W, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null, ...over });
 
+/** The seven Sunday→Saturday dates, mirroring the server's `weekDates`. */
+const weekDates = (weekStart) => {
+    const [y, m, d] = weekStart.split('-').map(Number);
+    return Array.from({ length: 7 }, (_, i) =>
+        new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10));
+};
+
 const sixWeeks = () => [
     { ...W, weekEnding: '2026-08-22', exists: false, state: 'missed', canCreate: false },
     { ...W, weekEnding: '2026-08-29', exists: false, state: 'not-created-initial-passed', canCreate: true },
@@ -126,6 +133,59 @@ test.describe('member surface', () => {
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
         await expect(page.locator('.ot-day .ot-day-roster .shift-badge')).toHaveCount(7);
+    });
+
+    test('a saved answer keeps the time it was SAVED with when the shift later moves', async ({ page }) => {
+        // The stored schema keeps concrete clock times precisely so a roster change cannot re-point
+        // a declaration — and the button label was undoing that, because it was always built from
+        // the CURRENT shift. A member who answered "After 15:00" and whose shift was afterwards
+        // moved to 12:00–20:00 came back to a form showing "After 20:00", selected, while the
+        // reviewer's screen read the same record as "Available after 15:00". Two people looking at
+        // one answer and seeing different times, with nothing anywhere to say so.
+        await seedSession(page, 'G. Miller');
+        const dates = weekDates(W.weekStart);
+        // What the roster says NOW.
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), docs: rows };
+        }, dates.map(d => ({ id: `G. Miller|${d}`, memberName: 'G. Miller', date: d,
+            type: 'shift', value: '12:00-20:00', note: '', source: 'manual' })));
+        // What the member said EARLIER, when the shift finished at 15:00.
+        const days = Object.fromEntries(dates.map(d => [d, { mode: 'after', from: '15:00' }]));
+        await stubOvertime(page, { windows: [openWindow({ submission: { currentRevision: 1, days } })] });
+        await page.goto('/overtime.html');
+
+        const day = page.locator('.ot-day').first();
+        await expect(day.locator('[role="radio"][aria-checked="true"]')).toHaveText('After 15:00');
+        // The UNSELECTED options still offer the current roster, because that is what pressing one
+        // would store. The two are different questions and each now gets its own answer.
+        await expect(day.getByRole('radio', { name: 'Before 12:00' })).toBeVisible();
+        // And the member is TOLD, rather than left to spot a two-digit difference.
+        await expect(day.locator('.ot-day-stale')).toContainText('Your shift has changed');
+        await expect(day.locator('.ot-day-stale')).toContainText('Available after 15:00');
+    });
+
+    test('opening another week runs the open routine ONCE, not once per list on the page', async ({ page }) => {
+        // `wireWeekButtons` searched the whole card and was called twice — once for the open weeks,
+        // once for the closed ones — so the second call re-wired the first list. One tap then ran
+        // the whole routine twice: two roster reads, two full form renders, the first landing in a
+        // node the second had already detached. Both runs produced identical markup, so no
+        // assertion about the DOM could see it; the collection-read count is the observable.
+        await seedSession(page, 'G. Miller');
+        const other  = openWindow({ weekEnding: '2026-09-12', weekStart: '2026-09-06',
+            finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        const closed = openWindow({ weekEnding: '2026-08-22', weekStart: '2026-08-16', phase: 'CLOSED',
+            submission: { currentRevision: 1, days: Object.fromEntries(
+                weekDates('2026-08-16').map(d => [d, { mode: 'all_day' }])) } });
+        await stubOvertime(page, { windows: [openWindow(), other, closed] });
+        await page.goto('/overtime.html');
+        // Both lists must actually be on the page, or this passes by not exercising the bug.
+        await expect(page.locator('.ot-history-title')).toHaveCount(2);
+
+        const reads = () => page.evaluate(() => (window.__E2E || {}).docReads || 0);
+        const before = await reads();
+        await page.locator('[data-openweek="2026-09-12"]').click();
+        await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
+        expect(await reads() - before, 'one tap, one roster read').toBe(1);
     });
 
     test('submitting an incomplete form refuses and names the day, rather than sitting disabled', async ({ page }) => {
@@ -251,6 +311,42 @@ test.describe('manager surface', () => {
         await expect(page.locator('#otWeekHint')).toContainText('5 September 2026');
         // And the row it opened is marked as the one being shown.
         await expect(page.locator('[data-open="2026-09-05"]')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    test('it lands on the week being PLANNED, not the finished one at the top of the list', async ({ page }) => {
+        // The realistic horizon, which the fixture above never produced: the daily scheduler means
+        // every week that CAN exist does, and the first row is always the current week — whose final
+        // deadline is eleven days behind it and whose roster is already published.
+        //
+        // So "the earliest week with a form" landed the reviewer on a finished week every single
+        // visit, and they had to press View to reach the one they were actually planning: the exact
+        // gate v20.67 set out to remove, still there, just less visible.
+        await seedSession(page, 'H. Croft');
+        const closedWeek = { ...W, weekEnding: '2026-08-15', weekStart: '2026-08-09',
+            finalDeadlineAt: Date.parse('2026-08-04T11:00:00Z'), exists: true, state: 'created-closed',
+            canCreate: false, expected: 4, received: 4, noResponse: 0 };
+        const openWeek = { ...W, exists: true, state: 'created', canCreate: false,
+            expected: 4, received: 3, noResponse: 1 };
+        await stubOvertime(page, { weeks: [closedWeek, openWeek] });
+        await page.goto('/overtime.html');
+
+        await expect(page.locator('#otWeekHint')).toContainText('5 September 2026');
+        await expect(page.locator('[data-open="2026-09-05"]')).toHaveAttribute('aria-pressed', 'true');
+        // And the finished week says so rather than claiming to be open — both halves matter, since
+        // a row reading "Form open" is what made landing on it look deliberate.
+        await expect(page.locator('.ot-week-row').first()).toContainText('Form closed');
+        await expect(page.locator('.ot-week-row').nth(1)).toContainText('Form open');
+    });
+
+    test('with every week closed it still opens the most recent, rather than nothing', async ({ page }) => {
+        // The fallback. Only reachable when creation has fallen a long way behind, and a reviewer
+        // looking at a closed week is better served than one looking at an empty card.
+        await seedSession(page, 'H. Croft');
+        const closed = (weekEnding) => ({ ...W, weekEnding, exists: true, state: 'created-closed',
+            canCreate: false, expected: 1, received: 1, noResponse: 0 });
+        await stubOvertime(page, { weeks: [closed('2026-08-15'), closed('2026-08-22')] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otWeekHint')).toContainText('22 August 2026');
     });
 
     test('with no week created at all, nothing is force-opened', async ({ page }) => {

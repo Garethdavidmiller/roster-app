@@ -30,7 +30,7 @@ import * as OTD from './overtime-data.js';
 import { loadRosterContext, rosterLabel, rosterBadge, modesFor } from './overtime-roster.js';
 import {
     weekLabel, weekSpan, deadlineLabel, shortDate, phaseCopy, answerCopy, answerTone,
-    submitDisposition,
+    answerAnchorStale, submitDisposition,
 } from './overtime-format.js';
 
 /**
@@ -172,7 +172,11 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                     : `<div class="ot-modes" role="radiogroup" aria-label="Availability on ${esc(shortDate(date))}">
                         ${modes.map((m, i) => modeButton(date, m, c, a, i)).join('')}
                        </div>
-                       ${a?.mode === 'custom' ? customRow(date, a) : ''}`}
+                       ${a?.mode === 'custom' ? customRow(date, a) : ''}
+                       ${answerAnchorStale(a, c) ? `
+                        <p class="ot-day-stale" role="status">Your shift has changed since you
+                        answered. Your answer still says <strong>${esc(answerCopy(a))}</strong> —
+                        change it if that no longer suits.</p>` : ''}`}
             </div>`;
     }
 
@@ -183,13 +187,27 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * thing about all of them at once — "not pressed" five times over, where the truth is "one of
      * six, this one selected". A radio group also carries the roving tabindex below, so Tab moves
      * PAST the group rather than through six controls on each of seven days.
+     *
+     * ── A SELECTED OPTION IS LABELLED FROM THE ANSWER, NOT FROM THE ROSTER ──────────────────────
+     *
+     * The stored schema keeps CONCRETE clock boundaries precisely so a later roster change cannot
+     * silently re-point somebody's declaration (see `AVAILABILITY_MODES` in overtime-core.js). The
+     * button label was defeating that: it was always built from the CURRENT shift, so a member who
+     * answered "After 15:00" and whose shift was afterwards moved to 12:00–20:00 came back to a form
+     * showing "After 20:00", selected — while the reviewer's screen, reading the same record, said
+     * "Available after 15:00". Two people looking at one answer and seeing different times.
+     *
+     * So a selected option states what is SAVED. An unselected one states what pressing it would
+     * store, which is the current roster — those are genuinely different questions and the answer to
+     * each is now the one it asks.
      * @param {string} date @param {string} mode @param {any} c @param {any} a @param {number} i
      */
     function modeButton(date, mode, c, a, i) {
-        let label = MODE_LABELS[mode];
-        if (mode === 'before') label = label.replace('{until}', c?.start || '');
-        if (mode === 'after')  label = label.replace('{from}', c?.end || '');
         const on = a?.mode === mode;
+        // A selected mode reads its boundary off the stored answer; anything else off the roster.
+        let label = MODE_LABELS[mode];
+        if (mode === 'before') label = label.replace('{until}', (on ? a.until : c?.start) || '');
+        if (mode === 'after')  label = label.replace('{from}',  (on ? a.from  : c?.end)   || '');
         // Exactly one control in the group is tabbable: the selected one, or the first when nothing
         // is selected yet — which is every day on a fresh form.
         const tabbable = on || (!a?.mode && i === 0);
