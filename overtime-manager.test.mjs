@@ -46,6 +46,12 @@ function submissions(extra = {}) {
     ]);
 }
 
+/** The same answer on every date of the window — enough for the grade tests, which are about WHO
+    is counted rather than about what anyone said. */
+function allDays(mode) {
+    return Object.fromEntries(DATES.map(d => [d, { mode }]));
+}
+
 /** The only DOM this render touches. */
 function fakeHost() { return { innerHTML: '' }; }
 
@@ -53,7 +59,7 @@ function render(over = {}) {
     const host = fakeHost();
     renderWeekDetail(/** @type {any} */ (host), { ...WIN, ...over.win },
         { participants: over.participants || PARTICIPANTS, submissions: over.submissions || submissions() },
-        { dates: DATES });
+        { dates: DATES, now: Date.parse('2026-08-19T09:00:00Z') });
     return host.innerHTML;
 }
 
@@ -105,6 +111,60 @@ describe('by day', () => {
         assert.equal(/C\. Three/.test(unavailable), false, 'a non-responder is not "not available"');
         assert.match(noResponse, /C\. Three/);
         assert.equal(/B\. Two/.test(noResponse), false, 'an explicit no is not "no response"');
+    });
+
+    describe('viewing by grade', () => {
+        // A gap in the CEA line is not filled by an available CES. So this filter is not a
+        // convenience over the same answer — it is what makes the answer mean anything.
+        const MIXED = {
+            participants: [
+                { memberName: 'A. One', grade: 'CEA', rosterOrder: 1 },
+                { memberName: 'B. Two', grade: 'CES', rosterOrder: 2 },
+                { memberName: 'C. Three', grade: 'CEA', rosterOrder: 3 },
+            ],
+            submissions: new Map([
+                ['A. One', { memberName: 'A. One', days: allDays('all_day'), history: null }],
+                ['B. Two', { memberName: 'B. Two', days: allDays('unavailable'), history: null }],
+                ['C. Three', { memberName: 'C. Three', days: allDays('all_day'), history: null }],
+            ]),
+        };
+
+        test('the chips are DERIVED from who is actually in the window', () => {
+            // Never the app's fixed grade list. That would offer a Dispatcher chip on a week with no
+            // dispatchers — a control that filters to an empty page — and would silently omit a
+            // grade added to the roster later.
+            const html = render(MIXED);
+            assert.match(html, /data-grade="CEA"/);
+            assert.match(html, /data-grade="CES"/);
+            assert.equal(/data-grade="Dispatcher"/.test(html), false);
+            assert.match(html, /data-grade="ALL"/, 'and a way back to the whole week');
+        });
+
+        test('a SINGLE-grade window gets no filter at all', () => {
+            // An inert control is worse than an absent one: it invites a press that changes nothing.
+            const html = render({
+                participants: [{ memberName: 'A. One', grade: 'CEA', rosterOrder: 1 }],
+                submissions: new Map(),
+            });
+            assert.equal(/data-grade=/.test(html), false);
+        });
+
+        test('a participant with NO grade cannot become a chip', () => {
+            // Otherwise a blank-grade row would mint an empty chip that filters to itself.
+            const html = render({
+                participants: [{ memberName: 'A. One', grade: 'CEA', rosterOrder: 1 },
+                    { memberName: 'B. Two', rosterOrder: 2 }],
+                submissions: new Map(),
+            });
+            assert.equal(/data-grade=""/.test(html), false);
+        });
+
+        test('the printed scope line always states which grades the sheet covers', () => {
+            // The grade filter is carried into print, unlike the day filter, because printing one
+            // grade is a real thing to want — which makes saying so mandatory. A sheet of four CEAs
+            // with no scope line reads as the whole team.
+            assert.match(render(MIXED), /ot-print-scope">All grades/);
+        });
     });
 
     test('the answer chips are toned apart — a no never wears an available colour', () => {

@@ -152,6 +152,11 @@ export function init() {
 
         canReview = isOvertimeReviewer(currentUser);
         wireTabs();
+        // The page opens on the member's own form, so that is the print state until told otherwise.
+        // Set here rather than left undefined: an unset attribute would make the print rules fall
+        // through to whichever branch happened to be written last, on the one surface where a
+        // wrong answer prints a page of blank capsules and gets taken to a desk.
+        document.body.dataset.otView = 'mine';
 
         // ESTABLISH the Firebase session, then fulfil `sessionReady`. Nothing else does this: the
         // promise is created pending in session.js and resolved only by whichever coordinator owns
@@ -576,7 +581,7 @@ export function init() {
         // bug. Cheap to prevent; invisible when it happens.
         if (selectedWeek !== weekEnding) return;
         if (!data.ok) { renderError(host, () => renderWeekDetail(weekEnding)); return; }
-        paintWeekDetail(host, win, data, { dates: weekDatesFrom(win.weekStart) });
+        paintWeekDetail(host, win, data, { dates: weekDatesFrom(win.weekStart), now: OTD.correctedNow() });
         const chip = el('otWeekChip');
         if (chip) {
             const received = data.participants.filter((/** @type {any} */ p) => data.submissions.has(p.memberName)).length;
@@ -612,7 +617,15 @@ export function init() {
         }
     }
 
-    /** @param {'mine'|'all'} which @param {boolean} [focus] */
+    /**
+     * @param {'mine'|'all'} which @param {boolean} [focus]
+     *
+     * Also stamps `data-ot-view` on `<body>`, which is what the PRINT rules key off. Only the
+     * reviewer's workspace is a document — a member's form is a set of controls, and printing it
+     * would produce a page of empty capsules. CSS alone cannot tell which panel is showing (both
+     * exist in the document and `hidden` is toggled on a mid-tree element), so the one thing the
+     * stylesheet needs to know is put where a stylesheet can read it.
+     */
     function showPanel(which, focus = false) {
         const mine = which === 'mine';
         toggleTab('otTabMine', mine, focus);
@@ -621,6 +634,7 @@ export function init() {
         const allPanel  = el('otAllPanel');
         if (minePanel) minePanel.hidden = !mine;
         if (allPanel)  allPanel.hidden = mine;
+        document.body.dataset.otView = which;
     }
 
     /** @param {string} id @param {boolean} selected @param {boolean} [focus] */

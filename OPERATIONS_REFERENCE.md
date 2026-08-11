@@ -632,7 +632,7 @@ to approve a computation you cannot influence is not a control — it is a way t
 than weekly, so a missed run self-heals within a day instead of losing a whole week.
 
 *Upcoming weeks* therefore changed job: it was the safety net under a person, and it is now the
-**monitor over that job**. It still shows six week rows whether or not any exist — because it is
+**monitor over that job**. It still shows every horizon week whether or not any exist — because it is
 computed from the calendar, not from Firestore — so a week the scheduler failed to create still
 appears, still says it has no form, and still offers the button. Its collapsed chip counts the weeks
 **without** a form; that chip is the thing to glance at.
@@ -670,9 +670,32 @@ works from, alongside *Awaiting a form*. Above the days, a strip of seven chips 
 available on each; a day with **nobody** is outlined red, one to two amber. Tap a chip to show only
 that day, *All week* to bring them back.
 
+**Viewing by grade.** Above the day chips, one chip per grade in the week — *All grades · CEA · CES ·
+Dispatcher*, whichever are actually in it. Picking one narrows **everything**: the day counts, the
+forms-received line and the name rows all recompute for that grade alone. That is the point rather
+than a nicety — a CEA gap is not filled by an available CES, so "Tuesday has four" is only an answer
+once you know what those four are. A week with only one grade in it shows no chips.
+
 After the final deadline the member's form goes read-only and states the deadline it closed at.
 Availability recorded before the cut-off is what the roster is planned from; confirm directly with
 the employee before arranging short-notice cover.
+
+### Printing it
+
+**Only *Who is available* prints.** Print from the **Everyone** tab and you get a call sheet: the
+week, when the availability was read, how many forms are in, then every day with its three sections
+and the *Awaiting a form* list. It prints the whole week even if you have a day chip selected, and
+the answer chips print outlined rather than filled so they survive a mono printer.
+
+A **grade** filter, unlike the day filter, IS carried onto the paper — printing one grade's
+availability is a normal thing to want — so the sheet states its scope under the title
+("All grades", or "CEA only"). Check that line before acting on a printout.
+
+The **as at** line is the important one. Availability keeps changing until the final deadline and
+paper cannot follow it — that line says how old the sheet is, so treat anything printed before the
+deadline as a snapshot and confirm with the person before committing cover.
+
+Printing from **My availability** gives a short notice instead. It is a form, not a document.
 
 ### Who can see it
 

@@ -369,7 +369,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
     /**
      * The Manager planning horizon plus the retained window list. Reviewer only.
      *
-     * Returns six week rows computed from the CALENDAR, not from Firestore, then marks which of
+     * Returns the horizon's week rows computed from the CALENDAR, not from Firestore, then marks which of
      * them have windows. That order is the point: a list built from existing documents can only
      * ever show what exists, and the thing worth seeing is what does not.
      */

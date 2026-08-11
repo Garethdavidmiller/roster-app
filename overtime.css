@@ -365,20 +365,6 @@ body {
    Every new surface needs print rules (CLAUDE.md). A printed page is a snapshot
    somebody carries to a mess room, so the controls go and the content stays. */
 
-@media print {
-    .ot-beta,
-    .ot-tabs,
-    .ot-confirm-bar,
-    .ot-week-actions,
-    .ot-row-btn { display: none !important; }
-
-    .ot-week-row {
-        background: white !important;
-        border: 1px solid #999;
-        break-inside: avoid;
-    }
-}
-
 /* ── The seven-day form ─────────────────────────────────────────────────────
    Designed for a thumb on a 390px phone: one card per day, the roster on the
    right of the day name, and full-width mode buttons that wrap. Seven days is a
@@ -620,25 +606,55 @@ body {
    column already fits more of them per row without being told to. The old rule set a 30% floor,
    which on capsules would stretch "After 15:00" to a third of the card. */
 
-@media print {
-    .ot-modes,
-    .ot-custom,
-    .ot-feedback,
-    .ot-submit { display: none !important; }
-
-    .ot-day {
-        background: white !important;
-        border: 1px solid #999;
-        break-inside: avoid;
-    }
-}
-
 /* ── Manager workspace: one panel per date ──────────────────────────────────
    Three sections inside each, and an EMPTY one still renders its heading. A
    hidden "No response" section would make "nobody outstanding" look exactly
    like "the section failed to draw". */
 
 .ot-detail-head { margin-bottom: var(--space-3); }
+
+/* PRINT ONLY. The week name and the "as at" stamp are duplication on screen — the card header two
+   lines above already says the week — and they are the two things a printed sheet cannot do
+   without, because the card header is chrome and does not print. `aria-hidden` on the element keeps
+   it out of the screen-reader tree as well as off the screen. */
+.ot-print-head { display: none; }
+
+/* ── Grade filter ───────────────────────────────────────────────────────────
+   The app's type-pill idiom again, one size down: these are a LENS over the
+   page rather than a choice being recorded, so they sit quieter than the
+   member's answer pills and quieter than the day chips they sit above. */
+.ot-grades {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 0 0 var(--space-2);
+}
+
+.ot-grade {
+    padding: 4px 11px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-pill);
+    background: white;
+    color: var(--text-mid);
+    font-family: var(--font-sans);
+    font-size: var(--type-badge);
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
+}
+
+.ot-grade:active { transform: scale(var(--press-scale)); }
+.ot-grade:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .ot-grade:hover { background: var(--bg-light); } }
+
+.ot-grade[aria-pressed="true"] {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
+}
 
 .ot-detail-week {
     font-size: var(--type-medium);
@@ -772,19 +788,6 @@ body {
     font-weight: 700;
 }
 
-@media print {
-    .ot-current-note { border: 1px solid #999; }
-    .ot-day-panel    { break-inside: avoid; }
-    .ot-day-panel-head { background: #eee !important; color: black !important; }
-
-    /* The answer chip carries meaning by fill, so — exactly as `shared.css` does for the shift
-       badges — it has to keep its colour when the browser strips backgrounds. Printed, this list
-       is the document a clerk rings people from. */
-    .ot-answer--yes  { background: var(--success-green) !important; color: white !important; }
-    .ot-answer--no   { background: var(--charcoal)      !important; color: white !important; }
-    .ot-answer--none { background: white !important; color: var(--text-mid) !important; border: 1.5px dashed #999 !important; }
-}
-
 /* Back to the list of a member's own weeks, after opening one of them. */
 .ot-back-to-list { margin-top: var(--space-4); }
 
@@ -854,7 +857,142 @@ body {
 /* A week that has already run: quieter than a live one, still openable. */
 .ot-week-row--past { opacity: 0.86; }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRINT — one document, and it is the reviewer's
+
+   ── WHAT PRINTS, AND WHY ONLY THAT ──────────────────────────────────────────
+   The member's form is a set of CONTROLS. On paper it is seven rows of empty
+   capsules: nothing to read, nothing to write in that anyone will see, and a
+   real risk somebody fills it in with a pen believing it counts. So it prints
+   the app's standard "interactive page" notice instead — the same treatment
+   admin, operations and settings use for the same reason (v18.71).
+
+   The reviewer's "Who is available" IS a document. It is the sheet a clerk
+   takes away to ring round from, so it is the one thing here worth paper, and
+   it is designed as a call sheet rather than as a screenshot of a web page.
+
+   `data-ot-view` on <body> is how the stylesheet knows which is showing;
+   overtime-app.js sets it. CSS cannot work it out — both panels are in the
+   document and `hidden` sits on a mid-tree element.
+
+   ── WHAT THE CALL SHEET HAS TO DO ───────────────────────────────────────────
+   1. NAME ITSELF. The card header is chrome and does not print, so the week is
+      re-emitted inside the content as `.ot-print-head`. A page of names with no
+      week on it is worse than no page, because it can be acted on.
+   2. STATE ITS OWN AGE. Availability changes until the final deadline and paper
+      cannot follow it. `asAtLine` stamps when the data was READ — not when it
+      was printed, which would claim a freshness the contents do not have.
+   3. SAY HOW COMPLETE IT IS. The counts line stays: "3 of 44 received" is the
+      difference between a usable sheet and a misleading one.
+   4. KEEP THE THREE SECTIONS APART, including empty ones. The same invariant as
+      on screen, and it matters more here — nobody can tap a printed page to
+      find out whether a section merely failed to draw.
+   5. SHOW ALL SEVEN DAYS even when a glance chip has filtered the screen to
+      one. Printing the filtered view would produce a sheet silently missing six
+      days.
+   6. SURVIVE A MONO PRINTER. The answer chips lose their fills and become
+      OUTLINED text. Filled green and filled charcoal both photocopy to a dark
+      blob distinguishable only by the words — so the words do the work and the
+      ink goes on the border. This deliberately reverses the colour-preserving
+      `!important` rules that were here: they were right for a colour printer
+      and wrong for the office one.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @media print {
-    .ot-glance { display: none !important; }
+    html, body { background: white !important; }
+
+    /* Chrome that never prints, on either view. */
+    .app-header,
+    .ot-beta,
+    .ot-tabs,
+    .ot-confirm-bar,
+    .nav-panel,
+    .nav-panel-overlay,
+    .lb-overlay,
+    #loginOverlay,
+    .btn-card-tips,
+    .collapse-chevron,
+    .ot-row-btn,
+    .ot-week-actions { display: none !important; }
+
+    /* ── The member's form: a notice, not a page of empty capsules ────────── */
+    body[data-ot-view="mine"] .app { display: none !important; }
+    body[data-ot-view="mine"]::before {
+        content: "⏱ Overtime availability\A\A This is an interactive form — you choose when you can work overtime and submit it here. There is nothing on this page to print. Managers can print the availability everyone has submitted from the Everyone view.";
+        white-space: pre-line;
+        display: block;
+        max-width: 16cm;
+        margin: 4cm auto;
+        text-align: center;
+        font-size: var(--type-body);
+        line-height: 1.7;
+        color: var(--text-dark);
+    }
+
+    /* ── The reviewer's call sheet ────────────────────────────────────────── */
+    body[data-ot-view="all"] #otMinePanel,
+    body[data-ot-view="all"] #otHorizonCard { display: none !important; }
+
+    /* The card is a document now, not a card: no shadow, no radius, no inset. */
+    body[data-ot-view="all"] .card {
+        box-shadow: none !important;
+        border-radius: 0;
+        background: white !important;
+        margin: 0;
+    }
+    body[data-ot-view="all"] .card-header { display: none !important; }
+    body[data-ot-view="all"] .card-body { padding: 0 !important; }
+
+    .ot-print-head { display: block; margin-bottom: 10px; }
+    .ot-print-title {
+        font-size: var(--type-large);
+        font-weight: 800;
+        color: var(--text-dark);
+    }
+    .ot-print-asat {
+        margin-top: 2px;
+        font-size: var(--type-small);
+        color: var(--text-mid);
+    }
+    /* The grade filter IS honoured on paper — printing one grade's availability is a real thing to
+       want — so the sheet has to say which. Emphasised, not muted: four CEAs on a page with no
+       scope line reads as the whole team, and that misreading costs somebody a shift. */
+    .ot-print-scope {
+        margin-top: 3px;
+        font-size: var(--type-small);
+        font-weight: 700;
+        color: var(--text-dark);
+    }
+    /* The chips themselves are a control, and a control is not a document. */
+    .ot-grades { display: none !important; }
+
+    .ot-current-note { border: 1px solid #999; background: white !important; }
+
+    /* The week's shape in one line — the most useful thing on the sheet, and it
+       was hidden in print until v20.71. The "All week" chip is a control with no
+       meaning on paper, so only the seven days go. */
+    .ot-glance { display: grid !important; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .ot-glance-day--all { display: none !important; }
+    .ot-glance-day {
+        border: 1px solid #999 !important;
+        background: white !important;
+        break-inside: avoid;
+    }
+    .ot-glance-day[aria-pressed="true"] .ot-glance-name,
+    .ot-glance-day[aria-pressed="true"] .ot-glance-count { color: var(--text-dark) !important; }
+
+    /* A filtered screen must not become a filtered SHEET. */
     .ot-day-panel[hidden] { display: block !important; }
+    .ot-day-panel { break-inside: avoid; margin-bottom: 8px; }
+    .ot-day-panel-head { background: #eee !important; color: black !important; }
+    .ot-person { break-inside: avoid; }
+
+    /* Outlined, not filled — see point 6 in the header. */
+    .ot-answer {
+        background: white !important;
+        color: var(--text-dark) !important;
+        border: 1px solid #999 !important;
+    }
+    .ot-person-flag { background: white !important; border: 1px solid #999; }
 }

@@ -166,6 +166,26 @@ export function deadlineLabel(ms) {
 }
 
 /**
+ * The line that makes a PRINTED availability sheet honest about its own age.
+ *
+ * "As at", not "printed at", and the difference is the whole point. What matters to somebody
+ * ringing round from a sheet of paper is when the availability was READ — not when the paper came
+ * out of the tray. A page left open for an hour and then printed would carry a timestamp an hour
+ * newer than its own contents, which is the one direction this must not be wrong in.
+ *
+ * So it is stamped at render and never refreshed on `beforeprint`. (That event is also absent on
+ * iOS Safari, so a refresh would be inconsistent as well as misleading.)
+ * @param {number} nowMs corrected server time at the moment the workspace was rendered
+ */
+export function asAtLine(nowMs) {
+    // No directional word. It said "the final deadline above" and the deadline prints on the NEXT
+    // line down — the kind of thing that is invisible while writing the sentence and obvious on the
+    // page. Positional references are a standing hazard here, because this line is authored for a
+    // layout it is never seen in.
+    return `Availability as at ${deadlineLabel(nowMs)} — it can change until the final deadline.`;
+}
+
+/**
  * Staff-facing copy for a submission phase. Calm and factual — never a countdown.
  *
  * ── IT MAY NOT NAME A DOCUMENT THE MEMBER NEVER SEES ────────────────────────────────────────────

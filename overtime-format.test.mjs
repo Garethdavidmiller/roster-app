@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
-    countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary,
+    countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary, asAtLine,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -300,6 +300,25 @@ describe('states in words', () => {
         for (const p of ['INITIAL_OPEN', 'FINAL_OPEN', 'CLOSED']) {
             assert.equal(/!/.test(phaseCopy(p)), false, 'no exclamation marks — the app is calm');
         }
+    });
+
+    test('the printed sheet states when the data was READ, not when it was printed', () => {
+        // A sheet of names is acted on away from the screen, and availability keeps changing until
+        // the final deadline — so the one thing paper must carry is its own age. "As at" is the
+        // honest framing: it is stamped at render, and a page left open for an hour then printed
+        // would otherwise claim a freshness its contents do not have.
+        const line = asAtLine(Date.parse('2026-08-11T10:00:00Z'));
+        assert.match(line, /as at/i);
+        assert.match(line, /11 Aug/, 'it names the actual moment, not just "recently"');
+        assert.match(line, /11:00/, 'in London wall-clock, like every other time on the page');
+        assert.match(line, /final deadline/, 'and says what will make it stale');
+    });
+
+    test('and it carries no POSITIONAL word — it is written for a page it never sees', () => {
+        // It said "the final deadline above" and the deadline prints on the next line DOWN. Invisible
+        // while writing the sentence, obvious on the page. This copy is authored in a module with no
+        // layout, so directions are a standing hazard rather than a one-off slip.
+        assert.equal(/\b(above|below|left|right|opposite)\b/i.test(asAtLine(Date.now())), false);
     });
 
     test('and the two open phases are DISTINGUISHABLE, or the line is decoration', () => {
