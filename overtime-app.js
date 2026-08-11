@@ -29,7 +29,7 @@ import { CONFIG } from './roster-data.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, isOvertimeReviewer } from './auth-policy.js';
+import { requirePage, isOvertimeReviewer, canOpenOvertime } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -84,7 +84,7 @@ export function init() {
             memberName: currentUser,
             isAdmin: !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser),
             isLinksDesigner: !!currentUser && CONFIG.LINKS_DESIGNERS.includes(currentUser),
-            isOvertimeReviewer: isOvertimeReviewer(currentUser),
+            canOpenOvertime: canOpenOvertime(currentUser),
             onSignOut: currentUser ? handleSignOut : null,
             onLogoClick: () => openAboutLightbox?.(),
             usageIdentity: currentUser,

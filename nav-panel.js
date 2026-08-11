@@ -43,7 +43,7 @@ const NAV_PAGES = [
     // way Ops and Links are. Hiding it is not the security boundary — the page gates itself and the
     // server refuses everyone else — it is only so ordinary staff are not shown a destination that
     // would turn them away. At full launch the flag comes off and every eligible member sees it.
-    { id: 'overtime',   label: '⏱️ Overtime',      url: './overtime.html',   colorClass: 'nav-panel-pill--overtime',   overtimeReviewerOnly: true },
+    { id: 'overtime',   label: '⏱️ Overtime',      url: './overtime.html',   colorClass: 'nav-panel-pill--overtime',   overtimeAudienceOnly: true },
     // SETTINGS IS A PAGE, SO IT IS A PILL (v20.06). It used to be a flat link pinned above the
     // footer, styled like the Information rows — which made it the only page-destination in the
     // drawer that did not look like one, and meant "where do I go" had two answers in two places
@@ -244,7 +244,7 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, isOvertimeReviewer?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
  *   onLockCalendar (v20.12, calendar only) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
@@ -255,7 +255,7 @@ export function resetNavPanel() {
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, isOvertimeReviewer = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion (v18.20): the signed-in name by
     // default; the calendar passes its SELECTED member (its session is optional — same precedent
     // as recordUsage's identity there). Never stored — only compared against CONFIG.ADMIN_NAMES.
@@ -268,7 +268,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     burger.setAttribute('aria-controls', 'navPanel');
     burger.setAttribute('aria-expanded', 'false');
 
-    _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, isOvertimeReviewer, onLockCalendar);
+    _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, canOpenOvertime, onLockCalendar);
 
     const panel    = /** @type {HTMLElement} */ (document.getElementById('navPanel'));
     const overlay  = /** @type {HTMLElement} */ (document.getElementById('navPanelOverlay'));
@@ -968,16 +968,16 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
  * @param {any} onLockCalendar
  * @param {any} isAdmin
  * @param {any} isLinksDesigner
- * @param {any} isOvertimeReviewer
+ * @param {any} canOpenOvertime
  */
-function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, isOvertimeReviewer, onLockCalendar) {
+function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, canOpenOvertime, onLockCalendar) {
     // Render every permitted destination. The current page is shown too — as an
     // inert "you are here" pill (aria-current) rather than being filtered out —
     // so the drawer doubles as a map, not just a list of exits.
     const pills = NAV_PAGES
         .filter(p => !p.adminOnly || isAdmin)
         .filter(p => !p.linksDesignerOnly || isLinksDesigner)
-        .filter(p => !p.overtimeReviewerOnly || isOvertimeReviewer)
+        .filter(p => !p.overtimeAudienceOnly || canOpenOvertime)
         .map(p => p.id === currentPage
             ? `<span class="nav-panel-pill ${p.colorClass} nav-panel-pill--current" aria-current="page">${p.label}</span>`
             : `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)

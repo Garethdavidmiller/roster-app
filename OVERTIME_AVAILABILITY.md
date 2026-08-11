@@ -115,8 +115,23 @@ asking who gets the form. Moving it changed no behaviour and made the rule answe
 
 `selectParticipants` is deliberately **two stages**. Stage 1 is who could ever be asked — on this
 week, still here, and **not a manager** — and it binds every audience, including ones not yet
-written. Stage 2 is which of those this audience asks: `restricted` (today) the admin alone,
-`all` (the end state) everybody stage 1 allows.
+written. Stage 2 is which of those this audience asks: `restricted` (today) the admin plus anyone
+named in `CONFIG.OVERTIME_BETA`, `all` (the end state) everybody stage 1 allows.
+
+The beta therefore widens **a name at a time, by invitation**, so a real member's experience can be
+watched before every member has it. Stage 1 still binds those names: inviting a manager or a leaver
+changes nothing, which is what stops the invitation list becoming a second, unreviewed route into a
+population.
+
+**Reaching the page is a separate question from reviewing it, and the first invited CEA is what
+exposed that** (v20.76). The page had only ever had the reviewer answer — the nav pill was
+reviewer-gated and `PAGE_POLICIES.overtime` demanded an `admin`/`manager` role — so a member the
+server was already asking would have found no link in the drawer and a "not open to everyone yet"
+panel if she typed the URL, with her form waiting on the server the whole time. `canOpenOvertime`
+(reviewer **or** invited participant) now gates both; `isOvertimeReviewer` is untouched and still
+decides who may see anybody else's declarations. **Do not merge the two predicates.** Widening the
+reviewer test to make a pill appear is the one edit that turns a testing invitation into access to
+colleagues' availability.
 
 **Managers review; they never participate.** The right to see a week's answers comes from the
 `manager` claim, not from the participant list, so a manager already sees everything without

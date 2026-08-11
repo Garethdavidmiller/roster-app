@@ -18,7 +18,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShi
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { requirePage, isOvertimeReviewer } from './auth-policy.js';
+import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
@@ -1664,7 +1664,7 @@ export function init() {
             memberName:  currentUser,
             isAdmin:         currentIsAdmin,
             isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
-            isOvertimeReviewer: isOvertimeReviewer(currentUser),
+            canOpenOvertime: canOpenOvertime(currentUser),
             onLogoClick: () => openAboutLightbox?.(),
             onSignOut:   () => { clearSession(); window.location.reload(); },
         });

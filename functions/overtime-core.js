@@ -379,9 +379,15 @@ function isEligibleForWeek(member, weekStart) {
  *
  * Stage 2 — which of them THIS audience asks:
  *
- *   restricted   the admin alone. A TESTING population, and the only one in force today —
- *                deliberately the one person who cannot be harmed by a half-finished feature.
+ *   restricted   the admin, plus any ordinary member named in the beta list. A TESTING population:
+ *                it started as the admin alone (the one person who cannot be harmed by a
+ *                half-finished feature) and widens a name at a time, by invitation, so a real
+ *                member's experience can be watched before every member has it.
  *   all          everybody stage 1 allows. The end state.
+ *
+ * A beta member is a PARTICIPANT and nothing else. Reviewing is the `admin`/`manager` claim, and
+ * these two lists must not be allowed to converge: this one decides who is ASKED, and letting it
+ * also decide who can LOOK would hand a colleague's declarations to whoever was invited to test.
  *
  * ── A MANAGER IS A REVIEWER AND NEVER A PARTICIPANT ─────────────────────────────────────────────
  *
@@ -407,17 +413,17 @@ function isEligibleForWeek(member, weekStart) {
  * Widening the beta is still a one-word edit — `currentAudience()`.
  *
  * @param {Array<{name:string,grade?:string,rosterOrder?:number,startDate?:string|null,hidden?:boolean,managerOnly?:boolean}>} roster
- * @param {{ weekStart:string, audience:string, adminNames?:string[] }} ctx
+ * @param {{ weekStart:string, audience:string, adminNames?:string[], betaNames?:string[] }} ctx
  * @returns {Array<{memberName:string, grade:string, rosterOrder:number}>}
  */
-function selectParticipants(roster, { weekStart, audience, adminNames = [] }) {
+function selectParticipants(roster, { weekStart, audience, adminNames = [], betaNames = [] }) {
     const eligible = (roster || [])
         .filter(m => isEligibleForWeek(m, weekStart))
         .filter(m => !m.hidden && !m.managerOnly);
     const chosen = audience === 'restricted'
-        // Derived from the server-owned admin list, never a name list of its own — so it follows
-        // CONFIG.ADMIN_NAMES and needs no edit here when that changes.
-        ? eligible.filter(m => adminNames.includes(m.name))
+        // Both lists come from the server-owned generated roster, never from a name written here —
+        // so inviting somebody is one edit in CONFIG plus a regenerate, and this code never moves.
+        ? eligible.filter(m => adminNames.includes(m.name) || betaNames.includes(m.name))
         : eligible;
     return chosen
         .map(m => ({
