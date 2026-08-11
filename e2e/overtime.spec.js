@@ -194,6 +194,38 @@ test.describe('manager surface', () => {
         await expect(page.locator('#otConfirmCreate')).toBeDisabled();
     });
 
+    test('weeks that have already run are reachable, not just the six ahead', async ({ page }) => {
+        // The server has always sent `retained` — every week still inside the 13-week retention —
+        // and the page fetched it and threw it away. So a week became unreachable the moment its
+        // Saturday passed, while the member's own screen promised their forms were kept for 13
+        // weeks. "Who was available when we made that call?" had no answer, from data already
+        // crossing the wire.
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }),
+        }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({
+                ok: true, serverNow: NOW, planningWeeks: sixWeeks(),
+                retained: [
+                    { ...W, weekEnding: '2026-08-08', finalDeadlineAt: Date.parse('2026-07-28T11:00:00Z') },
+                    { ...W, weekEnding: '2026-08-01', finalDeadlineAt: Date.parse('2026-07-21T11:00:00Z') },
+                    // Already in the horizon — it must not be listed twice.
+                    { ...W },
+                ],
+            }),
+        }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-history-title')).toContainText('Previous weeks');
+        await expect(page.locator('.ot-week-row--past')).toHaveCount(2);
+        await expect(page.locator('.ot-week-row--past').first()).toContainText('8 August 2026');
+        // Reachable, not merely listed.
+        await expect(page.locator('.ot-week-row--past').first().getByRole('button', { name: 'View' })).toBeVisible();
+    });
+
     test('counts distinguish no response from unavailable', async ({ page }) => {
         await seedSession(page, 'H. Croft');
         await stubOvertime(page, { weeks: sixWeeks() });

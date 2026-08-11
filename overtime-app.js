@@ -349,7 +349,22 @@ export function init() {
             chip.textContent = missing ? `${missing} without a form` : 'All created';
             chip.hidden = false;
         }
-        host.innerHTML = `<div class="ot-week-list">${weeks.map(renderHorizonRow).join('')}</div>`;
+        // PAST WEEKS. The server has always sent `retained` — every week still inside the 13-week
+        // retention, newest first — and this page fetched it and threw it away. So the moment a
+        // week's Saturday passed, its submissions became unreachable, while the member's own screen
+        // promised "forms are kept for around 13 weeks". A reviewer asking "who was available the
+        // week we made that call?" had no answer in the app, from data already crossing the wire.
+        const shown = new Set(weeks.map((/** @type {any} */ w) => w.weekEnding));
+        const past = (r.data.retained || [])
+            .filter((/** @type {any} */ w) => !shown.has(w.weekEnding));
+        for (const w of past) horizonByWeek.set(w.weekEnding, w);
+
+        host.innerHTML = `<div class="ot-week-list">${weeks.map(renderHorizonRow).join('')}</div>`
+            + (past.length ? `
+                <div class="ot-history">
+                    <div class="ot-history-title">Previous weeks</div>
+                    <div class="ot-week-list">${past.map(renderPastWeekRow).join('')}</div>
+                </div>` : '');
         host.querySelectorAll('[data-create]').forEach(btn =>
             btn.addEventListener('click', () => previewWindow(String(btn.getAttribute('data-create')))));
         host.querySelectorAll('[data-open]').forEach(btn =>
@@ -382,6 +397,20 @@ export function init() {
                     <span class="ot-week-state ot-week-state--${tone}">${esc(label)}</span>
                 </div>
                 <div class="ot-week-actions">${action}</div>
+            </div>`;
+    }
+
+    /** A week that has already run, still inside retention. @param {any} w */
+    function renderPastWeekRow(w) {
+        return `
+            <div class="ot-week-row ot-week-row--past">
+                <div class="ot-week-main">
+                    <div class="ot-week-title">${esc(weekLabel(w.weekEnding))}</div>
+                    <div class="ot-week-meta">Closed ${esc(deadlineLabel(w.finalDeadlineAt))}</div>
+                </div>
+                <div class="ot-week-actions">
+                    <button type="button" class="ot-row-btn" data-open="${esc(w.weekEnding)}">View</button>
+                </div>
             </div>`;
     }
 
