@@ -208,44 +208,62 @@ export function init() {
             return;
         }
 
-        // ONE window opens straight into its form — including a closed one, which is read-only but
-        // is still the thing the member came to look at. A list-then-tap for a single item is a tap
-        // that exists only to satisfy the shape of the code; several weeks get the list, which is
-        // where the choice actually matters.
-        const open = windows.filter((/** @type {any} */ w) => w.phase !== 'CLOSED');
-        const solo = open.length === 1 ? open[0] : (windows.length === 1 ? windows[0] : null);
-        if (solo) {
-            const holder = document.createElement('div');
-            host.innerHTML = '';
-            host.appendChild(holder);
-            await renderWeekForm(holder, solo, String(currentUser), { onSaved: () => { /* head refreshes on next load */ } });
-            if (windows.length > 1) appendHistory(host, windows.filter((/** @type {any} */ w) => w !== solo), windows);
-            return;
-        }
-
-        renderWeekList(host, windows);
-    }
-
-    /** @param {HTMLElement} host @param {any[]} windows */
-    function renderWeekList(host, windows) {
-        host.innerHTML = `<div class="ot-week-list">${windows.map(renderMyWeekRow).join('')}</div>`;
-        wireWeekButtons(host, windows);
+        await renderMine(host, windows);
     }
 
     /**
-     * Closed weeks, listed under the live form so history is present without competing with it.
-     * @param {HTMLElement} host @param {any[]} past @param {any[]} all
+     * The member lands IN a form, never on a list of forms.
+     *
+     * ── WHY THIS IS NOT A PICKER ────────────────────────────────────────────────────────────────
+     *
+     * This used to open a form directly only when exactly ONE window was open, and show a
+     * tap-through list otherwise — reasonable when a reviewer created one week at a time, so one
+     * open window was the ordinary case and a list meant a genuine choice.
+     *
+     * Automatic creation (v20.61) fills the whole six-week horizon, and a window stays open until
+     * eleven days before its week, so **four or five are open simultaneously, permanently**. The
+     * list stopped being the exception and became the only path: every member, every visit, tapped
+     * through an index before reaching anything they could fill in. That is a step that exists
+     * because of how the weeks are made, which is not a fact the member should have to care about.
+     *
+     * So the form that closes SOONEST is rendered directly — it is the one with a deadline
+     * approaching, and therefore the answer to "what do I need to do?". The other open weeks are
+     * listed beneath it for anyone who wants to answer further ahead, and closed weeks below that
+     * as history. Nothing is hidden; the ordering just matches the urgency.
+     *
+     * @param {HTMLElement} host @param {any[]} windows
      */
-    function appendHistory(host, past, all) {
-        if (!past.length) return;
+    async function renderMine(host, windows) {
+        const open = windows.filter((/** @type {any} */ w) => w.phase !== 'CLOSED')
+            .sort((/** @type {any} */ a, /** @type {any} */ b) => a.finalDeadlineAt - b.finalDeadlineAt);
+        const closed = windows.filter((/** @type {any} */ w) => w.phase === 'CLOSED');
+        // With nothing open, the newest CLOSED week is still what they came to look at (read-only).
+        const lead = open[0] || closed[closed.length - 1];
+        if (!lead) return;
+
+        const holder = document.createElement('div');
+        host.innerHTML = '';
+        host.appendChild(holder);
+        await renderWeekForm(holder, lead, String(currentUser), { onSaved: () => { /* head refreshes on next load */ } });
+
+        appendWeekList(host, open.slice(1), 'Other open weeks', windows);
+        appendWeekList(host, closed.filter((/** @type {any} */ w) => w !== lead), 'Previous forms', windows);
+    }
+
+    /**
+     * A labelled list of OTHER weeks, under the form. Empty lists render nothing — a heading over
+     * no rows is a section that looks like it failed to load.
+     * @param {HTMLElement} host @param {any[]} rows @param {string} title @param {any[]} all
+     */
+    function appendWeekList(host, rows, title, all) {
+        if (!rows.length) return;
         const wrap = document.createElement('div');
         wrap.className = 'ot-history';
-        wrap.innerHTML = `<div class="ot-history-title">Previous forms</div>
-            <div class="ot-week-list">${past.map(renderMyWeekRow).join('')}</div>`;
+        wrap.innerHTML = `<div class="ot-history-title">${esc(title)}</div>
+            <div class="ot-week-list">${rows.map(renderMyWeekRow).join('')}</div>`;
         host.appendChild(wrap);
-        // These rows render the same View button as the list does, so they need the same wiring.
-        // Without it they were buttons that did nothing at all — which reads as the page being
-        // broken, not as history being read-only.
+        // These rows carry the same View/Open button the list did, so they need the same wiring.
+        // Without it they are buttons that do nothing, which reads as a broken page.
         wireWeekButtons(host, all);
     }
 
@@ -275,8 +293,11 @@ export function init() {
         const back = document.createElement('button');
         back.type = 'button';
         back.className = 'ot-row-btn ot-back-to-list';
-        back.textContent = '← All my forms';
-        back.addEventListener('click', () => renderWeekList(host, windows));
+        back.textContent = '← Back to my current form';
+        // Back to the layout they LANDED on — the soonest-closing form with the other
+        // weeks beneath it. Returning to a bare index would reintroduce the very step
+        // this arrangement removes, one tap further in.
+        back.addEventListener('click', () => { renderMine(host, windows); });
         host.appendChild(back);
     }
 
