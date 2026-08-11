@@ -61,8 +61,75 @@ export function renderWeekDetail(host, win, data, { dates }) {
             Availability reflects what staff submitted before the final cut-off. Confirm directly
             with the employee before arranging short-notice cover.
         </div>
+        ${glanceStrip(dates, participants, submissions)}
         ${dates.map(date => dayPanel(date, participants, submissions)).join('')}
         ${awaitingPanel(participants, submissions)}`;
+
+    wireGlance(host);
+}
+
+/**
+ * THE WHOLE WEEK IN ONE LINE, and a way to look at one day of it.
+ *
+ * ── WHY A LIST OF DAYS WAS NOT ENOUGH ───────────────────────────────────────────────────────────
+ *
+ * The by-day view answers "who can work Saturday?" correctly and, at full roster size, slowly: seven
+ * day panels, three sections each, **308 name rows**. A clerk filling one shift on one day had to
+ * scroll past six days they did not ask about, and — worse — could not see where the WEEK was
+ * thin without reading all of it. The count that matters most ("Tuesday has two people") was
+ * derivable from the page and stated nowhere on it.
+ *
+ * So the week opens with one row of seven days, each showing how many are available, and a day with
+ * NOBODY says so in its own colour rather than by being an empty section further down. Tapping a day
+ * shows only that day; "All week" brings them back. Nothing is hidden that was not already there —
+ * this is a lens over the same rows, not a summary that could disagree with them.
+ * @param {string[]} dates @param {any[]} participants @param {Map<string, any>} submissions
+ */
+function glanceStrip(dates, participants, submissions) {
+    const chips = dates.map(date => {
+        const n = participants.filter(p => {
+            const sub = submissions.get(p.memberName);
+            return sub && !isUnavailable(sub.days?.[date]);
+        }).length;
+        const tone = n === 0 ? 'none' : (n <= 2 ? 'low' : 'ok');
+        return `<button type="button" class="ot-glance-day ot-glance-day--${tone}"
+                        data-glance="${esc(date)}" aria-pressed="false">
+                    <span class="ot-glance-name">${esc(shortDate(date))}</span>
+                    <span class="ot-glance-count">${n}</span>
+                </button>`;
+    }).join('');
+    return `
+        <div class="ot-glance" role="group" aria-label="Available staff by day — choose a day to show only that day">
+            <button type="button" class="ot-glance-day ot-glance-day--all" data-glance="ALL" aria-pressed="true">
+                <span class="ot-glance-name">All week</span>
+            </button>
+            ${chips}
+        </div>`;
+}
+
+/**
+ * Chips filter the day panels already on the page — no re-fetch, no second source of truth.
+ *
+ * A genuine ENHANCEMENT over markup that is already complete and correct: every day is rendered and
+ * visible before this runs, so a host without query methods (the two-line fake DOM the render tests
+ * use, which is the right level for asserting what the markup SAYS) simply gets the unfiltered week.
+ * The guard is what keeps the render testable without a browser — not a swallowed error.
+ * @param {HTMLElement} host
+ */
+function wireGlance(host) {
+    if (typeof host?.querySelectorAll !== 'function') return;
+    const chips = [...host.querySelectorAll('[data-glance]')];
+    const panels = [...host.querySelectorAll('.ot-day-panel[data-date]')];
+    chips.forEach(chip => chip.addEventListener('click', () => {
+        const pick = chip.getAttribute('data-glance');
+        chips.forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
+        panels.forEach(pnl => {
+            const show = pick === 'ALL' || pnl.getAttribute('data-date') === pick;
+            // `hidden` alone would not hide it — `.ot-day-panel` sets no display, but the companion
+            // rule in overtime.css keeps this honest either way. See page-visibility-parity.
+            /** @type {any} */ (pnl).hidden = !show;
+        });
+    }));
 }
 
 /** One date: available, not available, no response — three sections, never merged. */
@@ -81,7 +148,7 @@ function dayPanel(date, participants, submissions) {
     }
 
     return `
-        <div class="ot-day-panel">
+        <div class="ot-day-panel" data-date="${esc(date)}">
             <div class="ot-day-panel-head">${esc(shortDate(date))}</div>
             ${section('Available', available, 'ok')}
             ${section('Not available', unavailable, 'muted')}

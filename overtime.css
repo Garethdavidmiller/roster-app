@@ -693,3 +693,67 @@ body {
 
 /* Back to the list of a member's own weeks, after opening one of them. */
 .ot-back-to-list { margin-top: var(--space-4); }
+
+/* ── At-a-glance day strip ───────────────────────────────────────────────────
+   The week in one row. At full roster size the by-day view is 308 name rows, so
+   the number a clerk most wants — how many are free on each day — was derivable
+   from the page and stated nowhere on it. Tapping a day filters to that day. */
+
+.ot-glance {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 var(--space-3);
+}
+
+.ot-glance-day {
+    flex: 1 1 auto;
+    min-width: 62px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius);
+    background: white;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+}
+
+.ot-glance-day:hover  { background: var(--bg-light); }
+.ot-glance-day:active { transform: scale(var(--press-scale)); }
+.ot-glance-day:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+.ot-glance-name  { font-size: var(--type-micro); color: var(--text-mid); white-space: nowrap; }
+.ot-glance-count { font-size: var(--type-medium); font-weight: 800; color: var(--text-dark); }
+
+/* A day with NOBODY says so in its own right, rather than by being an empty
+   section several screens further down. */
+.ot-glance-day--none  { border-color: var(--error-red); }
+.ot-glance-day--none  .ot-glance-count { color: var(--error-text); }
+.ot-glance-day--low   { border-color: var(--al-low); }
+
+.ot-glance-day[aria-pressed="true"] {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+}
+.ot-glance-day[aria-pressed="true"] .ot-glance-name  { color: rgba(255, 255, 255, 0.75); }
+.ot-glance-day[aria-pressed="true"] .ot-glance-count { color: white; }
+
+.ot-glance-day--all { justify-content: center; }
+.ot-glance-day--all .ot-glance-name { font-size: var(--type-small); font-weight: 700; }
+
+/* `.ot-day-panel` sets no display of its own, so `hidden` already works — the
+   companion rule is here so a future display rule cannot silently break the
+   filter (page-visibility-parity guards the markup-hidden case, not this one). */
+.ot-day-panel[hidden] { display: none !important; }
+
+/* A week that has already run: quieter than a live one, still openable. */
+.ot-week-row--past { opacity: 0.86; }
+
+@media print {
+    .ot-glance { display: none !important; }
+    .ot-day-panel[hidden] { display: block !important; }
+}

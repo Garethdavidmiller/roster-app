@@ -199,3 +199,49 @@ describe('escaping', () => {
         assert.match(html, /&lt;img/);
     });
 });
+
+describe('the at-a-glance strip', () => {
+    // The count is the only NUMBER on this page a clerk acts on directly — "Tuesday has two" is
+    // what decides whether they start ringing round. A wrong one is not a cosmetic fault, it is a
+    // lie the by-day rows below would contradict, so each is asserted against the same fixture the
+    // sections are built from.
+    const countFor = (html, date) => {
+        const m = html.match(new RegExp(`data-glance="${date}"[\\s\\S]*?ot-glance-count">(\\d+)<`));
+        return m ? Number(m[1]) : null;
+    };
+
+    test('counts the people available on each day, not the people who answered', () => {
+        // A. One is available both days; B. Two answered but is unavailable both days; C. Three
+        // sent nothing. So each day has exactly ONE available — and the naive count (how many
+        // submitted) would say two.
+        const html = render();
+        assert.equal(countFor(html, '2026-08-30'), 1);
+        assert.equal(countFor(html, '2026-08-31'), 1);
+    });
+
+    test('a day nobody can work reads zero and is marked, not left to inference', () => {
+        // The state worth seeing instantly. Before the strip it was visible only as an empty
+        // "Available" section several screens down, which is exactly the reading a busy clerk skips.
+        const html = render({ submissions: new Map([
+            ['A. One', { memberName: 'A. One', days: {
+                '2026-08-30': { mode: 'unavailable' }, '2026-08-31': { mode: 'unavailable' },
+            }, history: {} }],
+        ]) });
+        assert.equal(countFor(html, '2026-08-30'), 0);
+        assert.match(html, /data-glance="2026-08-30"[\s\S]*?ot-glance-day--none/);
+    });
+
+    test('every day in the week gets a chip, plus the All week reset', () => {
+        const html = render();
+        for (const d of DATES) assert.ok(html.includes(`data-glance="${d}"`), d);
+        assert.ok(html.includes('data-glance="ALL"'));
+        // The strip must not become the only way to read the week: the panels it filters are all
+        // present and unhidden in the markup, so a browser with the script broken still shows
+        // everything rather than nothing.
+        for (const d of DATES) assert.ok(html.includes(`class="ot-day-panel" data-date="${d}"`), d);
+    });
+
+    test('All week starts selected, so the default view is the whole week', () => {
+        assert.match(render(), /data-glance="ALL" aria-pressed="true"/);
+    });
+});
