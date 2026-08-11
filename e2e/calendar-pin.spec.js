@@ -14,7 +14,7 @@
  *     the pages actually consult it on a viewer session is a wiring question.
  */
 import { test, expect } from './fixtures.js';
-import { seedMember, seedMemberSession, stubPinExchange, enterPin, collectFatalErrors } from './helpers.js';
+import { seedMember, seedMemberSession, seedSession, stubPinExchange, enterPin, collectFatalErrors } from './helpers.js';
 import { disableCalendarPin, enableCalendarPin } from './fixtures.js';
 
 // The shipped default is OFF while the feature is deployed dark (v20.17), so every test here that
@@ -270,6 +270,88 @@ test('a member does not even FLASH the PIN card', async ({ page }) => {
     await page.goto('/index.html');
     await expect(page.locator('#calendarDisplay')).toBeVisible();
     expect(await page.evaluate(() => window.__sawLock)).toBe(false);
+});
+
+// ── A member is never sent to the PIN (v20.79) ──────────────────────────────────────────────────
+//
+// The reported symptom was "the PIN occasionally comes up for people who are already signed in", and
+// it is TWO faults sharing one screen. `decideAccess` needs a local session AND a restored Firebase
+// identity; a member can be missing the second for two quite different reasons:
+//
+//   · the restore is merely SLOW and lands after `resolveAccess`'s bound (rare, and it was a cliff —
+//     the decision was made once and never revisited, so a reload was the only way out); or
+//   · the identity is GONE — iOS evicts IndexedDB after ~7 days of not opening the PWA, while the
+//     local session runs for 60 days. That one is not a race at all: it fails every single load.
+//
+// Neither was reachable by a test until `authRestoreDelayMs` existed, because the Firebase stub
+// handed every caller a user synchronously — no restore budget in the app had ever been exercised.
+
+test('a member whose identity restores LATE is let in, and is never asked for a PIN', async ({ page }) => {
+    // 15s is past every bound on the path (the 6.5s reconcile race, then the 6s first-emission
+    // budget), so the boot decision genuinely resolves `none` with a valid member session held.
+    // Before v20.79 that was terminal for the page load.
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 15_000 });
+    });
+    await page.goto('/index.html');
+
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 30_000 });
+    // The PIN field never existed. Not "was dismissed" — a member must never be shown a shared code
+    // as the way back into their own roster.
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+});
+
+test('an EVICTED identity signs the member back in silently, with no PIN card', async ({ page }) => {
+    // The deterministic case: session intact, Firebase identity gone. For anyone still on the surname
+    // default `ensureNamedSession` re-establishes it with nothing typed, which is what makes this
+    // recoverable without asking them for anything at all.
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true });
+    });
+    await page.goto('/index.html');
+
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+});
+
+test('a MIGRATED member whose identity is gone is offered sign-in, with the PIN behind a link', async ({ page }) => {
+    // The silent route only tries the surname, so a member who has chosen their own password cannot
+    // be recovered without them. They get their OWN sign-in — not a shared code — and the PIN stays
+    // reachable underneath, because a session left behind on a shared PC is a real situation.
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
+    await page.goto('/index.html');
+
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await expect(page.locator('#calLockWho')).toContainText('G. Miller');
+    await expect(page.locator('#calLockPin')).toHaveCount(0);
+    const signIn = page.locator('#calLockSubmit');
+    await expect(signIn).toBeEnabled({ timeout: 20_000 });
+    await expect(signIn).toHaveText(/sign in/i);
+
+    // The real overlay, not a second sign-in written for this card.
+    await signIn.click();
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+});
+
+test('the member card can fall back to the staff PIN', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+
+    await expect(page.locator('#calLockPinInstead')).toBeVisible();
+    await page.locator('#calLockPinInstead').click();
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
 });
 
 // ── Privilege isolation ─────────────────────────────────────────────────────────────────────────

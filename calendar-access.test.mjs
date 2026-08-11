@@ -69,9 +69,25 @@ mock.module('./firebase-client.js', {
         },
         setViewerPersistence: async () => { ops.push('persistence:session'); },
         restoreMemberPersistence: async () => { ops.push('persistence:member'); },
-        onAuthStateChanged: (_a, cb) => { cb(currentUser); return () => {}; },
+        // Subscribers are RETAINED, not just called once (v20.79). The late-restore watcher exists
+        // precisely because a second emission can arrive after the boot decision, and a fake that
+        // fired once and forgot could never produce one — the watcher would look correct whether or
+        // not it worked. `emitAuth` below is how a test delivers that later emission.
+        onAuthStateChanged: (_a, cb) => {
+            authSubs.add(cb);
+            cb(currentUser);
+            return () => authSubs.delete(cb);
+        },
     },
 });
+
+/** Live `onAuthStateChanged` subscribers. @type {Set<(u:any)=>void>} */
+const authSubs = new Set();
+/** Deliver a LATER auth emission — the restore that lands after the decision was made. */
+function emitAuth(user) {
+    currentUser = user;
+    for (const cb of [...authSubs]) cb(user);
+}
 
 mock.module('./session.js', {
     namedExports: {
@@ -80,8 +96,25 @@ mock.module('./session.js', {
             ops.push('reconcile:' + JSON.stringify(opts || {}));
             if (reconcileHangs) await new Promise(() => {});   // never settles — the wedged-auth case
         },
+        ensureNamedSession: async (name) => {
+            ops.push('ensureNamedSession:' + name);
+            // The RESULT and the resulting IDENTITY are set separately, because the real function
+            // can genuinely report success on an ANONYMOUS fallback (`ENFORCE_NAMED_SESSION` off).
+            // A fake that tied the two together would make "trust the boolean" indistinguishable
+            // from "re-read ground truth", which is the one thing worth checking here.
+            if (silentReauthUser !== undefined) currentUser = silentReauthUser;
+            else if (silentReauthSucceeds) currentUser = { uid: 'member-1', isAnonymous: false };
+            return silentReauthSucceeds;
+        },
     },
 });
+
+/** Whether the mocked silent re-auth establishes a member identity — the surname-default member vs
+ *  the migrated one, which is the whole difference between "signed back in with nothing typed" and
+ *  "shown a sign-in card". */
+let silentReauthSucceeds = false;
+/** Overrides the identity the mocked re-auth leaves behind. @type {any} */
+let silentReauthUser = undefined;
 
 /** When true, the mocked reconcile never settles — the wedged-auth-layer case the v20.45 bound
  *  exists for. A flag rather than a per-test mock because mock.module is import-time here. */
@@ -121,7 +154,8 @@ function fakeDom() {
             removeAttribute(k) { this._attrs.delete(k); if (k === 'hidden') this.hidden = false; },
             getAttribute(k) { return this._attrs.has(k) ? this._attrs.get(k) : null; },
             appendChild(c) { this._children.push(c); return c; },
-            remove() {},
+            _removed: false,
+            remove() { this._removed = true; },
             focus() {},
             addEventListener(t, fn) { this._listeners.set(t, fn); },
             querySelector(sel) { return el(sel.replace('#', '')); },
@@ -145,6 +179,32 @@ function fakeDom() {
     return { el, nodes };
 }
 
+/**
+ * The card the module last appended, as markup.
+ *
+ * Read from the HOST's children rather than `getElementById`, because the fake's element lookup
+ * creates a node on demand and never removes one — so a global id check reports whatever any earlier
+ * test's card happened to query, and "the member was not shown the PIN field" would pass or fail for
+ * reasons that have nothing to do with the card actually on screen.
+ * @returns {string}
+ */
+function lastPanelHtml() {
+    const p = lastPanel();
+    return p ? String(p.innerHTML) : '';
+}
+
+/** @returns {any} */
+function lastPanel() {
+    const host = /** @type {any} */ (document.querySelector('.container'));
+    const kids = (host && host._children) || [];
+    return kids.length ? kids[kids.length - 1] : null;
+}
+
+/** Was the card taken down? The fake records `remove()` rather than mutating a tree, which is the
+ *  only observable this harness has — and it is the one that matters, since leaving the card up over
+ *  a granted Calendar is precisely the visible failure. */
+function _panelIsDown() { return !!lastPanel()?._removed; }
+
 beforeEach(() => {
     ops = [];
     currentUser = null;
@@ -153,6 +213,9 @@ beforeEach(() => {
     CONFIG.CALENDAR_PIN_ACCESS = true;
     signInAnonymouslyHangs = false;
     signOutBehavior = 'ok';
+    silentReauthSucceeds = false;
+    silentReauthUser = undefined;
+    authSubs.clear();
     fetchQueue = [];
     lastFetchBody = null;
     fakeDom();
@@ -417,6 +480,94 @@ describe('initCalendarAccess', () => {
         await initCalendarAccess({ onGranted: () => {} });
         assert.ok(ops.some(o => o === 'reconcile:{"preserveCalendarViewer":true}'),
             `reconcile was not asked to preserve the viewer: ${JSON.stringify(ops)}`);
+    });
+
+    test('a member with a SESSION but no identity gets a sign-in card, never the PIN field', async () => {
+        // The evicted-identity case, which is not a race at all: iOS clears IndexedDB after ~7 days
+        // of not opening the PWA while the local session runs for 60, so this member fails EVERY
+        // load. Offering them the shared PIN would answer the wrong question — and would hand them a
+        // capability with no `name`, so the drawer would show their name while every write failed.
+        sessionValue = { name: 'G. Miller' };
+        const type = await initCalendarAccess({ onGranted: () => {} });
+        assert.equal(type, 'none');
+        await new Promise(r => setTimeout(r, 0));   // let the silent attempt settle
+        const html = lastPanelHtml();
+        assert.ok(!html.includes('id="calLockPin"'), 'a member was shown the PIN field');
+        assert.equal(document.getElementById('calLockWho')?.textContent, 'Calendar · G. Miller',
+            'the card does not say who it is for');
+        assert.ok(html.includes('calLockPinInstead'), 'the PIN was not left reachable underneath');
+        assert.ok(ops.some(o => o === 'ensureNamedSession:G. Miller'),
+            `the silent re-establishment was never attempted: ${JSON.stringify(ops)}`);
+    });
+
+    test('the silent re-establishment GRANTS when it works — nothing is typed', async () => {
+        // `ensureNamedSession` with no password tries only the surname default, so for anyone who has
+        // not chosen their own password this is a complete recovery with no interaction at all.
+        sessionValue = { name: 'G. Miller' };
+        silentReauthSucceeds = true;
+        let started = 0;
+        const type = await initCalendarAccess({ onGranted: () => { started++; } });
+        assert.equal(type, 'none', 'the BOOT decision is still none — the grant comes after it');
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(getAccessType(), 'named');
+        assert.equal(started, 1);
+        assert.equal(lastPanelHtml().includes('cal-lock-card'), true);   // it WAS built...
+        assert.equal(_panelIsDown(), true, 'the card was left up after the grant');
+    });
+
+    test('a silent re-auth that reports success but lands ANONYMOUS grants nothing', async () => {
+        // `ensureNamedSession` returns true for an anonymous fallback when `ENFORCE_NAMED_SESSION`
+        // is off, and an anonymous identity is exactly what v20.12 stopped honouring. So the result
+        // is read from `decideAccess` against ground truth, never from the boolean.
+        sessionValue = { name: 'G. Miller' };
+        silentReauthSucceeds = true;
+        silentReauthUser = { uid: 'anon', isAnonymous: true };
+        await initCalendarAccess({ onGranted: () => {} });
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(getAccessType(), 'none');
+        assert.equal(_panelIsDown(), false, 'the card came down on an anonymous identity');
+    });
+
+    test('a named identity restoring AFTER the decision grants, instead of being ignored', async () => {
+        // THE RACE. `resolveAccess` has to bound the restore or a wedged auth layer holds the page
+        // blank for ever — but the bound was a CLIFF: the decision was made once and never revisited,
+        // so a restore landing a millisecond late left a signed-in member in front of the staff PIN
+        // with no way out but a reload. Reproduced in a browser at a 14s restore: the body was still
+        // `calendar-locked` six seconds later.
+        let started = 0;
+        const type = await initCalendarAccess({ onGranted: () => { started++; } });
+        assert.equal(type, 'none');
+        assert.equal(started, 0);
+
+        // The restore lands. Session and identity are now both present, which is exactly what
+        // `decideAccess` asked for at boot and did not get.
+        sessionValue = { name: 'G. Miller' };
+        emitAuth({ uid: 'member-1', isAnonymous: false });
+
+        assert.equal(getAccessType(), 'named');
+        assert.equal(started, 1);
+        assert.equal(_panelIsDown(), true, 'the card survived the grant');
+    });
+
+    test('a late ANONYMOUS or VIEWER emission does NOT grant named access', async () => {
+        // The watcher re-runs the whole decision rather than trusting that any user will do. An
+        // anonymous identity is precisely what v20.12 stopped honouring, and granting `named` to the
+        // shared viewer would put a capability where the app expects a person.
+        const type = await initCalendarAccess({ onGranted: () => {} });
+        assert.equal(type, 'none');
+        sessionValue = { name: 'G. Miller' };
+        emitAuth({ uid: 'anon', isAnonymous: true });
+        assert.equal(getAccessType(), 'none');
+        emitAuth({ uid: 'calendar-viewer', isAnonymous: false });
+        assert.equal(getAccessType(), 'none', 'the viewer was granted a member\'s access');
+    });
+
+    test('a late emission with NO local session changes nothing', async () => {
+        // A Firebase identity with no session is what `reconcileExpiredIdentity` exists to tear down.
+        // Honouring it here would let an expired member keep their access by outlasting the bound.
+        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
+        emitAuth({ uid: 'member-1', isAnonymous: false });
+        assert.equal(getAccessType(), 'none');
     });
 
     test('a workspace callback that THROWS does not stop access resolving', async () => {

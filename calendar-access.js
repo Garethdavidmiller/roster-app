@@ -47,7 +47,7 @@
  */
 
 import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersistence, onAuthStateChanged } from './firebase-client.js';
-import { getSession, reconcileExpiredIdentity } from './session.js';
+import { getSession, reconcileExpiredIdentity, ensureNamedSession } from './session.js';
 import { CONFIG } from './roster-data.js';
 import { isViewerUser, decideAccess, normalisePin, isCompletePin, classifyUnlockFailure, attemptBackoffMs, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 
@@ -144,6 +144,42 @@ async function resolveAccess() {
     // of them — the exact "distracting flash" this has to avoid.
     const user = auth.currentUser || await firstAuthUser();
     return decideAccess({ session: getSession(), firebaseUser: user });
+}
+
+/**
+ * Keep watching after the decision, and GRANT the moment a named identity turns up.
+ *
+ * ── THE DECISION WAS MADE ONCE, AND THAT WAS THE BUG ────────────────────────────────────────────
+ *
+ * `resolveAccess` gives the restore a bounded wait — it has to, or a wedged auth layer holds the
+ * Calendar at a blank screen for ever. But the bound was a CLIFF: a restore landing a millisecond
+ * late was ignored for the rest of the page load, so a signed-in member sat in front of the staff
+ * PIN with no recovery but a reload. Reproduced in a browser: with the identity arriving at 14s,
+ * the body was still `calendar-locked` six seconds later.
+ *
+ * This turns the cliff into a window. The bound still decides what to SHOW promptly; a late
+ * identity now simply corrects it. Nothing about the security model changes — a grant still
+ * requires exactly what `decideAccess` required — and the listener is dropped the moment it fires
+ * or the Calendar is granted access by any other route.
+ *
+ * Deliberately NOT time-limited. There is no instant after which a member's own restored identity
+ * should stop being honoured, and the listener costs one closure.
+ */
+function watchForLateNamedIdentity() {
+    let off = /** @type {null | (() => void)} */ (null);
+    const stop = () => { if (off) { try { off(); } catch { /* noop */ } off = null; } };
+    try {
+        off = onAuthStateChanged(auth, (/** @type {any} */ u) => {
+            // Only ever UPGRADES, and only from locked. A grant that already happened owns the
+            // page; re-granting would run the workspace hooks a second time.
+            if (_accessType !== 'none') { stop(); return; }
+            if (decideAccess({ session: getSession(), firebaseUser: u }) !== 'named') return;
+            stop();
+            console.warn('[CalendarAccess] a named identity restored after the access decision — granting.');
+            grant('named');
+        }, () => stop());
+    } catch { /* an auth layer that cannot be watched simply leaves the panel up */ }
+    return stop;
 }
 
 /** Resolve the first `onAuthStateChanged` emission (the persisted-user restore), or null.
@@ -383,7 +419,7 @@ function hideLockPanel() {
  * the unlock feel like the page filling in rather than a dialog being satisfied.
  */
 function showLockPanel() {
-    if (_panel) return;
+    hideLockPanel();   // replace, never stack — see showMemberPanel
     document.body.classList.add('calendar-locked');
     setWorkspaceHidden(true);
 
@@ -529,6 +565,124 @@ function showLockPanel() {
 }
 
 /**
+ * The MEMBER's way back in — shown instead of the PIN card when a live local session has outlived
+ * its Firebase identity.
+ *
+ * ── WHY THIS IS A SEPARATE SCREEN ───────────────────────────────────────────────────────────────
+ *
+ * `decideAccess` needs BOTH a local session and a restored Firebase user, and the commonest way to
+ * hold one without the other is not a bug: iOS evicts IndexedDB after ~7 days of not opening the
+ * PWA, so a member with a 60-day local session loses the identity behind it while still being, as
+ * far as they and the app are concerned, signed in. Answering that with the staff PIN is wrong twice
+ * over. It asks a signed-in member for a code they may not have, and it offers them a SHARED
+ * capability — unlocking would leave them viewing the Calendar as an anonymous viewer with their own
+ * name still in the drawer, and the first thing they tried to do on Admin would fail.
+ *
+ * So the ONE thing this screen does is get their own identity back. It tries silently first (see
+ * `trySilentReauth` — for anyone still on the surname default that succeeds with nothing shown but a
+ * flicker of the disabled button), and falls back to the app's real sign-in overlay. The PIN is
+ * still reachable underneath, because a shared PC where somebody left a session behind is a real
+ * situation and stranding the next person would be worse than an unnecessary link.
+ *
+ * @param {string} name
+ */
+function showMemberPanel(name) {
+    // REPLACE, never early-return. The two cards are alternatives for the same slot, and "a panel is
+    // already up" is not a reason to leave the WRONG one there — the PIN → member direction is
+    // exactly what a re-lock followed by a fresh decision produces.
+    hideLockPanel();
+    document.body.classList.add('calendar-locked');
+    setWorkspaceHidden(true);
+
+    const host = document.querySelector('.container') || document.body;
+    if (!host) return;
+
+    const panel = document.createElement('section');
+    panel.id = 'calendarLock';
+    panel.className = 'cal-lock';
+    // Same card, same ids for the button and the message channel, so both wear the styling the PIN
+    // card already established — including `#calLockSubmit:disabled`, which is exactly the resting
+    // look wanted while the silent attempt is in flight.
+    panel.innerHTML = `
+        <div class="cal-lock-card">
+            <img src="./icon-192.png" alt="" loading="eager">
+            <div class="login-app-name">Marylebone Roster</div>
+            <div class="login-subtitle" id="calLockWho">Calendar</div>
+            <p class="login-hint" id="calLockWhy" role="status" aria-live="polite">This device needs to sign you in again before it can show your roster.</p>
+            <button id="calLockSubmit" type="button" disabled>Signing you in…</button>
+            <button class="login-back cal-lock-alt" id="calLockPinInstead" type="button">Use the staff PIN instead</button>
+        </div>`;
+    host.appendChild(panel);
+    _panel = panel;
+
+    // NOTE: the explanation IS the live region. A .login-error box was tried here and looked exactly
+    // like a disabled text field sitting above the button — on a card whose whole job is "sign in",
+    // a faux input is the one thing it must not appear to have. One sentence that rewrites itself
+    // carries both states and announces the change. (Kept out of the template literal above:
+    // backticks inside it are a syntax error, which is how this went out broken once already.)
+    const who    = /** @type {HTMLElement} */ (panel.querySelector('#calLockWho'));
+    const why    = /** @type {HTMLElement} */ (panel.querySelector('#calLockWhy'));
+    const submit = /** @type {HTMLButtonElement} */ (panel.querySelector('#calLockSubmit'));
+    const pinAlt = /** @type {HTMLButtonElement} */ (panel.querySelector('#calLockPinInstead'));
+
+    // textContent, not interpolation. The name comes from this device's own storage rather than any
+    // remote source, so this is not a live injection route — but a panel built by string
+    // concatenation on the app's front door is not the place to rely on where a value came from.
+    who.textContent = `Calendar · ${name}`;
+
+    submit.addEventListener('click', async () => {
+        const { initLoginOverlay } = await import('./login-overlay.js');
+        initLoginOverlay({ pageLabel: 'the Calendar', onSuccess: () => window.location.reload() });
+    });
+
+    pinAlt.addEventListener('click', () => { hideLockPanel(); showLockPanel(); });
+
+    // The silent attempt. It runs AFTER the panel is on screen deliberately: awaiting it first would
+    // hold the page blank for the length of a round trip, and this state is already the slow path.
+    trySilentReauth(name).then(ok => {
+        // The recovery routes can BOTH fire: a successful silent re-auth returns true and emits the
+        // auth state `watchForLateNamedIdentity` is listening for. Granting twice is not harmless —
+        // `_onEveryGrant` rebuilds the override gate — so whichever arrives second stands down. The
+        // check and the call are synchronous, which is what makes that safe.
+        if (ok) { if (_accessType === 'none') grant('named'); return; }   // grant() removes the panel
+        if (!_panel || _panel !== panel) return;   // superseded (the PIN card, or a late grant)
+        submit.disabled = false;
+        submit.textContent = 'Sign in →';
+        why.textContent = 'Enter your password to see your roster.';
+    });
+}
+
+/**
+ * Re-establish the member's own Firebase identity with nothing typed, if that is possible.
+ *
+ * `ensureNamedSession` with no password tries ONLY the derived surname (PASSWORD_PLAN.md §3.4), which
+ * is what makes this safe to fire unprompted: for a member still on the default it restores the exact
+ * identity they already had, and for a migrated member it fails cleanly against a password nobody
+ * chose. It is the same page-load re-establishment every other coordinator already performs — the
+ * Calendar simply never had a reason to until access depended on it.
+ *
+ * The RESULT is read from `decideAccess`, never from the boolean. `ensureNamedSession` returns true
+ * for an anonymous fallback when `ENFORCE_NAMED_SESSION` is off, and an anonymous identity must never
+ * be granted `named` access here — that is the whole substance of v20.12.
+ *
+ * @param {string} name
+ * @returns {Promise<boolean>}
+ */
+async function trySilentReauth(name) {
+    try {
+        // Bounded, like every other wait on this path. Timing out does not cancel the sign-in — it
+        // just stops the button pretending to work; a late success is picked up by the watcher.
+        await Promise.race([
+            ensureNamedSession(name),
+            new Promise(resolve => setTimeout(resolve, 8000)),
+        ]);
+    } catch { /* a failed re-auth is the expected outcome for a migrated member */ }
+    try {
+        return decideAccess({ session: getSession(), firebaseUser: auth.currentUser }) === 'named';
+    } catch { return false; }
+}
+
+/**
  * Re-lock a Calendar whose access has gone while it was open, and say why.
  *
  * Called by the sync chip when a read fails with `permission-denied` — which means the session
@@ -631,6 +785,18 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     }
 
     if (type === 'named' || type === 'viewer' || type === 'open') { grant(type); return type; }
-    showLockPanel();
+
+    // Locked. Two things happen before the card goes up, and both exist because the decision above
+    // is a SNAPSHOT of a restore that is not always finished (v20.79).
+    //
+    //   · Keep listening. A named identity that lands after the bound now grants instead of being
+    //     ignored until the member thinks to reload.
+    //   · Ask WHO. A browser holding a live local session is not an unknown visitor at a shared PC;
+    //     it is a member whose identity has gone, and the answer for them is their own sign-in, not
+    //     a shared code. See `showMemberPanel`.
+    watchForLateNamedIdentity();
+    const held = getSession();
+    if (held?.name) showMemberPanel(held.name);
+    else showLockPanel();
     return 'none';
 }
