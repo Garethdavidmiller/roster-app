@@ -213,10 +213,15 @@ export const onSnapshot = () => noop; // returns the unsubscribe fn; never fires
 //   window.__E2E = { hangSignIn: true }  → every sign-in path returns a promise that NEVER resolves
 //      — exercises the login overlay's in-flight state (the "Signing in…" button + the disabled Back
 //      link that the v14.79 guard added). hangSignIn takes precedence over failSignIn.
-const _e2eAuth = (code) => () => {
+//   window.__E2E = { signInEstablishes: true } → a successful EMAIL/PASSWORD sign-in leaves a
+//      current user behind, the way the real SDK does. Opt-in, because currentUser staying null
+//      after sign-in is what a great many specs are written against, and scoped to the one call so
+//      an anonymous fallback can never be mistaken for a named identity.
+const _e2eAuth = (code, establishes) => () => {
     const e2e = globalThis.__E2E || {};
     if (e2e.hangSignIn) return new Promise(() => {});
     if (e2e.failSignIn) return Promise.reject(Object.assign(new Error('e2e'), { code }));
+    if (establishes && e2e.signInEstablishes) { e2e.authUser = true; globalThis.__E2E = e2e; }
     return Promise.resolve({ user: { uid: 'test' } });
 };
 // currentUser is null by default — the stub never really signs anyone in, and a great many tests
@@ -232,8 +237,25 @@ const _viewerUser = () => ({
         claims: (globalThis.__E2E || {}).viewerClaimMissing ? {} : { calendarViewer: true },
     }),
 });
+// ---- the auth RESTORE clock ----
+// window.__E2E.authRestoreDelayMs holds the persisted-user restore open for N ms: currentUser reads
+// null and onAuthStateChanged does not emit the user until then.
+//
+// Why this exists at all: the stub hands every caller a user SYNCHRONOUSLY, so none of the app's
+// restore budgets had ever been exercised by a test — not calendar-access.js's 6s bound, not
+// session.js's 8s AUTH_RESTORE_TIMEOUT_MS. A member whose restore lands after those bounds was
+// reported as locked out and shown the staff PIN, and no test could see it because the stub could
+// not be slow. It is what made the v20.79 late-restore grant provable.
+//
+// The instant is ABSOLUTE and PAGE-LOAD-RELATIVE, computed once here. Restarting the delay per
+// subscription would model something the platform never does (every listener would see its own
+// restore) and reports a threshold far lower than the real one.
+// NOTE: inside the FIREBASE_STUB template literal — no backticks, ever.
+const _restoreDue = Date.now() + Number((globalThis.__E2E || {}).authRestoreDelayMs || 0);
+const _restored = () => Date.now() >= _restoreDue;
 const _currentUser = () => {
     const e2e = globalThis.__E2E || {};
+    if (!_restored()) return null;
     // The viewer flag lives in sessionStorage, not only on __E2E. That is not a convenience — it is
     // what makes the stub MODEL the thing under test: the real viewer runs on browserSessionPersistence,
     // so it must survive a reload and die with the browser context. A flag on window would be lost on
@@ -259,8 +281,14 @@ export const getAuth = () => ({ get currentUser() { return _currentUser(); } });
 // Emits the CURRENT user, not a hardcoded null (v20.12). calendar-access.js resolves the first
 // emission to decide access, so a stub that always said null would report every seeded member and
 // every restored viewer as locked out — and the whole PIN suite would pass for the wrong reason.
-export const onAuthStateChanged = (_auth, cb) => { Promise.resolve().then(() => cb && cb(_currentUser())); return noop; };
-export const signInWithEmailAndPassword = _e2eAuth('auth/invalid-credential');
+export const onAuthStateChanged = (_auth, cb) => {
+    if (_restored()) { Promise.resolve().then(() => cb && cb(_currentUser())); return noop; }
+    // Microtask when there is no delay, so the overwhelming majority of specs keep the timing they
+    // were written against; a timer only when a delay was asked for.
+    const t = setTimeout(() => cb && cb(_currentUser()), Math.max(0, _restoreDue - Date.now()));
+    return () => clearTimeout(t);
+};
+export const signInWithEmailAndPassword = _e2eAuth('auth/invalid-credential', true);
 export const createUserWithEmailAndPassword = _e2eAuth('auth/operation-not-allowed');
 export const signInAnonymously = _e2eAuth('auth/operation-not-allowed');
 // Clears the VIEWER only, never the opt-in authUser flag. authUser is a test's declaration

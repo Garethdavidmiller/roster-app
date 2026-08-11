@@ -2629,6 +2629,12 @@
             background: var(--bg-faint);
         }
 
+        /* The MEMBER variant's explanation (v20.79). It stands alone rather than sitting under a
+           field, so it has to carry the breathing room `.login-field`'s own margin would otherwise
+           have given it — without this the sentence sits ~10px off the button, where every other
+           card in this family leaves 14–24px. */
+        #calLockWhy { margin: 0 0 18px; }
+
         /* Sits under the primary button, where `.login-back` sits on the login card. The extra
            padding is the 44px touch target a bare text link would not have. */
         .cal-lock-alt {

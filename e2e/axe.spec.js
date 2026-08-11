@@ -108,6 +108,22 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    test('calendar — the MEMBER sign-in card (v20.79)', async ({ page }) => {
+        // The other card a locked Calendar can show: a member whose Firebase identity is gone gets
+        // their own sign-in rather than a shared code. Different markup (no field, two buttons, a
+        // live message region), so the PIN scans above say nothing about it.
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => {
+            try { sessionStorage.removeItem('__e2e_viewer'); } catch (_) { /* noop */ }
+            window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true });
+        });
+        await page.goto('/');
+        await expect(page.locator('#calLockPinInstead')).toBeVisible();
+        await expect(page.locator('#calLockSubmit')).toBeEnabled({ timeout: 20_000 });
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('admin (signed in)', async ({ page }) => {
         await seedSession(page);
         await page.goto('/admin.html');
