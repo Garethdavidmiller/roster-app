@@ -32,6 +32,12 @@ rules_version = '2';
 //                                              written under it is owned by fifty people — see the block
 //   viewerAttempts      nothing (NEW)          the throttle store; server-only in both directions
 //
+// Sweep v20.56: `overtimeWindows` added (Overtime Availability). Reviewer read, no client writes,
+// one posture for the whole tree — the viewer and every ordinary member get nothing, which is why
+// it needed no new line in the audit table above beyond this one. Two things are deliberately NOT
+// in that block and the reasons are in it: a participant-based member-read rule (no production
+// client would exercise it) and a retention filter (rules are not filters, and it could only ever
+// constrain the reviewer, who is entitled to the data).
 // Last swept v19.41 (Aug 2026): linkDesigns create/update accepts the optional `deletedAt`/
 // `deletedBy` soft-delete pair (present = in the bin, absent = live), type-checked when present.
 // Sweep v19.95: the analytics pv_ counts allowlist gains `guide-staff` and `guide-paycalc` — the
@@ -576,6 +582,44 @@ service cloud.firestore {
     // clear its own failure count between guesses, which would remove the limit altogether.
     match /viewerAttempts/{sourceKey} {
       allow read, write: if false;
+    }
+
+    // ── overtimeWindows — Overtime Availability (OVERTIME_AVAILABILITY.md) ─────────────────────
+    //
+    // DELIBERATELY THE SMALLEST RULESET IN THIS FILE, and the smallness is the design.
+    //
+    // Ordinary members never read Overtime data through Firestore at all — their one read path is
+    // the `getMyOvertimeState` Cloud Function, which returns only the windows holding a frozen
+    // participant record for the caller's canonical identity. Every mutation is likewise
+    // server-owned (Admin SDK, bypassing these rules), because deadline, revision and identity
+    // decisions cannot be expressed as a client write rule and must not be attempted here.
+    //
+    // So there are exactly two facts to encode: reviewers may read, and nobody may write.
+    //
+    // WHAT IS DELIBERATELY ABSENT, and why:
+    //
+    //  · A participant-based member-read rule. It was in an earlier draft "for defence in depth",
+    //    and a rule no production client exercises is a rule that rots — written once, verified
+    //    against a synthetic test, then quietly wrong. Add it only when a real client consumer
+    //    needs it, and test it through that consumer.
+    //
+    //  · A `request.time < retentionUntil` retention filter. Two reasons. Rules are NOT filters:
+    //    a condition on `resource.data` does not exclude a document from a list, it fails the whole
+    //    query — so one unpurged expired window would blank a Manager's live view of a current one.
+    //    And it could only ever constrain the reviewer, who is the one party entitled to the data;
+    //    it protects it from nobody. Retention is enforced where it is visible and testable: both
+    //    endpoints omit expired windows, so behaviour never depends on when the purge last ran.
+    //
+    // The recursive wildcard covers participants/, submissions/ and submissions/*/revisions/ — one
+    // posture for the whole tree, which is correct here precisely because no sub-path has a
+    // different reader. `calendarViewer` gets nothing: it holds no `name`, `admin` or `manager`
+    // claim, so it fails this rule the same way an anonymous session does.
+    match /overtimeWindows/{weekEnding}/{document=**} {
+      allow read: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.manager == true
+      );
+      allow write: if false;   // Admin SDK only — functions/overtime.js
     }
 
     match /analytics/{docId} {
