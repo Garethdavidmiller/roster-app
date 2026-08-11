@@ -54,6 +54,27 @@ test.describe('member surface', () => {
         await expect(page.locator('.ot-submit')).toContainText('7 days still to answer');
     });
 
+    test('several open weeks still land IN a form — the soonest-closing one', async ({ page }) => {
+        // The regression automatic creation introduced. Filling the six-week horizon leaves FOUR or
+        // FIVE windows open at once, permanently — so the old "one open week opens directly, several
+        // get a list" rule meant every member, every visit, tapped through an index before reaching
+        // anything they could fill in. The list was written for a case that stopped existing.
+        await seedSession(page, 'G. Miller');
+        const soonest = { ...openWindow(), weekEnding: '2026-09-05', finalDeadlineAt: Date.parse('2026-08-25T11:00:00Z') };
+        const later   = { ...openWindow(), weekEnding: '2026-09-12', finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') };
+        const latest  = { ...openWindow(), weekEnding: '2026-09-19', finalDeadlineAt: Date.parse('2026-09-08T11:00:00Z') };
+        // Deliberately NOT in deadline order, so passing requires actually sorting rather than
+        // taking the first element and happening to be right.
+        await stubOvertime(page, { windows: [latest, soonest, later] });
+        await page.goto('/overtime.html');
+
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        // The others are reachable, listed under the form rather than in front of it.
+        await expect(page.locator('.ot-history-title')).toContainText('Other open weeks');
+        await expect(page.locator('.ot-week-row')).toHaveCount(2);
+    });
+
     test('answering a day marks it, and the button counts down', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await stubOvertime(page, { windows: [openWindow()] });
