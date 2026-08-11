@@ -848,15 +848,20 @@ test('overtime — the planning horizon, every row state (desktop 1280)', async 
     await stubOvertime(page, {
         weeks: [
             { ...OT_WINDOW, weekEnding: '2026-07-18', exists: false, state: 'missed', canCreate: false },
-            { ...OT_WINDOW, weekEnding: '2026-07-25', exists: false, state: 'not-created-initial-passed', canCreate: true },
+            // A created week whose deadline has gone (v20.69). It is the FIRST row in production —
+            // the horizon always opens on the current week — so a baseline without one was a
+            // picture of a horizon nobody ever sees.
+            { ...OT_WINDOW, weekEnding: '2026-07-25', exists: true, state: 'created-closed',
+                canCreate: false, expected: 4, received: 4, noResponse: 0 },
             { ...OT_WINDOW, exists: true, state: 'created', canCreate: false, expected: 4, received: 1, noResponse: 3 },
             { ...OT_WINDOW, weekEnding: '2026-08-08', exists: false, state: 'not-created', canCreate: true },
+            { ...OT_WINDOW, weekEnding: '2026-08-15', exists: false, state: 'not-created-initial-passed', canCreate: true },
         ],
     });
     await page.goto('/overtime.html');
     await settle(page, '.ot-week-row');
-    // All four tones present — the point of this baseline is the row treatment, and a fixture that
+    // Every tone present — the point of this baseline is the row treatment, and a fixture that
     // happened to render one state would lock a picture of nothing in particular.
-    await expect(page.locator('.ot-week-row')).toHaveCount(4);
+    await expect(page.locator('.ot-week-row')).toHaveCount(5);
     await expect(page).toHaveScreenshot('overtime-horizon-desktop-1280.png');
 });

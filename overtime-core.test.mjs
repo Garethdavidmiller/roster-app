@@ -258,11 +258,31 @@ describe('the missing window — the failure nothing else catches', () => {
         assert.equal(C.windowRowState(m, m.finalDeadlineAt + 9e8, false), 'missed', 'still visible days later');
     });
 
-    test('an existing window reads as created at every point in its life', () => {
+    test('an existing window reads as created for as long as it is OPEN', () => {
         const m = C.deriveMilestones(WEEK_SEP);
-        for (const t of [m.initialDeadlineAt - 1, m.initialDeadlineAt, m.finalDeadlineAt, m.finalDeadlineAt + 9e8]) {
+        for (const t of [m.initialDeadlineAt - 1, m.initialDeadlineAt, m.finalDeadlineAt - 1]) {
             assert.equal(C.windowRowState(m, t, true), 'created');
         }
+    });
+
+    test('and as CREATED-CLOSED once its final deadline has gone', () => {
+        // Not a nicety. The horizon's first row is always the current week, whose final deadline is
+        // eleven days behind it — so every reviewer, on every visit, was told "Form open" about a
+        // week that had closed and whose roster was already published. Two of the six rows were
+        // wrong, and always the same two.
+        const m = C.deriveMilestones(WEEK_SEP);
+        assert.equal(C.windowRowState(m, m.finalDeadlineAt, true), 'created-closed',
+            'the boundary belongs to the LATER state, as everywhere else in this module');
+        assert.equal(C.windowRowState(m, m.finalDeadlineAt + 9e8, true), 'created-closed');
+    });
+
+    test('a closed window is still distinguishable from one that was never created', () => {
+        // The two land at the same instant and mean opposite things: one has a week of answers in
+        // it, the other means nobody was ever asked. Collapsing them would hide the omission this
+        // whole horizon exists to surface.
+        const m = C.deriveMilestones(WEEK_SEP);
+        assert.notEqual(C.windowRowState(m, m.finalDeadlineAt, true),
+                        C.windowRowState(m, m.finalDeadlineAt, false));
     });
 });
 

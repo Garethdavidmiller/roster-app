@@ -118,6 +118,13 @@ export const runTransaction = (_db, fn) => {
 // it withholds it when the read has lost. Those are two different panels and only one carries a retry.
 export const getDocs = () => {
   const e2e = globalThis.__E2E || {};
+  // COUNTED, like writeBatch records its writes (v20.69). A spec can assert how many collection
+  // reads an interaction actually caused, which is the only observable for a duplicated handler:
+  // when one tap ran the open-a-week routine twice, both runs produced the same DOM, so nothing on
+  // screen could tell you it had happened. Incremented before the failGetDocs branch, so a read
+  // that was ATTEMPTED and rejected still counts.
+  e2e.docReads = (e2e.docReads || 0) + 1;
+  globalThis.__E2E = e2e;
   // failGetDocs true rejects with a generic error (a network-class failure). A STRING rejects with
   // that string as the message — pass 'permission-denied' to look like an ACCESS failure (v20.45),
   // a different branch everywhere that matters: the generic error earns a retry chip, the access

@@ -302,10 +302,23 @@ function weeksNeedingWindows(nowMs, existingWeekEndings, { maxRosterYear }) {
  * `missed` deliberately persists until the week-ending Saturday has passed rather than vanishing at
  * the deadline: a row that disappears the moment it becomes un-actionable hides the very omission
  * this horizon exists to surface.
- * @returns {'created'|'not-created'|'not-created-initial-passed'|'missed'}
+ *
+ * ── A CREATED WINDOW IS NOT AUTOMATICALLY AN OPEN ONE ───────────────────────────────────────────
+ *
+ * `created` used to be the only existing-window answer, and the horizon rendered it as "Form open"
+ * for every week that had a document. The FIRST row is always the current week, whose final deadline
+ * is eleven days behind it — so in production every reviewer, on every visit, was told the form was
+ * open for a week that closed a week earlier and whose roster had already been published. Two rows
+ * of six were routinely wrong, and always the same two.
+ *
+ * The phase is not extra information; it is the difference between "you can still chase people" and
+ * "this is a record". Deciding it HERE, from the stored milestones and the server's clock, keeps it
+ * out of the browser — a horizon that read a phone's clock would put a week either side of its
+ * deadline depending on whose phone was reading it.
+ * @returns {'created'|'created-closed'|'not-created'|'not-created-initial-passed'|'missed'}
  */
 function windowRowState(milestones, nowMs, exists) {
-    if (exists) return 'created';
+    if (exists) return nowMs >= milestones.finalDeadlineAt ? 'created-closed' : 'created';
     if (nowMs < milestones.initialDeadlineAt) return 'not-created';
     if (nowMs < milestones.finalDeadlineAt)   return 'not-created-initial-passed';
     return 'missed';

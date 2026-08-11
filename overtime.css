@@ -189,6 +189,9 @@ body {
 .ot-week-row--ok   { border-left-color: var(--success-green); }
 .ot-week-row--warn { border-left-color: var(--al-low); }
 .ot-week-row--bad  { border-left-color: var(--error-red); background: var(--error-bg); }
+/* A finished week. Neutral, not a colour: it is the normal end state, so the eye should pass over
+   it on the way to the weeks that still need something. */
+.ot-week-row--done { border-left-color: var(--border-mid); }
 
 .ot-week-main { flex: 1; min-width: 0; }
 
@@ -215,6 +218,7 @@ body {
 .ot-week-state--ok   { color: var(--success-text); }
 .ot-week-state--warn { color: var(--al-low); }
 .ot-week-state--bad  { color: var(--error-text); }
+.ot-week-state--done { color: var(--text-light); }
 
 .ot-week-actions {
     flex-shrink: 0;
@@ -453,6 +457,20 @@ body {
 }
 
 .ot-day-answer { margin-top: 2px; }
+
+/* The roster moved after this answer was saved. A NOTE, not a warning: nothing is wrong, and the
+   member's declaration still stands — they just may not have meant it about this shift. */
+.ot-day-stale {
+    margin: 7px 0 0;
+    padding: 6px 9px;
+    border-radius: var(--radius);
+    background: var(--al-warning-bg);
+    color: var(--warning-amber);
+    font-size: var(--type-small);
+    line-height: 1.4;
+}
+
+.ot-day-stale strong { white-space: nowrap; }
 
 .ot-modes {
     display: flex;

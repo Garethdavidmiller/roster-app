@@ -264,27 +264,37 @@ export function init() {
         host.appendChild(wrap);
         // These rows carry the same View/Open button the list did, so they need the same wiring.
         // Without it they are buttons that do nothing, which reads as a broken page.
-        wireWeekButtons(host, all);
+        //
+        // WIRE THE NEW WRAPPER, NOT THE WHOLE HOST. This searched `host` until v20.69, and this
+        // function is called twice — once for the open weeks, once for the closed ones — so the
+        // second call found the FIRST list's buttons again and gave each of them a second listener.
+        // One tap then ran the whole open-a-week routine twice: two roster reads, two full form
+        // renders, and the first render landing in a node the second had already detached. Nothing
+        // visibly broke, which is why it survived; it is a duplicate-invocation bug sitting one
+        // non-idempotent line away from being a real one.
+        wireWeekButtons(wrap, host, all);
     }
 
     /**
-     * Give every `data-openweek` button in `host` its handler. One place, because the rows are
+     * Give every `data-openweek` button in `scope` its handler. One place, because the rows are
      * rendered from two call sites and a button wired in only one of them is a dead control.
-     * @param {HTMLElement} host @param {any[]} windows
+     * @param {HTMLElement} scope the container just rendered — never an ancestor holding earlier rows
+     * @param {HTMLElement} cardHost the card body the opened form replaces (`scope` is inside it)
+     * @param {any[]} windows
      */
-    function wireWeekButtons(host, windows) {
-        host.querySelectorAll('[data-openweek]').forEach(btn =>
+    function wireWeekButtons(scope, cardHost, windows) {
+        scope.querySelectorAll('[data-openweek]').forEach(btn =>
             btn.addEventListener('click', async () => {
                 const week = String(btn.getAttribute('data-openweek'));
                 const w = windows.find((/** @type {any} */ x) => x.weekEnding === week);
                 if (!w) return;
                 const holder = document.createElement('div');
-                host.innerHTML = '';
-                host.appendChild(holder);
+                cardHost.innerHTML = '';
+                cardHost.appendChild(holder);
                 await renderWeekForm(holder, w, String(currentUser), { onSaved: () => {} });
                 // A way BACK to the list. Opening a week replaces the whole card, so without this
                 // the member is stranded on one form with no route to the others.
-                if (windows.length > 1) appendBackToList(host, windows);
+                if (windows.length > 1) appendBackToList(cardHost, windows);
             }));
     }
 
@@ -378,13 +388,28 @@ export function init() {
         // have been removed from both surfaces at once, since they are the same rows rendered by the
         // same coordinator.
         //
-        // The earliest week WITH A FORM is the next roster to plan, so that is the one opened. View
-        // stops being a gate and becomes what it always should have been: how you switch week. Only
-        // on first load — a reviewer who has since chosen another week keeps it across a refresh of
-        // this card.
+        // View stops being a gate and becomes what it always should have been: how you switch week.
+        // Only on first load — a reviewer who has since chosen another week keeps it across a
+        // refresh of this card.
+        //
+        // ── THE EARLIEST WEEK WITH A FORM IS THE WRONG ONE ──────────────────────────────────────
+        //
+        // That is what this did until v20.69, and it was wrong every single time rather than
+        // occasionally: the horizon's FIRST row is always the current week, whose final deadline is
+        // eleven days behind it and whose roster has already been published. So a reviewer opening
+        // the page landed on a finished week, and had to press View to reach the one they were
+        // actually planning — the gate this change was supposed to have removed, still there, just
+        // less visible.
+        //
+        // The week being planned is the earliest one still OPEN. If none is (every horizon week has
+        // closed — possible only when creation has fallen a long way behind), fall back to the most
+        // recent created week, because a reviewer looking at a closed week is still better served
+        // than a reviewer looking at an empty card.
         if (!selectedWeek) {
-            const first = weeks.find((/** @type {any} */ w) => w.exists);
-            if (first) selectWeek(first.weekEnding, { scroll: false });
+            const created = weeks.filter((/** @type {any} */ w) => w.exists);
+            const lead = created.find((/** @type {any} */ w) => w.state === 'created')
+                || created[created.length - 1];
+            if (lead) selectWeek(lead.weekEnding, { scroll: false });
         }
     }
 

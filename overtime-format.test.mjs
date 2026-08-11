@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
-    countsCopy, answerCopy, answerTone, isUnavailable, weekSummary,
+    countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -155,6 +155,61 @@ describe('answers in words', () => {
         assert.equal(isUnavailable({ mode: 'unavailable' }), true);
         assert.equal(isUnavailable({ mode: 'all_day' }), false);
         assert.equal(isUnavailable(null), false, 'no answer is not an unavailable answer');
+    });
+
+    // ── The roster moving under a saved answer ──────────────────────────────────────────────────
+    //
+    // The stored schema keeps concrete times so a roster change cannot re-point a declaration. That
+    // is right, and it means a saved answer can quietly stop describing the day it was made about.
+    // These pin the three ways of getting the detection wrong: missing it, inventing it, and
+    // claiming it when the roster is simply unknown.
+    describe('a saved answer whose shift has moved', () => {
+        const shift = (start, end) => ({ hasTime: true, start, end, shift: `${start}-${end}`, isRest: false });
+        const rest  = { hasTime: false, start: '', end: '', shift: 'RD', isRest: true };
+
+        test('a boundary that no longer matches the roster is flagged', () => {
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, shift('07:00', '20:00')), true);
+            assert.equal(answerAnchorStale({ mode: 'before', until: '07:00' }, shift('12:00', '20:00')), true);
+            assert.equal(answerAnchorStale(
+                { mode: 'before_after', until: '07:00', from: '15:00' }, shift('07:00', '20:00')), true,
+                'either half moving is enough');
+        });
+
+        test('a boundary that still matches is NOT flagged', () => {
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, shift('07:00', '15:00')), false);
+            assert.equal(answerAnchorStale({ mode: 'before', until: '07:00' }, shift('07:00', '15:00')), false);
+            assert.equal(answerAnchorStale(
+                { mode: 'before_after', until: '07:00', from: '15:00' }, shift('07:00', '15:00')), false);
+        });
+
+        test('a shift that has become a REST DAY is flagged — the anchor is gone entirely', () => {
+            // The tempting shortcut is to compare times and skip when there are none, which silently
+            // passes exactly the largest change a roster can make to somebody's day.
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, rest), true);
+        });
+
+        test('an answer carrying nothing from the roster is never flagged', () => {
+            // unavailable and all_day have no boundary; a custom range is the member's own times,
+            // which the roster never supplied and so cannot invalidate.
+            for (const day of [{ mode: 'unavailable' }, { mode: 'all_day' },
+                { mode: 'custom', start: '18:00', end: '23:00', nextDay: false }]) {
+                assert.equal(answerAnchorStale(day, shift('07:00', '15:00')), false, JSON.stringify(day));
+                assert.equal(answerAnchorStale(day, rest), false, JSON.stringify(day));
+            }
+        });
+
+        test('UNKNOWN roster is not a changed roster', () => {
+            // `null` is what the form holds when the context read failed. Telling a member their
+            // answer is out of date on the strength of a failed query would be the same invention
+            // this feature refuses everywhere else — and it would fire on all seven days at once.
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, null), false);
+            assert.equal(answerAnchorStale({ mode: 'after', from: '15:00' }, undefined), false);
+        });
+
+        test('no answer at all is not a stale answer', () => {
+            assert.equal(answerAnchorStale(null, shift('07:00', '15:00')), false);
+            assert.equal(answerAnchorStale({}, shift('07:00', '15:00')), false);
+        });
     });
 
     // ── The tone, which is the same invariant expressed in colour ───────────────────────────────
