@@ -37,7 +37,7 @@ import { teamMembers, getBaseShift, isSunday, parseISODate, getShiftBadge } from
 import { resolveEffectiveShift, isRestShift, toOverrideRecord } from './override-utils.js';
 
 /** @typedef {'authoritative'|'error'} RosterKnowledge */
-/** @typedef {{ shift: string, isRest: boolean, hasTime: boolean, start: string, end: string }} DayContext */
+/** @typedef {{ shift: string, isRest: boolean, hasTime: boolean, overnight: boolean, start: string, end: string }} DayContext */
 
 /** A worked shift, as the app stores it. */
 const SHIFT_RANGE_RE = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/;
@@ -96,33 +96,15 @@ export async function loadRosterContext(memberName, dates) {
             shift: eff.shift,
             isRest: isRestShift(eff.shift),
             hasTime: !!timed,
+            // A duty that crosses midnight — dispatcher turns (22:00–07:00; the late ones ending
+            // past 00:00 too). `end` names the NEXT morning, so anchored offers built from it are
+            // wrong on this day; `modesFor` (overtime-format.js) withholds them when this is set.
+            overnight: !!timed && end < start,
             start,
             end,
         };
     }
     return { knowledge: 'authoritative', byDate };
-}
-
-/**
- * How a day's roster reads to a member: "07:00–15:00", "Rest day", "Annual leave"…
- *
- * Staff-facing wording throughout — "Absent", never "sick" (the reason is never stored, and the app
- * says so everywhere else too).
- * @param {DayContext|null} ctx
- * @returns {string}
- */
-export function rosterLabel(ctx) {
-    if (!ctx) return 'Roster unavailable';
-    if (ctx.hasTime) return `${ctx.start}–${ctx.end}`;
-    switch (ctx.shift) {
-        case 'RD':
-        case 'OFF':   return 'Rest day';
-        case 'RDW':   return 'Rest day worked';
-        case 'AL':    return 'Annual leave';
-        case 'SICK':  return 'Absent';
-        case 'SPARE': return 'Spare';
-        default:      return ctx.shift || 'Rest day';
-    }
 }
 
 /**
@@ -144,18 +126,6 @@ export function rosterBadge(ctx) {
         + (ctx.hasTime ? `<span class="ot-day-time">${ctx.start}–${ctx.end}</span>` : '');
 }
 
-/**
- * Which availability modes a day may offer.
- *
- * The roster-derived shortcuts exist ONLY where an authoritative duty time is known. Without one
- * there is no "before" or "after" to anchor them to, and offering them anyway would either invent a
- * boundary or quietly attach one from a base roster nobody has verified — which is the invariant in
- * the module header, expressed as a list of buttons.
- * @param {DayContext|null} ctx
- * @returns {string[]}
- */
-export function modesFor(ctx) {
-    const basic = ['unavailable', 'all_day', 'custom'];
-    if (!ctx || !ctx.hasTime) return basic;
-    return ['unavailable', 'all_day', 'before', 'after', 'before_after', 'custom'];
-}
+// `modesFor` — which availability modes a day may offer — moved to overtime-format.js at v20.75:
+// this module imports the Firebase SDK, so the rule was unreachable from a Node test, and the
+// untested branch was wrong (an overnight dispatcher duty offered anchors the server refuses).

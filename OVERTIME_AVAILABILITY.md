@@ -128,6 +128,24 @@ entitlement would otherwise slip through.
 
 ---
 
+## Overnight duties — the one roster shape the anchored offers cannot describe
+
+Dispatchers are the only grade rostered across midnight (22:00–07:00, 22:30–09:00, and late turns
+ending past 00:00). On such a day the duty's `end` is the **next** calendar morning, and two of the
+roster-anchored offers are wrong there in different ways: "After {end}" stores a boundary on the
+wrong day (hours the member never declared), and "Before & after duty" stores `until > from` —
+which `normaliseDay` refuses as `before-after-inverted`, so the button was an offer that could
+never be saved. Found by the v20.75 review, verified end-to-end before fixing.
+
+The rule (in `modesFor`, `overtime-format.js`): an overnight day offers Not available / All day /
+**Before {start}** / Custom. The pre-duty gap is real, so "Before" survives; everything else the
+member can say about that day, they say in their own typed times. The server schema is untouched —
+`before_after` remains refusable when inverted, which is correct for the same-day case it models.
+Do not "fix" this by accepting inverted pairs server-side: an inverted pair from a same-day duty
+really is a transposed mistake, and the schema cannot tell the two apart after the fact.
+
+---
+
 ## Revisions, and why two of the interesting fields are not stored
 
 A submission is a **head document plus an append-only `revisions` subcollection**, both written in one
