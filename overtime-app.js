@@ -433,6 +433,9 @@ export function init() {
                 String(btn.getAttribute('data-create')), /** @type {HTMLElement} */ (btn))));
         host.querySelectorAll('[data-open]').forEach(btn =>
             btn.addEventListener('click', () => selectWeek(String(btn.getAttribute('data-open')))));
+        host.querySelectorAll('[data-topup]').forEach(btn =>
+            btn.addEventListener('click', () => topUpWeek(
+                String(btn.getAttribute('data-topup')), /** @type {HTMLElement} */ (btn))));
 
         // OPEN THE WEEK BEING PLANNED, rather than making the reviewer ask for it.
         //
@@ -471,8 +474,18 @@ export function init() {
     function renderHorizonRow(w) {
         const { label, tone } = rowStateCopy(w.state);
         const counts = w.exists ? countsCopy(w.expected || 0, w.received || 0) : '';
+        // An OPEN week whose audience has grown since it was created. The frozen population is
+        // right for everything already recorded, but somebody invited afterwards is not in it —
+        // and with the horizon pre-created eight weeks out, that is EVERY week they could answer.
+        // The scheduler tops these up nightly; this is the same thing, now, when you have just
+        // invited somebody and want them to see a form.
+        const shortBy = w.exists && Number.isInteger(w.audienceCount)
+            ? w.audienceCount - (w.expected || 0) : 0;
         const action = w.exists
-            ? `<button type="button" class="ot-row-btn" data-open="${esc(w.weekEnding)}"
+            ? `${shortBy > 0
+                ? `<button type="button" class="ot-row-btn ot-row-btn--primary" data-topup="${esc(w.weekEnding)}">Add ${shortBy}</button>`
+                : ''}
+               <button type="button" class="ot-row-btn" data-open="${esc(w.weekEnding)}"
                        aria-pressed="${selectedWeek === w.weekEnding}">View</button>`
             : (w.canCreate
                 // Secondary, not primary: since v20.61 this week opens by itself overnight, so the
@@ -561,6 +574,41 @@ export function init() {
         armConfirmBar();
         if (bar) bar.hidden = false;
         reserveConfirmSpace(true);
+    }
+
+    /**
+     * Top an existing OPEN week up to the current audience — the "Add N" row action.
+     *
+     * No confirm bar, unlike creating a week. Creating one freezes a population and cannot be
+     * undone; this only ADDS people the audience already includes, to a week they can still answer.
+     * The worst outcome is that somebody is asked who could have been asked anyway, so a
+     * confirmation would be ceremony rather than a safeguard — and this is the button somebody
+     * presses immediately after inviting a colleague, where a second step is friction at the exact
+     * moment they want to see it work.
+     *
+     * @param {string} weekEnding @param {HTMLElement} btn
+     */
+    async function topUpWeek(weekEnding, btn) {
+        const label = btn.textContent;
+        btn.textContent = 'Adding…';
+        /** @type {HTMLButtonElement} */ (btn).disabled = true;
+        // The SAME endpoint as creation: for a week that exists it reconciles the population and
+        // reports what it added. One server path, so the button and the nightly job can never
+        // disagree about what "in this week's audience" means.
+        const r = await OTD.createOvertimeWindow(weekEnding, { dryRun: false });
+        if (!r.ok) {
+            btn.textContent = label;
+            /** @type {HTMLButtonElement} */ (btn).disabled = false;
+            flashConfirm(`Couldn't add anyone to that week (${esc(r.code)}).`, false);
+            return;
+        }
+        const added = (r.data && r.data.added) || [];
+        flashConfirm(added.length
+            ? `Added to ${esc(weekLabel(weekEnding))}: <strong>${esc(added.join(', '))}</strong>. `
+              + 'They can fill in that week now.'
+            : `Nobody new to add to ${esc(weekLabel(weekEnding))}.`, true);
+        await loadHorizon();
+        if (selectedWeek === weekEnding) renderWeekDetail(weekEnding);
     }
 
     /**

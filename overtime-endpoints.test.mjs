@@ -893,3 +893,120 @@ describe('autoCreateOvertimeWindows — the schedule, executed', () => {
         assert.equal(made.length, due.length - 1, 'the run stopped at the first failure');
     });
 });
+
+describe('a member invited into the beta AFTER a window was created', () => {
+    // The live report: T. Bibi was added to CONFIG.OVERTIME_BETA, the Functions deploy succeeded,
+    // and her page still said "No overtime availability forms are open for you right now" while
+    // the admin's forms were open. This reproduces it against the real handlers.
+    const WIDER = {
+        ...ROSTER,
+        overtimeBeta: ['S. Silva'],       // invited AFTER the window below was created
+    };
+
+    function buildWider(seed) {
+        const db = makeDb(seed);
+        installFakeAdmin(db, TOKENS);
+        delete require.cache[require.resolve('./functions/overtime.js')];
+        const { buildOvertimeEndpoints } = require('./functions/overtime.js');
+        return { db, eps: buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS: [], rosterMembers: WIDER }) };
+    }
+
+    test('before the top-up she has nothing — the reported symptom, reproduced', async () => {
+        freeze(M.initialDeadlineAt - 86400000);       // the window is OPEN
+        const { eps } = buildWider(seededWindow());   // participants: G. Miller only
+        const r = await call(eps.getMyOvertimeState, req({}, 'tok_plain'));
+        unfreeze();
+        assert.equal(r.code, 200);
+        assert.deepEqual(r.body.windows, [],
+            'she is in the audience but not in the frozen population — nothing has topped it up yet');
+    });
+
+    test('topping the OPEN week up gives her the form, without disturbing anyone', async () => {
+        freeze(M.initialDeadlineAt - 86400000);
+        const { db, eps } = buildWider(seededWindow());
+        const add = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        assert.equal(add.code, 200);
+        assert.equal(add.body.existed, true, 'the week already existed — this is a top-up, not a create');
+        assert.deepEqual(add.body.added, ['S. Silva']);
+
+        const mine = await call(eps.getMyOvertimeState, req({}, 'tok_plain'));
+        unfreeze();
+        assert.equal(mine.body.windows.length, 1, 'she can now see and answer the week');
+        // The existing participant is untouched — a top-up ADDS, it never rewrites the snapshot.
+        assert.ok(db._store.has(`overtimeWindows/${WEEK}/participants/G. Miller`));
+    });
+
+    test('and it is IDEMPOTENT — pressing it again adds nobody', async () => {
+        freeze(M.initialDeadlineAt - 86400000);
+        const { eps } = buildWider(seededWindow());
+        await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        const again = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        unfreeze();
+        assert.deepEqual(again.body.added, [], 'a second press must be a no-op, not a second write');
+    });
+
+    // ── A CLOSED WEEK IS NEVER TOPPED UP, and TWO different guards say so ───────────────────────
+    //
+    // The boundary that keeps the freeze meaningful: somebody added to a week whose deadline has
+    // gone could never have answered it, so recording them as expected manufactures a permanent
+    // false non-responder — precisely what the frozen snapshot exists to prevent. Open weeks may
+    // grow because the person can still answer; closed ones may not, because they cannot.
+    //
+    // Both callers are tested because they take different routes in. The ENDPOINT never reaches the
+    // top-up at all — `validateWeekEnding` refuses a past-deadline week first — while the SCHEDULER
+    // iterates windows directly and is stopped by the phase check inside `addMissingParticipants`.
+    // Testing only one would leave the other unguarded, and the scheduler is the unattended one.
+
+    test('the endpoint refuses a closed week outright, before any top-up', async () => {
+        freeze(M.finalDeadlineAt + 60000);            // one minute past the final deadline
+        const { db, eps } = buildWider(seededWindow());
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member'));
+        unfreeze();
+        assert.equal(r.code, 400);
+        assert.equal(r.body.error, 'final-deadline-passed');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`), false,
+            'a closed week must not gain a participant who could never have answered it');
+    });
+
+    test('and the SCHEDULER, which bypasses that guard, refuses it too', async () => {
+        freeze(M.finalDeadlineAt + 60000);
+        const { db, eps } = buildWider(seededWindow());
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`), false,
+            'the nightly top-up must respect the same boundary the endpoint does');
+    });
+
+    test('the scheduler DOES top up an open week, unattended', async () => {
+        // The durable half of the fix: an invitation takes effect overnight without anyone
+        // remembering to press anything, which is what makes the beta widenable at all.
+        freeze(M.initialDeadlineAt - 86400000);
+        const { db, eps } = buildWider(seededWindow());
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.ok(db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`),
+            'the open week gained the newly-invited member');
+    });
+
+    test('the overview tells the reviewer the audience has outgrown the week', async () => {
+        // What makes the gap visible at all. Without it a reviewer has no way to know an invitation
+        // has not landed — the week looks complete ("1 of 1 received") because everyone IN it has
+        // answered. `audienceCount` against `expected` is the difference.
+        freeze(M.initialDeadlineAt - 86400000);
+        const { eps } = buildWider(seededWindow());
+        const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
+        unfreeze();
+        const row = r.body.planningWeeks.find((w) => w.weekEnding === WEEK);
+        assert.equal(row.expected, 1, 'the frozen population');
+        assert.equal(row.audienceCount, 2, 'what the audience would select today');
+    });
+
+    test('a CLOSED week reports no audienceCount, because it can no longer grow', async () => {
+        freeze(M.finalDeadlineAt + 60000);
+        const { eps } = buildWider(seededWindow());
+        const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
+        unfreeze();
+        const row = r.body.planningWeeks.find((w) => w.weekEnding === WEEK);
+        assert.equal(row.audienceCount, null, 'offering "Add 1" on a closed week would be a lie');
+    });
+});
