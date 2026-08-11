@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: August 2026 — v20.60 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.70 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -624,24 +624,51 @@ Windows are named by their **week-ending Saturday**. Counting back from it:
 | Sat −9d | Final roster published. |
 | Sat +91d | The window expires and stops appearing anywhere. |
 
-So a window wants creating **about three weeks ahead** of the week it covers. The page's *Upcoming
-weeks* card shows six week rows whether or not anyone has created them, and its collapsed chip
-counts the ones **without** a form — that chip is the thing to glance at.
+### Weeks open by themselves — there is nothing to remember
 
-### Creating a week
+**Since v20.61 a scheduled job creates every missing horizon week at 05:00 London, daily.** Overtime
+is needed every week, so a window is needed every week, and pressing a button fifty-two times a year
+to approve a computation you cannot influence is not a control — it is a way to forget. Daily rather
+than weekly, so a missed run self-heals within a day instead of losing a whole week.
 
-Overtime → **Upcoming weeks** → *Create* on the row. A confirm bar previews the roster week, the
-initial deadline, the audience and the expected participant count; press **Open the form** to
-commit. The preview is produced by the same server code that commits, so it cannot drift.
+*Upcoming weeks* therefore changed job: it was the safety net under a person, and it is now the
+**monitor over that job**. It still shows six week rows whether or not any exist — because it is
+computed from the calendar, not from Firestore — so a week the scheduler failed to create still
+appears, still says it has no form, and still offers the button. Its collapsed chip counts the weeks
+**without** a form; that chip is the thing to glance at.
 
-A row with no *Create* button is one whose final deadline has already passed — the week is missed and
-cannot be recovered by creating it late. The row stays visible until its Saturday passes.
+Row states, and what each means:
+
+| Row says | Meaning |
+|---|---|
+| **Form open** | Staff can answer. The page opens on the earliest of these — the week being planned. |
+| **Form closed** | Created, and past its final deadline. Still readable; that is the record the roster was planned from. |
+| **Opens automatically overnight** | No form yet, and none needed by hand — tonight's run will make it. |
+| **No form yet · first deadline has passed** | Still opens automatically, but late enough to be worth a look: anyone answering now misses the draft roster. |
+| **Missed · no form was opened, so nobody was asked** | The final deadline went by with no window. It cannot be recovered, and the row stays until its Saturday passes. |
+
+### Opening a week early, by hand
+
+Rarely needed. Overtime → **Upcoming weeks** → **Open now** on the row — a deliberately secondary
+button, because making it the loudest control would teach a habit the scheduler exists to remove. A
+confirm bar previews the roster week, the initial deadline, the audience and the expected
+participant count; press **Open the form** to commit. The preview is produced by the same server
+code that commits, so it cannot drift.
+
+A row with no button is one whose final deadline has already passed — that week is missed and cannot
+be recovered by creating it late.
 
 ### During and after the window
 
-**Who is available** shows the selected week by day, in three sections that never merge: Available,
-Not available, and **No response**. The third is not a soft "no" — nobody has answered — and it is
-the list a phone call works from, alongside *Awaiting a form*.
+**Who is available** opens on the week being planned — the earliest one still open — and *View* on
+any other row switches to it, including the **Previous weeks** list beneath the horizon, which
+reaches every week still inside the 13-week retention.
+
+It shows that week by day, in three sections that never merge: Available, Not available, and **No
+response**. The third is not a soft "no" — nobody has answered — and it is the list a phone call
+works from, alongside *Awaiting a form*. Above the days, a strip of seven chips gives the count
+available on each; a day with **nobody** is outlined red, one to two amber. Tap a chip to show only
+that day, *All week* to bring them back.
 
 After the final deadline the member's form goes read-only and states the deadline it closed at.
 Availability recorded before the cut-off is what the roster is planned from; confirm directly with
@@ -658,9 +685,17 @@ the employee before arranging short-notice cover.
 
 ### Diagnosing a problem
 
-- **"Couldn't load overtime availability"** → the four Cloud Functions or the Firestore rules have
-  not deployed. All three deploy workflows fire in parallel from one push with no ordering
+- **"Couldn't load overtime availability"** → the Overtime Cloud Functions or the Firestore rules
+  have not deployed. All three deploy workflows fire in parallel from one push with no ordering
   guarantee; the page is correct to report a failure and recovers on its own once they land.
+- **A whole week never opened** → check the `autoCreateOvertimeWindows` logs. It states what it did
+  NOT create as well as what it did, and it stands the run down entirely rather than proceeding if
+  it cannot list the existing weeks. *Upcoming weeks* shows the gap either way; **Open now** fixes
+  it immediately, provided the final deadline has not passed.
+- **A member says the form is offering the wrong time** → their shift changed after they answered.
+  Their stored answer keeps the time they gave (a roster change must never silently re-point a
+  declaration), and the day now carries a note saying the shift has moved. Nothing needs doing
+  unless they want to change their answer.
 - **`no-participants` (409) on Create** → the audience selected nobody. Realistically a
   misconfiguration; it fails closed on purpose, because a window with nobody in it reads
   "0 of 0 received", which looks like a completed week.

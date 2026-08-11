@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v20.60 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.70 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -231,6 +231,8 @@ The member's side of the Overtime page. `overtime-form.js` renders one week's se
 **Unknown roster context removes the shortcuts rather than guessing them.** `modesFor` offers before/after/before-and-after ONLY where an authoritative duty time exists. The consequence of a wrong base roster is sharper here than on the calendar: the form would put a time the member never works into a declaration they then submit.
 
 **The day's roster is the app's own shift badge** (`rosterBadge` → `getShiftBadge`), not a sentence describing it. The calendar, Team View, the admin week grid and the roster-review table all draw that fact with the same chip, and a member reads those every week; a grey "Spare" here made one fact look like two. `rosterLabel` survives as the words — it is what the badge's `aria-label` says out loud.
+
+**Member-facing copy may not name a document the member never receives** (v20.70). The phase line said "Open — the draft roster has been planned", which was DATE-accurate — for a week ending Sat 22 Aug the draft really is Thu 6 Aug — and still read as a plain untruth, because the draft is an internal artefact of the roster office and "the roster" to staff means the one that comes out on the Thursday. The line therefore announced that the thing they were waiting for had already happened, five days before they saw anything. Both open phases now describe the MEMBER'S position — answer now to be counted from the start; planning has started, so a change may not fit — and name nothing invisible. Pinned by `overtime-format.test.mjs`, scoped to the member's phase line: the reviewer's surfaces and OPERATIONS_REFERENCE may say "draft roster" freely, because it is their document.
 
 **A selected option is labelled from the ANSWER; an unselected one from the roster.** The stored schema keeps concrete clock times so a later roster change cannot re-point a declaration — and the button label was undoing exactly that, because it was always built from the current shift. Somebody who answered "After 15:00" and whose shift then moved to 12:00–20:00 came back to a form showing "After 20:00", selected, while the reviewer's screen read the same record as "Available after 15:00". They are two different questions — what did I say, and what would pressing this store — and each now gets its own answer. `answerAnchorStale` then SAYS the roster has moved, rather than re-anchoring (that would be the app editing a declaration nobody re-made) or staying quiet (that would leave a member to spot two digits). **Unknown roster is not a changed roster:** the predicate returns false on a null context, or a failed override read would accuse every member on all seven days at once.
 

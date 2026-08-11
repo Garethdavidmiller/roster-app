@@ -109,8 +109,8 @@ body {
 
 .ot-tabs {
     display: flex;
-    gap: var(--space-2);
-    margin-bottom: var(--space-4);
+    gap: 6px;
+    margin-bottom: var(--space-2);
 }
 
 /* `display: flex` OUT-SPECIFIES the `hidden` attribute's UA `display: none`, so a hidden element
@@ -119,22 +119,35 @@ body {
    the companion rule explicitly. page-visibility-parity.test.mjs now fails without them. */
 .ot-tabs[hidden] { display: none !important; }
 
+/* SIZED LIKE THE APP'S OTHER TAB STRIP — paycalc's tax-year tabs (`.ty-tab`): 12px/700 on 7px of
+   padding, not 15px/600 on 10px. At the old size "Everyone's availability" could not fit half of a
+   390px screen, so it wrapped, and flex stretched BOTH tabs to match — a 63px double-height slab
+   above a card, easily the largest control on the page and attached to the least important
+   decision on it. The two changes are one fix: the app's tab size, and a label that fits on a line
+   at 320px. Colours stay their own, because this strip sits on the navy canvas rather than inside
+   a card, which is the one way it genuinely differs from `.ty-tab`. */
 .ot-tab {
     flex: 1;
-    padding: 10px var(--space-3);
+    padding: 7px 8px;
     border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: var(--radius-button);
+    border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.75);
+    color: rgba(255, 255, 255, 0.78);
     font-family: var(--font-sans);
-    font-size: var(--type-button);
-    font-weight: 600;
+    font-size: var(--type-small);
+    font-weight: 700;
     cursor: pointer;
-    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+    touch-action: manipulation;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out),
+                transform var(--dur-fast) var(--ease-standard);
 }
 
+/* The press every primary control in the app has, and this one did not. */
+.ot-tab:active { transform: scale(var(--press-scale)); }
+
 /* The SELECTED tab is the card surface, so the strip reads as the top edge of the
-   panel below it. It was a full-width GOLD slab — gold is the app's small accent
+   panel below it — which needs the 8px gap above that card, not the 24px it used
+   to sit behind. It was a full-width GOLD slab — gold is the app's small accent
    (today's cell, the active highlight), and at this size it was both the loudest
    element on the page and, again, the Calendar's colour. */
 .ot-tab[aria-selected="true"] {

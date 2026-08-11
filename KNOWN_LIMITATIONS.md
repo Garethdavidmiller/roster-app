@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: August 2026 — v20.60 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.70 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -1236,6 +1236,37 @@ never contingent on the beta label, and dropping it does not make any of them go
   who took the countdown seriously might have hurried or written the work off. `daysLeft` and
   `SOFT_DELETE_RETENTION_DAYS` are now explicitly DORMANT and must not drive visible copy again
   until the age comes from the server.
+
+## Overtime Availability — accepted gaps (v20.56 onwards)
+
+Design: `OVERTIME_AVAILABILITY.md`. Operating: OPERATIONS_REFERENCE.md. These are the things the
+feature deliberately does NOT do yet, so that a reader stops looking for them.
+
+- **No expiry purge.** Windows past `retentionUntil` (13 weeks) are filtered out of both read
+  endpoints, so they are invisible and inert — but the documents stay in Firestore. Enforcement is
+  in the endpoints on purpose: **rules are not filters**, and a `resource.data` condition would fail
+  a reviewer's whole query rather than drop one row. The deadline for actually deleting them is in
+  MAINTENANCE_CALENDAR.md, which is where work with a date lives.
+
+- **No reminders.** Nothing tells a member their deadline is approaching, and nothing tells a
+  reviewer who is outstanding. The *Awaiting a form* list and the **No response** section are the
+  manual substitute, and they are why those sections must never merge into "not available". Spec
+  §14, deferred.
+
+- **The page does not re-read state while it sits open.** `shouldResyncClock` and
+  `DEADLINE_SYNC_WINDOW_MS` exist, are tested, and have no callers (noted v20.69). A form opened at
+  11:50 still says "Open" at 12:05. The cost is a stale phase line rather than a lost declaration:
+  inside the fifteen-minute grace band the client still SENDS, and past it the server's own refusal
+  is what the member sees. Wire it or delete it — do not leave it reading as though it were in force.
+
+- **Restricted audience.** `currentAudience()` returns `'restricted'`, which selects eligible
+  submitters who also hold the server-owned admin entitlement. Widening the beta is a one-word edit
+  plus a deploy, and never alters an existing window — populations are frozen at creation, which is
+  what makes response rates meaningful.
+
+- **Name-keyed documents.** Participants and submissions are keyed by canonical member name for
+  legibility. A rename would orphan them; the participant `uid`, stamped on first submission, is the
+  recovery route. Nothing reads it today.
 
 ### Test coverage gaps
 The suite is now broad (see CLAUDE.md's file tree for the
