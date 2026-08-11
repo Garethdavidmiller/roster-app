@@ -227,7 +227,7 @@ describe('window creation validation', () => {
 });
 
 describe('the missing window — the failure nothing else catches', () => {
-    test('six rows appear whether or not any window exists', () => {
+    test('every planning row appears whether or not any window exists', () => {
         const weeks = C.planningWeekEndings(Date.parse('2026-08-19T09:00:00Z'));
         assert.equal(weeks.length, C.PLANNING_WEEKS);
         assert.ok(weeks.every(C.isSaturday), 'every planning row is a week-ending Saturday');
@@ -241,13 +241,15 @@ describe('the missing window — the failure nothing else catches', () => {
         weeks.forEach((w, i) => assert.equal(w, C.addDays('2026-08-22', i * 7)));
     });
 
-    test('SIX weeks are answerable at every hour of every day — the owner requirement', () => {
-        // THE reason PLANNING_WEEKS is what it is, expressed as the property rather than the number.
+    test('ANSWERABLE_WEEKS really are answerable at every hour of every day', () => {
+        // THE reason PLANNING_WEEKS is what it is, expressed as the property rather than a number —
+        // and asserted against `ANSWERABLE_WEEKS`, so changing the requirement (six → three, owner,
+        // Aug 2026) is one constant and this test follows it rather than being edited to agree.
         //
-        // "Six weeks ahead" is a count of weeks staff can ANSWER for, and that is not the row count:
-        // a window closes 11 days before its Saturday, so row 1 is always behind its own deadline and
-        // row 2 goes behind it at Tuesday noon. Measured, six rows gave four or five answerable weeks
-        // and NEVER six — the requirement was unmeetable while looking satisfied.
+        // "N weeks ahead" is a count of weeks staff can ANSWER for, and that is not the row count: a
+        // window closes 11 days before its Saturday, so row 1 is always behind its own deadline and
+        // row 2 goes behind it at Tuesday noon. Measured, a horizon of exactly N rows gave N−2 or
+        // N−1 answerable weeks and never N — the requirement was unmeetable while looking satisfied.
         //
         // Sweeping a whole week at two hours catches the Tuesday-noon boundary, which is the only
         // place the count steps down. Asserting the PROPERTY means a future change to the offsets
@@ -262,7 +264,12 @@ describe('the missing window — the failure nothing else catches', () => {
                 worst = Math.min(worst, answerable);
             }
         }
-        assert.ok(worst >= 6, `only ${worst} answerable weeks at the worst hour of the week`);
+        assert.ok(worst >= C.ANSWERABLE_WEEKS,
+            `only ${worst} answerable weeks at the worst hour of the week, wanted ${C.ANSWERABLE_WEEKS}`);
+        // And not WILDLY more than asked for: the horizon is deliberately the requirement plus two,
+        // so a change that quietly restored a long reach (the burden the owner cut) fails here too.
+        assert.ok(worst <= C.ANSWERABLE_WEEKS + 1,
+            `${worst} answerable weeks is more than the requirement — the horizon has grown`);
     });
 
     test('on a Saturday, THAT Saturday is still the current week', () => {

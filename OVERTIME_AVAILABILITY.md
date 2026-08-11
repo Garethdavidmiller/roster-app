@@ -36,6 +36,26 @@ never what exists.
 
 Anything that makes those rows less prominent makes the feature less safe.
 
+### Two decisions the horizon encodes — settled, not inherited (owner, Aug 2026)
+
+An external review asked that both be approved explicitly rather than acquired by implementation.
+Both were, and they are recorded here so the next reader does not re-litigate them.
+
+**Every roster week gets a form, automatically.** The daily scheduler creates the horizon; a Manager's
+**Open now** is a recovery action, not the normal route. The choice this makes is that availability is
+a *standing weekly process* rather than something requested when needed — which is what the roster
+desk actually wants. The consequence to keep in view: there is deliberately no "no form required this
+week" concept, so a week with no overtime need still asks and simply collects "not available". If that
+ever becomes a nuisance, the answer is that concept, **not** switching the scheduler off — a week
+nobody created is the one failure this whole design is built around.
+
+**Three answerable weeks, not six.** Six was the original requirement and the code met it, but it had
+somebody in mid-August declaring for a weekend in early October. A declaration that far out is much
+likelier to change, so the reach cost response burden and data quality without buying planning value:
+the draft and final cycles for a week finish well inside three weeks. `ANSWERABLE_WEEKS` in
+`overtime-core.js` is the one number; `PLANNING_WEEKS` derives from it, and the "really answerable at
+every hour" test follows the constant rather than being edited to agree with it.
+
 ---
 
 ## The weekly timetable
@@ -81,11 +101,11 @@ Create arrives for a week that already exists. A pilot rung slots in as a third 
 
 **But a frozen population may GROW while its week is still open** (v20.78), and it has to. The
 original rule was "existing windows are untouched", which was correct in isolation and became wrong
-the moment creation was automated: the scheduler keeps eight weeks made in advance, so by the time
+the moment creation was automated: the scheduler keeps the whole horizon made in advance, so by the time
 anybody is invited, every week they could usefully answer already exists. "Untouched" quietly meant
 "an audience change never takes effect". It was reported live — a member added to the beta was told
 "no forms are open for you" while the admin's were open, and her first form would have been a week
-in October. At full launch the same arithmetic strands the entire roster for eight weeks.
+in October. At full launch the same arithmetic strands the entire roster for the length of the horizon.
 
 The rule that resolves it without weakening the freeze: **you may join a window whose FIRST deadline
 you can still meet.**

@@ -59,27 +59,42 @@ const MILESTONE_OFFSETS = Object.freeze({
 const DEADLINE_HOUR_LONDON = 12;
 
 /**
+ * How far ahead staff are asked to declare availability, counted in weeks they can ANSWER for.
+ *
+ * ── THIS IS THE PRODUCT DECISION; `PLANNING_WEEKS` BELOW IS ARITHMETIC ──────────────────────────
+ *
+ * **Three (owner, Aug 2026 — was six).** Six was the original requirement and the code met it, but
+ * it meant somebody in mid-August declaring for a weekend in early October. An external review put
+ * the objection well: a declaration seven weeks out is far likelier to change than one three weeks
+ * out, so the extra reach cost both response burden and data quality without buying planning value —
+ * the draft and final roster cycles for a week are finished well inside three weeks.
+ *
+ * Raising it again is this one number. Everything else derives.
+ */
+const ANSWERABLE_WEEKS = 3;
+
+/**
  * How many week rows the planning horizon covers, starting at THIS week's Saturday.
  *
- * ── EIGHT ROWS, TO GIVE SIX ANSWERABLE WEEKS ────────────────────────────────────────────────────
+ * ── WHY IT IS THE REQUIREMENT PLUS TWO ──────────────────────────────────────────────────────────
  *
- * The owner's requirement is six weeks of forward availability. That is a count of weeks staff can
- * ANSWER for, and it is not the same number as the rows — because the first rows are always behind
- * their own deadline. A window closes 11 days before its Saturday, so:
+ * The rows are NOT the answerable count, because the first two are always behind or about to fall
+ * behind their own deadline. A window closes 11 days before its Saturday, so:
  *
  *   row 1 (this week's Saturday)  final deadline was LAST Tuesday  → never answerable
  *   row 2 (next Saturday)         final deadline is THIS Tuesday   → answerable until Tue 12:00
  *
- * Measured across a full week at 09:00 and 13:00, six rows yielded **four or five** answerable weeks
- * and never six; seven rows yield five or six, so it falls short for half of every week. Eight
- * yields six or seven — six being the floor, which is what "six weeks ahead" has to mean if it is to
- * be true on a Wednesday as well as a Sunday.
+ * So the FLOOR — the count at the worst hour of the week, just after Tuesday noon — is rows minus
+ * two, and the floor is what a requirement has to mean if it is to be true on a Wednesday as well as
+ * a Sunday. That relation was found by measurement, not derivation, and it is asserted as a property
+ * over a whole week in `overtime-core.test.mjs`: change the milestone offsets and that test fails
+ * rather than the horizon quietly costing a week.
  *
- * **The accepted cost is that a member has six or seven open forms at once.** That is why the form
- * they land on is the one closing SOONEST, with the rest listed beneath it rather than in front of
- * it — the arrangement made at v20.64, which this number leans on.
+ * Both rows are still SHOWN. The horizon is the only thing standing between the feature and a week
+ * nobody created, and a row that has gone past its deadline unanswered is exactly what a reviewer
+ * needs to see.
  */
-const PLANNING_WEEKS = 8;
+const PLANNING_WEEKS = ANSWERABLE_WEEKS + 2;
 
 /**
  * A Firestore batched write caps at 500 operations, and window creation is 1 parent + N
@@ -277,8 +292,8 @@ function validateWeekEnding(weekEnding, { nowMs, maxRosterYear }) {
 /**
  * The Manager planning horizon: this week's Saturday plus the following five.
  *
- * Six rows whether or not any window exists — this list is the ONLY thing standing between the
- * feature and its one catastrophic silent failure, a week nobody created. Nothing appears
+ * Every row appears whether or not a window exists — this list is the ONLY thing standing between
+ * the feature and its one catastrophic silent failure, a week nobody created. Nothing appears
  * outstanding, no reminder can fire, and "no window" is indistinguishable from "no overtime needed".
  * @param {number} nowMs
  * @returns {string[]} week-ending Saturdays, ascending
@@ -620,6 +635,7 @@ module.exports = {
     POLICY_VERSION,
     MILESTONE_OFFSETS,
     DEADLINE_HOUR_LONDON,
+    ANSWERABLE_WEEKS,
     PLANNING_WEEKS,
     MAX_PARTICIPANTS_PER_WINDOW,
     AUDIENCES,
