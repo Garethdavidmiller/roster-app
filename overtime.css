@@ -653,3 +653,6 @@
     .ot-day-panel    { break-inside: avoid; }
     .ot-day-panel-head { background: #eee !important; color: black !important; }
 }
+
+/* Back to the list of a member's own weeks, after opening one of them. */
+.ot-back-to-list { margin-top: var(--space-4); }

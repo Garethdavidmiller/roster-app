@@ -31,8 +31,15 @@ const OT = require('./functions/overtime-core.js');
 /** A fixed instant the fake server timestamp resolves to, so revisions have a readable acceptedAt. */
 const SERVER_NOW = Date.parse('2026-08-17T09:00:00Z');
 
-/** Minimal Firestore: paths → data, with the four shapes this module uses. */
-function makeDb(seed = {}) {
+/**
+ * Minimal Firestore: paths → data, with the four shapes this module uses.
+ *
+ * `onRead` wraps EVERY collection read, however it was reached. Instrumenting `db.collection` from
+ * outside does not work — `windowCounts` reaches its subcollections through a DOC ref, so an
+ * external wrapper sees only the one top-level read and reports a concurrency of 1 for code that
+ * is fully parallel. That false negative is exactly what this hook exists to prevent.
+ */
+function makeDb(seed = {}, onRead = null) {
     const store = new Map(Object.entries(seed));
     const snap = (path) => ({
         id: path.split('/').pop(),
@@ -45,11 +52,16 @@ function makeDb(seed = {}) {
             path,
             doc: (id) => docRef(`${path}/${id}`),
             get: async () => {
+                const done = onRead ? onRead(path) : null;
+                // A real read is never synchronous. Yielding is what lets the harness observe
+                // overlap at all — without it every "parallel" read resolves before the next starts.
+                await new Promise(r => setImmediate(r));
                 const prefix = `${path}/`;
                 const docs = [...store.keys()]
                     .filter(k => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
                     .sort()
                     .map(snap);
+                if (done) done();
                 return { docs, size: docs.length };
             },
         };
@@ -345,6 +357,27 @@ describe('createOvertimeWindow — one code path, previewed or committed', () =>
         assert.equal(db._store.size, 0, 'and nothing at all was written');
     });
 
+    test('a window with NO participants is refused, not created empty', async () => {
+        // An empty window can never receive a submission, and its counts read "0 of 0 received" —
+        // which looks like a completed week rather than one nobody was asked about. The realistic
+        // cause is the restricted selector finding no admin entitlement, which fails closed by
+        // design, so this is where that shows up as something a reviewer can act on.
+        freeze(Date.parse('2026-08-01T09:00:00Z'));
+        const db = makeDb();
+        installFakeAdmin(db, TOKENS);
+        delete require.cache[require.resolve('./functions/overtime.js')];
+        const { buildOvertimeEndpoints } = require('./functions/overtime.js');
+        const eps = buildOvertimeEndpoints({
+            ADMIN_FUNCTION_ORIGINS: [],
+            rosterMembers: { maxRosterYear: 2030, roles: { admin: [] }, overtimeEligibleMembers: ROSTER.overtimeEligibleMembers },
+        });
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }));
+        unfreeze();
+        assert.equal(r.code, 409);
+        assert.equal(r.body.error, 'no-participants');
+        assert.equal(db._store.size, 0);
+    });
+
     test('a week whose final deadline has passed cannot be created', async () => {
         freeze(M.finalDeadlineAt + 1);
         const { eps } = build();
@@ -439,6 +472,40 @@ describe('getOvertimeManagerOverview — the missing window is the point', () =>
         unfreeze();
         assert.equal(r.body.retained.length, 0,
             'behaviour must not depend on whether the purge has run');
+    });
+
+    test('per-week counts are fetched in parallel, not one week after another', async () => {
+        // Six weeks × two subcollection reads, awaited in a loop, is twelve sequential round trips
+        // before a Manager sees anything — for data with no ordering between weeks. The fake
+        // records the ORDER reads are ISSUED in: parallel means every read starts before any
+        // resolves, which a sequential loop can never produce.
+        freeze(Date.parse('2026-08-19T09:00:00Z'));
+        const seed = {};
+        for (const w of ['2026-08-22', '2026-08-29', '2026-09-05']) {
+            seed[`overtimeWindows/${w}`] = { ...seededWindow()[`overtimeWindows/${WEEK}`], weekEnding: w };
+            seed[`overtimeWindows/${w}/participants/G. Miller`] = { memberName: 'G. Miller' };
+        }
+        // MEASURE the concurrency rather than assert the answers — correct counts come out of a
+        // sequential loop too, so an assertion on them proves nothing about the thing under test.
+        let inFlight = 0, maxInFlight = 0;
+        const db = makeDb(seed, () => {
+            inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+            return () => { inFlight--; };
+        });
+        installFakeAdmin(db, TOKENS);
+        delete require.cache[require.resolve('./functions/overtime.js')];
+        const { buildOvertimeEndpoints } = require('./functions/overtime.js');
+        const eps = buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS: [], rosterMembers: ROSTER });
+        const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 200);
+        const counted = r.body.planningWeeks.filter((/** @type {any} */ w) => w.exists);
+        assert.equal(counted.length, 3, 'all three seeded weeks were counted');
+        assert.ok(counted.every((/** @type {any} */ w) => w.expected === 1));
+        // Each week's own pair is already concurrent, so a sequential OUTER loop peaks at 2.
+        // Anything above that can only come from the weeks overlapping each other.
+        assert.ok(maxInFlight > 2,
+            `reads peaked at ${maxInFlight} concurrent — the weeks are being counted one after another`);
     });
 
     test('serverNow comes back, because no client clock may decide what is shown', async () => {

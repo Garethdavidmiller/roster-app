@@ -135,7 +135,12 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     function dayBlock(date) {
         const c = ctx.byDate[date] || null;
         const a = answers[date];
+        // A SAVED answer always gets its button, even when the current roster would not offer that
+        // mode — a member who chose "After 15:00" and whose shift has since become a rest day would
+        // otherwise see a day marked answered with nothing selected on it, and no way to tell what
+        // they had said. Their declaration stands until they change it; the UI must show it.
         const modes = modesFor(c);
+        if (a?.mode && !modes.includes(a.mode)) modes.push(a.mode);
         const answered = !!a;
         return `
             <div class="ot-day${answered ? ' ot-day--answered' : ''}" data-day="${esc(date)}">

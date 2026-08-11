@@ -218,12 +218,10 @@ export function init() {
             return;
         }
 
-        // One open week is the ordinary case, and a list-then-tap for a single item is a tap that
-        // exists only to satisfy the shape of the code. So one week opens straight into its form;
-        // several get the list, which is where the choice actually matters.
         // ONE window opens straight into its form — including a closed one, which is read-only but
         // is still the thing the member came to look at. A list-then-tap for a single item is a tap
-        // that exists only to satisfy the shape of the code.
+        // that exists only to satisfy the shape of the code; several weeks get the list, which is
+        // where the choice actually matters.
         const open = windows.filter((/** @type {any} */ w) => w.phase !== 'CLOSED');
         const solo = open.length === 1 ? open[0] : (windows.length === 1 ? windows[0] : null);
         if (solo) {
@@ -231,12 +229,42 @@ export function init() {
             host.innerHTML = '';
             host.appendChild(holder);
             await renderWeekForm(holder, solo, String(currentUser), { onSaved: () => { /* head refreshes on next load */ } });
-            if (windows.length > 1) appendHistory(host, windows.filter((/** @type {any} */ w) => w !== solo));
+            if (windows.length > 1) appendHistory(host, windows.filter((/** @type {any} */ w) => w !== solo), windows);
             return;
         }
 
-        host.innerHTML = `<div class="ot-week-list">${
-            windows.map(renderMyWeekRow).join('')}</div>`;
+        renderWeekList(host, windows);
+    }
+
+    /** @param {HTMLElement} host @param {any[]} windows */
+    function renderWeekList(host, windows) {
+        host.innerHTML = `<div class="ot-week-list">${windows.map(renderMyWeekRow).join('')}</div>`;
+        wireWeekButtons(host, windows);
+    }
+
+    /**
+     * Closed weeks, listed under the live form so history is present without competing with it.
+     * @param {HTMLElement} host @param {any[]} past @param {any[]} all
+     */
+    function appendHistory(host, past, all) {
+        if (!past.length) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'ot-history';
+        wrap.innerHTML = `<div class="ot-history-title">Previous forms</div>
+            <div class="ot-week-list">${past.map(renderMyWeekRow).join('')}</div>`;
+        host.appendChild(wrap);
+        // These rows render the same View button as the list does, so they need the same wiring.
+        // Without it they were buttons that did nothing at all — which reads as the page being
+        // broken, not as history being read-only.
+        wireWeekButtons(host, all);
+    }
+
+    /**
+     * Give every `data-openweek` button in `host` its handler. One place, because the rows are
+     * rendered from two call sites and a button wired in only one of them is a dead control.
+     * @param {HTMLElement} host @param {any[]} windows
+     */
+    function wireWeekButtons(host, windows) {
         host.querySelectorAll('[data-openweek]').forEach(btn =>
             btn.addEventListener('click', async () => {
                 const week = String(btn.getAttribute('data-openweek'));
@@ -246,21 +274,23 @@ export function init() {
                 host.innerHTML = '';
                 host.appendChild(holder);
                 await renderWeekForm(holder, w, String(currentUser), { onSaved: () => {} });
+                // A way BACK to the list. Opening a week replaces the whole card, so without this
+                // the member is stranded on one form with no route to the others.
+                if (windows.length > 1) appendBackToList(host, windows);
             }));
     }
 
-    /** Closed weeks, listed under the live form so history is present without competing with it. */
-    /** @param {HTMLElement} host @param {any[]} past */
-    function appendHistory(host, past) {
-        if (!past.length) return;
-        const wrap = document.createElement('div');
-        wrap.className = 'ot-history';
-        wrap.innerHTML = `<div class="ot-history-title">Previous forms</div>
-            <div class="ot-week-list">${past.map(renderMyWeekRow).join('')}</div>`;
-        host.appendChild(wrap);
+    /** @param {HTMLElement} host @param {any[]} windows */
+    function appendBackToList(host, windows) {
+        const back = document.createElement('button');
+        back.type = 'button';
+        back.className = 'ot-row-btn ot-back-to-list';
+        back.textContent = '← All my forms';
+        back.addEventListener('click', () => renderWeekList(host, windows));
+        host.appendChild(back);
     }
 
-    /** One of the member's own weeks. The form itself arrives in the next step. */
+    /** One of the member's own weeks, as a row in a list. */
     /** @param {any} w */
     function renderMyWeekRow(w) {
         const submitted = !!w.submission;
@@ -347,6 +377,10 @@ export function init() {
      */
     /** @param {string} weekEnding */
     async function previewWindow(weekEnding) {
+        // Disarm FIRST. A failed preview used to leave the bar showing an error for week B while
+        // its Create button was still armed for week A from an earlier successful preview — one
+        // press away from creating the wrong week.
+        pendingWeek = null;
         const r = await OTD.createOvertimeWindow(weekEnding, { dryRun: true });
         if (!r.ok) { flashConfirm(`Couldn't prepare that week (${esc(r.code)}).`, false); return; }
         const w = r.data.window;
@@ -430,7 +464,7 @@ export function init() {
         // flight, and painting the older answer over the newer selection is the classic late-read
         // bug. Cheap to prevent; invisible when it happens.
         if (selectedWeek !== weekEnding) return;
-        if (!data.ok) { renderError(host); return; }
+        if (!data.ok) { renderError(host, () => renderWeekDetail(weekEnding)); return; }
         paintWeekDetail(host, win, data, { dates: weekDatesFrom(win.weekStart) });
         const chip = el('otWeekChip');
         if (chip) {
@@ -494,8 +528,13 @@ export function init() {
         if (host) host.innerHTML = `<div class="ot-state">${esc(message)}</div>`;
     }
 
-    /** @param {any} host */
-    function renderError(host) {
+    /**
+     * @param {any} host
+     * @param {() => any} [retry] what "Try again" should do. Defaults to a full reload, which is
+     *   right for the two top-level cards and WRONG for the week detail — reloading everything
+     *   there leaves the failed week exactly as it was, so the button appears to do nothing.
+     */
+    function renderError(host, retry) {
         if (!host) return;
         host.innerHTML = `
             <div class="ot-state ot-state--error">
@@ -507,7 +546,7 @@ export function init() {
             </div>`;
         // A CLASS, not an id: both cards can fail on the same load, and two elements sharing an id
         // is invalid markup that also breaks every id-based lookup — including this one's.
-        host.querySelector('.ot-retry')?.addEventListener('click', () => loadEverything());
+        host.querySelector('.ot-retry')?.addEventListener('click', () => (retry || loadEverything)());
     }
 
     function renderUnavailable() {

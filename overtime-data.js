@@ -152,10 +152,20 @@ export async function submitOvertimeAvailability(weekEnding, days, ifRevision, {
     return { ...r, mutationId: clientMutationId };
 }
 
-/** A random correlation id in the server's accepted alphabet (`[A-Za-z0-9_-]{8,64}`). */
+/**
+ * A random correlation id in the server's accepted alphabet (`[A-Za-z0-9_-]{8,64}`).
+ *
+ * The `Math.random` fallback matters: without it, a browser with no `crypto.getRandomValues` left
+ * the buffer all zeroes, so EVERY submission from that device carried the same id — which still
+ * passes the server's format check and quietly breaks the one thing the id exists for. A device
+ * reconciling a timeout would match against its own previous request and report "your earlier
+ * submission did save" about the wrong one.
+ */
 function newMutationId() {
     const bytes = new Uint8Array(16);
-    (globalThis.crypto || /** @type {any} */ ({})).getRandomValues?.(bytes);
+    const c = /** @type {any} */ (globalThis).crypto;
+    if (c && typeof c.getRandomValues === 'function') c.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
     return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 

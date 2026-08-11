@@ -177,6 +177,16 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
                 adminNames: (rosterMembers.roles && rosterMembers.roles.admin) || [],
             });
 
+            if (participants.length === 0) {
+                // A window nobody is in can never receive a submission, and its counts read
+                // "0 of 0 received" — which looks like a completed week rather than an empty one.
+                // The realistic cause is a misconfigured audience (the restricted selector with no
+                // admin entitlement, which fails closed by design), so failing loudly here is what
+                // turns that into something a reviewer can act on.
+                console.error(`[createOvertimeWindow] ${weekEnding} selected NO participants (audience=${audience})`);
+                return res.status(409).json({ error: 'no-participants' });
+            }
+
             if (participants.length > OT.MAX_PARTICIPANTS_PER_WINDOW) {
                 // Fail loudly rather than splitting the batch. A window created across two batches
                 // can half-exist, and a half-frozen participant population is not a smaller truth —
@@ -270,6 +280,13 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
             const byWeek = new Map();
             for (const d of snap.docs) byWeek.set(d.id, d.data());
 
+            // Counts for every existing week are fetched in PARALLEL. Awaited inside the loop they
+            // were six sequential pairs of round trips, which is the difference between a page that
+            // opens and a page that hesitates — for data that has no ordering between weeks at all.
+            const countsByWeek = new Map(await Promise.all(
+                weekEndings.filter(w => byWeek.has(w))
+                    .map(async (w) => /** @type {[string, any]} */ ([w, await windowCounts(w)]))));
+
             const planningWeeks = [];
             for (const weekEnding of weekEndings) {
                 const doc = byWeek.get(weekEnding);
@@ -277,7 +294,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
                 // fresh derivation when it does not. A created window keeps the timetable it ran
                 // under even if the policy has since changed.
                 const milestones = doc ? storedMilestones(doc) : OT.deriveMilestones(weekEnding);
-                const counts = doc ? await windowCounts(weekEnding) : null;
+                const counts = countsByWeek.get(weekEnding) || null;
                 planningWeeks.push({
                     ...milestones,
                     exists: !!doc,
@@ -341,14 +358,18 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
             const snap = await db().collection(WINDOWS).get();
             const live = snap.docs.filter(d => toMillis(d.data().retentionUntil) > nowMs);
 
-            const windows = [];
-            for (const d of live) {
+            // Every window is probed in PARALLEL. Sequentially this was up to nineteen round trips
+            // (thirteen weeks of retention plus the horizon) before the member saw anything, for
+            // reads that have no dependency on each other. Two per window, both issued at once.
+            const probed = await Promise.all(live.map(async (d) => {
                 const ref = d.ref;
-                const participant = await ref.collection('participants').doc(who.name).get();
-                if (!participant.exists) continue;          // not asked → not their window
-                const head = await ref.collection('submissions').doc(who.name).get();
+                const [participant, head] = await Promise.all([
+                    ref.collection('participants').doc(who.name).get(),
+                    ref.collection('submissions').doc(who.name).get(),
+                ]);
+                if (!participant.exists) return null;       // not asked → not their window
                 const milestones = storedMilestones(d.data());
-                windows.push({
+                return {
                     ...milestones,
                     audience: d.data().audience,
                     phase: OT.phaseFor(milestones, nowMs),
@@ -357,8 +378,9 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
                         rosterOrder: participant.data().rosterOrder,
                     },
                     submission: head.exists ? publicHead(head.data()) : null,
-                });
-            }
+                };
+            }));
+            const windows = probed.filter(Boolean);
             windows.sort((a, b) => (a.weekEnding < b.weekEnding ? -1 : 1));
             return res.json({ ok: true, serverNow: nowMs, windows });
         });
