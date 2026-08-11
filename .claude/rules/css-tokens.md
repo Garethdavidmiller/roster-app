@@ -323,14 +323,25 @@ These are the on-navy equivalents of the global `--text-*` / `--border-light` / 
 **Two content-width tokens, single-sourced in `shared.css :root` — never hardcode a page width:**
 - `--page-max-width` (1400px) — **calendar only**. Its 7-column month grid and the Team Week
   View matrix genuinely use the horizontal space.
-- `--content-max-width` (1100px) — **every other page** (admin, paycalc, operations, settings,
-  links). Keeps forms and prose a comfortable width and stops the app re-laying-out ~300px on
-  every desktop hop. Admin joined this group at v15.90 once its week grid became vertical
-  day-cards (it no longer needs a wide table). **Settings** is a special case: it's two tiny
-  single-field cards, so rather than a wide band it uses **one centred ~600px single column,
-  cards stacked** (v18.59 — the v15.90 860px two-column grid read as sparse/half-empty on
-  desktop, per the review). It does not route through `--content-max-width`. When adding a
-  page, route its desktop `max-width` through one of these tokens (Settings excepted).
+- `--content-max-width` (1100px) — **every other page**. Keeps forms and prose a comfortable
+  width and stops the app re-laying-out ~300px on every desktop hop. Admin joined this group at
+  v15.90 once its week grid became vertical day-cards (it no longer needs a wide table).
+
+**There are no exceptions any more (v20.72).** Settings had one from v18.59, and overtime copied
+it: both capped at 600px because a lone email field stretched across 1100px looks broken. The
+diagnosis was right and the fix was aimed one level too high — shrinking the PAGE to fix the FIELD
+also moved the burger, the brand and the badge 250px inward, so hopping admin → settings visibly
+re-laid-out the app's chrome. **That is the exact thing this token exists to prevent**, so the
+exception was self-defeating; it was reported as "the width is not consistent with the rest of the
+app". The app's real answer to a wide band with small cards is **columns**, which is what admin,
+operations and paycalc all do, and which settings never got because at v18.59 it had two cards and
+nothing to put in a second column. It now has four.
+
+So: **route every new page's desktop `max-width` through one of these two tokens.** If its content
+does not fill the band, columnise it (settings: admin's wide-main + narrow-side pair) or cap the
+inner panel rather than the page (overtime: the member's seven-day form takes a 620px reading
+column, while the reviewer's call sheet takes the whole band — they are tabs, never co-visible, so
+they are allowed different answers).
 
 **Reading measure:** on desktop, full-width **prose** (card descriptions/`.hint`, disclaimers,
 notes, generator intro) is capped with `max-width: ~64–72ch` at the `min-width: 1024px`

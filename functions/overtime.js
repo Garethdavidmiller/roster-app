@@ -52,7 +52,7 @@ const WINDOWS = 'overtimeWindows';
  * @param {object} deps
  * @param {string[]} deps.ADMIN_FUNCTION_ORIGINS  CORS allowlist (defence in depth; the real control
  *   is the ID token + claim check inside each handler)
- * @param {{ overtimeEligibleMembers: Array<object>, maxRosterYear: number, roles: { admin: string[] } }} deps.rosterMembers
+ * @param {{ overtimeRoster: Array<object>, maxRosterYear: number, roles: { admin: string[], manager: string[] } }} deps.rosterMembers
  *   the GENERATED server roster — never a client payload
  */
 function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
@@ -201,9 +201,12 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
 
         const milestones = OT.deriveMilestones(weekEnding);
         const audience = currentAudience();
-        const participants = OT.selectParticipants(rosterMembers.overtimeEligibleMembers, {
+        const participants = OT.selectParticipants(rosterMembers.overtimeRoster, {
             weekStart: milestones.weekStart,
             audience,
+            // The server-owned admin list. `manager` is deliberately NOT passed: no audience makes
+            // a manager a participant, so handing one over would only invite a future edit to use
+            // it. Review rights come from the claim, not from the population.
             adminNames: (rosterMembers.roles && rosterMembers.roles.admin) || [],
         });
 

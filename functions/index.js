@@ -700,9 +700,11 @@ Object.assign(exports, buildAuthEndpoints({
 // getOvertimeManagerOverview, getMyOvertimeState and submitOvertimeAvailability —
 // lives in ./overtime.js, with
 // every RULE next door in ./overtime-core.js (pure, no emulator needed). It is handed
-// the GENERATED roster rather than reading it itself: `overtimeEligibleMembers` and
-// `maxRosterYear` are the server's own copy of who is rostered and how far ahead a
-// window may be created, and neither may ever come from a request body.
+// the GENERATED roster rather than reading it itself: `overtimeRoster` (who exists,
+// with each member's hidden/managerOnly flags) and `maxRosterYear` are the server's own
+// copy of who is on the roster and how far ahead a window may be created, and neither may
+// ever come from a request body. WHO IS ASKED is a separate decision, made per audience in
+// overtime-core's `selectParticipants` — see its header for why it does not live here.
 Object.assign(exports, buildOvertimeEndpoints({
     ADMIN_FUNCTION_ORIGINS, rosterMembers,
 }));

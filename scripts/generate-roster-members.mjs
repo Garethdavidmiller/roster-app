@@ -30,24 +30,26 @@ const activeMembers = [
 ].map(m => m.name);
 
 // ── Overtime (OVERTIME_AVAILABILITY.md) ──────────────────────────────────────────────────────────
-// A SEPARATE list from activeMembers, and the separation is the point: activeMembers is built from
-// getMembersForGrade, which deliberately does NOT filter Management on `hidden`, so it CONTAINS all
-// six manager-only accounts. It means "has an account", not "is rostered". Overtime eligibility is
-// the roster's own participation semantics — `!hidden && !managerOnly` — which excludes every
-// manager and every leaver without a second policy having to say so.
+// WHO EXISTS, not who is asked. The two were the same thing until v20.72, when this list was
+// `overtimeEligibleMembers` and applied `!hidden && !managerOnly` right here.
+//
+// Same rule, wrong home. This file is generated data — a reader asking "who gets the overtime form?"
+// has no reason to open it, and a build script is not where an audience policy can be argued with or
+// tested. So the flags travel and `selectParticipants` (functions/overtime-core.js) decides, with
+// the reasoning beside the audiences it binds. Behaviour is unchanged: managers are still excluded
+// from every audience — see that module's header for why that is stage 1 and not a per-branch clause.
 //
 // `rosterOrder` is the teamMembers index, generated so a Manager's by-day list keeps a stable
 // familiar order months later; hand-maintaining it would drift the first time somebody is inserted.
 // `startDate` is emitted as a plain ISO date because the server compares it to a week-start string.
-const overtimeEligibleMembers = teamMembers
-    .map((m, i) => ({ m, i }))
-    .filter(({ m }) => !m.hidden && !m.managerOnly)
-    .map(({ m, i }) => ({
-        name:        m.name,
-        grade:       m.role,
-        startDate:   m.startDate ? isoDate(m.startDate) : null,
-        rosterOrder: i,
-    }));
+const overtimeRoster = teamMembers.map((m, i) => ({
+    name:        m.name,
+    grade:       m.role,
+    startDate:   m.startDate ? isoDate(m.startDate) : null,
+    rosterOrder: i,
+    hidden:      !!m.hidden,
+    managerOnly: !!m.managerOnly,
+}));
 
 /** @param {Date} d */
 function isoDate(d) {
@@ -68,7 +70,7 @@ const roster = {
         manager:  CONFIG.MANAGER_NAMES,
         designer: CONFIG.LINKS_DESIGNERS,
     },
-    overtimeEligibleMembers,
+    overtimeRoster,
     // The app's canonical navigable-roster ceiling, mirrored so window creation validates against
     // the SAME horizon the client does. Without it the Functions side would need its own literal,
     // and the two would part company at the next MAX_YEAR bump (already booked in

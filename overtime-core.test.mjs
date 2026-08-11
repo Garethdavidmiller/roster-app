@@ -336,16 +336,48 @@ describe('who was asked — the frozen population', () => {
         assert.equal(p.some(x => x.memberName === 'D. Four'), true);
     });
 
-    test('the restricted audience narrows to the server-owned admin entitlement', () => {
-        const p = C.selectParticipants(ELIGIBLE,
-            { weekStart: '2026-08-30', audience: 'restricted', adminNames: ['A. One'] });
+    test('the restricted audience is the admin, and only the admin', () => {
+        const p = C.selectParticipants(ELIGIBLE, { weekStart: '2026-08-30',
+            audience: 'restricted', adminNames: ['A. One'] });
         assert.deepEqual(p.map(x => x.memberName), ['A. One']);
     });
 
-    test('restricted with no admin entitlement supplied yields nobody, not everybody', () => {
+    test('restricted with no admin list supplied yields nobody, not everybody', () => {
         // Fail CLOSED. A missing config must not silently create an all-staff window while the
         // page is still hidden from staff — the one rollout mistake that cannot be undone quietly.
         assert.deepEqual(C.selectParticipants(ELIGIBLE, { weekStart: '2026-08-30', audience: 'restricted' }), []);
+    });
+
+    test('NO audience makes a manager a participant — checked against every audience there is', () => {
+        // The invariant, not one branch of it. A manager REVIEWS: the right comes from the `manager`
+        // claim, so they already see every week's answers without being in any of them. A manager in
+        // the frozen population is recorded as expected to answer and is therefore a non-responder
+        // for that week for ever — and frozen means it cannot be corrected afterwards.
+        //
+        // Enumerating the audiences rather than naming two is what makes this hold for the NEXT one:
+        // a third audience added without thinking about managers fails here instead of in a window.
+        const roster = [
+            { name: 'A. One',  grade: 'CEA',        rosterOrder: 1, hidden: false, managerOnly: false },
+            { name: 'M. Boss', grade: 'Management', rosterOrder: 2, hidden: true,  managerOnly: true  },
+        ];
+        for (const audience of C.AUDIENCES) {
+            const chosen = C.selectParticipants(roster, {
+                weekStart: '2026-08-30', audience,
+                // The manager named as an admin too — the strongest form of the test. Even an
+                // entitlement that WOULD select them must not, because the flag is what decides.
+                adminNames: ['A. One', 'M. Boss'],
+            }).map(x => x.memberName);
+            assert.equal(chosen.includes('M. Boss'), false, `audience "${audience}" selected a manager`);
+        }
+    });
+
+    test('a LEAVER is in nobody\'s window, whichever audience is in force', () => {
+        const roster = [{ name: 'X. Gone', grade: 'CEA', rosterOrder: 1, hidden: true, managerOnly: false }];
+        for (const audience of C.AUDIENCES) {
+            assert.deepEqual(
+                C.selectParticipants(roster, { weekStart: '2026-08-30', audience, adminNames: ['X. Gone'] }),
+                [], `audience "${audience}" selected a leaver`);
+        }
     });
 
     test('participants come out in roster order, so a Manager list stays familiar', () => {
@@ -367,9 +399,9 @@ describe('who was asked — the frozen population', () => {
 
 describe('generated names must be safe as Firestore document ids', () => {
     test('the real roster passes', () => {
-        const { overtimeEligibleMembers } = require('./functions/roster-members.json');
-        assert.ok(overtimeEligibleMembers.length > 0, 'the generated list must not be empty');
-        for (const m of overtimeEligibleMembers) {
+        const { overtimeRoster } = require('./functions/roster-members.json');
+        assert.ok(overtimeRoster.length > 0, 'the generated list must not be empty');
+        for (const m of overtimeRoster) {
             assert.ok(C.isSafeDocId(m.name), `"${m.name}" cannot be a Firestore path segment`);
         }
     });
@@ -387,23 +419,54 @@ describe('generated names must be safe as Firestore document ids', () => {
     });
 
     test('every generated member carries the fields the snapshot needs', () => {
-        const { overtimeEligibleMembers } = require('./functions/roster-members.json');
-        for (const m of overtimeEligibleMembers) {
+        const { overtimeRoster } = require('./functions/roster-members.json');
+        for (const m of overtimeRoster) {
             assert.equal(typeof m.grade, 'string');
             assert.ok(Number.isInteger(m.rosterOrder));
             assert.ok(m.startDate === null || C.isValidIsoDate(m.startDate), `bad startDate for ${m.name}`);
         }
     });
 
-    test('the generated list is roster PARTICIPATION, not "has an account"', () => {
-        // activeMembers contains every manager-only account by design. Deriving participants from it
-        // would put H. Croft in the expected population and report him as a non-responder forever.
-        const { overtimeEligibleMembers, activeMembers, roles } = require('./functions/roster-members.json');
-        const eligible = new Set(overtimeEligibleMembers.map(m => m.name));
-        for (const manager of roles.manager) {
-            assert.equal(eligible.has(manager), false, `${manager} is a reviewer, never a participant`);
-            assert.ok(activeMembers.includes(manager), 'and is still an active ACCOUNT — the two lists differ on purpose');
+    test('the generated list states WHO EXISTS, flags and all — the decision is not baked in', () => {
+        // It used to carry the decision instead: `!hidden && !managerOnly` applied at generation, in
+        // a file that cannot express a second audience and does not look like policy. The behaviour
+        // is the same; the rule is now somewhere it can be read, argued with and tested.
+        const { overtimeRoster } = require('./functions/roster-members.json');
+        for (const m of overtimeRoster) {
+            assert.equal(typeof m.hidden, 'boolean', `${m.name} has no hidden flag`);
+            assert.equal(typeof m.managerOnly, 'boolean', `${m.name} has no managerOnly flag`);
         }
+        assert.ok(overtimeRoster.some(m => m.managerOnly), 'the managers are IN the roster as people');
+    });
+
+    test('no audience asks a manager, against the REAL roster and every audience there is', () => {
+        // The fixture version of this is above; this one is the same invariant asserted against the
+        // data that actually ships, because the fixture cannot notice a manager gaining a flag.
+        // Every manager is deliberately still an active ACCOUNT — they sign in and review. Being an
+        // account and being expected to answer are different things, and this is where they part.
+        const { overtimeRoster, activeMembers, roles } = require('./functions/roster-members.json');
+        for (const audience of C.AUDIENCES) {
+            const asked = new Set(C.selectParticipants(overtimeRoster, {
+                weekStart: '2026-08-30', audience, adminNames: roles.admin,
+            }).map(p => p.memberName));
+            for (const manager of roles.manager) {
+                assert.equal(asked.has(manager), false,
+                    `${manager} was asked by audience "${audience}" — a reviewer, never a participant`);
+                assert.ok(activeMembers.includes(manager),
+                    'and is still an active ACCOUNT — the two differ on purpose');
+            }
+        }
+    });
+
+    test('the restricted beta asks exactly the admin — one participant, not none and not everybody', () => {
+        // The live configuration, checked end to end on real data. Zero would mean windows that read
+        // "0 of 0 received" (a finished week, not an empty one); more would mean the beta is not
+        // restricted. Both failures are invisible until somebody opens a week.
+        const { overtimeRoster, roles } = require('./functions/roster-members.json');
+        const asked = C.selectParticipants(overtimeRoster, {
+            weekStart: '2026-08-30', audience: 'restricted', adminNames: roles.admin,
+        }).map(p => p.memberName);
+        assert.deepEqual(asked, roles.admin);
     });
 });
 

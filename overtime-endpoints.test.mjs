@@ -177,7 +177,7 @@ const TOKENS = {
 const ROSTER = {
     maxRosterYear: 2030,
     roles: { admin: ['G. Miller'] },
-    overtimeEligibleMembers: [
+    overtimeRoster: [
         { name: 'L. Springer', grade: 'CEA', startDate: null, rosterOrder: 0 },
         { name: 'G. Miller',   grade: 'CEA', startDate: null, rosterOrder: 2 },
         { name: 'S. Silva',    grade: 'CEA', startDate: null, rosterOrder: 5 },
@@ -378,7 +378,7 @@ describe('createOvertimeWindow — one code path, previewed or committed', () =>
         const { buildOvertimeEndpoints } = require('./functions/overtime.js');
         const eps = buildOvertimeEndpoints({
             ADMIN_FUNCTION_ORIGINS: [],
-            rosterMembers: { maxRosterYear: 2030, roles: { admin: many.map(m => m.name) }, overtimeEligibleMembers: many },
+            rosterMembers: { maxRosterYear: 2030, roles: { admin: many.map(m => m.name) }, overtimeRoster: many },
         });
         const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }));
         unfreeze();
@@ -399,7 +399,7 @@ describe('createOvertimeWindow — one code path, previewed or committed', () =>
         const { buildOvertimeEndpoints } = require('./functions/overtime.js');
         const eps = buildOvertimeEndpoints({
             ADMIN_FUNCTION_ORIGINS: [],
-            rosterMembers: { maxRosterYear: 2030, roles: { admin: [] }, overtimeEligibleMembers: ROSTER.overtimeEligibleMembers },
+            rosterMembers: { maxRosterYear: 2030, roles: { admin: [] }, overtimeRoster: ROSTER.overtimeRoster },
         });
         const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }));
         unfreeze();

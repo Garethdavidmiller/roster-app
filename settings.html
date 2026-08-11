@@ -72,6 +72,15 @@
 
 <main class="app">
 
+    <!-- Two column WRAPPERS, not two columns' worth of grid placement (v20.72). They are
+         `display: contents` below 1024px, so the mobile page is exactly the stack it was and this
+         markup costs nothing there. On desktop they become the flex columns the app already uses on
+         admin and paycalc — and the wrapper is the part that matters: placing four cards into grid
+         cells individually lets the taller column's overflow be distributed into the OTHER column's
+         row gaps, which is the paycalc void v18.47 had to unpick. One card per column per row can
+         not do that. -->
+    <div class="col-main">
+
     <!-- Work Email -->
     <div class="card" id="contactCard">
         <div class="card-header card-header-toggle" id="contactToggleHeader">
@@ -137,6 +146,10 @@
         </div>
     </div>
 
+    </div><!-- /.col-main -->
+
+    <div class="col-side">
+
     <!-- Push notifications -->
     <div class="card" id="notificationsCard">
         <div class="card-header card-header-toggle" id="notifToggleHeader">
@@ -183,6 +196,8 @@
             </div>
         </div>
     </div>
+
+    </div><!-- /.col-side -->
 
 </main>
 
