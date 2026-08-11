@@ -86,6 +86,17 @@ test('every page with a Tips panel is checked by tips-content', () => {
     assert.deepEqual(missing, [], 'pages with Tips panels absent from tips-content\'s PAGES list');
 });
 
+test('every app page is scanned by the accessibility gate', () => {
+    // axe.spec.js also carries a hand-written page list, and a page missing from it is a page with
+    // no a11y gate at all — which no other check would notice.
+    const suite = read('./e2e/axe.spec.js');
+    // The calendar is reached at the app ROOT (`goto('/')`), not by filename — every other page is
+    // visited by name.
+    const missing = APP_PAGES.filter(p => p !== 'index.html' && !suite.includes(`/${p}'`));
+    assert.deepEqual(missing, [], 'pages never visited by e2e/axe.spec.js');
+    assert.match(suite, /goto\('\/'\)/, 'the calendar must still be scanned at the app root');
+});
+
 test('every app page carries the noindex meta', () => {
     // Staff-only app. This meta is the only de-index signal the headerless mirror gets.
     const missing = APP_PAGES.filter(p => !/name="robots"[^>]*noindex/.test(read(`./${p}`)));

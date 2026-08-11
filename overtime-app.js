@@ -28,9 +28,8 @@
 import { CONFIG } from './roster-data.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, clearSession, sessionReady, reconcileExpiredIdentity } from './session.js';
+import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage } from './auth-policy.js';
-import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -43,6 +42,7 @@ import {
     weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, shortDate,
 } from './overtime-format.js';
 import { CARD_TIPS } from './overtime-tips.js';
+import { renderWeekForm } from './overtime-form.js';
 
 /** Coordinator body, invoked by overtime-boot.js. Exported so a test can import without running. */
 export function init() {
@@ -59,6 +59,8 @@ export function init() {
     /** Which surfaces this identity has. Both true only for a rostered Master Admin. */
     let canReview = false;
     let canSubmit = false;
+    /** Whether the member's own load FAILED, as distinct from returning nothing. */
+    let mineFailed = false;
 
     /** The week the Manager detail card is showing, if any. @type {string|null} */
     let selectedWeek = null;
@@ -98,7 +100,20 @@ export function init() {
 
     // ── Access gate ─────────────────────────────────────────────────────────────────────────────
 
-    const decision = requirePage(getAuthSnapshot(), 'overtime');
+    // DECIDE FROM THE LOCAL SESSION, not from `getAuthSnapshot()`.
+    //
+    // The auth store is often still `initialising` when a coordinator runs, and `requirePageAuth`
+    // maps that to `pending` — which every other page can treat as "carry on", because they admit
+    // any named member. This page has a ROLE requirement, so pending-as-allow rendered the whole
+    // workspace to an ordinary member for as long as the store took to settle. The data was never
+    // at risk (Firestore gives them nothing and every endpoint re-checks the claim) but they were
+    // shown a form they could not submit, which is worse than a clear "not yet".
+    //
+    // The local session is the client's own identity assertion and is available synchronously.
+    // `auth-policy` is explicitly CLIENT UX rather than a boundary, so feeding it that is honest —
+    // and it produces an answer immediately, which is the whole difficulty here.
+    const decision = requirePage(
+        { status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'overtime');
 
     if (decision.decision === 'login') {
         wireNavPanel();
@@ -121,6 +136,9 @@ export function init() {
         // leave the drawer working; do not query anything, and do not imply they did wrong.
         wireNavPanel();
         renderUnavailable();
+        // Nothing on this path needs Firebase, but `sessionReady` is a ONE-SHOT promise that other
+        // modules await — leaving it pending would strand anything wired later on this load.
+        resolveSession(false);
         return;
     }
 
@@ -142,6 +160,12 @@ export function init() {
         canReview = reviewerByName(currentUser);
         wireTabs();
 
+        // ESTABLISH the Firebase session, then fulfil `sessionReady`. Nothing else does this: the
+        // promise is created pending in session.js and resolved only by whichever coordinator owns
+        // the page. Awaiting it without calling this is a page that loads and then waits for ever —
+        // no error, no timeout, just "Loading…" — which is exactly what it did until this line.
+        resolveSession(currentUser ? ensureNamedSession(currentUser) : false);
+
         sessionReady.then(() => {
             initErrorReporter();
             recordUsage('overtime', currentUser);
@@ -160,7 +184,10 @@ export function init() {
         // CONFIG guess would flash a tab at a reviewer who turns out to have no form of their own.
         const tabs = el('otTabs');
         if (tabs) tabs.hidden = !(canReview && canSubmit);
-        if (canReview && !canSubmit) showPanel('all');
+        // Switch a reviewer to the workspace only when their own side genuinely has nothing —
+        // never when it FAILED. Switching on failure hides the error the member is looking at and
+        // replaces it with a different card, which reads as the page ignoring them.
+        if (canReview && !canSubmit && !mineFailed) showPanel('all');
     }
 
     // ── My availability ─────────────────────────────────────────────────────────────────────────
@@ -169,8 +196,9 @@ export function init() {
         const host = el('otMineContent');
         if (!host) return;
         renderLoading(host, 'Loading your forms…');
+        mineFailed = false;
         const r = await OTD.getMyOvertimeState();
-        if (!r.ok) { renderError(host); return; }
+        if (!r.ok) { mineFailed = true; renderError(host); return; }
 
         const windows = r.data.windows || [];
         canSubmit = windows.length > 0;
@@ -187,8 +215,46 @@ export function init() {
             return;
         }
 
+        // One open week is the ordinary case, and a list-then-tap for a single item is a tap that
+        // exists only to satisfy the shape of the code. So one week opens straight into its form;
+        // several get the list, which is where the choice actually matters.
+        // ONE window opens straight into its form — including a closed one, which is read-only but
+        // is still the thing the member came to look at. A list-then-tap for a single item is a tap
+        // that exists only to satisfy the shape of the code.
+        const open = windows.filter((/** @type {any} */ w) => w.phase !== 'CLOSED');
+        const solo = open.length === 1 ? open[0] : (windows.length === 1 ? windows[0] : null);
+        if (solo) {
+            const holder = document.createElement('div');
+            host.innerHTML = '';
+            host.appendChild(holder);
+            await renderWeekForm(holder, solo, String(currentUser), { onSaved: () => { /* head refreshes on next load */ } });
+            if (windows.length > 1) appendHistory(host, windows.filter((/** @type {any} */ w) => w !== solo));
+            return;
+        }
+
         host.innerHTML = `<div class="ot-week-list">${
             windows.map(renderMyWeekRow).join('')}</div>`;
+        host.querySelectorAll('[data-openweek]').forEach(btn =>
+            btn.addEventListener('click', async () => {
+                const week = String(btn.getAttribute('data-openweek'));
+                const w = windows.find((/** @type {any} */ x) => x.weekEnding === week);
+                if (!w) return;
+                const holder = document.createElement('div');
+                host.innerHTML = '';
+                host.appendChild(holder);
+                await renderWeekForm(holder, w, String(currentUser), { onSaved: () => {} });
+            }));
+    }
+
+    /** Closed weeks, listed under the live form so history is present without competing with it. */
+    /** @param {HTMLElement} host @param {any[]} past */
+    function appendHistory(host, past) {
+        if (!past.length) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'ot-history';
+        wrap.innerHTML = `<div class="ot-history-title">Previous forms</div>
+            <div class="ot-week-list">${past.map(renderMyWeekRow).join('')}</div>`;
+        host.appendChild(wrap);
     }
 
     /** One of the member's own weeks. The form itself arrives in the next step. */
@@ -208,6 +274,10 @@ export function init() {
                         Final changes close ${esc(deadlineLabel(w.finalDeadlineAt))}
                     </div>
                     <span class="ot-week-state ot-week-state--${tone}">${esc(state)}</span>
+                </div>
+                <div class="ot-week-actions">
+                    <button type="button" class="ot-row-btn${w.phase === 'CLOSED' ? '' : ' ot-row-btn--primary'}"
+                            data-openweek="${esc(w.weekEnding)}">${w.phase === 'CLOSED' ? 'View' : 'Open'}</button>
                 </div>
             </div>`;
     }
@@ -405,10 +475,12 @@ export function init() {
                 <span class="ot-state-icon" aria-hidden="true">⚠️</span>
                 Couldn't load overtime availability.
                 <div class="ot-state-actions">
-                    <button type="button" class="ot-row-btn" id="otRetryBtn">Try again</button>
+                    <button type="button" class="ot-row-btn ot-retry">Try again</button>
                 </div>
             </div>`;
-        host.querySelector('#otRetryBtn')?.addEventListener('click', () => loadEverything());
+        // A CLASS, not an id: both cards can fail on the same load, and two elements sharing an id
+        // is invalid markup that also breaks every id-based lookup — including this one's.
+        host.querySelector('.ot-retry')?.addEventListener('click', () => loadEverything());
     }
 
     function renderUnavailable() {
@@ -427,8 +499,17 @@ export function init() {
         }
     }
 
-    /** @param {string} id */
-    const el = (id) => document.getElementById(id);
+    /**
+     * A `function` declaration, NOT `const el = id => …`.
+     *
+     * `start()` is called from the access gate near the top of `init()`, long before the bottom of
+     * the function body executes — and a `const` arrow is in the temporal dead zone until its own
+     * line runs, so every call threw "Cannot access 'el' before initialization" and the page
+     * rendered its shell and then silently did nothing. Function declarations hoist; that is the
+     * whole reason this one is a declaration.
+     * @param {string} id
+     */
+    function el(id) { return document.getElementById(id); }
 
     /** Escape for interpolation into innerHTML. Every dynamic value below goes through it. */
     /** @param {any} s */

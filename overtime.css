@@ -324,3 +324,205 @@
         break-inside: avoid;
     }
 }
+
+/* ── The seven-day form ─────────────────────────────────────────────────────
+   Designed for a thumb on a 390px phone: one card per day, the roster on the
+   right of the day name, and full-width mode buttons that wrap. Seven days is a
+   lot of interaction, so nothing is smaller than it needs to be. */
+
+.ot-form-head { margin-bottom: var(--space-4); }
+
+.ot-form-week {
+    font-size: var(--type-medium);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.ot-form-meta {
+    margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.45;
+}
+
+/* Roster context could not be established. Says so, and says what still works —
+   never a bare failure, and never a base roster dressed up as current. */
+.ot-roster-warning {
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+    background: var(--al-warning-bg);
+    border-left: 4px solid var(--al-warning);
+    border-radius: var(--radius-sm);
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--text-dark);
+}
+
+.ot-days {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.ot-day {
+    padding: var(--space-3);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-left: 4px solid var(--border-mid);
+    border-radius: var(--radius);
+}
+
+/* An ANSWERED day is marked, and an unanswered one is simply not — no red, no
+   warning. Seven unanswered days on first open is the normal state, not an
+   error, and colouring it as one would make the form feel like a telling-off. */
+.ot-day--answered { border-left-color: var(--success-green); }
+
+.ot-day-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.ot-day-name {
+    font-size: var(--type-label);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.ot-day-roster {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+
+.ot-day-answer {
+    font-size: var(--type-body);
+    color: var(--text-dark);
+}
+
+.ot-modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ot-mode {
+    flex: 1 1 auto;
+    min-width: 44%;
+    /* 16px: never below it on a focusable control — iOS force-zooms the page. */
+    padding: 9px 10px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-sm);
+    background: white;
+    color: var(--text-dark);
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+}
+
+.ot-mode:hover  { background: var(--bg-light); }
+.ot-mode:active { transform: scale(var(--press-scale)); }
+.ot-mode:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+.ot-mode[aria-pressed="true"] {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
+}
+
+.ot-custom {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.ot-custom-label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+
+.ot-custom-input {
+    /* --type-medium is 16px, which is the floor for any focusable field: below it
+       iOS zooms the viewport on focus and the member loses their place. */
+    padding: 8px 10px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-sm);
+    background-color: var(--field-bg);
+    font-family: var(--font-sans);
+    font-size: var(--type-medium);
+    color: var(--text-dark);
+}
+
+.ot-custom-input:focus-visible {
+    background-color: white;
+    outline: var(--focus-outline);
+    outline-offset: 1px;
+    box-shadow: var(--focus-ring);
+}
+
+.ot-custom-hint {
+    flex: 1 1 100%;
+    font-size: var(--type-small);
+    color: var(--text-light);
+}
+
+.ot-feedback {
+    margin: var(--space-3) 0;
+    font-size: var(--type-small);
+    line-height: 1.5;
+    min-height: 1em;
+}
+
+.ot-feedback--ok   { color: var(--success-text); }
+.ot-feedback--warn { color: var(--error-text); }
+.ot-feedback--busy { color: var(--text-mid); }
+
+.ot-closed-note {
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    background: var(--bg-light);
+    border-radius: var(--radius-sm);
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--text-mid);
+}
+
+.ot-closed-note strong { color: var(--text-dark); }
+
+.ot-history { margin-top: var(--space-5); }
+
+.ot-history-title {
+    margin-bottom: var(--space-2);
+    font-size: var(--type-small);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
+@media (min-width: 700px) {
+    /* Two mode buttons per row is right on a phone; on a wider column the labels
+       fit three-up without truncating, which shortens the form by two rows. */
+    .ot-mode { min-width: 30%; }
+}
+
+@media print {
+    .ot-modes,
+    .ot-custom,
+    .ot-feedback,
+    .ot-submit { display: none !important; }
+
+    .ot-day {
+        background: white !important;
+        border: 1px solid #999;
+        break-inside: avoid;
+    }
+}

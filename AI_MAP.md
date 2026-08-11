@@ -215,6 +215,19 @@ The Overtime availability page. `overtime-app.js` is the coordinator (body expor
 
 **Three states, three treatments.** Loading, a successful-but-empty response ("No overtime availability forms are open for you right now") and a load failure ("Couldn't load…" + Try again) are rendered differently on purpose. One empty screen doing duty for all three is the commonest way a page lies about its own state.
 
+### `overtime-form.js` / `overtime-roster.js`
+The member's side of the Overtime page. `overtime-form.js` renders one week's seven-day form and owns the submit lifecycle; `overtime-roster.js` supplies the roster context each day is answered against.
+
+**No default answer, ever.** There is no pre-selected mode and no copy-from-last-week. Submit refuses on press — with the first unanswered day named and focused — rather than sitting disabled, because a disabled button explains nothing and this one has something specific to say. A default would be an answer the member did not give, about their own life, stored under their name.
+
+**`nextDay` is derived, never asked.** The form computes it from the two times (`end < start`), which is both what the server validates and the only way a member can enter an overnight period at all.
+
+**The timeout path is three outcomes, not two.** A timed-out submit re-reads state and looks for its own `clientMutationId`: found → "your earlier submission did save"; provably absent → "try again"; still offline → "we couldn't confirm". Collapsing the third into the second is how somebody submits a second, contradictory version. And a 409 branches on whether the winning mutation id is the caller's own — "you did this, in the request that timed out" is a completely different message from "somebody else changed this".
+
+**`overtime-roster.js` is deliberately not `calendar-overrides.js`.** That module holds process-wide mutable state (a month cache, a fetched-month claim set, an access gate defaulting closed) and its `reconcileRangeIntoCache` is AUTHORITATIVE for its range — a second authoritative reconciler racing the first is exactly the v18.76 Team View bug. This one reads its own seven dates, keeps its own answer, and shares only the pure vocabulary of `calendar-data-state.js`.
+
+**Unknown roster context removes the shortcuts rather than guessing them.** `modesFor` offers before/after/before-and-after ONLY where an authoritative duty time exists. The consequence of a wrong base roster is sharper here than on the calendar: the form would put a time the member never works into a declaration they then submit.
+
 ### `functions/overtime.js`
 The OVERTIME AVAILABILITY domain — four endpoints and the Firestore orchestration behind them. Every RULE lives next door in `overtime-core.js`, unit-tested with no emulator; this module is the boundary (auth, transactions, batches, HTTP). A factory for the same reasons as `documents.js`: index.js stays the composition root, and the deps argument is the seam the tests drive a fake admin SDK through. Tested by `overtime-endpoints.test.mjs`, which EXECUTES every handler — `functions-surface.test.mjs` proves only that they were defined, and v20.50 is the standing lesson about the difference.
 
