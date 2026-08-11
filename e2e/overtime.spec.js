@@ -644,3 +644,195 @@ test('and on a phone the day row is still stacked, where there is no room for an
     const modes = await page.locator('.ot-day').first().locator('.ot-modes').boundingBox();
     expect(modes.y, 'the buttons sit below the day name').toBeGreaterThanOrEqual(head.y + head.height);
 });
+
+test.describe('the v20.75 review fixes, each pinned in a browser', () => {
+    const D = ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'];
+    /** Roster overrides giving the week a NIGHT duty (dispatcher shape) and a plain rest day. */
+    const OVR = [
+        { id: 'o1', memberName: 'G. Miller', date: D[2], type: 'shift',      value: '22:00-07:00', note: '', source: 'manual' },
+        { id: 'o2', memberName: 'G. Miller', date: D[4], type: 'correction', value: 'RD',          note: '', source: 'manual' },
+        // A plain SAME-DAY duty as the control case. An override, not the base roster: the base
+        // for this member/week is SPARE (no times), which would make the control assert nothing.
+        { id: 'o3', memberName: 'G. Miller', date: D[6], type: 'shift',      value: '15:15-23:55', note: '', source: 'manual' },
+    ];
+    const winOver = (over = {}) => ({ ...W, phase: 'FINAL_OPEN',
+        participant: { grade: 'CEA', rosterOrder: 2 }, submission: null, ...over });
+
+    async function stubWithRoster(page, windows, docs) {
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, docs);
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows }),
+        }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }),
+        }));
+    }
+
+    test('an overnight duty offers no anchor the server would refuse', async ({ page }) => {
+        // Dispatchers are the only grade rostered across midnight. Before v20.75 a 22:00–07:00 day
+        // offered "Before & after duty" — whose stored answer (until 22:00 > from 07:00) the server
+        // refuses as inverted — and "After 07:00", which describes a morning the duty itself owns.
+        // The button was pressable and every press ended in a failed submit.
+        await seedSession(page, 'G. Miller');
+        await stubWithRoster(page, [winOver()], OVR);
+        await page.goto('/overtime.html');
+        const night = page.locator(`[data-day="${D[2]}"]`);
+        await night.waitFor();
+        const offered = await night.locator('[data-mode]').allTextContents();
+        expect(offered).toContain('Before 22:00');     // the pre-duty gap is real and stays
+        expect(offered).not.toContain('After 07:00');
+        expect(offered).not.toContain('Before & after duty');
+        // An ordinary same-day duty is untouched — the fix narrows the overnight case only.
+        const late = page.locator(`[data-day="${D[6]}"]`);
+        expect(await late.locator('[data-mode]').allTextContents()).toContain('Before & after duty');
+    });
+
+    test('re-pressing a saved anchored answer keeps it, even when the roster lost its time', async ({ page }) => {
+        // The stale note says "change it if that no longer suits", inviting a tap on the selected
+        // pill. Before v20.75 that tap rebuilt the answer from the CURRENT roster — a rest day, no
+        // times — producing until:'' and a server refusal on a day that still rendered as answered.
+        await seedSession(page, 'G. Miller');
+        const saved = Object.fromEntries(D.map(d => [d, { mode: 'unavailable' }]));
+        saved[D[4]] = { mode: 'before', until: '15:15' };
+        await stubWithRoster(page,
+            [winOver({ submission: { currentRevision: 1, days: saved } })], OVR);
+        /** @type {any[]} */
+        const bodies = [];
+        await page.route('**/submitOvertimeAvailability', r => {
+            bodies.push(JSON.parse(r.request().postData() || '{}'));
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, revision: 2, noop: false, phase: 'FINAL_OPEN', serverNow: NOW }) });
+        });
+        await page.goto('/overtime.html');
+        const rest = page.locator(`[data-day="${D[4]}"]`);
+        await rest.waitFor();
+        await rest.locator('[aria-checked="true"]').click();
+        await page.locator('.ot-submit').click();
+        await expect(page.locator('.ot-feedback')).toContainText('submitted');
+        expect(bodies[0].days[D[4]], 'the saved boundary survives the re-press')
+            .toEqual({ mode: 'before', until: '15:15' });
+    });
+
+    test('a validation refusal names the day and walks there — never the connection', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await stubWithRoster(page, [winOver()], []);
+        await page.route('**/submitOvertimeAvailability', r => r.fulfill({
+            status: 400, contentType: 'application/json',
+            body: JSON.stringify({ error: 'bad-time', date: D[3] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        for (let i = 0; i < 7; i++) {
+            await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        }
+        await page.locator('.ot-submit').click();
+        const feedback = page.locator('.ot-feedback');
+        await expect(feedback).toContainText('Wed 2 Sep');
+        await expect(feedback).not.toContainText('connection');
+        // And the page walked to the day the message names — the two must agree.
+        await expect(page.locator(`[data-day="${D[3]}"] .ot-mode`).first()).toBeFocused();
+    });
+
+    test('submit another week, press Back — its row now tells the truth', async ({ page }) => {
+        // renderMine re-renders the week list from the window objects fetched at page load; until
+        // v20.75 a successful submit never updated them, so the row for the week just submitted
+        // read "Not submitted yet" seconds after the member watched it succeed.
+        await seedSession(page, 'G. Miller');
+        const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06',
+            finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') });
+        await stubWithRoster(page, [winOver(), w2], []);
+        await page.route('**/submitOvertimeAvailability', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, revision: 1, created: true, phase: 'FINAL_OPEN', serverNow: NOW }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await page.locator('[data-openweek="2026-09-12"]').click();
+        await page.locator('.ot-day').first().waitFor();
+        for (let i = 0; i < 7; i++) {
+            await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        }
+        await page.locator('.ot-submit').click();
+        await expect(page.locator('.ot-feedback')).toContainText('submitted');
+        await page.locator('.ot-back-to-list').click();
+        const row = page.locator('.ot-week-row').first();
+        await expect(row).toContainText('Submitted — you can still change it');
+        await expect(row).not.toContainText('Not submitted yet');
+    });
+
+    test('desktop custom times sit beside the day, not under its name', async ({ page }) => {
+        // The v20.74 day-row grid gave every child except .ot-custom an explicit column, so the
+        // From/To inputs auto-placed bottom-left into a 190px label column. Geometry, not CSS text:
+        // that is the only form the defect is visible in.
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await seedSession(page, 'G. Miller');
+        await stubWithRoster(page, [winOver()], []);
+        await page.goto('/overtime.html');
+        const day = page.locator('.ot-day').first();
+        await day.waitFor();
+        await day.getByRole('radio', { name: 'Custom times' }).click();
+        const head = await day.locator('.ot-day-head').boundingBox();
+        const custom = await day.locator('.ot-custom').boundingBox();
+        expect(custom.x, 'the custom row starts after the label column')
+            .toBeGreaterThanOrEqual(head.x + head.width);
+    });
+
+    test('a page re-woken near a deadline that has passed re-reads and closes the form', async ({ page }) => {
+        // shouldResyncClock existed untested-in-anger since v20.69 with nothing calling it: a form
+        // opened at 11:50 still said "open" at 12:05. The realistic arrival of that moment is a
+        // pocketed phone re-woken, so the trigger is visibility, and the re-render happens only
+        // when a phase genuinely moved — a half-filled form must not be wiped for a no-op.
+        await seedSession(page, 'G. Miller');
+        const nearDeadline = winOver({ finalDeadlineAt: NOW + 60_000 });   // 1 min away → in window
+        let calls = 0;
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', r => {
+            calls += 1;
+            const w = calls === 1 ? nearDeadline : { ...nearDeadline, phase: 'CLOSED' };
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, serverNow: NOW, windows: [w] }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await expect(page.locator('.ot-submit')).toBeVisible();
+
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(page.locator('.ot-closed-note')).toContainText('Final availability recorded');
+        expect(calls).toBeGreaterThanOrEqual(2);
+    });
+
+    test('the reviewer\'s day pick survives a grade switch', async ({ page }) => {
+        // Both lenses re-render from one state now. Before, the grade repaint reset the day to All
+        // week — a clerk reading Saturday's CEAs who tapped CES was bounced to the full week.
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, [
+            { id: 'A. One', memberName: 'A. One', grade: 'CEA', rosterOrder: 1 },
+            { id: 'B. Two', memberName: 'B. Two', grade: 'CES', rosterOrder: 2 },
+        ]);
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW,
+                planningWeeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+                    expected: 2, received: 2, noResponse: 0 }], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+
+        const shownDays = () => page.locator('.ot-day-panel[data-date]').evaluateAll(els =>
+            els.filter(e => getComputedStyle(e).display !== 'none').length);
+        await page.locator('[data-glance]').nth(2).click();
+        expect(await shownDays()).toBe(1);
+        await page.locator('[data-grade="CEA"]').click();
+        expect(await shownDays(), 'the grade switch keeps the picked day').toBe(1);
+        await expect(page.locator('[data-glance]').nth(2)).toHaveAttribute('aria-pressed', 'true');
+    });
+});

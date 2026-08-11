@@ -27,10 +27,10 @@
  */
 
 import * as OTD from './overtime-data.js';
-import { loadRosterContext, rosterLabel, rosterBadge, modesFor } from './overtime-roster.js';
+import { loadRosterContext, rosterBadge } from './overtime-roster.js';
 import {
     weekLabel, weekSpan, deadlineLabel, shortDate, phaseCopy, answerCopy, answerTone,
-    answerAnchorStale, submitDisposition,
+    answerAnchorStale, submitDisposition, modesFor, submitFailureCopy,
 } from './overtime-format.js';
 
 /**
@@ -165,7 +165,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             <div class="ot-day${answered ? ' ot-day--answered' : ''}" data-day="${esc(date)}">
                 <div class="ot-day-head">
                     <span class="ot-day-name">${esc(shortDate(date))}</span>
-                    <span class="ot-day-roster" aria-label="Rostered: ${esc(rosterLabel(c))}">${rosterBadge(c)}</span>
+                    <!-- A visually-hidden prefix, not an aria-label: a label on a plain span is
+                         unreliably announced, and the badge's own text (the shift name + times)
+                         already reads well — it only needs the word that says what it IS. -->
+                    <span class="ot-day-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(c)}</span>
                 </div>
                 ${closed
                     ? `<div class="ot-day-answer"><span class="ot-answer ot-answer--${answerTone(a)}">${esc(answerCopy(a))}</span></div>`
@@ -254,9 +257,21 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     /**
      * Turn a mode press into a stored answer, carrying concrete boundaries from the roster.
      * "Available after 15:00" stores `15:00` — never a reference to the shift, which may change.
+     *
+     * ── RE-PRESSING THE SELECTED MODE KEEPS THE SAVED ANSWER, FOR EVERY MODE ────────────────────
+     *
+     * Custom always had this rule (re-pressing must not wipe typed times); the anchored modes did
+     * not, and the gap was a corruption path: a saved "Before 15:15" on a day whose roster has
+     * since become a rest day still shows its button (a saved answer always does), and the stale
+     * note beside it says "change it if that no longer suits" — inviting a tap on that very
+     * button. Rebuilding from the CURRENT roster then produced `until: ''`, a day that still
+     * rendered as answered, and a submit the server refused (`bad-time`). Verified end-to-end at
+     * v20.75: the request carried the empty boundary. Keeping `previous` verbatim is also simply
+     * what the press MEANS — "this, the thing already selected".
      */
     /** @param {string} mode @param {any} c @param {any} previous */
     function buildAnswer(mode, c, previous) {
+        if (previous?.mode === mode) return previous;
         switch (mode) {
             case 'unavailable':
             case 'all_day':
@@ -268,10 +283,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             case 'before_after':
                 return { mode, until: c?.start || '', from: c?.end || '' };
             case 'custom':
-                // Re-pressing Custom keeps whatever was typed rather than clearing it.
-                return previous?.mode === 'custom'
-                    ? previous
-                    : { mode, start: '', end: '', nextDay: false };
+                return { mode, start: '', end: '', nextDay: false };
             default:
                 return { mode };
         }
@@ -324,25 +336,50 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         submitBtn.disabled = true;
 
         const r = await OTD.submitOvertimeAvailability(win.weekEnding, answers, baseRevision);
-        submitBtn.disabled = false;
 
         if (r.ok) {
+            submitBtn.disabled = false;
             baseRevision = r.data.revision;
             pendingMutationId = null;
+            // Write the win we hold, too. `renderMine` re-renders the week LIST from these same
+            // window objects (the Back button, a tab switch) — and until v20.75 it re-read a
+            // submission fetched at page load, so a member who submitted another week and pressed
+            // Back was shown "Not submitted yet" about the form they had just watched succeed.
+            win.submission = {
+                ...(win.submission || {}),
+                days: deepCopy(answers),
+                currentRevision: r.data.revision,
+            };
             say(r.data.noop ? 'Already saved — no changes to record.' : '✓ Availability submitted.', 'ok');
             updateSubmitState();
             onSaved();
             return;
         }
 
-        if (r.code === 'timeout') { pendingMutationId = r.mutationId; await reconcile(); return; }
+        // The button stays disabled THROUGH reconciliation: it re-reads state to decide whether
+        // the timed-out write landed, and a second submission racing that read is exactly the
+        // contradictory-double this feature is careful about everywhere else.
+        if (r.code === 'timeout') {
+            pendingMutationId = r.mutationId;
+            await reconcile();
+            submitBtn.disabled = false;
+            return;
+        }
+        submitBtn.disabled = false;
         if (r.code === 'revision-conflict') { showConflict(r); return; }
         if (r.code === 'closed') {
             say('This form closed before your answers reached the server. Speak to a Manager.', 'warn');
             return;
         }
         if (r.code === 'cancelled') return;   // the member navigated away; nothing to report
-        say(`Couldn't save (${r.code}). Check your connection and try again.`, 'warn');
+
+        // A refusal that names a DAY gets copy that names the day, and the page walks there —
+        // the message and the scroll agreeing about where the problem is. Everything else gets
+        // words matched to what actually failed; see submitFailureCopy for why "check your
+        // connection" was the wrong sentence for most of these.
+        const failDate = typeof r.data?.date === 'string' ? r.data.date : null;
+        say(submitFailureCopy(r.code, failDate ? shortDate(failDate) : null), 'warn');
+        if (failDate) focusDay(failDate);
     }
 
     /**
@@ -364,6 +401,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         if (fresh?.submission?.lastMutationId && fresh.submission.lastMutationId === pendingMutationId) {
             baseRevision = fresh.submission.currentRevision;
             pendingMutationId = null;
+            win.submission = fresh.submission;   // the list rows read this — keep them truthful
             say('✓ Your earlier submission did save.', 'ok');
             updateSubmitState();
             onSaved();
@@ -399,6 +437,11 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                 Object.assign(answers, deepCopy(r.data.days));
                 baseRevision = r.data.currentRevision;
                 pendingMutationId = null;
+                win.submission = {
+                    ...(win.submission || {}),
+                    days: deepCopy(r.data.days),
+                    currentRevision: r.data.currentRevision,
+                };
                 paintDays();
                 updateSubmitState();
                 say('Showing the saved version. Change what you need and submit again.', 'ok');

@@ -19,6 +19,7 @@ import {
     clockOffset, submitDisposition, shouldResyncClock, SUBMIT_GRACE_MS, DEADLINE_SYNC_WINDOW_MS,
     shortDate, longDate, weekLabel, weekSpan, deadlineLabel, phaseCopy, rowStateCopy,
     countsCopy, answerCopy, answerTone, answerAnchorStale, isUnavailable, weekSummary, asAtLine,
+    modesFor, submitFailureCopy,
 } from './overtime-format.js';
 
 describe('the corrected clock', () => {
@@ -362,5 +363,63 @@ describe('states in words', () => {
         // Fail noisy. An unrecognised state is a bug, and a bug that renders as "Created" hides
         // itself; one that renders as "Missed" gets reported.
         assert.equal(rowStateCopy('something-new').tone, 'bad');
+    });
+});
+
+describe('which modes a day may offer', () => {
+    // The rule lived in overtime-roster.js — which imports the Firebase SDK, so no test could
+    // reach it — and its untested branch was wrong in production shape: an overnight duty offered
+    // anchors the server refuses. Moving the rule here is what made this suite possible; these
+    // cases are why it was needed.
+    const timed     = { hasTime: true,  overnight: false, start: '06:00', end: '14:00' };
+    const night     = { hasTime: true,  overnight: true,  start: '22:00', end: '07:00' };
+    const rest      = { hasTime: false, overnight: false, start: '',      end: '' };
+
+    test('a plain timed duty offers everything', () => {
+        assert.deepEqual(modesFor(timed),
+            ['unavailable', 'all_day', 'before', 'after', 'before_after', 'custom']);
+    });
+
+    test('no context, or no duty time, offers only the unanchored three', () => {
+        assert.deepEqual(modesFor(null), ['unavailable', 'all_day', 'custom']);
+        assert.deepEqual(modesFor(rest), ['unavailable', 'all_day', 'custom']);
+    });
+
+    test('an overnight duty offers NO "after" and NO "before & after"', () => {
+        // Dispatchers are the only grade rostered across midnight. On a 22:00–07:00 day, `end`
+        // names the NEXT morning: "After 07:00" would store hours the member never declared, and
+        // "Before & after duty" stores until > from — which the server refuses outright
+        // (`before-after-inverted`), so the button was an offer that could never be saved.
+        // Verified end-to-end before the fix: the request carried {until:'22:00', from:'07:00'}
+        // and the real normaliseDay returned the refusal.
+        const modes = modesFor(night);
+        assert.equal(modes.includes('after'), false);
+        assert.equal(modes.includes('before_after'), false);
+        // The pre-duty gap that day is real, so "Before 22:00" survives — the fix narrows the
+        // offers to the ones that are TRUE, it does not gut the day.
+        assert.ok(modes.includes('before'));
+        assert.ok(modes.includes('custom'));
+    });
+});
+
+describe('what a failed submit says', () => {
+    test('a refusal that names a day names the day — and never blames the connection', () => {
+        // The server returns which date it refused; until v20.75 the client threw that away and
+        // said "Check your connection and try again" — advice that cannot help, because a refusal
+        // IS a response: the connection provably works.
+        const copy = submitFailureCopy('bad-time', 'Wed 2 Sep');
+        assert.match(copy, /Wed 2 Sep/);
+        assert.doesNotMatch(copy, /connection/i);
+    });
+
+    test('a network failure is the one case that DOES talk about the connection', () => {
+        assert.match(submitFailureCopy('network', null), /connection/i);
+    });
+
+    test('an unknown server code no longer claims the connection is at fault', () => {
+        assert.doesNotMatch(submitFailureCopy('write-failed', null), /connection/i);
+        assert.doesNotMatch(submitFailureCopy('something-new', null), /connection/i);
+        // But it still shows the code — a member reporting "it says something-new" is diagnosable.
+        assert.match(submitFailureCopy('something-new', null), /something-new/);
     });
 });

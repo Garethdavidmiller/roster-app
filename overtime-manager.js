@@ -59,11 +59,13 @@ import {
 export function renderWeekDetail(host, win, data, { dates, now }) {
     /** The grade currently in view. `ALL` is not a grade — no participant can carry it as one. */
     let grade = 'ALL';
+    /** The day currently in view — `ALL`, or one of the window's dates. */
+    let day = 'ALL';
     paint();
 
     function paint() {
-        host.innerHTML = build(win, data, { dates, now, grade });
-        wireGlance(host);
+        host.innerHTML = build(win, data, { dates, now, grade, day });
+        wireGlance(host, next => { day = next; paint(); });
         wireGrades(host, next => { grade = next; paint(); });
     }
 }
@@ -95,9 +97,9 @@ function ofGrade(participants, grade) {
  * The whole surface as one string. Pure — same inputs, same output, no DOM reads.
  * @param {any} win
  * @param {{ participants: any[], submissions: Map<string, any> }} data
- * @param {{ dates: string[], now: number, grade: string }} state
+ * @param {{ dates: string[], now: number, grade: string, day?: string }} state
  */
-function build(win, data, { dates, now, grade }) {
+function build(win, data, { dates, now, grade, day = 'ALL' }) {
     const { submissions } = data;
     const grades = gradesPresent(data.participants);
     const participants = ofGrade(data.participants, grade);
@@ -135,8 +137,8 @@ function build(win, data, { dates, now, grade }) {
             with the employee before arranging short-notice cover.
         </div>
         ${gradeStrip(grades, grade)}
-        ${glanceStrip(dates, participants, submissions)}
-        ${dates.map(date => dayPanel(date, participants, submissions)).join('')}
+        ${glanceStrip(dates, participants, submissions, day)}
+        ${dates.map(date => dayPanel(date, participants, submissions, day)).join('')}
         ${awaitingPanel(participants, submissions)}`;
 }
 
@@ -188,9 +190,9 @@ function wireGrades(host, onPick) {
  * NOBODY says so in its own colour rather than by being an empty section further down. Tapping a day
  * shows only that day; "All week" brings them back. Nothing is hidden that was not already there —
  * this is a lens over the same rows, not a summary that could disagree with them.
- * @param {string[]} dates @param {any[]} participants @param {Map<string, any>} submissions
+ * @param {string[]} dates @param {any[]} participants @param {Map<string, any>} submissions @param {string} activeDay
  */
-function glanceStrip(dates, participants, submissions) {
+function glanceStrip(dates, participants, submissions, activeDay) {
     const chips = dates.map(date => {
         const n = participants.filter(p => {
             const sub = submissions.get(p.memberName);
@@ -198,14 +200,14 @@ function glanceStrip(dates, participants, submissions) {
         }).length;
         const tone = n === 0 ? 'none' : (n <= 2 ? 'low' : 'ok');
         return `<button type="button" class="ot-glance-day ot-glance-day--${tone}"
-                        data-glance="${esc(date)}" aria-pressed="false">
+                        data-glance="${esc(date)}" aria-pressed="${date === activeDay}">
                     <span class="ot-glance-name">${esc(shortDate(date))}</span>
                     <span class="ot-glance-count">${n}</span>
                 </button>`;
     }).join('');
     return `
         <div class="ot-glance" role="group" aria-label="Available staff by day — choose a day to show only that day">
-            <button type="button" class="ot-glance-day ot-glance-day--all" data-glance="ALL" aria-pressed="true">
+            <button type="button" class="ot-glance-day ot-glance-day--all" data-glance="ALL" aria-pressed="${activeDay === 'ALL'}">
                 <span class="ot-glance-name">All week</span>
             </button>
             ${chips}
@@ -213,33 +215,28 @@ function glanceStrip(dates, participants, submissions) {
 }
 
 /**
- * Chips filter the day panels already on the page — no re-fetch, no second source of truth.
+ * Same enhancement-over-complete-markup contract as `wireGrades`: the default render carries every
+ * day panel visible, so a host without query methods (the two-line fake DOM the render tests use)
+ * simply gets the unfiltered week. The guard is what keeps the render testable without a browser.
  *
- * A genuine ENHANCEMENT over markup that is already complete and correct: every day is rendered and
- * visible before this runs, so a host without query methods (the two-line fake DOM the render tests
- * use, which is the right level for asserting what the markup SAYS) simply gets the unfiltered week.
- * The guard is what keeps the render testable without a browser — not a swallowed error.
- * @param {HTMLElement} host
+ * ── STATE, NOT A HAND-TOGGLED DOM — SO A GRADE SWITCH KEEPS THE DAY ─────────────────────────────
+ *
+ * Until v20.75 this handler flipped `hidden` on the panels directly while the grade chips
+ * re-rendered the whole surface — two mechanisms over one view, and the repaint silently reset the
+ * day to "All week". A clerk looking at Saturday's CEAs who tapped CES was bounced back to the
+ * full week with no sign of why. Both lenses now go through the same `(data, state) → markup`
+ * render, which is the module's own stated model.
+ * @param {HTMLElement} host @param {(day: string) => void} onPick
  */
-function wireGlance(host) {
+function wireGlance(host, onPick) {
     if (typeof host?.querySelectorAll !== 'function') return;
-    const chips = [...host.querySelectorAll('[data-glance]')];
-    const panels = [...host.querySelectorAll('.ot-day-panel[data-date]')];
-    chips.forEach(chip => chip.addEventListener('click', () => {
-        const pick = chip.getAttribute('data-glance');
-        chips.forEach(c => c.setAttribute('aria-pressed', String(c === chip)));
-        panels.forEach(pnl => {
-            const show = pick === 'ALL' || pnl.getAttribute('data-date') === pick;
-            // `hidden` alone would not hide it — `.ot-day-panel` sets no display, but the companion
-            // rule in overtime.css keeps this honest either way. See page-visibility-parity.
-            /** @type {any} */ (pnl).hidden = !show;
-        });
-    }));
+    host.querySelectorAll('[data-glance]').forEach(chip =>
+        chip.addEventListener('click', () => onPick(String(chip.getAttribute('data-glance')))));
 }
 
 /** One date: available, not available, no response — three sections, never merged. */
-/** @param {string} date @param {any[]} participants @param {Map<string, any>} submissions */
-function dayPanel(date, participants, submissions) {
+/** @param {string} date @param {any[]} participants @param {Map<string, any>} submissions @param {string} activeDay */
+function dayPanel(date, participants, submissions, activeDay = 'ALL') {
     /** @type {string[]} */ const available = [];
     /** @type {string[]} */ const unavailable = [];
     /** @type {string[]} */ const noResponse = [];
@@ -252,8 +249,12 @@ function dayPanel(date, participants, submissions) {
         (isUnavailable(day) ? unavailable : available).push(row);
     }
 
+    // `hidden` in the MARKUP, not toggled afterwards — the render stays a pure function of state.
+    // The default state hides nothing, so script-off (and the fake-DOM tests) get the whole week;
+    // print CSS force-shows hidden panels, so a filtered screen still yields an unfiltered sheet.
+    const hide = activeDay !== 'ALL' && activeDay !== date;
     return `
-        <div class="ot-day-panel" data-date="${esc(date)}">
+        <div class="ot-day-panel" data-date="${esc(date)}"${hide ? ' hidden' : ''}>
             <div class="ot-day-panel-head">${esc(shortDate(date))}</div>
             ${section('Available', available, 'ok')}
             ${section('Not available', unavailable, 'muted')}

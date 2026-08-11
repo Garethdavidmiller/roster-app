@@ -39,7 +39,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import * as OTD from './overtime-data.js';
 import {
-    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy,
+    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, shouldResyncClock,
 } from './overtime-format.js';
 import { CARD_TIPS } from './overtime-tips.js';
 import { renderWeekForm } from './overtime-form.js';
@@ -69,6 +69,12 @@ export function init() {
     const horizonByWeek = new Map();
     /** The week a Create preview is currently offering, if any. @type {string|null} */
     let pendingWeek = null;
+
+    /** The member's windows as last fetched — what the deadline resync compares against. */
+    /** @type {any[]} */
+    let myWindows = [];
+    /** One resync in flight at a time; a second visibilitychange mid-read must not stack. */
+    let resyncing = false;
 
     // ── Nav + chrome, always, so an unauthorised visitor can leave ──────────────────────────────
 
@@ -174,6 +180,47 @@ export function init() {
         });
 
         wireConfirmBar();
+        wireDeadlineResync();
+    }
+
+    /**
+     * Keep the page honest across a deadline it sat open through.
+     *
+     * `shouldResyncClock` and its five-minute window have existed since v20.69 with nothing
+     * calling them — a member who opened the form at 11:50 was still told "open" at 12:05. The
+     * realistic shape of that failure is a phone pocketed and re-woken, so the trigger is the page
+     * BECOMING VISIBLE near a deadline, not a timer: a timer burns battery all afternoon to catch
+     * a case that, when it matters, always arrives through this event.
+     *
+     * ── IT RE-RENDERS ONLY WHEN A PHASE ACTUALLY CHANGED ────────────────────────────────────────
+     *
+     * The blunt version — reload the card whenever the window is near a deadline — would WIPE a
+     * half-filled form under the member's thumb, which is worse than the stale line it fixes. So
+     * this re-reads state (which also refreshes the clock offset that `submitDisposition` uses),
+     * compares phases, and repaints only when one genuinely moved. A member mid-form whose week
+     * just closed loses their picks, and honestly: the server would refuse them anyway, and the
+     * closed view says what to do instead.
+     */
+    function wireDeadlineResync() {
+        document.addEventListener('visibilitychange', async () => {
+            if (document.hidden || resyncing || !myWindows.length) return;
+            const deadlines = myWindows.flatMap(
+                (/** @type {any} */ w) => [w.initialDeadlineAt, w.finalDeadlineAt]).filter(Boolean);
+            if (!shouldResyncClock(OTD.correctedNow(), deadlines)) return;
+            resyncing = true;
+            try {
+                const r = await OTD.getMyOvertimeState();
+                if (r.ok) {
+                    const phases = new Map((r.data.windows || []).map(
+                        (/** @type {any} */ w) => [w.weekEnding, w.phase]));
+                    const moved = myWindows.some(
+                        (/** @type {any} */ w) => phases.get(w.weekEnding) !== w.phase);
+                    if (moved) await loadMine();
+                }
+            } finally {
+                resyncing = false;
+            }
+        });
     }
 
     async function loadEverything() {
@@ -199,6 +246,7 @@ export function init() {
         if (!r.ok) { mineFailed = true; renderError(host); return; }
 
         const windows = r.data.windows || [];
+        myWindows = windows;
         canSubmit = windows.length > 0;
 
         if (!windows.length) {

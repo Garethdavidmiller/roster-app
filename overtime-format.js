@@ -263,6 +263,67 @@ export function countsCopy(expected, received) {
 }
 
 /**
+ * Which availability modes a day may offer.
+ *
+ * MOVED here from overtime-roster.js at v20.75 — that module imports the Firebase SDK, so this
+ * rule was unreachable from a Node test, and it turned out to be wrong in a way only a test pins:
+ *
+ * ── AN OVERNIGHT DUTY OFFERS NO "AFTER" AND NO "BEFORE & AFTER" ─────────────────────────────────
+ *
+ * Dispatchers are the only grade rostered across midnight (22:00–07:00, 22:30–09:00 — and their
+ * late turns ending past midnight, 15:30–00:30). On such a day `end` is the NEXT morning, and both
+ * anchored offers built from it are wrong:
+ *
+ *   "After 07:00"          stores `from: 07:00` on THAT date — a morning the member is still on
+ *                          duty from the night before-last's perspective, and hours they never
+ *                          declared. The English reads as "after my shift"; the record is not.
+ *   "Before & after duty"  stores `until: 22:00, from: 07:00` — which the server REFUSES
+ *                          (`before-after-inverted`: until > from reads as a transposed pair). The
+ *                          button was offered and every press ended in a failed submit.
+ *
+ * "Before 22:00" is still sound — the pre-duty gap that day is real — so it stays. The rest of the
+ * day's freedom is expressible with Custom times, which the member types themselves.
+ *
+ * The roster-derived shortcuts exist ONLY where an authoritative duty time is known. Without one
+ * there is no boundary to anchor to, and offering them anyway would either invent one or quietly
+ * attach one from a base roster nobody has verified.
+ * @param {{hasTime?: boolean, overnight?: boolean}|null} ctx
+ * @returns {string[]}
+ */
+export function modesFor(ctx) {
+    const basic = ['unavailable', 'all_day', 'custom'];
+    if (!ctx || !ctx.hasTime) return basic;
+    if (ctx.overnight) return ['unavailable', 'all_day', 'before', 'custom'];
+    return ['unavailable', 'all_day', 'before', 'after', 'before_after', 'custom'];
+}
+
+/**
+ * What a failed submit should SAY. Pure, so every branch is pinned by a test.
+ *
+ * Until v20.75 every code that was not timeout/conflict/closed got "Check your connection and try
+ * again" — including the server's own validation refusals, where the connection is provably fine
+ * (a refusal IS a response). Telling somebody to check their connection when the server has just
+ * told us which DAY it refused is worse than unhelpful: they retry the same payload and fail the
+ * same way, with the actual remedy — re-choose that day — never mentioned.
+ *
+ * `dayLabel` is the server's `date` field put into words; when present it names the remedy. The
+ * caller pairs it with `focusDay`, so the message and the scroll agree about where the problem is.
+ * @param {string} code
+ * @param {string|null} dayLabel e.g. "Wed 2 Sep", or null when the refusal names no day
+ * @returns {string}
+ */
+export function submitFailureCopy(code, dayLabel) {
+    if (dayLabel) return `Your answer for ${dayLabel} couldn't be accepted — choose that day again and resubmit.`;
+    switch (code) {
+        case 'network':    return 'Couldn\'t reach the server. Check your connection and try again.';
+        case 'no-session': return 'Your sign-in has expired. Reload the page and sign in again.';
+        // Server-side refusals: the request ARRIVED, so connection advice would be a false lead.
+        case 'write-failed': return 'The server couldn\'t save just now. Try again in a moment.';
+        default:           return `Couldn't save (${code}). Try again in a moment.`;
+    }
+}
+
+/**
  * One day's stored answer, in words. The inverse of what the form writes.
  * @param {any} day
  */

@@ -56,6 +56,12 @@ body {
     font-size: var(--type-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* The OPAQUE canvas every page's body paints (css-tokens / shared.css convention). This page
+       omitted it and rendered navy anyway — but only because shared.css gives `html` the same
+       colour for the overscroll gutter, which is a coincidence doing a convention's job: retune
+       the gutter and this one page changes colour with it. Measured before the fix: body
+       transparent, html navy; every other page's body opaque navy. */
+    background: var(--primary-blue);
 }
 
 .app { max-width: 560px; margin: 0 auto; }
@@ -440,9 +446,14 @@ body {
     .ot-day-head   { grid-column: 1; grid-row: 1; margin-bottom: 0; }
     .ot-modes      { grid-column: 2; grid-row: 1; }
     /* Explicit, because auto-placement would drop these into column 1 under the
-       day name — beneath the label rather than beneath the answer they concern. */
+       day name — beneath the label rather than beneath the answer they concern.
+       `.ot-custom` PROVED it (v20.75): it was missed from this list at v20.74, so
+       pressing "Custom times" at desktop put the From/To inputs bottom-left under
+       the day label, in a column built to be 190px wide. Every child of `.ot-day`
+       that is not the head belongs in column 2 — add new ones HERE. */
     .ot-day-answer { grid-column: 2; }
     .ot-day-stale  { grid-column: 2; margin-top: 0; }
+    .ot-custom     { grid-column: 2; margin-top: 0; }
 }
 
 /* ── Print ──────────────────────────────────────────────────────────────────

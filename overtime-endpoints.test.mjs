@@ -55,6 +55,22 @@ function makeDb(seed = {}, onRead = null) {
             // `.select()` reads document IDS only, which a projection never changes. Modelling it
             // as an identity keeps the fake honest about what the code actually depends on.
             select: () => collRef(path),
+            // The COUNT aggregation (v20.75): the same membership rule as get(), returning only
+            // the integer — which is the whole point of the production change it models. It goes
+            // through `onRead` like any other read, so the parallelism instrumentation still sees
+            // the overview's count fan-out.
+            count: () => ({
+                get: async () => {
+                    const done = onRead ? onRead(path) : null;
+                    await new Promise(r => setImmediate(r));
+                    const prefix = `${path}/`;
+                    const n = [...store.keys()]
+                        .filter(k => k.startsWith(prefix) && !k.slice(prefix.length).includes('/'))
+                        .length;
+                    if (done) done();
+                    return { data: () => ({ count: n }) };
+                },
+            }),
             get: async () => {
                 const done = onRead ? onRead(path) : null;
                 // A real read is never synchronous. Yielding is what lets the harness observe

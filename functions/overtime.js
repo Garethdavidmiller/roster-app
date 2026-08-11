@@ -432,17 +432,19 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
     /** Expected / received / no-response for a window, DERIVED from the two subcollections. */
     async function windowCounts(weekEnding) {
         const ref = db().collection(WINDOWS).doc(weekEnding);
+        // COUNT aggregations, not document reads (v20.75). This function wants two integers and
+        // was fetching every document to get them: at the full audience that is ~90 reads per
+        // horizon week, ~540 per overview load, for numbers Firestore will compute server-side at
+        // one aggregation read each. Same derivation, same source of truth — the participant
+        // collection IS the expected population; no stored expectedCount exists anywhere, because
+        // a cached copy of a size is a second answer that can disagree with it.
         const [participants, submissions] = await Promise.all([
-            ref.collection('participants').get(),
-            ref.collection('submissions').get(),
+            ref.collection('participants').count().get(),
+            ref.collection('submissions').count().get(),
         ]);
-        // No stored expectedCount anywhere: the participant collection IS the expected population,
-        // and a cached copy of its size is a second answer that can disagree with it.
-        return {
-            expected:   participants.size,
-            received:   submissions.size,
-            noResponse: participants.size - submissions.size,
-        };
+        const expected = participants.data().count;
+        const received = submissions.data().count;
+        return { expected, received, noResponse: expected - received };
     }
 
     // ── getMyOvertimeState ──────────────────────────────────────────────────────────────────────
