@@ -337,11 +337,22 @@ app". The app's real answer to a wide band with small cards is **columns**, whic
 operations and paycalc all do, and which settings never got because at v18.59 it had two cards and
 nothing to put in a second column. It now has four.
 
-So: **route every new page's desktop `max-width` through one of these two tokens.** If its content
-does not fill the band, columnise it (settings: admin's wide-main + narrow-side pair) or cap the
-inner panel rather than the page (overtime: the member's seven-day form takes a 620px reading
-column, while the reviewer's call sheet takes the whole band — they are tabs, never co-visible, so
-they are allowed different answers).
+So: **route every new page's desktop `max-width` through one of these two tokens**, and if the
+content does not fill the band, **make the content fill it** — do not shrink the page back.
+
+Two ways, both already in the app:
+
+- **Columnise.** Settings uses admin's wide-main + narrow-side pair.
+- **Let the ROW absorb the width.** Overtime's seven-day form and admin's Change-a-Shift week are
+  the same shape — a day, a roster badge, a run of pills — and both go horizontal at 1024px, with
+  the badge in a fixed column so it aligns down the week.
+
+**Capping the inner panel is NOT a third way, and v20.72–73 is the proof.** Overtime capped its
+form at 620px inside the 1100px band and left-aligned it, which put a 480px navy void down the
+right of the page; it was reported as "on desktop it has gone a little strange" within the day. A
+narrow column only reads as deliberate when it is the whole page — which is what the 600px band it
+replaced actually was. Capping the panel kept the old proportion and threw away the thing that
+justified it.
 
 **Reading measure:** on desktop, full-width **prose** (card descriptions/`.hint`, disclaimers,
 notes, generator intro) is capped with `max-width: ~64–72ch` at the `min-width: 1024px`
