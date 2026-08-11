@@ -53,6 +53,7 @@ const {
 } = require('./calendar-viewer-auth');
 const { buildDocumentEndpoints } = require('./documents');
 const { buildAuthEndpoints }     = require('./auth-endpoints');
+const { buildOvertimeEndpoints } = require('./overtime');
 const rosterMembers = require('./roster-members.json');
 
 admin.initializeApp();
@@ -691,6 +692,18 @@ columnScan: one key per column header; every staff member appears in every colum
 // note in auth-endpoints.js.
 Object.assign(exports, buildAuthEndpoints({
     VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, ADMIN_FUNCTION_ORIGINS,
+}));
+
+
+// ── Overtime Availability ────────────────────────────────────────────────────
+// The OVERTIME domain — createOvertimeWindow, getOvertimeManagerOverview,
+// getMyOvertimeState and submitOvertimeAvailability — lives in ./overtime.js, with
+// every RULE next door in ./overtime-core.js (pure, no emulator needed). It is handed
+// the GENERATED roster rather than reading it itself: `overtimeEligibleMembers` and
+// `maxRosterYear` are the server's own copy of who is rostered and how far ahead a
+// window may be created, and neither may ever come from a request body.
+Object.assign(exports, buildOvertimeEndpoints({
+    ADMIN_FUNCTION_ORIGINS, rosterMembers,
 }));
 
 

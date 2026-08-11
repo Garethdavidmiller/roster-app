@@ -21,7 +21,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-// The eleven deployed functions. Order-insensitive; names are what `firebase deploy` sees.
+// The fifteen deployed functions. Order-insensitive; names are what `firebase deploy` sees.
 const DEPLOY_SURFACE = [
     'ingestHuddle',
     'onHuddleCreated',
@@ -34,6 +34,13 @@ const DEPLOY_SURFACE = [
     'requestPasswordReset',
     'getSignInStats',
     'unlockCalendarViewer',
+    // Overtime Availability (v20.56). Four, and the fourth is the one that is easy to lose in a
+    // refactor: getOvertimeManagerOverview is the ONLY thing that shows a week nobody created, and
+    // its absence would look like "no overtime needed" rather than like a missing function.
+    'createOvertimeWindow',
+    'getOvertimeManagerOverview',
+    'getMyOvertimeState',
+    'submitOvertimeAvailability',
 ];
 
 test('functions/index.js exports exactly the deployed function surface', () => {
