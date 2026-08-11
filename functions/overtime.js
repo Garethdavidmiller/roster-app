@@ -175,7 +175,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
                 case 'no-participants': return res.status(409).json({ error: 'no-participants' });
                 case 'too-many':        return res.status(507).json({ error: 'too-many-participants' });
                 case 'preview':         return res.json({ ok: true, dryRun: true, window: r.window });
-                case 'existed':         return res.json({ ok: true, existed: true, window: r.window });
+                case 'existed':         return res.json({ ok: true, existed: true, window: r.window,
+                    added: r.added || [] });
                 default:                return res.json({ ok: true, created: true, window: r.window });
             }
         });
@@ -243,10 +244,14 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
             // Two reviewers pressing Create at once, one pressing it twice, or the scheduler
             // meeting a week somebody just made by hand. The deterministic id already makes a
             // duplicate impossible; this makes the SECOND caller's experience "here is the window"
-            // rather than an error — and, critically, never rewrites the frozen participant
-            // snapshot the first caller established.
+            // rather than an error — and it never REWRITES the frozen participant snapshot.
+            //
+            // It does, since v20.78, top it up: see `addMissingParticipants`. Add-only, open weeks
+            // only, so the freeze still holds everywhere it protects anything.
+            const added = await addMissingParticipants(ref, existing.data(), nowMs);
             return {
                 outcome: 'existed',
+                added,
                 window: { ...storedMilestones(existing.data()), audience: existing.data().audience },
             };
         }
@@ -278,6 +283,75 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
         await batch.commit();
         console.log(`[createOvertimeWindow] ${weekEnding} · ${audience} · ${participants.length} participants · by ${byName}`);
         return { outcome: 'created', window: preview };
+    }
+
+    /**
+     * The audience that a week's population WOULD have, computed now.
+     * @param {string} weekStart
+     */
+    function audienceFor(weekStart) {
+        return OT.selectParticipants(rosterMembers.overtimeRoster, {
+            weekStart,
+            audience:   currentAudience(),
+            adminNames: (rosterMembers.roles && rosterMembers.roles.admin) || [],
+            betaNames:  rosterMembers.overtimeBeta || [],
+        });
+    }
+
+    /**
+     * Top an OPEN window's frozen population up to the current audience. Add-only.
+     *
+     * ── WHY THE FREEZE NEEDED AN EXCEPTION, AND WHY THIS IS THE RIGHT ONE ───────────────────────
+     *
+     * Populations are frozen at creation so nobody is recorded as a non-responder for a week they
+     * were never asked about. That is right, and it is untouched here.
+     *
+     * What it did NOT anticipate is automatic creation. The scheduler keeps eight weeks made in
+     * advance, so by the time anybody is invited, EVERY week they could usefully answer already
+     * exists — and "existing windows are untouched" quietly became "an audience change never
+     * takes effect". Reported live: a member added to the beta was told "no forms are open for
+     * you" while the admin's were open, and her first form would have been a week in October.
+     * At full launch the same arithmetic strands the whole roster for eight weeks.
+     *
+     * The rule that resolves it without weakening the freeze: **you may join a window you can
+     * still submit to.** An open week is one this member can genuinely answer, so recording them
+     * as expected is true. A CLOSED week is one they could never have answered, so adding them
+     * would manufacture exactly the false non-responder the freeze exists to prevent — and this
+     * refuses it. Nobody is ever REMOVED, at any phase: a population only grows.
+     *
+     * @returns {Promise<string[]>} the names added, for the caller to report
+     */
+    async function addMissingParticipants(ref, data, nowMs) {
+        const milestones = storedMilestones(data);
+        if (milestones.retentionUntil <= nowMs) return [];
+        if (!OT.isOpenPhase(OT.phaseFor(milestones, nowMs))) return [];
+
+        const want = audienceFor(milestones.weekStart);
+        // Ids only — the existing documents are not needed to know who is already in.
+        const have = new Set((await ref.collection('participants').select().get()).docs.map(d => d.id));
+        const missing = want.filter(p => !have.has(p.memberName));
+        if (!missing.length) return [];
+
+        // The same single-batch bound as creation, for the same reason: a half-written population
+        // is not a smaller truth, it is a false one. Here the whole population is `have + missing`.
+        if (have.size + missing.length > OT.MAX_PARTICIPANTS_PER_WINDOW) {
+            console.error(`[addMissingParticipants] ${data.weekEnding} would exceed the batch bound`);
+            return [];
+        }
+
+        const batch = db().batch();
+        for (const p of missing) {
+            batch.set(ref.collection('participants').doc(p.memberName), {
+                memberName:  p.memberName,
+                uid:         null,
+                grade:       p.grade,
+                rosterOrder: p.rosterOrder,
+                createdAt:   admin.firestore.FieldValue.serverTimestamp(),
+            });
+        }
+        await batch.commit();
+        console.log(`[addMissingParticipants] ${data.weekEnding} + ${missing.length}: ${missing.map(p => p.memberName).join(', ')}`);
+        return missing.map(p => p.memberName);
     }
 
     // ── autoCreateOvertimeWindows (scheduled) ───────────────────────────────────────────────────
@@ -355,7 +429,39 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
             console.log(`[autoCreateOvertimeWindows] due ${due.length} · created ${made.length}`
                 + `${made.length ? ` (${made.join(', ')})` : ''}`
                 + `${failed.length ? ` · NOT created ${failed.join(', ')}` : ''}`);
+
+            // Then top up every OPEN week to the current audience. This is what makes an audience
+            // change take effect at all: the horizon is pre-created eight weeks out, so without it
+            // an invitation reaches only weeks that do not exist yet. Daily and idempotent — a run
+            // with nothing to add costs one id-only read per open week.
+            await topUpOpenWindows(nowMs);
         });
+
+    /**
+     * Add anybody newly in the audience to every OPEN window. Separate from the create loop so a
+     * failure in one cannot abandon the other — they answer different questions.
+     * @param {number} nowMs
+     */
+    async function topUpOpenWindows(nowMs) {
+        let snap;
+        try {
+            snap = await db().collection(WINDOWS).get();
+        } catch (err) {
+            console.error('[topUpOpenWindows] could not list windows — standing down:', err);
+            return;
+        }
+        const summary = [];
+        for (const d of snap.docs) {
+            try {
+                const added = await addMissingParticipants(d.ref, d.data(), nowMs);
+                if (added.length) summary.push(`${d.id}+${added.length}`);
+            } catch (err) {
+                // One bad week must not abandon the rest; tomorrow's run retries this one.
+                console.error(`[topUpOpenWindows] ${d.id} failed:`, err);
+            }
+        }
+        console.log(`[topUpOpenWindows] ${summary.length ? summary.join(', ') : 'nothing to add'}`);
+    }
 
     /**
      * The participant-selection policy currently in force. Server-owned release control, not an
@@ -407,11 +513,19 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
                 // under even if the policy has since changed.
                 const milestones = doc ? storedMilestones(doc) : OT.deriveMilestones(weekEnding);
                 const counts = countsByWeek.get(weekEnding) || null;
+                // How many the CURRENT audience would select for this week. Compared against the
+                // frozen `expected`, it is what tells a reviewer an invitation has not landed yet —
+                // and it costs nothing: `selectParticipants` is pure and local, and `expected`
+                // already came back from the count aggregation above. Only meaningful while the
+                // week is open, because that is the only phase a population may still grow in.
+                const open = OT.isOpenPhase(OT.phaseFor(milestones, nowMs));
+                const audienceCount = doc && open ? audienceFor(milestones.weekStart).length : null;
                 planningWeeks.push({
                     ...milestones,
                     exists: !!doc,
                     state: OT.windowRowState(milestones, nowMs, !!doc),
                     audience: doc ? doc.audience : null,
+                    audienceCount,
                     canCreate: !doc && OT.validateWeekEnding(weekEnding, {
                         nowMs, maxRosterYear: rosterMembers.maxRosterYear,
                     }).ok,

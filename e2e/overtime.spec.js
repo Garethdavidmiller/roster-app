@@ -909,3 +909,68 @@ test('the availability options meet the app\'s touch target', async ({ page }) =
         .filter(x => x.h < 44));
     expect(short, 'every availability option must be at least 44px tall').toEqual([]);
 });
+
+test.describe('an invitation that lands after the week was made', () => {
+    // Reported live: a member added to the beta was told "no forms are open for you" while the
+    // admin's were open. Populations are frozen at creation, and the scheduler pre-creates eight
+    // weeks — so by the time anybody is invited, every week they could usefully answer already
+    // exists and the invitation reaches none of them.
+
+    test('the reviewer is TOLD, and can add them on the spot', async ({ page }) => {
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', r => r.fulfill({ status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+
+        // First load: one participant frozen in, but the audience now selects two.
+        let loads = 0;
+        await page.route('**/getOvertimeManagerOverview', r => {
+            loads += 1;
+            const row = { ...W, exists: true, state: 'created', canCreate: false,
+                expected: loads === 1 ? 1 : 2, received: 1, noResponse: 0,
+                audienceCount: 2 };
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [row], retained: [] }) });
+        });
+        /** @type {any[]} */
+        const posted = [];
+        await page.route('**/createOvertimeWindow', r => {
+            posted.push(JSON.parse(r.request().postData() || '{}'));
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, existed: true, added: ['T. Bibi'], window: W }) });
+        });
+
+        await page.goto('/overtime.html');
+        const add = page.getByRole('button', { name: 'Add 1' });
+        await expect(add, 'the row says the audience has outgrown the week').toBeVisible();
+
+        await add.click();
+        await expect(page.locator('#otConfirmText')).toContainText('T. Bibi');
+        // It goes through the CREATE endpoint with dryRun false — one server path, so the button
+        // and the nightly job can never disagree about who is in a week's audience.
+        expect(posted[0]).toEqual({ weekEnding: W.weekEnding, dryRun: false });
+        // And the row stops offering it once the population has caught up.
+        await expect(page.getByRole('button', { name: 'Add 1' })).toHaveCount(0);
+    });
+
+    test('a week whose population already matches offers nothing', async ({ page }) => {
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+            expected: 2, received: 2, noResponse: 0, audienceCount: 2 }] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-week-row')).toHaveCount(1);
+        await expect(page.locator('[data-topup]'), 'nothing to add, so no control').toHaveCount(0);
+    });
+
+    test('a CLOSED week never offers it, however far the audience has moved', async ({ page }) => {
+        // The server sends `audienceCount: null` for a closed week precisely so this cannot be
+        // offered: adding somebody who could never have answered would create a permanent false
+        // non-responder. The client must not invent the control from the counts alone.
+        await seedSession(page, 'H. Croft');
+        await stubOvertime(page, { weeks: [{ ...W, exists: true, state: 'created-closed', canCreate: false,
+            expected: 1, received: 1, noResponse: 0, audienceCount: null }] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-week-row')).toHaveCount(1);
+        await expect(page.locator('[data-topup]')).toHaveCount(0);
+    });
+});

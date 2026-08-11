@@ -75,10 +75,36 @@ feature: one hour out either refuses somebody who was in time or accepts somebod
 **sees** which audience a window will have — the confirm bar states it and the expected participant
 count — and cannot change it.
 
-Widening the beta is a one-word edit there plus a deploy. **Existing windows are untouched**, because
-a window's participant population is frozen into its `participants` subcollection at creation and is
-never rewritten — including when a second Create arrives for a week that already exists. A pilot rung
-slots in as a third value.
+Widening the beta is a one-word edit there plus a deploy. A window's participant population is frozen
+into its `participants` subcollection at creation and is **never rewritten** — including when a second
+Create arrives for a week that already exists. A pilot rung slots in as a third value.
+
+**But a frozen population may GROW while its week is still open** (v20.78), and it has to. The
+original rule was "existing windows are untouched", which was correct in isolation and became wrong
+the moment creation was automated: the scheduler keeps eight weeks made in advance, so by the time
+anybody is invited, every week they could usefully answer already exists. "Untouched" quietly meant
+"an audience change never takes effect". It was reported live — a member added to the beta was told
+"no forms are open for you" while the admin's were open, and her first form would have been a week
+in October. At full launch the same arithmetic strands the entire roster for eight weeks.
+
+The rule that resolves it without weakening the freeze: **you may join a window you can still submit
+to.**
+
+| Phase | May the population grow? | Why |
+|---|---|---|
+| Open (before the final deadline) | **Yes, add-only** | they can genuinely answer, so recording them as expected is true |
+| Closed / expired | **Never** | they could never have answered — adding them manufactures a permanent false non-responder, which is exactly what the freeze exists to prevent |
+
+Nobody is ever REMOVED, at any phase. `addMissingParticipants` in `functions/overtime.js` is the one
+implementation; it runs from two places, and both are tested because they arrive by different routes:
+the nightly `autoCreateOvertimeWindows` (unattended, so an invitation takes effect without anyone
+remembering) and the `existed` branch of `createOvertimeWindow` (which is what the reviewer's
+**Add N** row action calls, for when you have just invited somebody and want to see it work).
+
+The reviewer can SEE the gap because `getOvertimeManagerOverview` returns `audienceCount` — what the
+current audience would select for that week — beside the frozen `expected`. Without it the week looks
+complete, because everyone *in* it has answered. It is `null` for a closed week, so the row cannot
+offer an addition the server would refuse.
 
 The frozen snapshot is also the security model: participation *is* the authorisation. A member who
 was not asked cannot submit, and there is no audience field to read at request time that could
