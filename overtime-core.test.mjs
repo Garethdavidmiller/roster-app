@@ -510,10 +510,15 @@ describe('the availability schema — never invent an answer', () => {
     const DATES = C.weekDates('2026-08-30');
     const week = (fill) => Object.fromEntries(DATES.map(d => [d, fill]));
 
-    test('all six modes round-trip unchanged', () => {
+    test('all seven modes round-trip unchanged', () => {
         const modes = [
             { mode: 'unavailable' },
             { mode: 'all_day' },
+            // Self-contained like all_day — the twelve is the ceiling of a turn, not a clock
+            // boundary, so there is nothing for a roster change to invalidate and nothing extra to
+            // validate. The client-side OFFER gate (rostered < 12h) is deliberately not re-checked
+            // here; the declaration is valid whatever the roster later becomes.
+            { mode: 'twelve_hours' },
             { mode: 'before', until: '07:00' },
             { mode: 'after', from: '15:00' },
             { mode: 'before_after', until: '07:00', from: '15:00' },
@@ -578,6 +583,9 @@ describe('the availability schema — never invent an answer', () => {
         // Dropping would store an answer the member did not give, from a client this server does
         // not understand.
         assert.equal(C.normaliseDays(week({ mode: 'all_day', reason: 'childcare' }), DATES).error, 'unknown-field');
+        // The new fieldless mode inherits the same strictness — a client smuggling a boundary onto
+        // it is a version mismatch, not a richer answer.
+        assert.equal(C.normaliseDays(week({ mode: 'twelve_hours', until: '19:00' }), DATES).error, 'unknown-field');
         assert.equal(C.normaliseDays(week({ mode: 'maybe' }), DATES).error, 'bad-mode');
         assert.equal(C.normaliseDays(week({ mode: 'after', from: '15:00', until: '07:00' }), DATES).error, 'unknown-field');
     });
@@ -604,7 +612,7 @@ describe('the availability schema — never invent an answer', () => {
 
     test('every declared mode is exercised by this suite', () => {
         // A mode added to the schema without a test would otherwise ship unvalidated.
-        const covered = new Set(['unavailable', 'all_day', 'before', 'after', 'before_after', 'custom']);
+        const covered = new Set(['unavailable', 'all_day', 'twelve_hours', 'before', 'after', 'before_after', 'custom']);
         assert.deepEqual(Object.keys(C.AVAILABILITY_MODES).sort(), [...covered].sort());
     });
 });

@@ -222,6 +222,25 @@ really is a transposed mistake, and the schema cannot tell the two apart after t
 
 ---
 
+## "Up to 12 hours" — the one mode that is a ceiling, not a clock time (v20.83, owner)
+
+Twelve hours is the legal ceiling of a turn, so the declaration means "I will work up to a 12-hour
+day": a full 12-hour turn on a rest day, or extending a rostered duty to 12 hours total on a worked
+one. It stores nothing but its mode — like `all_day`, there is no boundary a roster change could
+invalidate, so `answerAnchorStale` never fires on it and the reviewer's chip needs no times.
+
+**The offer is withheld on a day whose effective roster already reaches 720 minutes** — including a
+12-hour RDW already agreed as extra — because on that day there is nothing left to offer and the
+pill would be a question with no meaning. The gate (`modesFor`, keyed on `rosteredMinutes` from
+`overtime-roster.js`) needs a POSITIVE fact to fire: an unknown day is not "already rostered
+12 hours", so the pill shows there. That is the same direction every unknown resolves on this page —
+withhold what would ANCHOR to an unverified roster (the before/after shortcuts), keep what anchors
+to nothing (this, all-day, custom). The server accepts the mode unconditionally, deliberately: the
+gate is about not asking a pointless question, not about policing a declaration that is valid
+whatever the roster later becomes.
+
+---
+
 ## Revisions, and why two of the interesting fields are not stored
 
 A submission is a **head document plus an append-only `revisions` subcollection**, both written in one

@@ -35,9 +35,10 @@
 import { db, COLLECTIONS, collection, query, where, getDocs } from './firebase-client.js';
 import { teamMembers, getBaseShift, isSunday, parseISODate, getShiftBadge } from './roster-data.js';
 import { resolveEffectiveShift, isRestShift, toOverrideRecord } from './override-utils.js';
+import { shiftSpanMinutes } from './overtime-format.js';
 
 /** @typedef {'authoritative'|'error'} RosterKnowledge */
-/** @typedef {{ shift: string, isRest: boolean, hasTime: boolean, overnight: boolean, start: string, end: string }} DayContext */
+/** @typedef {{ shift: string, isRest: boolean, hasTime: boolean, overnight: boolean, start: string, end: string, rosteredMinutes: number|null }} DayContext */
 
 /** A worked shift, as the app stores it. */
 const SHIFT_RANGE_RE = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/;
@@ -102,6 +103,11 @@ export async function loadRosterContext(memberName, dates) {
             overnight: !!timed && end < start,
             start,
             end,
+            // How long the day's EFFECTIVE duty runs — including a timed RDW, i.e. extra already
+            // agreed. `modesFor` withholds the "Up to 12 hours" offer when this already reaches
+            // 720; a day with no times is 0, not null, because "rostered nothing" is a known
+            // length, where null is reserved for a day whose roster could not be read at all.
+            rosteredMinutes: timed ? shiftSpanMinutes(start, end) : 0,
         };
     }
     return { knowledge: 'authoritative', byDate };

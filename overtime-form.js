@@ -30,7 +30,7 @@ import * as OTD from './overtime-data.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
 import {
     weekLabel, weekSpan, deadlineLabel, shortDate, phaseCopy, answerCopy, answerTone,
-    answerAnchorStale, submitDisposition, modesFor, submitFailureCopy,
+    answerAnchorStale, submitDisposition, modesFor, submitFailureCopy, sameAnswer,
 } from './overtime-format.js';
 
 /**
@@ -40,6 +40,7 @@ import {
 const MODE_LABELS = {
     unavailable:  'Not available',
     all_day:      'Available all day',
+    twelve_hours: 'Up to 12 hours',
     before:       'Before {until}',
     after:        'After {from}',
     before_after: 'Before & after duty',
@@ -150,6 +151,28 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         }));
     }
 
+    /**
+     * Which of admin's row states this day is in — the SAME grammar the Change-a-Shift week
+     * teaches, so a member who knows one page can read the other (v20.83):
+     *
+     *   (nothing)   unanswered — a plain surface row. Seven of these on first open is the normal
+     *               state, not an error, so it carries no colour at all.
+     *   `set`       chosen this sitting, nothing saved yet — admin's gold "ready to save" tint.
+     *   `changed`   chosen this sitting and it DIFFERS from what is saved — admin's cream
+     *               "you are about to overwrite something recorded" (`--al-confirm-bg`).
+     *   `saved`     what is on the row is what the server holds — the green recorded accent.
+     *
+     * `sameAnswer` is structural, never `JSON.stringify`: the saved copy comes back from the
+     * server with its own key order, and a member who has touched nothing must not see cream.
+     * @param {any} a @param {string} date
+     */
+    function dayState(a, date) {
+        if (!a) return '';
+        const saved = win.submission?.days?.[date];
+        if (!saved) return 'set';
+        return sameAnswer(a, saved) ? 'saved' : 'changed';
+    }
+
     /** @param {string} date */
     function dayBlock(date) {
         const c = ctx.byDate[date] || null;
@@ -161,10 +184,14 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         const modes = modesFor(c);
         if (a?.mode && !modes.includes(a.mode)) modes.push(a.mode);
         const answered = !!a;
+        const state = dayState(a, date);
+        // "Sun 30 Aug" splits into admin's two-part day label — the bold day, the lighter date —
+        // so the two week-of-days surfaces read identically.
+        const [dayName, ...dayDate] = shortDate(date).split(' ');
         return `
-            <div class="ot-day${answered ? ' ot-day--answered' : ''}" data-day="${esc(date)}">
+            <div class="ot-day${answered ? ' ot-day--answered' : ''}${state ? ` ot-day--${state}` : ''}" data-day="${esc(date)}">
                 <div class="ot-day-head">
-                    <span class="ot-day-name">${esc(shortDate(date))}</span>
+                    <span class="ot-day-name">${esc(dayName)} <span class="ot-day-date">${esc(dayDate.join(' '))}</span></span>
                     <!-- A visually-hidden prefix, not an aria-label: a label on a plain span is
                          unreliably announced, and the badge's own text (the shift name + times)
                          already reads well — it only needs the word that says what it IS. -->
@@ -275,6 +302,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         switch (mode) {
             case 'unavailable':
             case 'all_day':
+            case 'twelve_hours':
                 return { mode };
             case 'before':
                 return { mode, until: c?.start || '' };
@@ -351,6 +379,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                 currentRevision: r.data.revision,
             };
             say(r.data.noop ? 'Already saved — no changes to record.' : '✓ Availability submitted.', 'ok');
+            // Repaint: rows that showed the gold "ready" or cream "changing a saved answer" tints
+            // are now simply SAVED, and leaving the warning colours up over a recorded form would
+            // keep telling the member something is still to do.
+            paintDays();
             updateSubmitState();
             onSaved();
             return;
