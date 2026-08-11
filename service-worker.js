@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '20.55';
+const APP_VERSION = '20.56';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -115,8 +115,8 @@ const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.j
 // these names match under both '/' (Firebase) and '/roster-app/' (GitHub Pages). (Name
 // kept for the sw-asset-check test that parses this array; not "network-first only".)
 const NETWORK_FIRST_FILES = [
-    'index.html', 'admin.html', 'operations.html', 'settings.html', 'links.html',
-    'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css',
+    'index.html', 'admin.html', 'operations.html', 'settings.html', 'links.html', 'overtime.html',
+    'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css', 'overtime.css',
     'calendar-app.js', 'calendar-state.js', 'calendar-swipe.js',
     'calendar-overrides.js', 'calendar-member.js', 'calendar-renderer.js',
     'calendar-access.js', 'calendar-access-core.js', 'calendar-data-state.js',
@@ -125,7 +125,7 @@ const NETWORK_FIRST_FILES = [
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
     'admin-al.js', 'admin-sick.js', 'admin-range-booking.js',
-    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'settings-app.js', 'settings-boot.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-design-doc.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-limits.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js',
+    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-tips.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-design-doc.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-limits.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js',
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js', 'date-picker.js',
@@ -151,12 +151,14 @@ const CORE_ASSETS = [
     "./admin.html",
     "./operations.html",
     "./settings.html",
+    "./overtime.html",
     "./links.html",
     "./index.css",
     "./admin.css",
     "./paycalc.css",
     "./operations.css",
     "./settings.css",
+    "./overtime.css",
     "./links.css",
     "./links-app.js",
     "./links-boot.js",
@@ -175,6 +177,11 @@ const CORE_ASSETS = [
     "./settings-app.js",
     "./password-force.js",
     "./settings-boot.js",
+    "./overtime-app.js",
+    "./overtime-boot.js",
+    "./overtime-data.js",
+    "./overtime-format.js",
+    "./overtime-tips.js",
     "./calendar-app.js",
     "./calendar-state.js",
     "./calendar-swipe.js",
@@ -577,6 +584,7 @@ self.addEventListener("fetch", event => {
                 ['operations', './operations.html', 'Operations is not available offline. Please reconnect and reload.'],
                 ['settings',   './settings.html',   'Settings is not available offline. Please reconnect and reload.'],
                 ['links',      './links.html',       'Links is not available offline. Please reconnect and reload.'],
+                ['overtime',   './overtime.html',   'Overtime is not available offline. Please reconnect and reload.'],
                 ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
             ];
             // Match the page by its exact path segment, not a substring — a substring

@@ -204,6 +204,17 @@ What the Calendar KNOWS about a month's overrides, and what it is therefore allo
 
 **`cached` still renders its grid, and adds no banner.** Withholding it would be its own failure: a device with data and no network would be reduced to a spinner. A banner would be worse than useless — phase 1 marks `cached` and phase 2 overrules it a moment later on every single app open, so it would flash on every load and mean nothing. The sync chip already says "Updating…" and then "Couldn't update — tap to retry", which is the honest running commentary; this model's job is only to stop the two states that must show NO grid.
 
+### `overtime-app.js` / `overtime-boot.js` / `overtime-data.js` / `overtime-format.js` / `overtime-tips.js`
+The Overtime availability page. `overtime-app.js` is the coordinator (body exported as `init()`, invoked by the boot shim); `overtime-data.js` owns every server call and the corrected clock; `overtime-format.js` is pure words and time arithmetic; `overtime-tips.js` is `?`-panel data. Server side: `functions/overtime.js` + `functions/overtime-core.js`. Feature design: `OVERTIME_AVAILABILITY.md`.
+
+**One page, both surfaces.** A member's own form and the reviewer workspace are the same subject seen from two sides, so they share a page and a tab strip — and the strip is drawn only once BOTH are known to exist, never from the CONFIG role guess, so a reviewer with no form of their own is not shown a tab that leads nowhere.
+
+**The planning horizon is the point of the page.** A weekly-window system has one catastrophic failure and it happens before any document exists: nobody creates the window, so no participants exist, so nobody is outstanding, so no reminder can fire — and an empty page is indistinguishable from "no overtime needed". `overtime-app.js` therefore renders six week rows from the CALENDAR rather than from Firestore, keeps a missed week's row until its Saturday passes, and puts the count of weeks WITHOUT a form on the collapsed card's chip (a chip reading "6" would be reassuring and say nothing).
+
+**The client clock is presentational, and never a gate.** `overtime-format.clockOffset` removes the round trip rather than taking `serverNow - Date.now()`, and `submitDisposition` returns `'check-with-server'` — not `'closed'` — for the first `SUBMIT_GRACE_MS` past a deadline. A client that refuses to send has denied somebody who was in time and left them no recourse; a server rejection at least produces a true message.
+
+**Three states, three treatments.** Loading, a successful-but-empty response ("No overtime availability forms are open for you right now") and a load failure ("Couldn't load…" + Try again) are rendered differently on purpose. One empty screen doing duty for all three is the commonest way a page lies about its own state.
+
 ### `functions/overtime.js`
 The OVERTIME AVAILABILITY domain — four endpoints and the Firestore orchestration behind them. Every RULE lives next door in `overtime-core.js`, unit-tested with no emulator; this module is the boundary (auth, transactions, batches, HTTP). A factory for the same reasons as `documents.js`: index.js stays the composition root, and the deps argument is the seam the tests drive a fake admin SDK through. Tested by `overtime-endpoints.test.mjs`, which EXECUTES every handler — `functions-surface.test.mjs` proves only that they were defined, and v20.50 is the standing lesson about the difference.
 

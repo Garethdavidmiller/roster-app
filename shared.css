@@ -765,6 +765,12 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 .lightbox-bug-link:active { background: rgba(255,255,255,0.16); }
 
+/* `display: block` above out-specifies the `hidden` attribute, so links.html's Operations shortcut
+   (`#linksOpsLink`, hidden for a designer who is not an admin) was shown to everyone. Not a security
+   hole — operations.html guards itself — but an affordance offered to people it then turns away.
+   Found by page-visibility-parity.test.mjs. */
+.lightbox-bug-link[hidden] { display: none !important; }
+
 /* Privacy note — shown in lightboxes that handle personal data (Pay Calculator etc.)
    Sits below the main content, separated by a faint rule. */
 .lightbox-privacy {
@@ -1581,6 +1587,17 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 @media (hover: hover) and (pointer: fine) {
     .nav-panel-pill--operations:hover { background: color-mix(in oklch, var(--orange) 91%, black); }
+}
+
+/* Overtime — the app's clock-face feature, so it takes the sky-blue that no other
+   pill uses. Deliberately not gold (the Calendar's) and not purple (Links'): a
+   drawer of six pills only works as a map if each colour means one destination. */
+.nav-panel-pill--overtime {
+    background: var(--blue-sky);
+    color: white;
+}
+@media (hover: hover) {
+    .nav-panel-pill--overtime:hover { background: color-mix(in oklch, var(--blue-sky) 91%, black); }
 }
 
 .nav-panel-pill--links {

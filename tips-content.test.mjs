@@ -42,6 +42,7 @@ const PAGES = [
     { js: 'operations-app.js', html: 'operations.html' },
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-app.js',      html: 'links.html', scope: { TOTAL_POS: ROTATING_LINES, CONFIG } },
+    { js: 'overtime-tips.js',  html: 'overtime.html' },
 ];
 
 /**

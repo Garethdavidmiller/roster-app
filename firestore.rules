@@ -658,7 +658,7 @@ service cloud.firestore {
            // guide-paycalc added v19.95, guide-rangers with the fifth guide at v20.05). The list
            // must hold one id per NAV_GUIDES entry — firestore-contract-parity.test.mjs checks it
            // both ways, so a guide added without an id here fails rather than counting nothing.
-           request.resource.data.counts.keys().hasOnly(['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links',
+           request.resource.data.counts.keys().hasOnly(['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links', 'overtime',
                                                         'huddle', 'circular', 'newsletter',
                                                         'guide-staff', 'guide-paycalc', 'guide-railcard', 'guide-fip', 'guide-rangers']) &&
            (!('calendar'   in request.resource.data.counts) || request.resource.data.counts.calendar   is int) &&
@@ -667,6 +667,7 @@ service cloud.firestore {
            (!('operations' in request.resource.data.counts) || request.resource.data.counts.operations is int) &&
            (!('settings'   in request.resource.data.counts) || request.resource.data.counts.settings   is int) &&
            (!('links'      in request.resource.data.counts) || request.resource.data.counts.links      is int) &&
+           (!('overtime'   in request.resource.data.counts) || request.resource.data.counts.overtime   is int) &&
            (!('huddle'     in request.resource.data.counts) || request.resource.data.counts.huddle     is int) &&
            (!('circular'   in request.resource.data.counts) || request.resource.data.counts.circular   is int) &&
            (!('newsletter' in request.resource.data.counts) || request.resource.data.counts.newsletter is int) &&

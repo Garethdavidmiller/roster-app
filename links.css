@@ -232,6 +232,11 @@ body.auth-ready .container { display: grid; }
 /* No shadow on paper — it is a scroll affordance, and there is no scrolling on paper. */
 @media print { .links-save-row { position: static; box-shadow: none; } }
 
+/* The sticky summary strip starts `hidden` until a design loads. `display: flex` out-specifies the
+   attribute, so an empty strip occupied the header until then. Found by
+   page-visibility-parity.test.mjs — the third instance of this trap in the app. */
+.links-summary[hidden] { display: none !important; }
+
 .links-summary {
     display: flex;
     align-items: center;

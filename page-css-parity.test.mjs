@@ -42,6 +42,7 @@ const PAGES = {
     'operations.html': 'operations.css',
     'settings.html':   'settings.css',
     'links.html':      'links.css',
+    'overtime.html':   'overtime.css',
 };
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');

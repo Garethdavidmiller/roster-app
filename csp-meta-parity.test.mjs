@@ -28,7 +28,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const META_INCOMPATIBLE = new Set(['frame-ancestors', 'report-uri', 'report-to', 'sandbox']);
 
 const SERVED_HTML = ['index.html', 'admin.html', 'paycalc.html', 'operations.html', 'settings.html',
-    'links.html', 'guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html'];
+    'links.html', 'overtime.html', 'guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip.html'];
 
 /** Parse a CSP string into a Map(directive → sorted-value-string), order-independent. */
 function parseCsp(csp) {
