@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: August 2026 — v20.50 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.60 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -324,15 +324,23 @@ today's light theme, so nobody is surprised by a changed app. Today `shared.css`
 **Effort/risk when scoped:** medium effort (every surface/text token needs a dark counterpart, AA
 re-verified in both themes), low risk (additive, behind the toggle).
 
-### Approval workflows (shift swaps, overtime availability)
+### Approval workflows (shift swaps)
 **Status:** Conditional · **Trigger:** demonstrated request volume · **Also gated by:** the governance gate
 
-Staff submit requests; a supervisor approves or declines; outcomes recorded in Firestore. The current
-auth model is sufficient for submitting; a supervisor UI would be needed.
+**Overtime availability came out of this entry and shipped at v20.56** — as a DECLARATION rather than
+a request, which is why it cleared the governance gate this entry is still waiting on. Nobody
+approves or declines anything: staff state when they are free, a reviewer reads it, and the roster is
+planned from it. No outcome is recorded against a person, so there is nothing for the company to
+recognise or fail to recognise. Design: `OVERTIME_AVAILABILITY.md`.
 
-**The real question is whether the volume exists.** If changes are currently handled by direct
-conversation in small numbers, a formal workflow adds process without adding value. And see the
-governance gate: an approval the company does not recognise is a worse outcome than no approval.
+What remains here is the genuinely approval-shaped case — **shift swaps**: staff submit a request, a
+supervisor approves or declines, and the outcome is recorded. The current auth model is sufficient
+for submitting; a supervisor UI would be needed.
+
+**The real question is still whether the volume exists.** If swaps are currently handled by direct
+conversation in small numbers, a formal workflow adds process without adding value. And the
+governance gate bites here in a way it did not for availability: an approval the company does not
+recognise is a worse outcome than no approval.
 
 ### Notifications for approval/assignment events
 **Status:** Conditional · **Depends on:** approval workflows above

@@ -17,6 +17,7 @@ import { authReady } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { NOTICE_PW_OWN_DONE } from './storage-keys.js';
 import { getSession, clearSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
+import { isOvertimeReviewer } from './auth-policy.js';     // nav-drawer pill gating only — never a boundary
 import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
@@ -1100,6 +1101,7 @@ initNavPanel({
     usageIdentity: _calendarSession?.name || (isFirstRun() ? null : getCurrentMember()?.name) || null,
     isAdmin:         CONFIG.ADMIN_NAMES.includes(_calendarSession?.name),
     isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(_calendarSession?.name),
+    isOvertimeReviewer: isOvertimeReviewer(_calendarSession?.name),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _calendarSession ? () => {
         clearSession();

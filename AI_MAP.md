@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: August 2026 — v20.50 · Updated every 0.10 version*
+*Last updated: August 2026 — v20.60 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -29,7 +29,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Body scroll lock, overlay history, focus trap, lightbox lifecycle, card collapse (lockBodyScroll, trapFocus, createLightbox, initCardCollapse, etc.) | `overlay.js` |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
-| Service worker registration + update lifecycle (all six app pages) | `sw-register.js` |
+| Service worker registration + update lifecycle (all seven app pages) | `sw-register.js` |
 | Auth/session helpers (AUTH_KEY, getSession, saveSession, clearSession, ensureFirebaseSession) | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` (+ `admin-boot.js`) + `admin.html` |
 | Settings page — Notifications, Work Email | `settings-app.js` + `settings.html` |
@@ -343,7 +343,7 @@ Shared overlay helpers — singleton module, imported by every page that shows a
 - Imported by: `calendar-app.js`, `admin-app.js`, `paycalc-app.js`, `operations-app.js`, `settings-app.js`, `links-app.js`, `nav-panel.js`
 
 ### `about-lightbox.js`
-Shared About panel for `#iconLightbox` on all six app pages (v12.50).
+Shared About panel for `#iconLightbox` on all seven app pages (v12.50).
 - `initAboutLightbox({ appLabel, bugLinkId, getUserName, onOpen, printFn })` — returns `{ open, close }` or null if the page has no `#iconLightbox`. Owns the version line, the SW "up to date / update available" status, the pre-filled bug-report mailto, and the optional `#lightboxPrintBtn` (close → wait for exit transition → print; `printFn` overrides `window.print()` — the calendar passes a landscape variant for team view).
 - Each page assigns the returned `open` to its module-level `openAboutLightbox` so the nav-drawer logo can open it. Header-logo wiring (back-to-calendar on sub-pages, About on the calendar) stays per-page.
 
@@ -362,7 +362,7 @@ Shared **in-place** sign-in overlay for every protected page (v14.45). Replaces 
 - Imported by `admin-app.js`, `settings-app.js`, `operations-app.js`, `links-app.js`, `paycalc-app.js`.
 
 ### `sw-register.js`
-Shared service worker registration + update lifecycle (v12.28). All six app pages import this instead of duplicating the register/activate/reload pattern.
+Shared service worker registration + update lifecycle (v12.28). All seven app pages import this instead of duplicating the register/activate/reload pattern.
 - `registerServiceWorker({ beforeReload, bfcache })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `calendar-app.js` only).
 - **First-install guard (v16.09):** `hadController` is captured before registering; the controllerchange fired by the first install's `clients.claim()` (uncontrolled → controlled) is swallowed — the page was just loaded from the network so it already IS the newest version. Pre-v16.09 this reloaded every brand-new device (the old `registration.waiting && controller` guard only suppressed the redundant SKIP_WAITING *message*, not the reload — the SW self-activates via install-time `skipWaiting()` regardless).
 - **No `{once:true}` (v16.09):** the controllerchange listener stays armed so a `beforeReload` that declines (links' `confirm()` → Cancel) still receives the NEXT update's event; the default path double-reload is guarded by a `reloadFired` flag instead. Tested by `sw-register.test.mjs` (test:hygiene).
@@ -505,7 +505,7 @@ Shared auth/session module — canonical source for session logic (v11.40).
 - `getFirebaseIdentity()` → `'named' | 'anonymous' | 'none'` · `firebaseSessionIsNamed()` → boolean · `getFirebaseAuthError()` → error code. **B0** (SECURITY_RELEASE_PLAN.md): expose whether `ensureFirebaseSession` established the member's own named account or only the anonymous fallback. `firebaseSessionIsNamed()` is the signal per-member write isolation (B2) will depend on — the anonymous fallback satisfies `request.auth != null` today but carries no `name` claim. **Observability only — no behaviour change in B0.** (v14.39)
 - `ensureNamedSession(name, opts?)` → `Promise<boolean>` · `isTransientAuthError(code)` → boolean. **B1.2** (v14.41; now ENABLED, v14.98): the write pages call `ensureNamedSession` instead of `ensureFirebaseSession`. `opts` accepts `{ retries?, delayMs?, password? }` — the `password` (v18.63) is threaded to both `ensureFirebaseSession` attempts so the typed-password candidate ladder is used. With `CONFIG.ENFORCE_NAMED_SESSION` **on** (the current state), a failed named sign-in is retried a couple of times only for transient (connectivity) errors, then returns whether the member's own named session is active — admin/settings re-show the login overlay, operations/links clear + redirect to admin, paycalc soft-logs (never blocks). Flipping the flag **off** makes it return `ensureFirebaseSession`'s result unchanged (anonymous fallback counts) — identical-to-legacy behaviour, the kill-switch. See SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope".
 - `refreshClaimsIfStale(epoch)` — the B3 CLAIM_EPOCH sweep: force-refreshes the Firebase ID token once per device when `CONFIG.CLAIM_EPOCH` exceeds the device's stored `myb_claim_epoch`, so newly-set custom claims reach every active session. Covered by `session.test.mjs`.
-- `reconcileExpiredIdentity()` → `Promise<void>` (v17.00, Finding #9) — the coordinated post-`authReady` teardown for a Firebase identity that OUTLIVED its local session: `getSession()` clears only localStorage on passive expiry, so a lingering NAMED/admin/manager/designer identity keeps real Firestore write privileges. If the restored user is NAMED but `getSession()` is null, it signs out; anonymous identities and any valid local session are left alone. Login-safe: snapshots `_authGen` and stands down if a login/logout started meanwhile. **Resolves the restored user first** (`auth.currentUser || restoreFirstAuthUser()`, v17.19) — `authReady` only sets persistence, so reading `currentUser` alone would MISS a cold restore. Called by the calendar's `calendarAuthReady` (before the anon bootstrap) AND, as of v17.19 (item 7), by **all five protected coordinators** (admin/settings/operations/links/paycalc) at init — so a direct deep-link to a protected page tears the identity down immediately, not only on the next calendar open/login. Covered by `session.test.mjs` (incl. cold-restoration tests).
+- `reconcileExpiredIdentity()` → `Promise<void>` (v17.00, Finding #9) — the coordinated post-`authReady` teardown for a Firebase identity that OUTLIVED its local session: `getSession()` clears only localStorage on passive expiry, so a lingering NAMED/admin/manager/designer identity keeps real Firestore write privileges. If the restored user is NAMED but `getSession()` is null, it signs out; anonymous identities and any valid local session are left alone. Login-safe: snapshots `_authGen` and stands down if a login/logout started meanwhile. **Resolves the restored user first** (`auth.currentUser || restoreFirstAuthUser()`, v17.19) — `authReady` only sets persistence, so reading `currentUser` alone would MISS a cold restore. Called by the calendar's `calendarAuthReady` (before the anon bootstrap) AND, as of v17.19 (item 7), by **all six protected coordinators** (admin/settings/operations/links/paycalc/overtime) at init — so a direct deep-link to a protected page tears the identity down immediately, not only on the next calendar open/login. Covered by `session.test.mjs` (incl. cold-restoration tests).
 - `restoreFirstAuthUser()` → `Promise<any>` (exported v17.22) — resolves the first `onAuthStateChanged` emission (the IndexedDB session restore) once. Shared by `ensureFirebaseSession`, `reconcileExpiredIdentity`, `primeAuth`, and `admin-auth.js` (which previously hand-rolled its own copy — a divergence that once let a cold-restore fix miss it). Callers wanting the fast path use `auth.currentUser || await restoreFirstAuthUser()`.
 - `sessionReady` — module-level `Promise<boolean>` that resolves once the page coordinator calls `resolveSession()`. Feature modules `await sessionReady` instead of reading `window._mybSession`. (v13.74)
 - `resolveSession(result)` — fulfils `sessionReady`; pass the return value of `ensureFirebaseSession()` (a `Promise<boolean>`) on the auth path, or `false` on the non-auth path. Call exactly once per page-load from the page coordinator. (v13.74)
@@ -1177,7 +1177,7 @@ Pure stale-claim self-heal runner — no DOM, no Firebase. Imported by `firebase
 - Tested by `claim-retry.test.mjs` (no mocks, runs in `test:hygiene`)
 
 ### `nav-panel.js`
-Shared slide-out navigation panel — imported by all six app pages.
+Shared slide-out navigation panel — imported by all seven app pages.
 - `initNavPanel({ currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, onLogoClick })` — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
   - **Double-init guard:** checks `burger.dataset.navPanelInit` at the top — returns early if already initialised. Safe to call on every page render.
 - `resetNavPanel()` (v15.19) — tears down an initialised panel (removes injected DOM, clone-replaces the burger to drop its listeners, clears the guard + module state) so a later `initNavPanel()` rebuilds it with a fresh identity. Used on admin's in-place B1-teardown path, where the drawer was optimistically wired with a stale identity before the session was cleared and re-entered as a different user.
@@ -1310,7 +1310,7 @@ Self-hosted DOMPurify ES module (v3.4.12) — extracted from CDN at v12.04.
 - Precached by the service worker (stale-while-revalidate, like all app JS)
 
 ### `shared.css`
-All CSS shared across all six app pages (index, admin, paycalc, operations, settings, links).
+All CSS shared across all seven app pages (index, admin, paycalc, operations, settings, links, overtime).
 - CSS custom properties (`--primary-blue`, `--accent-gold`, etc.) — **never hardcode hex**
 - Typography scale, badge/pill variants, button types
 - `touch-only` class — hidden by default, revealed on `@media (pointer: coarse)` (touch devices)

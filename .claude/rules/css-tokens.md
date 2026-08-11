@@ -30,7 +30,7 @@ canvas with **off-white cards** (`--surface`, above), so an OS/browser "force da
 light surfaces mangles it — the off-white cards flip to grey while the navy stays put (a real
 staff report, Jul 2026, on a Samsung device). To opt out of algorithmic darkening the app declares
 **`color-scheme: only light`** in `shared.css` (on `html`) AND as a `<meta name="color-scheme"
-content="only light">` on every served page (all six app pages + all five guides — the guides don't
+content="only light">` on every served page (all seven app pages + all five guides — the guides don't
 import `shared.css`, so the meta is their only signal). The `only` keyword (v18.10, was plain
 `light`) forbids a conforming browser from overriding the scheme. **Do not add a
 `prefers-color-scheme` rule or a dark palette** without an explicit owner decision — there is none
@@ -46,7 +46,7 @@ polish generation): `.card-header-toggle` (collapsible) / `.card-header--row` (s
 left `<div>` (title `h2` + `.hint`) against a right `.card-header-actions` cluster (optional
 `.card-year-chip` context chip → Tips/Help `?` button → collapse arrow). `.card-year-chip` names
 the card's tax year / balance / count even while collapsed (`:empty` hides it); `.field-eyebrow`
-is the shared uppercase micro field label (GRADE, TAX CODE, …). **Used by ALL six app pages** (paycalc + admin v18.16; operations + settings + links v18.17). The
+is the shared uppercase micro field label (GRADE, TAX CODE, …). **Used by ALL seven app pages** (paycalc + admin v18.16; operations + settings + links v18.17). The
 old `.card-collapsible-header` grid header is **retired** — only the shared `.card-collapsible-body`
 (show/hide) and `.collapse-chevron` remain. Header context chips currently: `AL left: N` on admin
 (`.al-left-chip` low/none recolours) and the Saved Changes count; the Error Log unresolved count on
@@ -437,7 +437,7 @@ already failed twice — in opposite ways, neither visible by reading the CSS:
   blob into, which is the worst place for the viewport to jump.
 
 **A static CSS test cannot catch either**: both are cascade outcomes, not text. `e2e/pages.spec.js`
-now scans every `input`/`select`/`textarea` on all six pages on **mobile-chrome** (a real coarse
+now scans every `input`/`select`/`textarea` on all seven pages on **mobile-chrome** (a real coarse
 pointer), with every collapsible forced open, and asserts the COMPUTED size. Checkboxes, radios and
 file inputs are excluded — none opens a keyboard, so none can trigger the zoom.
 

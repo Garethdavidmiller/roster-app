@@ -142,6 +142,25 @@ export function rolesFor(member) {
 }
 
 /**
+ * Is this member a reviewer for Overtime Availability — i.e. manager or admin?
+ *
+ * ONE declaration, because the nav drawer's Overtime pill is gated on it and the drawer is
+ * initialised by SEVEN different coordinators. It shipped with the predicate written in exactly one
+ * of them, so the pill appeared only on the Overtime page itself — the one page you are already on
+ * — and the feature was reachable solely by typing its URL. Seven copies of
+ * `ADMIN_NAMES.includes(x) || MANAGER_NAMES.includes(x)` would have been the same bug waiting for
+ * the eighth page.
+ *
+ * CLIENT UX only, like everything else here. The page gates itself and every endpoint re-checks the
+ * claim; this decides whether a destination is offered, never whether it is permitted.
+ * @param {string|null|undefined} member
+ */
+export function isOvertimeReviewer(member) {
+    const r = rolesFor(member);
+    return r.admin || r.manager;
+}
+
+/**
  * Convenience for coordinators: look up the page's policy + the member's roles and decide.
  * Fails CLOSED on an unknown page name (strictest sensible default — named admin required) so a
  * misconfiguration can never accidentally grant access.
