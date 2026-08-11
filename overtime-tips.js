@@ -26,7 +26,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📋', html: 'This tells the roster team when you are <strong>available</strong>. It does not book overtime and does not guarantee any.' },
                     { icon: '✅', html: 'The <strong>released roster</strong> is the only place that shows overtime you have actually been given.' },
-                    { icon: '🔒', html: 'Managers and the Master Admin can see what you submit. Forms are kept for around 13 weeks and then deleted.' },
+                    { icon: '🔒', html: 'Managers and the admin can see what you submit. Forms are kept for around 13 weeks and then deleted.' },
                 ],
             },
         ],
@@ -38,7 +38,7 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '👀', html: 'This list shows the next six roster weeks <strong>whether or not a form exists</strong> — so a week nobody has opened is visible rather than silently absent.' },
-                    { icon: '⚠️', html: '<strong>Not created</strong> means no form was ever opened, so nobody was asked and nobody is outstanding. It never means nobody was needed.' },
+                    { icon: '⚠️', html: '<strong>Missed</strong> means no form was ever opened, so nobody was asked and nobody is outstanding. It never means nobody was needed.' },
                     { icon: '🚫', html: 'Once a week\'s final deadline has passed it can no longer be created, and the row stays as <strong>Missed</strong> until that Saturday goes by.' },
                 ],
             },

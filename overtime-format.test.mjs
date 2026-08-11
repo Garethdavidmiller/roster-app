@@ -214,7 +214,12 @@ describe('states in words', () => {
         // The wording is the whole guard. "No form" phrased neutrally invites the reading that none
         // was required, which is exactly the conclusion this row exists to prevent.
         const missed = rowStateCopy('missed');
-        assert.match(missed.label, /no availability window was created/);
+        assert.match(missed.label, /no form was opened/);
+        // WINDOW is our word for the stored record, never the reviewer's. The page calls it a
+        // form everywhere a person can see, and this label was the one place it leaked.
+        for (const st of ['created', 'not-created', 'not-created-initial-passed', 'missed']) {
+            assert.doesNotMatch(rowStateCopy(st).label, /window/i, st);
+        }
         assert.equal(missed.tone, 'bad');
     });
 
