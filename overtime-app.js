@@ -39,10 +39,11 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import * as OTD from './overtime-data.js';
 import {
-    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, shortDate,
+    weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy,
 } from './overtime-format.js';
 import { CARD_TIPS } from './overtime-tips.js';
 import { renderWeekForm } from './overtime-form.js';
+import { renderWeekDetail as paintWeekDetail } from './overtime-manager.js';
 
 /** Coordinator body, invoked by overtime-boot.js. Exported so a test can import without running. */
 export function init() {
@@ -64,6 +65,8 @@ export function init() {
 
     /** The week the Manager detail card is showing, if any. @type {string|null} */
     let selectedWeek = null;
+    /** The planning rows from the last overview, keyed by week. @type {Map<string, any>} */
+    const horizonByWeek = new Map();
     /** The week a Create preview is currently offering, if any. @type {string|null} */
     let pendingWeek = null;
 
@@ -292,6 +295,8 @@ export function init() {
         if (!r.ok) { renderError(host); return; }
 
         const weeks = r.data.planningWeeks || [];
+        horizonByWeek.clear();
+        for (const w of weeks) horizonByWeek.set(w.weekEnding, w);
         const missing = weeks.filter((/** @type {any} */ w) => !w.exists).length;
         const chip = el('otHorizonChip');
         if (chip) {
@@ -412,16 +417,38 @@ export function init() {
         renderWeekDetail(weekEnding);
     }
 
-    /** Placeholder until the Manager workspace lands; the horizon is the commit's deliverable. */
-    /** @param {string} weekEnding */
-    function renderWeekDetail(weekEnding) {
+    /**
+     * The by-day workspace for the selected week.
+     * @param {string} weekEnding
+     */
+    async function renderWeekDetail(weekEnding) {
         const host = el('otWeekContent');
-        if (!host) return;
-        host.innerHTML = `
-            <div class="ot-state">
-                <span class="ot-state-icon" aria-hidden="true">👥</span>
-                The by-day view for ${esc(shortDate(weekEnding))} is being built.
-            </div>`;
+        const win = horizonByWeek.get(weekEnding);
+        if (!host || !win) return;
+        const data = await OTD.loadWeekDetail(weekEnding, { initialDeadlineAt: win.initialDeadlineAt });
+        // A stale-render guard: the reviewer may have picked another week while this read was in
+        // flight, and painting the older answer over the newer selection is the classic late-read
+        // bug. Cheap to prevent; invisible when it happens.
+        if (selectedWeek !== weekEnding) return;
+        if (!data.ok) { renderError(host); return; }
+        paintWeekDetail(host, win, data, { dates: weekDatesFrom(win.weekStart) });
+        const chip = el('otWeekChip');
+        if (chip) {
+            const received = data.participants.filter((/** @type {any} */ p) => data.submissions.has(p.memberName)).length;
+            chip.textContent = `${received}/${data.participants.length}`;
+        }
+    }
+
+    /**
+     * The seven Sunday→Saturday dates. The server's `weekDates` is authoritative; this mirrors it.
+     * @param {string} weekStart
+     */
+    function weekDatesFrom(weekStart) {
+        const [y, m, d] = String(weekStart).split('-').map(Number);
+        return Array.from({ length: 7 }, (_, i) => {
+            const dt = new Date(Date.UTC(y, m - 1, d + i));
+            return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+        });
     }
 
     // ── Tabs ────────────────────────────────────────────────────────────────────────────────────

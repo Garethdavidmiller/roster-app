@@ -228,6 +228,13 @@ The member's side of the Overtime page. `overtime-form.js` renders one week's se
 
 **Unknown roster context removes the shortcuts rather than guessing them.** `modesFor` offers before/after/before-and-after ONLY where an authoritative duty time exists. The consequence of a wrong base roster is sharper here than on the calendar: the form would put a time the member never works into a declaration they then submit.
 
+### `overtime-manager.js`
+The reviewer's workspace for one selected week: the Firestore reads and the By day / Awaiting views. Reads Firestore DIRECTLY where the member does not — the rules give `admin`/`manager` read across the tree, and this is the surface that benefits.
+
+**Three sections per date, and they must never merge.** Available · Not available · No response. The third is under constant pressure to be folded into the second, because they look alike in a list and a shorter list is tidier — but they are opposites: one person said no, the other said nothing, and a clerk who cannot tell them apart cannot know who is worth a phone call. An EMPTY section still renders its heading, so "nobody outstanding" never looks like a section that failed to draw.
+
+**Revisions are read eagerly, not lazily.** The late/changed markers are wanted INLINE, and a marker that only appears after a drill-down is a marker nobody sees. A missing revision history degrades to no marker rather than a guess — the submission itself still shows.
+
 ### `functions/overtime.js`
 The OVERTIME AVAILABILITY domain — four endpoints and the Firestore orchestration behind them. Every RULE lives next door in `overtime-core.js`, unit-tested with no emulator; this module is the boundary (auth, transactions, batches, HTTP). A factory for the same reasons as `documents.js`: index.js stays the composition root, and the deps argument is the seam the tests drive a fake admin SDK through. Tested by `overtime-endpoints.test.mjs`, which EXECUTES every handler — `functions-surface.test.mjs` proves only that they were defined, and v20.50 is the standing lesson about the difference.
 

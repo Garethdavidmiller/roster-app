@@ -526,3 +526,130 @@
         break-inside: avoid;
     }
 }
+
+/* ── Manager workspace: one panel per date ──────────────────────────────────
+   Three sections inside each, and an EMPTY one still renders its heading. A
+   hidden "No response" section would make "nobody outstanding" look exactly
+   like "the section failed to draw". */
+
+.ot-detail-head { margin-bottom: var(--space-3); }
+
+.ot-detail-week {
+    font-size: var(--type-medium);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.ot-detail-meta,
+.ot-detail-counts {
+    margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.45;
+}
+
+.ot-detail-counts { font-weight: 700; color: var(--text-dark); }
+
+.ot-detail-audience {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-gold);
+    color: var(--primary-blue);
+    font-size: var(--type-badge);
+    font-weight: 700;
+}
+
+/* Submitted availability is a record of what somebody said BEFORE the cut-off,
+   not a standing promise. The note says so wherever the data is read. */
+.ot-current-note {
+    padding: var(--space-3);
+    margin-bottom: var(--space-4);
+    background: var(--rd-hint-bg);
+    border-radius: var(--radius-sm);
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--rd-hint-text);
+}
+
+.ot-day-panel {
+    margin-bottom: var(--space-4);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.ot-day-panel-head {
+    padding: 8px var(--space-3);
+    background: var(--primary-blue);
+    color: white;
+    font-size: var(--type-label);
+    font-weight: 700;
+}
+
+.ot-section { border-top: 1px solid var(--border-light); }
+.ot-section:first-of-type { border-top: none; }
+
+.ot-section-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px var(--space-3);
+    background: var(--bg-faint);
+    font-size: var(--type-badge);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+}
+
+.ot-section--ok      .ot-section-head { color: var(--success-text); }
+.ot-section--unknown .ot-section-head { color: var(--al-low); }
+
+.ot-section-count {
+    padding: 1px 7px;
+    border-radius: var(--radius-pill);
+    background: var(--border-light);
+    color: var(--text-dark);
+    font-size: var(--type-micro);
+}
+
+.ot-section-empty {
+    padding: 8px var(--space-3);
+    font-size: var(--type-small);
+    color: var(--text-light);
+}
+
+.ot-person {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 7px var(--space-3);
+    border-top: 1px solid var(--border-light);
+    font-size: var(--type-small);
+}
+
+.ot-person:first-child { border-top: none; }
+
+.ot-person-name  { font-weight: 700; color: var(--text-dark); }
+.ot-person-grade { color: var(--text-light); font-size: var(--type-badge); }
+.ot-person-answer { color: var(--text-mid); }
+
+/* A change after the initial cut-off is the thing a clerk most needs to notice,
+   so it is a marked chip rather than another line of grey text. */
+.ot-person-flag {
+    padding: 1px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--al-warning-bg);
+    color: var(--warning-amber);
+    font-size: var(--type-micro);
+    font-weight: 700;
+}
+
+@media print {
+    .ot-current-note { border: 1px solid #999; }
+    .ot-day-panel    { break-inside: avoid; }
+    .ot-day-panel-head { background: #eee !important; color: black !important; }
+}

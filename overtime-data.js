@@ -20,8 +20,8 @@
  */
 
 import { fetchWithTimeout, isFetchTimeout, isFetchAborted } from './fetch-timeout.js';
-import { auth } from './firebase-client.js';
-import { clockOffset } from './overtime-format.js';
+import { auth, db, collection, doc, getDocs } from './firebase-client.js';
+import { clockOffset, deriveHistory } from './overtime-format.js';
 
 const BASE = 'https://europe-west2-myb-roster.cloudfunctions.net';
 
@@ -157,4 +157,76 @@ function newMutationId() {
     const bytes = new Uint8Array(16);
     (globalThis.crypto || /** @type {any} */ ({})).getRandomValues?.(bytes);
     return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+
+// ── The reviewer's direct Firestore read ─────────────────────────────────────────────────────────
+
+/** The Overtime collection root. Server-owned, so it is not in firebase-client's COLLECTIONS map. */
+const WINDOWS = 'overtimeWindows';
+
+/**
+ * Read everything the reviewer's workspace needs for one week — DIRECTLY from Firestore.
+ *
+ * The one place this feature reads Firestore from the client. Ordinary members cannot: their path
+ * is `getMyOvertimeState`, which resolves participation server-side. Reviewers can, because the
+ * rules give `admin`/`manager` read across the tree, and this is the surface that benefits.
+ *
+ * Revisions are read for every submission rather than lazily, because the late/changed markers are
+ * wanted INLINE in the by-day view — a marker that only appears after a drill-down is a marker
+ * nobody sees. At a full roster that is one small subcollection read per responder, in parallel.
+ *
+ * @param {string} weekEnding
+ * @param {{ initialDeadlineAt: number }} milestones
+ * @returns {Promise<{ ok: boolean, participants: any[], submissions: Map<string, any> }>}
+ */
+export async function loadWeekDetail(weekEnding, milestones) {
+    try {
+        const windowRef = doc(db, WINDOWS, weekEnding);
+        const [pSnap, sSnap] = await Promise.all([
+            getDocs(collection(windowRef, 'participants')),
+            getDocs(collection(windowRef, 'submissions')),
+        ]);
+
+        /** @type {any[]} */
+        const participants = [];
+        pSnap.forEach((/** @type {any} */ d) => participants.push({ memberName: d.id, ...d.data() }));
+        participants.sort((a, b) => (a.rosterOrder ?? 0) - (b.rosterOrder ?? 0)
+            || String(a.memberName).localeCompare(String(b.memberName)));
+
+        /** @type {any[]} */
+        const heads = [];
+        sSnap.forEach((/** @type {any} */ d) => heads.push({ memberName: d.id, ...d.data() }));
+
+        const withHistory = await Promise.all(heads.map(async (h) => {
+            /** @type {any[]} */
+            const revisions = [];
+            try {
+                const rSnap = await getDocs(collection(doc(windowRef, 'submissions', h.memberName), 'revisions'));
+                rSnap.forEach((/** @type {any} */ d) => {
+                    const r = d.data();
+                    revisions.push({ ...r, acceptedAt: toMillis(r.acceptedAt) });
+                });
+            } catch (_) {
+                // A missing revision history is not a missing SUBMISSION. The head still shows what
+                // they said; only the "changed since initial" marker is unavailable, so it is simply
+                // omitted rather than guessed at.
+            }
+            return { ...h, history: deriveHistory(revisions, h.days, milestones.initialDeadlineAt) };
+        }));
+
+        return { ok: true, participants, submissions: new Map(withHistory.map(h => [h.memberName, h])) };
+    } catch (_) {
+        return { ok: false, participants: [], submissions: new Map() };
+    }
+}
+
+/** Firestore Timestamp | number | Date → epoch ms. */
+/** @param {any} v */
+function toMillis(v) {
+    if (v == null) return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (v instanceof Date) return v.getTime();
+    return 0;
 }

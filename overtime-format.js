@@ -222,6 +222,47 @@ export function isUnavailable(day) {
 }
 
 /**
+ * The three derived facts a Manager needs about how a submission MOVED — computed from the
+ * immutable revisions, never from a stored flag.
+ *
+ * ⚠️ A DELIBERATE DUPLICATE of `deriveHistory` in `functions/overtime-core.js`. Cloud Functions are
+ * CommonJS and cannot import a browser ES module, which is the same boundary `normaliseSurname` and
+ * the payday cutoffs sit on. `overtime-parity.test.mjs` runs BOTH implementations over the same
+ * cases and fails if they disagree — because a drift here is silent: the Manager view would simply
+ * stop flagging a change, and a flag that is absent looks exactly like a change that never happened.
+ *
+ * @param {Array<{revision:number, days:object, acceptedAt:number}>} revisions
+ * @param {Record<string, any>|null} headDays
+ * @param {number} initialDeadlineAt
+ * @returns {{ initialRevision: any, lateInitial: boolean, changedSinceInitial: boolean }}
+ */
+export function deriveHistory(revisions, headDays, initialDeadlineAt) {
+    const sorted = [...(revisions || [])].sort((a, b) => a.revision - b.revision);
+    const before = sorted.filter(r => r.acceptedAt < initialDeadlineAt);
+    const initialRevision = before.length ? before[before.length - 1] : null;
+    const hasSubmission = sorted.length > 0;
+    return {
+        initialRevision,
+        // No submission at all is NOT a late submission — it is no response, and the two are
+        // different answers everywhere else in this feature too.
+        lateInitial: hasSubmission && !initialRevision,
+        changedSinceInitial: !!(initialRevision && headDays
+            && stableStringify(initialRevision.days) !== stableStringify(headDays)),
+    };
+}
+
+/**
+ * Order-independent structural comparison, so a reordered object is not read as a change.
+ * @param {any} v
+ * @returns {string}
+ */
+function stableStringify(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
+    return `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(',')}}`;
+}
+
+/**
  * A one-line summary of a whole week's answers, for a list row.
  * Counts rather than enumerates: seven answers do not fit on a phone row, and "available on 3 days"
  * is what a person actually wants from a summary.
