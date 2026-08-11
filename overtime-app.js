@@ -364,15 +364,19 @@ export function init() {
             ? `<button type="button" class="ot-row-btn" data-open="${esc(w.weekEnding)}"
                        aria-pressed="${selectedWeek === w.weekEnding}">View</button>`
             : (w.canCreate
-                ? `<button type="button" class="ot-row-btn ot-row-btn--primary" data-create="${esc(w.weekEnding)}">Create</button>`
+                // Secondary, not primary: since v20.61 this week opens by itself overnight, so the
+                // button is the "I want it now" shortcut rather than the thing a reviewer must
+                // remember to press. Making it the loudest control on the row would teach a habit
+                // the system exists to remove.
+                ? `<button type="button" class="ot-row-btn" data-create="${esc(w.weekEnding)}">Open now</button>`
                 : '');
         return `
             <div class="ot-week-row ot-week-row--${tone}">
                 <div class="ot-week-main">
                     <div class="ot-week-title">${esc(weekLabel(w.weekEnding))}</div>
                     <div class="ot-week-meta">
-                        Initial ${esc(deadlineLabel(w.initialDeadlineAt))}<br>
-                        Final ${esc(deadlineLabel(w.finalDeadlineAt))}
+                        Answers due ${esc(deadlineLabel(w.initialDeadlineAt))}<br>
+                        Closes ${esc(deadlineLabel(w.finalDeadlineAt))}
                         ${counts ? `<br>${esc(counts)}` : ''}
                     </div>
                     <span class="ot-week-state ot-week-state--${tone}">${esc(label)}</span>

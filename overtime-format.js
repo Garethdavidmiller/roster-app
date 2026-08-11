@@ -147,7 +147,11 @@ export function deadlineLabel(ms) {
     // by its day of the week first.
     const d = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short',
-    }).format(new Date(ms)).replace(',', '');
+    }).format(new Date(ms)).replace(',', '')
+        // en-GB abbreviates September to FOUR letters ("Sept") and every other month to three, so
+        // a column of deadlines came out ragged — "Tue 25 Aug" above "Tue 1 Sept". One month
+        // behaving differently reads as a mistake in a list, so it is trimmed to match.
+        .replace(/\bSept\b/, 'Sep');
     const t = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).format(new Date(ms));
@@ -175,10 +179,18 @@ export function phaseCopy(phase) {
  */
 export function rowStateCopy(state) {
     switch (state) {
-        case 'created':                    return { label: 'Created',      tone: 'ok'   };
-        case 'not-created':                return { label: 'Not created',  tone: 'warn' };
-        case 'not-created-initial-passed': return { label: 'Not created · initial deadline passed', tone: 'bad' };
-        default:                           return { label: 'Missed · no availability window was created', tone: 'bad' };
+        // "Form open" rather than "Created": a reviewer cares that staff can answer, not that a
+        // document was written. And nothing here says WINDOW any more — that is our word for the
+        // record, never theirs. The page calls it a form everywhere a person can see.
+        case 'created':                    return { label: 'Form open',    tone: 'ok'   };
+        // The scheduler opens this overnight, so the row must not read as a demand. It said
+        // "Not created" beside a prominent Create button, which asks a manager to do a job the
+        // system now does — they would either do it redundantly or assume something was broken.
+        case 'not-created':                return { label: 'Opens automatically overnight', tone: 'warn' };
+        // Still opens automatically, but late enough to be worth a look: the first deadline has
+        // gone, so anyone answering now misses the draft roster.
+        case 'not-created-initial-passed': return { label: 'No form yet · first deadline has passed', tone: 'bad' };
+        default:                           return { label: 'Missed · no form was opened, so nobody was asked', tone: 'bad' };
     }
 }
 

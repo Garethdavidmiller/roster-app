@@ -139,7 +139,7 @@ test.describe('manager surface', () => {
         await stubOvertime(page, { weeks: sixWeeks() });
         await page.goto('/overtime.html');
         await expect(page.locator('.ot-week-row')).toHaveCount(6);
-        await expect(page.locator('#otHorizonContent')).toContainText('no availability window was created');
+        await expect(page.locator('#otHorizonContent')).toContainText('no form was opened, so nobody was asked');
         await expect(page.locator('#otHorizonChip')).toContainText('5 without a form');
     });
 
@@ -149,8 +149,11 @@ test.describe('manager surface', () => {
         await page.goto('/overtime.html');
         const missed = page.locator('.ot-week-row').first();
         await expect(missed).toContainText('Missed');
+        // Since automatic creation, a week that has no form yet is not a job waiting for the
+        // reviewer — it opens overnight. The row must say that rather than demand a press.
+        await expect(page.locator('#otHorizonContent')).toContainText('Opens automatically overnight');
         await expect(missed.getByRole('button')).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Create' })).toHaveCount(4);
+        await expect(page.getByRole('button', { name: 'Open now' })).toHaveCount(4);
     });
 
     test('a manager gets no personal form, and no tab strip offering one', async ({ page }) => {
@@ -180,13 +183,13 @@ test.describe('manager surface', () => {
             })));
         await page.goto('/overtime.html');
 
-        await page.getByRole('button', { name: 'Create' }).first().click();
+        await page.getByRole('button', { name: 'Open now' }).first().click();
         await expect(page.locator('#otConfirmBar')).toBeVisible();
         await expect(page.locator('#otConfirmText')).toContainText('1 expected participant');
         await expect(page.locator('#otConfirmCreate')).toBeEnabled();
 
         fail = true;
-        await page.getByRole('button', { name: 'Create' }).nth(1).click();
+        await page.getByRole('button', { name: 'Open now' }).nth(1).click();
         await expect(page.locator('#otConfirmText')).toContainText("Couldn't prepare that week");
         await expect(page.locator('#otConfirmCreate')).toBeDisabled();
     });
