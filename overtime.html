@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<!-- MYB Roster — Overtime availability -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+    <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://apis.google.com; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://apis.google.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src https://myb-roster.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="only light">
+    <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
+         firebase.json, and is the ONLY noindex signal the GitHub Pages mirror gets (it cannot serve
+         headers). Rationale in robots.txt; enforced by sw-asset-check.test.mjs. -->
+    <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#001e3c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MYB Roster">
+  <title>Marylebone Roster — Overtime availability</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="./icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="./icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="./icon-120.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <link rel="preload" href="./fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <!-- Firebase Auth endpoints — overlap TLS with HTML parse so the first sign-in / token restore isn't cold. -->
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
+  <!-- The Overtime endpoints are the page's first data call, so overlap the TLS handshake too. -->
+  <link rel="preconnect" href="https://europe-west2-myb-roster.cloudfunctions.net" crossorigin>
+  <link rel="stylesheet" href="./shared.css">
+  <link rel="stylesheet" href="./overtime.css">
+</head>
+<body>
+
+<!-- Login overlay is injected by login-overlay.js (shared in-place sign-in) when not signed in. -->
+
+<!-- Tips lightbox -->
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+    <div id="tipsLightboxContent" class="lb-content">
+        <button id="tipsLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <div class="tips-lb-title" id="tipsLbTitle"></div>
+        <div id="tipsLbBody"></div>
+    </div>
+</div>
+
+<!-- Icon lightbox -->
+<div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About Marylebone Roster" aria-modal="true">
+    <div id="iconLightboxContent" class="lb-content">
+        <button id="iconLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <img src="icon-192.png" id="lightboxAppIcon" alt="Chiltern Railways app icon">
+        <div class="lightbox-app-name">Marylebone Roster</div>
+        <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
+        <div id="lightboxUpdateStatus" class="lightbox-status"></div>
+        <div class="lightbox-badge">Overtime</div>
+        <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> View staff roster</a>
+        <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
+    </div>
+</div>
+
+<!-- Header -->
+<header class="app-header">
+    <button type="button" class="btn-burger" id="navMenuBtn"
+            aria-label="Open navigation menu" aria-expanded="false">☰</button>
+    <div class="app-header-brand">
+        <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
+        <h1>Marylebone Roster</h1>
+    </div>
+    <span class="badge-page" id="overtimeBadge"><span class="badge-glyph" aria-hidden="true">⏱</span> Overtime</span>
+</header>
+
+<main class="app">
+
+    <h2 class="ot-page-title"><span aria-hidden="true">⏱️</span> Overtime availability</h2>
+
+    <!-- BETA · Live use. Restrained on purpose: the data really is operational, so the banner must
+         not read as "test data" — the wording that would be genuinely wrong here. -->
+    <div class="ot-beta" role="note">
+        <span class="ot-beta-chip">BETA · Live use</span>
+        <p>Availability submitted here is real and may be used when preparing the roster. The
+        feature is still being refined.</p>
+    </div>
+
+    <!-- Tabs. Rendered only for somebody who has BOTH surfaces (a rostered Master Admin); a
+         reviewer with no form of their own, or a member with no review rights, sees one panel and
+         no tab strip at all rather than a tab that leads nowhere. -->
+    <div class="ot-tabs" id="otTabs" role="tablist" aria-label="Overtime views" hidden>
+        <button type="button" class="ot-tab" id="otTabMine" role="tab"
+                aria-selected="true" aria-controls="otMinePanel">My availability</button>
+        <button type="button" class="ot-tab" id="otTabAll" role="tab"
+                aria-selected="false" aria-controls="otAllPanel" tabindex="-1">All availability</button>
+    </div>
+
+    <!-- ── MY AVAILABILITY ───────────────────────────────────────────────────────────────────── -->
+    <section id="otMinePanel" role="tabpanel" aria-labelledby="otTabMine" tabindex="0">
+        <div class="card" id="otMineCard">
+            <div class="card-header card-header-toggle" id="otMineToggleHeader">
+                <div>
+                    <h2><span aria-hidden="true">📝</span> My availability</h2>
+                    <span class="hint">Tell the roster team when you can work overtime</span>
+                </div>
+                <div class="card-header-actions">
+                    <button type="button" class="btn-card-tips" data-card="my-availability"
+                            aria-label="Tips for my availability" title="Tips for my availability">?</button>
+                    <span class="collapse-chevron open" id="otMineChevron">▾</span>
+                </div>
+            </div>
+            <div class="card-collapsible-body open" id="otMineBody">
+                <div class="card-body">
+                    <p class="ot-explainer">Submitting availability does not guarantee overtime. Any
+                    overtime allocated to you will appear when the roster is released.</p>
+                    <div id="otMineContent" aria-live="polite"></div>
+                    <p class="ot-privacy">Managers and the Master Admin can see your submitted
+                    overtime availability. Forms are kept for around 13 weeks and then deleted.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── ALL AVAILABILITY (reviewers) ─────────────────────────────────────────────────────── -->
+    <section id="otAllPanel" role="tabpanel" aria-labelledby="otTabAll" tabindex="0" hidden>
+
+        <!-- The planning horizon. FIRST on the page, above the week detail, because the failure it
+             catches is invisible everywhere else: a week nobody created has no participants, so
+             nobody is outstanding and no reminder can fire. -->
+        <div class="card" id="otHorizonCard">
+            <div class="card-header card-header-toggle" id="otHorizonToggleHeader">
+                <div>
+                    <h2><span aria-hidden="true">🗓️</span> Upcoming weeks</h2>
+                    <span class="hint">Every roster week for the next six — created or not</span>
+                </div>
+                <div class="card-header-actions">
+                    <span class="card-year-chip" id="otHorizonChip"></span>
+                    <button type="button" class="btn-card-tips" data-card="upcoming-weeks"
+                            aria-label="Tips for upcoming weeks" title="Tips for upcoming weeks">?</button>
+                    <span class="collapse-chevron open" id="otHorizonChevron">▾</span>
+                </div>
+            </div>
+            <div class="card-collapsible-body open" id="otHorizonBody">
+                <div class="card-body">
+                    <div id="otHorizonContent" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selected week detail. Populated in the Manager workspace step. -->
+        <div class="card" id="otWeekCard" hidden>
+            <div class="card-header card-header-toggle" id="otWeekToggleHeader">
+                <div>
+                    <h2><span aria-hidden="true">👥</span> Who is available</h2>
+                    <span class="hint" id="otWeekHint">Select a week above</span>
+                </div>
+                <div class="card-header-actions">
+                    <span class="card-year-chip" id="otWeekChip"></span>
+                    <button type="button" class="btn-card-tips" data-card="who-is-available"
+                            aria-label="Tips for who is available" title="Tips for who is available">?</button>
+                    <span class="collapse-chevron open" id="otWeekChevron">▾</span>
+                </div>
+            </div>
+            <div class="card-collapsible-body open" id="otWeekBody">
+                <div class="card-body">
+                    <div id="otWeekContent" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+</main>
+
+<!-- Window creation confirm bar — appears when a reviewer previews a week. -->
+<div class="ot-confirm-bar" id="otConfirmBar" hidden role="region" aria-label="Confirm window creation">
+    <div class="ot-confirm-text" id="otConfirmText"></div>
+    <div class="ot-confirm-actions">
+        <button type="button" class="btn-action btn-secondary" id="otConfirmCancel">Cancel</button>
+        <button type="button" class="btn-action btn-primary" id="otConfirmCreate">Open the form</button>
+    </div>
+</div>
+
+<script type="module" src="./overtime-boot.js"></script>
+</body>
+</html>

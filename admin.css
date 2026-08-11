@@ -174,6 +174,10 @@
             font-size: var(--type-label);
             color: var(--primary-blue);
         }
+        /* `display: flex` out-specifies the `hidden` attribute's UA `display: none`, so without this
+           the AL entitlement banner rendered EMPTY above the booking form before any member was
+           selected. Found by page-visibility-parity.test.mjs; same trap as #calendarControls. */
+        .al-banner[hidden] { display: none !important; }
         .al-banner .al-banner-icon { font-size: var(--type-medium); flex-shrink: 0; }
         /* Four stats on one row — flex with dividers, matching the index lightbox layout */
         .al-banner-numbers { display: flex; align-items: stretch; flex: 1; }

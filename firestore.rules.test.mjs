@@ -1600,3 +1600,109 @@ describe('calendar viewer — read-only, and only the Calendar', () => {
         await assertSucceeds(setDoc(doc(managerDb('S. Silva'), 'overrides', uid()), VALID_OVERRIDE()));
     });
 });
+
+// ── overtimeWindows — Overtime Availability ───────────────────────────────────
+//
+// The smallest ruleset in the file, so the smallest suite: reviewers read, nobody writes. Its
+// value is entirely in the NEGATIVES — every path a client might reach for, tried by name — plus
+// one positive, because a rules file that denied everything to everybody would satisfy the rest.
+//
+// The nested paths are tested individually rather than trusted to the recursive wildcard. A
+// wildcard is exactly the kind of rule that looks like it covers a subtree and does not, and
+// `revisions` is two levels down: a member's whole history of declarations sits there.
+describe('overtimeWindows', () => {
+    const WEEK = '2026-09-05';
+    const PATHS = [
+        ['the window itself',   ['overtimeWindows', WEEK]],
+        ['a participant',       ['overtimeWindows', WEEK, 'participants', 'G. Miller']],
+        ['a submission head',   ['overtimeWindows', WEEK, 'submissions', 'G. Miller']],
+        ['an immutable revision', ['overtimeWindows', WEEK, 'submissions', 'G. Miller', 'revisions', '000001']],
+    ];
+
+    /** Seed the tree behind the rules, the way the Admin SDK does in production. */
+    async function seed() {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'overtimeWindows', WEEK), {
+                weekEnding: WEEK, weekStart: '2026-08-30', audience: 'restricted', policyVersion: 1,
+            });
+            await setDoc(doc(db, 'overtimeWindows', WEEK, 'participants', 'G. Miller'),
+                { memberName: 'G. Miller', grade: 'CEA', rosterOrder: 2 });
+            await setDoc(doc(db, 'overtimeWindows', WEEK, 'submissions', 'G. Miller'),
+                { memberName: 'G. Miller', currentRevision: 1, days: {} });
+            await setDoc(doc(db, 'overtimeWindows', WEEK, 'submissions', 'G. Miller', 'revisions', '000001'),
+                { revision: 1, days: {} });
+        });
+    }
+
+    test('an admin can read every level of the tree', async () => {
+        await seed();
+        for (const [what, path] of PATHS) {
+            await assertSucceeds(getDoc(doc(adminDb(), ...path)), what);
+        }
+    });
+
+    test('a manager can read every level of the tree', async () => {
+        // Managers are the operational readers — the Manager workspace listens to participants and
+        // submission heads directly. If this ever fails the whole feature is blind to its reviewer.
+        await seed();
+        for (const [what, path] of PATHS) {
+            await assertSucceeds(getDoc(doc(managerDb('H. Croft'), ...path)), what);
+        }
+    });
+
+    test('an ordinary named member reads NOTHING, not even their own submission', async () => {
+        // Deliberate: members read through getMyOvertimeState, never Firestore. A participant-based
+        // read rule that no production client exercises would rot, so it is not written.
+        await seed();
+        for (const [, path] of PATHS) {
+            await assertFails(getDoc(doc(namedDb('G. Miller'), ...path)));
+        }
+        await assertFails(getDocs(collection(namedDb('G. Miller'), 'overtimeWindows')));
+    });
+
+    test('a member cannot read a COLLEAGUE\'s submission either', async () => {
+        await seed();
+        await assertFails(getDoc(doc(namedDb('S. Silva', 'uid_silva'), 'overtimeWindows', WEEK, 'submissions', 'G. Miller')));
+    });
+
+    test('the Calendar viewer and an anonymous session read nothing', async () => {
+        // The viewer holds `calendarViewer` and no name/admin/manager, so it fails the same way an
+        // anonymous session does — but assert it by name, because "it obviously has no access" is
+        // what the v20.12 audit found to be wrong about several collections.
+        await seed();
+        for (const [, path] of PATHS) {
+            await assertFails(getDoc(doc(viewerDb(), ...path)));
+            await assertFails(getDoc(doc(anonDb(), ...path)));
+        }
+    });
+
+    test('NOBODY writes — not a member, not a manager, not an admin', async () => {
+        // Every mutation is server-owned through the Admin SDK, because deadline, revision and
+        // identity decisions cannot be expressed as a client write rule. An admin write path here
+        // would also be an impersonation path: the submission identity must always be the caller's.
+        for (const db of [namedDb('G. Miller'), managerDb('H. Croft'), adminDb(), viewerDb(), anonDb()]) {
+            await assertFails(setDoc(doc(db, 'overtimeWindows', WEEK), { weekEnding: WEEK }));
+            await assertFails(setDoc(doc(db, 'overtimeWindows', WEEK, 'participants', 'G. Miller'), { memberName: 'G. Miller' }));
+            await assertFails(setDoc(doc(db, 'overtimeWindows', WEEK, 'submissions', 'G. Miller'), { currentRevision: 9 }));
+            await assertFails(setDoc(doc(db, 'overtimeWindows', WEEK, 'submissions', 'G. Miller', 'revisions', '000002'), { revision: 2 }));
+        }
+    });
+
+    test('an admin cannot rewrite history by deleting a revision', async () => {
+        // The immutability of the audit trail is a rules property, not a convention: `allow write`
+        // covers delete, and a deletable revision would make "changed since initial" forgeable.
+        await seed();
+        await assertFails(deleteDoc(doc(adminDb(), 'overtimeWindows', WEEK, 'submissions', 'G. Miller', 'revisions', '000001')));
+        await assertFails(deleteDoc(doc(managerDb('H. Croft'), 'overtimeWindows', WEEK)));
+    });
+
+    test('a manager can LIST participants and submissions, which the workspace depends on', async () => {
+        // Guard the guard, and the specific capability the Manager view needs: not a get of a known
+        // path, but a query over the collection. A rule that only satisfied single-document reads
+        // would pass every assertion above and leave the workspace empty.
+        await seed();
+        await assertSucceeds(getDocs(collection(managerDb('H. Croft'), 'overtimeWindows', WEEK, 'participants')));
+        await assertSucceeds(getDocs(collection(managerDb('H. Croft'), 'overtimeWindows', WEEK, 'submissions')));
+    });
+});

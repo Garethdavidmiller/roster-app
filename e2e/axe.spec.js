@@ -186,6 +186,33 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    test('overtime — member form (signed in)', async ({ page }) => {
+        // Scanned with the FORM RENDERED, not the empty shell: seven day groups of mode buttons is
+        // the only state on this page with any structure to get wrong.
+        const NOW = Date.parse('2026-08-17T09:00:00Z');
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [{
+                weekEnding: '2026-09-05', weekStart: '2026-08-30',
+                initialDeadlineAt: Date.parse('2026-08-18T11:00:00Z'), draftRosterDate: '2026-08-20',
+                finalDeadlineAt: Date.parse('2026-08-25T11:00:00Z'), finalRosterDate: '2026-08-27',
+                retentionUntil: Date.parse('2026-12-05T00:00:00Z'), policyVersion: 1,
+                audience: 'restricted', phase: 'INITIAL_OPEN',
+                participant: { grade: 'CEA', rosterOrder: 2 }, submission: null,
+            }] }),
+        }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }),
+        }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('links (designer, signed in)', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));

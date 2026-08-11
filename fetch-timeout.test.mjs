@@ -11,7 +11,7 @@
 
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchWithTimeout, isFetchTimeout, FETCH_TIMEOUT_CODE, DEFAULT_FETCH_TIMEOUT_MS } from './fetch-timeout.js';
+import { fetchWithTimeout, isFetchTimeout, isFetchAborted, FETCH_TIMEOUT_CODE, FETCH_ABORTED_CODE, DEFAULT_FETCH_TIMEOUT_MS } from './fetch-timeout.js';
 
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
@@ -114,6 +114,108 @@ describe('fetchWithTimeout', () => {
         assert.equal(isFetchTimeout(null), false);
         assert.equal(isFetchTimeout(undefined), false);
         assert.equal(isFetchTimeout(new Error('nope')), false);
+    });
+});
+
+describe('caller-supplied signal (v20.56)', () => {
+    // Before v20.56 `{...options, signal: ctrl.signal}` silently DROPPED a caller's signal, so this
+    // whole category could not happen — and the "foreign abort" test above was guarding a case no
+    // call site could produce. Now a caller can genuinely cancel, and the copy that follows differs:
+    // a timeout says "may still have gone through", a cancellation says nothing alarming at all.
+
+    test("the caller's signal actually reaches fetch and can cancel the request", async () => {
+        const caller = new AbortController();
+        globalThis.fetch = slowFetch(1000);
+        const p = fetchWithTimeout('https://example.test', { signal: caller.signal }, 5000);
+        caller.abort();
+        await assert.rejects(p, (err) => {
+            assert.ok(isFetchAborted(err), 'a caller cancellation must classify as aborted');
+            assert.ok(!isFetchTimeout(err), 'and must NOT classify as our timeout');
+            assert.equal(err.code, FETCH_ABORTED_CODE);
+            return true;
+        });
+    });
+
+    test('an already-aborted signal never opens the connection', async () => {
+        const caller = new AbortController();
+        caller.abort();
+        let called = false;
+        globalThis.fetch = () => { called = true; return Promise.resolve({ ok: true }); };
+        await assert.rejects(
+            () => fetchWithTimeout('https://example.test', { signal: caller.signal }, 5000),
+            (err) => isFetchAborted(err));
+        assert.equal(called, false, 'fetch must not run for an already-cancelled request');
+    });
+
+    test('OUR timeout still classifies as a timeout even when a caller signal is present', async () => {
+        // The regression this guards: wiring the caller signal in such a way that every abort looks
+        // like the caller's, which would silence exactly the message a write depends on.
+        const caller = new AbortController();
+        globalThis.fetch = slowFetch(1000);
+        await assert.rejects(
+            () => fetchWithTimeout('https://example.test', { signal: caller.signal }, 20),
+            (err) => {
+                assert.ok(isFetchTimeout(err), 'our bound must still win when it is the one that fired');
+                assert.ok(!isFetchAborted(err));
+                return true;
+            });
+    });
+
+    test('when BOTH fire, the timeout wins — "go and check" is the safe direction', async () => {
+        // The reader must be told the write may have landed; being told "cancelled" would let a
+        // committed submission go unchecked.
+        //
+        // Two timers racing does NOT test this — whichever callback lands first, the catch block
+        // usually observes only one condition, so the precedence is never exercised (an earlier
+        // version of this test passed against a build with the checks in the WRONG order). So the
+        // stub aborts the caller signal from inside its own abort handler: by the time our catch
+        // runs, `timedOut` and `callerSignal.aborted` are both true, deterministically.
+        const caller = new AbortController();
+        globalThis.fetch = (_url, opts) => new Promise((_resolve, reject) => {
+            opts?.signal?.addEventListener('abort', () => {
+                caller.abort();
+                const e = new Error('aborted'); e.name = 'AbortError'; reject(e);
+            });
+        });
+        await assert.rejects(
+            () => fetchWithTimeout('https://example.test', { signal: caller.signal }, 15),
+            (err) => {
+                assert.ok(isFetchTimeout(err), 'the timeout classification must take precedence');
+                assert.ok(!isFetchAborted(err));
+                return true;
+            });
+    });
+
+    test('a network failure with a caller signal present is still neither', async () => {
+        const caller = new AbortController();
+        globalThis.fetch = () => Promise.reject(new TypeError('Failed to fetch'));
+        await assert.rejects(
+            () => fetchWithTimeout('https://example.test', { signal: caller.signal }, 1000),
+            (err) => {
+                assert.ok(!isFetchTimeout(err));
+                assert.ok(!isFetchAborted(err), 'an untouched signal must not make a network error look cancelled');
+                return true;
+            });
+    });
+
+    test('the abort listener is removed on success, so a later caller abort is inert', async () => {
+        // A retained listener on a long-lived caller signal leaks one closure per request, and worse,
+        // aborts a controller belonging to a request that already finished.
+        const caller = new AbortController();
+        let removed = false;
+        const realRemove = caller.signal.removeEventListener.bind(caller.signal);
+        caller.signal.removeEventListener = (...args) => { removed = true; return realRemove(...args); };
+        globalThis.fetch = () => Promise.resolve({ ok: true, status: 200 });
+        const r = await fetchWithTimeout('https://example.test', { signal: caller.signal }, 500);
+        assert.equal(r.status, 200);
+        assert.ok(removed, 'the caller-abort listener must be detached once the call settles');
+    });
+
+    test('isFetchAborted is safe on null/undefined/plain errors', () => {
+        assert.equal(isFetchAborted(null), false);
+        assert.equal(isFetchAborted(undefined), false);
+        assert.equal(isFetchAborted(new Error('nope')), false);
+        assert.equal(isFetchAborted({ code: FETCH_TIMEOUT_CODE }), false);
     });
 });
 

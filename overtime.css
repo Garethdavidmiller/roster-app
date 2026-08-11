@@ -1,0 +1,669 @@
+/* ============================================================================
+   overtime.css — page styles for overtime.html
+   ============================================================================
+   Loaded after shared.css, which supplies the canvas, cards, card headers,
+   buttons, chips and every design token used below. Nothing here re-declares a
+   colour, radius, type size or focus recipe that shared.css already owns — the
+   parity suites (focus-ring, type-scale, chip-radius, page-css) enforce that,
+   and the point of them is that a new page joins the system rather than starting
+   a second one.
+
+   The page has one visual idea of its own: a WEEK ROW. Everything the Manager
+   does is per-week, and the member's own form is per-week too, so the row is the
+   unit both surfaces are built from.
+   ========================================================================= */
+
+/* ── Page shell ─────────────────────────────────────────────────────────────
+   `.app` and `.card` are declared PER PAGE in this app, not in shared.css — a
+   convention page-css-parity.test.mjs enforces, and which caught this file
+   borrowing both before it ever rendered. The width matches settings.html: this
+   is a task surface of stacked single-purpose cards, not a workspace, so a wide
+   column would leave the same half-empty navy space the v18.59 settings pass
+   removed. */
+
+.app { max-width: 620px; margin: 0 auto; }
+
+@media (min-width: 768px) {
+    .app        { max-width: 680px; }
+    .app-header { max-width: 680px; margin-left: auto; margin-right: auto; }
+}
+
+.app-header { margin-bottom: 4px; }
+
+.card {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+/* ── Page title ─────────────────────────────────────────────────────────── */
+
+.ot-page-title {
+    color: white;
+    font-size: var(--type-large);
+    font-weight: 700;
+    margin: 0 0 var(--space-3);
+    letter-spacing: 0.01em;
+}
+
+/* ── BETA · Live use ────────────────────────────────────────────────────────
+   Restrained by design. The data really is operational, so this must read as
+   "still being refined", never as "test data" — which would be false, and would
+   invite somebody to submit availability they do not mean. */
+
+.ot-beta {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-4);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: var(--radius);
+}
+
+.ot-beta p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: var(--type-small);
+    line-height: 1.5;
+}
+
+.ot-beta-chip {
+    flex-shrink: 0;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-gold);
+    color: var(--primary-blue);
+    font-size: var(--type-micro);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+
+.ot-tabs {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+/* `display: flex` OUT-SPECIFIES the `hidden` attribute's UA `display: none`, so a hidden element
+   with a display rule renders in full. This app has hit the trap at least twice before — the
+   calendar controls and the Links window editor — so both of this page's toggled containers carry
+   the companion rule explicitly. page-visibility-parity.test.mjs now fails without them. */
+.ot-tabs[hidden] { display: none !important; }
+
+.ot-tab {
+    flex: 1;
+    padding: 10px var(--space-3);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: var(--radius-button);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.75);
+    font-family: var(--font-sans);
+    font-size: var(--type-button);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.ot-tab[aria-selected="true"] {
+    background: var(--accent-gold);
+    border-color: var(--accent-gold);
+    color: var(--primary-blue);
+}
+
+.ot-tab:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
+
+/* ── Explainer + privacy copy ───────────────────────────────────────────── */
+
+.ot-explainer {
+    margin: 0 0 var(--space-4);
+    font-size: var(--type-body);
+    line-height: 1.55;
+    color: var(--text-mid);
+}
+
+.ot-privacy {
+    margin: var(--space-4) 0 0;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-light);
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--text-light);
+}
+
+/* ── Week rows — the page's one structural idea ─────────────────────────── */
+
+.ot-week-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.ot-week-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-left: 4px solid var(--border-mid);
+    border-radius: var(--radius);
+}
+
+/* Tone is carried by the left edge AND the state label's own words, never by
+   colour alone — a red bar that says nothing is unreadable to anyone who cannot
+   see it, and this row's whole job is to report an omission. */
+.ot-week-row--ok   { border-left-color: var(--success-green); }
+.ot-week-row--warn { border-left-color: var(--al-low); }
+.ot-week-row--bad  { border-left-color: var(--error-red); background: var(--error-bg); }
+
+.ot-week-main { flex: 1; min-width: 0; }
+
+.ot-week-title {
+    font-size: var(--type-label);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.ot-week-meta {
+    margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.45;
+}
+
+.ot-week-state {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: var(--type-badge);
+    font-weight: 700;
+}
+
+.ot-week-state--ok   { color: var(--success-text); }
+.ot-week-state--warn { color: var(--al-low); }
+.ot-week-state--bad  { color: var(--error-text); }
+
+.ot-week-actions {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
+}
+
+/* Compact row action — smaller than a card's primary button, because a row can
+   hold several and the card's own action must stay the loudest thing on it. */
+.ot-row-btn {
+    padding: 7px 12px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-xs);
+    background: white;
+    color: var(--text-dark);
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease-out);
+}
+
+.ot-row-btn:hover  { background: var(--bg-light); }
+.ot-row-btn:active { transform: scale(var(--press-scale)); }
+.ot-row-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+.ot-row-btn--primary {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
+}
+.ot-row-btn--primary:hover { background: var(--primary-blue-dark); }
+
+.ot-row-btn[aria-pressed="true"] {
+    background: var(--accent-gold);
+    border-color: var(--accent-gold);
+    color: var(--primary-blue);
+}
+
+/* ── States: loading, empty, error ──────────────────────────────────────────
+   Three DIFFERENT things, so three different treatments. An empty screen used
+   for both "nothing is open for you" and "the load failed" is the commonest way
+   a page lies about its own state. */
+
+.ot-state {
+    padding: var(--space-5) var(--space-4);
+    text-align: center;
+    font-size: var(--type-body);
+    line-height: 1.55;
+    color: var(--text-mid);
+}
+
+.ot-state-icon {
+    display: block;
+    font-size: var(--type-xl);
+    margin-bottom: var(--space-2);
+}
+
+.ot-state--error {
+    color: var(--error-text);
+    background: var(--error-bg);
+    border-radius: var(--radius);
+}
+
+.ot-state-actions { margin-top: var(--space-3); }
+
+/* ── Create-window confirm bar ──────────────────────────────────────────────
+   Fixed to the bottom rather than inline, so the preview it describes stays on
+   screen while it is read. Mirrors the admin over-entitlement confirm bar. */
+
+.ot-confirm-bar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4);
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+    background: var(--al-confirm-bg);
+    border-top: 3px solid var(--al-confirm-accent);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.16);
+}
+
+.ot-confirm-bar[hidden] { display: none !important; }
+
+.ot-confirm-text {
+    flex: 1;
+    min-width: 200px;
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--text-dark);
+}
+
+.ot-confirm-text strong { color: var(--primary-blue); }
+
+/* The bar stays on screen carrying a failure message, so its Create button spends real time
+   disabled. `.btn-action` has no disabled look of its own — the app's idiom for that is the muted
+   opacity used by the nav bell and the reset-request button. */
+.ot-confirm-actions .btn-action:disabled {
+    opacity: 0.5;
+    cursor: default;
+    transform: none;
+}
+
+.ot-confirm-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+/* ── Desktop ────────────────────────────────────────────────────────────────
+   A min-width query, never a hover/pointer one: some Android devices misreport
+   `hover: hover`, so pointer queries are only ever safe for cosmetic :hover. */
+
+@media (min-width: 900px) {
+    .ot-tabs { max-width: 420px; }
+    .ot-week-row { padding: var(--space-4); }
+    .ot-week-actions { flex-direction: row; align-items: center; }
+}
+
+/* ── Print ──────────────────────────────────────────────────────────────────
+   Every new surface needs print rules (CLAUDE.md). A printed page is a snapshot
+   somebody carries to a mess room, so the controls go and the content stays. */
+
+@media print {
+    .ot-beta,
+    .ot-tabs,
+    .ot-confirm-bar,
+    .ot-week-actions,
+    .ot-row-btn { display: none !important; }
+
+    .ot-page-title { color: black; }
+
+    .ot-week-row {
+        background: white !important;
+        border: 1px solid #999;
+        break-inside: avoid;
+    }
+}
+
+/* ── The seven-day form ─────────────────────────────────────────────────────
+   Designed for a thumb on a 390px phone: one card per day, the roster on the
+   right of the day name, and full-width mode buttons that wrap. Seven days is a
+   lot of interaction, so nothing is smaller than it needs to be. */
+
+.ot-form-head { margin-bottom: var(--space-4); }
+
+.ot-form-week {
+    font-size: var(--type-medium);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.ot-form-meta {
+    margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.45;
+}
+
+/* Roster context could not be established. Says so, and says what still works —
+   never a bare failure, and never a base roster dressed up as current. */
+.ot-roster-warning {
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+    background: var(--al-warning-bg);
+    border-left: 4px solid var(--al-warning);
+    border-radius: var(--radius-sm);
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--text-dark);
+}
+
+.ot-days {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.ot-day {
+    padding: var(--space-3);
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-left: 4px solid var(--border-mid);
+    border-radius: var(--radius);
+}
+
+/* An ANSWERED day is marked, and an unanswered one is simply not — no red, no
+   warning. Seven unanswered days on first open is the normal state, not an
+   error, and colouring it as one would make the form feel like a telling-off. */
+.ot-day--answered { border-left-color: var(--success-green); }
+
+.ot-day-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.ot-day-name {
+    font-size: var(--type-label);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.ot-day-roster {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+
+.ot-day-answer {
+    font-size: var(--type-body);
+    color: var(--text-dark);
+}
+
+.ot-modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ot-mode {
+    /* `1 1 0` not `1 1 auto`: equal columns read as a set of choices, where content-width buttons
+       read as a sentence and leave a ragged edge between rows. */
+    flex: 1 1 0;
+    min-width: 44%;
+    /* 16px: never below it on a focusable control — iOS force-zooms the page. */
+    padding: 9px 10px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-sm);
+    background: white;
+    color: var(--text-dark);
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+}
+
+.ot-mode:hover  { background: var(--bg-light); }
+.ot-mode:active { transform: scale(var(--press-scale)); }
+.ot-mode:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+.ot-mode[aria-pressed="true"] {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
+}
+
+.ot-custom {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.ot-custom-label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+
+.ot-custom-input {
+    /* --type-medium is 16px, which is the floor for any focusable field: below it
+       iOS zooms the viewport on focus and the member loses their place. */
+    padding: 8px 10px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-sm);
+    background-color: var(--field-bg);
+    font-family: var(--font-sans);
+    font-size: var(--type-medium);
+    color: var(--text-dark);
+}
+
+.ot-custom-input:focus-visible {
+    background-color: white;
+    outline: var(--focus-outline);
+    outline-offset: 1px;
+    box-shadow: var(--focus-ring);
+}
+
+.ot-custom-hint {
+    flex: 1 1 100%;
+    font-size: var(--type-small);
+    color: var(--text-light);
+}
+
+.ot-feedback {
+    margin: var(--space-3) 0;
+    font-size: var(--type-small);
+    line-height: 1.5;
+    min-height: 1em;
+}
+
+.ot-feedback--ok   { color: var(--success-text); }
+.ot-feedback--warn { color: var(--error-text); }
+.ot-feedback--busy { color: var(--text-mid); }
+
+.ot-closed-note {
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    background: var(--bg-light);
+    border-radius: var(--radius-sm);
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--text-mid);
+}
+
+.ot-closed-note strong { color: var(--text-dark); }
+
+.ot-history { margin-top: var(--space-5); }
+
+.ot-history-title {
+    margin-bottom: var(--space-2);
+    font-size: var(--type-small);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
+@media (min-width: 700px) {
+    /* Two mode buttons per row is right on a phone; on a wider column the labels
+       fit three-up without truncating, which shortens the form by two rows. */
+    .ot-mode { min-width: 30%; }
+}
+
+@media print {
+    .ot-modes,
+    .ot-custom,
+    .ot-feedback,
+    .ot-submit { display: none !important; }
+
+    .ot-day {
+        background: white !important;
+        border: 1px solid #999;
+        break-inside: avoid;
+    }
+}
+
+/* ── Manager workspace: one panel per date ──────────────────────────────────
+   Three sections inside each, and an EMPTY one still renders its heading. A
+   hidden "No response" section would make "nobody outstanding" look exactly
+   like "the section failed to draw". */
+
+.ot-detail-head { margin-bottom: var(--space-3); }
+
+.ot-detail-week {
+    font-size: var(--type-medium);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.ot-detail-meta,
+.ot-detail-counts {
+    margin-top: 2px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.45;
+}
+
+.ot-detail-counts { font-weight: 700; color: var(--text-dark); }
+
+.ot-detail-audience {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-gold);
+    color: var(--primary-blue);
+    font-size: var(--type-badge);
+    font-weight: 700;
+}
+
+/* Submitted availability is a record of what somebody said BEFORE the cut-off,
+   not a standing promise. The note says so wherever the data is read. */
+.ot-current-note {
+    padding: var(--space-3);
+    margin-bottom: var(--space-4);
+    background: var(--rd-hint-bg);
+    border-radius: var(--radius-sm);
+    font-size: var(--type-small);
+    line-height: 1.5;
+    color: var(--rd-hint-text);
+}
+
+.ot-day-panel {
+    margin-bottom: var(--space-4);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.ot-day-panel-head {
+    padding: 8px var(--space-3);
+    background: var(--primary-blue);
+    color: white;
+    font-size: var(--type-label);
+    font-weight: 700;
+}
+
+.ot-section { border-top: 1px solid var(--border-light); }
+.ot-section:first-of-type { border-top: none; }
+
+.ot-section-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px var(--space-3);
+    background: var(--bg-faint);
+    font-size: var(--type-badge);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+}
+
+.ot-section--ok      .ot-section-head { color: var(--success-text); }
+.ot-section--unknown .ot-section-head { color: var(--al-low); }
+
+.ot-section-count {
+    padding: 1px 7px;
+    border-radius: var(--radius-pill);
+    background: var(--border-light);
+    color: var(--text-dark);
+    font-size: var(--type-micro);
+}
+
+.ot-section-empty {
+    padding: 8px var(--space-3);
+    font-size: var(--type-small);
+    color: var(--text-light);
+}
+
+.ot-person {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding: 7px var(--space-3);
+    border-top: 1px solid var(--border-light);
+    font-size: var(--type-small);
+}
+
+.ot-person:first-child { border-top: none; }
+
+.ot-person-name  { font-weight: 700; color: var(--text-dark); }
+.ot-person-grade { color: var(--text-light); font-size: var(--type-badge); }
+.ot-person-answer { color: var(--text-mid); }
+
+/* A change after the initial cut-off is the thing a clerk most needs to notice,
+   so it is a marked chip rather than another line of grey text. */
+.ot-person-flag {
+    padding: 1px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--al-warning-bg);
+    color: var(--warning-amber);
+    font-size: var(--type-micro);
+    font-weight: 700;
+}
+
+@media print {
+    .ot-current-note { border: 1px solid #999; }
+    .ot-day-panel    { break-inside: avoid; }
+    .ot-day-panel-head { background: #eee !important; color: black !important; }
+}
+
+/* Back to the list of a member's own weeks, after opening one of them. */
+.ot-back-to-list { margin-top: var(--space-4); }

@@ -55,6 +55,11 @@ export const PAGE_POLICIES = Object.freeze({
     admin:      { requireNamed: true,  role: null },
     operations: { requireNamed: true,  role: ['admin'] },
     links:      { requireNamed: true,  role: ['designer'] },
+    // Overtime during the restricted live beta: reviewers only. `manager` is a first-class role
+    // here rather than an also-ran — this is the first page in the app whose PRIMARY audience is
+    // the manager rather than the admin. At full launch the role list drops away and the policy
+    // becomes a plain named-user page, because participation (not a role) decides what is shown.
+    overtime:   { requireNamed: true,  role: ['admin', 'manager'] },
 });
 
 /** @returns {AuthDecision} */

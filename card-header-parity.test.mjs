@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 /** The app pages that carry `.card-header` cards. index.html has none (the calendar is a grid). */
-const PAGES = ['admin.html', 'paycalc.html', 'operations.html', 'settings.html', 'links.html'];
+const PAGES = ['admin.html', 'paycalc.html', 'operations.html', 'settings.html', 'links.html', 'overtime.html'];
 
 // Comments are stripped BEFORE matching: a long explanatory comment between the `.card-header` and
 // its title would otherwise push the heading past the search window and silently skip that card —
