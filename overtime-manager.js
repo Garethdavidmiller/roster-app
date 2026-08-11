@@ -45,7 +45,7 @@
 
 import {
     shortDate, deadlineLabel, weekSpan, weekLabel, countsCopy, answerCopy, answerTone,
-    isUnavailable, asAtLine,
+    isUnavailable, isAvailableAnswer, asAtLine, rosterBadge, sameAnswer, answerAnchorStale,
 } from './overtime-format.js';
 
 /**
@@ -53,7 +53,8 @@ import {
  *
  * @param {HTMLElement} host
  * @param {any} win the window row from the planning horizon (carries the stored milestones)
- * @param {{ participants: any[], submissions: Map<string, any> }} data
+ * @param {{ participants: any[], submissions: Map<string, any>,
+ *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
  * @param {{ dates: string[], now: number }} opts
  */
 export function renderWeekDetail(host, win, data, { dates, now }) {
@@ -96,7 +97,8 @@ function ofGrade(participants, grade) {
 /**
  * The whole surface as one string. Pure — same inputs, same output, no DOM reads.
  * @param {any} win
- * @param {{ participants: any[], submissions: Map<string, any> }} data
+ * @param {{ participants: any[], submissions: Map<string, any>,
+ *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
  * @param {{ dates: string[], now: number, grade: string, day?: string }} state
  */
 function build(win, data, { dates, now, grade, day = 'ALL' }) {
@@ -138,7 +140,7 @@ function build(win, data, { dates, now, grade, day = 'ALL' }) {
         </div>
         ${gradeStrip(grades, grade)}
         ${glanceStrip(dates, participants, submissions, day)}
-        ${dates.map(date => dayPanel(date, participants, submissions, day)).join('')}
+        ${dates.map(date => dayPanel(date, participants, submissions, day, data.roster || {})).join('')}
         ${awaitingPanel(participants, submissions)}`;
 }
 
@@ -196,22 +198,38 @@ function glanceStrip(dates, participants, submissions, activeDay) {
     const chips = dates.map(date => {
         const n = participants.filter(p => {
             const sub = submissions.get(p.memberName);
-            return sub && !isUnavailable(sub.days?.[date]);
+            // POSITIVE. `!isUnavailable(undefined)` is true, so the negation counted a member
+            // whose submission lacked this date as available — inventing a body for a shift.
+            return sub && isAvailableAnswer(sub.days?.[date]);
         }).length;
-        const tone = n === 0 ? 'none' : (n <= 2 ? 'low' : 'ok');
+        // ── ZERO IS A JUDGEMENT THE APP CAN MAKE; "ENOUGH" IS NOT (v20.87, external audit) ──────
+        //
+        // There used to be a third tone: 1–2 was amber, 3+ was plain. That put the app's opinion on
+        // a number it has no basis for. Four people all available only before 07:00 does not fill a
+        // 15:00–23:00 vacancy, and two available all day might fill two — the count alone cannot
+        // tell them apart, because only the reviewer knows which shift is short.
+        //
+        // Zero survives, because zero is the one figure that means the same thing whatever the
+        // vacancy: nobody offered anything, so this day cannot be solved from this page at all.
+        const tone = n === 0 ? 'none' : 'some';
         return `<button type="button" class="ot-glance-day ot-glance-day--${tone}"
-                        data-glance="${esc(date)}" aria-pressed="${date === activeDay}">
+                        data-glance="${esc(date)}" aria-pressed="${date === activeDay}"
+                        aria-label="${esc(shortDate(date))} — ${n} with some availability">
                     <span class="ot-glance-name">${esc(shortDate(date))}</span>
                     <span class="ot-glance-count">${n}</span>
                 </button>`;
     }).join('');
     return `
-        <div class="ot-glance" role="group" aria-label="Available staff by day — choose a day to show only that day">
+        <div class="ot-glance" role="group" aria-label="Staff with some availability, by day — choose a day to show only that day">
             <button type="button" class="ot-glance-day ot-glance-day--all" data-glance="ALL" aria-pressed="${activeDay === 'ALL'}">
                 <span class="ot-glance-name">All week</span>
             </button>
             ${chips}
-        </div>`;
+        </div>
+        <!-- Says what the numbers ARE. Without it a bare row of counts invites the reading the
+             tones no longer offer — that a bigger number is a solved day. -->
+        <p class="ot-glance-note">Each number is how many people offered SOME availability that
+        day — not whether it covers the shift you need.</p>`;
 }
 
 /**
@@ -235,18 +253,28 @@ function wireGlance(host, onPick) {
 }
 
 /** One date: available, not available, no response — three sections, never merged. */
-/** @param {string} date @param {any[]} participants @param {Map<string, any>} submissions @param {string} activeDay */
-function dayPanel(date, participants, submissions, activeDay = 'ALL') {
+/** @param {string} date @param {any[]} participants @param {Map<string, any>} submissions
+ *  @param {string} activeDay @param {Record<string, Record<string, any>>} roster */
+function dayPanel(date, participants, submissions, activeDay = 'ALL', roster = {}) {
     /** @type {string[]} */ const available = [];
     /** @type {string[]} */ const unavailable = [];
     /** @type {string[]} */ const noResponse = [];
 
     for (const p of participants) {
+        const ctx = roster[p.memberName]?.[date] || null;
         const sub = submissions.get(p.memberName);
-        if (!sub) { noResponse.push(personRow(p, null, null)); continue; }
+        if (!sub) { noResponse.push(personRow(p, null, null, ctx, null)); continue; }
         const day = sub.days?.[date];
-        const row = personRow(p, day, sub.history);
-        (isUnavailable(day) ? unavailable : available).push(row);
+        const row = personRow(p, day, sub.history, ctx, sub.history?.initialRevision?.days?.[date]);
+        // THREE-VALUED, asked positively (v20.87). It used to be `isUnavailable(day) ? unavailable
+        // : available`, whose negation is TRUE for a missing day — so a submission that somehow
+        // lacked this date filed that person under Available, with no answer chip beside their
+        // name to contradict it. Now each section requires its own positive answer, and a day
+        // neither of them claims falls through to No response, which is what it is: they submitted
+        // a form, and it says nothing about this date.
+        if (isAvailableAnswer(day)) available.push(row);
+        else if (isUnavailable(day)) unavailable.push(row);
+        else noResponse.push(row);
     }
 
     // `hidden` in the MARKUP, not toggled afterwards — the render stays a pure function of state.
@@ -281,16 +309,49 @@ function section(title, rows, tone) {
  * same value and deriving them from one argument is what stops a green chip ever reading
  * "Not available". Pass `null` for somebody who has not answered at all — that is a real state
  * (`none`), not a missing string.
+ *
+ * ── THE ROSTER BELONGS ON THIS ROW (v20.87, external audit) ─────────────────────────────────────
+ *
+ * "Available after 15:00" is only actionable next to what that person is rostered to work. The
+ * member's own form knows the duty — it is what generated the option — and until now the app threw
+ * that away at exactly the point somebody had to make a decision from it. It matters most in the
+ * case the feature exists for: a member who answered "Rest day · available all day" and has SINCE
+ * been given overtime is no use for sickness cover, and the reviewer's screen did not say so.
+ *
+ * `answerAnchorStale` then warns where the two disagree — the same predicate the member's form
+ * uses, so both ends of the record flag the same fact rather than one noticing and the other not.
+ *
+ * ── AND WHAT CHANGED, NOT MERELY THAT SOMETHING DID ─────────────────────────────────────────────
+ *
+ * `changedSinceInitial` was a flag repeated under a person's name on all seven days, saying only
+ * that some day somewhere had moved. The initial revision is already downloaded — that is the point
+ * of keeping immutable revisions — so the row can show the actual before-and-after on the day it
+ * happened, which is what a clerk revisiting a decision needs. Days that did not change say
+ * nothing, so the marker means something wherever it appears.
+ *
  * @param {any} p @param {any} day @param {any} history
+ * @param {any} ctx that member's roster for THIS date, or null when it could not be read
+ * @param {any} initialDay what they had said for this date at the initial deadline, if anything
  */
-function personRow(p, day, history) {
+function personRow(p, day, history, ctx = null, initialDay = null) {
     const flags = [];
+    // Whole-submission facts first — these are about the FORM, not about this date.
     if (history?.lateInitial) flags.push('Submitted after initial deadline');
-    else if (history?.changedSinceInitial) flags.push('Changed since initial deadline');
+    // Per-DAY, and only where this day genuinely moved. `sameAnswer` is structural for the same
+    // reason the member's form uses it: the two sides pass through different producers and a key
+    // reorder is not a change of mind.
+    else if (initialDay && day && !sameAnswer(initialDay, day)) {
+        flags.push(`Changed after initial deadline · was ${answerCopy(initialDay)}`);
+    }
+    // The roster moved out from under an answer that was anchored to it. Distinct from the above:
+    // there the MEMBER changed their mind, here the roster changed under a declaration they stand
+    // by — and a clerk acting on it needs to know which of the two happened.
+    if (answerAnchorStale(day, ctx)) flags.push('Roster changed since this answer');
     return `
         <div class="ot-person">
             <span class="ot-person-name">${esc(p.memberName)}</span>
             ${p.grade ? `<span class="ot-person-grade">${esc(p.grade)}</span>` : ''}
+            <span class="ot-person-roster"><span class="visually-hidden">Rostered: </span>${rosterBadge(ctx)}</span>
             ${day ? `<span class="ot-answer ot-answer--${answerTone(day)}">${esc(answerCopy(day))}</span>` : ''}
             ${flags.length ? `<div class="ot-person-flags">${
                 flags.map(f => `<span class="ot-person-flag">${esc(f)}</span>`).join('')}</div>` : ''}
@@ -305,6 +366,11 @@ function awaitingPanel(participants, submissions) {
         <div class="ot-day-panel">
             <div class="ot-day-panel-head">Awaiting a form</div>
             ${waiting.length
+                // NO roster badge on this panel, deliberately. Every other row is about ONE date and
+                // can carry that date's duty; this list spans the whole week, so a single badge
+                // would have to pick a day, and whichever it picked would be read as "what they are
+                // working" rather than "what they are working on the Tuesday". The by-day panels
+                // above already show these people, with the right roster on each.
                 ? waiting.map(p => personRow(p, null, null)).join('')
                 : '<div class="ot-section-empty">Everyone has responded</div>'}
         </div>`;

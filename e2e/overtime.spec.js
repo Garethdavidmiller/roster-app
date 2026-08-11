@@ -1148,6 +1148,44 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
     });
 
+    test('the reviewer sees what each person is ROSTERED to work, beside what they offered', async ({ page }) => {
+        // The rules are unit-tested; only a browser answers whether the roster read actually
+        // REACHES the workspace — it is a second Firestore query, threaded through loadWeekDetail
+        // and two render layers, and every one of those hops fails silently by rendering nothing.
+        //
+        // The participant is a REAL roster member, and that is load-bearing: `loadRosterForMembers`
+        // resolves the base roster from `teamMembers`, so a fixture name resolves to nothing and
+        // renders the honest "Roster unavailable" — which a bare "is there a roster cell?" assertion
+        // would happily accept from a build where the read is not wired at all. (First pass of this
+        // test did exactly that, and survived the mutation.) With a real name the cell must contain
+        // a real shift chip.
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, [{ id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1 }]);
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW,
+                planningWeeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+                    expected: 1, received: 1, noResponse: 0 }], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        const rosters = page.locator('.ot-person-roster');
+        expect(await rosters.count(), 'no roster cell at all means the row never got one')
+            .toBeGreaterThan(0);
+        // The app's OWN shift chip, resolved through the shared ladder — not the "Roster
+        // unavailable" placeholder, which is what an unwired read produces and which looks
+        // identical to a working one at the level of "is there a cell here".
+        await expect(page.locator('.ot-person-roster .shift-badge').first()).toBeVisible();
+        await expect(page.locator('.ot-person-roster').filter({ hasText: 'Roster unavailable' }))
+            .toHaveCount(0);
+        // And the screen reader gets the word that says what the chip IS.
+        await expect(rosters.first()).toContainText('Rostered:');
+    });
+
     test('the reviewer\'s day pick survives a grade switch', async ({ page }) => {
         // Both lenses re-render from one state now. Before, the grade repaint reset the day to All
         // week — a clerk reading Saturday's CEAs who tapped CES was bounced to the full week.

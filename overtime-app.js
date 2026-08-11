@@ -869,13 +869,15 @@ export function init() {
         const host = el('otWeekContent');
         const win = horizonByWeek.get(weekEnding);
         if (!host || !win) return;
-        const data = await OTD.loadWeekDetail(weekEnding, { initialDeadlineAt: win.initialDeadlineAt });
+        const dates = weekDatesFrom(win.weekStart);
+        const data = await OTD.loadWeekDetail(weekEnding,
+            { initialDeadlineAt: win.initialDeadlineAt }, dates);
         // A stale-render guard: the reviewer may have picked another week while this read was in
         // flight, and painting the older answer over the newer selection is the classic late-read
         // bug. Cheap to prevent; invisible when it happens.
         if (selectedWeek !== weekEnding) return;
         if (!data.ok) { renderError(host, () => renderWeekDetail(weekEnding)); return; }
-        paintWeekDetail(host, win, data, { dates: weekDatesFrom(win.weekStart), now: OTD.correctedNow() });
+        paintWeekDetail(host, win, data, { dates, now: OTD.correctedNow() });
         const chip = el('otWeekChip');
         if (chip) {
             const received = data.participants.filter((/** @type {any} */ p) => data.submissions.has(p.memberName)).length;

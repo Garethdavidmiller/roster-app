@@ -937,6 +937,23 @@ body {
 
 .ot-person-name  { font-weight: 700; color: var(--text-dark); }
 .ot-person-grade { color: var(--text-light); font-size: var(--type-badge); }
+
+/* The member's ROSTER for this date (v20.87). Sits between the name and the answer, which is the
+   order a reviewer reads the row in: who, what they are working, what they offered. It is the same
+   `getShiftBadge` chip the calendar draws, so no new vocabulary — and it is deliberately NOT pushed
+   to the right edge, because that column belongs to the answer and a second thing in it would break
+   the scan down the page. */
+.ot-person-roster {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.ot-person-roster .ot-day-time {
+    color: var(--text-light);
+    font-size: var(--type-badge);
+    white-space: nowrap;
+}
+
 .ot-person .ot-answer { margin-left: auto; }
 
 /* Flags take their OWN line, so a flag can never sit between a name and its answer chip: the
@@ -1013,9 +1030,20 @@ body {
 
 /* A day with NOBODY says so in its own right, rather than by being an empty
    section several screens further down. */
+/* TWO tones, not three (v20.87). The amber "1–2 is low" band was the app expressing an opinion on
+   a number it cannot judge: four people available only before 07:00 do not fill a 15:00–23:00
+   vacancy, and two available all day might fill two. Only the reviewer knows which shift is short.
+   Zero keeps its red because zero means the same thing whatever the vacancy. */
 .ot-glance-day--none  { border-color: var(--error-red); }
 .ot-glance-day--none  .ot-glance-count { color: var(--error-text); }
-.ot-glance-day--low   { border-color: var(--al-low); }
+
+/* Says what the counts are, so a row of bare numbers cannot be read as a row of verdicts. */
+.ot-glance-note {
+    margin: 6px 0 0;
+    font-size: var(--type-micro);
+    color: var(--text-light);
+    line-height: 1.4;
+}
 
 .ot-glance-day[aria-pressed="true"] {
     background: var(--primary-blue);

@@ -33,9 +33,14 @@
  */
 
 import { db, COLLECTIONS, collection, query, where, getDocs } from './firebase-client.js';
-import { teamMembers, getBaseShift, isSunday, parseISODate, getShiftBadge } from './roster-data.js';
+import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
 import { resolveEffectiveShift, isRestShift, toOverrideRecord } from './override-utils.js';
-import { shiftSpanMinutes } from './overtime-format.js';
+import { shiftSpanMinutes, rosterBadge } from './overtime-format.js';
+
+// `rosterBadge` moved to overtime-format.js at v20.87 so the REVIEWER's rows could draw the
+// same chip — this module imports the Firebase SDK, so overtime-manager.js cannot import it
+// and stay Node-loadable. Re-exported because the form has always reached it through here.
+export { rosterBadge };
 
 /** @typedef {'authoritative'|'error'} RosterKnowledge */
 /** @typedef {{ shift: string, isRest: boolean, hasTime: boolean, overnight: boolean, start: string, end: string, rosteredMinutes: number|null }} DayContext */
@@ -79,6 +84,71 @@ export async function loadRosterContext(memberName, dates) {
         return { knowledge: 'error', byDate: {} };
     }
 
+    return { knowledge: 'authoritative', byDate: resolveWeek(member, dates, overrides) };
+}
+
+/**
+ * The whole week for EVERY participant — the reviewer's side of the same question.
+ *
+ * ── WHY THIS IS NOT A LOOP OVER THE ONE ABOVE ───────────────────────────────────────────────────
+ *
+ * Per member it would be one Firestore query each: ~50 round trips to paint one week, in series or
+ * as a fan-out hammering the same index. `in` caps at 30 values and a week is 7 dates, so ONE query
+ * over the dates alone returns every override the workspace needs, and the base roster is computed
+ * locally for nothing.
+ *
+ * Dropping the `memberName` filter is a widening, and it is the right one HERE and nowhere else.
+ * The caller is a reviewer, whose rules already grant them the whole overrides collection and whose
+ * entire job is to see the team's week. The member's own loader keeps its filter — a member has no
+ * business holding colleagues' leave — so this function must never be called from that side.
+ *
+ * `knowledge: 'error'` on any failure, exactly as above: a half-read roster shown beside
+ * availability would let a clerk ring somebody whose shift they cannot actually see.
+ *
+ * @param {string[]} memberNames
+ * @param {string[]} dates the window's seven Sunday→Saturday dates
+ * @returns {Promise<{ knowledge: RosterKnowledge, byMember: Record<string, Record<string, DayContext>> }>}
+ */
+export async function loadRosterForMembers(memberNames, dates) {
+    if (!memberNames?.length || !dates?.length) return { knowledge: 'error', byMember: {} };
+
+    /** @type {Record<string, Record<string, any>>} */
+    const byName = {};
+    try {
+        const snap = await getDocs(query(
+            collection(db, COLLECTIONS.overrides),
+            where('date', 'in', dates),
+        ));
+        snap.forEach((/** @type {any} */ d) => {
+            const data = d.data();
+            if (!data || typeof data.date !== 'string' || typeof data.memberName !== 'string') return;
+            (byName[data.memberName] ||= {})[data.date] = toOverrideRecord(data);
+        });
+    } catch (_) {
+        return { knowledge: 'error', byMember: {} };
+    }
+
+    /** @type {Record<string, Record<string, DayContext>>} */
+    const byMember = {};
+    for (const name of memberNames) {
+        const member = teamMembers.find(m => m.name === name);
+        // A participant this client's roster does not know (renamed, or left since the freeze) gets
+        // NO entry rather than a fabricated one — `rosterBadge(null)` then says so on the row.
+        if (member) byMember[name] = resolveWeek(member, dates, byName[name] || {});
+    }
+    return { knowledge: 'authoritative', byMember };
+}
+
+/**
+ * One member's seven days, resolved through the shared override→display ladder.
+ *
+ * The single place that turns (member, date, override) into a DayContext, so the member's form and
+ * the reviewer's workspace cannot disagree about what somebody is rostered to do — which is the
+ * whole reason the reviewer's rows were given the roster in the first place.
+ * @param {any} member @param {string[]} dates @param {Record<string, any>} overrides
+ * @returns {Record<string, DayContext>}
+ */
+function resolveWeek(member, dates, overrides) {
     /** @type {Record<string, DayContext>} */
     const byDate = {};
     for (const date of dates) {
@@ -110,26 +180,7 @@ export async function loadRosterContext(memberName, dates) {
             rosteredMinutes: timed ? shiftSpanMinutes(start, end) : 0,
         };
     }
-    return { knowledge: 'authoritative', byDate };
-}
-
-/**
- * The same day, as the REST of the app draws it: the shared shift badge, plus the duty times.
- *
- * `getShiftBadge` is the app's one badge builder — the calendar, Team View, the admin week grid and
- * the roster-review table all render from it — so a day that is a Rest day here wears the identical
- * 🏠 Rest chip it wears on the calendar. Writing a second set of words for the same fact is how the
- * override→display ladder drifted before v16.48, one surface at a time.
- *
- * Returns HTML, and every value in it is app-derived (a shift constant or a roster time matched
- * against `SHIFT_RANGE_RE`) — no member input reaches this string.
- * @param {DayContext|null} ctx
- * @returns {string}
- */
-export function rosterBadge(ctx) {
-    if (!ctx) return `<span class="ot-day-unknown">Roster unavailable</span>`;
-    return getShiftBadge(ctx.shift)
-        + (ctx.hasTime ? `<span class="ot-day-time">${ctx.start}–${ctx.end}</span>` : '');
+    return byDate;
 }
 
 // `modesFor` — which availability modes a day may offer — moved to overtime-format.js at v20.75:

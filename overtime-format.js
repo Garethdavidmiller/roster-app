@@ -3,7 +3,12 @@
  * overtime-format.js — the PURE client side of Overtime: how a window, a phase and a day's answer
  * are put into words, and the one piece of arithmetic the browser is allowed to do about time.
  *
- * No DOM, no Firebase, no imports — so every branch is reachable from a Node test.
+ * No DOM and no Firebase, so every branch is reachable from a Node test. It imports exactly one
+ * thing — `getShiftBadge` from `roster-data.js`, which is pure and Node-loadable — because the
+ * roster chip is now drawn on BOTH sides of the feature (v20.87: the reviewer's rows gained the
+ * roster the member's form always had) and a second copy of that markup is how the override→display
+ * ladder drifted apart before v16.48. The invariant this module keeps is Node-testability, not an
+ * empty import list; do not add anything that breaks the former.
  *
  * ── THE CLIENT CLOCK IS PRESENTATIONAL, AND THAT IS THE WHOLE POINT OF `clockOffset` ────────────
  *
@@ -23,6 +28,8 @@
  *     denied somebody who was in time, and they have no recourse — where a server rejection at
  *     least produces a true message.
  */
+
+import { getShiftBadge } from './roster-data.js';
 
 /**
  * How far past a deadline the corrected clock may read before the client stops offering Submit.
@@ -476,6 +483,47 @@ export function answerCopy(day) {
  */
 export function isUnavailable(day) {
     return !!day && day.mode === 'unavailable';
+}
+
+/**
+ * True when a stored answer offers SOMETHING — the positive question, asked positively.
+ *
+ * The reviewer's views used to ask `!isUnavailable(day)`, which is not the same predicate and
+ * differs on exactly the input that matters: a MISSING day. `!isUnavailable(undefined)` is true, so
+ * a member whose submission somehow lacked a date would have been counted and listed as available,
+ * with no answer chip beside their name to say otherwise. The server normalises all seven days, so
+ * this cannot fire today — but "cannot fire today" is the wrong safeguard for a list somebody rings
+ * round from, and the failure direction is the bad one: it manufactures availability.
+ *
+ * So the answer must be a known mode that is not `unavailable`. Unknown is never positive.
+ * @param {any} day
+ */
+export function isAvailableAnswer(day) {
+    if (!day || typeof day !== 'object' || typeof day.mode !== 'string') return false;
+    return day.mode !== 'unavailable' && day.mode !== '';
+}
+
+/**
+ * One day's roster, as the REST of the app draws it: the shared shift badge plus the duty times.
+ *
+ * `getShiftBadge` is the app's one badge builder — the calendar, Team View, the admin week grid and
+ * the roster-review table all render from it — so a Rest day here wears the identical 🏠 Rest chip
+ * it wears on the calendar. Writing a second set of words for the same fact is how the
+ * override→display ladder drifted, one surface at a time, before v16.48.
+ *
+ * Lived in `overtime-roster.js` until v20.87. It moved because the REVIEWER's rows now draw it too,
+ * and that module imports the Firebase SDK — so importing it would have made `overtime-manager.js`
+ * unloadable in Node, which is the one thing that module's header says it must stay.
+ *
+ * Returns HTML, and every value in it is app-derived (a shift constant, or a roster time already
+ * matched against the shift-range pattern) — no member input reaches this string.
+ * @param {{shift: string, hasTime: boolean, start: string, end: string}|null} ctx
+ * @returns {string}
+ */
+export function rosterBadge(ctx) {
+    if (!ctx) return `<span class="ot-day-unknown">Roster unavailable</span>`;
+    return getShiftBadge(ctx.shift)
+        + (ctx.hasTime ? `<span class="ot-day-time">${ctx.start}–${ctx.end}</span>` : '');
 }
 
 /**
