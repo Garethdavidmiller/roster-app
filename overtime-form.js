@@ -37,9 +37,23 @@ import {
  * Button labels per mode. `before`/`after` get their boundary spliced in at render.
  * @type {Record<string, string>}
  */
+/**
+ * Button labels per mode. `before`/`after` get their boundary spliced in at render.
+ *
+ * ── ONE GRAMMAR: every green pill completes "Available …" (v20.84) ──────────────────────────────
+ *
+ * "Not available" stands apart — it is the charcoal answer, deliberately the odd one out — and the
+ * rest are ellipses of one stem: All day · Up to 12 hours · Before 07:00 · After 15:00 · Before &
+ * after duty · Custom times. The set used to mix three grammars ("Available all day" carried its
+ * stem, "Up to 12 hours" elided it, "Custom times" named a control), which is what "the wording is
+ * messy" looks like at pill scale. The recorded CHIP (`answerCopy`) keeps the full "Available all
+ * day" form on purpose: chips stand alone on the reviewer's list, where the stem is the meaning —
+ * a button sits inside a radiogroup already labelled "Availability on <day>".
+ * @type {Record<string, string>}
+ */
 const MODE_LABELS = {
     unavailable:  'Not available',
-    all_day:      'Available all day',
+    all_day:      'All day',
     twelve_hours: 'Up to 12 hours',
     before:       'Before {until}',
     after:        'After {from}',
@@ -87,10 +101,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             <div class="ot-form-head">
                 <div class="ot-form-week">${esc(weekLabel(win.weekEnding))}</div>
                 <div class="ot-form-meta">
-                    Roster week ${esc(weekSpan(win.weekStart, win.weekEnding))}<br>
+                    ${esc(weekSpan(win.weekStart, win.weekEnding))}<br>
                     ${closed
-                        ? `Closed — the final deadline was ${esc(deadlineLabel(win.finalDeadlineAt))}`
-                        : `${esc(phaseCopy(win.phase))}<br>Changes close ${esc(deadlineLabel(win.finalDeadlineAt))}`}
+                        ? `Closed ${esc(deadlineLabel(win.finalDeadlineAt))}`
+                        : `${esc(phaseCopy(win.phase))}<br>Closes ${esc(deadlineLabel(win.finalDeadlineAt))}`}
                 </div>
             </div>
             ${ctx.knowledge === 'error' ? `
