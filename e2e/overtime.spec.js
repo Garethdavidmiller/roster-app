@@ -61,6 +61,28 @@ test.describe('member surface', () => {
         await expect(page.locator('.ot-submit')).toContainText('7 days still to answer');
     });
 
+    test('the page reports the `ready` milestone, and it lands after the form does', async ({ page }) => {
+        // The App Speed card's "Usable" column reads a `myb-page-ready` performance mark, and this
+        // page had none — so it showed an em-dash where every other page shows a bar, and its two
+        // remaining metrics were both measuring the LOADING PLACEHOLDER. `fcp` paints the shell and
+        // `domReady` fires while `getMyOvertimeState` is still in flight; neither can see the form.
+        //
+        // The ordering assertion is the substance. A mark placed anywhere in `init()` would satisfy
+        // "the mark exists" while measuring exactly the thing that was wrong before — so this pins
+        // that it is written AFTER DOMContentLoaded, which is the only way it can be describing
+        // content rather than scripts.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+        const t = await page.evaluate(() => ({
+            ready: performance.getEntriesByName('myb-page-ready')[0]?.startTime ?? null,
+            dcl:   performance.getEntriesByType('navigation')[0]?.domContentLoadedEventEnd ?? null,
+        }));
+        expect(t.ready, 'no mark means the App Speed card prints "—" for this page').not.toBeNull();
+        expect(t.ready).toBeGreaterThan(t.dcl);
+    });
+
     test('several open weeks still land IN a form — the soonest-closing one', async ({ page }) => {
         // The regression automatic creation introduced. Filling the six-week horizon leaves FOUR or
         // FIVE windows open at once, permanently — so the old "one open week opens directly, several
@@ -829,6 +851,89 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         const custom = await day.locator('.ot-custom').boundingBox();
         expect(custom.x, 'the custom row starts after the label column')
             .toBeGreaterThanOrEqual(head.x + head.width);
+    });
+
+    test('a saved form wears the saved tint, not the "about to overwrite" one', async ({ page }) => {
+        // The day-row STATE GRAMMAR (v20.83) — the one borrowed from admin's Change-a-Shift week:
+        // plain / gold `set` / cream `changed` / green `saved`. It had no test at all, which is how
+        // the reconcile path came to be missing its repaint at v20.85: the mechanism the two paths
+        // share was never pinned in either of them.
+        //
+        // Cream is the tint that says "you are about to overwrite something recorded". Leaving it up
+        // after a successful save is the page contradicting the sentence beside it, and neither the
+        // feedback assertion above nor the visual baseline (which captures an UNANSWERED form) can
+        // see the difference — the words are right in both builds.
+        await seedSession(page, 'G. Miller');
+        const saved = Object.fromEntries(D.map(d => [d, { mode: 'unavailable' }]));
+        await stubWithRoster(page, [winOver({ submission: { currentRevision: 1, days: saved } })], []);
+        await page.route('**/submitOvertimeAvailability', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, revision: 2, noop: false, phase: 'FINAL_OPEN', serverNow: NOW }) }));
+        await page.goto('/overtime.html');
+        const day = page.locator(`[data-day="${D[0]}"]`);
+        await day.waitFor();
+        // Every row starts `saved` — the form opened on exactly what the server holds.
+        await expect(page.locator('.ot-day--saved')).toHaveCount(7);
+        // Change one, and only that one goes cream. `changed` and `saved` are different answers and
+        // a repaint that painted the whole week either way would still satisfy a bare count.
+        await day.getByRole('radio', { name: 'All day', exact: true }).click();
+        await expect(day).toHaveClass(/ot-day--changed/);
+        await expect(page.locator('.ot-day--saved')).toHaveCount(6);
+        await page.locator('.ot-submit').click();
+        await expect(page.locator('.ot-feedback')).toContainText('submitted');
+        await expect(page.locator('.ot-day--changed'), 'the overwrite warning must clear on save')
+            .toHaveCount(0);
+        await expect(page.locator('.ot-day--saved')).toHaveCount(7);
+    });
+
+    test('a timed-out submission that DID save clears the tint too', async ({ page }) => {
+        // The other half of the same mechanism, and the path that needs it most: this is the one
+        // that tells somebody their form saved after they had every reason to believe it had not.
+        // Until v20.85 it updated the revision and said so while leaving all seven rows cream.
+        //
+        // Reaching it needs the client's own 65s budget to expire — a route that never answers plus
+        // a fake clock, because the budget is a constant and no lever shortens it. `install` is
+        // pinned to the same instant the stubs report as `serverNow`, so the corrected clock lands
+        // where the app already expects and no deadline moves under the test.
+        await page.clock.install({ time: new Date(NOW) });
+        await seedSession(page, 'G. Miller');
+        const saved = Object.fromEntries(D.map(d => [d, { mode: 'unavailable' }]));
+        const head = { currentRevision: 2, days: { ...saved, [D[0]]: { mode: 'all_day' } },
+            lastMutationId: null };
+        let submits = 0;
+        await page.addInitScript(() => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] };
+        });
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [{ ...W, phase: 'FINAL_OPEN',
+                participant: { grade: 'CEA', rosterOrder: 2 },
+                // The RE-READ carries the mutation id the client is holding, which is what makes
+                // this "your earlier submission did save" rather than "it never arrived".
+                submission: submits ? { ...head, lastMutationId: sentId } : { currentRevision: 1, days: saved } }] }),
+        }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        /** @type {string} */
+        let sentId = '';
+        // Accept the request, record its id, and NEVER answer — exactly what a request that reaches
+        // a working server on a dying connection looks like from the phone.
+        await page.route('**/submitOvertimeAvailability', r => {
+            submits += 1;
+            sentId = JSON.parse(r.request().postData() || '{}').clientMutationId;
+        });
+        await page.goto('/overtime.html');
+        const day = page.locator(`[data-day="${D[0]}"]`);
+        await day.waitFor();
+        await day.getByRole('radio', { name: 'All day', exact: true }).click();
+        await expect(day).toHaveClass(/ot-day--changed/);
+        await page.locator('.ot-submit').click();
+        await page.clock.fastForward(70_000);            // past the 65s budget
+        await expect(page.locator('.ot-feedback')).toContainText('did save');
+        await expect(page.locator('.ot-day--changed'), 'told it saved, so nothing is pending')
+            .toHaveCount(0);
+        await expect(page.locator('.ot-day--saved')).toHaveCount(7);
     });
 
     test('a page re-woken near a deadline that has passed re-reads and closes the form', async ({ page }) => {

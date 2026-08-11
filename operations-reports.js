@@ -15,6 +15,15 @@ import { escapeHtml } from './roster-data.js';
 /**
  * Emoji + label for each page id — shared by the Usage and App Speed cards (was defined
  * identically inside both). One source so a label change (or a new page) is edited once.
+ *
+ * ── A MISSING ENTRY IS INVISIBLE UNTIL THE PAGE HAS TRAFFIC ─────────────────────────────────────
+ *
+ * Both cards fall back to the raw id and a generic 📄 when a page is not listed here, so `overtime`
+ * shipped at v20.59 and rendered lower-case beside six title-case names for twenty-five releases —
+ * until it had enough opens to appear at all. That is the whole failure mode: the fallback is
+ * silent, the counter itself works, and nothing surfaces the gap while the page is quiet. Every
+ * emoji matches the page's own nav pill (`NAV_PAGES`), which is what makes the two surfaces read as
+ * one app. `page-contract-parity.test.mjs` now fails when a served page has no entry.
  * @type {Record<string, { emoji: string, label: string }>}
  */
 const PAGE_META = {
@@ -24,6 +33,7 @@ const PAGE_META = {
     operations: { emoji: '🔧', label: 'Operations' },
     settings:   { emoji: '⚙️', label: 'Settings' },
     links:      { emoji: '🔗', label: 'Links' },
+    overtime:   { emoji: '⏱️', label: 'Overtime' },
 };
 
 /** Document/guide OPEN counters (v18.20) — share the pv_ counts map with the page ids above but

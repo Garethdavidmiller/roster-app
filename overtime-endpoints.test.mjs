@@ -1077,4 +1077,36 @@ describe('a member invited into the beta AFTER a window was created', () => {
         const row = r.body.planningWeeks.find((w) => w.weekEnding === WEEK);
         assert.equal(row.audienceCount, null, 'offering "Add 1" on a closed week would be a lie');
     });
+
+    test('a FINAL_OPEN week reports no audienceCount either — the top-up would refuse it', async () => {
+        // The v20.85 regression, and the reason this case is not merely "closed, but earlier".
+        // v20.81 narrowed `addMissingParticipants` to INITIAL_OPEN; the overview kept asking
+        // `isOpenPhase`, which is true here too. So the reviewer was offered "Add 1", the endpoint
+        // refused on the phase check, the flash said "Nobody new to add" and the button re-rendered
+        // identically — for ever, because nothing about the week changes until it closes.
+        //
+        // Exactly one horizon week sits in FINAL_OPEN at any moment (the deadlines are 18 and 11
+        // days out, and the weeks are 7 apart), so this fired on the first invitation after v20.81.
+        freeze(M.initialDeadlineAt + 60000);
+        const { eps } = buildWider(seededWindow());
+        const r = await call(eps.getOvertimeManagerOverview, req({}, 'tok_manager'));
+        const row = r.body.planningWeeks.find((w) => w.weekEnding === WEEK);
+        assert.equal(row.audienceCount, null,
+            'the offer must be gated on the phase the top-up actually acts on');
+        assert.equal(row.expected, 1, 'the frozen population is unchanged — only the OFFER is withheld');
+        unfreeze();
+    });
+
+    test('and the top-up genuinely refuses that week, which is what the null stands for', async () => {
+        // The other half: asserting the button is absent proves nothing on its own if the endpoint
+        // would in fact have added somebody. These two together are the claim — the offer is
+        // withheld BECAUSE the capability is not there.
+        freeze(M.initialDeadlineAt + 60000);
+        const { db, eps } = buildWider(seededWindow());
+        const r = await call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_manager'));
+        unfreeze();
+        assert.deepEqual(r.body.added, [], 'nobody may be added once the initial deadline has gone');
+        assert.ok(!db._store.has(`overtimeWindows/${WEEK}/participants/S. Silva`),
+            'and nothing was written behind the empty report');
+    });
 });

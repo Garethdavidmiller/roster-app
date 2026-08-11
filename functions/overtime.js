@@ -537,10 +537,25 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers }) {
                 // How many the CURRENT audience would select for this week. Compared against the
                 // frozen `expected`, it is what tells a reviewer an invitation has not landed yet —
                 // and it costs nothing: `selectParticipants` is pure and local, and `expected`
-                // already came back from the count aggregation above. Only meaningful while the
-                // week is open, because that is the only phase a population may still grow in.
-                const open = OT.isOpenPhase(OT.phaseFor(milestones, nowMs));
-                const audienceCount = doc && open ? audienceFor(milestones.weekStart).length : null;
+                // already came back from the count aggregation above.
+                //
+                // ── `INITIAL_OPEN`, NOT `isOpenPhase` — THIS FIGURE IS AN OFFER ─────────────────
+                //
+                // The horizon row turns a shortfall into an "Add N" button, so the condition here
+                // has to be the condition `addMissingParticipants` actually acts on, and v20.81
+                // narrowed that to INITIAL_OPEN alone (its header argues why: somebody added during
+                // FINAL_OPEN is recorded as a non-responder to a deadline that pre-dates their
+                // invitation, then labelled a late submitter). This kept saying `isOpenPhase`, so a
+                // FINAL_OPEN week whose audience had grown offered a button that called the
+                // endpoint, was refused by the phase check, reported "Nobody new to add" and then
+                // rendered itself again unchanged — permanently, since nothing about the week
+                // changes until it closes. Exactly one horizon week is in FINAL_OPEN at any moment,
+                // so this fired on the first invitation issued after v20.81.
+                //
+                // A week that cannot grow reports `null`, which the client already reads as "no
+                // offer" — the same answer a CLOSED week has always given.
+                const canGrow = OT.phaseFor(milestones, nowMs) === 'INITIAL_OPEN';
+                const audienceCount = doc && canGrow ? audienceFor(milestones.weekStart).length : null;
                 planningWeeks.push({
                     ...milestones,
                     exists: !!doc,
