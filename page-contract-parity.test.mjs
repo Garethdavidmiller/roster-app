@@ -97,6 +97,38 @@ test('every app page is scanned by the accessibility gate', () => {
     assert.match(suite, /goto\('\/'\)/, 'the calendar must still be scanned at the app root');
 });
 
+test('every app page is visited by the deployed-CSP proof', () => {
+    // `csp-meta-parity` (checked above) is STATIC — it compares two files. This one is the RUNTIME
+    // counterpart: e2e/csp.spec.js serves the app from the Firebase Hosting emulator so the real
+    // firebase.json header is applied and enforced by Chromium. Its page list is hand-written, and
+    // `overtime.html` was missing from it for six releases — so the one run that proves the real
+    // policy lets the app work had never opened the app's newest page.
+    const suite = read('./e2e/csp.spec.js');
+    const missing = APP_PAGES.filter(p => (p === 'index.html'
+        ? !/'\/'/.test(suite)              // the calendar is visited at the app root
+        : !suite.includes(`'/${p}'`)));
+    assert.deepEqual(missing, [], 'pages absent from e2e/csp.spec.js\'s PAGES list');
+});
+
+test('every app page has at least one visual-regression baseline', () => {
+    // The Overtime page shipped with none, and six composition defects reached production together
+    // as a result — a duplicate page title, a gold banner, a gold tab slab, an uncoloured header
+    // chip, a width 80px off its stated family. Every one was visible in a screenshot and invisible
+    // to every other suite, because they check that tokens are USED, never that the right one was
+    // chosen. Deliberately "at least one": coverage here is per SURFACE, not per page, so the
+    // count is a judgement — but zero never is.
+    const suite = read('./e2e/visual.spec.js');
+    const missing = APP_PAGES.filter(p => (p === 'index.html'
+        ? !/goto\('\/(index\.html)?'\)/.test(suite)
+        : !suite.includes(`/${p}'`)));
+    assert.deepEqual(missing, [], 'pages with no baseline in e2e/visual.spec.js');
+    // Guard the guard: a baseline named in the spec but never generated fails silently on a fresh
+    // clone (Playwright writes it and passes), so the committed PNGs are checked too.
+    const shots = readdirSync(new URL('./e2e/visual-baselines/', import.meta.url));
+    assert.ok(shots.some(f => f.startsWith('overtime-')),
+        'no committed Overtime baseline — the spec references one that does not exist on disk');
+});
+
 test('every app page carries the noindex meta', () => {
     // Staff-only app. This meta is the only de-index signal the headerless mirror gets.
     const missing = APP_PAGES.filter(p => !/name="robots"[^>]*noindex/.test(read(`./${p}`)));

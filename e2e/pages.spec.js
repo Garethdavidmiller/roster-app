@@ -1784,6 +1784,45 @@ test('links: pressing Generate again produces a different, named design', async 
     expect(await gridText()).not.toBe(first);
 });
 
+/**
+ * Every served app page, for the two COMPUTED-STYLE sweeps below.
+ *
+ * Shared because both are cascade checks that a static test cannot make, and because this exact
+ * list — written out twice, by hand — is what let `overtime.html` escape the 16px scan entirely.
+ */
+const APP_URLS = ['/', '/admin.html', '/paycalc.html', '/operations.html', '/settings.html',
+    '/links.html', '/overtime.html'];
+
+// ── Every page renders in the app's typeface (v20.63) ────────────────────────────────────────────
+//
+// `shared.css` declares the `@font-face` and the `--font-sans` token but applies neither: each
+// page's own stylesheet sets its `body` font-family. `overtime.css` had no `body` rule at all, so
+// that page rendered in Times New Roman — the content, the shared header, the badge and the nav
+// drawer alike, since they all live in that document's body. It was reported as "the whole app has
+// changed font", which from that page is exactly what it looks like.
+//
+// Nothing could have caught it. The typeface is not a token violation (no wrong value was used),
+// not an accessibility failure, and not a behavioural one; it is an absence, and absence is what
+// static CSS tests are worst at. So it is measured, in a browser, on every page.
+test('every page renders in Inter, not a browser default', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    /** @type {string[]} */
+    const wrong = [];
+    for (const url of APP_URLS) {
+        await page.goto(url);
+        // `body` carries it for the page; `h1` is checked too because the header is shared chrome —
+        // if it ever stopped inheriting, every page's masthead would go serif at once.
+        const seen = await page.evaluate(() => ({
+            body: getComputedStyle(document.body).fontFamily,
+            h1: document.querySelector('h1') ? getComputedStyle(document.querySelector('h1')).fontFamily : 'Inter',
+        }));
+        if (!/^Inter\b/.test(seen.body)) wrong.push(`${url} body → ${seen.body}`);
+        if (!/^Inter\b/.test(seen.h1))   wrong.push(`${url} h1 → ${seen.h1}`);
+    }
+    expect(wrong, 'pages not rendering in the app typeface').toEqual([]);
+});
+
 // ── No focusable field may sit under 16px on a touch device (v19.61) ─────────────────────────────
 // iOS force-zooms the page when you focus a field smaller than 16px, and the app has said "never go
 // below 16px on a focusable field" in css-tokens.md since v11.77 — with NOTHING enforcing it.
@@ -1802,7 +1841,7 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
 
-    for (const url of ['/', '/admin.html', '/paycalc.html', '/operations.html', '/settings.html', '/links.html']) {
+    for (const url of APP_URLS) {
         await page.goto(url);
         await page.waitForTimeout(700);
         // Open every collapsible, or the fields inside a closed card are never measured.

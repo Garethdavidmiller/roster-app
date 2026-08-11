@@ -795,3 +795,68 @@ test('calendar — staff PIN unlock card @390', async ({ page }) => {
     await settle(page, '#calLockPin');
     await expect(page).toHaveScreenshot('calendar-lock-mobile-390.png');
 });
+
+
+// ── Overtime ──────────────────────────────────────────────────────────────────────────────────
+// Both surfaces, because they are visually different pages that happen to share a shell: the
+// member's seven-day form and the reviewer's planning horizon. The page shipped with NO baseline
+// at all, which is how six composition defects — a duplicate page title, a gold banner, a gold tab
+// slab, an uncoloured header chip, a width 80px off its stated family — reached production
+// together and were found by eye rather than by a diff.
+//
+// The endpoints are stubbed at fixed dates rather than derived from FIXED_TIME, so the rendered
+// deadlines are stable text. A window derived from the clock would re-word itself whenever the
+// pinned time moved and quietly invalidate the baseline.
+const OT_WINDOW = {
+    weekEnding: '2026-08-01', weekStart: '2026-07-26',
+    initialDeadlineAt: Date.parse('2026-07-14T11:00:00Z'), draftRosterDate: '2026-07-16',
+    finalDeadlineAt: Date.parse('2026-07-21T11:00:00Z'), finalRosterDate: '2026-07-23',
+    retentionUntil: Date.parse('2026-10-31T00:00:00Z'), policyVersion: 1, audience: 'restricted',
+};
+
+/** @param {import('@playwright/test').Page} page */
+function stubOvertime(page, { windows = [], weeks = [] } = {}) {
+    const now = FIXED_TIME.getTime();
+    return Promise.all([
+        page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: now, windows }),
+        })),
+        page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: now, planningWeeks: weeks, retained: [] }),
+        })),
+    ]);
+}
+
+test('overtime — the member form, seven days unanswered (mobile 390)', async ({ page }) => {
+    await prep(page, { width: 390, height: 1800 });
+    await stubOvertime(page, {
+        windows: [{ ...OT_WINDOW, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null }],
+    });
+    await page.goto('/overtime.html');
+    await settle(page, '.ot-day');
+    // Sentinel: all seven days are in the frame. Without it a viewport trim would silently drop
+    // the tail of the form and regenerate as though the shorter page were correct.
+    await expect(page.locator('.ot-day')).toHaveCount(7);
+    await expect(page.locator('.ot-submit')).toBeInViewport();
+    await expect(page).toHaveScreenshot('overtime-member-mobile-390.png');
+});
+
+test('overtime — the planning horizon, every row state (desktop 1280)', async ({ page }) => {
+    await prep(page, { width: 1280, height: 1000 });
+    await stubOvertime(page, {
+        weeks: [
+            { ...OT_WINDOW, weekEnding: '2026-07-18', exists: false, state: 'missed', canCreate: false },
+            { ...OT_WINDOW, weekEnding: '2026-07-25', exists: false, state: 'not-created-initial-passed', canCreate: true },
+            { ...OT_WINDOW, exists: true, state: 'created', canCreate: false, expected: 4, received: 1, noResponse: 3 },
+            { ...OT_WINDOW, weekEnding: '2026-08-08', exists: false, state: 'not-created', canCreate: true },
+        ],
+    });
+    await page.goto('/overtime.html');
+    await settle(page, '.ot-week-row');
+    // All four tones present — the point of this baseline is the row treatment, and a fixture that
+    // happened to render one state would lock a picture of nothing in particular.
+    await expect(page.locator('.ot-week-row')).toHaveCount(4);
+    await expect(page).toHaveScreenshot('overtime-horizon-desktop-1280.png');
+});
