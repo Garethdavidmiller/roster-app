@@ -17,7 +17,8 @@
  *
  * ── THE OWNER'S FIGURES (Aug 2026), AND WHERE EACH ONE LANDED ──────────────────────────────────
  *
- * Cover the demand · four turns opening and three closing, every day · **four cover weeks** ·
+ * Cover the demand · four turns opening every day · three closing — **four on a Saturday** ·
+ * **four cover weeks** ·
  * roughly 4.2 days a week worked Mon–Sat, averaging exactly the contracted week · **14 working on
  * a Saturday**, with a slight preference to LATE turns for events · **10 working on a Sunday**.
  *
@@ -58,10 +59,12 @@
  * and 22:00 carries 7 where it carried 4.7. The lever for the peaks themselves is still more
  * duties in the day, not a different arrangement of these ones.
  *
- * Saturday gets the same correction with its lean kept: the five late middles start 13:50–15:10,
- * so the rich zone is 14:00–22:00 — the events window — rather than pooling at lunchtime, and the
- * 13:00 hour drops back to ~6 on. Sunday's openers shorten to 7h–8h so its own handover no longer
- * bulges at 14:00 either.
+ * Saturday gets the same correction with its lean kept: the late middles start 13:50–14:50, so
+ * the rich zone is 14:00–22:00 — the events window — rather than pooling at lunchtime, and the
+ * 13:00 hour drops back to ~6 on. Its FOURTH closer (v21.03, owner) is the same lean carried to
+ * the end of the day: the extra turn runs 16:15–23:55, taking the close-down hour from ~3.7 on
+ * to ~4.8 on the one day the evening is the point. Sunday's openers shorten to 7h–8h so its own
+ * handover no longer bulges at 14:00 either.
  *
  * ── SATURDAY LEANS LATE, ON PURPOSE ────────────────────────────────────────────────────────────
  *
@@ -100,8 +103,14 @@ export const DEFAULT_COVER_WEEKS = 4;
 /** Turns on at the open, every day the station opens. Owner's figure. */
 export const OPENING_TURNS = 4;
 
-/** Turns through to the close, every day. Owner's figure. */
+/** Turns through to the close on a weekday and a Sunday. Owner's figure: "we only need 3". */
 export const CLOSING_TURNS = 3;
+
+/**
+ * Turns through to the close on a SATURDAY. Owner's figure, part of the events lean: the fourth
+ * closer is an extra evening body on the one day the evening is the point.
+ */
+export const SATURDAY_CLOSING_TURNS = 4;
 
 /** People working a Saturday. Owner's figure — an events decision, not a derivation. */
 export const SATURDAY_TURNS = 14;
@@ -145,18 +154,19 @@ const TABLE = Object.freeze([
     Object.freeze({ time: '14:45-23:30', weekday: 1, sat: 0, sun: 0 }),
     Object.freeze({ time: '14:55-23:45', weekday: 1, sat: 0, sun: 0 }),
     Object.freeze({ time: '15:00-23:50', weekday: 1, sat: 0, sun: 0 }),
-    // ── Saturday middles — two mornings, five lates starting 13:50–15:10 into the events evening
+    // ── Saturday middles — two mornings, four lates starting 13:50–14:50 into the events evening
     Object.freeze({ time: '08:40-16:10', weekday: 0, sat: 1, sun: 0 }),
     Object.freeze({ time: '10:00-17:30', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '13:50-22:30', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '14:10-22:40', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '14:30-23:00', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '14:50-23:20', weekday: 0, sat: 1, sun: 0 }),
-    Object.freeze({ time: '15:10-23:40', weekday: 0, sat: 1, sun: 0 }),
-    // ── Mon–Sat closers — the same three turns both days, staggered starts, through to 23:55
+    Object.freeze({ time: '13:50-22:20', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '14:10-22:50', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '14:30-23:20', weekday: 0, sat: 1, sun: 0 }),
+    Object.freeze({ time: '14:50-23:50', weekday: 0, sat: 1, sun: 0 }),
+    // ── Closers — three turns Mon–Sat through to 23:55, plus Saturday's fourth (the events lean
+    //    carried to the close-down; weekdays and Sundays need only three)
     Object.freeze({ time: '15:15-23:55', weekday: 1, sat: 1, sun: 0 }),
     Object.freeze({ time: '15:35-23:55', weekday: 1, sat: 1, sun: 0 }),
     Object.freeze({ time: '15:55-23:55', weekday: 1, sat: 1, sun: 0 }),
+    Object.freeze({ time: '16:15-23:55', weekday: 0, sat: 1, sun: 0 }),
     // ── Sunday — its own window (07:15–23:25): four short openers, three middles, three closers
     Object.freeze({ time: '07:15-14:15', weekday: 0, sat: 0, sun: 1 }),
     Object.freeze({ time: '07:15-14:35', weekday: 0, sat: 0, sun: 1 }),

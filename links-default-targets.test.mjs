@@ -20,7 +20,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     buildDefaultTargets, DEFAULT_COVER_WEEKS, DEFAULT_SHIFT_TIMES,
-    OPENING_TURNS, CLOSING_TURNS, SATURDAY_TURNS, SUNDAY_TURNS, TARGET_DAYS_PER_WEEK,
+    OPENING_TURNS, CLOSING_TURNS, SATURDAY_CLOSING_TURNS, SATURDAY_TURNS, SUNDAY_TURNS,
+    TARGET_DAYS_PER_WEEK,
 } from './links-default-targets.js';
 import {
     generateLink, weeklyHours, targetExSundayMinutes,
@@ -78,17 +79,24 @@ describe('the contract — the property that decides whether the card works on a
 });
 
 describe('what the owner asked for', () => {
-    test('four turns open the station and three run to the close — on EVERY day, to its OWN window', () => {
+    test('four turns open every day; three run to the close — FOUR on a Saturday — to each day\'s OWN window', () => {
         // Sunday joined this rule at v21.01 when it became designed rather than carried, and it is
         // the case most worth the loop: Sunday opens at 07:15 and closes at 23:25, so an opener
         // copied from the Mon–Sat block would pass a bare "four start together" count while
         // standing on the concourse 55 minutes before the first train.
+        //
+        // Saturday's closer count split from the others at v21.03 (owner: "we only need 3 to
+        // close. 4 on a Saturday") — the fourth closer is the events lean carried through to the
+        // close-down. Asserted per day rather than in one loop constant precisely because the
+        // counts are no longer one figure: a uniform check would have to pick a side and would
+        // then be wrong about half the week.
+        const CLOSERS_FOR = { weekday: CLOSING_TURNS, sat: SATURDAY_CLOSING_TURNS, sun: CLOSING_TURNS };
         for (const cls of DAY_CLASSES) {
             const open = windowMinutes(WINDOW_FOR[cls].start), close = windowMinutes(WINDOW_FOR[cls].end);
             assert.equal(dutiesOn(cls).filter(t => startMinutes(t) === open).length, OPENING_TURNS,
                 `${cls} does not put ${OPENING_TURNS} people on at its open`);
-            assert.equal(dutiesOn(cls).filter(t => endMinutesAbs(t) === close).length, CLOSING_TURNS,
-                `${cls} does not run ${CLOSING_TURNS} people to its close`);
+            assert.equal(dutiesOn(cls).filter(t => endMinutesAbs(t) === close).length, CLOSERS_FOR[cls],
+                `${cls} does not run ${CLOSERS_FOR[cls]} people to its close`);
         }
     });
 
