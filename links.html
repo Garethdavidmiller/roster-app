@@ -384,6 +384,11 @@
                          their version as a NEW set — while overwriting a set belongs to its creator
                          (or the admin), which the server enforces (firestore.rules linkTargetSets;
                          the disabled button here is a courtesy, not the protection). -->
+                    <!-- Provenance note (v21.05): shown ONLY when the table on screen is this
+                         device's memory AND differs from the current default — the state the owner
+                         mistook for "the new default is wrong" (it was July's remembered table).
+                         Hidden the moment anything is edited or reset. -->
+                    <p class="gen-sets-hint" id="genMemoryNote" hidden></p>
                     <div class="gen-sets-row">
                         <label class="gen-sets-label" for="genSetSelect">Saved sets</label>
                         <select id="genSetSelect" class="gen-select" aria-label="Choose a saved set of shift times"></select>

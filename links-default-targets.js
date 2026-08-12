@@ -184,6 +184,45 @@ const TABLE = Object.freeze([
 export const DEFAULT_SHIFT_TIMES = Object.freeze(TABLE.map(s => s.time));
 
 /**
+ * Are two target tables the SAME table? Order-insensitive on rows (compared by time), exact on
+ * counts and cover weeks — a table is a set of claims about the week, not a sequence.
+ *
+ * @param {{ slots: Array<{time: string, weekday: number, sat: number, sun: number}>, spareLines: number }|null} a
+ * @param {{ slots: Array<{time: string, weekday: number, sat: number, sun: number}>, spareLines: number }|null} b
+ */
+export function sameTargetTable(a, b) {
+    if (!a || !b || a.spareLines !== b.spareLines || a.slots.length !== b.slots.length) return false;
+    const key = (/** @type {any} */ s) => `${s.time}|${s.weekday}|${s.sat}|${s.sun}`;
+    const as = a.slots.map(key).sort(), bs = b.slots.map(key).sort();
+    return as.every((k, i) => k === bs[i]);
+}
+
+/**
+ * Should a REMEMBERED table be superseded by the current default?
+ *
+ * The generator remembers each device's working table (v19.38) and prefers the memory over the
+ * default forever — which is right for a table somebody tuned, and wrong for one the app stored on
+ * its own: from v19.38 to v21.00 the default WAS the roster seed, so every device that ever opened
+ * the workspace remembered the seed untouched, and when the designed default replaced it at v21.00
+ * those devices never saw it. The owner met exactly that — a card reading 29h 53m against a default
+ * that pays 35h 00m — and reasonably read the stale memory as the new table being wrong (v21.05).
+ *
+ * "Never customised" is decided by CONTENT, deterministically: a memory that equals the roster
+ * seed is the old auto-stored default; one that equals the current default carries no information.
+ * Anything else is somebody's work and is kept — this must never discard a table a designer edited,
+ * which is why it compares whole tables rather than guessing from timestamps.
+ *
+ * The seed is passed IN (`buildRosterTargets()` at the call site) rather than imported, so this
+ * module keeps importing nothing and stays a leaf.
+ *
+ * @param {{ slots: Array<{time: string, weekday: number, sat: number, sun: number}>, spareLines: number }} remembered
+ * @param {{ slots: Array<{time: string, weekday: number, sat: number, sun: number}>, spareLines: number }} rosterSeed
+ */
+export function isSupersededMemory(remembered, rosterSeed) {
+    return sameTargetTable(remembered, rosterSeed) || sameTargetTable(remembered, buildDefaultTargets());
+}
+
+/**
  * The default target table, as a FRESH mutable copy.
  *
  * A copy every time, and that is load-bearing rather than tidy: the generator card edits these
