@@ -14,7 +14,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    targetSetFromDoc, targetSetPayload, canOverwriteTargetSet, sortTargetSets,
+    targetSetFromDoc, targetSetPayload, canOverwriteTargetSet, describeSetState, sortTargetSets,
     MAX_SET_NAME, MAX_SET_SLOTS,
 } from './links-target-sets.js';
 
@@ -122,4 +122,93 @@ test('sortTargetSets — name order, stable, without mutating the input', () => 
     const before = [...sets];
     assert.deepEqual(sortTargetSets(sets).map(s => s.id), ['1', '3', '2', '4']);
     assert.deepEqual(sets, before, 'sort must not reorder the caller\'s array');
+});
+
+
+// ── describeSetState (v21.08) ───────────────────────────────────────────────────────────────────
+//
+// Organised by the two questions the sentence answers, because collapsing them is the bug this
+// function exists to prevent: v21.06 derived "is it mine?" from "may I write it?" and told the
+// admin a colleague's set was theirs — and then, in the same breath, that nobody could overwrite
+// it. Both halves are therefore asserted separately AND together, and the negative cases matter as
+// much as the positive: what the sentence must NOT say is the part that shipped wrong.
+describe('describeSetState — whose it is', () => {
+    const SET = { name: 'Set A', createdBy: 'S. Silva' };
+
+    test('the creator owns it, and is told so', () => {
+        const r = describeSetState(SET, { userName: 'S. Silva' });
+        assert.equal(r.owned, true);
+        assert.equal(r.canWrite, true);
+        assert.equal(r.canDelete, true);
+        assert.match(r.text, /yours to change/);
+        assert.doesNotMatch(r.text, /saved by/, 'do not attribute a set to its owner reading it');
+    });
+
+    test('the admin may write it WITHOUT owning it — the v21.06 defect', () => {
+        const r = describeSetState(SET, { userName: 'G. Miller', isAdmin: true });
+        assert.equal(r.owned, false, 'permission is not ownership');
+        assert.equal(r.canWrite, true, 'but the admin can still overwrite');
+        assert.match(r.text, /saved by S\. Silva/);
+        assert.match(r.text, /as the admin/);
+        assert.doesNotMatch(r.text, /yours to change/, 'the shipped bug: claiming a colleague\'s set');
+        assert.doesNotMatch(r.text, /Only they can overwrite/,
+            'and its inverse: telling the one person who CAN that nobody can');
+    });
+
+    test('another designer can neither write nor delete it', () => {
+        const r = describeSetState(SET, { userName: 'M. Robson' });
+        assert.equal(r.owned, false);
+        assert.equal(r.canWrite, false);
+        assert.equal(r.canDelete, false);
+        assert.match(r.text, /Only they can overwrite it/);
+    });
+
+    test('signed out is not ownership, even of a set with an empty creator', () => {
+        assert.equal(describeSetState(SET, {}).canWrite, false);
+        assert.equal(describeSetState({ name: 'X', createdBy: '' }, { userName: '' }).owned, false);
+    });
+
+    test('no set selected says what to do, and offers nothing', () => {
+        const r = describeSetState(null, { userName: 'G. Miller', isAdmin: true });
+        assert.equal(r.canWrite, false);
+        assert.equal(r.canDelete, false, 'the admin cannot delete a set that is not picked');
+        assert.match(r.text, /Save the table above/);
+    });
+});
+
+describe('describeSetState — where the table is', () => {
+    const SET = { name: 'Set A', createdBy: 'G. Miller' };
+    const as = (/** @type {any} */ ctx) => describeSetState(SET, { userName: 'G. Miller', ...ctx }).text;
+
+    test('not loaded says how to load it, and never claims a match', () => {
+        const t = as({ isLoaded: false });
+        assert.match(t, /Press Load/);
+        assert.doesNotMatch(t, /matches/);
+    });
+
+    test('loaded and matching says so — this is the reassurance the row existed without', () => {
+        assert.match(as({ isLoaded: true }), /still matches it/);
+    });
+
+    test('loaded and changed says so, and names both ways out', () => {
+        const t = as({ isLoaded: true, changed: true });
+        assert.match(t, /You have changed the table/);
+        assert.match(t, /Save changes/);
+        assert.match(t, /Save as new/);
+        assert.doesNotMatch(t, /matches/, 'a changed table must never read as a matching one');
+    });
+
+    test('changed, but not yours: only the branch is offered', () => {
+        const t = describeSetState({ name: 'Set A', createdBy: 'S. Silva' },
+            { userName: 'M. Robson', isLoaded: true, changed: true }).text;
+        assert.match(t, /Save as new/);
+        assert.doesNotMatch(t, /Save changes updates/, 'do not offer a write that will be refused');
+        assert.match(t, /theirs untouched/);
+    });
+
+    test('changed is ignored when nothing is loaded — the two are independent', () => {
+        // A guard against a future refactor deriving one from the other: having edited the table
+        // says nothing about a set you have not loaded, and the row must not report on it.
+        assert.equal(as({ isLoaded: false, changed: true }), as({ isLoaded: false }));
+    });
 });

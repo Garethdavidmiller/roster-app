@@ -20,7 +20,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc,
-    docPayload, workingCopy, binEntryFrom, restoredEntryFrom,
+    docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel,
 } from './links-design-doc.js';
 import { DEFAULT_WINDOW } from './links-window.js';
 
@@ -195,5 +195,51 @@ describe('reading a malformed document', () => {
 
     test('a name is trimmed, because the picker sorts on it', () => {
         assert.equal(designFromDoc('d1', { name: '  Option A  ' }).name, 'Option A');
+    });
+});
+
+
+// ── lastSavedLabel (v21.08) ─────────────────────────────────────────────────────────────────────
+//
+// The line under the Save button, and the one thing it must never do is make an OLD save look like
+// a recent one. It printed the time alone until v21.08, so a design last touched three days ago
+// read "at 15:06" — indistinguishable from one saved this afternoon, which is the exact question
+// the line is there to answer. `now` is injected so the today boundary is a fact rather than a
+// property of when the suite happens to run.
+describe('lastSavedLabel — an old save must not read as a recent one', () => {
+    const NOW = new Date(2026, 7, 12, 16, 30);          // 12 Aug 2026, 16:30
+
+    test('today is a time — adding today\'s date to every save would be noise', () => {
+        const label = lastSavedLabel('G. Miller', new Date(2026, 7, 12, 15, 6), NOW);
+        assert.match(label, /^Last saved by G\. Miller at 15:06$/);
+    });
+
+    test('yesterday gains the date — the defect, stated directly', () => {
+        const label = lastSavedLabel('G. Miller', new Date(2026, 7, 11, 15, 6), NOW);
+        assert.match(label, /11 Aug/);
+        assert.match(label, /15:06/);
+        assert.notEqual(label, lastSavedLabel('G. Miller', new Date(2026, 7, 12, 15, 6), NOW),
+            'the same clock time on two different days must not produce the same label');
+    });
+
+    test('a different year gains the year — proposals get read months later', () => {
+        assert.match(lastSavedLabel('S. Silva', new Date(2025, 11, 3, 9, 0), NOW), /2025/);
+        assert.doesNotMatch(lastSavedLabel('S. Silva', new Date(2026, 0, 3, 9, 0), NOW), /2026/,
+            'the current year is not worth the width');
+    });
+
+    test('same day-of-month in a different month is still not today', () => {
+        // The boundary a naive `getDate()` comparison gets wrong.
+        assert.match(lastSavedLabel('G. Miller', new Date(2026, 6, 12, 15, 6), NOW), /12 Jul/);
+    });
+
+    test('no name means no line at all — never a dangling "Last saved by"', () => {
+        assert.equal(lastSavedLabel('', new Date(), NOW), '');
+        assert.equal(lastSavedLabel(null, new Date(), NOW), '');
+    });
+
+    test('a missing or unreadable time still names who saved it', () => {
+        assert.equal(lastSavedLabel('G. Miller', null, NOW), 'Last saved by G. Miller');
+        assert.equal(lastSavedLabel('G. Miller', new Date(NaN), NOW), 'Last saved by G. Miller');
     });
 });

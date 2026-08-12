@@ -191,3 +191,36 @@ export function restoredEntryFrom(entry, { updatedAt, updatedBy }) {
         updatedBy,
     };
 }
+
+/**
+ * "Last saved by …" for the sticky save row (v21.08).
+ *
+ * It used to print the TIME alone — "Last saved by G. Miller at 15:06" — which is right for the
+ * common case and quietly wrong for the one that matters: a design last touched three days ago says
+ * "at 15:06" and reads as today. The line exists so you can tell a design you have just been
+ * working on from one you opened out of the list, and without a date it cannot. The print header
+ * has always carried the full date; this is the same fact, on screen.
+ *
+ * TODAY is stated as a time, because that is what "today" means to somebody reading it — adding
+ * today's date to every save would be noise on every save. Anything older gains the day and month,
+ * and a different year gains the year, since a design proposed for December 2026 may well be read
+ * the following spring.
+ *
+ * @param {string|null|undefined} updatedBy
+ * @param {Date|null|undefined} when   the save time, or null if unknown
+ * @param {Date} [now]                 injected so the today/not-today boundary is testable
+ * @returns {string} the label, or '' when there is nothing to say
+ */
+export function lastSavedLabel(updatedBy, when, now = new Date()) {
+    if (!updatedBy) return '';
+    if (!when || Number.isNaN(when.getTime())) return `Last saved by ${updatedBy}`;
+    const sameDay = when.getFullYear() === now.getFullYear()
+        && when.getMonth() === now.getMonth()
+        && when.getDate() === now.getDate();
+    const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    if (sameDay) return `Last saved by ${updatedBy} at ${time}`;
+    const opts = when.getFullYear() === now.getFullYear()
+        ? { day: 'numeric', month: 'short' }
+        : { day: 'numeric', month: 'short', year: 'numeric' };
+    return `Last saved by ${updatedBy} · ${when.toLocaleDateString('en-GB', /** @type {any} */ (opts))} at ${time}`;
+}
