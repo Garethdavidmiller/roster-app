@@ -80,6 +80,14 @@ export function init() {
     /** Which week that form is for, so a resync knows whether a moved window is the visible one. */
     /** @type {string|null} */
     let currentFormWeek = null;
+    /**
+     * The grade the REVIEWER is working, held across week switches.
+     *
+     * Lives here rather than inside the workspace because the workspace is re-rendered from scratch
+     * on every week change — so anything it owns is reset by the act of changing week, which is
+     * precisely the thing that made the filter unusable. Page-scoped, so a reload clears it.
+     */
+    let reviewGrade = 'ALL';
 
     // ── Nav + chrome, always, so an unauthorised visitor can leave ──────────────────────────────
 
@@ -877,7 +885,10 @@ export function init() {
         // bug. Cheap to prevent; invisible when it happens.
         if (selectedWeek !== weekEnding) return;
         if (!data.ok) { renderError(host, () => renderWeekDetail(weekEnding)); return; }
-        paintWeekDetail(host, win, data, { dates, now: OTD.correctedNow() });
+        paintWeekDetail(host, win, data, {
+            dates, now: OTD.correctedNow(),
+            grade: reviewGrade, onGrade: (g) => { reviewGrade = g; },
+        });
         const chip = el('otWeekChip');
         if (chip) {
             const received = data.participants.filter((/** @type {any} */ p) => data.submissions.has(p.memberName)).length;

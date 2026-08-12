@@ -1214,6 +1214,45 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(rosters.first()).toContainText('Rostered:');
     });
 
+    test('the reviewer\'s grade survives a WEEK switch', async ({ page }) => {
+        // The mirror of the test below, one level up and the same defect: the day lens was fixed at
+        // v20.75, the grade lens was not. Every week switch re-renders the workspace from scratch,
+        // so a clerk working the CEA line was returned to the whole team each time they moved
+        // between weeks — which is most of what this page is for.
+        //
+        // Only a browser answers this: the state now lives in the COORDINATOR, so a unit test of
+        // the workspace passes either way.
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, [
+            { id: 'G. Miller', memberName: 'G. Miller', grade: 'CEA', rosterOrder: 1 },
+            { id: 'T. Bibi', memberName: 'T. Bibi', grade: 'CES', rosterOrder: 2 },
+        ]);
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [
+                { ...W, exists: true, state: 'created', canCreate: false,
+                    expected: 2, received: 2, noResponse: 0 },
+                { ...W, weekEnding: '2026-09-12', exists: true, state: 'created', canCreate: false,
+                    expected: 2, received: 2, noResponse: 0 },
+            ], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        await page.locator('[data-grade="CES"]').click();
+        await expect(page.locator('[data-grade="CES"]')).toHaveAttribute('aria-pressed', 'true');
+
+        // Switch week from the horizon — the whole workspace is rebuilt.
+        await page.locator('[data-open="2026-09-12"]').click();
+        await page.locator('.ot-day-panel').first().waitFor();
+        await expect(page.locator('[data-grade="CES"]'), 'the grade is the reviewer\'s, not the week\'s')
+            .toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('[data-grade="ALL"]')).toHaveAttribute('aria-pressed', 'false');
+    });
+
     test('the reviewer\'s day pick survives a grade switch', async ({ page }) => {
         // Both lenses re-render from one state now. Before, the grade repaint reset the day to All
         // week — a clerk reading Saturday's CEAs who tapped CES was bounced to the full week.

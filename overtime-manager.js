@@ -55,11 +55,30 @@ import {
  * @param {any} win the window row from the planning horizon (carries the stored milestones)
  * @param {{ participants: any[], submissions: Map<string, any>,
  *   roster?: Record<string, Record<string, any>>, rosterKnown?: boolean }} data
- * @param {{ dates: string[], now: number }} opts
+ * @param {{ dates: string[], now: number, grade?: string, onGrade?: (g: string) => void }} opts
+ *   `grade` is the reviewer's standing choice, handed back in by the coordinator; `onGrade` is how
+ *   it gets there. See below.
  */
-export function renderWeekDetail(host, win, data, { dates, now }) {
-    /** The grade currently in view. `ALL` is not a grade — no participant can carry it as one. */
-    let grade = 'ALL';
+export function renderWeekDetail(host, win, data, { dates, now, grade: initialGrade = 'ALL', onGrade }) {
+    /**
+     * The grade currently in view. `ALL` is not a grade — no participant can carry it as one.
+     *
+     * ── IT SURVIVES A WEEK SWITCH, BECAUSE IT IS ABOUT THE REVIEWER, NOT THE WEEK ───────────────
+     *
+     * This used to reset to `ALL` on every render, and every week switch is a fresh render — so a
+     * clerk working the CEA line was returned to the whole team each time they moved between weeks,
+     * which is most of what this page is for. Exactly the defect fixed for the DAY lens at v20.75,
+     * one level up and still there.
+     *
+     * The DAY deliberately does not persist: its values are this window's dates, so carrying one
+     * into another week would filter to a date that week does not contain. Grade is a property of
+     * the person reading, and their job does not change when they look at a different Saturday.
+     *
+     * The choice is held by the coordinator rather than a module-level variable so it lives exactly
+     * as long as the page does — a `let` up here would be shared process state that no reload
+     * clears and no test can reset.
+     */
+    let grade = initialGrade;
     /** The day currently in view — `ALL`, or one of the window's dates. */
     let day = 'ALL';
     paint();
@@ -67,7 +86,7 @@ export function renderWeekDetail(host, win, data, { dates, now }) {
     function paint() {
         host.innerHTML = build(win, data, { dates, now, grade, day });
         wireGlance(host, next => { day = next; paint(); });
-        wireGrades(host, next => { grade = next; paint(); });
+        wireGrades(host, next => { grade = next; onGrade?.(next); paint(); });
     }
 }
 

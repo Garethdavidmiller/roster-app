@@ -60,7 +60,7 @@ function render(over = {}) {
     renderWeekDetail(/** @type {any} */ (host), { ...WIN, ...over.win },
         { participants: over.participants || PARTICIPANTS, submissions: over.submissions || submissions(),
           roster: over.roster || {}, rosterKnown: over.rosterKnown !== false },
-        { dates: DATES, now: Date.parse('2026-08-19T09:00:00Z') });
+        { dates: DATES, now: Date.parse('2026-08-19T09:00:00Z'), grade: over.grade });
     return host.innerHTML;
 }
 
@@ -221,6 +221,36 @@ describe('the header', () => {
         // Submitted availability is a record of what somebody said before a cut-off, not a standing
         // promise. Wherever the data is read, the note is read with it.
         assert.match(render(), /Confirm directly[\s\S]*with the employee before arranging short-notice cover/);
+    });
+});
+
+describe('the grade filter is about the reviewer, not the week', () => {
+    const MIXED = [
+        { memberName: 'A. One',   grade: 'CEA', rosterOrder: 1 },
+        { memberName: 'B. Two',   grade: 'CES', rosterOrder: 2 },
+    ];
+
+    test('a grade handed in is the grade rendered', () => {
+        // The coordinator holds the choice across week switches and passes it back in. Without
+        // this parameter the workspace resets to ALL on every render — and every week switch IS a
+        // render, so a clerk working the CEA line was returned to the whole team each time they
+        // moved between weeks, which is most of what this page is for.
+        const html = render({ participants: MIXED, grade: 'CES' });
+        assert.match(html, /data-grade="CES"[^>]*aria-pressed="true"/);
+        assert.match(html, /CES only/, 'and the print scope follows it');
+        assert.equal(/data-grade="ALL"[^>]*aria-pressed="true"/.test(html), false);
+    });
+
+    test('with none handed in it opens on all grades', () => {
+        const html = render({ participants: MIXED });
+        assert.match(html, /data-grade="ALL"[^>]*aria-pressed="true"/);
+    });
+
+    test('a single-grade population still offers no filter', () => {
+        // A control that filters to the same page invites a press that changes nothing — which is
+        // why the restricted beta, one CEA, correctly shows no strip at all.
+        const html = render({ participants: [MIXED[0]] });
+        assert.equal(/data-grade=/.test(html), false);
     });
 });
 
