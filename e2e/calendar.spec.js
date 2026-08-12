@@ -408,6 +408,9 @@ test('nav: each guide records its OWN open id', async ({ page }) => {
 test('calendar: the password notice shows to a member with no session', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedMember(page, 'S. Silva');                 // a chosen member, deliberately NO session
+    // seedMember suppresses this notice for every spec that is not about it (it races clicks);
+    // this one IS about it — a later init script wins, so the remove undoes the helper's set.
+    await page.addInitScript(() => localStorage.removeItem('myb_notice_pw_own_2026_done'));
     await page.goto('/');
     await expect(page.locator('#pwNoticeLb.visible')).toBeVisible({ timeout: 8000 });
 

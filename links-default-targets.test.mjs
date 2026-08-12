@@ -27,6 +27,7 @@ import {
     CONTRACTED_HOURS_PER_WEEK, ROTATING_LINES, startMinutes, endMinutesAbs,
 } from './links-design.js';
 import { DEFAULT_WINDOW, windowMinutes } from './links-window.js';
+import { DEC_2026_DEMAND } from './links-demand.js';
 
 const { slots, spareLines } = buildDefaultTargets();
 const WORKING = ROTATING_LINES - DEFAULT_COVER_WEEKS;
@@ -174,6 +175,57 @@ describe('the shape of the day', () => {
             assert.equal(new Set(ends).size, ends.length, `${cls} openers share a finish time`);
             const starts = dutiesOn(cls).filter(t => endMinutesAbs(t) === close).map(startMinutes);
             assert.equal(new Set(starts).size, starts.length, `${cls} closers share a start time`);
+        }
+    });
+
+    test('THE BIGGEST HEADCOUNT OF A DAY NEVER SITS ON ITS QUIETEST HOURS (v21.02, owner report)', () => {
+        // The v21.01 table shipped with the day's staffing PEAK at 14:00 — 8.7 on duty for 79 cars,
+        // one of the quietest hours — while 22:00 ran 4.7 people for 75. The owner saw it the day
+        // it shipped. The cause was a wide shift handover: afternoon turns starting 12:50–15:00
+        // overlapped openers who leave 14:20–15:20, and the bulge parked on the trough.
+        //
+        // The property, not the fix: find each day's most-staffed hour and require the DEMAND in
+        // that hour to be at or above the staffed day's median. That is deliberately about the
+        // argmax rather than any named hour — a future retune that moves the bulge from 14:00 to
+        // some other trough fails just the same, and a table whose maximum genuinely sits on a busy
+        // hour passes however the middles move. Every total on the page (hours, headcount, the
+        // contract) is identical either way, which is why nothing else can see this.
+        const coverAt = (/** @type {string} */ cls, /** @type {number} */ h) =>
+            dutiesOn(cls).reduce((a, t) => {
+                const lo = Math.max(startMinutes(t), h * 60), hi = Math.min(endMinutesAbs(t), h * 60 + 60);
+                return a + Math.max(0, hi - lo) / 60;
+            }, 0);
+        for (const cls of DAY_CLASSES) {
+            const demand = DEC_2026_DEMAND[cls === 'weekday' ? 'weekday' : cls].cars;
+            const open = windowMinutes(WINDOW_FOR[cls].start), close = windowMinutes(WINDOW_FOR[cls].end);
+            const hours = [];
+            for (let h = Math.ceil(open / 60); h < close / 60; h++) hours.push(h);
+            const busiest = hours.reduce((a, h) => coverAt(cls, h) > coverAt(cls, a) ? h : a, hours[0]);
+            const sorted = hours.map(h => demand[h]).sort((a, b) => a - b);
+            const median = sorted[Math.floor(sorted.length / 2)];
+            assert.ok(demand[busiest] >= median,
+                `${cls}: the most-staffed hour is ${busiest}:00 (${coverAt(cls, busiest).toFixed(1)} on) `
+                + `but its demand ${demand[busiest]} cars is below the day's median ${median} — `
+                + `the handover bulge is parked on a trough again`);
+        }
+    });
+
+    test('Saturday\'s events lean points at the EVENING, not at lunchtime', () => {
+        // The late lean is a decision about where extra bodies go, and "late start" alone does not
+        // deliver it: a turn starting 12:00 counts as late in the start-time test while pooling its
+        // hours over the 13:00 trough and going home before the evening. So the lean is asserted
+        // where it is meant to land — every hour from 17:00 to 21:00 carries at least the cover the
+        // 13:00 hour does. Demand cannot arbitrate this one (events are not in the timetable),
+        // which is why it is a shape rule rather than a demand-proportion rule.
+        const coverAt = (/** @type {number} */ h) =>
+            dutiesOn('sat').reduce((a, t) => {
+                const lo = Math.max(startMinutes(t), h * 60), hi = Math.min(endMinutesAbs(t), h * 60 + 60);
+                return a + Math.max(0, hi - lo) / 60;
+            }, 0);
+        for (let h = 17; h <= 21; h++) {
+            assert.ok(coverAt(h) >= coverAt(13),
+                `Saturday ${h}:00 has ${coverAt(h).toFixed(1)} on against ${coverAt(13).toFixed(1)} at `
+                + `13:00 — the events lean is pooling at lunchtime instead of the evening`);
         }
     });
 
